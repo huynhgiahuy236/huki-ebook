@@ -66,13 +66,13 @@
 
 | Task | Người | Priority | Mô tả | Status |
 |------|-------|---------|--------|--------|
-| T4.1 | HUY | HIGH | Database schema: businesses, stores, members | ⬜ |
-| T4.2 | HUY | HIGH | Business CRUD (register, update, view) | ⬜ |
-| T4.3 | HUY | HIGH | Store CRUD (create, update, view, list) | ⬜ |
-| T4.4 | HUY | HIGH | Member management (invite, accept, roles) | ⬜ |
-| T4.5 | HUY | HIGH | Mock registry verification flow | ⬜ |
-| T4.6 | HUY | MEDIUM | Admin approval workflow | ⬜ |
-| T4.7 | KIEN | MEDIUM | Events: BUSINESS_REGISTERED, BUSINESS_APPROVED | ⬜ |
+| T4.1 | HUY | HIGH | Database schema: businesses, stores, members | ✅ |
+| T4.2 | HUY | HIGH | Business CRUD (register, update, view) | ✅ |
+| T4.3 | HUY | HIGH | Store CRUD (create, update, view, list) | ✅ |
+| T4.4 | HUY | HIGH | Member management (invite, accept, roles) | ✅ |
+| T4.5 | HUY | HIGH | Mock registry verification flow | ✅ |
+| T4.6 | HUY | MEDIUM | Admin approval workflow | ✅ |
+| T4.7 | KIEN | MEDIUM | Events: BUSINESS_REGISTERED, BUSINESS_APPROVED | ✅ |
 
 **Deliverable:** Business và Store management hoạt động
 
@@ -133,4 +133,5 @@ Sprint 4: Business Service
 | 2026-08-17 | KIEN | T1.4-T1.6: MongoDB schemas (7 collections), Redis setup, RabbitMQ setup |
 | 2026-08-17 | KIEN | T2.1-T2.10: Full Identity Service (Auth, Sessions, RBAC, Rate Limiting) |
 | 2026-08-17 | KIEN | T3.1-T3.5: API Gateway (routes, JWT middleware, CORS, error handler, health) |
+| 2026-08-17 | HUY | T4.1-T4.7: Business Service (Prisma schema, Business/Store/Member CRUD, Approval flow) |
 
