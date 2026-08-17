@@ -1,17 +1,18 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { JwtModule } from '@nestjs/jwt';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from '../config/configuration';
 import { Author, Category, Publisher } from './entities';
-import { CategoriesModule } from './modules/categories/categories.module';
 import { AuthorsModule } from './modules/authors/authors.module';
-import { PublishersModule } from './modules/publishers/publishers.module';
-import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
 import { BooksModule } from './modules/books/books.module';
 import { CartModule } from './modules/cart/cart.module';
+import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
+import { CategoriesModule } from './modules/categories/categories.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { PublishersModule } from './modules/publishers/publishers.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { OrdersModule } from './modules/orders/orders.module';
       }),
     }),
     EventEmitterModule.forRoot(),
+    RedisModule,
     CategoriesModule,
     AuthorsModule,
     PublishersModule,

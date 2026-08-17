@@ -41,33 +41,33 @@
 
 ### Sprint 7: Cart Service (1 tuần)
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T7.1 | KIEN | HIGH | Database schema: cart, cart_items |
-| T7.2 | KIEN | HIGH | Add to cart (với validation: stock, format) |
-| T7.3 | KIEN | HIGH | Update cart item quantity |
-| T7.4 | KIEN | HIGH | Remove from cart |
-| T7.5 | KIEN | HIGH | Get cart (grouped by store) |
-| T7.6 | HUY | HIGH | Clear cart |
-| T7.7 | HUY | MEDIUM | Cart persistence (Redis + PostgreSQL) |
-| T7.8 | KIEN | MEDIUM | Prevent duplicate digital books |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|-------|------------|
+| T7.1 | KIEN | HIGH | Database schema: cart, cart_items | ✅ Hoàn thành |
+| T7.2 | KIEN | HIGH | Add to cart (với validation: stock, format) | ✅ Hoàn thành |
+| T7.3 | KIEN | HIGH | Update cart item quantity | ✅ Hoàn thành |
+| T7.4 | KIEN | HIGH | Remove from cart | ✅ Hoàn thành |
+| T7.5 | KIEN | HIGH | Get cart (grouped by store) | ✅ Hoàn thành |
+| T7.6 | HUY | HIGH | Clear cart | ✅ Hoàn thành |
+| T7.7 | HUY | MEDIUM | Cart persistence (Redis + PostgreSQL) | ✅ Hoàn thành |
+| T7.8 | KIEN | MEDIUM | Prevent duplicate digital books | ✅ Hoàn thành |
 
 ---
 
 ### Sprint 8: Checkout & Orders (1.5 tuần)
 
-| Task | Người | Priority | Mô tả | Status |
-|------|-------|---------|-------|--------|
-| T8.1 | KIEN | HIGH | Database schema: orders, seller_orders, order_items | DONE |
-| T8.2 | KIEN | HIGH | Order creation (split by store) | DONE |
-| T8.3 | KIEN | HIGH | Order listing (user view, seller view) | DONE |
-| T8.4 | KIEN | HIGH | Order details | DONE |
-| T8.5 | HUY | HIGH | Checkout preview (calculate totals, shipping) | DONE |
-| T8.6 | HUY | HIGH | Inventory reservation | DONE |
-| T8.7 | HUY | HIGH | Seller order management (confirm, prepare, ship, deliver) | DONE |
-| T8.8 | HUY | HIGH | Order cancellation (release inventory) | DONE |
-| T8.9 | KIEN | MEDIUM | Order status updates | DONE |
-| T8.10 | HUY | MEDIUM | Order tracking timeline | DONE |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|-------|------------|
+| T8.1 | KIEN | HIGH | Database schema: orders, seller_orders, order_items | ✅ Hoàn thành |
+| T8.2 | KIEN | HIGH | Order creation (split by store) | ✅ Hoàn thành |
+| T8.3 | KIEN | HIGH | Order listing (user view, seller view) | ✅ Hoàn thành |
+| T8.4 | KIEN | HIGH | Order details | ✅ Hoàn thành |
+| T8.5 | HUY | HIGH | Checkout preview (calculate totals, shipping) | ✅ Hoàn thành |
+| T8.6 | HUY | HIGH | Inventory reservation | ✅ Hoàn thành |
+| T8.7 | HUY | HIGH | Seller order management (confirm, prepare, ship, deliver) | ✅ Hoàn thành |
+| T8.8 | HUY | HIGH | Order cancellation (release inventory) | ✅ Hoàn thành |
+| T8.9 | KIEN | MEDIUM | Order status updates | ✅ Hoàn thành |
+| T8.10 | HUY | MEDIUM | Order tracking timeline | ✅ Hoàn thành |
 
 ---
 

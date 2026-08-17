@@ -75,7 +75,10 @@ export class CartService {
     await this.dataSource.transaction(async (manager) => {
       const cartRepository = manager.getRepository(Cart);
       const itemRepository = manager.getRepository(CartItem);
-      let cart = await cartRepository.findOne({ where: { userId }, lock: { mode: 'pessimistic_write' } });
+      let cart = await cartRepository.findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!cart) cart = await cartRepository.save(cartRepository.create({ userId }));
       const book = await manager.getRepository(Book).findOne({
         where: { id: dto.bookId, status: BookStatus.PUBLISHED },
@@ -84,17 +87,26 @@ export class CartService {
       if (!book) throw new NotFoundException('Published book not found');
       this.validateAvailability(book, dto.format, dto.quantity);
 
-      const existing = await itemRepository.findOne({ where: { cartId: cart.id, bookId: dto.bookId, format: dto.format } });
-      if (existing?.format === CartItemFormat.DIGITAL) throw new ConflictException('Digital book is already in the cart');
-      const quantity = dto.format === CartItemFormat.DIGITAL ? 1 : (existing?.quantity ?? 0) + dto.quantity;
+      const existing = await itemRepository.findOne({
+        where: { cartId: cart.id, bookId: dto.bookId, format: dto.format },
+      });
+      if (existing?.format === CartItemFormat.DIGITAL) {
+        throw new ConflictException('Digital book is already in the cart');
+      }
+      const quantity =
+        dto.format === CartItemFormat.DIGITAL
+          ? 1
+          : (existing?.quantity ?? 0) + dto.quantity;
       this.validateAvailability(book, dto.format, quantity);
-      await itemRepository.save(itemRepository.create({
-        ...existing,
-        cartId: cart.id,
-        bookId: book.id,
-        format: dto.format,
-        quantity,
-      }));
+      await itemRepository.save(
+        itemRepository.create({
+          ...existing,
+          cartId: cart.id,
+          bookId: book.id,
+          format: dto.format,
+          quantity,
+        }),
+      );
       await this.touch(cart, manager);
     });
     return this.getCart(userId);
@@ -102,11 +114,19 @@ export class CartService {
 
   async update(userId: string, itemId: string, quantity: number) {
     await this.dataSource.transaction(async (manager) => {
-      const cart = await manager.getRepository(Cart).findOne({ where: { userId }, lock: { mode: 'pessimistic_write' } });
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!cart) throw new NotFoundException('Cart not found');
-      const item = await manager.getRepository(CartItem).findOne({ where: { id: itemId, cartId: cart.id }, relations: { book: { physicalDetails: true, digitalDetails: true } } });
+      const item = await manager.getRepository(CartItem).findOne({
+        where: { id: itemId, cartId: cart.id },
+        relations: { book: { physicalDetails: true, digitalDetails: true } },
+      });
       if (!item) throw new NotFoundException('Cart item not found');
-      if (item.format === CartItemFormat.DIGITAL && quantity !== 1) throw new BadRequestException('Digital book quantity must be one');
+      if (item.format === CartItemFormat.DIGITAL && quantity !== 1) {
+        throw new BadRequestException('Digital book quantity must be one');
+      }
       this.validateAvailability(item.book, item.format, quantity);
       item.quantity = quantity;
       await manager.save(item);
@@ -117,9 +137,14 @@ export class CartService {
 
   async remove(userId: string, itemId: string) {
     await this.dataSource.transaction(async (manager) => {
-      const cart = await manager.getRepository(Cart).findOne({ where: { userId }, lock: { mode: 'pessimistic_write' } });
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!cart) throw new NotFoundException('Cart not found');
-      const item = await manager.getRepository(CartItem).findOneBy({ id: itemId, cartId: cart.id });
+      const item = await manager
+        .getRepository(CartItem)
+        .findOneBy({ id: itemId, cartId: cart.id });
       if (!item) throw new NotFoundException('Cart item not found');
       await manager.remove(item);
       await this.touch(cart, manager);
@@ -129,7 +154,10 @@ export class CartService {
 
   async clear(userId: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      const cart = await manager.getRepository(Cart).findOne({ where: { userId }, lock: { mode: 'pessimistic_write' } });
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
       if (!cart) return;
       await manager.getRepository(CartItem).delete({ cartId: cart.id });
       await this.touch(cart, manager);
@@ -138,7 +166,10 @@ export class CartService {
 
   private validateAvailability(book: Book, format: CartItemFormat, quantity: number) {
     if (format === CartItemFormat.PHYSICAL) {
-      if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) || !book.physicalDetails?.physicalEnabled) {
+      if (
+        ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
+        !book.physicalDetails?.physicalEnabled
+      ) {
         throw new BadRequestException('Physical format is unavailable');
       }
       if (book.physicalDetails.available < quantity) {
