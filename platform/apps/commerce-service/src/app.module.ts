@@ -10,6 +10,8 @@ import { AuthorsModule } from './modules/authors/authors.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
 import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
 import { BooksModule } from './modules/books/books.module';
+import { CartModule } from './modules/cart/cart.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -44,6 +46,8 @@ import { BooksModule } from './modules/books/books.module';
     PublishersModule,
     CatalogSearchModule,
     BooksModule,
+    CartModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}

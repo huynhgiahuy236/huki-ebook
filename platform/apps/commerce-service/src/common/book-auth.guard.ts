@@ -36,6 +36,20 @@ async function authenticate(
 }
 
 @Injectable()
+export class AuthenticatedGuard implements CanActivate {
+  constructor(private readonly jwtService: JwtService) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    await authenticate(
+      context.switchToHttp().getRequest<BookRequest>(),
+      this.jwtService,
+      false,
+    );
+    return true;
+  }
+}
+
+@Injectable()
 export class BookWriteGuard implements CanActivate {
   constructor(private readonly jwtService: JwtService) {}
 

@@ -56,18 +56,18 @@
 
 ### Sprint 8: Checkout & Orders (1.5 tuần)
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T8.1 | KIEN | HIGH | Database schema: orders, seller_orders, order_items |
-| T8.2 | KIEN | HIGH | Order creation (split by store) |
-| T8.3 | KIEN | HIGH | Order listing (user view, seller view) |
-| T8.4 | KIEN | HIGH | Order details |
-| T8.5 | HUY | HIGH | Checkout preview (calculate totals, shipping) |
-| T8.6 | HUY | HIGH | Inventory reservation |
-| T8.7 | HUY | HIGH | Seller order management (confirm, prepare, ship, deliver) |
-| T8.8 | HUY | HIGH | Order cancellation (release inventory) |
-| T8.9 | KIEN | MEDIUM | Order status updates |
-| T8.10 | HUY | MEDIUM | Order tracking timeline |
+| Task | Người | Priority | Mô tả | Status |
+|------|-------|---------|-------|--------|
+| T8.1 | KIEN | HIGH | Database schema: orders, seller_orders, order_items | DONE |
+| T8.2 | KIEN | HIGH | Order creation (split by store) | DONE |
+| T8.3 | KIEN | HIGH | Order listing (user view, seller view) | DONE |
+| T8.4 | KIEN | HIGH | Order details | DONE |
+| T8.5 | HUY | HIGH | Checkout preview (calculate totals, shipping) | DONE |
+| T8.6 | HUY | HIGH | Inventory reservation | DONE |
+| T8.7 | HUY | HIGH | Seller order management (confirm, prepare, ship, deliver) | DONE |
+| T8.8 | HUY | HIGH | Order cancellation (release inventory) | DONE |
+| T8.9 | KIEN | MEDIUM | Order status updates | DONE |
+| T8.10 | HUY | MEDIUM | Order tracking timeline | DONE |
 
 ---
 
@@ -82,9 +82,9 @@
 📦 Deliverables Phase 2:
 - [x] Catalog API (Categories, Authors, Publishers)
 - [x] Books CRUD với 2 formats (Physical, Digital)
-- [ ] Multi-store Cart
-- [ ] Order flow hoàn chỉnh
-- [ ] Seller order management
+- [x] Multi-store Cart
+- [x] Order flow hoàn chỉnh
+- [x] Seller order management
 ```
 
 ---

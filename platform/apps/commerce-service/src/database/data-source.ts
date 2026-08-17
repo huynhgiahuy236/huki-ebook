@@ -8,10 +8,21 @@ import {
   PhysicalBookDetails,
   Publisher,
   InventoryLog,
+  Cart,
+  CartItem,
+  Order,
+  SellerOrder,
+  OrderItem,
+  CheckoutSession,
+  InventoryReservation,
+  OrderStatusHistory,
+  OutboxEvent,
 } from '../entities';
 import { CreateCatalogTables1723881600000 } from '../migrations/1723881600000-CreateCatalogTables';
 import { CreateBookTables1723968000000 } from '../migrations/1723968000000-CreateBookTables';
 import { CreateInventoryLogs1724054400000 } from '../migrations/1724054400000-CreateInventoryLogs';
+import { CreateCartTables1724140800000 } from '../migrations/1724140800000-CreateCartTables';
+import { CreateOrderTables1724227200000 } from '../migrations/1724227200000-CreateOrderTables';
 
 export default new DataSource({
   type: 'postgres',
@@ -28,11 +39,22 @@ export default new DataSource({
     PhysicalBookDetails,
     DigitalBookDetails,
     InventoryLog,
+    Cart,
+    CartItem,
+    Order,
+    SellerOrder,
+    OrderItem,
+    CheckoutSession,
+    InventoryReservation,
+    OrderStatusHistory,
+    OutboxEvent,
   ],
   migrations: [
     CreateCatalogTables1723881600000,
     CreateBookTables1723968000000,
     CreateInventoryLogs1724054400000,
+    CreateCartTables1724140800000,
+    CreateOrderTables1724227200000,
   ],
   synchronize: false,
 });

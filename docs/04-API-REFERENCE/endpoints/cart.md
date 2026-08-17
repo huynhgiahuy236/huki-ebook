@@ -330,6 +330,7 @@ Confirm and create order.
 ```http
 POST /api/v1/cart/checkout/confirm
 Authorization: Bearer <access_token>
+Idempotency-Key: checkout-attempt-unique-key
 Content-Type: application/json
 
 {
@@ -338,6 +339,10 @@ Content-Type: application/json
   "paymentProvider": "VNPAY"
 }
 ```
+
+`Idempotency-Key` is required (maximum 100 characters). Reusing it for the same
+user returns the original order without reserving inventory twice. The checkout
+session expires after 15 minutes by default and is invalidated when the cart changes.
 
 ### Response 201
 
