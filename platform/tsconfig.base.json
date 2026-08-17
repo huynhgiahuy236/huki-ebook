@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "files": [],
+  "include": [],
+  "references": [
+    { "path": "./apps/identity-service" },
+    { "path": "./apps/business-service" },
+    { "path": "./apps/commerce-service" },
+    { "path": "./apps/shipping-service" },
+    { "path": "./apps/community-service" },
+    { "path": "./apps/promotion-service" },
+    { "path": "./apps/api-gateway" },
+    { "path": "./libs/shared" }
+  ]
+}

@@ -1,0 +1,100 @@
+# ============================================
+# HUKI EBOOK - Docker Compose
+# ============================================
+
+services:
+  # ============================================
+  # PostgreSQL - Multiple databases
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: huki-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+      POSTGRES_MULTIPLE_DATABASES: identity_db,business_db,commerce_db,shipping_db,promotion_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MongoDB - For Community Service
+  # ============================================
+  mongo:
+    image: mongo:6
+    container_name: huki-mongo
+    environment:
+      MONGO_INITDB_DATABASE: community_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Redis - Cache & Sessions
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: huki-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # RabbitMQ - Message Queue
+  # ============================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: huki-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest123
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ============================================
+# Networks
+# ============================================
+networks:
+  default:
+    name: huki-network
+
+# ============================================
+# Volumes
+# ============================================
+volumes:
+  postgres_data:
+    name: huki-postgres-data
+  mongo_data:
+    name: huki-mongo-data
+  redis_data:
+    name: huki-redis-data
+  rabbitmq_data:
+    name: huki-rabbitmq-data

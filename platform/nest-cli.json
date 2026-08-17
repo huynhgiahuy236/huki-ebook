@@ -1,0 +1,85 @@
+{
+  "$schema": "./node_modules/@nestjs/cli/lib/config/schema.json",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps",
+  "monorepo": true,
+  "root": "apps/api-gateway",
+  "compilerOptions": {
+    "webpack": true,
+    "tsConfigPath": "tsconfig.base.json"
+  },
+  "projects": {
+    "identity-service": {
+      "type": "application",
+      "root": "apps/identity-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/identity-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/identity-service/tsconfig.app.json"
+      }
+    },
+    "business-service": {
+      "type": "application",
+      "root": "apps/business-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/business-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/business-service/tsconfig.app.json"
+      }
+    },
+    "commerce-service": {
+      "type": "application",
+      "root": "apps/commerce-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/commerce-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/commerce-service/tsconfig.app.json"
+      }
+    },
+    "shipping-service": {
+      "type": "application",
+      "root": "apps/shipping-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/shipping-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/shipping-service/tsconfig.app.json"
+      }
+    },
+    "community-service": {
+      "type": "application",
+      "root": "apps/community-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/community-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/community-service/tsconfig.app.json"
+      }
+    },
+    "promotion-service": {
+      "type": "application",
+      "root": "apps/promotion-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/promotion-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/promotion-service/tsconfig.app.json"
+      }
+    },
+    "api-gateway": {
+      "type": "application",
+      "root": "apps/api-gateway",
+      "entryFile": "main",
+      "sourceRoot": "apps/api-gateway/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
+      }
+    },
+    "shared": {
+      "type": "library",
+      "root": "libs/shared",
+      "entryFile": "index",
+      "sourceRoot": "libs/shared/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/shared/tsconfig.lib.json"
+      }
+    }
+  }
+}
