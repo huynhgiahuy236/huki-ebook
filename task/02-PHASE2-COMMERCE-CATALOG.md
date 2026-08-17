@@ -26,16 +26,16 @@
 
 ### Sprint 6: Books Management (1.5 tuần)
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T6.1 | HUY | HIGH | Database schema: books, physical_book_details, digital_book_details |
-| T6.2 | HUY | HIGH | Books CRUD (Business creates books) |
-| T6.3 | HUY | HIGH | Physical book details (stock, dimensions, weight) |
-| T6.4 | HUY | HIGH | Digital book details (PDF key storage, preview) |
-| T6.5 | HUY | HIGH | Book upload (cover image via Cloudinary, PDF via R2) |
-| T6.6 | KIEN | HIGH | Book publishing workflow (DRAFT → PUBLISHED) |
-| T6.7 | KIEN | HIGH | Book listing với filters (category, author, price range) |
-| T6.8 | HUY | MEDIUM | Book search với Elasticsearch/Postgres |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|-------|------------|
+| T6.1 | HUY | HIGH | Database schema: books, physical_book_details, digital_book_details | ✅ Hoàn thành |
+| T6.2 | HUY | HIGH | Books CRUD (Business creates books) | ✅ Hoàn thành |
+| T6.3 | HUY | HIGH | Physical book details (stock, dimensions, weight) | ✅ Hoàn thành |
+| T6.4 | HUY | HIGH | Digital book details (PDF key storage, preview) | ✅ Hoàn thành |
+| T6.5 | HUY | HIGH | Book upload (cover image via Cloudinary, PDF via R2) | ✅ Hoàn thành |
+| T6.6 | KIEN | HIGH | Book publishing workflow (DRAFT → PUBLISHED) | ✅ Hoàn thành |
+| T6.7 | KIEN | HIGH | Book listing với filters (category, author, price range) | ✅ Hoàn thành |
+| T6.8 | HUY | MEDIUM | Book search với Elasticsearch/Postgres | ✅ Hoàn thành (PostgreSQL) |
 
 ---
 
@@ -81,7 +81,7 @@
 
 📦 Deliverables Phase 2:
 - [x] Catalog API (Categories, Authors, Publishers)
-- [ ] Books CRUD với 2 formats (Physical, Digital)
+- [x] Books CRUD với 2 formats (Physical, Digital)
 - [ ] Multi-store Cart
 - [ ] Order flow hoàn chỉnh
 - [ ] Seller order management
