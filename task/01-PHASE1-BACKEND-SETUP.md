@@ -33,16 +33,16 @@
 
 | Task | Người | Priority | Mô tả | Status |
 |------|-------|---------|--------|--------|
-| T2.1 | KIEN | HIGH | Database schema: users, auth_sessions, refresh_tokens | ⬜ |
-| T2.2 | KIEN | HIGH | Auth: Register (email/password) | ⬜ |
-| T2.3 | KIEN | HIGH | Auth: Login với JWT (access + refresh token) | ⬜ |
-| T2.4 | KIEN | HIGH | Auth: Logout, Refresh token | ⬜ |
-| T2.5 | KIEN | HIGH | Auth: Forgot password, Reset password | ⬜ |
-| T2.6 | KIEN | HIGH | Auth: Change password | ⬜ |
-| T2.7 | KIEN | MEDIUM | User profile CRUD | ⬜ |
-| T2.8 | KIEN | MEDIUM | Session management (revoke, list devices) | ⬜ |
-| T2.9 | HUY | MEDIUM | RBAC guards (roles: USER, BUSINESS, ADMIN) | ⬜ |
-| T2.10 | HUY | MEDIUM | Rate limiting | ⬜ |
+| T2.1 | KIEN | HIGH | Database schema: users, auth_sessions, refresh_tokens | ✅ |
+| T2.2 | KIEN | HIGH | Auth: Register (email/password) | ✅ |
+| T2.3 | KIEN | HIGH | Auth: Login với JWT (access + refresh token) | ✅ |
+| T2.4 | KIEN | HIGH | Auth: Logout, Refresh token | ✅ |
+| T2.5 | KIEN | HIGH | Auth: Forgot password, Reset password | ✅ |
+| T2.6 | KIEN | HIGH | Auth: Change password | ✅ |
+| T2.7 | KIEN | MEDIUM | User profile CRUD | ✅ |
+| T2.8 | KIEN | MEDIUM | Session management (revoke, list devices) | ✅ |
+| T2.9 | HUY | MEDIUM | RBAC guards (roles: USER, BUSINESS, ADMIN) | ✅ |
+| T2.10 | HUY | MEDIUM | Rate limiting | ✅ |
 
 **Deliverable:** Identity service hoàn chỉnh, API documented
 
@@ -131,4 +131,5 @@ Sprint 4: Business Service
 |------|--------|-----------------|
 | 2026-08-17 | KIEN | T1.1-T1.3, T1.7: NestJS monorepo, shared lib, TypeORM, base entities |
 | 2026-08-17 | KIEN | T1.4-T1.6: MongoDB schemas (7 collections), Redis setup, RabbitMQ setup |
+| 2026-08-17 | KIEN | T2.1-T2.10: Full Identity Service (Auth, Sessions, RBAC, Rate Limiting) |
 
