@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule } from '@nestjs/jwt';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import configuration from '../config/configuration';
 import { Author, Category, Publisher } from './entities';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { AuthorsModule } from './modules/authors/authors.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
 import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
+import { BooksModule } from './modules/books/books.module';
 
 @Module({
   imports: [
@@ -36,10 +38,12 @@ import { CatalogSearchModule } from './modules/catalog-search/catalog-search.mod
         secret: configService.get<string>('jwt.secret'),
       }),
     }),
+    EventEmitterModule.forRoot(),
     CategoriesModule,
     AuthorsModule,
     PublishersModule,
     CatalogSearchModule,
+    BooksModule,
   ],
 })
 export class AppModule {}
