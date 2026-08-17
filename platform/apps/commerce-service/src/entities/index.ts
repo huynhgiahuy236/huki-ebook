@@ -15,3 +15,5 @@ export * from './checkout-session.entity';
 export * from './inventory-reservation.entity';
 export * from './order-status-history.entity';
 export * from './outbox-event.entity';
+export * from './book-access.entity';
+export * from './payment.entity';
