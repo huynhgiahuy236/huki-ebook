@@ -116,11 +116,14 @@ docker-compose.override.yml
 *.backup
 *.bak
 migrations/
+!platform/apps/**/src/migrations/
+!platform/apps/**/src/migrations/*.ts
 
 # ============================================
 # Cache
 # ============================================
 .cache/
+.nx/
 .turbo/
 .vercel/
 .parcel-cache/
