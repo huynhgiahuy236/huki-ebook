@@ -52,11 +52,11 @@
 
 | Task | Người | Priority | Mô tả | Status |
 |------|-------|---------|--------|--------|
-| T3.1 | KIEN | HIGH | Route tất cả requests đến services | ⬜ |
-| T3.2 | KIEN | HIGH | JWT verification middleware | ⬜ |
-| T3.3 | KIEN | HIGH | CORS configuration | ⬜ |
-| T3.4 | HUY | HIGH | Global error handler | ⬜ |
-| T3.5 | HUY | MEDIUM | Health check endpoints | ⬜ |
+| T3.1 | KIEN | HIGH | Route tất cả requests đến services | ✅ |
+| T3.2 | KIEN | HIGH | JWT verification middleware | ✅ |
+| T3.3 | KIEN | HIGH | CORS configuration | ✅ |
+| T3.4 | HUY | HIGH | Global error handler | ✅ |
+| T3.5 | HUY | MEDIUM | Health check endpoints | ✅ |
 
 **Deliverable:** API Gateway routing đúng, auth hoạt động
 
@@ -132,4 +132,5 @@ Sprint 4: Business Service
 | 2026-08-17 | KIEN | T1.1-T1.3, T1.7: NestJS monorepo, shared lib, TypeORM, base entities |
 | 2026-08-17 | KIEN | T1.4-T1.6: MongoDB schemas (7 collections), Redis setup, RabbitMQ setup |
 | 2026-08-17 | KIEN | T2.1-T2.10: Full Identity Service (Auth, Sessions, RBAC, Rate Limiting) |
+| 2026-08-17 | KIEN | T3.1-T3.5: API Gateway (routes, JWT middleware, CORS, error handler, health) |
 
