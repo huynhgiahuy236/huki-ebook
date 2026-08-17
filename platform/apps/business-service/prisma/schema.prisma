@@ -1,0 +1,200 @@
+// Business Service - Prisma Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== BUSINESS ====================
+
+model Business {
+  id              String           @id @default(uuid())
+  name            String
+  email           String           @unique
+  phone           String?
+  address         String?
+  taxCode         String?          @unique @map("tax_code")
+  businessType    BusinessType     @default(INDIVIDUAL)
+  status          BusinessStatus   @default(PENDING_APPROVAL)
+
+  // Registry verification (Mock)
+  registryNumber  String?          @map("registry_number")
+  registryVerifiedAt DateTime?    @map("registry_verified_at")
+
+  // Admin approval
+  approvedAt      DateTime?        @map("approved_at")
+  approvedBy      String?          @map("approved_by")
+  rejectedAt      DateTime?        @map("rejected_at")
+  rejectedBy      String?          @map("rejected_by")
+  rejectionReason String?          @map("rejection_reason")
+
+  // Relations
+  ownerId         String           @map("owner_id")
+  stores          Store[]
+  members         Member[]
+
+  // Timestamps
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
+
+  @@index([ownerId])
+  @@index([status])
+  @@map("businesses")
+}
+
+enum BusinessType {
+  INDIVIDUAL
+  PARTNERSHIP
+  CORPORATION
+  LLC
+}
+
+enum BusinessStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// ==================== STORE ====================
+
+model Store {
+  id              String         @id @default(uuid())
+  name            String
+  slug            String         @unique
+  description     String?
+  logo            String?
+  banner          String?
+
+  // Contact
+  email           String
+  phone           String?
+  address         String?
+
+  // Settings
+  status          StoreStatus    @default(PENDING_APPROVAL)
+  isActive        Boolean        @default(true) @map("is_active")
+
+  // Relations
+  businessId      String         @map("business_id")
+  business        Business       @relation(fields: [businessId], references: [id])
+
+  // Categories
+  categoryIds     String[]       @map("category_ids")
+
+  // Stats (denormalized)
+  totalProducts   Int            @default(0) @map("total_products")
+  totalOrders     Int            @default(0) @map("total_orders")
+  rating          Float          @default(0)
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  @@index([businessId])
+  @@index([status])
+  @@index([slug])
+  @@map("stores")
+}
+
+enum StoreStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  SUSPENDED
+  CLOSED
+}
+
+// ==================== MEMBER ====================
+
+model Member {
+  id              String         @id @default(uuid())
+
+  // Relations
+  businessId      String         @map("business_id")
+  business        Business       @relation(fields: [businessId], references: [id])
+
+  userId          String         @map("user_id")
+
+  // Role within business
+  role            MemberRole     @default(STAFF)
+
+  // Status
+  status          MemberStatus   @default(PENDING_INVITATION)
+
+  // Invitation
+  invitedAt       DateTime?      @map("invited_at")
+  invitedBy       String?        @map("invited_by")
+  acceptedAt      DateTime?      @map("accepted_at")
+
+  // Permissions (JSON for flexibility)
+  permissions     Json?          @default("[]")
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  @@unique([businessId, userId])
+  @@index([businessId])
+  @@index([userId])
+  @@map("members")
+}
+
+enum MemberRole {
+  OWNER
+  MANAGER
+  ORDER_STAFF
+  CONTENT_STAFF
+  FINANCE_STAFF
+}
+
+enum MemberStatus {
+  PENDING_INVITATION
+  INVITATION_EXPIRED
+  ACTIVE
+  SUSPENDED
+}
+
+// ==================== INVITATION ====================
+
+model Invitation {
+  id              String         @id @default(uuid())
+  email           String
+  token           String         @unique @default(uuid())
+
+  // Relations
+  businessId      String         @map("business_id")
+  invitedBy       String         @map("invited_by")
+
+  // Role
+  role            MemberRole     @default(CONTENT_STAFF)
+
+  // Status
+  status          InvitationStatus @default(PENDING)
+
+  // Expiry (7 days)
+  expiresAt       DateTime       @map("expires_at")
+  acceptedAt      DateTime?      @map("accepted_at")
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([token])
+  @@map("invitations")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
