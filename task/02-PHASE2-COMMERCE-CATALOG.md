@@ -13,14 +13,14 @@
 
 ### Sprint 5: Catalog Management (1 tuần)
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T5.1 | HUY | HIGH | Database schema: categories (tree), authors, publishers |
-| T5.2 | HUY | HIGH | Categories CRUD (nested categories) |
-| T5.3 | HUY | HIGH | Authors CRUD |
-| T5.4 | HUY | HIGH | Publishers CRUD |
-| T5.5 | KIEN | HIGH | Search với PostgreSQL full-text search |
-| T5.6 | KIEN | MEDIUM | Category API với pagination |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|-------|------------|
+| T5.1 | HUY | HIGH | Database schema: categories (tree), authors, publishers | ✅ Hoàn thành |
+| T5.2 | HUY | HIGH | Categories CRUD (nested categories) | ✅ Hoàn thành |
+| T5.3 | HUY | HIGH | Authors CRUD | ✅ Hoàn thành |
+| T5.4 | HUY | HIGH | Publishers CRUD | ✅ Hoàn thành |
+| T5.5 | KIEN | HIGH | Search với PostgreSQL full-text search | ✅ Hoàn thành |
+| T5.6 | KIEN | MEDIUM | Category API với pagination | ✅ Hoàn thành |
 
 ---
 
@@ -80,7 +80,7 @@
 ✅ Sprint 8: Checkout & Orders
 
 📦 Deliverables Phase 2:
-- [ ] Catalog API (Categories, Authors, Publishers)
+- [x] Catalog API (Categories, Authors, Publishers)
 - [ ] Books CRUD với 2 formats (Physical, Digital)
 - [ ] Multi-store Cart
 - [ ] Order flow hoàn chỉnh
