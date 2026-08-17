@@ -12,6 +12,15 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
   },
+  checkout: {
+    sessionTtlMinutes: parseInt(process.env.CHECKOUT_SESSION_TTL_MINUTES || '15', 10),
+    shippingBaseFee: parseInt(process.env.CHECKOUT_SHIPPING_BASE_FEE || '30000', 10),
+  },
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+    password: process.env.REDIS_PASSWORD || undefined,
+  },
   storage: {
     coverMaxBytes: parseInt(process.env.BOOK_COVER_MAX_BYTES || '5242880', 10),
     pdfMaxBytes: parseInt(process.env.BOOK_PDF_MAX_BYTES || '104857600', 10),

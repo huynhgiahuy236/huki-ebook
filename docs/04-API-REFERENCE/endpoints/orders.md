@@ -1,5 +1,16 @@
 # 📦 Orders API
 
+## Implemented status model
+
+- Order: `PENDING_PAYMENT`, `PROCESSING`, `PARTIALLY_CANCELLED`, `SHIPPING`, `COMPLETED`, `CANCELLED`.
+- Seller order: `PENDING_PAYMENT`, `PENDING_CONFIRMATION`, `CONFIRMED`, `PREPARING`, `SHIPPED`, `DELIVERED`, `COMPLETED`, `CANCELLED`.
+- COD starts in `PROCESSING`; online checkout remains `PENDING_PAYMENT` for the payment phase.
+- Physical stock is reserved at checkout confirm, committed at shipment, and released by eligible cancellation.
+- State changes append immutable timeline entries and pending outbox events.
+
+Buyer APIs require order ownership. Seller APIs require `BUSINESS` or
+`PLATFORM_ADMIN`; business accounts only access their own seller orders.
+
 ## GET /orders
 
 Get list of user's orders.

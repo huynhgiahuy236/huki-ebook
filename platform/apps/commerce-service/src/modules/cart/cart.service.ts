@@ -1,333 +1,190 @@
 import {
-  Injectable,
-  NotFoundException,
   BadRequestException,
   ConflictException,
+  Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Cart, CartItem, Book } from '../../entities';
-import { RedisService } from '../redis/redis.service';
-import { AddToCartDto, UpdateCartItemDto } from './dto/cart.dto';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  Book,
+  BookFormat,
+  BookStatus,
+  Cart,
+  CartItem,
+  CartItemFormat,
+} from '../../entities';
+import { AddCartItemDto } from './dto/add-cart-item.dto';
+
+const CART_RELATIONS = {
+  items: { book: { physicalDetails: true, digitalDetails: true } },
+} as const;
 
 @Injectable()
 export class CartService {
-  private readonly CART_CACHE_TTL = 3600; // 1 hour
-
   constructor(
-    @InjectRepository(Cart)
-    private cartRepository: Repository<Cart>,
+    @InjectRepository(Cart) private readonly cartRepository: Repository<Cart>,
     @InjectRepository(CartItem)
-    private cartItemRepository: Repository<CartItem>,
-    @InjectRepository(Book)
-    private bookRepository: Repository<Book>,
-    private redisService: RedisService,
+    private readonly cartItemRepository: Repository<CartItem>,
+    @InjectRepository(Book) private readonly bookRepository: Repository<Book>,
+    private readonly dataSource: DataSource,
   ) {}
 
-  // ==================== GET OR CREATE CART ====================
-  async getOrCreateCart(userId: string): Promise<Cart> {
-    // Try Redis cache first
-    const cachedCart = await this.redisService.get(`cart:${userId}`);
-    if (cachedCart) {
-      const cart = await this.cartRepository.findOne({
-        where: { userId },
-        relations: ['items'],
-      });
-      if (cart) return cart;
-    }
-
-    // Find or create in database
+  async getCartEntity(userId: string, create = true): Promise<Cart> {
     let cart = await this.cartRepository.findOne({
       where: { userId },
-      relations: ['items'],
+      relations: CART_RELATIONS,
     });
-
-    if (!cart) {
-      cart = this.cartRepository.create({ userId });
-      await this.cartRepository.save(cart);
+    if (!cart && create) {
+      cart = await this.cartRepository.save(this.cartRepository.create({ userId }));
+      cart.items = [];
     }
-
-    // Cache in Redis
-    await this.redisService.set(
-      `cart:${userId}`,
-      JSON.stringify({ id: cart.id }),
-      this.CART_CACHE_TTL,
-    );
-
+    if (!cart) throw new NotFoundException('Cart not found');
     return cart;
   }
 
-  // ==================== ADD TO CART ====================
-  async addToCart(userId: string, dto: AddToCartDto) {
-    // Validate book exists and is available
-    const book = await this.bookRepository.findOne({
-      where: { id: dto.bookId },
-      relations: ['store'],
-    });
-
-    if (!book) {
-      throw new NotFoundException('Sách không tồn tại');
-    }
-
-    if (book.status !== 'PUBLISHED') {
-      throw new BadRequestException('Sách không còn được bán');
-    }
-
-    // Check stock for physical books
-    if (book.format !== 'DIGITAL' && book.stock < dto.quantity) {
-      throw new BadRequestException('Số lượng trong kho không đủ');
-    }
-
-    // Check if book already purchased (for digital)
-    if (book.format === 'DIGITAL') {
-      const alreadyOwned = await this.checkDigitalBookOwnership(userId, dto.bookId);
-      if (alreadyOwned) {
-        throw new ConflictException('Bạn đã sở hữu sách điện tử này');
-      }
-    }
-
-    // Check if already in cart
-    let cartItem = await this.cartItemRepository.findOne({
-      where: { cart: { userId }, bookId: dto.bookId },
-    });
-
-    if (cartItem) {
-      // Update quantity
-      const newQuantity = cartItem.quantity + dto.quantity;
-
-      if (book.format !== 'DIGITAL' && book.stock < newQuantity) {
-        throw new BadRequestException('Số lượng trong kho không đủ');
-      }
-
-      cartItem.quantity = newQuantity;
-      await this.cartItemRepository.save(cartItem);
-    } else {
-      // Create new cart item
-      const cart = await this.getOrCreateCart(userId);
-
-      cartItem = this.cartItemRepository.create({
-        cartId: cart.id,
-        bookId: dto.bookId,
-        quantity: dto.quantity,
-        price: book.salePrice || book.price,
-      });
-      await this.cartItemRepository.save(cartItem);
-    }
-
-    // Invalidate cache
-    await this.invalidateCartCache(userId);
-
-    return {
-      message: 'Đã thêm vào giỏ hàng',
-      data: await this.getCart(userId),
-    };
-  }
-
-  // ==================== UPDATE CART ITEM ====================
-  async updateCartItem(userId: string, bookId: string, dto: UpdateCartItemDto) {
-    const cartItem = await this.cartItemRepository.findOne({
-      where: { bookId, cart: { userId } },
-      relations: ['cart', 'bookId'],
-    });
-
-    if (!cartItem) {
-      throw new NotFoundException('Sản phẩm không có trong giỏ hàng');
-    }
-
-    // Check stock
-    const book = await this.bookRepository.findOne({
-      where: { id: bookId },
-    });
-
-    if (!book) {
-      throw new NotFoundException('Sách không tồn tại');
-    }
-
-    if (book.format !== 'DIGITAL' && book.stock < dto.quantity) {
-      throw new BadRequestException('Số lượng trong kho không đủ');
-    }
-
-    cartItem.quantity = dto.quantity;
-    await this.cartItemRepository.save(cartItem);
-
-    // Invalidate cache
-    await this.invalidateCartCache(userId);
-
-    return {
-      message: 'Đã cập nhật số lượng',
-      data: await this.getCart(userId),
-    };
-  }
-
-  // ==================== REMOVE FROM CART ====================
-  async removeFromCart(userId: string, bookId: string) {
-    const cartItem = await this.cartItemRepository.findOne({
-      where: { bookId, cart: { userId } },
-      relations: ['cart'],
-    });
-
-    if (!cartItem) {
-      throw new NotFoundException('Sản phẩm không có trong giỏ hàng');
-    }
-
-    await this.cartItemRepository.remove(cartItem);
-
-    // Invalidate cache
-    await this.invalidateCartCache(userId);
-
-    return {
-      message: 'Đã xóa khỏi giỏ hàng',
-      data: await this.getCart(userId),
-    };
-  }
-
-  // ==================== GET CART ====================
   async getCart(userId: string) {
-    const cart = await this.cartRepository.findOne({
-      where: { userId },
-      relations: ['items', 'items.book', 'items.book.store'],
-    });
-
-    if (!cart) {
-      return this.getEmptyCart(userId);
-    }
-
-    // Filter out invalid items
-    const validItems = [];
-    for (const item of cart.items) {
-      const book = await this.bookRepository.findOne({
-        where: { id: item.bookId },
-        relations: ['store'],
-      });
-
-      if (book && book.status === 'PUBLISHED') {
-        // Update price if changed
-        item.price = book.salePrice || book.price;
-        validItems.push({
-          id: item.id,
-          bookId: item.bookId,
-          bookTitle: book.title,
-          bookImage: book.coverImage,
-          storeId: book.storeId,
-          storeName: book.store?.name || 'Unknown',
-          price: book.price,
-          salePrice: book.salePrice,
-          quantity: item.quantity,
-          format: book.format,
-          stock: book.stock,
-        });
-      } else {
-        // Remove invalid item
-        await this.cartItemRepository.remove(item);
-      }
-    }
-
-    // Group by store
-    const storeGroups = this.groupByStore(validItems);
-
-    // Calculate totals
-    let totalItems = 0;
-    let subtotal = 0;
-    for (const group of storeGroups) {
-      totalItems += group.items.reduce((sum, item) => sum + item.quantity, 0);
-      subtotal += group.subtotal;
-    }
-
+    const cart = await this.getCartEntity(userId);
+    const items = cart.items.map((item) => ({
+      id: item.id,
+      bookId: item.bookId,
+      format: item.format,
+      quantity: item.quantity,
+      unitPrice: item.book.price,
+      subtotal: item.book.price * item.quantity,
+      book: {
+        id: item.book.id,
+        storeId: item.book.storeId,
+        title: item.book.title,
+        slug: item.book.slug,
+        coverUrl: item.book.coverUrl,
+        status: item.book.status,
+      },
+    }));
     return {
       id: cart.id,
       userId,
-      stores: storeGroups,
-      totalItems,
-      subtotal,
-      estimatedShipping: this.estimateShipping(storeGroups),
+      items,
+      totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
+      subtotal: items.reduce((sum, item) => sum + item.subtotal, 0),
+      updatedAt: cart.updatedAt,
     };
   }
 
-  // ==================== CLEAR CART ====================
-  async clearCart(userId: string) {
-    const cart = await this.cartRepository.findOne({
-      where: { userId },
-      relations: ['items'],
-    });
+  async add(userId: string, dto: AddCartItemDto) {
+    await this.dataSource.transaction(async (manager) => {
+      const cartRepository = manager.getRepository(Cart);
+      const itemRepository = manager.getRepository(CartItem);
+      let cart = await cartRepository.findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cart) cart = await cartRepository.save(cartRepository.create({ userId }));
+      const book = await manager.getRepository(Book).findOne({
+        where: { id: dto.bookId, status: BookStatus.PUBLISHED },
+        relations: { physicalDetails: true, digitalDetails: true },
+      });
+      if (!book) throw new NotFoundException('Published book not found');
+      this.validateAvailability(book, dto.format, dto.quantity);
 
-    if (cart && cart.items.length > 0) {
-      await this.cartItemRepository.remove(cart.items);
-    }
-
-    // Invalidate cache
-    await this.invalidateCartCache(userId);
-
-    return {
-      message: 'Đã xóa giỏ hàng',
-      data: await this.getEmptyCart(userId),
-    };
-  }
-
-  // ==================== MERGE GUEST CART ====================
-  async mergeGuestCart(userId: string, guestCartItems: { bookId: string; quantity: number }[]) {
-    for (const item of guestCartItems) {
-      try {
-        await this.addToCart(userId, {
-          bookId: item.bookId,
-          quantity: item.quantity,
-        });
-      } catch (error) {
-        // Skip if can't add (e.g., out of stock)
-        console.log(`Could not merge item ${item.bookId}: ${error.message}`);
+      const existing = await itemRepository.findOne({
+        where: { cartId: cart.id, bookId: dto.bookId, format: dto.format },
+      });
+      if (existing?.format === CartItemFormat.DIGITAL) {
+        throw new ConflictException('Digital book is already in the cart');
       }
-    }
-
+      const quantity =
+        dto.format === CartItemFormat.DIGITAL
+          ? 1
+          : (existing?.quantity ?? 0) + dto.quantity;
+      this.validateAvailability(book, dto.format, quantity);
+      await itemRepository.save(
+        itemRepository.create({
+          ...existing,
+          cartId: cart.id,
+          bookId: book.id,
+          format: dto.format,
+          quantity,
+        }),
+      );
+      await this.touch(cart, manager);
+    });
     return this.getCart(userId);
   }
 
-  // ==================== HELPER METHODS ====================
-  private groupByStore(items: any[]) {
-    const groups = new Map<string, any>();
-
-    for (const item of items) {
-      if (!groups.has(item.storeId)) {
-        groups.set(item.storeId, {
-          storeId: item.storeId,
-          storeName: item.storeName,
-          storeLogo: null,
-          items: [],
-          subtotal: 0,
-        });
+  async update(userId: string, itemId: string, quantity: number) {
+    await this.dataSource.transaction(async (manager) => {
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cart) throw new NotFoundException('Cart not found');
+      const item = await manager.getRepository(CartItem).findOne({
+        where: { id: itemId, cartId: cart.id },
+        relations: { book: { physicalDetails: true, digitalDetails: true } },
+      });
+      if (!item) throw new NotFoundException('Cart item not found');
+      if (item.format === CartItemFormat.DIGITAL && quantity !== 1) {
+        throw new BadRequestException('Digital book quantity must be one');
       }
+      this.validateAvailability(item.book, item.format, quantity);
+      item.quantity = quantity;
+      await manager.save(item);
+      await this.touch(cart, manager);
+    });
+    return this.getCart(userId);
+  }
 
-      const group = groups.get(item.storeId);
-      group.items.push(item);
-      group.subtotal += item.price * item.quantity;
-      group.subtotal = Math.round(group.subtotal);
+  async remove(userId: string, itemId: string) {
+    await this.dataSource.transaction(async (manager) => {
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cart) throw new NotFoundException('Cart not found');
+      const item = await manager
+        .getRepository(CartItem)
+        .findOneBy({ id: itemId, cartId: cart.id });
+      if (!item) throw new NotFoundException('Cart item not found');
+      await manager.remove(item);
+      await this.touch(cart, manager);
+    });
+    return this.getCart(userId);
+  }
+
+  async clear(userId: string): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      const cart = await manager.getRepository(Cart).findOne({
+        where: { userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!cart) return;
+      await manager.getRepository(CartItem).delete({ cartId: cart.id });
+      await this.touch(cart, manager);
+    });
+  }
+
+  private validateAvailability(book: Book, format: CartItemFormat, quantity: number) {
+    if (format === CartItemFormat.PHYSICAL) {
+      if (
+        ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
+        !book.physicalDetails?.physicalEnabled
+      ) {
+        throw new BadRequestException('Physical format is unavailable');
+      }
+      if (book.physicalDetails.available < quantity) {
+        throw new ConflictException('Insufficient stock');
+      }
+    } else if (
+      ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
+      !book.digitalDetails?.digitalEnabled
+    ) {
+      throw new BadRequestException('Digital format is unavailable');
     }
-
-    return Array.from(groups.values());
   }
 
-  private estimateShipping(storeGroups: any[]): number {
-    // Mock shipping estimate: 15,000 VND per store
-    const SHIPPING_PER_STORE = 15000;
-    return storeGroups.length * SHIPPING_PER_STORE;
-  }
-
-  private async checkDigitalBookOwnership(userId: string, bookId: string): Promise<boolean> {
-    // TODO: Check if user already purchased this digital book
-    // This would check the book_accesses table or orders
-    return false;
-  }
-
-  private async invalidateCartCache(userId: string): Promise<void> {
-    await this.redisService.del(`cart:${userId}`);
-  }
-
-  private getEmptyCart(userId: string) {
-    return {
-      id: null,
-      userId,
-      stores: [],
-      totalItems: 0,
-      subtotal: 0,
-      estimatedShipping: 0,
-    };
+  private async touch(cart: Cart, manager?: EntityManager) {
+    cart.updatedAt = new Date();
+    await (manager ? manager.save(cart) : this.cartRepository.save(cart));
   }
 }

@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
-import { CartService } from './cart.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthenticatedGuard } from '../../common/book-auth.guard';
+import { Book, Cart, CartItem } from '../../entities';
 import { CartController } from './cart.controller';
-import { RedisModule } from '../redis/redis.module';
+import { CartService } from './cart.service';
 
 @Module({
-  imports: [RedisModule],
+  imports: [TypeOrmModule.forFeature([Cart, CartItem, Book])],
   controllers: [CartController],
-  providers: [CartService],
+  providers: [CartService, AuthenticatedGuard],
   exports: [CartService],
 })
 export class CartModule {}

@@ -1,6 +1,7 @@
 import { Module, Global } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { RedisService } from './redis.service';
 
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
@@ -18,13 +19,14 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
           retryStrategy: (times) => Math.min(times * 50, 2000),
         });
 
-        redis.on('connect', () => console.log('🔴 Redis connected'));
+        redis.on('connect', () => console.log('Redis connected'));
         redis.on('error', (err) => console.error('Redis error:', err));
 
         return redis;
       },
     },
+    RedisService,
   ],
-  exports: [REDIS_CLIENT],
+  exports: [REDIS_CLIENT, RedisService],
 })
 export class RedisModule {}
