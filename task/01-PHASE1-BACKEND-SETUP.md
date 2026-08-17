@@ -16,14 +16,14 @@
 
 | Task | Người | Priority | Mô tả | Status |
 |------|-------|---------|--------|--------|
-| T1.1 | KIEN | HIGH | Setup NestJS monorepo với 6 services (identity, business, commerce, shipping, community, promotion, gateway) | ⬜ |
-| T1.2 | KIEN | HIGH | Tạo shared library (common, utils, types, interfaces) | ⬜ |
-| T1.3 | KIEN | HIGH | Config TypeORM cho PostgreSQL (6 databases) | ⬜ |
-| T1.4 | HUY | HIGH | Config MongoDB schemas cho community service | ⬜ |
-| T1.5 | HUY | HIGH | Setup Redis cho cache và sessions | ⬜ |
-| T1.6 | HUY | HIGH | Setup RabbitMQ với exchange/queue pattern | ⬜ |
-| T1.7 | KIEN | MEDIUM | Tạo base entities, DTOs pattern | ⬜ |
-| T1.8 | HUY | MEDIUM | Tạo base controller, service pattern | ⬜ |
+| T1.1 | KIEN | HIGH | Setup NestJS monorepo với 6 services (identity, business, commerce, shipping, community, promotion, gateway) | ✅ |
+| T1.2 | KIEN | HIGH | Tạo shared library (common, utils, types, interfaces) | ✅ |
+| T1.3 | KIEN | HIGH | Config TypeORM cho PostgreSQL (6 databases) | ✅ |
+| T1.4 | HUY | HIGH | Config MongoDB schemas cho community service | ✅ |
+| T1.5 | HUY | HIGH | Setup Redis cho cache và sessions | ✅ |
+| T1.6 | HUY | HIGH | Setup RabbitMQ với exchange/queue pattern | ✅ |
+| T1.7 | KIEN | MEDIUM | Tạo base entities, DTOs pattern | ✅ |
+| T1.8 | HUY | MEDIUM | Tạo base controller, service pattern | ✅ |
 
 **Deliverable:** 6 services có thể chạy local, kết nối được database
 
@@ -129,5 +129,6 @@ Sprint 4: Business Service
 
 | Ngày | Người | Task hoàn thành |
 |------|--------|-----------------|
-| - | - | - |
+| 2026-08-17 | KIEN | T1.1-T1.3, T1.7: NestJS monorepo, shared lib, TypeORM, base entities |
+| 2026-08-17 | KIEN | T1.4-T1.6: MongoDB schemas (7 collections), Redis setup, RabbitMQ setup |
 
