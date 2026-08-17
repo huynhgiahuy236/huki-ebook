@@ -12,4 +12,19 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
   },
+  storage: {
+    coverMaxBytes: parseInt(process.env.BOOK_COVER_MAX_BYTES || '5242880', 10),
+    pdfMaxBytes: parseInt(process.env.BOOK_PDF_MAX_BYTES || '104857600', 10),
+    cloudinary: {
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+      apiKey: process.env.CLOUDINARY_API_KEY,
+      apiSecret: process.env.CLOUDINARY_API_SECRET,
+    },
+    r2: {
+      endpoint: process.env.CLOUDFLARE_R2_ENDPOINT,
+      accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID,
+      secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY,
+      bucket: process.env.CLOUDFLARE_R2_BUCKET || 'huki-ebooks',
+    },
+  },
 });
