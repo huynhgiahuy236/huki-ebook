@@ -1,0 +1,340 @@
+// Commerce Service - Prisma Schema
+// Database: commerce_db
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CATALOG
+// ============================================
+
+model Category {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  description   String?
+  parentId      String?   @map("parent_id")
+  image         String?
+  sortOrder     Int       @default(0) @map("sort_order")
+  isActive      Boolean   @default(true) @map("is_active")
+
+  // Relations
+  parent        Category? @relation("CategoryParent", fields: [parentId], references: [id])
+  children      Category[] @relation("CategoryParent")
+  books         Book[]
+
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([parentId])
+  @@index([slug])
+  @@map("categories")
+}
+
+model Author {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  bio         String?
+  avatar      String?
+
+  // Relations
+  books       Book[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@map("authors")
+}
+
+model Publisher {
+  id          String    @id @default(uuid())
+  name        String
+  slug        String    @unique
+  description String?
+  logo        String?
+
+  // Relations
+  books       Book[]
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([slug])
+  @@map("publishers")
+}
+
+// ============================================
+// BOOKS
+// ============================================
+
+model Book {
+  id                String        @id @default(uuid())
+  storeId           String        @map("store_id")
+  title             String
+  slug              String        @unique
+  description       String?
+  price             Float
+  salePrice         Float?
+  format            BookFormat   @default(PHYSICAL)
+
+  // Physical book details
+  stock             Int           @default(0)
+  weight            Float?
+  dimensions        String?
+  pageCount         Int?
+
+  // Digital book details
+  pdfKey            String?       @map("pdf_key")
+  epubKey           String?       @map("epub_key")
+  previewPdfKey     String?       @map("preview_pdf_key")
+
+  // Media
+  coverImage        String?
+  previewImages     String[]      @map("preview_images")
+
+  // Status
+  status            BookStatus    @default(DRAFT)
+
+  // Relations
+  categoryId        String?       @map("category_id")
+  category          Category?    @relation(fields: [categoryId], references: [id])
+  authorId          String?       @map("author_id")
+  author            Author?       @relation(fields: [authorId], references: [id])
+  publisherId       String?       @map("publisher_id")
+  publisher         Publisher?    @relation(fields: [publisherId], references: [id])
+
+  // Stats
+  soldCount         Int           @default(0) @map("sold_count")
+  viewCount         Int           @default(0) @map("view_count")
+  rating             Float         @default(0) @map("rating")
+  reviewCount        Int           @default(0) @map("review_count")
+
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  deletedAt         DateTime?     @map("deleted_at")
+
+  @@index([storeId])
+  @@index([status])
+  @@index([categoryId])
+  @@index([slug])
+  @@map("books")
+}
+
+enum BookFormat {
+  PHYSICAL
+  DIGITAL
+  BOTH
+}
+
+enum BookStatus {
+  DRAFT
+  PUBLISHED
+  OUT_OF_STOCK
+  DISCONTINUED
+}
+
+// ============================================
+// CART
+// ============================================
+
+model Cart {
+  id          String      @id @default(uuid())
+  userId      String      @unique @map("user_id")
+  items       CartItem[]
+
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@map("carts")
+}
+
+model CartItem {
+  id          String    @id @default(uuid())
+  cartId      String    @map("cart_id")
+  cart        Cart      @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  bookId      String    @map("book_id")
+  quantity    Int       @default(1)
+  price       Float     // Snapshot of price at add time
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([cartId, bookId])
+  @@index([cartId])
+  @@map("cart_items")
+}
+
+// ============================================
+// ORDERS
+// ============================================
+
+model Order {
+  id                String        @id @default(uuid())
+  orderNumber       String        @unique @map("order_number")
+  userId            String        @map("user_id")
+
+  // Status
+  status            OrderStatus   @default(PENDING)
+
+  // Pricing
+  subtotal          Float
+  shippingFee       Float         @default(0) @map("shipping_fee")
+  discountAmount    Float         @default(0) @map("discount_amount")
+  totalAmount       Float
+
+  // Shipping Address
+  shippingName      String        @map("shipping_name")
+  shippingPhone     String        @map("shipping_phone")
+  shippingAddress    String        @map("shipping_address")
+  shippingNote       String?
+
+  // Payment
+  paymentMethod     PaymentMethod @map("payment_method")
+  paymentStatus     PaymentStatus @default(PENDING) @map("payment_status")
+
+  // Voucher
+  voucherId        String?       @map("voucher_id")
+
+  // Relations
+  sellerOrders      SellerOrder[]
+  payment          Payment?
+
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@index([status])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  PAYOS
+  COD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  PARTIAL_REFUND
+}
+
+model SellerOrder {
+  id              String          @id @default(uuid())
+  orderId         String          @map("order_id")
+  order           Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  storeId         String          @map("store_id")
+  storeName       String          @map("store_name")
+  shippingFee      Float           @map("shipping_fee")
+
+  // Status
+  status          SellerOrderStatus @default(PENDING)
+
+  // Tracking
+  trackingNumber  String?         @map("tracking_number")
+  shippedAt       DateTime?       @map("shipped_at")
+  deliveredAt     DateTime?       @map("delivered_at")
+
+  // Relations
+  items           OrderItem[]
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@index([storeId])
+  @@map("seller_orders")
+}
+
+enum SellerOrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model OrderItem {
+  id              String    @id @default(uuid())
+  sellerOrderId   String    @map("seller_order_id")
+  sellerOrder     SellerOrder @relation(fields: [sellerOrderId], references: [id], onDelete: Cascade)
+  bookId          String    @map("book_id")
+  bookTitle       String    @map("book_title")
+  quantity        Int
+  unitPrice       Float     @map("unit_price")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  @@index([sellerOrderId])
+  @@index([bookId])
+  @@map("order_items")
+}
+
+// ============================================
+// PAYMENTS
+// ============================================
+
+model Payment {
+  id              String          @id @default(uuid())
+  orderId         String          @unique @map("order_id")
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus
+  transactionId   String?         @map("transaction_id")
+  payosOrderId   String?         @map("payos_order_id")
+  payosReturnCode String?        @map("payos_return_code")
+  callbackData    Json?
+  paidAt          DateTime?       @map("paid_at")
+
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@index([orderId])
+  @@map("payments")
+}
+
+// ============================================
+// BOOK ACCESS (Digital books)
+// ============================================
+
+model BookAccess {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  bookId      String    @map("book_id")
+  orderId     String    @map("order_id")
+
+  // Reading progress
+  progress    Int       @default(0)
+  lastReadAt  DateTime  @map("last_read_at")
+
+  // Access info
+  accessKey   String?   @map("access_key")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@map("book_accesses")
+}
