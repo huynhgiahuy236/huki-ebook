@@ -1,0 +1,98 @@
+<mxfile host="app.diagrams.net" version="21.0.0" type="device">
+  <diagram id="erd" name="ERD">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Users Table -->
+        <mxCell id="t1" value="USERS" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#0ea5e9;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="50" y="50" width="200" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="t1c1" value="id: UUID (PK)&#xa;email: VARCHAR (UNIQUE)&#xa;password_hash: VARCHAR&#xa;full_name: VARCHAR&#xa;phone: VARCHAR&#xa;role: ENUM&#xa;status: ENUM&#xa;created_at: TIMESTAMP&#xa;updated_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t1">
+          <mxGeometry y="30" width="200" height="170" as="geometry"/>
+        </mxCell>
+
+        <!-- Businesses Table -->
+        <mxCell id="t2" value="BUSINESSES" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#8b5cf6;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="350" y="50" width="220" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="t2c1" value="id: UUID (PK)&#xa;enterprise_code: VARCHAR (UNIQUE)&#xa;tax_code: VARCHAR (UNIQUE)&#xa;legal_name: VARCHAR&#xa;representative_name: VARCHAR&#xa;status: ENUM&#xa;created_by_user_id: UUID (FK)&#xa;approved_at: TIMESTAMP&#xa;created_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t2">
+          <mxGeometry y="30" width="220" height="150" as="geometry"/>
+        </mxCell>
+
+        <!-- Stores Table -->
+        <mxCell id="t3" value="STORES" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#22c55e;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="670" y="50" width="200" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="t3c1" value="id: UUID (PK)&#xa;business_id: UUID (FK)&#xa;store_name: VARCHAR&#xa;slug: VARCHAR (UNIQUE)&#xa;description: TEXT&#xa;logo_url: VARCHAR&#xa;status: ENUM&#xa;created_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t3">
+          <mxGeometry y="30" width="200" height="140" as="geometry"/>
+        </mxCell>
+
+        <!-- Books Table -->
+        <mxCell id="t4" value="BOOKS" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#f59e0b;fontColor=#000000;" vertex="1" parent="1">
+          <mxGeometry x="50" y="350" width="200" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="t4c1" value="id: UUID (PK)&#xa;store_id: UUID (FK)&#xa;title: VARCHAR&#xa;slug: VARCHAR&#xa;isbn: VARCHAR&#xa;price: DECIMAL&#xa;status: ENUM&#xa;category_id: UUID (FK)&#xa;author_id: UUID (FK)&#xa;created_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t4">
+          <mxGeometry y="30" width="200" height="150" as="geometry"/>
+        </mxCell>
+
+        <!-- Orders Table -->
+        <mxCell id="t5" value="ORDERS" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#ef4444;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="350" y="350" width="220" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="t5c1" value="id: UUID (PK)&#xa;order_code: VARCHAR (UNIQUE)&#xa;user_id: UUID (FK)&#xa;subtotal: DECIMAL&#xa;shipping_total: DECIMAL&#xa;grand_total: DECIMAL&#xa;payment_method: VARCHAR&#xa;payment_status: ENUM&#xa;order_status: ENUM&#xa;shipping_address: JSONB&#xa;created_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t5">
+          <mxGeometry y="30" width="220" height="170" as="geometry"/>
+        </mxCell>
+
+        <!-- Categories Table -->
+        <mxCell id="t6" value="CATEGORIES" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#64748b;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="670" y="300" width="180" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="t6c1" value="id: UUID (PK)&#xa;name: VARCHAR&#xa;slug: VARCHAR (UNIQUE)&#xa;parent_id: UUID (FK, nullable)&#xa;sort_order: INT" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t6">
+          <mxGeometry y="30" width="180" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Library Table -->
+        <mxCell id="t7" value="LIBRARY_ENTRIES" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#ec4899;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="670" y="480" width="200" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="t7c1" value="id: UUID (PK)&#xa;user_id: UUID (FK)&#xa;book_id: UUID (FK)&#xa;source_type: ENUM&#xa;access_status: ENUM&#xa;granted_at: TIMESTAMP&#xa;created_at: TIMESTAMP" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t7">
+          <mxGeometry y="30" width="200" height="110" as="geometry"/>
+        </mxCell>
+
+        <!-- Vouchers Table -->
+        <mxCell id="t8" value="VOUCHERS" style="swimlane;fontStyle=1;align=center;verticalAlign=top;childLayout=stackLayout;horizontal=1;startSize=30;horizontalStack=0;resizeParent=1;resizeParentMax=0;resizeLast=0;collapsible=1;marginBottom=0;fillColor=#06b6d4;fontColor=#ffffff;" vertex="1" parent="1">
+          <mxGeometry x="350" y="600" width="220" height="160" as="geometry"/>
+        </mxCell>
+        <mxCell id="t8c1" value="id: UUID (PK)&#xa;code: VARCHAR (UNIQUE)&#xa;owner_type: ENUM&#xa;owner_id: UUID&#xa;discount_type: ENUM&#xa;discount_value: DECIMAL&#xa;max_discount: DECIMAL&#xa;min_order: DECIMAL&#xa;usage_limit: INT&#xa;starts_at: TIMESTAMP&#xa;ends_at: TIMESTAMP&#xa;status: ENUM" style="align=left;verticalAlign=top;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;resizeWidth=1;fontColor=#000000;" vertex="1" parent="t8">
+          <mxGeometry y="30" width="220" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- Relationships -->
+        <mxCell id="r1" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="t1" target="t2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r2" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="t2" target="t3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r3" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0;entryDx=0;entryDy=40;" edge="1" parent="1" source="t3" target="t4">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r4" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="t1" target="t5">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r5" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="t4" target="t6">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r6" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="t1" target="t7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="r7" style="edgeStyle=entityRelationEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=ERmany;startArrow=ERone;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="t4" target="t7">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

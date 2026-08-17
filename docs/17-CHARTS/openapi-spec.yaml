@@ -1,0 +1,83 @@
+<mxfile host="app.diagrams.net" modified="2026-08-14T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram id="system-context" name="System Context">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- External Entities -->
+        <mxCell id="user" value="User" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="100" y="300" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="seller" value="Seller&#xa;(Business)" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="100" y="500" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="admin" value="Admin" style="shape=umlActor;verticalLabelPosition=bottom;verticalAlign=top;html=1;outlineConnect=0;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="40" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- HUKI System -->
+        <mxCell id="huki-system" value="HUKI EBOOK SYSTEM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0ea5e9;fontColor=#ffffff;strokeColor=#0369a1;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="300" y="250" width="200" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- External Systems -->
+        <mxCell id="vnpay" value="VNPay" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f59e0b;strokeColor=#d97706;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="150" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="momo" value="MoMo" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#ec4899;strokeColor=#db2777;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="250" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="r2" value="Cloudflare R2" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f97316;strokeColor=#ea580c;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="350" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cloudinary" value="Cloudinary" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#8b5cf6;strokeColor=#7c3aed;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="450" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="firebase" value="Firebase&#xa;(FCM)" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#facc15;strokeColor=#eab308;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="700" y="550" width="100" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- Connections -->
+        <mxCell id="conn1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" edge="1" parent="1" source="user" target="huki-system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" edge="1" parent="1" source="seller" target="huki-system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;" edge="1" parent="1" source="admin" target="huki-system">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn4" value="Payment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;dashed=1;endArrow=dash;" edge="1" parent="1" source="huki-system" target="vnpay">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn5" value="Payment" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;dashed=1;endArrow=dash;" edge="1" parent="1" source="huki-system" target="momo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn6" value="Upload&#xa;Ebooks" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;dashed=1;endArrow=dash;" edge="1" parent="1" source="huki-system" target="r2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn7" value="Upload&#xa;Images" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;dashed=1;endArrow=dash;" edge="1" parent="1" source="huki-system" target="cloudinary">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="conn8" value="Push&#xa;Notifications" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;dashed=1;endArrow=dash;" edge="1" parent="1" source="huki-system" target="firebase">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

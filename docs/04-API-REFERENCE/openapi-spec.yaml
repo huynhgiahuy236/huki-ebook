@@ -1,0 +1,183 @@
+# 📚 API Reference
+
+Hướng dẫn sử dụng API.
+
+## 📋 API Conventions
+
+### Base URL
+
+| Environment | Base URL |
+|-------------|----------|
+| Development | `http://localhost:3000/api` |
+| Staging | `https://staging-api.huki-ebook.com/api` |
+| Production | `https://api.huki-ebook.com/api` |
+
+### Versioning
+
+```
+GET /api/v1/auth/login
+     └── Version prefix
+```
+
+### Authentication
+
+All protected endpoints require:
+
+```http
+Authorization: Bearer <access_token>
+```
+
+### Request Format
+
+```http
+Content-Type: application/json
+Accept: application/json
+```
+
+### Response Format
+
+**Success:**
+```json
+{
+  "data": { ... },
+  "message": "Success message"
+}
+```
+
+**Error:**
+```json
+{
+  "statusCode": 400,
+  "error": "Bad Request",
+  "message": "Validation failed",
+  "details": [...]
+}
+```
+
+### Pagination
+
+**Request:**
+```http
+GET /api/v1/books?page=1&limit=20
+```
+
+**Response:**
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "limit": 20,
+    "total": 100,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrev": false
+  }
+}
+```
+
+### Filtering & Sorting
+
+```http
+GET /api/v1/books?category=fiction&price_min=10000&price_max=100000&sort=price&order=asc
+```
+
+## 📄 OpenAPI Specification
+
+### Swagger UI
+
+```
+http://localhost:3000/api/docs
+```
+
+### OpenAPI JSON
+
+```yaml
+openapi: 3.0.3
+info:
+  title: HUKI EBOOK API
+  description: API documentation for HUKI EBOOK platform
+  version: 1.0.0
+  contact:
+    email: dev@huki-ebook.com
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development
+  - url: https://api.huki-ebook.com/api
+    description: Production
+
+paths:
+  /v1/auth/register:
+    post:
+      summary: Register new user
+      tags: [Authentication]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already exists
+
+components:
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+        - fullName
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        fullName:
+          type: string
+        phone:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        tokens:
+          $ref: '#/components/schemas/Tokens'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum: [USER, BUSINESS, DELIVERY_STAFF, PLATFORM_ADMIN]
+        status:
+          type: string
+
+    Tokens:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
