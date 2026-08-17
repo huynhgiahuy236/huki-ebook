@@ -1,16 +1,21 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
 // Modules
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { SessionModule } from './modules/session/session.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
+
+// Guards
+import { ThrottlerBehindProxyGuard } from './modules/auth/guards/throttle.guard';
 
 // Config
-import configuration from '../config/configuration';
+import configuration from './config/configuration';
 
 @Module({
   imports: [
@@ -48,6 +53,10 @@ import configuration from '../config/configuration';
       }),
     }),
 
+    // Redis & RabbitMQ
+    RedisModule,
+    RabbitMQModule,
+
     // Feature modules
     AuthModule,
     UserModule,
@@ -56,7 +65,7 @@ import configuration from '../config/configuration';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: ThrottlerGuard,
+      useClass: ThrottlerBehindProxyGuard,
     },
   ],
 })
