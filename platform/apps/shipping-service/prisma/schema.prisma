@@ -1,0 +1,113 @@
+// Shipping Service - Prisma Schema
+// Database: shipping_db
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Shipment {
+  id              String            @id @default(uuid())
+  sellerOrderId   String           @unique @map("seller_order_id")
+  trackingNumber  String?          @unique @map("tracking_number")
+  carrier         String           @default("GHTK")
+
+  status          ShipmentStatus  @default(PENDING)
+
+  // Address
+  receiverName    String           @map("receiver_name")
+  receiverPhone   String           @map("receiver_phone")
+  address         String
+  province        String?
+  district        String?
+  ward            String?
+
+  // Fees
+  shippingFee     Float            @map("shipping_fee")
+  codFee          Float            @default(0) @map("cod_fee")
+  weight          Float?
+
+  // Timeline
+  pickedUpAt      DateTime?        @map("picked_up_at")
+  shippedAt       DateTime?        @map("shipped_at")
+  deliveredAt     DateTime?        @map("delivered_at")
+  returnedAt      DateTime?        @map("returned_at")
+  failedAttempts  Int              @default(0) @map("failed_attempts")
+
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@index([sellerOrderId])
+  @@index([status])
+  @@index([trackingNumber])
+  @@map("shipments")
+}
+
+enum ShipmentStatus {
+  PENDING
+  PICKED_UP
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+  RETURNED
+  CANCELLED
+  FAILED
+}
+
+model Address {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  name        String
+  phone       String
+  address     String
+  province    String
+  district    String
+  ward        String
+  isDefault   Boolean  @default(false) @map("is_default")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("addresses")
+}
+
+model DeliveryStaff {
+  id          String    @id @default(uuid())
+  userId      String    @unique @map("user_id")
+  name        String
+  phone       String
+  email       String?
+  status      StaffStatus @default(ACTIVE)
+  currentArea String?   @map("current_area")
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("delivery_staff")
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+model DeliveryLog {
+  id          String    @id @default(uuid())
+  shipmentId  String    @map("shipment_id")
+  staffId     String    @map("staff_id")
+  action      String
+  note        String?
+  location    String?
+
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([shipmentId])
+  @@index([staffId])
+  @@map("delivery_logs")
+}
