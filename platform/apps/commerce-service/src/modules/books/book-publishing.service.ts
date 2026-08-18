@@ -1,16 +1,9 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
-import { Book, BookFormat, BookStatus } from '../../entities';
-import { serializeBook } from './book-response.util';
 import { BooksService } from './books.service';
+import { BookFormat, BookStatus } from '@prisma/client';
 
 export interface PublishValidationError {
   field: string;
@@ -20,16 +13,28 @@ export interface PublishValidationError {
 @Injectable()
 export class BookPublishingService {
   constructor(
-    @InjectRepository(Book) private readonly bookRepository: Repository<Book>,
+    private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async publish(bookId: string, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({
+      where: { id: bookId },
+      include: {
+        category: true,
+        author: true,
+        publisher: true,
+        physicalDetails: true,
+        digitalDetails: true,
+      },
+    });
+
+    if (!book) throw new ConflictException('Book not found');
     if (![BookStatus.DRAFT, BookStatus.HIDDEN].includes(book.status)) {
       throw new ConflictException(`Cannot publish a book with status ${book.status}`);
     }
+
     const errors = this.validateForPublish(book);
     if (errors.length) {
       throw new UnprocessableEntityException({
@@ -37,52 +42,67 @@ export class BookPublishingService {
         errors,
       });
     }
-    book.status = BookStatus.PUBLISHED;
-    book.publishedAt = new Date();
-    const saved = await this.bookRepository.save(book);
+
+    const saved = await this.prisma.book.update({
+      where: { id: bookId },
+      data: {
+        status: BookStatus.PUBLISHED,
+        publishedAt: new Date(),
+      },
+    });
+
     this.eventEmitter.emit('book.published', {
       bookId: book.id,
       storeId: book.storeId,
       title: book.title,
-      publishedAt: book.publishedAt,
+      publishedAt: saved.publishedAt,
     });
-    return serializeBook(saved, true);
+
+    return saved;
   }
 
   async hide(bookId: string, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new ConflictException('Book not found');
     if (book.status !== BookStatus.PUBLISHED) {
       throw new ConflictException('Only published books can be hidden');
     }
-    book.status = BookStatus.HIDDEN;
-    return serializeBook(await this.bookRepository.save(book), true);
+    return this.prisma.book.update({
+      where: { id: bookId },
+      data: { status: BookStatus.HIDDEN },
+    });
   }
 
   async archive(bookId: string, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new ConflictException('Book not found');
     if (![BookStatus.DRAFT, BookStatus.HIDDEN, BookStatus.PUBLISHED].includes(book.status)) {
       throw new ConflictException(`Cannot archive a book with status ${book.status}`);
     }
-    book.status = BookStatus.ARCHIVED;
-    return serializeBook(await this.bookRepository.save(book), true);
+    return this.prisma.book.update({
+      where: { id: bookId },
+      data: { status: BookStatus.ARCHIVED },
+    });
   }
 
   async suspend(bookId: string, actor: BookActor) {
     if (actor.role !== 'PLATFORM_ADMIN') {
       throw new ForbiddenException('Only platform administrators can suspend books');
     }
-    const book = await this.booksService.findForWrite(bookId, actor);
-    book.status = BookStatus.SUSPENDED;
-    return serializeBook(await this.bookRepository.save(book), true);
+    return this.prisma.book.update({
+      where: { id: bookId },
+      data: { status: BookStatus.SUSPENDED },
+    });
   }
 
-  validateForPublish(book: Book): PublishValidationError[] {
+  validateForPublish(book: any): PublishValidationError[] {
     const errors: PublishValidationError[] = [];
-    if (book.title.trim().length < 2) errors.push({ field: 'title', message: 'Title is required' });
-    if (book.description.trim().length < 10) {
+
+    if (book.title?.trim().length < 2) errors.push({ field: 'title', message: 'Title is required' });
+    if (book.description?.trim().length < 10) {
       errors.push({ field: 'description', message: 'Description must have at least 10 characters' });
     }
-    if (book.price < 0) errors.push({ field: 'price', message: 'Price cannot be negative' });
+    if (Number(book.price) < 0) errors.push({ field: 'price', message: 'Price cannot be negative' });
     if (!book.coverUrl) errors.push({ field: 'coverUrl', message: 'Cover image is required' });
     if (!book.category?.isActive) errors.push({ field: 'categoryId', message: 'Active category is required' });
     if (!book.author?.isActive) errors.push({ field: 'authorId', message: 'Active author is required' });
@@ -98,10 +118,8 @@ export class BookPublishingService {
         if (!physical.physicalEnabled) {
           errors.push({ field: 'physicalDetails.physicalEnabled', message: 'Physical format must be enabled' });
         }
-        for (const field of ['weight', 'length', 'width', 'height'] as const) {
-          if (physical[field] <= 0) {
-            errors.push({ field: `physicalDetails.${field}`, message: `${field} must be greater than zero` });
-          }
+        if (!physical.weight || physical.weight <= 0) {
+          errors.push({ field: 'physicalDetails.weight', message: 'Weight must be greater than zero' });
         }
       }
     }
@@ -114,20 +132,12 @@ export class BookPublishingService {
         if (!digital.digitalEnabled) {
           errors.push({ field: 'digitalDetails.digitalEnabled', message: 'Digital format must be enabled' });
         }
-        if (!digital.sourcePdfKey) {
-          errors.push({ field: 'digitalDetails.sourcePdfKey', message: 'Source PDF is required' });
-        }
-        if (!digital.previewPdfKey) {
-          errors.push({ field: 'digitalDetails.previewPdfKey', message: 'Preview PDF is required' });
-        }
-        if (!digital.allowOnlineRead && !digital.allowDownload) {
-          errors.push({
-            field: 'digitalDetails.permissions',
-            message: 'Online reading or download must be enabled',
-          });
+        if (!digital.pdfKey) {
+          errors.push({ field: 'digitalDetails.pdfKey', message: 'Source PDF is required' });
         }
       }
     }
+
     return errors;
   }
 }

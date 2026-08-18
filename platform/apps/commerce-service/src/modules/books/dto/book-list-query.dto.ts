@@ -13,7 +13,7 @@ import {
   MinLength,
   MaxLength,
 } from 'class-validator';
-import { BookFormat } from '../../../entities';
+import { BookFormat } from '@prisma/client';
 
 export enum BookSortBy {
   CREATED_AT = 'createdAt',

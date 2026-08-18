@@ -1,15 +1,5 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { BookWriteGuard, OptionalBookAuthGuard } from '../../common/book-auth.guard';
-import {
-  Author,
-  Book,
-  Category,
-  DigitalBookDetails,
-  PhysicalBookDetails,
-  Publisher,
-  InventoryLog,
-} from '../../entities';
 import { BooksController } from './books.controller';
 import { BooksService } from './books.service';
 import { PhysicalBooksController } from './physical-books.controller';
@@ -25,17 +15,6 @@ import { BookPublishingController } from './book-publishing.controller';
 import { BookPublishingService } from './book-publishing.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      Book,
-      Category,
-      Author,
-      Publisher,
-      PhysicalBookDetails,
-      DigitalBookDetails,
-      InventoryLog,
-    ]),
-  ],
   controllers: [
     BooksController,
     PhysicalBooksController,

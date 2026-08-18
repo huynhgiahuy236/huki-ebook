@@ -13,7 +13,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { BookFormat } from '../../../entities';
+import { BookFormat } from '@prisma/client';
 import { DigitalBookDetailsDto, PhysicalBookDetailsDto } from './book-details.dto';
 
 export class CreateBookDto {

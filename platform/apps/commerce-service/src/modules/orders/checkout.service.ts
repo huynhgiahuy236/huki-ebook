@@ -1,24 +1,46 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { randomBytes } from 'crypto';
-import { DataSource, EntityManager, Repository } from 'typeorm';
-import {
-  AccessStatus, BookAccess, BookFormat, BookStatus, Cart, CartItem, CartItemFormat, CheckoutSession, HistoryActorType,
-  Order, OrderItem, OrderStatus, OrderStatusHistory, OutboxEvent, OutboxStatus,
-  PaymentMethod, PaymentStatus, SellerOrder, SellerOrderStatus,
-} from '../../entities';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CartService } from '../cart/cart.service';
 import { CheckoutConfirmDto, CheckoutPreviewDto } from './dto/checkout.dto';
-import { CheckoutSnapshot, CheckoutSnapshotGroup, CheckoutSnapshotItem } from './checkout.types';
 import { InventoryReservationService } from './inventory-reservation.service';
+import {
+  BookFormat, BookStatus, CartItemFormat,
+  PaymentMethod, PaymentStatus, SellerOrderStatus,
+  Prisma,
+} from '@prisma/client';
+
+interface CheckoutSnapshotItem {
+  cartItemId: string;
+  bookId: string;
+  storeId: string;
+  ownerUserId: string;
+  title: string;
+  coverUrl: string | null;
+  isbn: string | null;
+  format: CartItemFormat;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  weight: number;
+}
+
+interface CheckoutSnapshotGroup {
+  storeId: string;
+  ownerUserId: string;
+  requiresShipping: boolean;
+  itemSubtotal: number;
+  shippingFee: number;
+  grandTotal: number;
+  items: CheckoutSnapshotItem[];
+}
 
 @Injectable()
 export class CheckoutService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly cartService: CartService,
-    @InjectRepository(CheckoutSession) private readonly sessions: Repository<CheckoutSession>,
-    @InjectDataSource() private readonly dataSource: DataSource,
     private readonly config: ConfigService,
     private readonly reservations: InventoryReservationService,
   ) {}
@@ -26,123 +48,236 @@ export class CheckoutService {
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
     if (!cart.items.length) throw new BadRequestException('Cart is empty');
-    const items = cart.items.map((item): CheckoutSnapshotItem => {
-      const book = item.book;
-      if (book.status !== BookStatus.PUBLISHED) throw new ConflictException(`${book.title} is no longer available`);
-      if (item.format === CartItemFormat.PHYSICAL) {
-        if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) || !book.physicalDetails?.physicalEnabled) throw new ConflictException(`${book.title} physical edition is unavailable`);
-        if (book.physicalDetails.stock - book.physicalDetails.reserved < item.quantity) throw new ConflictException(`Insufficient stock for ${book.title}`);
-      } else if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) || !book.digitalDetails?.digitalEnabled) {
-        throw new ConflictException(`${book.title} digital edition is unavailable`);
+
+    const items: CheckoutSnapshotItem[] = cart.items.map((item) => {
+      const book = item.book as any;
+      if (book.status !== BookStatus.PUBLISHED) {
+        throw new ConflictException(`${book.title} is no longer available`);
       }
+
+      if (item.format === CartItemFormat.PHYSICAL) {
+        if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) || !book.physicalDetails?.physicalEnabled) {
+          throw new ConflictException(`${book.title} physical edition is unavailable`);
+        }
+        if (book.physicalDetails.stock - book.physicalDetails.reserved < item.quantity) {
+          throw new ConflictException(`Insufficient stock for ${book.title}`);
+        }
+      } else {
+        if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) || !book.digitalDetails?.digitalEnabled) {
+          throw new ConflictException(`${book.title} digital edition is unavailable`);
+        }
+      }
+
+      const unitPrice = Number(book.price);
       return {
-        cartItemId: item.id, bookId: book.id, storeId: book.storeId, ownerUserId: book.ownerUserId,
-        title: book.title, coverUrl: book.coverUrl, isbn: book.isbn, format: item.format,
-        quantity: item.quantity, unitPrice: book.price, subtotal: book.price * item.quantity,
-        weight: item.format === CartItemFormat.PHYSICAL ? book.physicalDetails!.weight * item.quantity : 0,
+        cartItemId: item.id,
+        bookId: book.id,
+        storeId: book.storeId,
+        ownerUserId: book.ownerUserId,
+        title: book.title,
+        coverUrl: book.coverUrl,
+        isbn: book.isbn,
+        format: item.format,
+        quantity: item.quantity,
+        unitPrice,
+        subtotal: unitPrice * item.quantity,
+        weight: item.format === CartItemFormat.PHYSICAL && book.physicalDetails ? book.physicalDetails.weight * item.quantity : 0,
       };
     });
+
     const requiresShipping = items.some((item) => item.format === CartItemFormat.PHYSICAL);
-    if (requiresShipping && !dto.shippingAddress) throw new BadRequestException('Shipping address is required for physical books');
+    if (requiresShipping && !dto.shippingAddress) {
+      throw new BadRequestException('Shipping address is required for physical books');
+    }
 
     const baseFee = Number(this.config.get('checkout.shippingBaseFee') ?? process.env.CHECKOUT_SHIPPING_BASE_FEE ?? 30000);
+
     const grouped = new Map<string, CheckoutSnapshotGroup>();
     for (const item of items) {
       let group = grouped.get(item.storeId);
       if (!group) {
-        group = { storeId: item.storeId, ownerUserId: item.ownerUserId, requiresShipping: false, itemSubtotal: 0, shippingFee: 0, grandTotal: 0, items: [] };
+        group = {
+          storeId: item.storeId,
+          ownerUserId: item.ownerUserId,
+          requiresShipping: false,
+          itemSubtotal: 0,
+          shippingFee: 0,
+          grandTotal: 0,
+          items: [],
+        };
         grouped.set(item.storeId, group);
       }
       group.items.push(item);
       group.itemSubtotal += item.subtotal;
       group.requiresShipping ||= item.format === CartItemFormat.PHYSICAL;
     }
+
     for (const group of grouped.values()) {
       group.shippingFee = group.requiresShipping ? baseFee : 0;
       group.grandTotal = group.itemSubtotal + group.shippingFee;
     }
+
     const groups = [...grouped.values()];
-    const snapshot: CheckoutSnapshot = {
+    const snapshot = {
       groups,
-      itemSubtotal: groups.reduce((sum, group) => sum + group.itemSubtotal, 0),
-      shippingTotal: groups.reduce((sum, group) => sum + group.shippingFee, 0),
+      itemSubtotal: groups.reduce((sum, g) => sum + g.itemSubtotal, 0),
+      shippingTotal: groups.reduce((sum, g) => sum + g.shippingFee, 0),
       discountTotal: 0,
-      grandTotal: groups.reduce((sum, group) => sum + group.grandTotal, 0),
+      grandTotal: groups.reduce((sum, g) => sum + g.grandTotal, 0),
       shippingAddress: dto.shippingAddress ?? null,
       note: dto.note ?? null,
     };
+
     const ttlMinutes = Number(this.config.get('checkout.sessionTtlMinutes') ?? process.env.CHECKOUT_SESSION_TTL_MINUTES ?? 15);
-    const session = await this.sessions.save(this.sessions.create({
-      userId, cartId: cart.id, cartUpdatedAt: cart.updatedAt, snapshot: snapshot as unknown as Record<string, unknown>,
-      expiresAt: new Date(Date.now() + ttlMinutes * 60_000), consumedAt: null,
-    }));
+    const session = await this.prisma.checkoutSession.create({
+      data: {
+        userId,
+        cartId: cart.id,
+        cartUpdatedAt: cart.updatedAt,
+        snapshot: snapshot as unknown as Prisma.JsonValue,
+        expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
+      },
+    });
+
     return { sessionId: session.id, expiresAt: session.expiresAt, ...snapshot };
   }
 
   async confirm(userId: string, idempotencyKey: string, dto: CheckoutConfirmDto) {
-    if (!idempotencyKey || idempotencyKey.length > 100) throw new BadRequestException('A valid Idempotency-Key header is required');
-    const existing = await this.dataSource.getRepository(Order).findOne({ where: { userId, idempotencyKey }, relations: { sellerOrders: { items: true } } });
+    if (!idempotencyKey || idempotencyKey.length > 100) {
+      throw new BadRequestException('A valid Idempotency-Key header is required');
+    }
+
+    // Check for existing order
+    const existing = await this.prisma.order.findFirst({
+      where: { userId, idempotencyKey },
+      include: { sellerOrders: { include: { items: true } } },
+    });
     if (existing) return this.confirmResponse(existing, true);
 
     try {
-      const order = await this.dataSource.transaction(async (manager) => {
-        const session = await manager.getRepository(CheckoutSession).findOne({ where: { id: dto.sessionId, userId }, lock: { mode: 'pessimistic_write' } });
-        if (!session) throw new NotFoundException('Checkout session not found');
-        if (session.consumedAt) throw new ConflictException('Checkout session has already been consumed');
-        if (session.expiresAt.getTime() <= Date.now()) throw new ConflictException('Checkout session has expired');
-        const cart = await manager.getRepository(Cart).findOne({ where: { id: session.cartId, userId }, lock: { mode: 'pessimistic_write' } });
-        if (!cart || cart.updatedAt.getTime() !== session.cartUpdatedAt.getTime()) throw new ConflictException('Cart changed after checkout preview');
-        const snapshot = session.snapshot as unknown as CheckoutSnapshot;
-        if (dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT && !dto.paymentProvider) throw new BadRequestException('paymentProvider is required for online payment');
-        const order = await manager.save(manager.create(Order, {
-          userId, idempotencyKey, code: this.code('ORD'), itemSubtotal: snapshot.itemSubtotal,
-          shippingTotal: snapshot.shippingTotal, discountTotal: snapshot.discountTotal, grandTotal: snapshot.grandTotal,
-          paymentMethod: dto.paymentMethod, paymentProvider: dto.paymentProvider ?? null, paymentStatus: PaymentStatus.PENDING,
-          status: dto.paymentMethod === PaymentMethod.COD ? OrderStatus.PROCESSING : OrderStatus.PENDING_PAYMENT,
-          shippingAddress: snapshot.shippingAddress, note: snapshot.note, cancelledAt: null, cancelReason: null,
-        }));
-        const allItems: OrderItem[] = [];
-        order.sellerOrders = [];
-        for (const [index, group] of snapshot.groups.entries()) {
-          const sellerOrder = await manager.save(manager.create(SellerOrder, {
-            orderId: order.id, code: `${order.code}-S${index + 1}`, storeId: group.storeId, ownerUserId: group.ownerUserId,
-            requiresShipping: group.requiresShipping, itemSubtotal: group.itemSubtotal, shippingFee: group.shippingFee,
-            grandTotal: group.grandTotal, status: dto.paymentMethod === PaymentMethod.COD ? SellerOrderStatus.PENDING_CONFIRMATION : SellerOrderStatus.PENDING_PAYMENT,
-            carrier: null, trackingCode: null, confirmedAt: null, shippedAt: null, completedAt: null, cancelledAt: null, cancelReason: null,
-          }));
-          sellerOrder.items = await manager.save(OrderItem, group.items.map((item) => manager.create(OrderItem, {
-            sellerOrderId: sellerOrder.id, bookId: item.bookId, bookTitle: item.title, bookCoverUrl: item.coverUrl,
-            bookIsbn: item.isbn, format: item.format, quantity: item.quantity, unitPrice: item.unitPrice, subtotal: item.subtotal,
-          })));
-          allItems.push(...sellerOrder.items);
-          order.sellerOrders.push(sellerOrder);
-        }
-        await this.reservations.reserve(manager, order.id, allItems);
+      const order = await this.prisma.$transaction(async (tx) => {
+        const session = await tx.checkoutSession.findUnique({
+          where: { id: dto.sessionId },
+        });
 
-        // Grant BookAccess for digital books immediately for COD orders
-        if (dto.paymentMethod === PaymentMethod.COD) {
-          await this.grantDigitalAccess(manager, userId, order.id, allItems);
+        if (!session || session.userId !== userId) {
+          throw new NotFoundException('Checkout session not found');
+        }
+        if (session.consumedAt) {
+          throw new ConflictException('Checkout session has already been consumed');
+        }
+        if (session.expiresAt < new Date()) {
+          throw new ConflictException('Checkout session has expired');
         }
 
-        await manager.save(manager.create(OrderStatusHistory, {
-          orderId: order.id, sellerOrderId: null, fromStatus: null, toStatus: order.status,
-          title: 'Order created', description: null, actorType: HistoryActorType.USER, actorId: userId, metadata: null,
-        }));
-        await manager.save(manager.create(OutboxEvent, {
-          eventId: randomBytes(16).toString('hex'), type: 'order.created', aggregateId: order.id,
-          payload: { orderId: order.id, userId, total: order.grandTotal }, status: OutboxStatus.PENDING, publishedAt: null,
-        }));
-        session.consumedAt = new Date();
-        await manager.save(session);
-        await manager.getRepository(CartItem).delete({ cartId: cart.id });
-        cart.updatedAt = new Date();
-        await manager.save(cart);
+        const snapshot = session.snapshot as any;
+
+        if (dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT && !dto.paymentProvider) {
+          throw new BadRequestException('paymentProvider is required for online payment');
+        }
+
+        // Create order
+        const order = await tx.order.create({
+          data: {
+            code: this.code('ORD'),
+            userId,
+            idempotencyKey,
+            itemSubtotal: snapshot.itemSubtotal,
+            shippingTotal: snapshot.shippingTotal,
+            discountTotal: snapshot.discountTotal,
+            grandTotal: snapshot.grandTotal,
+            paymentMethod: dto.paymentMethod,
+            paymentProvider: dto.paymentProvider ?? null,
+            paymentStatus: PaymentStatus.PENDING,
+            status: dto.paymentMethod === PaymentMethod.COD ? 'PROCESSING' : 'PENDING_PAYMENT',
+            shippingAddress: snapshot.shippingAddress,
+            note: snapshot.note,
+          },
+        });
+
+        // Create seller orders and items
+        for (let i = 0; i < snapshot.groups.length; i++) {
+          const group = snapshot.groups[i];
+          const sellerOrder = await tx.sellerOrder.create({
+            data: {
+              orderId: order.id,
+              code: `${order.code}-S${i + 1}`,
+              storeId: group.storeId,
+              ownerUserId: group.ownerUserId,
+              requiresShipping: group.requiresShipping,
+              itemSubtotal: group.itemSubtotal,
+              shippingFee: group.shippingFee,
+              grandTotal: group.grandTotal,
+              status: dto.paymentMethod === PaymentMethod.COD
+                ? SellerOrderStatus.PENDING_CONFIRMATION
+                : SellerOrderStatus.PENDING_PAYMENT,
+            },
+          });
+
+          const orderItems = await Promise.all(
+            group.items.map((item: any) =>
+              tx.orderItem.create({
+                data: {
+                  sellerOrderId: sellerOrder.id,
+                  bookId: item.bookId,
+                  bookTitle: item.title,
+                  bookCoverUrl: item.coverUrl,
+                  bookIsbn: item.isbn,
+                  format: item.format,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  subtotal: item.subtotal,
+                },
+              }),
+            ),
+          );
+
+          // Reserve inventory for physical books
+          await this.reservations.reserve(tx, order.id, orderItems);
+        }
+
+        // Create order status history
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            fromStatus: null,
+            toStatus: order.status,
+            title: 'Order created',
+            actorType: 'USER',
+            actorId: userId,
+          },
+        });
+
+        // Create outbox event
+        await tx.outboxEvent.create({
+          data: {
+            eventId: randomBytes(16).toString('hex'),
+            type: 'order.created',
+            aggregateId: order.id,
+            payload: { orderId: order.id, userId, total: order.grandTotal },
+            status: 'PENDING',
+          },
+        });
+
+        // Mark session as consumed
+        await tx.checkoutSession.update({
+          where: { id: session.id },
+          data: { consumedAt: new Date() },
+        });
+
+        // Clear cart items
+        await tx.cartItem.deleteMany({ where: { cartId: session.cartId } });
+
         return order;
       });
+
       return this.confirmResponse(order, false);
     } catch (error) {
-      if ((error as { code?: string }).code === '23505') {
-        const duplicate = await this.dataSource.getRepository(Order).findOne({ where: { userId, idempotencyKey }, relations: { sellerOrders: { items: true } } });
+      if ((error as any).code === 'P2002') {
+        const duplicate = await this.prisma.order.findFirst({
+          where: { userId, idempotencyKey },
+          include: { sellerOrders: { include: { items: true } } },
+        });
         if (duplicate) return this.confirmResponse(duplicate, true);
       }
       throw error;
@@ -154,24 +289,13 @@ export class CheckoutService {
     const random = randomBytes(4).toString('hex').toUpperCase();
     return `${prefix}-${timestamp}-${random}`;
   }
-  private confirmResponse(order: Order, replayed: boolean) {
-    return { order, idempotentReplay: replayed, paymentRequired: order.paymentMethod === PaymentMethod.ONLINE_PAYMENT && order.paymentStatus !== PaymentStatus.SUCCEEDED, paymentProvider: order.paymentProvider };
-  }
 
-  private async grantDigitalAccess(manager: EntityManager, userId: string, orderId: string, items: OrderItem[]): Promise<void> {
-    const digitalItems = items.filter((item) => item.format === CartItemFormat.DIGITAL);
-    for (const item of digitalItems) {
-      const existingAccess = await manager.getRepository(BookAccess).findOne({
-        where: { userId, bookId: item.bookId },
-      });
-      if (!existingAccess) {
-        await manager.save(manager.create(BookAccess, {
-          userId,
-          bookId: item.bookId,
-          orderId,
-          status: AccessStatus.ACTIVE,
-        }));
-      }
-    }
+  private confirmResponse(order: any, replayed: boolean) {
+    return {
+      order,
+      idempotentReplay: replayed,
+      paymentRequired: order.paymentMethod === PaymentMethod.ONLINE_PAYMENT && order.paymentStatus !== PaymentStatus.SUCCEEDED,
+      paymentProvider: order.paymentProvider,
+    };
   }
 }
