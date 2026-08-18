@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { JwtModule } from '@nestjs/jwt';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import configuration from '../config/configuration';
-import { Author, Category, Publisher } from './entities';
 import { AuthorsModule } from './modules/authors/authors.module';
 import { BooksModule } from './modules/books/books.module';
 import { CartModule } from './modules/cart/cart.module';
@@ -14,26 +12,11 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        database: configService.get('database.name'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('database.synchronize'),
-        logging: configService.get('database.logging'),
-      }),
-    }),
-    TypeOrmModule.forFeature([Category, Author, Publisher]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -43,6 +26,7 @@ import { RedisModule } from './modules/redis/redis.module';
       }),
     }),
     EventEmitterModule.forRoot(),
+    PrismaModule,
     RedisModule,
     CategoriesModule,
     AuthorsModule,

@@ -1,25 +1,10 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Ip, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Ip, Post } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { InjectDataSource } from '@nestjs/typeorm';
-import { Request } from 'express';
 import { createHmac } from 'crypto';
-import { DataSource } from 'typeorm';
-import {
-  BookAccess,
-  AccessStatus,
-  CartItemFormat,
-  HistoryActorType,
-  Order,
-  OrderItem,
-  OrderStatus,
-  OrderStatusHistory,
-  OutboxEvent,
-  OutboxStatus,
-  Payment,
-  PaymentMethod,
-  PaymentStatus,
-} from '../../entities';
+import { randomBytes } from 'crypto';
+import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { CartItemFormat } from '@prisma/client';
 
 interface PayOSCallback {
   orderCode: string;
@@ -34,7 +19,7 @@ interface PayOSCallback {
 @Controller('payments')
 export class PaymentsController {
   constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
+    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
@@ -44,7 +29,6 @@ export class PaymentsController {
     @Body() body: PayOSCallback,
     @Headers('x-payos-signature') signature: string,
     @Ip() ip: string,
-    @Req() req: Request,
   ) {
     // Verify IP whitelist (PayOS IPs)
     const allowedIPs = ['103.90.224.52', '103.90.224.53'];
@@ -65,9 +49,9 @@ export class PaymentsController {
     }
 
     // Find order by code
-    const order = await this.dataSource.getRepository(Order).findOne({
+    const order = await this.prisma.order.findFirst({
       where: { code: body.orderCode },
-      relations: { sellerOrders: { items: true } },
+      include: { sellerOrders: { include: { items: true } } },
     });
 
     if (!order) {
@@ -75,51 +59,73 @@ export class PaymentsController {
     }
 
     // Process callback in transaction
-    await this.dataSource.transaction(async (manager) => {
-      // Update payment record
-      const payment = await manager.getRepository(Payment).findOne({
+    await this.prisma.$transaction(async (tx) => {
+      // Create or update payment record
+      const existingPayment = await tx.payment.findUnique({
         where: { orderId: order.id },
       });
 
-      if (payment) {
-        payment.status = PaymentStatus.SUCCEEDED;
-        payment.transactionId = body.transactionId.toString();
-        payment.paidAt = new Date(body.transferDate);
-        payment.callbackData = body as unknown as Record<string, unknown>;
-        await manager.save(payment);
+      if (existingPayment) {
+        await tx.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            status: 'SUCCEEDED',
+            transactionId: body.transactionId.toString(),
+            paidAt: new Date(body.transferDate),
+            callbackData: body as any,
+          },
+        });
+      } else {
+        await tx.payment.create({
+          data: {
+            orderId: order.id,
+            amount: order.grandTotal,
+            method: order.paymentMethod,
+            status: 'SUCCEEDED',
+            provider: order.paymentProvider,
+            transactionId: body.transactionId.toString(),
+            paidAt: new Date(body.transferDate),
+            callbackData: body as any,
+          },
+        });
       }
 
       // Update order status
-      order.paymentStatus = PaymentStatus.SUCCEEDED;
-      order.status = OrderStatus.PROCESSING;
-      await manager.save(order);
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          paymentStatus: 'SUCCEEDED',
+          status: 'PROCESSING',
+        },
+      });
 
       // Record history
-      await manager.save(manager.create(OrderStatusHistory, {
-        orderId: order.id,
-        sellerOrderId: null,
-        fromStatus: null,
-        toStatus: order.status,
-        title: 'Payment confirmed via PayOS',
-        description: `Transaction: ${body.transactionId}`,
-        actorType: HistoryActorType.SYSTEM,
-        actorId: null,
-        metadata: { transactionId: body.transactionId },
-      }));
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          fromStatus: order.status,
+          toStatus: 'PROCESSING',
+          title: 'Payment confirmed via PayOS',
+          description: `Transaction: ${body.transactionId}`,
+          actorType: 'SYSTEM',
+          actorId: null,
+        },
+      });
 
       // Emit event
-      await manager.save(manager.create(OutboxEvent, {
-        eventId: body.transactionId.toString(),
-        type: 'payment.succeeded',
-        aggregateId: order.id,
-        payload: {
-          orderId: order.id,
-          transactionId: body.transactionId,
-          amount: body.amount,
+      await tx.outboxEvent.create({
+        data: {
+          eventId: body.transactionId.toString(),
+          type: 'payment.succeeded',
+          aggregateId: order.id,
+          payload: {
+            orderId: order.id,
+            transactionId: body.transactionId,
+            amount: body.amount,
+          },
+          status: 'PENDING',
         },
-        status: OutboxStatus.PENDING,
-        publishedAt: null,
-      }));
+      });
 
       // Grant BookAccess for digital books
       const digitalItems = order.sellerOrders
@@ -127,17 +133,19 @@ export class PaymentsController {
         .filter((item) => item.format === CartItemFormat.DIGITAL);
 
       for (const item of digitalItems) {
-        const existingAccess = await manager.getRepository(BookAccess).findOne({
-          where: { userId: order.userId, bookId: item.bookId },
+        const existingAccess = await tx.bookAccess.findUnique({
+          where: { userId_bookId: { userId: order.userId, bookId: item.bookId } },
         });
 
         if (!existingAccess) {
-          await manager.save(manager.create(BookAccess, {
-            userId: order.userId,
-            bookId: item.bookId,
-            orderId: order.id,
-            status: AccessStatus.ACTIVE,
-          }));
+          await tx.bookAccess.create({
+            data: {
+              userId: order.userId,
+              bookId: item.bookId,
+              orderId: order.id,
+              status: 'ACTIVE',
+            },
+          });
         }
       }
     });
