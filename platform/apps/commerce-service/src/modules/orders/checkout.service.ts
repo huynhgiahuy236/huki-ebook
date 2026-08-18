@@ -1,10 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
-import { randomUUID } from 'crypto';
-import { DataSource, Repository } from 'typeorm';
+import { randomBytes } from 'crypto';
+import { DataSource, EntityManager, Repository } from 'typeorm';
 import {
-  BookFormat, BookStatus, Cart, CartItem, CartItemFormat, CheckoutSession, HistoryActorType,
+  AccessStatus, BookAccess, BookFormat, BookStatus, Cart, CartItem, CartItemFormat, CheckoutSession, HistoryActorType,
   Order, OrderItem, OrderStatus, OrderStatusHistory, OutboxEvent, OutboxStatus,
   PaymentMethod, PaymentStatus, SellerOrder, SellerOrderStatus,
 } from '../../entities';
@@ -118,12 +118,18 @@ export class CheckoutService {
           order.sellerOrders.push(sellerOrder);
         }
         await this.reservations.reserve(manager, order.id, allItems);
+
+        // Grant BookAccess for digital books immediately for COD orders
+        if (dto.paymentMethod === PaymentMethod.COD) {
+          await this.grantDigitalAccess(manager, userId, order.id, allItems);
+        }
+
         await manager.save(manager.create(OrderStatusHistory, {
           orderId: order.id, sellerOrderId: null, fromStatus: null, toStatus: order.status,
           title: 'Order created', description: null, actorType: HistoryActorType.USER, actorId: userId, metadata: null,
         }));
         await manager.save(manager.create(OutboxEvent, {
-          eventId: randomUUID(), type: 'order.created', aggregateId: order.id,
+          eventId: randomBytes(16).toString('hex'), type: 'order.created', aggregateId: order.id,
           payload: { orderId: order.id, userId, total: order.grandTotal }, status: OutboxStatus.PENDING, publishedAt: null,
         }));
         session.consumedAt = new Date();
@@ -143,8 +149,29 @@ export class CheckoutService {
     }
   }
 
-  private code(prefix: string) { return `${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 6).toUpperCase()}`; }
+  private code(prefix: string) {
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = randomBytes(4).toString('hex').toUpperCase();
+    return `${prefix}-${timestamp}-${random}`;
+  }
   private confirmResponse(order: Order, replayed: boolean) {
     return { order, idempotentReplay: replayed, paymentRequired: order.paymentMethod === PaymentMethod.ONLINE_PAYMENT && order.paymentStatus !== PaymentStatus.SUCCEEDED, paymentProvider: order.paymentProvider };
+  }
+
+  private async grantDigitalAccess(manager: EntityManager, userId: string, orderId: string, items: OrderItem[]): Promise<void> {
+    const digitalItems = items.filter((item) => item.format === CartItemFormat.DIGITAL);
+    for (const item of digitalItems) {
+      const existingAccess = await manager.getRepository(BookAccess).findOne({
+        where: { userId, bookId: item.bookId },
+      });
+      if (!existingAccess) {
+        await manager.save(manager.create(BookAccess, {
+          userId,
+          bookId: item.bookId,
+          orderId,
+          status: AccessStatus.ACTIVE,
+        }));
+      }
+    }
   }
 }

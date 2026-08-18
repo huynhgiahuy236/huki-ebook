@@ -11,6 +11,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { CatalogSearchModule } from './modules/catalog-search/catalog-search.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
 import { RedisModule } from './modules/redis/redis.module';
 
@@ -50,6 +51,7 @@ import { RedisModule } from './modules/redis/redis.module';
     BooksModule,
     CartModule,
     OrdersModule,
+    PaymentsModule,
   ],
 })
 export class AppModule {}

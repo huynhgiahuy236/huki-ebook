@@ -23,5 +23,7 @@
       "@huki/shared": ["libs/shared/src"],
       "@huki/shared/*": ["libs/shared/src/*"]
     }
-  }
+  },
+  "include": ["apps/**/*", "libs/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
