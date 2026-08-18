@@ -1,25 +1,36 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import configuration from '../config/configuration';
+import { ConfigModule } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+
+// Prisma
+import { PrismaModule } from './prisma/prisma.module';
+
+// Modules
+import { BusinessModule } from './modules/business/business.module';
+import { StoreModule } from './modules/store/store.module';
+import { MemberModule } from './modules/member/member.module';
+
+// Health
+import { HealthController } from './modules/health/health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        database: configService.get('database.business.name'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
-      }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env', '.env.local'],
     }),
+
+    // Event emitter for cross-service events
+    EventEmitterModule.forRoot(),
+
+    // Prisma
+    PrismaModule,
+
+    // Feature modules
+    BusinessModule,
+    StoreModule,
+    MemberModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

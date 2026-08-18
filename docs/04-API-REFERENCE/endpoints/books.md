@@ -1,340 +1,186 @@
-# 📚 Books API
+# Books API
 
-## GET /books
+Sprint 6 implements book management in Commerce Service under `/api/v1`. Swagger
+is available at `/api/docs` while the service is running.
 
-Get list of books with filtering and pagination.
+## Access rules
 
-### Request
+- Public requests can only read `PUBLISHED` books.
+- `BUSINESS` can create books and manage books it owns.
+- `PLATFORM_ADMIN` can manage and suspend every book.
+- Draft, hidden, archived and suspended books return `404` to unauthorized readers.
+- Public responses never contain owner IDs, Cloudinary public IDs, R2 keys,
+  checksums, reserved inventory, or raw stock.
+
+## Public listing and search
 
 ```http
-GET /api/v1/books?page=1&limit=20&search=javascript&category=programming&format=DIGITAL&min_price=0&max_price=500000&sort=created_at&order=desc
-Authorization: Bearer <access_token>  # Optional for public catalog
+GET /api/v1/books?page=1&limit=20
+  &search=nguyen%20nhat
+  &category=van-hoc
+  &includeChildren=true
+  &author=author-uuid-or-slug
+  &publisher=publisher-uuid-or-slug
+  &store=store-uuid
+  &format=PHYSICAL
+  &minPrice=50000
+  &maxPrice=300000
+  &sortBy=createdAt
+  &order=DESC
 ```
 
-### Query Parameters
+| Parameter | Values |
+|-----------|--------|
+| `page` | Integer from 1; default 1 |
+| `limit` | 1–100; default 20 |
+| `search` | Title, ISBN, author, or publisher; minimum 2 characters |
+| `category` | Category UUID or slug |
+| `includeChildren` | Include all active category descendants |
+| `author`, `publisher` | UUID or slug |
+| `store` | Store UUID |
+| `format` | `PHYSICAL`, `DIGITAL`, `BOTH` |
+| `minPrice`, `maxPrice` | Non-negative numbers |
+| `sortBy` | `createdAt`, `publishedAt`, `price`, `title` |
+| `order` | `ASC`, `DESC` |
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| page | integer | 1 | Page number |
-| limit | integer | 20 | Items per page (max 100) |
-| search | string | - | Search in title, author, ISBN |
-| category | string | - | Category slug or ID |
-| author | string | - | Author name |
-| store | string | - | Store ID |
-| format | string | - | PHYSICAL, DIGITAL, or BOTH |
-| min_price | number | - | Minimum price |
-| max_price | number | - | Maximum price |
-| sort | string | created_at | Sort field |
-| order | string | desc | Sort order (asc/desc) |
-
-### Response 200
+Search ranking is ISBN exact, title exact, title prefix, PostgreSQL full-text rank,
+then trigram similarity. Vietnamese text is normalized for accent-insensitive search.
 
 ```json
 {
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "title": "JavaScript: The Good Parts",
-      "slug": "javascript-the-good-parts",
-      "author": {
-        "id": "author-uuid",
-        "name": "Douglas Crockford"
-      },
-      "store": {
-        "id": "store-uuid",
-        "name": "Tech Books Store",
-        "slug": "tech-books-store"
-      },
-      "coverUrl": "https://example.com/covers/js-good-parts.jpg",
-      "price": 149000,
-      "averageRating": 4.5,
-      "reviewCount": 128,
-      "formats": ["DIGITAL"],
-      "digitalEnabled": true,
-      "physicalEnabled": false,
-      "stock": null,
-      "status": "PUBLISHED",
-      "createdAt": "2026-08-01T00:00:00.000Z"
-    }
-  ],
+  "data": [],
   "pagination": {
     "page": 1,
     "limit": 20,
-    "total": 150,
-    "totalPages": 8,
-    "hasNext": true,
-    "hasPrev": false
+    "total": 0,
+    "totalPages": 0
   }
 }
 ```
 
----
-
-## GET /books/:id
-
-Get book details.
-
-### Request
+## Book details
 
 ```http
-GET /api/v1/books/550e8400-e29b-41d4-a716-446655440000
-Authorization: Bearer <access_token>  # Optional
+GET /api/v1/books/:id
+GET /api/v1/books/slug/:slug
 ```
 
-### Response 200
+Authentication is optional. An authenticated owner/admin can use these endpoints
+to inspect non-public books.
 
-```json
-{
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "title": "JavaScript: The Good Parts",
-    "slug": "javascript-the-good-parts",
-    "isbn": "978-0596517748",
-    "description": "Most programming languages contain good and bad parts...",
-    "price": 149000,
-    "author": {
-      "id": "author-uuid",
-      "name": "Douglas Crockford"
-    },
-    "publisher": {
-      "id": "publisher-uuid",
-      "name": "O'Reilly Media"
-    },
-    "category": {
-      "id": "category-uuid",
-      "name": "Programming",
-      "slug": "programming"
-    },
-    "store": {
-      "id": "store-uuid",
-      "name": "Tech Books Store",
-      "slug": "tech-books-store",
-      "logo": "https://example.com/stores/logo.jpg"
-    },
-    "coverUrl": "https://example.com/covers/js-good-parts.jpg",
-    "formats": ["DIGITAL"],
-    "digitalDetails": {
-      "digitalEnabled": true,
-      "allowOnlineRead": true,
-      "allowDownload": true,
-      "previewPdfUrl": "https://example.com/preview/js-good-parts.pdf"
-    },
-    "physicalDetails": null,
-    "averageRating": 4.5,
-    "reviewCount": 128,
-    "status": "PUBLISHED",
-    "createdAt": "2026-08-01T00:00:00.000Z"
-  }
-}
-```
-
----
-
-## GET /books/:id/read (Protected)
-
-Get ebook reading URL.
-
-### Request
-
-```http
-GET /api/v1/books/550e8400-e29b-41d4-a716-446655440000/read
-Authorization: Bearer <access_token>
-```
-
-### Response 200
-
-```json
-{
-  "data": {
-    "bookId": "550e8400-e29b-41d4-a716-446655440000",
-    "readingUrl": "https://r2.huki-ebook.com/signed-url...",
-    "expiresAt": "2026-08-14T12:00:00.000Z",
-    "progress": {
-      "currentPage": 42,
-      "progressPercent": 35,
-      "status": "READING"
-    }
-  }
-}
-```
-
-### Response 403
-
-```json
-{
-  "statusCode": 403,
-  "error": "Forbidden",
-  "message": "You do not have access to this book"
-}
-```
-
----
-
-## GET /books/slug/:slug
-
-Get book by slug.
-
-### Request
-
-```http
-GET /api/v1/books/slug/javascript-the-good-parts
-```
-
----
-
-## POST /books (Business Only)
-
-Create a new book.
-
-### Request
+## Create a book
 
 ```http
 POST /api/v1/books
-Authorization: Bearer <access_token>
+Authorization: Bearer <business-or-admin-token>
 Content-Type: application/json
+```
 
+```json
 {
-  "title": "New JavaScript Book",
-  "isbn": "978-1234567890",
-  "description": "A comprehensive guide to JavaScript",
-  "price": 199000,
+  "storeId": "store-uuid",
+  "title": "Mắt biếc",
+  "isbn": "9786041234567",
+  "description": "Mô tả sách có ít nhất mười ký tự",
+  "price": 120000,
   "categoryId": "category-uuid",
-  "authorName": "John Doe",
+  "authorId": "author-uuid",
   "publisherId": "publisher-uuid",
-  "format": "DIGITAL",
-  "allowOnlineRead": true,
-  "allowDownload": true
-}
-```
-
-### Response 201
-
-```json
-{
-  "message": "Book created successfully",
-  "data": {
-    "id": "new-book-uuid",
-    "title": "New JavaScript Book",
-    "slug": "new-javascript-book",
-    "status": "DRAFT",
-    "createdAt": "2026-08-14T10:00:00.000Z"
+  "format": "BOTH",
+  "physicalDetails": {
+    "stock": 100,
+    "weight": 250,
+    "length": 20,
+    "width": 14,
+    "height": 2,
+    "physicalEnabled": true,
+    "lowStockThreshold": 10
+  },
+  "digitalDetails": {
+    "digitalEnabled": true,
+    "allowOnlineRead": true,
+    "allowDownload": false
   }
 }
 ```
 
----
+Creation always produces a `DRAFT`. The book and its format details are inserted
+in one transaction.
 
-## PATCH /books/:id (Business Only)
+## CRUD and format metadata
 
-Update book details.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PATCH | `/books/:id` | Update a hidden/draft book and optionally its format details |
+| DELETE | `/books/:id` | Soft-delete a book |
+| GET | `/books/:id/physical` | Private physical metadata |
+| PATCH | `/books/:id/physical` | Dimensions, enabled flag, threshold |
+| GET | `/books/:id/digital` | Safe digital metadata without object keys |
+| PATCH | `/books/:id/digital` | Reading/download flags |
 
-### Request
+A published book must be hidden before catalog or format settings are modified.
+Inventory and media replacement remain available separately.
 
-```http
-PATCH /api/v1/books/550e8400-e29b-41d4-a716-446655440000
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "title": "Updated Title",
-  "price": 179000,
-  "description": "Updated description..."
-}
-```
-
----
-
-## POST /books/:id/publish (Business Only)
-
-Publish a book.
-
-### Request
+## Inventory
 
 ```http
-POST /api/v1/books/550e8400-e29b-41d4-a716-446655440000/publish
-Authorization: Bearer <access_token>
+PATCH /api/v1/books/:id/inventory
+Authorization: Bearer <business-or-admin-token>
 ```
-
-### Response 200
 
 ```json
 {
-  "message": "Book published successfully",
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "status": "PUBLISHED"
-  }
+  "operation": "ADD",
+  "quantity": 25,
+  "reason": "RESTOCK"
 }
 ```
 
----
+- Operations: `SET`, `ADD`, `SUBTRACT`.
+- Reasons: `RESTOCK`, `ADJUSTMENT`, `RETURN`, `SALE`.
+- The update locks the physical row, cannot make stock negative or lower than
+  reserved, writes an audit log, and emits `stock.low` when needed.
 
-## POST /books/:id/cover (Business Only)
+## Uploads
 
-Upload book cover image.
+| Method | Endpoint | Form field | Storage |
+|--------|----------|------------|---------|
+| POST | `/books/:id/cover` | `cover` | Cloudinary |
+| POST | `/books/:id/file` | `file` | Private Cloudflare R2 source PDF |
+| POST | `/books/:id/preview` | `file` | Private Cloudflare R2 preview PDF |
 
-### Request
+Allowed covers are JPEG, PNG, and WebP up to `BOOK_COVER_MAX_BYTES`. PDFs must
+have a valid `%PDF-` signature and fit `BOOK_PDF_MAX_BYTES`. Storage uploads are
+compensated if the database update fails, and the previous object is removed only
+after the replacement has been saved.
 
-```http
-POST /api/v1/books/550e8400-e29b-41d4-a716-446655440000/cover
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
+## Publishing workflow
 
-cover: <file>
+```text
+DRAFT ──publish──> PUBLISHED
+HIDDEN ──publish──> PUBLISHED
+PUBLISHED ──hide──> HIDDEN
+DRAFT/HIDDEN/PUBLISHED ──archive──> ARCHIVED
+any status ──admin suspend──> SUSPENDED
 ```
 
----
+| Method | Endpoint |
+|--------|----------|
+| POST | `/books/:id/publish` |
+| POST | `/books/:id/hide` |
+| POST | `/books/:id/archive` |
+| POST | `/books/:id/suspend` |
 
-## POST /books/:id/file (Business Only)
+Publish checks active catalog references, cover, common fields and every required
+physical/digital field. An incomplete book receives HTTP `422` with an `errors`
+array containing `field` and `message` entries.
 
-Upload ebook PDF file.
+## Database setup
 
-### Request
+Keep `DATABASE_SYNC=false` and run migrations from `platform/`:
 
-```http
-POST /api/v1/books/550e8400-e29b-41d4-a716-446655440000/file
-Authorization: Bearer <access_token>
-Content-Type: multipart/form-data
-
-file: <file>
+```bash
+npm run migration:commerce:run
 ```
 
-### Response 200
-
-```json
-{
-  "message": "File uploaded successfully"
-}
-```
-
----
-
-## PATCH /books/:id/inventory (Business Only)
-
-Update inventory.
-
-### Request
-
-```http
-PATCH /api/v1/books/550e8400-e29b-41d4-a716-446655440000/inventory
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "stock": 100,
-  "operation": "SET"  # SET, ADD, SUBTRACT
-}
-```
-
-### Response 200
-
-```json
-{
-  "data": {
-    "bookId": "550e8400-e29b-41d4-a716-446655440000",
-    "onHand": 100,
-    "reserved": 5,
-    "available": 95
-  }
-}
-```
+Book search uses migration-owned `tsvector`, GIN, and `pg_trgm` indexes.

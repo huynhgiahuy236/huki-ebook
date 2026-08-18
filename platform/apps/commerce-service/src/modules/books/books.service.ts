@@ -1,0 +1,292 @@
+import { ConflictException, BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { BookActor } from '../../common/book-auth.guard';
+import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
+import { paginate } from '../../common/pagination.util';
+import { CreateBookDto } from './dto/create-book.dto';
+import { UpdateBookDto } from './dto/update-book.dto';
+import { BookListQueryDto } from './dto/book-list-query.dto';
+import { BookFormat, BookStatus } from '@prisma/client';
+
+@Injectable()
+export class BooksService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(dto: CreateBookDto, actor: BookActor) {
+    await this.validateCatalog(dto.categoryId, dto.authorId, dto.publisherId);
+    this.validateFormatPayload(dto.format, dto.physicalDetails, dto.digitalDetails);
+
+    const title = dto.title.trim();
+    const slug = dto.slug ?? toCatalogSlug(title);
+    await this.ensureSlugAvailable(dto.storeId, slug);
+
+    const book = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.book.create({
+        data: {
+          storeId: dto.storeId,
+          ownerUserId: actor.sub,
+          title,
+          normalizedTitle: normalizeCatalogText(title),
+          slug,
+          isbn: dto.isbn ?? null,
+          description: dto.description.trim(),
+          price: dto.price,
+          categoryId: dto.categoryId,
+          authorId: dto.authorId,
+          publisherId: dto.publisherId,
+          format: dto.format,
+          status: BookStatus.DRAFT,
+        },
+      });
+
+      // Create physical details
+      if (dto.physicalDetails) {
+        await tx.physicalBookDetails.create({
+          data: {
+            bookId: created.id,
+            stock: dto.physicalDetails.stock ?? 0,
+            reserved: 0,
+            weight: dto.physicalDetails.weight,
+            physicalEnabled: dto.physicalDetails.physicalEnabled ?? true,
+          },
+        });
+      }
+
+      // Create digital details
+      if (dto.digitalDetails) {
+        await tx.digitalBookDetails.create({
+          data: {
+            bookId: created.id,
+            digitalEnabled: dto.digitalDetails.digitalEnabled ?? true,
+          },
+        });
+      }
+
+      return created;
+    });
+
+    return this.findOne(book.id, actor);
+  }
+
+  async findOne(id: string, actor?: BookActor) {
+    const book = await this.prisma.book.findUnique({
+      where: { id },
+      include: {
+        category: true,
+        author: true,
+        publisher: true,
+        physicalDetails: true,
+        digitalDetails: true,
+      },
+    });
+
+    if (!book) throw new NotFoundException('Book not found');
+
+    const canAccess = this.canManage(book, actor);
+    if (book.status !== BookStatus.PUBLISHED && !canAccess) {
+      throw new NotFoundException('Book not found');
+    }
+
+    return this.serializeBook(book, canAccess);
+  }
+
+  async findAll(query: BookListQueryDto) {
+    if (query.minPrice !== undefined && query.maxPrice !== undefined && query.minPrice > query.maxPrice) {
+      throw new BadRequestException('minPrice cannot be greater than maxPrice');
+    }
+
+    const where: any = { status: BookStatus.PUBLISHED };
+
+    if (query.search) {
+      const search = normalizeCatalogText(query.search);
+      if (search.length < 2) {
+        throw new BadRequestException('Search query must contain at least 2 characters');
+      }
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { normalizedTitle: { contains: search, mode: 'insensitive' } },
+        { author: { name: { contains: search, mode: 'insensitive' } } },
+        { publisher: { name: { contains: search, mode: 'insensitive' } } },
+      ];
+    }
+
+    if (query.category) where.categoryId = query.category;
+    if (query.author) where.authorId = query.author;
+    if (query.publisher) where.publisherId = query.publisher;
+    if (query.store) where.storeId = query.store;
+    if (query.format) where.format = query.format;
+    if (query.minPrice !== undefined) where.price = { ...where.price, gte: query.minPrice };
+    if (query.maxPrice !== undefined) where.price = { ...where.price, lte: query.maxPrice };
+
+    const orderBy: any = {};
+    if (query.sortBy === 'CREATED_AT') orderBy.createdAt = query.order;
+    else if (query.sortBy === 'PUBLISHED_AT') orderBy.publishedAt = query.order;
+    else if (query.sortBy === 'PRICE') orderBy.price = query.order;
+    else orderBy.title = query.order;
+
+    const [books, total] = await this.prisma.$transaction([
+      this.prisma.book.findMany({
+        where,
+        include: {
+          category: true,
+          author: true,
+          publisher: true,
+          physicalDetails: true,
+          digitalDetails: true,
+        },
+        orderBy,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.book.count({ where }),
+    ]);
+
+    return paginate(books.map(b => this.serializeBook(b, false)), total, query.page, query.limit);
+  }
+
+  async findBySlug(slug: string, actor?: BookActor) {
+    const book = await this.prisma.book.findUnique({
+      where: { slug },
+      include: {
+        category: true,
+        author: true,
+        publisher: true,
+        physicalDetails: true,
+        digitalDetails: true,
+      },
+    });
+
+    if (!book) throw new NotFoundException('Book not found');
+
+    const canAccess = this.canManage(book, actor);
+    if (book.status !== BookStatus.PUBLISHED && !canAccess) {
+      throw new NotFoundException('Book not found');
+    }
+
+    return this.serializeBook(book, canAccess);
+  }
+
+  async update(id: string, dto: UpdateBookDto, actor: BookActor) {
+    const existing = await this.prisma.book.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Book not found');
+    if (!this.canManage(existing, actor)) throw new ForbiddenException('You do not own this book');
+
+    if (existing.status === BookStatus.PUBLISHED) {
+      throw new ConflictException('Hide the book before changing catalog details');
+    }
+
+    const categoryId = dto.categoryId ?? existing.categoryId;
+    const authorId = dto.authorId ?? existing.authorId;
+    const publisherId = dto.publisherId ?? existing.publisherId;
+
+    if (categoryId || authorId || publisherId) {
+      await this.validateCatalog(categoryId, authorId, publisherId);
+    }
+
+    const title = dto.title?.trim() ?? existing.title;
+    const slug = dto.slug ?? existing.slug;
+
+    if (slug !== existing.slug) {
+      await this.ensureSlugAvailable(existing.storeId, slug, id);
+    }
+
+    const updated = await this.prisma.book.update({
+      where: { id },
+      data: {
+        title,
+        normalizedTitle: normalizeCatalogText(title),
+        slug,
+        isbn: dto.isbn === undefined ? existing.isbn : dto.isbn ?? null,
+        description: dto.description?.trim() ?? existing.description,
+        price: dto.price ?? existing.price,
+        categoryId,
+        authorId,
+        publisherId,
+        format: dto.format ?? existing.format,
+      },
+    });
+
+    return this.findOne(updated.id, actor);
+  }
+
+  async publish(id: string, actor: BookActor) {
+    const book = await this.prisma.book.findUnique({ where: { id } });
+    if (!book) throw new NotFoundException('Book not found');
+    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+
+    return this.prisma.book.update({
+      where: { id },
+      data: {
+        status: BookStatus.PUBLISHED,
+        publishedAt: new Date(),
+      },
+    });
+  }
+
+  async remove(id: string, actor: BookActor) {
+    const book = await this.prisma.book.findUnique({ where: { id } });
+    if (!book) throw new NotFoundException('Book not found');
+    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+
+    await this.prisma.book.delete({ where: { id } });
+  }
+
+  private canManage(book: any, actor?: BookActor): boolean {
+    return !!actor && (actor.role === 'PLATFORM_ADMIN' || book.ownerUserId === actor.sub);
+  }
+
+  private async validateCatalog(categoryId: string | null, authorId: string | null, publisherId: string | null) {
+    if (categoryId) {
+      const cat = await this.prisma.category.findUnique({ where: { id: categoryId } });
+      if (!cat || !cat.isActive) throw new NotFoundException('Active category not found');
+    }
+    if (authorId) {
+      const author = await this.prisma.author.findUnique({ where: { id: authorId } });
+      if (!author || !author.isActive) throw new NotFoundException('Active author not found');
+    }
+    if (publisherId) {
+      const pub = await this.prisma.publisher.findUnique({ where: { id: publisherId } });
+      if (!pub || !pub.isActive) throw new NotFoundException('Active publisher not found');
+    }
+  }
+
+  private validateFormatPayload(format: BookFormat, physical?: any, digital?: any) {
+    if ([BookFormat.PHYSICAL, BookFormat.BOTH].includes(format) && !physical) {
+      throw new ConflictException('Physical details are required for this format');
+    }
+    if ([BookFormat.DIGITAL, BookFormat.BOTH].includes(format) && !digital) {
+      throw new ConflictException('Digital details are required for this format');
+    }
+  }
+
+  private async ensureSlugAvailable(storeId: string, slug: string, excludeId?: string) {
+    const existing = await this.prisma.book.findFirst({
+      where: { storeId, slug, ...(excludeId && { NOT: { id: excludeId } }) },
+    });
+    if (existing) throw new ConflictException('Book slug already exists in this store');
+  }
+
+  private serializeBook(book: any, isPrivate: boolean) {
+    return {
+      id: book.id,
+      storeId: book.storeId,
+      title: book.title,
+      slug: book.slug,
+      isbn: book.isbn,
+      description: book.description,
+      price: Number(book.price),
+      format: book.format,
+      status: book.status,
+      coverUrl: book.coverUrl,
+      publishedAt: book.publishedAt,
+      viewCount: book.viewCount,
+      category: book.category,
+      author: book.author,
+      publisher: book.publisher,
+      ...(isPrivate && {
+        physicalDetails: book.physicalDetails,
+        digitalDetails: book.digitalDetails,
+      }),
+    };
+  }
+}
