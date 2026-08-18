@@ -1,7 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsOptional, IsPhoneNumber, IsString, IsUUID, MaxLength, MinLength, ValidateNested } from 'class-validator';
-import { PaymentMethod, ShippingAddress } from '../../../entities';
+import { PaymentMethod } from '@prisma/client';
+
+export interface ShippingAddress {
+  recipientName: string;
+  phone: string;
+  line1: string;
+  ward?: string;
+  district?: string;
+  province: string;
+}
 
 export class ShippingAddressDto implements ShippingAddress {
   @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) recipientName: string;

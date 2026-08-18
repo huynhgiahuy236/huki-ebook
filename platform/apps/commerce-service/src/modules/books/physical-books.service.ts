@@ -1,19 +1,11 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
-import {
-  Book,
-  BookFormat,
-  BookStatus,
-  InventoryLog,
-  InventoryOperation,
-  PhysicalBookDetails,
-} from '../../entities';
 import { BooksService } from './books.service';
-import { UpdateInventoryDto } from './dto/update-inventory.dto';
+import { UpdateInventoryDto, InventoryOperation } from './dto/update-inventory.dto';
 import { UpdatePhysicalDetailsDto } from './dto/update-physical-details.dto';
+import { BookFormat, BookStatus } from '@prisma/client';
 
 export interface StockLowEvent {
   bookId: string;
@@ -26,75 +18,91 @@ export interface StockLowEvent {
 @Injectable()
 export class PhysicalBooksService {
   constructor(
-    @InjectRepository(PhysicalBookDetails)
-    private readonly physicalRepository: Repository<PhysicalBookDetails>,
+    private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async get(bookId: string, actor: BookActor) {
     await this.booksService.findForWrite(bookId, actor);
-    const details = await this.physicalRepository.findOne({ where: { bookId } });
+    const details = await this.prisma.physicalBookDetails.findUnique({ where: { bookId } });
     if (!details) throw new NotFoundException('Physical book details not found');
     return details;
   }
 
   async update(bookId: string, dto: UpdatePhysicalDetailsDto, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new NotFoundException('Book not found');
+
     this.assertPhysicalFormat(book);
+
     if (book.status === BookStatus.PUBLISHED) {
       throw new ConflictException('Hide the book before changing physical settings');
     }
-    const details = await this.get(bookId, actor);
-    Object.assign(details, dto);
-    return this.physicalRepository.save(details);
+
+    const details = await this.prisma.physicalBookDetails.findUnique({ where: { bookId } });
+    if (!details) throw new NotFoundException('Physical book details not found');
+
+    return this.prisma.physicalBookDetails.update({
+      where: { bookId },
+      data: {
+        weight: dto.weight ?? details.weight,
+        physicalEnabled: dto.physicalEnabled ?? details.physicalEnabled,
+      },
+    });
   }
 
   async updateInventory(bookId: string, dto: UpdateInventoryDto, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new NotFoundException('Book not found');
+
     this.assertPhysicalFormat(book);
+
     if (dto.operation !== InventoryOperation.SET && dto.quantity === 0) {
       throw new ConflictException('ADD and SUBTRACT quantity must be greater than zero');
     }
 
-    const result = await this.physicalRepository.manager.transaction(async (manager) => {
-      const details = await manager.getRepository(PhysicalBookDetails).findOne({
-        where: { bookId },
-        lock: { mode: 'pessimistic_write' },
-      });
+    const result = await this.prisma.$transaction(async (tx) => {
+      const details = await tx.physicalBookDetails.findUnique({ where: { bookId } });
       if (!details) throw new NotFoundException('Physical book details not found');
 
       const stockBefore = details.stock;
       const stockAfter = this.calculateStock(stockBefore, dto);
+
       if (stockAfter < details.reserved) {
         throw new ConflictException('Stock cannot be lower than reserved quantity');
       }
 
-      details.stock = stockAfter;
-      await manager.getRepository(PhysicalBookDetails).save(details);
-      await manager.getRepository(InventoryLog).save(
-        manager.getRepository(InventoryLog).create({
+      // Update stock
+      const updated = await tx.physicalBookDetails.update({
+        where: { bookId },
+        data: { stock: stockAfter },
+      });
+
+      // Create inventory log
+      await tx.inventoryLog.create({
+        data: {
           bookId,
-          performedBy: actor.sub,
-          operation: dto.operation,
-          reason: dto.reason,
-          quantity: dto.quantity,
-          stockBefore,
-          stockAfter,
-        }),
-      );
-      return { details, available: stockAfter - details.reserved };
+          change: dto.operation === InventoryOperation.ADD ? dto.quantity : -dto.quantity,
+          balance: stockAfter,
+          reason: dto.reason ?? '',
+          orderId: dto.orderId ?? null,
+        },
+      });
+
+      return { details: updated, available: stockAfter - details.reserved };
     });
 
-    if (result.available <= result.details.lowStockThreshold) {
+    if (result.available <= (result.details as any).lowStockThreshold) {
       this.eventEmitter.emit('stock.low', {
         bookId,
         storeId: book.storeId,
         title: book.title,
         available: result.available,
-        threshold: result.details.lowStockThreshold,
-      } satisfies StockLowEvent);
+        threshold: (result.details as any).lowStockThreshold,
+      } as StockLowEvent);
     }
+
     return { ...result.details, available: result.available };
   }
 
@@ -109,7 +117,7 @@ export class PhysicalBooksService {
     return value;
   }
 
-  private assertPhysicalFormat(book: Book) {
+  private assertPhysicalFormat(book: any) {
     if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format)) {
       throw new ConflictException('Book does not support physical format');
     }

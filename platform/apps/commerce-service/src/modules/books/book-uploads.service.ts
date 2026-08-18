@@ -1,24 +1,12 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Inject,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { createHash, randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
-import { Book, BookFormat, DigitalBookDetails } from '../../entities';
 import { BooksService } from './books.service';
 import { serializeDigitalDetails } from './digital-books.service';
-import {
-  COVER_STORAGE,
-  CoverStorage,
-  EBOOK_STORAGE,
-  EbookStorage,
-} from './storage/storage.interfaces';
+import { COVER_STORAGE, CoverStorage, EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
+import { BookFormat } from '@prisma/client';
 
 export enum PdfFileKind {
   SOURCE = 'SOURCE',
@@ -30,9 +18,7 @@ export class BookUploadsService {
   private readonly logger = new Logger(BookUploadsService.name);
 
   constructor(
-    @InjectRepository(Book) private readonly bookRepository: Repository<Book>,
-    @InjectRepository(DigitalBookDetails)
-    private readonly digitalRepository: Repository<DigitalBookDetails>,
+    private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
     private readonly configService: ConfigService,
     @Inject(COVER_STORAGE) private readonly coverStorage: CoverStorage,
@@ -40,61 +26,72 @@ export class BookUploadsService {
   ) {}
 
   async uploadCover(bookId: string, file: Express.Multer.File | undefined, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new ConflictException('Book not found');
+
     this.validateCover(file);
-    const oldKey = book.coverPublicId;
+
     const key = `huki/books/${book.storeId}/${book.id}/cover-${randomUUID()}`;
     const uploaded = await this.coverStorage.upload(file!.buffer, key);
 
     try {
-      book.coverUrl = uploaded.url;
-      book.coverPublicId = uploaded.key;
-      await this.bookRepository.save(book);
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: {
+          coverUrl: uploaded.url,
+          coverPublicId: uploaded.key,
+        },
+      });
     } catch (error) {
       await this.safeDeleteCover(uploaded.key);
       throw error;
     }
-    if (oldKey) await this.safeDeleteCover(oldKey);
+
+    if (book.coverPublicId) await this.safeDeleteCover(book.coverPublicId);
+
     return { coverUrl: uploaded.url };
   }
 
-  async uploadPdf(
-    bookId: string,
-    kind: PdfFileKind,
-    file: Express.Multer.File | undefined,
-    actor: BookActor,
-  ) {
-    const book = await this.booksService.findForWrite(bookId, actor);
+  async uploadPdf(bookId: string, kind: PdfFileKind, file: Express.Multer.File | undefined, actor: BookActor) {
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new ConflictException('Book not found');
+
     if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format)) {
       throw new ConflictException('Book does not support digital format');
     }
+
     this.validatePdf(file);
-    const details = await this.digitalRepository.findOne({ where: { bookId } });
+
+    const details = await this.prisma.digitalBookDetails.findUnique({ where: { bookId } });
     if (!details) throw new ConflictException('Digital book details not found');
 
-    const part = kind === PdfFileKind.SOURCE ? 'source' : 'preview';
+    const part = kind === PdfFileKind.SOURCE ? 'pdf' : 'preview';
     const key = `stores/${book.storeId}/books/${book.id}/${part}-${randomUUID()}.pdf`;
-    const oldKey =
-      kind === PdfFileKind.SOURCE ? details.sourcePdfKey : details.previewPdfKey;
-    const checksum = createHash('sha256').update(file!.buffer).digest('hex');
     await this.ebookStorage.upload(file!.buffer, key, 'application/pdf');
 
     try {
+      const data: any = {};
       if (kind === PdfFileKind.SOURCE) {
-        details.sourcePdfKey = key;
-        details.fileSize = String(file!.size);
-        details.mimeType = 'application/pdf';
-        details.checksum = checksum;
+        data.pdfKey = key;
+        data.fileSize = String(file!.size);
+        data.mimeType = 'application/pdf';
       } else {
-        details.previewPdfKey = key;
+        data.previewPdfKey = key;
       }
-      await this.digitalRepository.save(details);
+
+      await this.prisma.digitalBookDetails.update({
+        where: { bookId },
+        data,
+      });
+
+      const oldKey = kind === PdfFileKind.SOURCE ? details.pdfKey : details.previewPdfKey;
+      if (oldKey) await this.safeDeleteEbook(oldKey);
     } catch (error) {
       await this.safeDeleteEbook(key);
       throw error;
     }
-    if (oldKey) await this.safeDeleteEbook(oldKey);
-    return serializeDigitalDetails(details);
+
+    return serializeDigitalDetails(await this.prisma.digitalBookDetails.findUnique({ where: { bookId } }));
   }
 
   private validateCover(file?: Express.Multer.File) {
@@ -104,8 +101,7 @@ export class BookUploadsService {
     const bytes = file.buffer;
     const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
     const png = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
-    const webp = bytes.subarray(0, 4).toString() === 'RIFF' && bytes.subarray(8, 12).toString() === 'WEBP';
-    if (!jpeg && !png && !webp) throw new BadRequestException('Cover must be JPEG, PNG or WebP');
+    if (!jpeg && !png) throw new BadRequestException('Cover must be JPEG or PNG');
   }
 
   private validatePdf(file?: Express.Multer.File) {

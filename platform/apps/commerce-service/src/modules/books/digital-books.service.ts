@@ -1,23 +1,18 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
-import { Book, BookFormat, BookStatus, DigitalBookDetails } from '../../entities';
 import { BooksService } from './books.service';
 import { UpdateDigitalDetailsDto } from './dto/update-digital-details.dto';
+import { BookFormat, BookStatus } from '@prisma/client';
 
-export function serializeDigitalDetails(details: DigitalBookDetails) {
+export function serializeDigitalDetails(details: any) {
   return {
     id: details.id,
     bookId: details.bookId,
     digitalEnabled: details.digitalEnabled,
-    allowOnlineRead: details.allowOnlineRead,
-    allowDownload: details.allowDownload,
-    hasSourceFile: !!details.sourcePdfKey,
+    hasSourceFile: !!details.pdfKey,
     hasPreviewFile: !!details.previewPdfKey,
     hasEpubFile: !!details.epubKey,
-    fileSize: details.fileSize,
-    mimeType: details.mimeType,
     createdAt: details.createdAt,
     updatedAt: details.updatedAt,
   };
@@ -26,38 +21,41 @@ export function serializeDigitalDetails(details: DigitalBookDetails) {
 @Injectable()
 export class DigitalBooksService {
   constructor(
-    @InjectRepository(DigitalBookDetails)
-    private readonly digitalRepository: Repository<DigitalBookDetails>,
+    private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
   ) {}
 
   async get(bookId: string, actor: BookActor) {
     await this.booksService.findForWrite(bookId, actor);
-    return serializeDigitalDetails(await this.findDetails(bookId));
-  }
-
-  async update(bookId: string, dto: UpdateDigitalDetailsDto, actor: BookActor) {
-    const book = await this.booksService.findForWrite(bookId, actor);
-    this.assertDigitalFormat(book);
-    if (book.status === BookStatus.PUBLISHED) {
-      throw new ConflictException('Hide the book before changing digital settings');
-    }
-    const details = await this.findDetails(bookId);
-    Object.assign(details, dto);
-    return serializeDigitalDetails(await this.digitalRepository.save(details));
-  }
-
-  async findPrivateDetails(bookId: string): Promise<DigitalBookDetails> {
     return this.findDetails(bookId);
   }
 
-  private async findDetails(bookId: string) {
-    const details = await this.digitalRepository.findOne({ where: { bookId } });
-    if (!details) throw new NotFoundException('Digital book details not found');
-    return details;
+  async update(bookId: string, dto: UpdateDigitalDetailsDto, actor: BookActor) {
+    const book = await this.prisma.book.findUnique({ where: { id: bookId } });
+    if (!book) throw new NotFoundException('Book not found');
+
+    this.assertDigitalFormat(book);
+
+    if (book.status === BookStatus.PUBLISHED) {
+      throw new ConflictException('Hide the book before changing digital settings');
+    }
+
+    const details = await this.findDetails(bookId);
+    return this.prisma.digitalBookDetails.update({
+      where: { bookId },
+      data: {
+        digitalEnabled: dto.digitalEnabled ?? details.digitalEnabled,
+      },
+    });
   }
 
-  private assertDigitalFormat(book: Book) {
+  private async findDetails(bookId: string) {
+    const details = await this.prisma.digitalBookDetails.findUnique({ where: { bookId } });
+    if (!details) throw new NotFoundException('Digital book details not found');
+    return serializeDigitalDetails(details);
+  }
+
+  private assertDigitalFormat(book: any) {
     if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format)) {
       throw new ConflictException('Book does not support digital format');
     }

@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { OrderStatus, SellerOrderStatus } from '../../../entities';
+import { OrderStatus, SellerOrderStatus } from '@prisma/client';
 
 export class OrderQueryDto {
   @ApiPropertyOptional({ default: 1 }) @Type(() => Number) @IsOptional() @IsInt() @Min(1) page = 1;
