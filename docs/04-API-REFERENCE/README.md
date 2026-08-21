@@ -87,9 +87,17 @@ Authorization: Bearer <access_token>
 - GET /shipping/fee - Calculate shipping fee
 - POST /shipping/address - Save address
 - GET /shipping/address - Get addresses
+- PATCH /shipping/address/:id - Update address
 - DELETE /shipping/address/:id - Delete address
 - GET /shipments - Get shipments
+- GET /shipments/tracking/:trackingNumber - Track shipment
 - GET /shipments/:id - Get shipment details
+- PATCH /shipments/:id/status - Update shipment status
+- POST /shipments/:id/assign - Assign delivery staff (Admin)
+- POST /delivery-staff - Create delivery staff (Admin)
+- GET /delivery-staff - List delivery staff (Admin)
+- PATCH /delivery-staff/:id - Update delivery staff (Admin)
+- POST /callbacks/ghtk - Signed carrier callback
 
 ### [Vouchers](endpoints/vouchers.md)
 - GET /vouchers - List vouchers

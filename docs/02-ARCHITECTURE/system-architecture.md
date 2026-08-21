@@ -207,7 +207,7 @@ Service A → Database → Service B (limited)
 | Identity | identity_db | users, auth_sessions |
 | Business | business_db | businesses, stores, members |
 | Commerce | commerce_db | books, orders, payments |
-| Shipping | shipping_db | shipments, delivery_staff |
+| Shipping | shipping_db | shipments, addresses, delivery_staff, delivery_logs, outbox_events |
 | Promotion | promotion_db | vouchers, discounts |
 
 ### MongoDB Services
