@@ -22,6 +22,7 @@
     "lint": "nx run-many -t lint",
     "test": "nx run-many -t test",
     "test:commerce": "jest --config apps/commerce-service/jest.config.js",
+    "test:shipping": "jest --config apps/shipping-service/jest.config.js",
     "test:cov": "nx run-many -t test --coverage",
     "prisma:generate": "npm run prisma:generate:identity && npm run prisma:generate:business && npm run prisma:generate:commerce && npm run prisma:generate:shipping && npm run prisma:generate:promotion",
     "prisma:generate:identity": "prisma generate --schema apps/identity-service/prisma/schema.prisma",

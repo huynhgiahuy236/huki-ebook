@@ -2,6 +2,13 @@
 
 Hướng dẫn testing toàn diện.
 
+```bash
+cd platform
+npm run test:shipping -- --runInBand
+```
+
+Shipping tests bao phủ công thức GHTK mock, COD, tracking idempotent và shipment state machine.
+
 ## 📋 Testing Strategy
 
 ```

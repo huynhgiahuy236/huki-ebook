@@ -16,8 +16,8 @@ export interface ShippingAddress {
   recipientName: string;
   phone: string;
   line1: string;
-  ward?: string;
-  district?: string;
+  ward: string;
+  district: string;
   province: string;
 }
 
@@ -29,16 +29,8 @@ export class ShippingAddressDto implements ShippingAddress {
   recipientName: string;
   @ApiProperty() @IsPhoneNumber('VN') phone: string;
   @ApiProperty() @IsString() @MinLength(3) @MaxLength(250) line1: string;
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  ward?: string;
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  district?: string;
+  @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) ward: string;
+  @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) district: string;
   @ApiProperty() @IsString() @MinLength(2) @MaxLength(100) province: string;
 }
 

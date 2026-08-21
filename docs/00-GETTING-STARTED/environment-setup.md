@@ -113,6 +113,14 @@ COMMERCE_DATABASE_URL=postgresql://postgres:password@localhost:5432/commerce_db?
 SHIPPING_SERVICE_PORT=3004
 SHIPPING_DB_NAME=huki_shipping
 SHIPPING_DATABASE_URL=postgresql://postgres:password@localhost:5432/shipping_db?schema=public
+SHIPPING_INTERNAL_API_KEY=replace-with-a-long-random-internal-key
+SHIPPING_WEBHOOK_SECRET=replace-with-a-long-random-webhook-secret
+GHTK_PICKUP_PROVINCE=Hồ Chí Minh
+GHTK_PICKUP_DISTRICT=Quận 1
+GHTK_MOCK_BASE_FEE=15000
+GHTK_MOCK_EXTRA_500G_FEE=5000
+GHTK_MOCK_INTER_PROVINCE_FEE=10000
+GHTK_MOCK_COD_RATE=0.005
 
 # ============================================
 # COMMUNITY SERVICE

@@ -91,7 +91,7 @@ Welcome to HUKI EBOOK project documentation.
 |-------|--------|-------------|
 | Phase 1: Backend Foundation | ✅ Complete | Auth, Business registration, Catalog |
 | Phase 2: Commerce & Cart | 🔄 In Progress | Books, Cart, Orders, Checkout |
-| Phase 3: Payment & Shipping | 🟨 In progress | Sprint 9 PayOS/COD hoàn thành; Shipping đang chờ |
+| Phase 3: Payment & Shipping | 🟨 In progress | Sprint 9 Payment và Sprint 10 Shipping hoàn thành; chờ Sprint 11 Events |
 | Phase 4: Community | ⬜ Pending | Forum, Chat, Reviews |
 | Phase 5: Frontend | ⬜ Pending | Next.js Web App |
 | Phase 6: Mobile | ⬜ Pending | Flutter Mobile App |

@@ -175,6 +175,22 @@ Format: `PREFIX_ACTION`
 | BOOK_ACCESS_REVOKED | Access revoked (refund) | Library |
 | READING_PROGRESS_UPDATED | User reads | Analytics |
 
+### 7. Shipping Events
+
+Sprint 10 ghi event vào Prisma outbox; Sprint 11 publish các row `PENDING` qua RabbitMQ.
+
+| Event | Trigger | Consumers |
+|-------|---------|-----------|
+| `shipment.created` | Tạo shipment | Commerce, Notification |
+| `shipment.staff-assigned` | Phân công nhân viên | Notification |
+| `shipment.picked_up` | Đã lấy hàng | Commerce |
+| `shipment.in_transit` | Đang trung chuyển | Commerce |
+| `shipment.out_for_delivery` | Đang giao | Commerce, Notification |
+| `shipment.delivered` | Giao thành công | Commerce, Payment |
+| `shipment.failed` | Giao thất bại | Commerce, Notification |
+| `shipment.returned` | Hoàn hàng | Commerce |
+| `shipment.cancelled` | Hủy vận đơn | Commerce |
+
 ## Consumer Implementation
 
 ```typescript

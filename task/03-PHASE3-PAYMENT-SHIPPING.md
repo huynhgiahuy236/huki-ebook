@@ -37,17 +37,26 @@
 - PayOS không được giả định có API refund tự động trong code. Sau khi thao tác/đối soát trên PayOS, chỉ platform admin được gọi endpoint settle để ghi kết quả.
 - Refund đủ số tiền chuyển order sang `REFUNDED` và thu hồi quyền sách số; refund một phần dùng `PARTIAL_REFUND`.
 
-## Sprint 10: Shipping Service
+## Sprint 10: Shipping Service — Hoàn thành 2026-08-21
 
-| Task | Người | Priority | Mô tả |
-|---|---|---|---|
-| T10.1 | HUY | HIGH | Database schema: shipments, delivery_staff |
-| T10.2 | HUY | HIGH | Shipping fee calculation (GHTK mock) |
-| T10.3 | HUY | HIGH | Shipment creation on order |
-| T10.4 | HUY | HIGH | Shipment tracking |
-| T10.5 | HUY | HIGH | Delivery staff assignment |
-| T10.6 | KIEN | MEDIUM | GHTK integration (mock) |
-| T10.7 | HUY | MEDIUM | Delivery status updates |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|---|---|---|---|---|
+| T10.1 | HUY | HIGH | Database schema: shipments, delivery_staff | ✅ |
+| T10.2 | HUY | HIGH | Shipping fee calculation (GHTK mock) | ✅ |
+| T10.3 | HUY | HIGH | Shipment creation on order | ✅ |
+| T10.4 | HUY | HIGH | Shipment tracking | ✅ |
+| T10.5 | HUY | HIGH | Delivery staff assignment | ✅ |
+| T10.6 | KIEN | MEDIUM | GHTK integration (mock) | ✅ |
+| T10.7 | HUY | MEDIUM | Delivery status updates | ✅ |
+
+### Luồng Shipping đã triển khai
+
+1. Commerce ghi `order.created` với địa chỉ và các seller order vật lý.
+2. Shipping tạo shipment idempotent theo `sellerOrderId`, tính phí và sinh tracking GHTK mock.
+3. Shipment đi theo `PENDING → PICKED_UP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED`; nhánh lỗi hỗ trợ retry/return/cancel.
+4. Callback GHTK xác thực HMAC-SHA256 và chống trùng bằng `eventId`.
+5. Platform admin phân công delivery staff; buyer/business/admin chỉ xem đúng phạm vi dữ liệu.
+6. Mọi thay đổi trạng thái ghi timeline và outbox; RabbitMQ publisher/consumer thuộc Sprint 11.
 
 ## Sprint 11: Order Completion & Events
 
@@ -65,8 +74,8 @@
 - [x] PayOS integration
 - [x] COD payment
 - [x] Refund flow
-- [ ] Shipping fee calculation
-- [ ] Shipment tracking
+- [x] Shipping fee calculation
+- [x] Shipment tracking
 - [ ] Event consumers cho toàn bộ order flow
 
 ## Dependencies

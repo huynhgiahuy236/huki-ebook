@@ -274,6 +274,15 @@ export class CheckoutService {
           });
         }
 
+        const shipmentSellerOrders: Array<{
+          sellerOrderId: string;
+          storeId: string;
+          ownerUserId: string;
+          requiresShipping: boolean;
+          weight: number;
+          codAmount: number;
+        }> = [];
+
         // Create seller orders and items
         for (let i = 0; i < snapshot.groups.length; i++) {
           const group = snapshot.groups[i];
@@ -312,6 +321,20 @@ export class CheckoutService {
             ),
           );
 
+          shipmentSellerOrders.push({
+            sellerOrderId: sellerOrder.id,
+            storeId: group.storeId,
+            ownerUserId: group.ownerUserId,
+            requiresShipping: group.requiresShipping,
+            weight: group.items.reduce(
+              (total: number, item: CheckoutSnapshotItem) =>
+                total + item.weight,
+              0,
+            ),
+            codAmount:
+              dto.paymentMethod === PaymentMethod.COD ? group.grandTotal : 0,
+          });
+
           // Reserve inventory for physical books
           await this.reservations.reserve(tx, order.id, orderItems);
         }
@@ -334,7 +357,26 @@ export class CheckoutService {
             eventId: randomBytes(16).toString('hex'),
             type: 'order.created',
             aggregateId: order.id,
-            payload: { orderId: order.id, userId, total: order.grandTotal },
+            payload: {
+              orderId: order.id,
+              userId,
+              total: order.grandTotal,
+              paymentMethod: order.paymentMethod,
+              paymentStatus: order.paymentStatus,
+              shippingAddress: snapshot.shippingAddress
+                ? {
+                    receiverName: snapshot.shippingAddress.recipientName,
+                    receiverPhone: snapshot.shippingAddress.phone,
+                    address: snapshot.shippingAddress.line1,
+                    province: snapshot.shippingAddress.province,
+                    district: snapshot.shippingAddress.district,
+                    ward: snapshot.shippingAddress.ward,
+                  }
+                : null,
+              sellerOrders: shipmentSellerOrders.filter(
+                (item) => item.requiresShipping,
+              ),
+            },
             status: 'PENDING',
           },
         });

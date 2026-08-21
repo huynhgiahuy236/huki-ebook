@@ -476,36 +476,7 @@ CREATE TABLE order_items (
 
 ### Database Schema
 
-```sql
--- shipments table
-CREATE TABLE shipments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    shipment_code VARCHAR(50) UNIQUE NOT NULL,
-    seller_order_id UUID NOT NULL,
-    delivery_staff_id UUID,
-    status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
-    pickup_address TEXT,
-    delivery_address TEXT,
-    shipping_fee DECIMAL(10,2),
-    estimated_delivery DATE,
-    actual_delivery TIMESTAMP,
-    delivered_at TIMESTAMP,
-    failure_reason TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
--- delivery_staff table
-CREATE TABLE delivery_staff (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID UNIQUE NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'ACTIVE',
-    current_shipments INT DEFAULT 0,
-    max_shipments INT DEFAULT 10,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-```
+Shipping dùng Prisma với năm bảng `shipments`, `addresses`, `delivery_staff`, `delivery_logs`, `outbox_events`. Tiền dùng `DECIMAL(14,2)`, trọng lượng là integer gram và `seller_order_id` unique. Xem [Shipping Database](../05-DATABASE/shipping-db/README.md) để có schema hiện hành.
 
 ---
 

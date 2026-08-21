@@ -1,230 +1,110 @@
-# 🚚 Shipping API
+# Shipping API
 
-## GET /shipping/fee
+Base URL trực tiếp: `http://localhost:3004/api/v1`. Endpoint protected dùng `Authorization: Bearer <token>`.
 
-Calculate shipping fee.
-
-### Request
+## Fee
 
 ```http
-GET /api/v1/shipping/fee?province=Ho+Chi+Minh+City&weight=500
-Authorization: Bearer <access_token>
+GET /api/v1/shipping/fee?province=Hồ%20Chí%20Minh&district=Quận%201&weight=750
 ```
 
-### Query Parameters
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| province | string | Yes | Province/City name |
-| district | string | No | District name |
-| weight | number | No | Package weight in grams (default: 0) |
-
-### Response 200
+`weight` là integer gram, từ `1` đến `50000`.
 
 ```json
 {
-  "data": {
-    "provinces": [
-      {
-        "id": "HN",
-        "name": "Ho Chi Minh City",
-        "districts": [
-          { "id": "Q1", "name": "District 1" },
-          { "id": "BT", "name": "Binh Thanh District" }
-        ]
-      }
-    ]
-  }
+  "carrier": "GHTK", "service": "STANDARD",
+  "shippingFee": 20000, "codFee": 0, "totalFee": 20000,
+  "estimatedDays": { "min": 1, "max": 2 }
 }
 ```
 
----
-
-## POST /shipping/address
-
-Save shipping address.
-
-### Request
+## Address book
 
 ```http
-POST /api/v1/shipping/address
-Authorization: Bearer <access_token>
-Content-Type: application/json
-
-{
-  "name": "Nguyen Van A",
-  "phone": "0912345678",
-  "address": "123 Nguyen Hue, District 1",
-  "province": "Ho Chi Minh City",
-  "district": "District 1",
-  "ward": "Ben Nghe Ward",
-  "isDefault": true
-}
+GET    /api/v1/shipping/address
+POST   /api/v1/shipping/address
+PATCH  /api/v1/shipping/address/:id
+DELETE /api/v1/shipping/address/:id
 ```
 
-### Response 201
+Body tạo/cập nhật:
 
 ```json
 {
-  "data": {
-    "id": "address-uuid",
-    "name": "Nguyen Van A",
-    "phone": "0912345678",
-    "address": "123 Nguyen Hue, District 1",
-    "province": "Ho Chi Minh City",
-    "district": "District 1",
-    "ward": "Ben Nghe Ward",
-    "isDefault": true
-  }
+  "name": "Nguyễn Văn A", "phone": "0901234567", "address": "123 Nguyễn Huệ",
+  "province": "Hồ Chí Minh", "district": "Quận 1", "ward": "Bến Nghé", "isDefault": true
 }
 ```
 
----
+Address đầu tiên tự thành mặc định; chỉ owner được sửa/xóa.
 
-## GET /shipping/address
-
-Get user's addresses.
-
-### Request
+## Tracking
 
 ```http
-GET /api/v1/shipping/address
-Authorization: Bearer <access_token>
+GET /api/v1/shipments?status=IN_TRANSIT&page=1&limit=20
+GET /api/v1/shipments/:id
+GET /api/v1/shipments/tracking/:trackingNumber
 ```
 
-### Response 200
+Detail chứa `assignedStaff` và `logs` theo thời gian. Buyer/business/admin chỉ nhận đúng phạm vi dữ liệu.
+
+## Staff and status
+
+```http
+POST  /api/v1/delivery-staff
+GET   /api/v1/delivery-staff?status=ACTIVE
+PATCH /api/v1/delivery-staff/:id
+POST  /api/v1/shipments/:id/assign
+PATCH /api/v1/shipments/:id/status
+```
+
+Các API quản lý/phân công chỉ dành cho platform admin. Status update dành cho admin hoặc assigned staff:
+
+```json
+{ "status": "OUT_FOR_DELIVERY", "location": "Quận 1", "note": "Đang giao" }
+```
+
+## Internal order integration
+
+```http
+POST /api/v1/internal/shipments/from-order
+x-internal-api-key: <SHIPPING_INTERNAL_API_KEY>
+```
 
 ```json
 {
-  "data": [
-    {
-      "id": "address-uuid-1",
-      "name": "Nguyen Van A",
-      "phone": "0912345678",
-      "address": "123 Nguyen Hue",
-      "province": "Ho Chi Minh City",
-      "district": "District 1",
-      "ward": "Ben Nghe Ward",
-      "isDefault": true
-    }
-  ]
+  "orderId": "order-uuid", "userId": "buyer-uuid",
+  "paymentMethod": "COD", "paymentStatus": "PENDING",
+  "shippingAddress": {
+    "receiverName": "Nguyễn Văn A", "receiverPhone": "0901234567", "address": "123 Nguyễn Huệ",
+    "province": "Hồ Chí Minh", "district": "Quận 1", "ward": "Bến Nghé"
+  },
+  "sellerOrders": [{
+    "sellerOrderId": "seller-order-uuid", "storeId": "store-uuid", "ownerUserId": "owner-uuid",
+    "requiresShipping": true, "weight": 750, "codAmount": 200000
+  }]
 }
 ```
 
----
-
-## DELETE /shipping/address/:id
-
-Delete address.
-
-### Request
+Idempotent theo `sellerOrderId`. Hủy từ Commerce:
 
 ```http
-DELETE /api/v1/shipping/address/address-uuid
-Authorization: Bearer <access_token>
+POST /api/v1/internal/shipments/:sellerOrderId/cancel
+{ "reason": "Order cancelled" }
 ```
 
-### Response 200
+## GHTK callback
+
+```http
+POST /api/v1/callbacks/ghtk
+```
 
 ```json
 {
-  "message": "Address deleted"
+  "eventId": "ghtk-event-123", "trackingNumber": "GHTK67A7B2151DF3", "status": "IN_TRANSIT",
+  "occurredAt": "2026-08-21T08:00:00.000Z", "location": "Kho TP.HCM",
+  "note": "Package departed", "signature": "hex-hmac-sha256"
 }
 ```
 
----
-
-## GET /shipments
-
-Get user's shipments (orders being shipped).
-
-### Request
-
-```http
-GET /api/v1/shipments
-Authorization: Bearer <access_token>
-```
-
-### Response 200
-
-```json
-{
-  "data": [
-    {
-      "id": "shipment-uuid",
-      "sellerOrderId": "seller-order-uuid",
-      "trackingNumber": "GHTK123456",
-      "carrier": "GHTK",
-      "status": "IN_TRANSIT",
-      "receiverName": "Nguyen Van A",
-      "receiverPhone": "0912345678",
-      "address": "123 Nguyen Hue, District 1",
-      "timeline": [
-        {
-          "status": "PICKED_UP",
-          "time": "2026-08-14T10:00:00.000Z",
-          "note": "Package picked up"
-        },
-        {
-          "status": "IN_TRANSIT",
-          "time": "2026-08-14T15:00:00.000Z",
-          "note": "In transit to destination"
-        }
-      ],
-      "estimatedDelivery": "2026-08-16T18:00:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-## GET /shipments/:id
-
-Get shipment details.
-
-### Request
-
-```http
-GET /api/v1/shipments/shipment-uuid
-Authorization: Bearer <access_token>
-```
-
-### Response 200
-
-```json
-{
-  "data": {
-    "id": "shipment-uuid",
-    "sellerOrderId": "seller-order-uuid",
-    "orderCode": "HUK202608140001",
-    "storeName": "Tech Books Store",
-    "trackingNumber": "GHTK123456",
-    "carrier": "GHTK",
-    "status": "IN_TRANSIT",
-    "receiverName": "Nguyen Van A",
-    "receiverPhone": "0912345678",
-    "address": "123 Nguyen Hue, District 1",
-    "shippingFee": 30000,
-    "codFee": 0,
-    "weight": 500,
-    "timeline": [
-      {
-        "status": "PENDING",
-        "time": "2026-08-14T08:00:00.000Z",
-        "note": "Order confirmed"
-      },
-      {
-        "status": "PICKED_UP",
-        "time": "2026-08-14T10:00:00.000Z",
-        "note": "Package picked up"
-      },
-      {
-        "status": "IN_TRANSIT",
-        "time": "2026-08-14T15:00:00.000Z",
-        "note": "In transit"
-      }
-    ]
-  }
-}
-```
+Signature là HMAC-SHA256 của `eventId|trackingNumber|status|occurredAt|location|note`; callback idempotent theo `eventId`.
