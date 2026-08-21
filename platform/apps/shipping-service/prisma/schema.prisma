@@ -3,43 +3,44 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("SHIPPING_DATABASE_URL")
 }
 
 model Shipment {
-  id              String            @id @default(uuid())
-  sellerOrderId   String           @unique @map("seller_order_id")
-  trackingNumber  String?          @unique @map("tracking_number")
-  carrier         String           @default("GHTK")
+  id             String  @id @default(uuid())
+  sellerOrderId  String  @unique @map("seller_order_id")
+  trackingNumber String? @unique @map("tracking_number")
+  carrier        String  @default("GHTK")
 
-  status          ShipmentStatus  @default(PENDING)
+  status ShipmentStatus @default(PENDING)
 
   // Address
-  receiverName    String           @map("receiver_name")
-  receiverPhone   String           @map("receiver_phone")
-  address         String
-  province        String?
-  district        String?
-  ward            String?
+  receiverName  String  @map("receiver_name")
+  receiverPhone String  @map("receiver_phone")
+  address       String
+  province      String?
+  district      String?
+  ward          String?
 
   // Fees
-  shippingFee     Float            @map("shipping_fee")
-  codFee          Float            @default(0) @map("cod_fee")
-  weight          Float?
+  shippingFee Float  @map("shipping_fee")
+  codFee      Float  @default(0) @map("cod_fee")
+  weight      Float?
 
   // Timeline
-  pickedUpAt      DateTime?        @map("picked_up_at")
-  shippedAt       DateTime?        @map("shipped_at")
-  deliveredAt     DateTime?        @map("delivered_at")
-  returnedAt      DateTime?        @map("returned_at")
-  failedAttempts  Int              @default(0) @map("failed_attempts")
+  pickedUpAt     DateTime? @map("picked_up_at")
+  shippedAt      DateTime? @map("shipped_at")
+  deliveredAt    DateTime? @map("delivered_at")
+  returnedAt     DateTime? @map("returned_at")
+  failedAttempts Int       @default(0) @map("failed_attempts")
 
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([sellerOrderId])
   @@index([status])
@@ -59,34 +60,34 @@ enum ShipmentStatus {
 }
 
 model Address {
-  id          String    @id @default(uuid())
-  userId      String    @map("user_id")
-  name        String
-  phone       String
-  address     String
-  province    String
-  district    String
-  ward        String
-  isDefault   Boolean  @default(false) @map("is_default")
+  id        String  @id @default(uuid())
+  userId    String  @map("user_id")
+  name      String
+  phone     String
+  address   String
+  province  String
+  district  String
+  ward      String
+  isDefault Boolean @default(false) @map("is_default")
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId])
   @@map("addresses")
 }
 
 model DeliveryStaff {
-  id          String    @id @default(uuid())
-  userId      String    @unique @map("user_id")
+  id          String      @id @default(uuid())
+  userId      String      @unique @map("user_id")
   name        String
   phone       String
   email       String?
   status      StaffStatus @default(ACTIVE)
-  currentArea String?   @map("current_area")
+  currentArea String?     @map("current_area")
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("delivery_staff")
 }
@@ -98,14 +99,14 @@ enum StaffStatus {
 }
 
 model DeliveryLog {
-  id          String    @id @default(uuid())
-  shipmentId  String    @map("shipment_id")
-  staffId     String    @map("staff_id")
-  action      String
-  note        String?
-  location    String?
+  id         String  @id @default(uuid())
+  shipmentId String  @map("shipment_id")
+  staffId    String  @map("staff_id")
+  action     String
+  note       String?
+  location   String?
 
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([shipmentId])
   @@index([staffId])

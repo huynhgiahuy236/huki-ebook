@@ -1,4 +1,4 @@
-# 🏗️ System Architecture
+﻿# 🏗️ System Architecture
 
 Kiến trúc hệ thống HUKI EBOOK.
 
@@ -254,7 +254,7 @@ Service A → Database → Service B (limited)
 | Cloudinary | CDN | Image storage, optimization |
 | Cloudflare R2 | Object Storage | Ebook PDF storage |
 | Firebase | BaaS | Push notifications, Auth |
-| VNPay/Momo | Payment Gateway | Online payments |
+| PayOS | Payment Gateway | Online payments |
 | AI Moderation | External API | Content moderation |
 
 ## 📈 Scalability Patterns

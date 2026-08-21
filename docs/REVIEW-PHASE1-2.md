@@ -1,4 +1,4 @@
-# 📋 PHASE 1-2 REVIEW - HUKI EBOOK
+﻿# 📋 PHASE 1-2 REVIEW - HUKI EBOOK
 
 **Date:** 2026-08-17
 **Status:** ✅ Complete with fixes
@@ -35,9 +35,9 @@ Phase 1-2 hoàn thành các bước chính:
 
 ### ⚠️ Issues Found in Phase 1
 
-#### 1. **TypeORM & Prisma Mixed**
-- Commerce uses TypeORM, others use Prisma
-- **Fix:** Standardize to Prisma for all services (already done for most)
+#### 1. **Prisma standardized — resolved 2026-08-21**
+- Identity, Business, Commerce, Shipping và Promotion dùng Prisma client riêng.
+- Community tiếp tục dùng Mongoose vì lưu trên MongoDB; không còn runtime ORM cũ.
 
 #### 2. **JWT Secret in Code**
 - Some places hardcode fallback

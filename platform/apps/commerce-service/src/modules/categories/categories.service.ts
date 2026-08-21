@@ -42,6 +42,7 @@ export class CategoriesService {
     return this.prisma.category.create({
       data: {
         name,
+        normalizedName,
         slug,
         description: dto.description?.trim() || null,
         parentId: parent?.id ?? null,
@@ -138,6 +139,7 @@ export class CategoriesService {
       where: { id },
       data: {
         name,
+        normalizedName,
         slug,
         description: dto.description === undefined ? existing.description : dto.description?.trim() || null,
         parentId: parent?.id ?? null,

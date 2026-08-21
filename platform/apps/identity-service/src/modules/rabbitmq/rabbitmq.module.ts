@@ -1,5 +1,5 @@
 import { Module, Global } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 
 export const RABBITMQ_CLIENT = 'RABBITMQ_CLIENT';
@@ -15,7 +15,7 @@ export const RABBITMQ_CLIENT = 'RABBITMQ_CLIENT';
         useFactory: (configService: ConfigService) => ({
           transport: Transport.RMQ,
           options: {
-            urls: [configService.get('rabbitmq.url', 'amqp://guest:guest123@localhost:5672')],
+            urls: [configService.get<string>('rabbitmq.url') ?? 'amqp://guest:guest123@localhost:5672'],
             queue: 'huki-queue',
             queueOptions: {
               durable: true,

@@ -1,4 +1,4 @@
-# 📬 Events Overview
+﻿# 📬 Events Overview
 
 Tổng quan về Event-Driven Architecture.
 
@@ -88,7 +88,7 @@ interface DomainEvent {
     "paymentId": "payment-uuid",
     "orderId": "order-uuid",
     "amount": 613100,
-    "provider": "VNPAY",
+    "provider": "PAYOS",
     "providerTransactionId": "vnp-123456"
   }
 }

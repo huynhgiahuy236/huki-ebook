@@ -3,45 +3,46 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("BUSINESS_DATABASE_URL")
 }
 
 model Business {
-  id              String          @id @default(uuid())
-  name            String
-  email           String          @unique
-  phone           String?
-  address         String?
-  taxCode         String?         @unique @map("tax_code")
-  businessType    BusinessType    @default(INDIVIDUAL) @map("business_type")
-  status          BusinessStatus  @default(PENDING_APPROVAL)
+  id           String         @id @default(uuid())
+  name         String
+  email        String         @unique
+  phone        String?
+  address      String?
+  taxCode      String?        @unique @map("tax_code")
+  businessType BusinessType   @default(INDIVIDUAL) @map("business_type")
+  status       BusinessStatus @default(PENDING_APPROVAL)
 
   // Registry verification (Mock)
-  registryNumber  String?         @map("registry_number")
-  registryVerifiedAt DateTime?    @map("registry_verified_at")
+  registryNumber     String?   @map("registry_number")
+  registryVerifiedAt DateTime? @map("registry_verified_at")
 
   // Admin approval
-  approvedAt      DateTime?       @map("approved_at")
-  approvedBy      String?         @map("approved_by")
-  rejectedAt      DateTime?       @map("rejected_at")
-  rejectedBy      String?         @map("rejected_by")
-  rejectionReason String?         @map("rejection_reason")
+  approvedAt      DateTime? @map("approved_at")
+  approvedBy      String?   @map("approved_by")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectedBy      String?   @map("rejected_by")
+  rejectionReason String?   @map("rejection_reason")
 
   // Owner ID (reference to identity_db)
-  ownerId         String          @map("owner_id")
+  ownerId String @map("owner_id")
 
   // Relations
-  stores          Store[]
-  members         Member[]
+  stores  Store[]
+  members Member[]
 
   // Timestamps
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
-  deletedAt       DateTime?       @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@index([ownerId])
   @@index([status])
@@ -63,31 +64,31 @@ enum BusinessStatus {
 }
 
 model Store {
-  id              String       @id @default(uuid())
-  name            String
-  slug            String       @unique
-  description     String?
-  logo            String?
-  banner          String?
-  email           String
-  phone           String?
-  address         String?
-  status          StoreStatus  @default(PENDING_APPROVAL)
-  isActive        Boolean      @default(true) @map("is_active")
-  categoryIds     String[]     @map("category_ids")
+  id          String      @id @default(uuid())
+  name        String
+  slug        String      @unique
+  description String?
+  logo        String?
+  banner      String?
+  email       String
+  phone       String?
+  address     String?
+  status      StoreStatus @default(PENDING_APPROVAL)
+  isActive    Boolean     @default(true) @map("is_active")
+  categoryIds String[]    @map("category_ids")
 
   // Business reference
-  businessId      String       @map("business_id")
-  business        Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String   @map("business_id")
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   // Stats
-  totalProducts   Int          @default(0) @map("total_products")
-  totalOrders     Int          @default(0) @map("total_orders")
-  rating          Float        @default(0)
+  totalProducts Int   @default(0) @map("total_products")
+  totalOrders   Int   @default(0) @map("total_orders")
+  rating        Float @default(0)
 
-  createdAt       DateTime     @default(now()) @map("created_at")
-  updatedAt       DateTime     @updatedAt @map("updated_at")
-  deletedAt       DateTime?    @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@index([businessId])
   @@index([status])
@@ -104,23 +105,23 @@ enum StoreStatus {
 }
 
 model Member {
-  id              String        @id @default(uuid())
-  businessId      String        @map("business_id")
-  business        Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  businessId String   @map("business_id")
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   // User ID (reference to identity_db)
-  userId          String        @map("user_id")
+  userId String @map("user_id")
 
-  role            MemberRole    @default(CONTENT_STAFF)
-  status          MemberStatus  @default(PENDING_INVITATION)
-  invitedAt       DateTime?     @map("invited_at")
-  invitedBy       String?       @map("invited_by")
-  acceptedAt      DateTime?     @map("accepted_at")
-  permissions     Json?         @default("[]")
+  role        MemberRole   @default(CONTENT_STAFF)
+  status      MemberStatus @default(PENDING_INVITATION)
+  invitedAt   DateTime?    @map("invited_at")
+  invitedBy   String?      @map("invited_by")
+  acceptedAt  DateTime?    @map("accepted_at")
+  permissions Json?        @default("[]")
 
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
-  deletedAt       DateTime?     @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@unique([businessId, userId])
   @@index([businessId])
@@ -144,18 +145,18 @@ enum MemberStatus {
 }
 
 model Invitation {
-  id              String            @id @default(uuid())
-  email           String
-  token           String            @unique @default(uuid())
-  businessId      String            @map("business_id")
-  invitedBy       String            @map("invited_by")
-  role            MemberRole        @default(CONTENT_STAFF)
-  status          InvitationStatus  @default(PENDING)
-  expiresAt       DateTime          @map("expires_at")
-  acceptedAt      DateTime?         @map("accepted_at")
+  id         String           @id @default(uuid())
+  email      String
+  token      String           @unique @default(uuid())
+  businessId String           @map("business_id")
+  invitedBy  String           @map("invited_by")
+  role       MemberRole       @default(CONTENT_STAFF)
+  status     InvitationStatus @default(PENDING)
+  expiresAt  DateTime         @map("expires_at")
+  acceptedAt DateTime?        @map("accepted_at")
 
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([email])
   @@index([token])

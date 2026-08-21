@@ -3,44 +3,45 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("IDENTITY_DATABASE_URL")
 }
 
 model User {
-  id                        String    @id @default(uuid())
-  email                     String    @unique
-  passwordHash              String    @map("password_hash")
-  fullName                  String    @map("full_name")
-  phone                     String?
-  avatar                    String?
+  id           String  @id @default(uuid())
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  fullName     String  @map("full_name")
+  phone        String?
+  avatar       String?
 
   // Role & Status
-  role                      UserRole  @default(USER)
-  status                    UserStatus @default(ACTIVE)
+  role   UserRole   @default(USER)
+  status UserStatus @default(ACTIVE)
 
   // Email verification
-  emailVerifiedAt           DateTime? @map("email_verified_at")
-  emailVerificationToken    String?   @map("email_verification_token")
+  emailVerifiedAt        DateTime? @map("email_verified_at")
+  emailVerificationToken String?   @map("email_verification_token")
 
   // Password reset
-  passwordResetToken        String?   @map("password_reset_token")
-  passwordResetExpiresAt   DateTime? @map("password_reset_expires_at")
+  passwordResetToken     String?   @map("password_reset_token")
+  passwordResetExpiresAt DateTime? @map("password_reset_expires_at")
 
   // Security
-  failedLoginAttempts       Int       @default(0) @map("failed_login_attempts")
-  lockedUntil               DateTime? @map("locked_until")
+  failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
+  lockedUntil         DateTime? @map("locked_until")
 
   // Relations
-  sessions                  AuthSession[]
+  sessions AuthSession[]
 
   // Timestamps
-  createdAt                 DateTime  @default(now()) @map("created_at")
-  updatedAt                 DateTime  @updatedAt @map("updated_at")
-  deletedAt                 DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
   @@index([email])
   @@index([role])
@@ -63,46 +64,46 @@ enum UserStatus {
 }
 
 model AuthSession {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id")
-  refreshTokenHash  String    @map("refresh_token_hash")
-  userAgent         String?
-  ipAddress         String?   @map("ip_address")
-  deviceType        String?   @map("device_type")
-  deviceName        String?   @map("device_name")
-  location          String?
-  expiresAt         DateTime  @map("expires_at")
-  lastActiveAt      DateTime? @map("last_active_at")
-  revokedAt         DateTime? @map("revoked_at")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  refreshTokenHash String    @map("refresh_token_hash")
+  userAgent        String?
+  ipAddress        String?   @map("ip_address")
+  deviceType       String?   @map("device_type")
+  deviceName       String?   @map("device_name")
+  location         String?
+  expiresAt        DateTime  @map("expires_at")
+  lastActiveAt     DateTime? @map("last_active_at")
+  revokedAt        DateTime? @map("revoked_at")
 
   // Relations
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokens    RefreshToken[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
 
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([userId, revokedAt])
   @@map("auth_sessions")
 }
 
 model RefreshToken {
-  id              String    @id @default(uuid())
-  sessionId      String    @map("session_id")
-  tokenFamily    String    @map("token_family")
-  tokenHash      String    @map("token_hash")
-  tokenType      String    @default("REFRESH") @map("token_type")
-  deviceInfo     String?   @map("device_info")
-  expiresAt      DateTime  @map("expires_at")
-  revokedAt      DateTime? @map("revoked_at")
-  revokedReason  String?   @map("revoked_reason")
-  replacedByTokenId String? @map("replaced_by_token_id")
+  id                String    @id @default(uuid())
+  sessionId         String    @map("session_id")
+  tokenFamily       String    @map("token_family")
+  tokenHash         String    @map("token_hash")
+  tokenType         String    @default("REFRESH") @map("token_type")
+  deviceInfo        String?   @map("device_info")
+  expiresAt         DateTime  @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  revokedReason     String?   @map("revoked_reason")
+  replacedByTokenId String?   @map("replaced_by_token_id")
 
   // Relations
-  session        AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([sessionId])
   @@index([tokenHash])

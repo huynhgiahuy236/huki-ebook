@@ -5,10 +5,10 @@ import { BookActor } from '../../common/book-auth.guard';
 import { CancelOrderDto, ShipOrderDto } from './dto/checkout.dto';
 import { OrderQueryDto, SellerOrderQueryDto } from './dto/order-query.dto';
 import { InventoryReservationService } from './inventory-reservation.service';
-import { SellerOrderStatus, Prisma } from '@prisma/client';
+import { SellerOrderStatus, Prisma } from '../../../prisma/generated/client';
 
-const IMMUTABLE = new Set([SellerOrderStatus.COMPLETED, SellerOrderStatus.CANCELLED]);
-const SHIPPED = new Set([SellerOrderStatus.SHIPPED, SellerOrderStatus.DELIVERED, SellerOrderStatus.COMPLETED]);
+const IMMUTABLE = new Set<SellerOrderStatus>([SellerOrderStatus.COMPLETED, SellerOrderStatus.CANCELLED]);
+const SHIPPED = new Set<SellerOrderStatus>([SellerOrderStatus.SHIPPED, SellerOrderStatus.DELIVERED, SellerOrderStatus.COMPLETED]);
 
 @Injectable()
 export class OrdersService {
@@ -98,7 +98,7 @@ export class OrdersService {
 
   async ship(actor: BookActor, id: string, dto: ShipOrderDto) {
     return this.transition(actor, id, [SellerOrderStatus.PREPARING], async (tx, sellerOrder) => {
-      const itemIds = sellerOrder.items.map((item) => item.id);
+      const itemIds = sellerOrder.items.map((item: { id: string }) => item.id);
       await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
       await tx.sellerOrder.update({
         where: { id },
@@ -113,11 +113,39 @@ export class OrdersService {
   }
 
   async deliver(actor: BookActor, id: string) {
-    return this.transition(actor, id, [SellerOrderStatus.SHIPPED], async (tx) => {
+    return this.transition(actor, id, [SellerOrderStatus.SHIPPED], async (tx, sellerOrder) => {
       await tx.sellerOrder.update({
         where: { id },
         data: { completedAt: new Date() },
       });
+      if (sellerOrder.order.paymentMethod === 'COD') {
+        const remaining = await tx.sellerOrder.count({
+          where: {
+            orderId: sellerOrder.orderId,
+            id: { not: sellerOrder.id },
+            status: { notIn: [SellerOrderStatus.COMPLETED, SellerOrderStatus.CANCELLED] },
+          },
+        });
+        if (remaining === 0) {
+          const now = new Date();
+          await tx.payment.updateMany({
+            where: { orderId: sellerOrder.orderId, method: 'COD', status: 'PENDING' },
+            data: { status: 'SUCCEEDED', paidAt: now, transactionId: `COD-${sellerOrder.order.code}` },
+          });
+          await tx.order.update({
+            where: { id: sellerOrder.orderId },
+            data: { paymentStatus: 'SUCCEEDED', status: 'COMPLETED' },
+          });
+          await tx.outboxEvent.create({
+            data: {
+              eventId: randomBytes(16).toString('hex'),
+              type: 'payment.succeeded',
+              aggregateId: sellerOrder.orderId,
+              payload: { orderId: sellerOrder.orderId, provider: 'COD' },
+            },
+          });
+        }
+      }
       return SellerOrderStatus.COMPLETED;
     }, 'Order delivered');
   }

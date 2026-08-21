@@ -1,4 +1,4 @@
-# 📋 HUKI EBOOK - TASK OVERVIEW
+﻿# 📋 HUKI EBOOK - TASK OVERVIEW
 
 ## 👥 Team
 - **HUY** - Backend, Database, Infrastructure
@@ -12,7 +12,7 @@
 |-------|------|---------|-------|
 | **Phase 1** | Backend Foundation | 4-6 weeks | NestJS setup, Identity, Business |
 | **Phase 2** | Commerce & Catalog | 4-6 weeks | Books, Cart, Orders |
-| **Phase 3** | Payment & Shipping | 3-4 weeks | VNPay, MoMo, GHTK |
+| **Phase 3** | Payment & Shipping | 3-4 weeks | PayOS, COD, GHTK |
 | **Phase 4** | Community | 3-4 weeks | Forum, Chat, Reviews |
 | **Phase 5** | Frontend Web | 6-8 weeks | Next.js application |
 | **Phase 6** | Mobile & Testing | 4-6 weeks | Flutter, Tests |
@@ -45,7 +45,7 @@
 
 | Sprint | KIEN | HUY |
 |--------|------|-----|
-| Sprint 9 | VNPay, MoMo, COD | Refunds |
+| Sprint 9 | PayOS, COD ✅ | Refunds, reconciliation ✅ |
 | Sprint 10 | GHTK integration | Shipments, Delivery |
 | Sprint 11 | Events, Notifications | Order completion |
 
@@ -102,7 +102,7 @@
 **KIEN:**
 - [ ] Setup NestJS monorepo
 - [ ] Create 7 services structure
-- [ ] Config TypeORM connections
+- [x] Config Prisma clients and migrations for PostgreSQL services
 
 **HUY:**
 - [ ] Setup Docker (Postgres, Mongo, Redis, RabbitMQ)

@@ -23,6 +23,7 @@ coverage/
 # Platform (NestJS)
 platform/dist/
 platform/node_modules/
+platform/apps/**/prisma/generated/
 
 # Web (Next.js)
 web/.next/
@@ -118,6 +119,8 @@ docker-compose.override.yml
 migrations/
 !platform/apps/**/src/migrations/
 !platform/apps/**/src/migrations/*.ts
+!platform/apps/**/prisma/migrations/
+!platform/apps/**/prisma/migrations/**
 
 # ============================================
 # Cache

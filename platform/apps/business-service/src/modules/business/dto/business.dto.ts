@@ -1,6 +1,6 @@
 import { IsString, IsOptional, IsEnum, IsEmail, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BusinessType, BusinessStatus } from '../../../prisma/generated/client';
+import { BusinessType, BusinessStatus } from '../../../../prisma/generated/client';
 
 export class CreateBusinessDto {
   @ApiProperty({ example: 'Nhà sách ABC' })

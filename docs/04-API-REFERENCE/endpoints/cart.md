@@ -1,4 +1,4 @@
-# 🛒 Cart API
+﻿# 🛒 Cart API
 
 ## GET /cart
 
@@ -300,12 +300,13 @@ Content-Type: application/json
       {
         "type": "ONLINE_PAYMENT",
         "label": "Thanh toán online",
-        "providers": ["VNPAY", "MOMO"]
+        "providers": ["PAYOS"]
       },
       {
         "type": "COD",
         "label": "Thanh toán khi nhận hàng",
-        "available": true
+        "available": true,
+        "condition": "Order contains physical books only"
       }
     ],
     "voucher": {
@@ -336,7 +337,7 @@ Content-Type: application/json
 {
   "sessionId": "checkout-session-uuid",
   "paymentMethod": "ONLINE_PAYMENT",
-  "paymentProvider": "VNPAY"
+  "paymentProvider": "PAYOS"
 }
 ```
 
@@ -348,24 +349,21 @@ session expires after 15 minutes by default and is invalidated when the cart cha
 
 ```json
 {
-  "message": "Order created successfully",
-  "data": {
-    "order": {
-      "id": "order-uuid",
-      "orderCode": "HUK202608140001",
-      "grandTotal": 613100,
-      "paymentMethod": "ONLINE_PAYMENT",
-      "paymentStatus": "PENDING",
-      "orderStatus": "PENDING"
-    },
-    "payment": {
-      "id": "payment-uuid",
-      "amount": 613100,
-      "checkoutUrl": "https://sandbox.vnpayment.vn/..."
-    }
-  }
+  "order": {
+    "id": "order-uuid",
+    "code": "ORD-...",
+    "grandTotal": 613100,
+    "paymentMethod": "ONLINE_PAYMENT",
+    "paymentStatus": "PENDING",
+    "status": "PENDING_PAYMENT"
+  },
+  "idempotentReplay": false,
+  "paymentRequired": true,
+  "paymentProvider": "PAYOS"
 }
 ```
+
+Sau confirm, frontend gọi `POST /payments/orders/:orderId/initiate` để nhận `checkoutUrl` và QR PayOS.
 
 ### Response 400
 

@@ -23,8 +23,13 @@
     "test": "nx run-many -t test",
     "test:commerce": "jest --config apps/commerce-service/jest.config.js",
     "test:cov": "nx run-many -t test --coverage",
-    "migration:commerce:run": "typeorm-ts-node-commonjs migration:run -d apps/commerce-service/src/database/data-source.ts",
-    "migration:commerce:revert": "typeorm-ts-node-commonjs migration:revert -d apps/commerce-service/src/database/data-source.ts"
+    "prisma:generate": "npm run prisma:generate:identity && npm run prisma:generate:business && npm run prisma:generate:commerce && npm run prisma:generate:shipping && npm run prisma:generate:promotion",
+    "prisma:generate:identity": "prisma generate --schema apps/identity-service/prisma/schema.prisma",
+    "prisma:generate:business": "prisma generate --schema apps/business-service/prisma/schema.prisma",
+    "prisma:generate:commerce": "prisma generate --schema apps/commerce-service/prisma/schema.prisma",
+    "prisma:generate:shipping": "prisma generate --schema apps/shipping-service/prisma/schema.prisma",
+    "prisma:generate:promotion": "prisma generate --schema apps/promotion-service/prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema apps/identity-service/prisma/schema.prisma && prisma migrate deploy --schema apps/business-service/prisma/schema.prisma && prisma migrate deploy --schema apps/commerce-service/prisma/schema.prisma && prisma migrate deploy --schema apps/shipping-service/prisma/schema.prisma && prisma migrate deploy --schema apps/promotion-service/prisma/schema.prisma"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",
@@ -42,7 +47,6 @@
     "@nestjs/swagger": "^7.2.0",
     "@nestjs/terminus": "^10.2.0",
     "@nestjs/throttler": "^5.1.1",
-    "@nestjs/typeorm": "^10.0.1",
     "@prisma/client": "5.22.0",
     "amqp-connection-manager": "^4.1.14",
     "amqplib": "^0.10.3",
@@ -61,7 +65,6 @@
     "prisma": "5.22.0",
     "reflect-metadata": "^0.2.1",
     "rxjs": "^7.8.1",
-    "typeorm": "^0.3.19",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

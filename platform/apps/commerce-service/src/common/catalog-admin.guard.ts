@@ -20,10 +20,7 @@ export class CatalogAdminGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-
-    if (type !== 'Bearer' || !token) {
-      throw new UnauthorizedException('Bearer token is required');
-    }
+    if (type !== 'Bearer' || !token) throw new UnauthorizedException('Bearer token is required');
 
     let payload: AccessTokenPayload;
     try {
@@ -31,11 +28,9 @@ export class CatalogAdminGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid or expired access token');
     }
-
     if (payload.role !== 'PLATFORM_ADMIN') {
       throw new ForbiddenException('Platform administrator role is required');
     }
-
     (request as Request & { user?: AccessTokenPayload }).user = payload;
     return true;
   }

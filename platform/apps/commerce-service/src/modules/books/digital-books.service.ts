@@ -3,7 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { BooksService } from './books.service';
 import { UpdateDigitalDetailsDto } from './dto/update-digital-details.dto';
-import { BookFormat, BookStatus } from '@prisma/client';
+import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 
 export function serializeDigitalDetails(details: any) {
   return {
@@ -56,7 +56,7 @@ export class DigitalBooksService {
   }
 
   private assertDigitalFormat(book: any) {
-    if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format)) {
+    if (!(new Set<BookFormat>([BookFormat.DIGITAL, BookFormat.BOTH])).has(book.format)) {
       throw new ConflictException('Book does not support digital format');
     }
   }

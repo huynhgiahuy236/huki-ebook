@@ -1,4 +1,4 @@
-# 🗄️ Database Seeders
+﻿# 🗄️ Database Seeders
 
 Dữ liệu mẫu cho development.
 
@@ -142,13 +142,13 @@ Download from:
 ## Implementation Example
 
 ```typescript
-// database/seeders/01-users.ts
-import { DataSource } from 'typeorm';
-import { User } from '../entities/user.entity';
+// apps/identity-service/prisma/seed.ts
+import { PrismaClient } from './generated/client';
 import * as bcrypt from 'bcrypt';
 
-export async function seedUsers(dataSource: DataSource) {
-  const userRepo = dataSource.getRepository(User);
+const prisma = new PrismaClient();
+
+export async function seedUsers() {
   
   const users = [
     {
@@ -182,11 +182,11 @@ export async function seedUsers(dataSource: DataSource) {
   ];
 
   for (const user of users) {
-    const exists = await userRepo.findOne({ where: { email: user.email } });
-    if (!exists) {
-      await userRepo.save(user);
-      console.log(`Created user: ${user.email}`);
-    }
+    await prisma.user.upsert({
+      where: { email: user.email },
+      create: user,
+      update: {},
+    });
   }
 }
 ```
@@ -233,12 +233,10 @@ seed();
 ## Factories (for Testing)
 
 ```typescript
-// database/factories/book.factory.ts
-import { define } from 'typeorm-factory-builder';
-import { Book } from '../entities/book.entity';
+// test/factories/book.factory.ts
 import { faker } from '@faker-js/faker';
 
-define(Book, () => ({
+export const makeBook = () => ({
   title: faker.commerce.productName(),
   slug: faker.helpers.slugify(faker.commerce.productName()).toLowerCase(),
   price: faker.number.float({ min: 10000, max: 500000, multipleOf: 1000 }),
@@ -246,8 +244,10 @@ define(Book, () => ({
   isbn: faker.helpers.replaceSymbols('###-#########'),
   status: 'PUBLISHED',
   stock: faker.number.int({ min: 0, max: 100 }),
-}));
+});
 
 // Usage in tests
-const books = await factory(Book).times(10).make();
+const books = await Promise.all(
+  Array.from({ length: 10 }, () => prisma.book.create({ data: makeBook() })),
+);
 ```

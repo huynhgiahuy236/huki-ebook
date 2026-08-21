@@ -1,4 +1,4 @@
-# 📦 Orders API
+﻿# 📦 Orders API
 
 ## Implemented status model
 
@@ -18,7 +18,7 @@ Get list of user's orders.
 ### Request
 
 ```http
-GET /api/v1/orders?page=1&limit=20&status=PAID
+GET /api/v1/orders?page=1&limit=20&status=PROCESSING
 Authorization: Bearer <access_token>
 ```
 
@@ -40,8 +40,8 @@ Authorization: Bearer <access_token>
       "orderCode": "HUK202608140001",
       "grandTotal": 613100,
       "paymentMethod": "ONLINE_PAYMENT",
-      "paymentStatus": "PAID",
-      "orderStatus": "CONFIRMED",
+      "paymentStatus": "SUCCEEDED",
+      "orderStatus": "PROCESSING",
       "itemCount": 3,
       "createdAt": "2026-08-14T10:00:00.000Z"
     }
@@ -85,8 +85,8 @@ Authorization: Bearer <access_token>
     "shippingTotal": 30000,
     "grandTotal": 613100,
     "paymentMethod": "ONLINE_PAYMENT",
-    "paymentStatus": "PAID",
-    "orderStatus": "CONFIRMED",
+    "paymentStatus": "SUCCEEDED",
+    "orderStatus": "PROCESSING",
     "shippingAddress": {
       "receiverName": "Nguyen Van A",
       "phone": "0912345678",
@@ -142,7 +142,7 @@ Authorization: Bearer <access_token>
     },
     "payment": {
       "id": "payment-uuid",
-      "provider": "VNPAY",
+      "provider": "PAYOS",
       "transactionId": "vnp-123456",
       "paidAt": "2026-08-14T10:05:00.000Z"
     },
@@ -190,7 +190,7 @@ Content-Type: application/json
 {
   "statusCode": 400,
   "error": "Bad Request",
-  "message": "Cannot cancel order in PAID status",
+  "message": "An order cannot be cancelled after shipment",
   "code": "ORDER_CANNOT_CANCEL"
 }
 ```
@@ -224,9 +224,9 @@ Authorization: Bearer <access_token>
         "completed": true
       },
       {
-        "status": "PAID",
+        "status": "PROCESSING",
         "title": "Đã thanh toán",
-        "description": "Thanh toán thành công qua VNPay",
+        "description": "Thanh toán thành công qua PayOS",
         "timestamp": "2026-08-14T10:05:00.000Z",
         "completed": true
       },

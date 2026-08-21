@@ -1,4 +1,4 @@
-# 🛒 Commerce Service
+﻿# 🛒 Commerce Service
 
 **Port:** 3003
 **Database:** PostgreSQL (commerce_db)
@@ -20,7 +20,7 @@ The Commerce Service handles books catalog, shopping cart, orders, and payment p
 ## Tech Stack
 
 - **Framework:** NestJS
-- **Database:** PostgreSQL with TypeORM
+- **Database:** PostgreSQL with Prisma
 - **Cache:** Redis (cart caching)
 - **Storage:** Cloudinary (covers), Cloudflare R2 (PDFs)
 - **Payment:** PayOS, COD
@@ -183,13 +183,18 @@ CREATE TABLE order_items (
 ```sql
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID UNIQUE NOT NULL REFERENCES orders(id),
-  amount FLOAT NOT NULL,
-  method VARCHAR(20), -- PAYOS, COD
-  status VARCHAR(20), -- PENDING, PAID, FAILED, REFUNDED
+  order_id UUID NOT NULL REFERENCES orders(id),
+  amount DECIMAL(14,2) NOT NULL,
+  method VARCHAR(20), -- ONLINE_PAYMENT, COD
+  provider VARCHAR(20), -- PAYOS, COD
+  status VARCHAR(30), -- PENDING, PROCESSING, SUCCEEDED, EXPIRED, REFUND_PENDING...
   transaction_id VARCHAR(100),
   payos_order_id VARCHAR(100),
+  payos_payment_link_id VARCHAR(100),
   payos_return_code VARCHAR(50),
+  checkout_url TEXT,
+  qr_code TEXT,
+  expires_at TIMESTAMP,
   callback_data JSONB,
   paid_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
