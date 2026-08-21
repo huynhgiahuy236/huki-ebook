@@ -14,7 +14,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { StoreService } from './store.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto';
-import { Public } from '../../../shared/decorators/public.decorator';
+import { Public } from '../../../../../libs/shared/src/decorators/public.decorator';
 
 @ApiTags('Stores')
 @ApiBearerAuth()

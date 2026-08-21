@@ -1,4 +1,4 @@
-# 🔬 Microservices Design
+﻿# 🔬 Microservices Design
 
 Thiết kế chi tiết từng microservice.
 
@@ -349,8 +349,8 @@ src/
 │   │   └── payment.service.ts
 │   │
 │   └── providers/
-│       ├── vnpay.provider.ts
-│       └── momo.provider.ts
+│       ├── payos.service.ts
+│       └── payments.service.ts
 │
 └── main.ts
 ```

@@ -1,7 +1,6 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
-import { CartItemFormat } from '@prisma/client';
+import { Prisma, CartItemFormat } from '../../../prisma/generated/client';
 
 @Injectable()
 export class InventoryReservationService {

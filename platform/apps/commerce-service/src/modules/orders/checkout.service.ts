@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -6,12 +11,16 @@ import { CartService } from '../cart/cart.service';
 import { CheckoutConfirmDto, CheckoutPreviewDto } from './dto/checkout.dto';
 import { InventoryReservationService } from './inventory-reservation.service';
 import {
-  BookFormat, BookStatus, CartItemFormat,
-  PaymentMethod, PaymentStatus, SellerOrderStatus,
+  BookFormat,
+  BookStatus,
+  CartItemFormat,
+  PaymentMethod,
+  PaymentStatus,
+  SellerOrderStatus,
   Prisma,
-} from '@prisma/client';
+} from '../../../prisma/generated/client';
 
-interface CheckoutSnapshotItem {
+export interface CheckoutSnapshotItem {
   cartItemId: string;
   bookId: string;
   storeId: string;
@@ -26,7 +35,7 @@ interface CheckoutSnapshotItem {
   weight: number;
 }
 
-interface CheckoutSnapshotGroup {
+export interface CheckoutSnapshotGroup {
   storeId: string;
   ownerUserId: string;
   requiresShipping: boolean;
@@ -56,15 +65,28 @@ export class CheckoutService {
       }
 
       if (item.format === CartItemFormat.PHYSICAL) {
-        if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) || !book.physicalDetails?.physicalEnabled) {
-          throw new ConflictException(`${book.title} physical edition is unavailable`);
+        if (
+          ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
+          !book.physicalDetails?.physicalEnabled
+        ) {
+          throw new ConflictException(
+            `${book.title} physical edition is unavailable`,
+          );
         }
-        if (book.physicalDetails.stock - book.physicalDetails.reserved < item.quantity) {
+        if (
+          book.physicalDetails.stock - book.physicalDetails.reserved <
+          item.quantity
+        ) {
           throw new ConflictException(`Insufficient stock for ${book.title}`);
         }
       } else {
-        if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) || !book.digitalDetails?.digitalEnabled) {
-          throw new ConflictException(`${book.title} digital edition is unavailable`);
+        if (
+          ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
+          !book.digitalDetails?.digitalEnabled
+        ) {
+          throw new ConflictException(
+            `${book.title} digital edition is unavailable`,
+          );
         }
       }
 
@@ -81,16 +103,27 @@ export class CheckoutService {
         quantity: item.quantity,
         unitPrice,
         subtotal: unitPrice * item.quantity,
-        weight: item.format === CartItemFormat.PHYSICAL && book.physicalDetails ? book.physicalDetails.weight * item.quantity : 0,
+        weight:
+          item.format === CartItemFormat.PHYSICAL && book.physicalDetails
+            ? book.physicalDetails.weight * item.quantity
+            : 0,
       };
     });
 
-    const requiresShipping = items.some((item) => item.format === CartItemFormat.PHYSICAL);
+    const requiresShipping = items.some(
+      (item) => item.format === CartItemFormat.PHYSICAL,
+    );
     if (requiresShipping && !dto.shippingAddress) {
-      throw new BadRequestException('Shipping address is required for physical books');
+      throw new BadRequestException(
+        'Shipping address is required for physical books',
+      );
     }
 
-    const baseFee = Number(this.config.get('checkout.shippingBaseFee') ?? process.env.CHECKOUT_SHIPPING_BASE_FEE ?? 30000);
+    const baseFee = Number(
+      this.config.get('checkout.shippingBaseFee') ??
+        process.env.CHECKOUT_SHIPPING_BASE_FEE ??
+        30000,
+    );
 
     const grouped = new Map<string, CheckoutSnapshotGroup>();
     for (const item of items) {
@@ -128,13 +161,17 @@ export class CheckoutService {
       note: dto.note ?? null,
     };
 
-    const ttlMinutes = Number(this.config.get('checkout.sessionTtlMinutes') ?? process.env.CHECKOUT_SESSION_TTL_MINUTES ?? 15);
+    const ttlMinutes = Number(
+      this.config.get('checkout.sessionTtlMinutes') ??
+        process.env.CHECKOUT_SESSION_TTL_MINUTES ??
+        15,
+    );
     const session = await this.prisma.checkoutSession.create({
       data: {
         userId,
         cartId: cart.id,
         cartUpdatedAt: cart.updatedAt,
-        snapshot: snapshot as unknown as Prisma.JsonValue,
+        snapshot: snapshot as unknown as Prisma.InputJsonValue,
         expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
       },
     });
@@ -142,9 +179,15 @@ export class CheckoutService {
     return { sessionId: session.id, expiresAt: session.expiresAt, ...snapshot };
   }
 
-  async confirm(userId: string, idempotencyKey: string, dto: CheckoutConfirmDto) {
+  async confirm(
+    userId: string,
+    idempotencyKey: string,
+    dto: CheckoutConfirmDto,
+  ) {
     if (!idempotencyKey || idempotencyKey.length > 100) {
-      throw new BadRequestException('A valid Idempotency-Key header is required');
+      throw new BadRequestException(
+        'A valid Idempotency-Key header is required',
+      );
     }
 
     // Check for existing order
@@ -164,7 +207,9 @@ export class CheckoutService {
           throw new NotFoundException('Checkout session not found');
         }
         if (session.consumedAt) {
-          throw new ConflictException('Checkout session has already been consumed');
+          throw new ConflictException(
+            'Checkout session has already been consumed',
+          );
         }
         if (session.expiresAt < new Date()) {
           throw new ConflictException('Checkout session has expired');
@@ -172,8 +217,24 @@ export class CheckoutService {
 
         const snapshot = session.snapshot as any;
 
-        if (dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT && !dto.paymentProvider) {
-          throw new BadRequestException('paymentProvider is required for online payment');
+        if (
+          dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT &&
+          dto.paymentProvider &&
+          dto.paymentProvider.toUpperCase() !== 'PAYOS'
+        ) {
+          throw new BadRequestException(
+            'PAYOS is the only supported online payment provider',
+          );
+        }
+        if (
+          dto.paymentMethod === PaymentMethod.COD &&
+          snapshot.groups.some((group: CheckoutSnapshotGroup) =>
+            group.items.some((item) => item.format !== CartItemFormat.PHYSICAL),
+          )
+        ) {
+          throw new BadRequestException(
+            'COD is available only for physical books',
+          );
         }
 
         // Create order
@@ -187,13 +248,31 @@ export class CheckoutService {
             discountTotal: snapshot.discountTotal,
             grandTotal: snapshot.grandTotal,
             paymentMethod: dto.paymentMethod,
-            paymentProvider: dto.paymentProvider ?? null,
+            paymentProvider:
+              dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
+                ? 'PAYOS'
+                : 'COD',
             paymentStatus: PaymentStatus.PENDING,
-            status: dto.paymentMethod === PaymentMethod.COD ? 'PROCESSING' : 'PENDING_PAYMENT',
+            status:
+              dto.paymentMethod === PaymentMethod.COD
+                ? 'PROCESSING'
+                : 'PENDING_PAYMENT',
             shippingAddress: snapshot.shippingAddress,
             note: snapshot.note,
           },
         });
+
+        if (dto.paymentMethod === PaymentMethod.COD) {
+          await tx.payment.create({
+            data: {
+              orderId: order.id,
+              amount: order.grandTotal,
+              method: PaymentMethod.COD,
+              status: PaymentStatus.PENDING,
+              provider: 'COD',
+            },
+          });
+        }
 
         // Create seller orders and items
         for (let i = 0; i < snapshot.groups.length; i++) {
@@ -208,9 +287,10 @@ export class CheckoutService {
               itemSubtotal: group.itemSubtotal,
               shippingFee: group.shippingFee,
               grandTotal: group.grandTotal,
-              status: dto.paymentMethod === PaymentMethod.COD
-                ? SellerOrderStatus.PENDING_CONFIRMATION
-                : SellerOrderStatus.PENDING_PAYMENT,
+              status:
+                dto.paymentMethod === PaymentMethod.COD
+                  ? SellerOrderStatus.PENDING_CONFIRMATION
+                  : SellerOrderStatus.PENDING_PAYMENT,
             },
           });
 
@@ -294,7 +374,9 @@ export class CheckoutService {
     return {
       order,
       idempotentReplay: replayed,
-      paymentRequired: order.paymentMethod === PaymentMethod.ONLINE_PAYMENT && order.paymentStatus !== PaymentStatus.SUCCEEDED,
+      paymentRequired:
+        order.paymentMethod === PaymentMethod.ONLINE_PAYMENT &&
+        order.paymentStatus !== PaymentStatus.SUCCEEDED,
       paymentProvider: order.paymentProvider,
     };
   }

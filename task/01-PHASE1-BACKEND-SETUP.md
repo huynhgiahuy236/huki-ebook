@@ -1,4 +1,4 @@
-# 📋 PHASE 1: Backend Foundation
+﻿# 📋 PHASE 1: Backend Foundation
 **Thời gian ước tính: 4-6 tuần**
 
 ## Mục tiêu
@@ -18,7 +18,7 @@
 |------|-------|---------|--------|--------|
 | T1.1 | KIEN | HIGH | Setup NestJS monorepo với 6 services (identity, business, commerce, shipping, community, promotion, gateway) | ✅ |
 | T1.2 | KIEN | HIGH | Tạo shared library (common, utils, types, interfaces) | ✅ |
-| T1.3 | KIEN | HIGH | Config TypeORM cho PostgreSQL (6 databases) | ✅ |
+| T1.3 | KIEN | HIGH | Config Prisma cho các PostgreSQL service | ✅ |
 | T1.4 | HUY | HIGH | Config MongoDB schemas cho community service | ✅ |
 | T1.5 | HUY | HIGH | Setup Redis cho cache và sessions | ✅ |
 | T1.6 | HUY | HIGH | Setup RabbitMQ với exchange/queue pattern | ✅ |
@@ -129,9 +129,8 @@ Sprint 4: Business Service
 
 | Ngày | Người | Task hoàn thành |
 |------|--------|-----------------|
-| 2026-08-17 | KIEN | T1.1-T1.3, T1.7: NestJS monorepo, shared lib, TypeORM, base entities |
+| 2026-08-17 | KIEN | T1.1-T1.3, T1.7: NestJS monorepo, shared lib; chuẩn hóa Prisma ngày 2026-08-21 |
 | 2026-08-17 | KIEN | T1.4-T1.6: MongoDB schemas (7 collections), Redis setup, RabbitMQ setup |
 | 2026-08-17 | KIEN | T2.1-T2.10: Full Identity Service (Auth, Sessions, RBAC, Rate Limiting) |
 | 2026-08-17 | KIEN | T3.1-T3.5: API Gateway (routes, JWT middleware, CORS, error handler, health) |
 | 2026-08-17 | HUY | T4.1-T4.7: Business Service (Prisma schema, Business/Store/Member CRUD, Approval flow) |
-

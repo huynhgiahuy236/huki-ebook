@@ -18,6 +18,6 @@ import { SellerOrdersController } from './seller-orders.controller';
     AuthenticatedGuard,
     BookWriteGuard,
   ],
-  exports: [OrdersService],
+  exports: [OrdersService, InventoryReservationService],
 })
 export class OrdersModule {}

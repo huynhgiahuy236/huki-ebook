@@ -1,155 +1,76 @@
-import { BadRequestException, Body, Controller, Headers, HttpCode, HttpStatus, Ip, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
-import { createHmac } from 'crypto';
-import { randomBytes } from 'crypto';
-import { PrismaService } from '../../prisma/prisma.service';
-import { ConfigService } from '@nestjs/config';
-import { CartItemFormat } from '@prisma/client';
-
-interface PayOSCallback {
-  orderCode: string;
-  amount: number;
-  description: string;
-  transferDate: string;
-  transactionId: string;
-  accountNumber: string;
-}
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
+import { CurrentBookActor } from '../../common/current-book-actor.decorator';
+import { CreateRefundDto, InitiatePaymentDto, PayOSWebhookDto, SettleRefundDto } from './dto/payment.dto';
+import { PaymentsService } from './payments.service';
 
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentsController {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly payments: PaymentsService) {}
 
-  @Post('webhook/payos')
-  @HttpCode(HttpStatus.OK)
-  async payosWebhook(
-    @Body() body: PayOSCallback,
-    @Headers('x-payos-signature') signature: string,
-    @Ip() ip: string,
+  @Post('orders/:orderId/initiate')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Create or reuse a PayOS payment link for an online order' })
+  initiate(
+    @CurrentBookActor() actor: BookActor,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: InitiatePaymentDto,
   ) {
-    // Verify IP whitelist (PayOS IPs)
-    const allowedIPs = ['103.90.224.52', '103.90.224.53'];
-    if (!allowedIPs.includes(ip)) {
-      throw new BadRequestException('Unauthorized IP');
-    }
+    return this.payments.initiate(actor.sub, orderId, dto);
+  }
 
-    // Verify signature
-    const checksumKey = this.config.get('payos.checksumKey');
-    if (checksumKey) {
-      const expectedSignature = createHmac('sha256', checksumKey)
-        .update(`${body.orderCode}|${body.amount}|${checksumKey}`)
-        .digest('hex');
+  @Get('orders/:orderId')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Get payment and refund status for an order' })
+  status(
+    @CurrentBookActor() actor: BookActor,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.payments.getOrderPayment(actor.sub, orderId);
+  }
 
-      if (signature !== expectedSignature) {
-        throw new BadRequestException('Invalid signature');
-      }
-    }
+  @Post('orders/:orderId/refunds')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Request a full or partial PayOS refund' })
+  refund(
+    @CurrentBookActor() actor: BookActor,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() dto: CreateRefundDto,
+  ) {
+    return this.payments.requestRefund(actor, orderId, dto);
+  }
 
-    // Find order by code
-    const order = await this.prisma.order.findFirst({
-      where: { code: body.orderCode },
-      include: { sellerOrders: { include: { items: true } } },
-    });
+  @Post('refunds/:refundId/settle')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Reconcile a PayOS refund (platform admin only)' })
+  settleRefund(
+    @CurrentBookActor() actor: BookActor,
+    @Param('refundId', ParseUUIDPipe) refundId: string,
+    @Body() dto: SettleRefundDto,
+  ) {
+    return this.payments.settleRefund(actor, refundId, dto);
+  }
 
-    if (!order) {
-      throw new BadRequestException('Order not found');
-    }
-
-    // Process callback in transaction
-    await this.prisma.$transaction(async (tx) => {
-      // Create or update payment record
-      const existingPayment = await tx.payment.findUnique({
-        where: { orderId: order.id },
-      });
-
-      if (existingPayment) {
-        await tx.payment.update({
-          where: { id: existingPayment.id },
-          data: {
-            status: 'SUCCEEDED',
-            transactionId: body.transactionId.toString(),
-            paidAt: new Date(body.transferDate),
-            callbackData: body as any,
-          },
-        });
-      } else {
-        await tx.payment.create({
-          data: {
-            orderId: order.id,
-            amount: order.grandTotal,
-            method: order.paymentMethod,
-            status: 'SUCCEEDED',
-            provider: order.paymentProvider,
-            transactionId: body.transactionId.toString(),
-            paidAt: new Date(body.transferDate),
-            callbackData: body as any,
-          },
-        });
-      }
-
-      // Update order status
-      await tx.order.update({
-        where: { id: order.id },
-        data: {
-          paymentStatus: 'SUCCEEDED',
-          status: 'PROCESSING',
-        },
-      });
-
-      // Record history
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: order.id,
-          fromStatus: order.status,
-          toStatus: 'PROCESSING',
-          title: 'Payment confirmed via PayOS',
-          description: `Transaction: ${body.transactionId}`,
-          actorType: 'SYSTEM',
-          actorId: null,
-        },
-      });
-
-      // Emit event
-      await tx.outboxEvent.create({
-        data: {
-          eventId: body.transactionId.toString(),
-          type: 'payment.succeeded',
-          aggregateId: order.id,
-          payload: {
-            orderId: order.id,
-            transactionId: body.transactionId,
-            amount: body.amount,
-          },
-          status: 'PENDING',
-        },
-      });
-
-      // Grant BookAccess for digital books
-      const digitalItems = order.sellerOrders
-        .flatMap((so) => so.items)
-        .filter((item) => item.format === CartItemFormat.DIGITAL);
-
-      for (const item of digitalItems) {
-        const existingAccess = await tx.bookAccess.findUnique({
-          where: { userId_bookId: { userId: order.userId, bookId: item.bookId } },
-        });
-
-        if (!existingAccess) {
-          await tx.bookAccess.create({
-            data: {
-              userId: order.userId,
-              bookId: item.bookId,
-              orderId: order.id,
-              status: 'ACTIVE',
-            },
-          });
-        }
-      }
-    });
-
-    return { received: true };
+  @Post('webhooks/payos')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Receive a signed PayOS webhook' })
+  webhook(@Body() payload: PayOSWebhookDto) {
+    return this.payments.handlePayOSWebhook(payload);
   }
 }

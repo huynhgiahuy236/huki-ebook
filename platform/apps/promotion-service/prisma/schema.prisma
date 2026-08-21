@@ -3,11 +3,12 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("PROMOTION_DATABASE_URL")
 }
 
 // ============================================
@@ -15,39 +16,39 @@ datasource db {
 // ============================================
 
 model Voucher {
-  id              String          @id @default(uuid())
-  code            String          @unique
-  name            String
-  description     String?
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String?
 
   // Type & Value
-  type            VoucherType
-  value           Float
+  type  VoucherType
+  value Float
 
   // Conditions
-  minOrderAmount  Float           @default(0) @map("min_order_amount")
-  maxDiscountAmount Float?        @map("max_discount_amount")
+  minOrderAmount    Float  @default(0) @map("min_order_amount")
+  maxDiscountAmount Float? @map("max_discount_amount")
 
   // Scope
-  scope           VoucherScope    @default(PLATFORM)
-  storeId        String?         @map("store_id")
+  scope   VoucherScope @default(PLATFORM)
+  storeId String?      @map("store_id")
 
   // Limits
-  totalUsage     Int              @default(0) @map("total_usage")
-  maxUsagePerUser Int?           @map("max_usage_per_user")
-  currentUsage  Int              @default(0) @map("current_usage")
+  totalUsage      Int  @default(0) @map("total_usage")
+  maxUsagePerUser Int? @map("max_usage_per_user")
+  currentUsage    Int  @default(0) @map("current_usage")
 
   // Validity
-  startsAt       DateTime        @map("starts_at")
-  expiresAt      DateTime        @map("expires_at")
+  startsAt  DateTime @map("starts_at")
+  expiresAt DateTime @map("expires_at")
 
-  status          VoucherStatus  @default(ACTIVE)
+  status VoucherStatus @default(ACTIVE)
 
   // Relations
-  usages          VoucherUsage[]
+  usages VoucherUsage[]
 
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([code])
   @@index([status])
@@ -74,14 +75,14 @@ enum VoucherStatus {
 }
 
 model VoucherUsage {
-  id          String    @id @default(uuid())
-  voucherId   String    @map("voucher_id")
-  voucher     Voucher   @relation(fields: [voucherId], references: [id])
-  userId      String    @map("user_id")
-  orderId    String    @map("order_id")
-  discount   Float
+  id        String  @id @default(uuid())
+  voucherId String  @map("voucher_id")
+  voucher   Voucher @relation(fields: [voucherId], references: [id])
+  userId    String  @map("user_id")
+  orderId   String  @map("order_id")
+  discount  Float
 
-  createdAt   DateTime  @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([voucherId])
   @@index([userId])
@@ -93,21 +94,21 @@ model VoucherUsage {
 // ============================================
 
 model Banner {
-  id          String    @id @default(uuid())
-  title       String
-  image       String
-  link        String?
-  position    Int       @default(0)
-  isActive    Boolean   @default(true) @map("is_active")
-  startDate   DateTime? @map("start_date")
-  endDate     DateTime? @map("end_date")
+  id        String    @id @default(uuid())
+  title     String
+  image     String
+  link      String?
+  position  Int       @default(0)
+  isActive  Boolean   @default(true) @map("is_active")
+  startDate DateTime? @map("start_date")
+  endDate   DateTime? @map("end_date")
 
   // Scope
-  scope       BannerScope @default(HOMEPAGE)
-  storeId    String?   @map("store_id")
+  scope   BannerScope @default(HOMEPAGE)
+  storeId String?     @map("store_id")
 
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("banners")
 }
@@ -123,22 +124,22 @@ enum BannerScope {
 // ============================================
 
 model BookDiscount {
-  id          String    @id @default(uuid())
-  bookId      String    @map("book_id")
-  type        DiscountType
-  value       Float
+  id     String       @id @default(uuid())
+  bookId String       @map("book_id")
+  type   DiscountType
+  value  Float
 
   // Conditions
-  minQuantity Int?     @map("min_quantity")
+  minQuantity Int? @map("min_quantity")
 
   // Validity
-  startsAt    DateTime  @map("starts_at")
-  expiresAt   DateTime  @map("expires_at")
+  startsAt  DateTime @map("starts_at")
+  expiresAt DateTime @map("expires_at")
 
-  status      DiscountStatus @default(ACTIVE)
+  status DiscountStatus @default(ACTIVE)
 
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([bookId])
   @@index([expiresAt])
@@ -161,16 +162,16 @@ enum DiscountStatus {
 // ============================================
 
 model FlashSale {
-  id          String    @id @default(uuid())
+  id          String  @id @default(uuid())
   name        String
   description String?
 
-  startsAt    DateTime  @map("starts_at")
-  endsAt      DateTime  @map("ends_at")
-  status      FlashSaleStatus @default(SCHEDULED)
+  startsAt DateTime        @map("starts_at")
+  endsAt   DateTime        @map("ends_at")
+  status   FlashSaleStatus @default(SCHEDULED)
 
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("flash_sales")
 }
@@ -182,19 +183,19 @@ enum FlashSaleStatus {
 }
 
 model FlashSaleItem {
-  id            String    @id @default(uuid())
-  flashSaleId   String    @map("flash_sale_id")
-  bookId        String    @map("book_id")
+  id          String @id @default(uuid())
+  flashSaleId String @map("flash_sale_id")
+  bookId      String @map("book_id")
 
-  originalPrice Float     @map("original_price")
-  salePrice     Float     @map("sale_price")
+  originalPrice Float @map("original_price")
+  salePrice     Float @map("sale_price")
 
   // Limits
-  stock         Int
-  sold          Int       @default(0)
-  maxPerUser    Int       @default(1) @map("max_per_user")
+  stock      Int
+  sold       Int @default(0)
+  maxPerUser Int @default(1) @map("max_per_user")
 
-  createdAt     DateTime  @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([flashSaleId])
   @@index([bookId])

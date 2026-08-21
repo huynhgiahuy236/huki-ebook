@@ -6,7 +6,7 @@ import { BookActor } from '../../common/book-auth.guard';
 import { BooksService } from './books.service';
 import { serializeDigitalDetails } from './digital-books.service';
 import { COVER_STORAGE, CoverStorage, EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
-import { BookFormat } from '@prisma/client';
+import { BookFormat } from '../../../prisma/generated/client';
 
 export enum PdfFileKind {
   SOURCE = 'SOURCE',
@@ -56,7 +56,7 @@ export class BookUploadsService {
     const book = await this.prisma.book.findUnique({ where: { id: bookId } });
     if (!book) throw new ConflictException('Book not found');
 
-    if (![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format)) {
+    if (!(new Set<BookFormat>([BookFormat.DIGITAL, BookFormat.BOTH])).has(book.format)) {
       throw new ConflictException('Book does not support digital format');
     }
 

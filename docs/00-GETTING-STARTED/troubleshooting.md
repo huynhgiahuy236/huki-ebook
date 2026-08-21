@@ -1,4 +1,4 @@
-# 🐛 Troubleshooting Guide
+﻿# 🐛 Troubleshooting Guide
 
 Giải quyết các lỗi thường gặp.
 
@@ -240,12 +240,9 @@ EntityMetadataNotFoundError: No metadata for "User" was found
 **Giải pháp:**
 
 ```bash
-# Rebuild TypeORM entities
-rm -rf dist
-npm run build
-
-# Hoặc restart với synchronize (dev only)
-# DATABASE_SYNC=true (chỉ dev, không dùng production!)
+# Regenerate clients and apply committed Prisma migrations
+npm run prisma:generate
+npm run prisma:migrate:deploy
 ```
 
 ## 🔍 Debugging Tips

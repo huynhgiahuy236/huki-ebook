@@ -5,7 +5,7 @@ import { BookActor } from '../../common/book-auth.guard';
 import { BooksService } from './books.service';
 import { UpdateInventoryDto, InventoryOperation } from './dto/update-inventory.dto';
 import { UpdatePhysicalDetailsDto } from './dto/update-physical-details.dto';
-import { BookFormat, BookStatus } from '@prisma/client';
+import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 
 export interface StockLowEvent {
   bookId: string;
@@ -118,7 +118,7 @@ export class PhysicalBooksService {
   }
 
   private assertPhysicalFormat(book: any) {
-    if (![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format)) {
+    if (!(new Set<BookFormat>([BookFormat.PHYSICAL, BookFormat.BOTH])).has(book.format)) {
       throw new ConflictException('Book does not support physical format');
     }
   }

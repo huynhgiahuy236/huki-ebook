@@ -1,4 +1,4 @@
-# 📋 PHASE 5: Frontend Web
+﻿# 📋 PHASE 5: Frontend Web
 **Thời gian ước tính: 6-8 tuần**
 
 ## Mục tiêu
@@ -45,7 +45,7 @@
 |------|-------|---------|--------|
 | T19.1 | KIEN | HIGH | Cart page |
 | T19.2 | KIEN | HIGH | Checkout flow |
-| T19.3 | KIEN | HIGH | Payment page (VNPay/MoMo redirect) |
+| T19.3 | KIEN | HIGH | Payment page (PayOS redirect) |
 | T19.4 | KIEN | HIGH | Order confirmation |
 | T19.5 | HUY | HIGH | Order history |
 | T19.6 | HUY | HIGH | Order detail & tracking |

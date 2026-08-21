@@ -5,8 +5,8 @@ import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.u
 import { paginate } from '../../common/pagination.util';
 import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
-import { BookListQueryDto } from './dto/book-list-query.dto';
-import { BookFormat, BookStatus } from '@prisma/client';
+import { BookListQueryDto, BookSortBy } from './dto/book-list-query.dto';
+import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 
 @Injectable()
 export class BooksService {
@@ -119,9 +119,9 @@ export class BooksService {
     if (query.maxPrice !== undefined) where.price = { ...where.price, lte: query.maxPrice };
 
     const orderBy: any = {};
-    if (query.sortBy === 'CREATED_AT') orderBy.createdAt = query.order;
-    else if (query.sortBy === 'PUBLISHED_AT') orderBy.publishedAt = query.order;
-    else if (query.sortBy === 'PRICE') orderBy.price = query.order;
+    if (query.sortBy === BookSortBy.CREATED_AT) orderBy.createdAt = query.order;
+    else if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = query.order;
+    else if (query.sortBy === BookSortBy.PRICE) orderBy.price = query.order;
     else orderBy.title = query.order;
 
     const [books, total] = await this.prisma.$transaction([
@@ -145,7 +145,7 @@ export class BooksService {
   }
 
   async findBySlug(slug: string, actor?: BookActor) {
-    const book = await this.prisma.book.findUnique({
+    const book = await this.prisma.book.findFirst({
       where: { slug },
       include: {
         category: true,
@@ -209,6 +209,13 @@ export class BooksService {
     return this.findOne(updated.id, actor);
   }
 
+  async findForWrite(id: string, actor: BookActor) {
+    const book = await this.prisma.book.findUnique({ where: { id } });
+    if (!book) throw new NotFoundException('Book not found');
+    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+    return book;
+  }
+
   async publish(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
     if (!book) throw new NotFoundException('Book not found');
@@ -251,10 +258,10 @@ export class BooksService {
   }
 
   private validateFormatPayload(format: BookFormat, physical?: any, digital?: any) {
-    if ([BookFormat.PHYSICAL, BookFormat.BOTH].includes(format) && !physical) {
+    if ((new Set<BookFormat>([BookFormat.PHYSICAL, BookFormat.BOTH])).has(format) && !physical) {
       throw new ConflictException('Physical details are required for this format');
     }
-    if ([BookFormat.DIGITAL, BookFormat.BOTH].includes(format) && !digital) {
+    if ((new Set<BookFormat>([BookFormat.DIGITAL, BookFormat.BOTH])).has(format) && !digital) {
       throw new ConflictException('Digital details are required for this format');
     }
   }

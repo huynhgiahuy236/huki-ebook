@@ -5,7 +5,7 @@ import { paginate, PaginatedResult } from '../../common/pagination.util';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { CreateAuthorDto } from './dto/create-author.dto';
 import { UpdateAuthorDto } from './dto/update-author.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../prisma/generated/client';
 
 @Injectable()
 export class AuthorsService {
@@ -20,6 +20,7 @@ export class AuthorsService {
     return this.prisma.author.create({
       data: {
         name,
+        normalizedName,
         slug,
         bio: dto.bio?.trim() || null,
         avatar: dto.avatarUrl ?? null,

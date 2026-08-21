@@ -1,4 +1,4 @@
-# 📚 API Reference
+﻿# 📚 API Reference
 
 ## Base URL
 
@@ -77,9 +77,11 @@ Authorization: Bearer <access_token>
 - PATCH /seller/orders/:id/status - Update order status
 
 ### [Payment](endpoints/payment.md)
-- POST /payments/payos/create - Create PayOS payment
-- POST /payments/payos/callback - PayOS callback
-- GET /payments/:id - Get payment status
+- POST /payments/orders/:orderId/initiate - Create/reuse PayOS payment link
+- POST /payments/webhooks/payos - Signed PayOS webhook
+- GET /payments/orders/:orderId - Get payment/refund status
+- POST /payments/orders/:orderId/refunds - Request refund
+- POST /payments/refunds/:refundId/settle - Admin refund reconciliation
 
 ### [Shipping](endpoints/shipping.md)
 - GET /shipping/fee - Calculate shipping fee

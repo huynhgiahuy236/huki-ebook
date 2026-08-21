@@ -1,4 +1,4 @@
-# 🗄️ Commerce Database Schema
+﻿# 🗄️ Commerce Database Schema
 
 Chi tiết database schema cho Commerce Service.
 
@@ -310,7 +310,7 @@ CREATE TABLE payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
     payment_code VARCHAR(100) NOT NULL UNIQUE,
-    provider VARCHAR(50) NOT NULL,  -- VNPAY, MOMO, COD
+    provider VARCHAR(50) NOT NULL,  -- PAYOS, COD
     payment_method VARCHAR(50) NOT NULL,
     amount DECIMAL(12,2) NOT NULL,
     currency VARCHAR(10) DEFAULT 'VND',

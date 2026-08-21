@@ -1,7 +1,7 @@
-# �️ Commerce Database (commerce_db)
+﻿# �️ Commerce Database (commerce_db)
 
 **Engine:** PostgreSQL
-**ORM:** TypeORM
+**ORM:** Prisma
 **Service:** Commerce Service (3003)
 
 ## Overview
@@ -136,16 +136,47 @@ CREATE INDEX idx_seller_orders_store_id ON seller_orders(store_id);
 ```sql
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID UNIQUE NOT NULL REFERENCES orders(id),
-  amount FLOAT NOT NULL,
-  method VARCHAR(20), -- PAYOS, COD
-  status VARCHAR(20), -- PENDING, PAID, FAILED, REFUNDED, PARTIAL_REFUND
+  order_id UUID NOT NULL REFERENCES orders(id),
+  amount DECIMAL(14,2) NOT NULL,
+  method VARCHAR(20), -- ONLINE_PAYMENT, COD
+  provider VARCHAR(20), -- PAYOS, COD
+  status VARCHAR(30), -- PENDING, PROCESSING, SUCCEEDED, EXPIRED, REFUND_PENDING...
   transaction_id VARCHAR(100),
   payos_order_id VARCHAR(100),
+  payos_payment_link_id VARCHAR(100),
   payos_return_code VARCHAR(50),
+  checkout_url TEXT,
+  qr_code TEXT,
+  expires_at TIMESTAMP,
   callback_data JSONB,
   paid_at TIMESTAMP,
 
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX payments_provider_payos_order_id_key
+  ON payments(provider, payos_order_id);
+CREATE INDEX payments_order_id_status_idx ON payments(order_id, status);
+```
+
+### refunds
+
+```sql
+CREATE TABLE refunds (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES orders(id),
+  payment_id UUID NOT NULL REFERENCES payments(id),
+  amount DECIMAL(14,2) NOT NULL,
+  reason TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  provider VARCHAR(20) NOT NULL,
+  provider_reference VARCHAR(100),
+  requested_by UUID NOT NULL,
+  processed_at TIMESTAMP,
+  failed_at TIMESTAMP,
+  failure_reason TEXT,
+  metadata JSONB,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -179,7 +210,8 @@ books ──< order_items
 books ──< book_accesses
 
 orders (1) ──< (N) seller_orders (1) ──< (N) order_items
-orders (1) ──< (1) payments
+orders (1) ──< (N) payments
+orders (1) ──< (N) refunds
 
 categories (tree via parent_id)
 ```
@@ -193,6 +225,6 @@ categories (tree via parent_id)
 ## Notes
 
 - Order split by store (multi-vendor)
-- Payment 1:1 with Order
+- Payment 1:N với Order để hỗ trợ retry PayOS; mỗi attempt có `payos_order_id` riêng
 - Digital books: `book_accesses` for library
 - Price snapshots stored in order_items

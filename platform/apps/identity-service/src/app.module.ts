@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -15,7 +14,8 @@ import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { ThrottlerBehindProxyGuard } from './modules/auth/guards/throttle.guard';
 
 // Config
-import configuration from './config/configuration';
+import configuration from '../config/configuration';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -26,31 +26,16 @@ import configuration from './config/configuration';
       envFilePath: ['.env', '.env.local'],
     }),
 
-    // Database - Identity uses PostgreSQL
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        database: configService.get('database.identity.name'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: configService.get('database.synchronize'),
-        logging: configService.get('database.logging'),
-      }),
-    }),
+    PrismaModule,
 
     // Rate limiting
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        ttl: configService.get('throttle.ttl'),
-        limit: configService.get('throttle.limit'),
-      }),
+      useFactory: (configService: ConfigService) => ([{
+        ttl: configService.get<number>('throttle.ttl') ?? 60_000,
+        limit: configService.get<number>('throttle.limit') ?? 100,
+      }]),
     }),
 
     // Redis & RabbitMQ

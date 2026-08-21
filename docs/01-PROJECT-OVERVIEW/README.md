@@ -1,4 +1,4 @@
-# 📋 Project Overview
+﻿# 📋 Project Overview
 
 Tổng quan dự án HUKI EBOOK.
 
@@ -100,7 +100,7 @@ HUKI EBOOK là nền tảng thương mại điện tử (Marketplace) chuyên v�
    - Multi-store cart
    - Checkout với shipping fee calculation
    - Order management (Order → SellerOrder → OrderItem)
-   - Payment: Online (VNPay/Momo) + COD
+   - Payment: Online (PayOS) + COD
 
 5. **Digital Reading**
    - User Library

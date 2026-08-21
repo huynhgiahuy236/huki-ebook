@@ -16,6 +16,11 @@ export default () => ({
     sessionTtlMinutes: parseInt(process.env.CHECKOUT_SESSION_TTL_MINUTES || '15', 10),
     shippingBaseFee: parseInt(process.env.CHECKOUT_SHIPPING_BASE_FEE || '30000', 10),
   },
+  payos: {
+    clientId: process.env.PAYOS_CLIENT_ID,
+    apiKey: process.env.PAYOS_API_KEY,
+    checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+  },
   redis: {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379', 10),

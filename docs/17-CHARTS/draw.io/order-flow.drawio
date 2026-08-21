@@ -54,7 +54,7 @@
         </mxCell>
 
         <!-- Payment Gateway -->
-        <mxCell id="payment-gw" value="Payment Gateway&#xa;(VNPay/Momo)" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f59e0b;strokeColor=#d97706;" vertex="1" parent="1">
+        <mxCell id="payment-gw" value="Payment Gateway&#xa;(PayOS)" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f59e0b;strokeColor=#d97706;" vertex="1" parent="1">
           <mxGeometry x="460" y="700" width="160" height="60" as="geometry"/>
         </mxCell>
 

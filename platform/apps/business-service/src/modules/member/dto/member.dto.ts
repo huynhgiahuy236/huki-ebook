@@ -1,6 +1,6 @@
 import { IsString, IsEmail, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MemberRole } from '../../../prisma/generated/client';
+import { MemberRole } from '../../../../prisma/generated/client';
 
 export class InviteMemberDto {
   @ApiProperty({ example: 'member@example.com' })
