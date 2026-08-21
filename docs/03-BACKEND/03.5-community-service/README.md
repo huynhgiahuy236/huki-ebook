@@ -314,14 +314,18 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - `user.reported`
 
 ### Received
-- `order.delivered` → Send review request notification
-- `order.paid` → Notify seller
+- `ORDER_COMPLETED` → Send review request notification
+- `ORDER_CREATED`, `ORDER_PAID`, `ORDER_CANCELLED`, `SELLER_ORDER_CONFIRMED`, `SELLER_ORDER_CANCELLED`, `PAYMENT_FAILED` → Save idempotent order confirmation notifications
 - `business.approved` → Welcome notification
+
+Sprint 11 chỉ triển khai consumer và lưu notification xác nhận đơn idempotent. Notification CRUD, preferences, realtime và Firebase vẫn thuộc Sprint 15.
 
 ## Configuration
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/community_db
+RABBITMQ_URL=amqp://guest:guest123@localhost:5672
+RABBITMQ_EXCHANGE=huki.events
 REDIS_HOST=localhost
 REDIS_PORT=6379
 

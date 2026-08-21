@@ -156,6 +156,7 @@ Format: `PREFIX_ACTION`
 | ORDER_COMPLETED | All items delivered | Notification, Review |
 | SELLER_ORDER_CONFIRMED | Seller confirms | Notification |
 | SELLER_ORDER_SHIPPED | Seller ships | Notification |
+| SELLER_ORDER_CANCELLED | Seller cancels one seller order | Shipping, Notification |
 
 ### 5. Payment Events
 
@@ -177,7 +178,7 @@ Format: `PREFIX_ACTION`
 
 ### 7. Shipping Events
 
-Sprint 10 ghi event vào Prisma outbox; Sprint 11 publish các row `PENDING` qua RabbitMQ.
+Sprint 10 ghi event vào Prisma outbox; Sprint 11 đã publish các row `PENDING` qua RabbitMQ topic exchange `huki.events`.
 
 | Event | Trigger | Consumers |
 |-------|---------|-----------|
@@ -268,23 +269,23 @@ async handleBookAccessGranted(event: DomainEvent) {
 Để đảm bảo events được gửi sau khi transaction commit:
 
 ```typescript
-@Service()
+@Injectable()
 export class OrderService {
   constructor(
-    private readonly entityManager: EntityManager,
-    private readonly eventBus: EventBus,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createOrder(data: CreateOrderDto): Promise<Order> {
-    return this.entityManager.transaction(async (manager) => {
+    return this.prisma.$transaction(async (tx) => {
       // 1. Create order
-      const order = await manager.save(Order, data);
+      const order = await tx.order.create({ data });
 
       // 2. Create outbox record (same transaction)
-      await manager.save(OutboxEvent, {
-        eventType: 'ORDER_CREATED',
-        payload: { orderId: order.id, ... },
-        status: 'PENDING',
+      await tx.outboxEvent.create({ data: {
+        eventId: randomUUID(),
+        type: 'ORDER_CREATED',
+        aggregateId: order.id,
+        payload: { orderId: order.id },
       });
 
       // 3. Commit transaction - order AND outbox saved atomically
@@ -296,15 +297,16 @@ export class OrderService {
 }
 ```
 
+Commerce và Shipping có `inbox_events.event_id` unique. Community dùng `sourceKey = eventId:recipientId:type`; vì vậy event redelivery không lặp cập nhật tồn kho, trạng thái hoặc notification.
+
 ## Dead Letter Queue
 
 Events không xử lý được sẽ được gửi vào DLQ:
 
 ```
-Queue: order.created.queue
+Queue: <service>.<purpose>
   → Consumer fails (3 retries)
-  → Dead Letter Exchange (dlx.order)
-  → Dead Letter Queue: order.created.dlq
+  → Dead Letter Queue: <service>.<purpose>.dlq
 ```
 
 ## Event Versioning

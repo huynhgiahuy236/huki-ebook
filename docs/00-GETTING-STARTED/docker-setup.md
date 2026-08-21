@@ -31,6 +31,18 @@ docker-compose up -d
 docker-compose ps
 ```
 
+Trong repository hiện tại có thể chạy tương đương từ thư mục `platform`:
+
+```bash
+npm run local:infra
+npm run local:migrate:phase3
+npm run start:commerce
+npm run start:shipping
+npm run start:community
+```
+
+Ba lệnh `start:*` chạy trên máy host; Docker chỉ cung cấp PostgreSQL, MongoDB, Redis và RabbitMQ.
+
 ### 2. Stop Services
 
 ```bash
@@ -174,7 +186,7 @@ mongosh "mongodb://localhost:27017/huki_community"
 ```bash
 # Access Management UI
 # URL: http://localhost:15672
-# Default: guest/guest
+# Local default: guest/guest123
 ```
 
 ### Memory Issues

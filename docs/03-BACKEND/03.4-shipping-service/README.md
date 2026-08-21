@@ -13,11 +13,12 @@ Sprint 10 hoàn thành ngày 2026-08-21. Service chịu trách nhiệm báo phí
 | `delivery-staff` | Quản lý và phân công nhân viên |
 | `addresses` | Address CRUD theo chủ sở hữu |
 | `prisma` | Truy cập `shipping_db` |
+| `events` | Consume order events và publish shipping outbox qua RabbitMQ |
 
 ## Order-to-shipment flow
 
-1. Commerce lưu `order.created` với shipping address và seller orders vật lý.
-2. Sprint 11 chuyển event; contract hiện tại là `POST /api/v1/internal/shipments/from-order` với `x-internal-api-key`.
+1. Commerce lưu `ORDER_CREATED` với shipping address và seller orders.
+2. Shipping consume event qua queue `shipping-service.order-events`; internal endpoint vẫn được giữ cho vận hành/đối soát.
 3. Shipping bỏ qua đơn chỉ có ebook, tạo một shipment mỗi `sellerOrderId` và trả lại bản ghi cũ khi event lặp.
 4. GHTK mock tính phí, sinh tracking ổn định và ngày giao dự kiến.
 5. Shipment, timeline đầu tiên và `shipment.created` được ghi trong một Prisma transaction.
@@ -96,4 +97,4 @@ GHTK_MOCK_INTER_PROVINCE_FEE=10000
 GHTK_MOCK_COD_RATE=0.005
 ```
 
-RabbitMQ publisher/consumer thuộc Sprint 11; Sprint 10 chỉ lưu outbox atomically.
+RabbitMQ dùng topic exchange `huki.events`. Publisher retry 3 lần; consumer chống lặp bằng `inbox_events` và message lỗi sau 3 lần vào `shipping-service.order-events.dlq`.
