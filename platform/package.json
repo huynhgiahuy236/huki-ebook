@@ -15,8 +15,8 @@
     "start:identity": "nx serve identity-service",
     "start:business": "nx serve business-service",
     "start:commerce": "nest start commerce-service --watch",
-    "start:shipping": "nx serve shipping-service",
-    "start:community": "nx serve community-service",
+    "start:shipping": "nest start shipping-service --watch",
+    "start:community": "nest start community-service --watch",
     "start:promotion": "nx serve promotion-service",
     "start:gateway": "nx serve api-gateway",
     "lint": "nx run-many -t lint",
@@ -30,7 +30,9 @@
     "prisma:generate:commerce": "prisma generate --schema apps/commerce-service/prisma/schema.prisma",
     "prisma:generate:shipping": "prisma generate --schema apps/shipping-service/prisma/schema.prisma",
     "prisma:generate:promotion": "prisma generate --schema apps/promotion-service/prisma/schema.prisma",
-    "prisma:migrate:deploy": "prisma migrate deploy --schema apps/identity-service/prisma/schema.prisma && prisma migrate deploy --schema apps/business-service/prisma/schema.prisma && prisma migrate deploy --schema apps/commerce-service/prisma/schema.prisma && prisma migrate deploy --schema apps/shipping-service/prisma/schema.prisma && prisma migrate deploy --schema apps/promotion-service/prisma/schema.prisma"
+    "prisma:migrate:deploy": "prisma migrate deploy --schema apps/identity-service/prisma/schema.prisma && prisma migrate deploy --schema apps/business-service/prisma/schema.prisma && prisma migrate deploy --schema apps/commerce-service/prisma/schema.prisma && prisma migrate deploy --schema apps/shipping-service/prisma/schema.prisma && prisma migrate deploy --schema apps/promotion-service/prisma/schema.prisma",
+    "local:infra": "docker compose -f ../docker-compose.yml up -d postgres mongo redis rabbitmq",
+    "local:migrate:phase3": "prisma migrate deploy --schema apps/commerce-service/prisma/schema.prisma && prisma migrate deploy --schema apps/shipping-service/prisma/schema.prisma"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.637.0",

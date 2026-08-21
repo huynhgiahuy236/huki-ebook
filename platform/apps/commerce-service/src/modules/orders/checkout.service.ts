@@ -19,6 +19,7 @@ import {
   SellerOrderStatus,
   Prisma,
 } from '../../../prisma/generated/client';
+import { ORDER_EVENTS } from '../../../../../libs/shared/src';
 
 export interface CheckoutSnapshotItem {
   cartItemId: string;
@@ -355,10 +356,11 @@ export class CheckoutService {
         await tx.outboxEvent.create({
           data: {
             eventId: randomBytes(16).toString('hex'),
-            type: 'order.created',
+            type: ORDER_EVENTS.CREATED,
             aggregateId: order.id,
             payload: {
               orderId: order.id,
+              orderCode: order.code,
               userId,
               total: order.grandTotal,
               paymentMethod: order.paymentMethod,
@@ -373,9 +375,7 @@ export class CheckoutService {
                     ward: snapshot.shippingAddress.ward,
                   }
                 : null,
-              sellerOrders: shipmentSellerOrders.filter(
-                (item) => item.requiresShipping,
-              ),
+              sellerOrders: shipmentSellerOrders,
             },
             status: 'PENDING',
           },

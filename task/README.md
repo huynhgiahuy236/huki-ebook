@@ -47,7 +47,7 @@
 |--------|------|-----|
 | Sprint 9 | PayOS, COD ✅ | Refunds, reconciliation ✅ |
 | Sprint 10 | GHTK integration ✅ | Shipments, Delivery ✅ |
-| Sprint 11 | Events, Notifications | Order completion |
+| Sprint 11 | Events, Notifications ✅ | Order completion ✅ |
 
 ### Phase 4 (Community)
 

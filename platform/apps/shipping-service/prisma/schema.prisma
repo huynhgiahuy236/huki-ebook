@@ -162,6 +162,18 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
+model InboxEvent {
+  id          String   @id @default(uuid())
+  eventId     String   @unique @map("event_id")
+  type        String
+  aggregateId String   @map("aggregate_id")
+  payload     Json
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@index([type, processedAt])
+  @@map("inbox_events")
+}
+
 enum OutboxStatus {
   PENDING
   PROCESSING

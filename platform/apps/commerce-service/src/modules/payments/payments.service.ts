@@ -19,11 +19,19 @@ import {
 import { BookActor } from '../../common/book-auth.guard';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryReservationService } from '../orders/inventory-reservation.service';
-import { CreateRefundDto, InitiatePaymentDto, PayOSWebhookDto, SettleRefundDto } from './dto/payment.dto';
+import {
+  CreateRefundDto,
+  InitiatePaymentDto,
+  PayOSWebhookDto,
+  SettleRefundDto,
+} from './dto/payment.dto';
 import { PayOSService } from './payos.service';
+import { ORDER_EVENTS, PAYMENT_EVENTS } from '../../../../../libs/shared/src';
 
 @Injectable()
-export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy {
+export class PaymentsService
+  implements OnApplicationBootstrap, OnModuleDestroy
+{
   private readonly logger = new Logger(PaymentsService.name);
   private expirationTimer?: NodeJS.Timeout;
 
@@ -48,10 +56,14 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
 
   async initiate(userId: string, orderId: string, dto: InitiatePaymentDto) {
     await this.expirePendingPayments();
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, userId } });
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+    });
     if (!order) throw new NotFoundException('Order not found');
     if (order.paymentMethod !== PaymentMethod.ONLINE_PAYMENT) {
-      throw new BadRequestException('COD orders do not use a PayOS payment link');
+      throw new BadRequestException(
+        'COD orders do not use a PayOS payment link',
+      );
     }
     if (order.paymentStatus === PaymentStatus.SUCCEEDED) {
       throw new ConflictException('Order has already been paid');
@@ -73,9 +85,12 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
 
     const amount = Number(order.grandTotal);
     if (!Number.isSafeInteger(amount) || amount <= 0) {
-      throw new BadRequestException('PayOS amount must be a positive integer in VND');
+      throw new BadRequestException(
+        'PayOS amount must be a positive integer in VND',
+      );
     }
-    const orderCode = Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
+    const orderCode =
+      Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
     const expiresAt = new Date(Date.now() + 15 * 60_000);
     const link = await this.payos.createPaymentLink({
       orderCode,
@@ -103,7 +118,10 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       });
       await tx.order.update({
         where: { id: orderId },
-        data: { paymentProvider: 'PAYOS', paymentStatus: PaymentStatus.PROCESSING },
+        data: {
+          paymentProvider: 'PAYOS',
+          paymentStatus: PaymentStatus.PROCESSING,
+        },
       });
       return created;
     });
@@ -122,7 +140,10 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       orderCode: order.code,
       paymentStatus: order.paymentStatus,
       payments: order.payments.map((payment) => this.paymentView(payment)),
-      refunds: order.refunds.map((refund) => ({ ...refund, amount: Number(refund.amount) })),
+      refunds: order.refunds.map((refund) => ({
+        ...refund,
+        amount: Number(refund.amount),
+      })),
     };
   }
 
@@ -143,7 +164,9 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
     if (!payment) return { success: true };
     if (payment.status === PaymentStatus.SUCCEEDED) return { success: true };
     if (Number(payment.amount) !== Number(payload.data.amount)) {
-      throw new BadRequestException('PayOS webhook amount does not match the order');
+      throw new BadRequestException(
+        'PayOS webhook amount does not match the order',
+      );
     }
 
     const paidAt = this.parsePayOSDate(payload.data.transactionDateTime);
@@ -156,7 +179,8 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
         data: {
           status: PaymentStatus.SUCCEEDED,
           transactionId: payload.data.reference ?? payosOrderId,
-          payosPaymentLinkId: payload.data.paymentLinkId ?? payment.payosPaymentLinkId,
+          payosPaymentLinkId:
+            payload.data.paymentLinkId ?? payment.payosPaymentLinkId,
           payosReturnCode: payload.code,
           callbackData: payload as unknown as Prisma.InputJsonValue,
           paidAt,
@@ -170,7 +194,10 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
         data: { paymentStatus: PaymentStatus.SUCCEEDED, status: 'PROCESSING' },
       });
       await tx.sellerOrder.updateMany({
-        where: { orderId: payment.orderId, status: SellerOrderStatus.PENDING_PAYMENT },
+        where: {
+          orderId: payment.orderId,
+          status: SellerOrderStatus.PENDING_PAYMENT,
+        },
         data: { status: SellerOrderStatus.PENDING_CONFIRMATION },
       });
       await tx.orderStatusHistory.create({
@@ -183,19 +210,45 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
           actorType: 'SYSTEM',
         },
       });
-      await tx.outboxEvent.create({
-        data: {
-          eventId: `PAYOS-${payosOrderId}`,
-          type: 'payment.succeeded',
-          aggregateId: payment.orderId,
-          payload: {
-            orderId: payment.orderId,
-            paymentId: payment.id,
-            transactionId: payload.data.reference ?? payosOrderId,
-            amount: Number(payload.data.amount),
-            provider: 'PAYOS',
+      const eventPayload = {
+        orderId: payment.orderId,
+        orderCode: payment.order.code,
+        userId: payment.order.userId,
+        paymentId: payment.id,
+        transactionId: payload.data.reference ?? payosOrderId,
+        amount: Number(payload.data.amount),
+        provider: 'PAYOS',
+        sellerOrders: payment.order.sellerOrders.map(
+          ({ id, ownerUserId, storeId, items }) => ({
+            sellerOrderId: id,
+            ownerUserId,
+            storeId,
+            items: items.map(
+              ({ id: orderItemId, bookId, format, quantity }) => ({
+                orderItemId,
+                bookId,
+                format,
+                quantity,
+              }),
+            ),
+          }),
+        ),
+      };
+      await tx.outboxEvent.createMany({
+        data: [
+          {
+            eventId: `PAYOS-${payosOrderId}`,
+            type: PAYMENT_EVENTS.SUCCEEDED,
+            aggregateId: payment.orderId,
+            payload: eventPayload,
           },
-        },
+          {
+            eventId: `ORDER-PAID-${payosOrderId}`,
+            type: ORDER_EVENTS.PAID,
+            aggregateId: payment.orderId,
+            payload: eventPayload,
+          },
+        ],
       });
 
       const digitalItems = payment.order.sellerOrders
@@ -203,14 +256,23 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
         .filter(({ format }) => format === CartItemFormat.DIGITAL);
       for (const item of digitalItems) {
         await tx.bookAccess.upsert({
-          where: { userId_bookId: { userId: payment.order.userId, bookId: item.bookId } },
+          where: {
+            userId_bookId: {
+              userId: payment.order.userId,
+              bookId: item.bookId,
+            },
+          },
           create: {
             userId: payment.order.userId,
             bookId: item.bookId,
             orderId: payment.orderId,
             sellerOrderId: item.sellerOrderId,
           },
-          update: { status: 'ACTIVE', orderId: payment.orderId, sellerOrderId: item.sellerOrderId },
+          update: {
+            status: 'ACTIVE',
+            orderId: payment.orderId,
+            sellerOrderId: item.sellerOrderId,
+          },
         });
       }
     });
@@ -222,10 +284,16 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       where: { id: orderId },
       include: {
         payments: {
-          where: { status: { in: [PaymentStatus.SUCCEEDED, PaymentStatus.PARTIAL_REFUND] } },
+          where: {
+            status: {
+              in: [PaymentStatus.SUCCEEDED, PaymentStatus.PARTIAL_REFUND],
+            },
+          },
           orderBy: { paidAt: 'desc' },
         },
-        refunds: { where: { status: { in: ['PENDING', 'PROCESSING', 'SUCCEEDED'] } } },
+        refunds: {
+          where: { status: { in: ['PENDING', 'PROCESSING', 'SUCCEEDED'] } },
+        },
       },
     });
     if (!order) throw new NotFoundException('Order not found');
@@ -233,12 +301,18 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       throw new ForbiddenException('Order does not belong to this account');
     }
     const payment = order.payments[0];
-    if (!payment) throw new ConflictException('Order has no successful payment to refund');
-    const alreadyRequested = order.refunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
+    if (!payment)
+      throw new ConflictException('Order has no successful payment to refund');
+    const alreadyRequested = order.refunds.reduce(
+      (sum, refund) => sum + Number(refund.amount),
+      0,
+    );
     const remaining = Number(payment.amount) - alreadyRequested;
     const amount = dto.amount ?? remaining;
     if (amount <= 0 || amount > remaining) {
-      throw new BadRequestException(`Refund amount exceeds remaining refundable amount (${remaining})`);
+      throw new BadRequestException(
+        `Refund amount exceeds remaining refundable amount (${remaining})`,
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -266,7 +340,13 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
           eventId: randomBytes(16).toString('hex'),
           type: 'refund.requested',
           aggregateId: orderId,
-          payload: { refundId: refund.id, orderId, paymentId: payment.id, amount, provider: 'PAYOS' },
+          payload: {
+            refundId: refund.id,
+            orderId,
+            paymentId: payment.id,
+            amount,
+            provider: 'PAYOS',
+          },
         },
       });
       return { ...refund, amount: Number(refund.amount) };
@@ -275,7 +355,9 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
 
   async settleRefund(actor: BookActor, refundId: string, dto: SettleRefundDto) {
     if (actor.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenException('Only a platform administrator can reconcile refunds');
+      throw new ForbiddenException(
+        'Only a platform administrator can reconcile refunds',
+      );
     }
     const refund = await this.prisma.refund.findUnique({
       where: { id: refundId },
@@ -286,7 +368,9 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       throw new ConflictException('Refund has already been reconciled');
     }
     if (!dto.succeeded && !dto.failureReason) {
-      throw new BadRequestException('failureReason is required for a failed refund');
+      throw new BadRequestException(
+        'failureReason is required for a failed refund',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -315,10 +399,17 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
       const refundedAmount = Number(succeeded._sum.amount ?? 0);
       const fullyRefunded = refundedAmount >= Number(refund.payment.amount);
       const paymentStatus = dto.succeeded
-        ? fullyRefunded ? PaymentStatus.REFUNDED : PaymentStatus.PARTIAL_REFUND
-        : refundedAmount > 0 ? PaymentStatus.PARTIAL_REFUND : PaymentStatus.SUCCEEDED;
+        ? fullyRefunded
+          ? PaymentStatus.REFUNDED
+          : PaymentStatus.PARTIAL_REFUND
+        : refundedAmount > 0
+          ? PaymentStatus.PARTIAL_REFUND
+          : PaymentStatus.SUCCEEDED;
 
-      await tx.payment.update({ where: { id: refund.paymentId }, data: { status: paymentStatus } });
+      await tx.payment.update({
+        where: { id: refund.paymentId },
+        data: { status: paymentStatus },
+      });
       await tx.order.update({
         where: { id: refund.orderId },
         data: {
@@ -356,7 +447,9 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
         status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
         expiresAt: { lte: new Date() },
       },
-      include: { order: { include: { sellerOrders: { include: { items: true } } } } },
+      include: {
+        order: { include: { sellerOrders: { include: { items: true } } } },
+      },
     });
     for (const payment of expired) {
       await this.prisma.$transaction(async (tx) => {
@@ -365,14 +458,27 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
             id: payment.id,
             status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
           },
-          data: { status: PaymentStatus.EXPIRED, failedAt: new Date(), failureReason: 'Payment link expired' },
+          data: {
+            status: PaymentStatus.EXPIRED,
+            failedAt: new Date(),
+            failureReason: 'Payment link expired',
+          },
         });
         if (!changed.count) return;
-        const itemIds = payment.order.sellerOrders.flatMap(({ items }) => items.map(({ id }) => id));
+        const itemIds = payment.order.sellerOrders.flatMap(({ items }) =>
+          items.map(({ id }) => id),
+        );
         await this.reservations.release(tx, payment.orderId, itemIds);
         await tx.sellerOrder.updateMany({
-          where: { orderId: payment.orderId, status: SellerOrderStatus.PENDING_PAYMENT },
-          data: { status: SellerOrderStatus.CANCELLED, cancelledAt: new Date(), cancelReason: 'Payment expired' },
+          where: {
+            orderId: payment.orderId,
+            status: SellerOrderStatus.PENDING_PAYMENT,
+          },
+          data: {
+            status: SellerOrderStatus.CANCELLED,
+            cancelledAt: new Date(),
+            cancelReason: 'Payment expired',
+          },
         });
         await tx.order.update({
           where: { id: payment.orderId },
@@ -382,6 +488,47 @@ export class PaymentsService implements OnApplicationBootstrap, OnModuleDestroy 
             cancelledAt: new Date(),
             cancelReason: 'Payment expired',
           },
+        });
+        await tx.orderStatusHistory.create({
+          data: {
+            orderId: payment.orderId,
+            fromStatus: payment.order.status,
+            toStatus: 'CANCELLED',
+            title: 'Payment failed',
+            description: 'PayOS payment link expired',
+            actorType: 'SYSTEM',
+          },
+        });
+        const failurePayload = {
+          orderId: payment.orderId,
+          orderCode: payment.order.code,
+          userId: payment.order.userId,
+          paymentId: payment.id,
+          provider: 'PAYOS',
+          reason: 'Payment link expired',
+          sellerOrders: payment.order.sellerOrders.map(
+            ({ id, ownerUserId, storeId }) => ({
+              sellerOrderId: id,
+              ownerUserId,
+              storeId,
+            }),
+          ),
+        };
+        await tx.outboxEvent.createMany({
+          data: [
+            {
+              eventId: randomBytes(16).toString('hex'),
+              type: PAYMENT_EVENTS.FAILED,
+              aggregateId: payment.orderId,
+              payload: failurePayload,
+            },
+            {
+              eventId: randomBytes(16).toString('hex'),
+              type: ORDER_EVENTS.CANCELLED,
+              aggregateId: payment.orderId,
+              payload: failurePayload,
+            },
+          ],
         });
       });
     }

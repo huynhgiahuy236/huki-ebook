@@ -314,8 +314,8 @@ See [Voucher API](../../04-API-REFERENCE/endpoints/vouchers.md) for details.
 - `flash_sale.ended`
 
 ### Received
-- `order.created` → Validate and apply voucher
-- `order.cancelled` → Release voucher usage
+- `ORDER_CREATED` → Validate and apply voucher
+- `ORDER_CANCELLED` → Release voucher usage
 
 ## Configuration
 

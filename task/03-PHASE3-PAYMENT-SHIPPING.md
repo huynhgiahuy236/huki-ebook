@@ -51,23 +51,33 @@
 
 ### Luồng Shipping đã triển khai
 
-1. Commerce ghi `order.created` với địa chỉ và các seller order vật lý.
+1. Commerce ghi `ORDER_CREATED` với địa chỉ và các seller order; Shipping chỉ tạo shipment cho nhóm vật lý.
 2. Shipping tạo shipment idempotent theo `sellerOrderId`, tính phí và sinh tracking GHTK mock.
 3. Shipment đi theo `PENDING → PICKED_UP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED`; nhánh lỗi hỗ trợ retry/return/cancel.
 4. Callback GHTK xác thực HMAC-SHA256 và chống trùng bằng `eventId`.
 5. Platform admin phân công delivery staff; buyer/business/admin chỉ xem đúng phạm vi dữ liệu.
-6. Mọi thay đổi trạng thái ghi timeline và outbox; RabbitMQ publisher/consumer thuộc Sprint 11.
+6. Mọi thay đổi trạng thái ghi timeline và outbox; Sprint 11 publish/consume các event này qua RabbitMQ.
 
-## Sprint 11: Order Completion & Events
+## Sprint 11: Order Completion & Events — Hoàn thành 2026-08-21
 
-| Task | Người | Priority | Mô tả |
-|---|---|---|---|
-| T11.1 | KIEN | HIGH | Events: ORDER_CREATED, ORDER_PAID, ORDER_CANCELLED |
-| T11.2 | KIEN | HIGH | Events: PAYMENT_SUCCEEDED, PAYMENT_FAILED |
-| T11.3 | HUY | HIGH | Event consumer: inventory management |
-| T11.4 | HUY | HIGH | Order completion flow |
-| T11.5 | KIEN | HIGH | Order confirmation notifications |
-| T11.6 | HUY | MEDIUM | Order history |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|---|---|---|---|---|
+| T11.1 | KIEN | HIGH | Events: ORDER_CREATED, ORDER_PAID, ORDER_CANCELLED | ✅ |
+| T11.2 | KIEN | HIGH | Events: PAYMENT_SUCCEEDED, PAYMENT_FAILED | ✅ |
+| T11.3 | HUY | HIGH | Event consumer: inventory management | ✅ |
+| T11.4 | HUY | HIGH | Order completion flow | ✅ |
+| T11.5 | KIEN | HIGH | Order confirmation notifications | ✅ |
+| T11.6 | HUY | MEDIUM | Order history | ✅ |
+
+### Luồng event và hoàn tất đơn đã triển khai
+
+1. Commerce và Shipping ghi event cùng transaction nghiệp vụ bằng Prisma outbox; publisher đóng gói theo `DomainEvent` v1 và gửi qua topic exchange `huki.events`.
+2. Publisher claim từng row `PENDING`, retry tối đa 3 lần; consumer cũng retry tối đa 3 lần rồi chuyển message sang queue `.dlq`.
+3. Shipping consume `ORDER_CREATED` để tạo shipment idempotent và `ORDER_CANCELLED` để hủy các shipment chưa terminal.
+4. Commerce consume event shipping: `shipment.picked_up` commit reservation, các trạng thái vận chuyển cập nhật seller order và timeline, `shipment.delivered` kích hoạt kiểm tra hoàn tất parent order.
+5. Khi toàn bộ seller order hoàn tất, parent order chuyển `COMPLETED`; COD được ghi nhận `SUCCEEDED` và phát `ORDER_COMPLETED`, `ORDER_PAID`, `PAYMENT_SUCCEEDED`.
+6. Community consume event order/payment, tạo notification idempotent cho buyer và business owner. Mỗi consumer lưu `eventId` trong inbox/source key để không xử lý lặp.
+7. Buyer xem lịch sử bất biến tại `GET /api/v1/orders/:id/history` hoặc dữ liệu tương đương tại endpoint tracking.
 
 ## Deliverables Phase 3
 
@@ -76,7 +86,7 @@
 - [x] Refund flow
 - [x] Shipping fee calculation
 - [x] Shipment tracking
-- [ ] Event consumers cho toàn bộ order flow
+- [x] Event consumers cho toàn bộ order flow
 
 ## Dependencies
 

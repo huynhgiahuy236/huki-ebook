@@ -13,6 +13,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { CommerceEventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PrismaModule } from './prisma/prisma.module';
     CartModule,
     OrdersModule,
     PaymentsModule,
+    CommerceEventsModule,
   ],
 })
 export class AppModule {}

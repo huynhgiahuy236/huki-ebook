@@ -12,7 +12,8 @@ Schema chuẩn nằm tại `platform/apps/shipping-service/prisma/schema.prisma`
 | `addresses` | Sổ địa chỉ buyer |
 | `delivery_staff` | Hồ sơ/availability nhân viên |
 | `delivery_logs` | Timeline và callback idempotency |
-| `outbox_events` | Event atomically chờ Sprint 11 publish |
+| `outbox_events` | Event được ghi atomically và publish qua RabbitMQ |
+| `inbox_events` | Event order đã xử lý, khóa unique `event_id` chống lặp |
 
 ## Shipments
 
@@ -30,6 +31,8 @@ Mỗi log thuộc một shipment; staff là optional. `source` gồm `SYSTEM`, `
 ## Outbox
 
 Outbox lưu `event_id`, `type`, aggregate, JSON payload, attempts và trạng thái `PENDING/PROCESSING/COMPLETED/FAILED`. Shipment update và outbox event nằm trong cùng Prisma transaction.
+
+Inbox lưu event order đã consume. `event_id` unique bảo đảm `ORDER_CREATED` và `ORDER_CANCELLED` được xử lý idempotent khi RabbitMQ redelivery.
 
 ## Relationships
 

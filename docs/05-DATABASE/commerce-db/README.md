@@ -23,6 +23,10 @@ Stores catalog, cart, orders, and payment data.
 | order_items | Order line items |
 | payments | Payment records |
 | book_accesses | Digital book library access |
+| inventory_reservations | Stock reservations for physical order items |
+| order_status_history | Immutable buyer/seller order timeline |
+| outbox_events | Domain events waiting for RabbitMQ publication |
+| inbox_events | Consumed events keyed uniquely by `event_id` |
 
 ## Schema (Key Tables)
 

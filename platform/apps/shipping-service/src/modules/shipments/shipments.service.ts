@@ -236,6 +236,32 @@ export class ShipmentsService {
     );
   }
 
+  async cancelByOrder(orderId: string, reason: string) {
+    const shipments = await this.prisma.shipment.findMany({
+      where: { orderId },
+    });
+    const cancelled = [];
+    for (const shipment of shipments) {
+      if (
+        shipment.status === ShipmentStatus.DELIVERED ||
+        shipment.status === ShipmentStatus.RETURNED ||
+        shipment.status === ShipmentStatus.CANCELLED
+      )
+        continue;
+      if (shipment.trackingNumber)
+        await this.carrier.cancelShipment(shipment.trackingNumber);
+      cancelled.push(
+        await this.transition(
+          shipment.id,
+          ShipmentStatus.CANCELLED,
+          LogSource.SYSTEM,
+          { note: reason },
+        ),
+      );
+    }
+    return { cancelled };
+  }
+
   private async createOne(
     dto: CreateShipmentsFromOrderDto,
     sellerOrder: SellerOrderShipmentDto,
