@@ -10,17 +10,27 @@
 
 ## 🐙 Tasks
 
-### Sprint 12: Forum (1 tuần)
+### Sprint 12: Forum (1 tuần) — Hoàn thành 2026-08-22
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T12.1 | HUY | HIGH | MongoDB collections: forums, comments |
-| T12.2 | HUY | HIGH | Forum posts CRUD |
-| T12.3 | HUY | HIGH | Comments & replies |
-| T12.4 | HUY | HIGH | Like/unlike posts và comments |
-| T12.5 | KIEN | HIGH | Post categories |
-| T12.6 | HUY | MEDIUM | View count, popular posts |
-| T12.7 | KIEN | MEDIUM | Search posts |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|--------|---|
+| T12.1 | HUY | HIGH | MongoDB collections: forums, comments | ✅ |
+| T12.2 | HUY | HIGH | Forum posts CRUD | ✅ |
+| T12.3 | HUY | HIGH | Comments & replies | ✅ |
+| T12.4 | HUY | HIGH | Like/unlike posts và comments | ✅ |
+| T12.5 | KIEN | HIGH | Post categories | ✅ |
+| T12.6 | HUY | MEDIUM | View count, popular posts | ✅ |
+| T12.7 | KIEN | MEDIUM | Search posts | ✅ |
+
+#### Luồng Forum đã triển khai
+
+1. Ba collection `forums`, `comments`, `forum_categories` dùng Mongoose, UUID Identity được lưu dạng string và quan hệ nội bộ MongoDB dùng ObjectId.
+2. Public đọc bài `PUBLISHED`; tác giả hoặc platform admin được đọc/sửa/xóa mềm nội dung thuộc phạm vi quyền. Bài mới bắt đầu ở `PENDING_REVIEW` để Sprint 16 kiểm duyệt.
+3. Comment/reply hỗ trợ cây nhiều cấp; bài bị khóa không nhận bình luận mới.
+4. Like/unlike post và comment dùng toán tử atomic, chống tăng/giảm count khi request lặp.
+5. Category mặc định được seed idempotent; `postCount` tính từ bài đã xuất bản.
+6. Detail tăng `viewCount`; popular sắp theo pin, lượt xem, like và bình luận.
+7. Search dùng weighted text index trên title, tags và content; list hỗ trợ category, pagination và sort.
 
 ---
 
@@ -77,13 +87,13 @@
 
 ```
 ✅ Sprint 12: Forum
-✅ Sprint 13: Chat
-✅ Sprint 14: Reviews & Ratings
-✅ Sprint 15: Notifications
-✅ Sprint 16: Moderation
+⬜ Sprint 13: Chat
+⬜ Sprint 14: Reviews & Ratings
+⬜ Sprint 15: Notifications
+⬜ Sprint 16: Moderation
 
 📦 Deliverables Phase 4:
-- [ ] Forum với comments
+- [x] Forum với comments
 - [ ] Real-time Chat
 - [ ] Reviews & Ratings
 - [ ] In-app Notifications

@@ -1,12 +1,22 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { JwtModule } from '@nestjs/jwt';
 import configuration from '../config/configuration';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ForumModule } from './modules/forum/forum.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    JwtModule.registerAsync({
+      global: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        secret: config.get<string>('jwt.secret'),
+      }),
+    }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -15,6 +25,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       }),
     }),
     NotificationsModule,
+    ForumModule,
   ],
 })
 export class AppModule {}

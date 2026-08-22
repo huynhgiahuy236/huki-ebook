@@ -12,7 +12,11 @@ import { createHash, randomUUID } from 'crypto';
 import { User, UserRole, UserStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { LoginDto, RefreshTokenDto, RegisterDto } from './dto';
-import { ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/password.dto';
+import {
+  ChangePasswordDto,
+  ForgotPasswordDto,
+  ResetPasswordDto,
+} from './dto/password.dto';
 
 @Injectable()
 export class AuthService {
@@ -37,7 +41,10 @@ export class AuthService {
         status: UserStatus.ACTIVE,
       },
     });
-    return { user: this.sanitizeUser(user), ...(await this.generateTokens(user)) };
+    return {
+      user: this.sanitizeUser(user),
+      ...(await this.generateTokens(user)),
+    };
   }
 
   async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
@@ -57,7 +64,10 @@ export class AuthService {
         where: { id: user.id },
         data: {
           failedLoginAttempts,
-          lockedUntil: failedLoginAttempts >= 5 ? new Date(Date.now() + 30 * 60_000) : null,
+          lockedUntil:
+            failedLoginAttempts >= 5
+              ? new Date(Date.now() + 30 * 60_000)
+              : null,
         },
       });
       throw new UnauthorizedException('Invalid email or password');
@@ -104,7 +114,10 @@ export class AuthService {
       where: { id: token.id },
       data: { revokedAt: new Date(), revokedReason: 'token_rotation' },
     });
-    return { accessToken: this.signAccessToken(token.session.user), expiresIn: 900 };
+    return {
+      accessToken: this.signAccessToken(token.session.user),
+      expiresIn: 900,
+    };
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
@@ -125,7 +138,10 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     const user = await this.prisma.user.findFirst({
-      where: { passwordResetToken: dto.token, passwordResetExpiresAt: { gt: new Date() } },
+      where: {
+        passwordResetToken: dto.token,
+        passwordResetExpiresAt: { gt: new Date() },
+      },
     });
     if (!user) throw new BadRequestException('Invalid or expired reset token');
     await this.prisma.$transaction([
@@ -184,17 +200,29 @@ export class AuthService {
         userAgent: deviceInfo?.userAgent,
         ipAddress: deviceInfo?.ipAddress,
         expiresAt,
-        refreshTokens: { create: { tokenFamily: randomUUID(), tokenHash, expiresAt } },
+        refreshTokens: {
+          create: { tokenFamily: randomUUID(), tokenHash, expiresAt },
+        },
       },
     });
     return {
-      tokens: { accessToken: this.signAccessToken(user), refreshToken, expiresIn: 900 },
+      tokens: {
+        accessToken: this.signAccessToken(user),
+        refreshToken,
+        expiresIn: 900,
+      },
     };
   }
 
   private signAccessToken(user: User): string {
     return this.jwtService.sign(
-      { sub: user.id, email: user.email, role: user.role },
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+        avatar: user.avatar,
+      },
       {
         secret: this.configService.get('jwt.secret'),
         expiresIn: this.configService.get('jwt.accessTokenExpiresIn'),

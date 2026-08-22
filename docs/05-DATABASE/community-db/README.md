@@ -13,6 +13,7 @@ Stores forum, chat, reviews, and notifications.
 | Collection | Purpose |
 |------------|---------|
 | forums | Forum posts |
+| forum_categories | Forum post categories |
 | comments | Post comments |
 | conversations | Chat conversations |
 | messages | Chat messages |
@@ -33,7 +34,7 @@ Stores forum, chat, reviews, and notifications.
   authorId: String,
   authorName: String,
   authorAvatar: String,
-  category: String, // BOOK_DISCUSSION, GENERAL, ANNOUNCEMENT
+  categoryId: ObjectId, // Ref to forum_categories
   tags: [String],
   bookId: String,
   storeId: String,
@@ -55,8 +56,28 @@ Stores forum, chat, reviews, and notifications.
 // Indexes
 db.forums.createIndex({ authorId: 1, createdAt: -1 });
 db.forums.createIndex({ bookId: 1 });
-db.forums.createIndex({ category: 1, createdAt: -1 });
-db.forums.createIndex({ title: 'text', content: 'text' });
+db.forums.createIndex({ categoryId: 1, status: 1, createdAt: -1 });
+db.forums.createIndex({ status: 1, viewCount: -1, likeCount: -1 });
+db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' }, { name: 'forums_text_search' });
+```
+
+### forum_categories
+
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  slug: String, // unique
+  description: String,
+  icon: String,
+  sortOrder: Number,
+  isActive: Boolean,
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.forum_categories.createIndex({ slug: 1 }, { unique: true });
+db.forum_categories.createIndex({ isActive: 1, sortOrder: 1, name: 1 });
 ```
 
 ### comments
@@ -78,6 +99,8 @@ db.forums.createIndex({ title: 'text', content: 'text' });
 }
 
 db.comments.createIndex({ postId: 1, createdAt: 1 });
+db.comments.createIndex({ parentId: 1 });
+db.comments.createIndex({ authorId: 1, createdAt: -1 });
 ```
 
 ### conversations

@@ -13,18 +13,30 @@ db.forums.insertOne({
   authorId: UUID,
   authorName: "Nguyen Van A",
   authorAvatar: "url",
-  category: "review",
+  categoryId: ObjectId(), // Ref to forum_categories
   tags: ["clean-code", "programming"],
+  likes: [UUID],
   viewCount: 1250,
   likeCount: 45,
   commentCount: 23,
   status: "PUBLISHED",
   isPinned: false,
   isLocked: false,
-  isDeleted: false,
   moderatedBy: UUID,
   moderatedAt: ISODate(),
   moderationNote: "Approved",
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// Forum Categories
+db.forum_categories.insertOne({
+  _id: ObjectId(),
+  name: "Review sách",
+  slug: "reviews",
+  icon: "📚",
+  sortOrder: 2,
+  isActive: true,
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
@@ -38,6 +50,7 @@ db.comments.insertOne({
   authorId: UUID,
   authorName: "Tran Thi B",
   authorAvatar: "url",
+  likes: [UUID],
   likeCount: 5,
   status: "PUBLISHED",
   createdAt: ISODate(),
@@ -170,10 +183,17 @@ db.reports.insertOne({
 ```javascript
 // Forums indexes
 db.forums.createIndex({ authorId: 1 });
-db.forums.createIndex({ category: 1, status: 1, createdAt: -1 });
+db.forums.createIndex({ categoryId: 1, status: 1, createdAt: -1 });
 db.forums.createIndex({ tags: 1 });
 db.forums.createIndex({ status: 1, viewCount: -1 });
-db.forums.createIndex({ "$**": "text" }, { name: "forums_text_search" });
+db.forums.createIndex(
+  { title: "text", content: "text", tags: "text" },
+  { name: "forums_text_search", weights: { title: 10, tags: 5, content: 1 } }
+);
+
+// Forum category indexes
+db.forum_categories.createIndex({ slug: 1 }, { unique: true });
+db.forum_categories.createIndex({ isActive: 1, sortOrder: 1, name: 1 });
 
 // Comments indexes
 db.comments.createIndex({ postId: 1, status: 1, createdAt: 1 });
