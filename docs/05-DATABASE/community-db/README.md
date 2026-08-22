@@ -175,26 +175,54 @@ db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 ```javascript
 {
   _id: ObjectId,
-  authorId: String,
   targetType: String, // BOOK, STORE
   targetId: String,
   rating: Number, // 1-5
   title: String,
   content: String,
-  images: [String],
-  verified: Boolean, // Verified purchase
+  authorId: String,
+  authorName: String,
+  authorAvatar: String,
+  format: String, // PHYSICAL, DIGITAL
+  verifiedPurchase: Boolean,
+  orderId: String,
+  sellerOrderId: String,
+  storeId: String,
+  images: [{ url: String, thumbnail: String }],
   helpful: [String],
   helpfulCount: Number,
-  response: {
-    content: String,
-    respondedAt: Date,
-  },
-  status: String,
+  status: String, // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.reviews.createIndex({ targetId: 1, targetType: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, rating: 1 });
+db.reviews.createIndex({ authorId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
+```
+
+### review_replies
+
+```javascript
+{
+  _id: ObjectId,
+  reviewId: ObjectId,
+  businessId: String,
+  storeId: String,
+  responderId: String,
+  businessName: String,
+  content: String,
+  status: String, // ACTIVE, DELETED
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
+db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
 ```
 
 ### notifications

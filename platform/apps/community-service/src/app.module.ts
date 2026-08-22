@@ -6,6 +6,7 @@ import configuration from '../config/configuration';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ForumModule } from './modules/forum/forum.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { ReviewsModule } from './modules/reviews/reviews.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ChatModule } from './modules/chat/chat.module';
     NotificationsModule,
     ForumModule,
     ChatModule,
+    ReviewsModule,
   ],
 })
 export class AppModule {}

@@ -126,11 +126,12 @@ Authorization: Bearer <access_token>
 - WS /chat - WebSocket connection
 
 ### [Reviews](endpoints/reviews.md)
-- POST /reviews - Create review
-- GET /reviews/book/:bookId - Get book reviews
-- GET /reviews/store/:storeId - Get store reviews
+- GET/POST /books/:id/reviews - List/create verified book review
+- GET/POST /stores/:id/reviews - List/create verified store review
 - PATCH /reviews/:id - Update review
 - DELETE /reviews/:id - Delete review
+- POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
+- POST /reviews/:id/reply - Business reply
 
 ### [Notifications](endpoints/notifications.md)
 - GET /notifications - Get notifications

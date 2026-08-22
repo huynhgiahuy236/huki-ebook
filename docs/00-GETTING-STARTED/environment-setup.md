@@ -128,6 +128,8 @@ GHTK_MOCK_COD_RATE=0.005
 COMMUNITY_SERVICE_PORT=3005
 COMMUNITY_DB_NAME=huki_community
 SOCKET_PORT=3006
+BUSINESS_SERVICE_URL=http://localhost:3002
+COMMERCE_SERVICE_URL=http://localhost:3003
 
 # ============================================
 # PROMOTION SERVICE

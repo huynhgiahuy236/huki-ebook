@@ -7,7 +7,7 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
-Sprint 12 Forum và Sprint 13 Chat hoàn thành ngày 2026-08-22. Reviews, notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
+Sprint 12 Forum, Sprint 13 Chat và Sprint 14 Reviews & Ratings hoàn thành ngày 2026-08-22. Notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
 
 Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
 
@@ -207,27 +207,54 @@ db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 ```javascript
 {
   _id: ObjectId,
-  authorId: String,
   targetType: String,      // BOOK, STORE
   targetId: String,
   rating: Number,          // 1-5
   title: String,
   content: String,
-  images: [String],
-  verified: Boolean,       // Verified purchase
-  helpful: [String],
+  authorId: String,        // UUID from Identity
+  authorName: String,
+  authorAvatar: String,
+  format: String,          // PHYSICAL, DIGITAL; book review only
+  verifiedPurchase: Boolean,
+  orderId: String,
+  sellerOrderId: String,
+  storeId: String,
+  images: [{ url: String, thumbnail: String }],
+  helpful: [String],       // User UUIDs; hidden by default
   helpfulCount: Number,
-  response: {              // Store/Business reply
-    content: String,
-    respondedAt: Date,
-  },
-  status: String,
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.reviews.createIndex({ targetId: 1, targetType: 1, createdAt: -1 });
-db.reviews.createIndex({ authorId: 1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, rating: 1 });
+db.reviews.createIndex({ authorId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
+```
+
+### Review Replies Collection
+
+```javascript
+{
+  _id: ObjectId,
+  reviewId: ObjectId,
+  businessId: String,
+  storeId: String,
+  responderId: String,
+  businessName: String,
+  content: String,
+  status: String,          // ACTIVE, DELETED
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
+db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
 ```
 
 ### Notifications Collection
@@ -339,11 +366,14 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - POST /chat/conversations/:id/close - Close conversation
 
 ### Reviews
-- POST /reviews - Create review
-- GET /reviews/book/:bookId - Get book reviews
-- GET /reviews/store/:storeId - Get store reviews
+- GET/POST /books/:id/reviews - List/create book review
+- GET/POST /stores/:id/reviews - List/create store review
 - PATCH /reviews/:id - Update review
 - DELETE /reviews/:id - Delete review
+- POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
+- POST /reviews/:id/reply - Reply as owning business
+
+Review creation gọi Commerce Service để xác minh đơn hoàn thành. Business reply gọi Business Service để xác minh thành viên thuộc cửa hàng. Review mới/sau chỉnh sửa giữ `PENDING_REVIEW`; report và publish/hide thuộc Sprint 16.
 
 ### Notifications
 - GET /notifications - Get notifications
@@ -395,6 +425,10 @@ FIREBASE_CLIENT_EMAIL=xxx
 
 # Socket.IO (same port as Community Service)
 SOCKET_CORS_ORIGIN=*
+
+# Review purchase/business verification
+COMMERCE_SERVICE_URL=http://localhost:3003
+BUSINESS_SERVICE_URL=http://localhost:3002
 ```
 
 ## Local Development

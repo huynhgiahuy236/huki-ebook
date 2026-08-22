@@ -6,6 +6,10 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET ?? "your-super-secret-jwt-key",
   },
+  services: {
+    commerceUrl: process.env.COMMERCE_SERVICE_URL ?? "http://localhost:3003",
+    businessUrl: process.env.BUSINESS_SERVICE_URL ?? "http://localhost:3002",
+  },
   storage: {
     cloudinary: {
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,

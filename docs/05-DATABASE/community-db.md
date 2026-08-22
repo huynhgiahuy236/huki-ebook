@@ -121,28 +121,34 @@ db.reviews.insertOne({
   format: "DIGITAL", // For book reviews
   verifiedPurchase: true,
   orderId: UUID,
+  sellerOrderId: UUID,
+  storeId: UUID,
   images: [{
     url: "url",
     thumbnail: "thumb-url"
   }],
-  likeCount: 25,
+  helpful: [UUID],
   helpfulCount: 20,
   status: "PUBLISHED",
-  isDeleted: false,
   moderatedBy: UUID,
   moderatedAt: ISODate(),
+  moderationNote: "Approved",
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
 
 // Review Replies
-db.reviewReplies.insertOne({
+db.review_replies.insertOne({
   _id: ObjectId(),
   reviewId: ObjectId(),
   businessId: UUID,
   storeId: UUID,
+  responderId: UUID,
+  businessName: "Tech Books Store",
   content: "Cảm ơn bạn đã phản hồi!",
-  createdAt: ISODate()
+  status: "ACTIVE",
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 
 // Notifications
@@ -214,9 +220,27 @@ db.messages.createIndex({ senderId: 1, createdAt: -1 });
 db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 
 // Reviews indexes
-db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1 });
-db.reviews.createIndex({ authorId: 1 });
-db.reviews.createIndex({ rating: -1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, rating: 1 });
+db.reviews.createIndex({ authorId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex(
+  { authorId: 1, targetType: 1, targetId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["PENDING_REVIEW", "PUBLISHED", "HIDDEN", "FLAGGED"] }
+    }
+  }
+);
+
+// Review replies indexes
+db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
+db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
+db.review_replies.createIndex(
+  { reviewId: 1, storeId: 1 },
+  { unique: true, partialFilterExpression: { status: "ACTIVE" } }
+);
 
 // Notifications indexes
 db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
