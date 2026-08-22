@@ -9,10 +9,12 @@ describe('ForumService', () => {
   };
   const comments = { findOneAndUpdate: jest.fn(), findOne: jest.fn() };
   const categories = { updateOne: jest.fn() };
+  const eventBus = { publish: jest.fn() };
   const service = new ForumService(
     forums as any,
     comments as any,
     categories as any,
+    eventBus as any,
   );
   const actor = { sub: 'user-1', email: 'user@example.com', role: 'USER' };
 

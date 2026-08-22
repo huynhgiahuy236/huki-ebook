@@ -2,12 +2,14 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { FilterQuery, Model, Types } from 'mongoose';
+import { RabbitMqEventBus } from '../../../../../libs/shared/src';
 import { CommunityActor } from '../../common/community-auth.guard';
 import { Comment } from '../../entities/comment.schema';
 import { ForumCategory } from '../../entities/forum-category.schema';
@@ -27,11 +29,14 @@ const DEFAULT_CATEGORIES = [
 
 @Injectable()
 export class ForumService implements OnApplicationBootstrap {
+  private readonly logger = new Logger(ForumService.name);
+
   constructor(
     @InjectModel(Forum.name) private readonly forums: Model<Forum>,
     @InjectModel(Comment.name) private readonly comments: Model<Comment>,
     @InjectModel(ForumCategory.name)
     private readonly categories: Model<ForumCategory>,
+    private readonly eventBus: RabbitMqEventBus,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -240,6 +245,7 @@ export class ForumService implements OnApplicationBootstrap {
       { _id: post._id },
       { $inc: { commentCount: 1 } },
     );
+    void this.publishCommentEvent(comment, post.authorId);
     return {
       message: 'Comment added',
       data: this.commentView(comment.toObject(), actor),
@@ -268,6 +274,7 @@ export class ForumService implements OnApplicationBootstrap {
       { _id: post._id },
       { $inc: { commentCount: 1 } },
     );
+    void this.publishCommentEvent(reply, parent.authorId);
     return {
       message: 'Reply added',
       data: this.commentView(reply.toObject(), actor),
@@ -337,6 +344,34 @@ export class ForumService implements OnApplicationBootstrap {
       })),
     );
     return { data };
+  }
+
+  private async publishCommentEvent(
+    comment: Comment & { _id: Types.ObjectId },
+    recipientId: string,
+  ) {
+    try {
+      await this.eventBus.publish({
+        eventId: randomUUID(),
+        eventType: 'forum.comment.created',
+        occurredAt: new Date().toISOString(),
+        producer: 'community-service',
+        version: 1,
+        aggregateId: comment._id.toString(),
+        payload: {
+          commentId: comment._id.toString(),
+          postId: comment.postId.toString(),
+          parentId: comment.parentId?.toString(),
+          authorId: comment.authorId,
+          authorName: comment.authorName,
+          recipientId,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Could not publish forum.comment.created: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
 
   private async commentTree(postId: string, actor?: CommunityActor) {

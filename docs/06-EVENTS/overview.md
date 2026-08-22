@@ -151,7 +151,7 @@ Format: `PREFIX_ACTION`
 | Event | Trigger | Consumers |
 |-------|---------|-----------|
 | ORDER_CREATED | New order | Notification, Shipping |
-| ORDER_PAID | Payment succeeded | Shipping, Library |
+| ORDER_PAID | Payment succeeded | Shipping, Library, Notification |
 | ORDER_CANCELLED | Order cancelled | Notification, Shipping |
 | ORDER_COMPLETED | All items delivered | Notification, Review |
 | SELLER_ORDER_CONFIRMED | Seller confirms | Notification |
@@ -179,6 +179,7 @@ Format: `PREFIX_ACTION`
 ### 7. Shipping Events
 
 Sprint 10 ghi event vào Prisma outbox; Sprint 11 đã publish các row `PENDING` qua RabbitMQ topic exchange `huki.events`.
+Từ Sprint 15, payload shipment kèm `userId`, `ownerUserId` và `storeId` để Notification định tuyến đúng recipient mà không truy vấn chéo database.
 
 | Event | Trigger | Consumers |
 |-------|---------|-----------|
@@ -187,10 +188,21 @@ Sprint 10 ghi event vào Prisma outbox; Sprint 11 đã publish các row `PENDING
 | `shipment.picked_up` | Đã lấy hàng | Commerce |
 | `shipment.in_transit` | Đang trung chuyển | Commerce |
 | `shipment.out_for_delivery` | Đang giao | Commerce, Notification |
-| `shipment.delivered` | Giao thành công | Commerce, Payment |
+| `shipment.delivered` | Giao thành công | Commerce, Payment, Notification |
 | `shipment.failed` | Giao thất bại | Commerce, Notification |
 | `shipment.returned` | Hoàn hàng | Commerce |
 | `shipment.cancelled` | Hủy vận đơn | Commerce |
+
+### 8. Community Events
+
+| Event | Trigger | Consumers |
+|---|---|---|
+| `chat.message.sent` | Tin nhắn đã lưu thành công | Notification |
+| `review.created` | Review hợp lệ được gửi | Notification |
+| `forum.comment.created` | Comment/reply được tạo | Notification |
+| `notification.created` | Notification đã lưu | Analytics/integration tương lai |
+
+Sprint 15 dùng durable queue `community-service.order-confirmations` đã có từ Sprint 11 và mở rộng binding cho các event trên. Notification được xử lý theo thứ tự: kiểm tra preferences → MongoDB upsert idempotent → Socket.IO realtime → FCM.
 
 ## Consumer Implementation
 
@@ -297,7 +309,7 @@ export class OrderService {
 }
 ```
 
-Commerce và Shipping có `inbox_events.event_id` unique. Community dùng `sourceKey = eventId:recipientId:type`; vì vậy event redelivery không lặp cập nhật tồn kho, trạng thái hoặc notification.
+Commerce và Shipping có `inbox_events.event_id` unique. Community dùng unique `sourceKey = eventId:recipientId:type`; vì vậy event redelivery không tạo lại notification, không phát Socket.IO hoặc gửi FCM lần hai.
 
 ## Dead Letter Queue
 

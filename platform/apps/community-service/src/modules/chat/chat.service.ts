@@ -469,6 +469,12 @@ export class ChatService {
         payload: {
           conversationId: conversation.id,
           recipientIds,
+          recipients: conversation.participants
+            .filter((participant) => recipientIds.includes(participant.id))
+            .map((participant) => ({
+              id: participant.id,
+              type: participant.type,
+            })),
           message,
         },
       });

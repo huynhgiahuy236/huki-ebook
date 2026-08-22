@@ -14,6 +14,7 @@ interface CommerceOrderItem {
 interface CommerceSellerOrder {
   id: string;
   storeId: string;
+  ownerUserId: string;
   status: string;
   items: CommerceOrderItem[];
 }
@@ -28,6 +29,7 @@ export interface VerifiedPurchase {
   orderId: string;
   sellerOrderId: string;
   storeId: string;
+  storeOwnerId: string;
   format?: ReviewFormat;
 }
 
@@ -74,6 +76,7 @@ export class ReviewVerificationService {
               orderId: order.id,
               sellerOrderId: sellerOrder.id,
               storeId: sellerOrder.storeId,
+              storeOwnerId: sellerOrder.ownerUserId,
               format,
             };
           }
@@ -105,6 +108,7 @@ export class ReviewVerificationService {
           orderId: order.id,
           sellerOrderId: sellerOrder.id,
           storeId,
+          storeOwnerId: sellerOrder.ownerUserId,
         }
       : null;
   }

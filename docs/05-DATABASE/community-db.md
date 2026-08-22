@@ -123,6 +123,7 @@ db.reviews.insertOne({
   orderId: UUID,
   sellerOrderId: UUID,
   storeId: UUID,
+  storeOwnerId: UUID, // Snapshot used by notification routing
   images: [{
     url: "url",
     thumbnail: "thumb-url"
@@ -155,6 +156,7 @@ db.review_replies.insertOne({
 db.notifications.insertOne({
   _id: ObjectId(),
   recipientId: UUID,
+  sourceKey: "event-id:user-id:ORDER_STATUS",
   recipientType: "USER",
   type: "ORDER_STATUS",
   title: "Đơn hàng đã được xác nhận",
@@ -163,10 +165,47 @@ db.notifications.insertOne({
     orderId: UUID,
     status: "CONFIRMED"
   },
+  imageUrl: null,
+  actionUrl: "/orders/order-uuid",
   isRead: false,
   readAt: null,
   expiresAt: ISODate(),
-  createdAt: ISODate()
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// Notification Preferences
+db.notification_preferences.insertOne({
+  recipientId: UUID,
+  orderUpdates: true,
+  promotions: true,
+  newReviews: true,
+  chatMessages: true,
+  forumActivity: true,
+  emailNotifications: {
+    orderUpdates: true,
+    promotions: false,
+    newsletter: true
+  },
+  pushNotifications: {
+    enabled: true,
+    orderUpdates: true,
+    chatMessages: true
+  },
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// FCM Devices
+db.notification_devices.insertOne({
+  recipientId: UUID,
+  deviceToken: "fcm-token",
+  deviceType: "ANDROID", // ANDROID, IOS, WEB
+  appVersion: "1.0.0",
+  enabled: true,
+  lastSeenAt: ISODate(),
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 
 // Reports
@@ -243,9 +282,14 @@ db.review_replies.createIndex(
 );
 
 // Notifications indexes
+db.notifications.createIndex({ sourceKey: 1 }, { unique: true });
+db.notifications.createIndex({ recipientId: 1, createdAt: -1 });
 db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
 db.notifications.createIndex({ recipientId: 1, type: 1, createdAt: -1 });
 db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+db.notification_preferences.createIndex({ recipientId: 1 }, { unique: true });
+db.notification_devices.createIndex({ deviceToken: 1 }, { unique: true });
+db.notification_devices.createIndex({ recipientId: 1, enabled: 1 });
 
 // Reports indexes
 db.reports.createIndex({ status: 1, createdAt: 1 });

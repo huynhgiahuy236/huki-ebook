@@ -7,7 +7,7 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
-Sprint 12 Forum, Sprint 13 Chat và Sprint 14 Reviews & Ratings hoàn thành ngày 2026-08-22. Notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
+Sprint 12 Forum, Sprint 13 Chat, Sprint 14 Reviews & Ratings và Sprint 15 Notifications hoàn thành ngày 2026-08-22. Moderation vẫn thuộc Sprint 16.
 
 Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
 
@@ -220,6 +220,7 @@ db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
   orderId: String,
   sellerOrderId: String,
   storeId: String,
+  storeOwnerId: String,    // Snapshot dùng định tuyến NEW_REVIEW
   images: [{ url: String, thumbnail: String }],
   helpful: [String],       // User UUIDs; hidden by default
   helpfulCount: Number,
@@ -263,19 +264,51 @@ db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
 {
   _id: ObjectId,
   recipientId: String,
-  type: String,            // ORDER, CHAT, FORUM, REVIEW, SYSTEM
+  sourceKey: String,       // unique: eventId:recipientId:type
+  recipientType: String,   // USER, BUSINESS, DELIVERY, ADMIN
+  type: String,
   title: String,
-  body: String,
-  data: Object,            // Additional payload
+  message: String,
+  payload: Object,
   imageUrl: String,
-  actionUrl: String,       // Deep link
+  actionUrl: String,
   isRead: Boolean,
   readAt: Date,
+  expiresAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
 db.notifications.createIndex({ recipientId: 1, createdAt: -1 });
-db.notifications.createIndex({ recipientId: 1, isRead: 1 });
+db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
+db.notifications.createIndex({ recipientId: 1, type: 1, createdAt: -1 });
+db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+```
+
+### Notification Preferences & Devices
+
+```javascript
+// notification_preferences: one document per Identity user
+{
+  recipientId: String,     // unique
+  orderUpdates: Boolean,
+  promotions: Boolean,
+  newReviews: Boolean,
+  chatMessages: Boolean,
+  forumActivity: Boolean,
+  emailNotifications: { orderUpdates, promotions, newsletter },
+  pushNotifications: { enabled, orderUpdates, chatMessages },
+}
+
+// notification_devices: many devices per user, globally unique token
+{
+  recipientId: String,
+  deviceToken: String,     // unique
+  deviceType: String,      // ANDROID, IOS, WEB
+  appVersion: String,
+  enabled: Boolean,
+  lastSeenAt: Date,
+}
 ```
 
 ### Reports Collection
@@ -376,9 +409,17 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 Review creation gọi Commerce Service để xác minh đơn hoàn thành. Business reply gọi Business Service để xác minh thành viên thuộc cửa hàng. Review mới/sau chỉnh sửa giữ `PENDING_REVIEW`; report và publish/hide thuộc Sprint 16.
 
 ### Notifications
-- GET /notifications - Get notifications
+- GET /notifications - List/filter notifications and unread count
+- GET /notifications/:id - Notification detail
 - PATCH /notifications/:id/read - Mark as read
-- PATCH /notifications/read-all - Mark all as read
+- POST /notifications/read-all - Mark all as read
+- DELETE /notifications/:id - Delete one
+- DELETE /notifications/clear-all - Delete all
+- GET/PATCH /notifications/settings - Get/update preferences
+- POST /notifications/device - Register/refresh FCM token
+- DELETE /notifications/device/:token - Unregister FCM token
+
+Socket.IO namespace `/notifications` xác thực JWT, tự join room `user:<sub>` và phát `notification`, `notification_read`, `notification_read_all`.
 
 ## Content Moderation
 
@@ -398,11 +439,11 @@ Review creation gọi Commerce Service để xác minh đơn hoàn thành. Busin
 - `user.reported`
 
 ### Received
-- `ORDER_COMPLETED` → Send review request notification
-- `ORDER_CREATED`, `ORDER_PAID`, `ORDER_CANCELLED`, `SELLER_ORDER_CONFIRMED`, `SELLER_ORDER_CANCELLED`, `PAYMENT_FAILED` → Save idempotent order confirmation notifications
-- `business.approved` → Welcome notification
+- Order/Payment: `ORDER_CREATED`, `ORDER_PAID`, `ORDER_CANCELLED`, `ORDER_COMPLETED`, `SELLER_ORDER_CONFIRMED`, `SELLER_ORDER_SHIPPED`, `SELLER_ORDER_CANCELLED`, `PAYMENT_FAILED`.
+- Shipping: `shipment.staff-assigned`, `shipment.out_for_delivery`, `shipment.delivered`, `shipment.failed`.
+- Community: `chat.message.sent`, `review.created`, `forum.comment.created`.
 
-Sprint 11 chỉ triển khai consumer và lưu notification xác nhận đơn idempotent. Notification CRUD, preferences, realtime và Firebase vẫn thuộc Sprint 15.
+Consumer dùng `sourceKey` unique để chống lặp. Preferences được kiểm tra trước khi lưu; sau khi lưu mới phát Socket.IO, gửi FCM và emit `notification.created`.
 
 ## Configuration
 
@@ -431,6 +472,8 @@ COMMERCE_SERVICE_URL=http://localhost:3003
 BUSINESS_SERVICE_URL=http://localhost:3002
 ```
 
+Firebase Admin tự tắt khi credentials thiếu/còn placeholder để local vẫn chạy. Production phải dùng service-account credentials thật; `FIREBASE_PRIVATE_KEY` dùng `\n` cho newline khi lưu trên một dòng.
+
 ## Local Development
 
 ```bash
@@ -444,4 +487,5 @@ npm run start:community
 - [API Reference](../../04-API-REFERENCE/endpoints/forum.md)
 - [API Reference - Chat](../../04-API-REFERENCE/endpoints/chat.md)
 - [API Reference - Reviews](../../04-API-REFERENCE/endpoints/reviews.md)
+- [API Reference - Notifications](../../04-API-REFERENCE/endpoints/notifications.md)
 - [Database Schema](../../05-DATABASE/community-db/README.md)

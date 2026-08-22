@@ -188,6 +188,7 @@ db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
   orderId: String,
   sellerOrderId: String,
   storeId: String,
+  storeOwnerId: String,
   images: [{ url: String, thumbnail: String }],
   helpful: [String],
   helpfulCount: Number,
@@ -231,19 +232,59 @@ db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
 {
   _id: ObjectId,
   recipientId: String,
-  type: String, // ORDER, CHAT, FORUM, REVIEW, SYSTEM
+  sourceKey: String, // unique eventId:recipientId:type
+  recipientType: String, // USER, BUSINESS, DELIVERY, ADMIN
+  type: String,
   title: String,
-  body: String,
-  data: Object,
+  message: String,
+  payload: Object,
   imageUrl: String,
   actionUrl: String,
   isRead: Boolean,
   readAt: Date,
+  expiresAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
 db.notifications.createIndex({ recipientId: 1, createdAt: -1 });
-db.notifications.createIndex({ recipientId: 1, isRead: 1 });
+db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
+db.notifications.createIndex({ recipientId: 1, type: 1, createdAt: -1 });
+db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+```
+
+### notification_preferences
+
+```javascript
+{
+  recipientId: String, // unique
+  orderUpdates: Boolean,
+  promotions: Boolean,
+  newReviews: Boolean,
+  chatMessages: Boolean,
+  forumActivity: Boolean,
+  emailNotifications: { orderUpdates, promotions, newsletter },
+  pushNotifications: { enabled, orderUpdates, chatMessages },
+  createdAt: Date,
+  updatedAt: Date,
+}
+```
+
+### notification_devices
+
+```javascript
+{
+  recipientId: String,
+  deviceToken: String, // unique
+  deviceType: String, // ANDROID, IOS, WEB
+  appVersion: String,
+  enabled: Boolean,
+  lastSeenAt: Date,
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.notification_devices.createIndex({ recipientId: 1, enabled: 1 });
 ```
 
 ## Notes
