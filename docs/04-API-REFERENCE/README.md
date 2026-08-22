@@ -134,10 +134,13 @@ Authorization: Bearer <access_token>
 - POST /reviews/:id/reply - Business reply
 
 ### [Notifications](endpoints/notifications.md)
-- GET /notifications - Get notifications
+- GET /notifications và /notifications/:id - List/detail
 - PATCH /notifications/:id/read - Mark as read
-- PATCH /notifications/read-all - Mark all as read
-- DELETE /notifications/:id - Delete notification
+- POST /notifications/read-all - Mark all as read
+- DELETE /notifications/:id và /notifications/clear-all - Delete
+- GET/PATCH /notifications/settings - Preferences
+- POST/DELETE /notifications/device - FCM device registration
+- WS /notifications - Realtime notification/read events
 
 ## Common Responses
 

@@ -162,7 +162,7 @@ CLOUDINARY_API_SECRET=your_api_secret
 # FIREBASE (Push Notifications)
 # ============================================
 FIREBASE_PROJECT_ID=your-firebase-project
-FIREBASE_PRIVATE_KEY=your-private-key
+FIREBASE_PRIVATE_KEY=your-private-key-with-escaped-\n-line-breaks
 FIREBASE_CLIENT_EMAIL=your-client-email
 
 # ============================================
@@ -172,6 +172,8 @@ PAYOS_CLIENT_ID=your_client_id
 PAYOS_API_KEY=your_api_key
 PAYOS_CHECKSUM_KEY=your_checksum_key
 ```
+
+Community Service tự tắt FCM khi Firebase credentials bị thiếu hoặc còn placeholder, vì vậy local vẫn khởi động bình thường. Khi deploy, dùng service-account credentials thật và giữ private key trên một dòng với newline được escape thành `\n`.
 
 ### API Gateway
 

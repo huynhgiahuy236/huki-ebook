@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
+import { EventsModule } from '../../../../../libs/shared/src';
 import {
   AuthenticatedCommunityGuard,
   OptionalCommunityAuthGuard,
@@ -19,6 +20,7 @@ import { ForumService } from './forum.service';
 
 @Module({
   imports: [
+    EventsModule,
     MongooseModule.forFeature([
       { name: Forum.name, schema: ForumSchema },
       { name: Comment.name, schema: CommentSchema },

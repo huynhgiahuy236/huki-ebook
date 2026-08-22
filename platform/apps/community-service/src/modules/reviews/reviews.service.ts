@@ -121,6 +121,7 @@ export class ReviewsService {
       orderId: purchase.orderId,
       sellerOrderId: purchase.sellerOrderId,
       storeId: purchase.storeId,
+      storeOwnerId: purchase.storeOwnerId,
     });
   }
 
@@ -148,6 +149,7 @@ export class ReviewsService {
       orderId: purchase.orderId,
       sellerOrderId: purchase.sellerOrderId,
       storeId,
+      storeOwnerId: purchase.storeOwnerId,
     });
   }
 
@@ -413,6 +415,7 @@ export class ReviewsService {
           rating: review.rating,
           verifiedPurchase: review.verifiedPurchase,
           storeId: review.storeId,
+          storeOwnerId: review.storeOwnerId,
         },
       });
     } catch (error) {

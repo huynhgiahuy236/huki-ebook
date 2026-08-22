@@ -68,6 +68,9 @@ export class Review {
   @Prop({ type: String })
   storeId?: string;
 
+  @Prop({ type: String })
+  storeOwnerId?: string;
+
   @Prop({ type: [ReviewImageSchema], default: [] })
   images!: ReviewImage[];
 

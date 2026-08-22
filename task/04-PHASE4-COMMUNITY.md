@@ -78,15 +78,23 @@
 
 ---
 
-### Sprint 15: Notifications (0.5 tuần)
+### Sprint 15: Notifications (0.5 tuần) — Hoàn thành 2026-08-22
 
 | Task | Người | Priority | Mô tả |
 |------|-------|---------|--------|
-| T15.1 | KIEN | HIGH | MongoDB collection: notifications |
-| T15.2 | KIEN | HIGH | In-app notifications |
-| T15.3 | KIEN | HIGH | Notification preferences |
-| T15.4 | HUY | MEDIUM | Firebase Cloud Messaging setup |
-| T15.5 | KIEN | MEDIUM | Push notification triggers |
+| T15.1 | KIEN | HIGH | ✅ MongoDB collections: notifications, preferences, devices |
+| T15.2 | KIEN | HIGH | ✅ In-app notifications REST API và Socket.IO |
+| T15.3 | KIEN | HIGH | ✅ Notification preferences |
+| T15.4 | HUY | MEDIUM | ✅ Firebase Cloud Messaging setup |
+| T15.5 | KIEN | MEDIUM | ✅ Push notification triggers |
+
+#### Luồng Notifications đã triển khai
+
+1. Community Service nhận event RabbitMQ từ Order, Payment, Shipping, Chat, Review và Forum; `sourceKey = eventId:recipientId:type` chống tạo trùng khi event được gửi lại.
+2. Preferences được kiểm tra trước khi lưu. Notification hợp lệ được lưu MongoDB, phát realtime tại namespace `/notifications`, sau đó mới gửi FCM đến các device token đang hoạt động.
+3. Người dùng có thể phân trang/lọc notification, xem chi tiết, đánh dấu đọc một/tất cả, xóa một/tất cả và theo dõi `unreadCount`; mọi thao tác đều giới hạn theo `sub` trong JWT.
+4. Settings hỗ trợ nhóm in-app, email và push; device token unique được đăng ký lại cho thiết bị/người dùng hiện tại và token FCM không hợp lệ sẽ bị vô hiệu hóa.
+5. Firebase tự tắt an toàn ở local khi credentials thiếu hoặc còn placeholder; khi cấu hình thật, SDK gửi theo batch tối đa 500 token.
 
 ---
 
@@ -107,14 +115,14 @@
 ✅ Sprint 12: Forum
 ✅ Sprint 13: Chat
 ✅ Sprint 14: Reviews & Ratings
-⬜ Sprint 15: Notifications
+✅ Sprint 15: Notifications
 ⬜ Sprint 16: Moderation
 
 📦 Deliverables Phase 4:
 - [x] Forum với comments
 - [x] Real-time Chat
 - [x] Reviews & Ratings
-- [ ] In-app Notifications
+- [x] In-app Notifications
 - [ ] Content moderation
 ```
 
