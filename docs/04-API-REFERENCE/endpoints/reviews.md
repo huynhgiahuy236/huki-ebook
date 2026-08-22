@@ -184,6 +184,19 @@ Content-Type: application/json
 | `DELETED` | Đã xóa mềm |
 | `FLAGGED` | Bị đánh dấu để xử lý |
 
-## Phạm vi Sprint 16
+## POST /reviews/:id/report
 
-API report và luồng duyệt/xử lý review thuộc Sprint 16 Moderation, chưa phải endpoint của Sprint 14.
+Yêu cầu đăng nhập. Chỉ report được review đang `PUBLISHED` hoặc vừa được `FLAGGED`; không thể tự report và không thể report trùng cùng target.
+
+```http
+POST /api/v1/reviews/66bdce20493f476fec2eab10/report
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "reason": "OFFENSIVE",
+  "description": "Review có nội dung phản cảm"
+}
+```
+
+Response `201` trả `reportId` và trạng thái `PENDING`. Luồng xử lý phía admin được mô tả tại [Moderation API](moderation.md).

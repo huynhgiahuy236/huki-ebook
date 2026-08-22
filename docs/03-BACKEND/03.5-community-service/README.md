@@ -7,7 +7,7 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
-Sprint 12 Forum, Sprint 13 Chat, Sprint 14 Reviews & Ratings và Sprint 15 Notifications hoàn thành ngày 2026-08-22. Moderation vẫn thuộc Sprint 16.
+Sprint 12 Forum, Sprint 13 Chat, Sprint 14 Reviews & Ratings, Sprint 15 Notifications và Sprint 16 Moderation đã hoàn thành ngày 2026-08-22.
 
 Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
 
@@ -81,7 +81,10 @@ Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Iden
   viewCount: Number,
   isPinned: Boolean,
   isLocked: Boolean,
-  status: String,          // PUBLISHED, HIDDEN, DELETED
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   attachments: [{
     type: String,          // IMAGE, FILE
     url: String,
@@ -126,7 +129,10 @@ db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' }, { name: 
   likes: [String],
   likeCount: Number,
   isEdited: Boolean,
-  status: String,
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
@@ -317,11 +323,13 @@ db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 {
   _id: ObjectId,
   reporterId: String,
-  targetType: String,      // FORUM, COMMENT, REVIEW, USER, STORE
+  targetType: String,      // POST, COMMENT, REVIEW, USER, STORE
   targetId: String,
   reason: String,
   description: String,
   status: String,          // PENDING, REVIEWING, RESOLVED, DISMISSED
+  reviewedBy: String,
+  reviewedAt: Date,
   resolvedBy: String,
   resolvedAt: Date,
   action: String,          // NONE, WARN, HIDE, DELETE, BAN
@@ -329,7 +337,9 @@ db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
   updatedAt: Date,
 }
 
+db.reports.createIndex({ reporterId: 1, targetType: 1, targetId: 1 }, { unique: true });
 db.reports.createIndex({ status: 1, createdAt: -1 });
+db.reports.createIndex({ targetType: 1, targetId: 1, status: 1 });
 ```
 
 ## Real-time Features (Socket.IO)
@@ -406,7 +416,18 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
 - POST /reviews/:id/reply - Reply as owning business
 
-Review creation gọi Commerce Service để xác minh đơn hoàn thành. Business reply gọi Business Service để xác minh thành viên thuộc cửa hàng. Review mới/sau chỉnh sửa giữ `PENDING_REVIEW`; report và publish/hide thuộc Sprint 16.
+Review creation gọi Commerce Service để xác minh đơn hoàn thành. Business reply gọi Business Service để xác minh thành viên thuộc cửa hàng. Review mới/sau chỉnh sửa vào `PENDING_REVIEW` hoặc `FLAGGED`, sau đó Platform Admin duyệt qua Moderation API.
+
+### Reports & Moderation
+- POST /forum/posts/:id/report - Report forum post
+- POST /forum/comments/:id/report - Report comment/reply
+- POST /reviews/:id/report - Report review
+- GET /admin/moderation/reports - List/filter reports (Platform Admin)
+- GET /admin/moderation/reports/:id - Report detail (Platform Admin)
+- PATCH /admin/moderation/reports/:id/review - Start review (Platform Admin)
+- PATCH /admin/moderation/reports/:id/resolve - Resolve/dismiss (Platform Admin)
+- GET /admin/moderation/queue - Pending/flagged content (Platform Admin)
+- PATCH /admin/moderation/content/:targetType/:id - Approve/hide/delete (Platform Admin)
 
 ### Notifications
 - GET /notifications - List/filter notifications and unread count
@@ -423,10 +444,12 @@ Socket.IO namespace `/notifications` xác thực JWT, tự join room `user:<sub>
 
 ## Content Moderation
 
-- Auto-flag posts with profanity
-- Manual review queue for reported content
-- Admin actions: warn, hide, delete, ban
-- Rate limiting for posts/comments
+- Report unique theo reporter/target và không cho tự report.
+- Manual queue cho post, comment và review `PENDING_REVIEW`/`FLAGGED`.
+- Workflow report: `PENDING → REVIEWING → RESOLVED/DISMISSED`.
+- Admin actions: approve, warn, hide, delete, ban; quyết định lưu người xử lý, thời gian và ghi chú.
+- Auto-flag từ khóa cấm, link spam và ký tự lặp bất thường.
+- Rate limiting cho post, comment/reply, review và report.
 
 ## Events
 
@@ -437,6 +460,8 @@ Socket.IO namespace `/notifications` xác thực JWT, tự join room `user:<sub>
 - `review.created`
 - `notification.created`
 - `user.reported`
+- `user.moderation.requested`
+- `moderation.report.resolved`
 
 ### Received
 - Order/Payment: `ORDER_CREATED`, `ORDER_PAID`, `ORDER_CANCELLED`, `ORDER_COMPLETED`, `SELLER_ORDER_CONFIRMED`, `SELLER_ORDER_SHIPPED`, `SELLER_ORDER_CANCELLED`, `PAYMENT_FAILED`.
@@ -488,4 +513,5 @@ npm run start:community
 - [API Reference - Chat](../../04-API-REFERENCE/endpoints/chat.md)
 - [API Reference - Reviews](../../04-API-REFERENCE/endpoints/reviews.md)
 - [API Reference - Notifications](../../04-API-REFERENCE/endpoints/notifications.md)
+- [API Reference - Moderation](../../04-API-REFERENCE/endpoints/moderation.md)
 - [Database Schema](../../05-DATABASE/community-db/README.md)

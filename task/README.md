@@ -57,7 +57,7 @@
 | Sprint 13 | Socket.IO ✅ | Chat, Conversations ✅ |
 | Sprint 14 | - | Reviews, Ratings ✅ |
 | Sprint 15 | Notifications ✅ | Firebase ✅ |
-| Sprint 16 | - | Moderation, Reports |
+| Sprint 16 | - | Moderation, Reports ✅ |
 
 ### Phase 5 (Frontend)
 

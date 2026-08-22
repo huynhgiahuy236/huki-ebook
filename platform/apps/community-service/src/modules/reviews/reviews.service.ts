@@ -28,6 +28,7 @@ import {
   UpdateReviewDto,
 } from "./dto/review.dto";
 import { ReviewVerificationService } from "./review-verification.service";
+import { AutoModerationService } from "../moderation/auto-moderation.service";
 
 @Injectable()
 export class ReviewsService {
@@ -40,6 +41,7 @@ export class ReviewsService {
     private readonly replies: Model<ReviewReplyDocument>,
     private readonly verification: ReviewVerificationService,
     private readonly eventBus: RabbitMqEventBus,
+    private readonly autoModeration: AutoModerationService,
   ) {}
 
   async list(
@@ -159,10 +161,14 @@ export class ReviewsService {
     if (dto.title !== undefined) review.title = dto.title.trim();
     if (dto.content !== undefined) review.content = dto.content.trim();
     if (dto.images !== undefined) review.images = this.images(dto.images);
-    review.status = "PENDING_REVIEW";
+    const moderation = this.autoModeration.inspect(
+      review.title,
+      review.content,
+    );
+    review.status = moderation.flagged ? "FLAGGED" : "PENDING_REVIEW";
     review.moderatedAt = undefined;
     review.moderatedBy = undefined;
-    review.moderationNote = undefined;
+    review.moderationNote = this.autoModeration.note(moderation);
     await review.save();
     return {
       message: "Review updated",
@@ -254,12 +260,17 @@ export class ReviewsService {
 
   private async create(actor: CommunityActor, input: Record<string, unknown>) {
     try {
+      const moderation = this.autoModeration.inspect(
+        input.title as string,
+        input.content as string,
+      );
       const review = await this.reviews.create({
         ...input,
         authorId: actor.sub,
         authorName: this.actorName(actor),
         authorAvatar: actor.avatar,
-        status: "PENDING_REVIEW",
+        status: moderation.flagged ? "FLAGGED" : "PENDING_REVIEW",
+        moderationNote: this.autoModeration.note(moderation),
       });
       void this.publishCreated(review);
       return {

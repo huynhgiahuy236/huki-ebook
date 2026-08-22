@@ -10,11 +10,16 @@ describe('ForumService', () => {
   const comments = { findOneAndUpdate: jest.fn(), findOne: jest.fn() };
   const categories = { updateOne: jest.fn() };
   const eventBus = { publish: jest.fn() };
+  const autoModeration = {
+    inspect: jest.fn().mockReturnValue({ flagged: false, reasons: [] }),
+    note: jest.fn().mockReturnValue(undefined),
+  };
   const service = new ForumService(
     forums as any,
     comments as any,
     categories as any,
     eventBus as any,
+    autoModeration as any,
   );
   const actor = { sub: 'user-1', email: 'user@example.com', role: 'USER' };
 

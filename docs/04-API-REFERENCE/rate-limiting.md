@@ -82,10 +82,13 @@ X-RateLimit-Reset: 1692028800
 
 | Endpoint | Limit | Window | Description |
 |----------|-------|--------|-------------|
-| POST /api/v1/reviews | 10 | 1 hour | Create review |
+| POST /api/v1/books/:id/reviews | 10 | 1 hour | Create book review |
+| POST /api/v1/stores/:id/reviews | 10 | 1 hour | Create store review |
 | PATCH /api/v1/reviews/:id | 10 | 1 hour | Edit review |
 | POST /api/v1/forum/posts | 20 | 1 hour | Create post |
-| POST /api/v1/forum/comments | 30 | 1 hour | Add comment |
+| POST /api/v1/forum/posts/:id/comments | 30 | 1 hour | Add comment |
+| POST /api/v1/forum/comments/:id/replies | 30 | 1 hour | Add reply |
+| POST /*/report | 10 | 1 hour | Report post/comment/review |
 
 ### Chat Endpoints
 

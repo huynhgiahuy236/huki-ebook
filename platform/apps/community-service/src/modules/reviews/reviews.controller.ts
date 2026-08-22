@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   AuthenticatedCommunityGuard,
   CommunityActor,
@@ -44,8 +45,9 @@ export class BookReviewsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedCommunityGuard)
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewTargetParamDto,
@@ -72,8 +74,9 @@ export class StoreReviewsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedCommunityGuard)
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewTargetParamDto,
@@ -92,6 +95,8 @@ export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
   @Patch(":id")
+  @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   update(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,

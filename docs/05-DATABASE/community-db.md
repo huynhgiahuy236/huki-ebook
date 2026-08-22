@@ -53,6 +53,9 @@ db.comments.insertOne({
   likes: [UUID],
   likeCount: 5,
   status: "PUBLISHED",
+  moderatedBy: UUID,
+  moderatedAt: ISODate(),
+  moderationNote: "Approved",
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
@@ -213,15 +216,19 @@ db.reports.insertOne({
   _id: ObjectId(),
   reporterId: UUID,
   targetType: "POST", // POST, COMMENT, REVIEW, USER, STORE
-  targetId: UUID,
+  targetId: "66bdce20493f476fec2eab10", // String: Mongo ObjectId or service UUID
+  targetAuthorId: UUID,
   reason: "SPAM",
   description: "Nội dung quảng cáo",
   status: "PENDING",
   reviewedBy: UUID,
   reviewedAt: ISODate(),
-  resolution: "DELETED",
+  resolvedBy: UUID,
+  resolvedAt: ISODate(),
+  action: "DELETE", // NONE, WARN, HIDE, DELETE, BAN
   resolutionNote: "Content violates community guidelines",
-  createdAt: ISODate()
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 ```
 
@@ -292,8 +299,13 @@ db.notification_devices.createIndex({ deviceToken: 1 }, { unique: true });
 db.notification_devices.createIndex({ recipientId: 1, enabled: 1 });
 
 // Reports indexes
-db.reports.createIndex({ status: 1, createdAt: 1 });
-db.reports.createIndex({ targetType: 1, targetId: 1 });
+db.reports.createIndex(
+  { reporterId: 1, targetType: 1, targetId: 1 },
+  { unique: true }
+);
+db.reports.createIndex({ status: 1, createdAt: -1 });
+db.reports.createIndex({ targetType: 1, targetId: 1, status: 1 });
+db.reports.createIndex({ targetAuthorId: 1, createdAt: -1 });
 ```
 
 ## Aggregation Examples

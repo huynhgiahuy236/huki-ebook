@@ -98,14 +98,22 @@
 
 ---
 
-### Sprint 16: Moderation (0.5 tuần)
+### Sprint 16: Moderation (0.5 tuần) — Hoàn thành 2026-08-22
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T16.1 | HUY | HIGH | Report system |
-| T16.2 | HUY | HIGH | Content moderation workflow |
-| T16.3 | HUY | MEDIUM | Admin moderation tools |
-| T16.4 | HUY | MEDIUM | Auto-moderation (basic) |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|--------|---|
+| T16.1 | HUY | HIGH | Report system | ✅ |
+| T16.2 | HUY | HIGH | Content moderation workflow | ✅ |
+| T16.3 | HUY | MEDIUM | Admin moderation tools | ✅ |
+| T16.4 | HUY | MEDIUM | Auto-moderation (basic) | ✅ |
+
+#### Luồng Moderation đã triển khai
+
+1. User đã xác thực có thể report post, comment hoặc review đang hiển thị; unique index `reporterId + targetType + targetId` chặn report trùng và không cho tự report nội dung của mình.
+2. Report đi qua `PENDING → REVIEWING → RESOLVED/DISMISSED`; lần report đầu chuyển nội dung sang `FLAGGED` và giữ `commentCount` nhất quán.
+3. Platform admin xem/lọc report, xem moderation queue và thực hiện `APPROVE`, `WARN`, `HIDE`, `DELETE`, `BAN`; mọi quyết định lưu admin, thời gian và ghi chú xử lý.
+4. `WARN`/`BAN` phát event yêu cầu xử lý tài khoản cho Identity; report và kết quả moderation phát domain event để các service khác tích hợp mà Community không truy cập chéo database.
+5. Auto-moderation cơ bản phát hiện từ khóa cấm, quá nhiều liên kết và ký tự lặp; post/review nghi vấn vào `FLAGGED`, comment nghi vấn không được công khai. API tạo post/comment/review/report có rate limit chống spam.
 
 ---
 
@@ -116,14 +124,14 @@
 ✅ Sprint 13: Chat
 ✅ Sprint 14: Reviews & Ratings
 ✅ Sprint 15: Notifications
-⬜ Sprint 16: Moderation
+✅ Sprint 16: Moderation
 
 📦 Deliverables Phase 4:
 - [x] Forum với comments
 - [x] Real-time Chat
 - [x] Reviews & Ratings
 - [x] In-app Notifications
-- [ ] Content moderation
+- [x] Content moderation
 ```
 
 ---

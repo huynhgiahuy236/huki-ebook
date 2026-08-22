@@ -33,11 +33,20 @@ export class Comment {
   isEdited!: boolean;
 
   @Prop({
-    enum: ['PENDING_REVIEW', 'PUBLISHED', 'DELETED'],
+    enum: ['PENDING_REVIEW', 'PUBLISHED', 'HIDDEN', 'DELETED', 'FLAGGED'],
     default: 'PUBLISHED',
     index: true,
   })
   status!: string;
+
+  @Prop()
+  moderatedBy?: string;
+
+  @Prop()
+  moderatedAt?: Date;
+
+  @Prop()
+  moderationNote?: string;
 
   createdAt!: Date;
   updatedAt!: Date;
