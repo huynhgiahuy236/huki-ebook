@@ -61,8 +61,8 @@ db.comments.insertOne({
 db.conversations.insertOne({
   _id: ObjectId(),
   participants: [
-    { type: "USER", id: UUID },
-    { type: "BUSINESS", id: UUID }
+    { type: "USER", id: UUID, name: "Nguyen Van A", avatar: "url" },
+    { type: "BUSINESS", id: UUID, name: "Tech Books Store", avatar: "url" }
   ],
   type: "USER_TO_STORE",
   context: {
@@ -77,8 +77,8 @@ db.conversations.insertOne({
     createdAt: ISODate()
   },
   unreadCount: {
-    USER: 2,
-    BUSINESS: 0
+    "user-uuid": 2,
+    "store-uuid": 0
   },
   createdAt: ISODate(),
   updatedAt: ISODate()
@@ -91,6 +91,7 @@ db.messages.insertOne({
   senderType: "USER",
   senderId: UUID,
   senderName: "Nguyen Van A",
+  senderAvatar: "url",
   content: "Cho tôi hỏi về sách này",
   messageType: "TEXT",
   attachments: [{
@@ -100,6 +101,7 @@ db.messages.insertOne({
     size: 12345
   }],
   status: "DELIVERED",
+  readBy: [UUID],
   deliveredAt: ISODate(),
   readAt: ISODate(),
   createdAt: ISODate()
@@ -204,10 +206,12 @@ db.comments.createIndex({ authorId: 1 });
 db.conversations.createIndex({ "participants.id": 1, status: 1 });
 db.conversations.createIndex({ "participants.id": 1, updatedAt: -1 });
 db.conversations.createIndex({ type: 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, "context.type": 1, "context.id": 1 });
 
 // Messages indexes
 db.messages.createIndex({ conversationId: 1, createdAt: -1 });
 db.messages.createIndex({ senderId: 1, createdAt: -1 });
+db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 
 // Reviews indexes
 db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1 });

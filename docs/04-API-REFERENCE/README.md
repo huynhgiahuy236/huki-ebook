@@ -118,8 +118,11 @@ Authorization: Bearer <access_token>
 ### [Chat](endpoints/chat.md)
 - GET /chat/conversations - List conversations
 - POST /chat/conversations - Start conversation
+- GET /chat/conversations/:id - Conversation detail
 - GET /chat/conversations/:id/messages - Get messages
 - POST /chat/conversations/:id/messages - Send message
+- PATCH /chat/conversations/:id/read - Mark messages as read
+- POST /chat/conversations/:id/close - Close conversation
 - WS /chat - WebSocket connection
 
 ### [Reviews](endpoints/reviews.md)

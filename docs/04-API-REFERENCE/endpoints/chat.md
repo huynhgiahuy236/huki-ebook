@@ -1,5 +1,7 @@
 # 💬 Chat API
 
+> **Implementation status:** Sprint 13 hoàn thành ngày 2026-08-22. REST API và Socket.IO đều yêu cầu access token hợp lệ; người gọi phải là participant của conversation.
+
 ## GET /chat/conversations
 
 Get list of user's conversations.
@@ -132,6 +134,19 @@ Authorization: Bearer <access_token>
 
 ---
 
+## GET /chat/conversations/:id/messages
+
+Get paginated messages without conversation metadata. Results are returned in chronological order within the requested page.
+
+```http
+GET /api/v1/chat/conversations/66c8109ebf5d9342a772dabc/messages?page=1&limit=50
+Authorization: Bearer <access_token>
+```
+
+The response contains `data` and `pagination` using the same message and pagination structures shown by the conversation detail endpoint.
+
+---
+
 ## POST /chat/conversations
 
 Create or get existing conversation.
@@ -202,6 +217,8 @@ messageType: IMAGE
 attachments: <file>
 ```
 
+The `attachments` field accepts up to 10 files, each at most 10 MB. Images and files are uploaded to Cloudinary using the configured `CLOUDINARY_*` environment variables. JSON clients may also provide pre-uploaded attachment metadata (`type`, `url`, `name`, `thumbnail`, `size`).
+
 ### Response 201
 
 ```json
@@ -261,8 +278,8 @@ Authorization: Bearer <access_token>
 ### Connect
 
 ```javascript
-// Connect to WebSocket
-const socket = io('ws://localhost:3006', {
+// Socket.IO uses the Community Service HTTP port and /chat namespace
+const socket = io('http://localhost:3005/chat', {
   auth: {
     token: 'user_access_token'
   }
@@ -273,23 +290,23 @@ const socket = io('ws://localhost:3006', {
 
 ```javascript
 // Receive new message
-socket.on('new_message', (message) => {
+socket.on('message:new', (message) => {
   console.log('New message:', message);
   // Update UI
 });
 
 // Message read notification
-socket.on('message_read', (data) => {
-  console.log('Message read:', data.messageId);
+socket.on('message:read', (data) => {
+  console.log('Messages read:', data.messageIds);
 });
 
 // Typing indicator
-socket.on('user_typing', (data) => {
+socket.on('typing:user', (data) => {
   console.log('User typing:', data.conversationId);
 });
 
 // Online status
-socket.on('user_online', (data) => {
+socket.on('user:online', (data) => {
   console.log('User online:', data.userId);
 });
 ```
@@ -298,21 +315,29 @@ socket.on('user_online', (data) => {
 
 ```javascript
 // Join conversation room
-socket.emit('join_conversation', { conversationId: 'conv-uuid' });
+socket.emit('conversation:join', { conversationId: '66c8109ebf5d9342a772dabc' });
 
 // Leave conversation room
-socket.emit('leave_conversation', { conversationId: 'conv-uuid' });
+socket.emit('conversation:leave', { conversationId: '66c8109ebf5d9342a772dabc' });
 
 // Send typing indicator
-socket.emit('typing', { conversationId: 'conv-uuid' });
+socket.emit('typing:start', { conversationId: '66c8109ebf5d9342a772dabc' });
+socket.emit('typing:stop', { conversationId: '66c8109ebf5d9342a772dabc' });
 
 // Send message (alternative to REST)
-socket.emit('send_message', {
-  conversationId: 'conv-uuid',
+socket.emit('message:send', {
+  conversationId: '66c8109ebf5d9342a772dabc',
   content: 'Hello!',
   messageType: 'TEXT'
 });
+
+// Mark incoming messages as read
+socket.emit('message:read', {
+  conversationId: '66c8109ebf5d9342a772dabc'
+});
 ```
+
+Legacy aliases `join_conversation`, `leave_conversation`, `send_message`, `typing`, `new_message`, `message_read`, `user_typing` and `user_online` remain supported for older clients.
 
 ### Connection Handling
 
@@ -365,6 +390,6 @@ socket.on('connect_error', (error) => {
 
 | Endpoint | Limit | Window |
 |----------|-------|--------|
-| POST /chat/messages | 60 | 1 minute |
+| POST /chat/conversations/:id/messages | 60 | 1 minute |
 | GET /chat/conversations | 60 | 1 minute |
-| GET /chat/messages | 60 | 1 minute |
+| GET /chat/conversations/:id/messages | 60 | 1 minute |

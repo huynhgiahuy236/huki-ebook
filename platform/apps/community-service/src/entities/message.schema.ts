@@ -1,54 +1,103 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, Schema as MongooseSchema, Types } from "mongoose";
+import { PARTICIPANT_TYPES, ParticipantType } from "./conversation.schema";
 
-export type MessageDocument = Message & Document;
+export const MESSAGE_TYPES = [
+  "TEXT",
+  "IMAGE",
+  "FILE",
+  "ORDER",
+  "BOOK",
+  "SYSTEM",
+] as const;
+export const MESSAGE_STATUSES = ["SENT", "DELIVERED", "READ"] as const;
+export const ATTACHMENT_TYPES = ["IMAGE", "FILE"] as const;
 
-@Schema()
-export class Attachment {
+export type MessageType = (typeof MESSAGE_TYPES)[number];
+export type MessageStatus = (typeof MESSAGE_STATUSES)[number];
+export type AttachmentType = (typeof ATTACHMENT_TYPES)[number];
+
+@Schema({ _id: false })
+export class MessageAttachment {
+  @Prop({ required: true, type: String, enum: ATTACHMENT_TYPES })
+  type!: AttachmentType;
+
   @Prop({ required: true })
-  type: string;
-
-  @Prop({ required: true })
-  url: string;
+  url!: string;
 
   @Prop()
-  thumbnail: string;
+  name?: string;
 
   @Prop()
-  size: number;
+  thumbnail?: string;
+
+  @Prop({ min: 0 })
+  size?: number;
 }
 
-@Schema({ timestamps: true })
+export const MessageAttachmentSchema =
+  SchemaFactory.createForClass(MessageAttachment);
+
+export type MessageDocument = HydratedDocument<Message>;
+
+@Schema({ timestamps: true, collection: "messages" })
 export class Message {
-  @Prop({ type: Types.ObjectId, ref: 'Conversation', required: true })
-  conversationId: Types.ObjectId;
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "Conversation",
+    required: true,
+  })
+  conversationId!: Types.ObjectId;
 
-  @Prop({ enum: ['USER', 'BUSINESS'], required: true })
-  senderType: string;
+  @Prop({ required: true, type: String, enum: PARTICIPANT_TYPES })
+  senderType!: ParticipantType;
 
-  @Prop({ type: Types.ObjectId, required: true })
-  senderId: Types.ObjectId;
+  @Prop({ required: true, type: String })
+  senderId!: string;
 
-  @Prop({ required: true })
-  senderName: string;
-
-  @Prop({ required: true })
-  content: string;
-
-  @Prop({ enum: ['TEXT', 'IMAGE', 'FILE', 'ORDER', 'BOOK', 'SYSTEM'], default: 'TEXT' })
-  messageType: string;
-
-  @Prop({ type: [Attachment], default: [] })
-  attachments: Attachment[];
-
-  @Prop({ enum: ['SENT', 'DELIVERED', 'READ'], default: 'SENT' })
-  status: string;
+  @Prop({ required: true, trim: true })
+  senderName!: string;
 
   @Prop()
-  deliveredAt: Date;
+  senderAvatar?: string;
+
+  @Prop({ required: true, trim: true, maxlength: 10_000 })
+  content!: string;
+
+  @Prop({
+    required: true,
+    type: String,
+    enum: MESSAGE_TYPES,
+    default: "TEXT",
+  })
+  messageType!: MessageType;
+
+  @Prop({ type: [MessageAttachmentSchema], default: [] })
+  attachments!: MessageAttachment[];
+
+  @Prop({
+    required: true,
+    type: String,
+    enum: MESSAGE_STATUSES,
+    default: "SENT",
+  })
+  status!: MessageStatus;
+
+  @Prop({ type: [String], default: [] })
+  readBy!: string[];
 
   @Prop()
-  readAt: Date;
+  deliveredAt?: Date;
+
+  @Prop()
+  readAt?: Date;
+
+  createdAt!: Date;
+  updatedAt!: Date;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
+
+MessageSchema.index({ conversationId: 1, createdAt: -1 });
+MessageSchema.index({ senderId: 1, createdAt: -1 });
+MessageSchema.index({ conversationId: 1, status: 1, createdAt: -1 });
