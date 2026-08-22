@@ -7,6 +7,10 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
+Sprint 12 Forum hoàn thành ngày 2026-08-22. Chat, Reviews, notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
+
+Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
+
 ## Responsibilities
 
 - Forum (posts, comments, likes)
@@ -67,7 +71,7 @@ The Community Service handles all social features: forum discussions, real-time 
   authorId: String,        // UUID from Identity
   authorName: String,
   authorAvatar: String,
-  category: String,        // BOOK_DISCUSSION, GENERAL, ANNOUNCEMENT
+  categoryId: ObjectId,    // Ref to forum_categories
   tags: [String],
   bookId: String,          // Optional: related book
   storeId: String,         // Optional: related store
@@ -89,8 +93,24 @@ The Community Service handles all social features: forum discussions, real-time 
 // Indexes
 db.forums.createIndex({ authorId: 1, createdAt: -1 });
 db.forums.createIndex({ bookId: 1, createdAt: -1 });
-db.forums.createIndex({ category: 1, createdAt: -1 });
-db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' });
+db.forums.createIndex({ categoryId: 1, status: 1, createdAt: -1 });
+db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' }, { name: 'forums_text_search' });
+```
+
+### Forum Categories Collection
+
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  slug: String,       // unique
+  description: String,
+  icon: String,
+  sortOrder: Number,
+  isActive: Boolean,
+  createdAt: Date,
+  updatedAt: Date,
+}
 ```
 
 ### Comments Collection
@@ -270,6 +290,7 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 
 ### Forum
 - GET /forum/posts - List posts
+- GET /forum/posts/popular - Popular published posts
 - POST /forum/posts - Create post
 - GET /forum/posts/:id - Get post
 - PATCH /forum/posts/:id - Update post
@@ -277,6 +298,10 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - POST /forum/posts/:id/like - Like post
 - GET /forum/posts/:id/comments - Get comments
 - POST /forum/posts/:id/comments - Add comment
+- POST/DELETE /forum/comments/:id/like - Like/unlike comment
+- POST /forum/comments/:id/replies - Reply to comment
+- DELETE /forum/comments/:id - Soft-delete own comment
+- GET /forum/categories - List active categories
 
 ### Chat
 - GET /chat/conversations - List conversations
@@ -343,6 +368,7 @@ SOCKET_CORS_ORIGIN=*
 
 ```bash
 npm install
+npm run test:community
 npm run start:community
 ```
 
