@@ -58,15 +58,23 @@
 
 ---
 
-### Sprint 14: Reviews & Ratings (0.5 tuần)
+### Sprint 14: Reviews & Ratings (0.5 tuần) — Hoàn thành 2026-08-22
 
 | Task | Người | Priority | Mô tả |
 |------|-------|---------|--------|
-| T14.1 | HUY | HIGH | MongoDB collections: reviews, reviewReplies |
-| T14.2 | HUY | HIGH | Book reviews CRUD |
-| T14.3 | HUY | HIGH | Store reviews CRUD |
-| T14.4 | HUY | HIGH | Rating aggregation |
-| T14.5 | HUY | MEDIUM | Verified purchase badge |
+| T14.1 | HUY | HIGH | ✅ MongoDB collections: `reviews`, `review_replies` |
+| T14.2 | HUY | HIGH | ✅ Book reviews CRUD |
+| T14.3 | HUY | HIGH | ✅ Store reviews CRUD và business reply |
+| T14.4 | HUY | HIGH | ✅ Rating aggregation, lọc theo sao và helpful |
+| T14.5 | HUY | MEDIUM | ✅ Verified purchase badge qua Commerce Service |
+
+**Luồng đã hoàn thành:**
+
+1. Người dùng gửi review sách/cửa hàng; Community Service xác thực access token và từ chối review trùng đang hoạt động.
+2. Community gọi Commerce Service bằng token hiện tại để xác nhận đơn và seller order đã `COMPLETED`; review sách còn phải đúng format đã mua.
+3. Review hợp lệ được lưu `PENDING_REVIEW`, có snapshot tác giả, mã đơn/seller order/store và `verifiedPurchase=true`, sau đó phát `review.created`.
+4. API công khai chỉ trả review `PUBLISHED`, hỗ trợ phân trang/lọc số sao, rating summary, helpful idempotent và business reply.
+5. Business chỉ được phản hồi review gắn với cửa hàng mà thành viên đó thuộc về; báo cáo/duyệt nội dung thuộc Sprint 16.
 
 ---
 
@@ -98,14 +106,14 @@
 ```
 ✅ Sprint 12: Forum
 ✅ Sprint 13: Chat
-⬜ Sprint 14: Reviews & Ratings
+✅ Sprint 14: Reviews & Ratings
 ⬜ Sprint 15: Notifications
 ⬜ Sprint 16: Moderation
 
 📦 Deliverables Phase 4:
 - [x] Forum với comments
 - [x] Real-time Chat
-- [ ] Reviews & Ratings
+- [x] Reviews & Ratings
 - [ ] In-app Notifications
 - [ ] Content moderation
 ```

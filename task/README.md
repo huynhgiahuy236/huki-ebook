@@ -55,7 +55,7 @@
 |--------|------|-----|
 | Sprint 12 | Search, Categories ✅ | Forum, Comments ✅ |
 | Sprint 13 | Socket.IO ✅ | Chat, Conversations ✅ |
-| Sprint 14 | - | Reviews, Ratings |
+| Sprint 14 | - | Reviews, Ratings ✅ |
 | Sprint 15 | Notifications | Firebase |
 | Sprint 16 | - | Moderation, Reports |
 
