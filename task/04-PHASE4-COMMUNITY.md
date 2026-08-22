@@ -34,17 +34,27 @@
 
 ---
 
-### Sprint 13: Chat (1 tuần)
+### Sprint 13: Chat (1 tuần) — Hoàn thành 2026-08-22
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T13.1 | KIEN | HIGH | MongoDB collections: conversations, messages |
-| T13.2 | KIEN | HIGH | Conversation management |
-| T13.3 | KIEN | HIGH | Send/receive messages |
-| T13.4 | KIEN | HIGH | Socket.IO integration |
-| T13.5 | KIEN | HIGH | Real-time message delivery |
-| T13.6 | HUY | HIGH | Read receipts |
-| T13.7 | KIEN | MEDIUM | Typing indicators |
+| Task | Người | Priority | Mô tả | Trạng thái |
+|------|-------|---------|--------|---|
+| T13.1 | KIEN | HIGH | MongoDB collections: conversations, messages | ✅ |
+| T13.2 | KIEN | HIGH | Conversation management | ✅ |
+| T13.3 | KIEN | HIGH | Send/receive messages | ✅ |
+| T13.4 | KIEN | HIGH | Socket.IO integration | ✅ |
+| T13.5 | KIEN | HIGH | Real-time message delivery | ✅ |
+| T13.6 | HUY | HIGH | Read receipts | ✅ |
+| T13.7 | KIEN | MEDIUM | Typing indicators | ✅ |
+
+#### Luồng Chat đã triển khai
+
+1. Hai collection `conversations` và `messages` dùng Mongoose; UUID liên service lưu dạng string, quan hệ conversation-message nội bộ dùng ObjectId.
+2. Mọi REST API và WebSocket handshake đều xác thực JWT; chỉ participant của conversation được xem, gửi, đóng, join room, đánh dấu đọc hoặc phát typing.
+3. Conversation hỗ trợ tạo/lấy lại theo user-store-context, danh sách theo người dùng, chi tiết kèm lịch sử phân trang và trạng thái `ACTIVE/CLOSED`.
+4. Message hỗ trợ `TEXT`, `IMAGE`, `FILE`, `ORDER`, `BOOK`, `SYSTEM`; ghi MongoDB trước khi cập nhật `lastMessage`, unread count và phát realtime.
+5. Socket.IO chạy cùng Community Service tại namespace `/chat`, room theo user và conversation; có message delivery, online/offline và alias tương thích tài liệu API cũ.
+6. Read receipt cập nhật atomic các message chưa đọc, `readAt`, `readBy`, status `READ` và reset unread count của đúng người đọc.
+7. Typing start/stop chỉ phát realtime cho participant còn lại, không lưu MongoDB. Sự kiện `chat.message.sent` được phát qua RabbitMQ cho Sprint 15.
 
 ---
 
@@ -87,14 +97,14 @@
 
 ```
 ✅ Sprint 12: Forum
-⬜ Sprint 13: Chat
+✅ Sprint 13: Chat
 ⬜ Sprint 14: Reviews & Ratings
 ⬜ Sprint 15: Notifications
 ⬜ Sprint 16: Moderation
 
 📦 Deliverables Phase 4:
 - [x] Forum với comments
-- [ ] Real-time Chat
+- [x] Real-time Chat
 - [ ] Reviews & Ratings
 - [ ] In-app Notifications
 - [ ] Content moderation

@@ -1,63 +1,114 @@
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
+import { HydratedDocument, Schema as MongooseSchema, Types } from "mongoose";
 
-export type ConversationDocument = Conversation & Document;
+export const CONVERSATION_TYPES = ["USER_TO_STORE"] as const;
+export const CONVERSATION_STATUSES = ["ACTIVE", "CLOSED"] as const;
+export const PARTICIPANT_TYPES = ["USER", "BUSINESS"] as const;
+export const CHAT_CONTEXT_TYPES = ["BOOK", "ORDER"] as const;
 
-@Schema()
-export class Participant {
-  @Prop({ required: true, enum: ['USER', 'BUSINESS'] })
-  type: string;
+export type ConversationType = (typeof CONVERSATION_TYPES)[number];
+export type ConversationStatus = (typeof CONVERSATION_STATUSES)[number];
+export type ParticipantType = (typeof PARTICIPANT_TYPES)[number];
+export type ChatContextType = (typeof CHAT_CONTEXT_TYPES)[number];
 
-  @Prop({ type: Types.ObjectId, required: true })
-  id: Types.ObjectId;
+@Schema({ _id: false })
+export class ConversationParticipant {
+  @Prop({ required: true, type: String, enum: PARTICIPANT_TYPES })
+  type!: ParticipantType;
+
+  @Prop({ required: true, type: String })
+  id!: string;
+
+  @Prop({ required: true, trim: true })
+  name!: string;
+
+  @Prop()
+  avatar?: string;
 }
 
-@Schema()
-export class LastMessage {
-  @Prop()
-  id: string;
+export const ConversationParticipantSchema = SchemaFactory.createForClass(
+  ConversationParticipant,
+);
 
-  @Prop()
-  content: string;
+@Schema({ _id: false })
+export class ConversationContext {
+  @Prop({ required: true, type: String, enum: CHAT_CONTEXT_TYPES })
+  type!: ChatContextType;
 
-  @Prop({ enum: ['USER', 'BUSINESS'] })
-  senderType: string;
-
-  @Prop()
-  createdAt: Date;
+  @Prop({ required: true, type: String })
+  id!: string;
 }
 
-@Schema()
-export class UnreadCount {
-  @Prop({ default: 0 })
-  USER: number;
+export const ConversationContextSchema =
+  SchemaFactory.createForClass(ConversationContext);
 
-  @Prop({ default: 0 })
-  BUSINESS: number;
+@Schema({ _id: false })
+export class ConversationLastMessage {
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: "Message",
+    required: true,
+  })
+  id!: Types.ObjectId;
+
+  @Prop({ required: true })
+  content!: string;
+
+  @Prop({ required: true, type: String, enum: PARTICIPANT_TYPES })
+  senderType!: ParticipantType;
+
+  @Prop({ required: true, type: String })
+  senderId!: string;
+
+  @Prop({ required: true })
+  createdAt!: Date;
 }
 
-@Schema({ timestamps: true })
+export const ConversationLastMessageSchema = SchemaFactory.createForClass(
+  ConversationLastMessage,
+);
+
+export type ConversationDocument = HydratedDocument<Conversation>;
+
+@Schema({ timestamps: true, collection: "conversations" })
 export class Conversation {
-  @Prop({ type: [Participant], required: true })
-  participants: Participant[];
+  @Prop({
+    type: [ConversationParticipantSchema],
+    required: true,
+    validate: {
+      validator: (participants: ConversationParticipant[]) =>
+        participants.length === 2,
+      message: "A conversation must have exactly two participants",
+    },
+  })
+  participants!: ConversationParticipant[];
 
-  @Prop({ enum: ['USER_TO_STORE'], default: 'USER_TO_STORE' })
-  type: string;
+  @Prop({ required: true, type: String, enum: CONVERSATION_TYPES })
+  type!: ConversationType;
 
-  @Prop({ type: Object })
-  context: {
-    type: string;
-    id: Types.ObjectId;
-  };
+  @Prop({ type: ConversationContextSchema, required: true })
+  context!: ConversationContext;
 
-  @Prop({ enum: ['ACTIVE', 'CLOSED'], default: 'ACTIVE' })
-  status: string;
+  @Prop({ type: String, enum: CONVERSATION_STATUSES, default: "ACTIVE" })
+  status!: ConversationStatus;
 
-  @Prop({ type: LastMessage })
-  lastMessage: LastMessage;
+  @Prop({ type: ConversationLastMessageSchema })
+  lastMessage?: ConversationLastMessage;
 
-  @Prop({ type: UnreadCount, default: { USER: 0, BUSINESS: 0 } })
-  unreadCount: UnreadCount;
+  @Prop({ type: Map, of: Number, default: () => ({}) })
+  unreadCount!: Map<string, number>;
+
+  createdAt!: Date;
+  updatedAt!: Date;
 }
 
 export const ConversationSchema = SchemaFactory.createForClass(Conversation);
+
+ConversationSchema.index({ "participants.id": 1, status: 1 });
+ConversationSchema.index({ "participants.id": 1, updatedAt: -1 });
+ConversationSchema.index({ type: 1, status: 1 });
+ConversationSchema.index({
+  "participants.id": 1,
+  "context.type": 1,
+  "context.id": 1,
+});

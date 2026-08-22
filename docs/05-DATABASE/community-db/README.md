@@ -108,20 +108,34 @@ db.comments.createIndex({ authorId: 1, createdAt: -1 });
 ```javascript
 {
   _id: ObjectId,
-  participants: [String],
-  type: String, // USER_USER, USER_BUSINESS
-  lastMessage: {
-    content: String,
-    senderId: String,
-    sentAt: Date,
+  participants: [{
+    type: String, // USER, BUSINESS
+    id: String,
+    name: String,
+    avatar: String,
+  }],
+  type: String, // USER_TO_STORE
+  context: {
+    type: String, // BOOK, ORDER
+    id: String,
   },
-  unreadCount: Map, // userId -> count
-  isActive: Boolean,
+  status: String, // ACTIVE, CLOSED
+  lastMessage: {
+    id: ObjectId,
+    content: String,
+    senderType: String,
+    senderId: String,
+    createdAt: Date,
+  },
+  unreadCount: Map, // participant UUID -> count
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.conversations.createIndex({ participants: 1, updatedAt: -1 });
+db.conversations.createIndex({ "participants.id": 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, updatedAt: -1 });
+db.conversations.createIndex({ type: 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, "context.type": 1, "context.id": 1 });
 ```
 
 ### messages
@@ -130,20 +144,30 @@ db.conversations.createIndex({ participants: 1, updatedAt: -1 });
 {
   _id: ObjectId,
   conversationId: ObjectId,
+  senderType: String,
   senderId: String,
+  senderName: String,
+  senderAvatar: String,
   content: String,
-  type: String, // TEXT, IMAGE, FILE, SYSTEM
+  messageType: String, // TEXT, IMAGE, FILE, ORDER, BOOK, SYSTEM
   attachments: [{
     type: String,
     url: String,
     name: String,
+    thumbnail: String,
+    size: Number,
   }],
   readBy: [String],
   status: String, // SENT, DELIVERED, READ
+  deliveredAt: Date,
+  readAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
-db.messages.createIndex({ conversationId: 1, createdAt: 1 });
+db.messages.createIndex({ conversationId: 1, createdAt: -1 });
+db.messages.createIndex({ senderId: 1, createdAt: -1 });
+db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 ```
 
 ### reviews

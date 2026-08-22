@@ -7,7 +7,7 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
-Sprint 12 Forum hoàn thành ngày 2026-08-22. Chat, Reviews, notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
+Sprint 12 Forum và Sprint 13 Chat hoàn thành ngày 2026-08-22. Reviews, notification CRUD/realtime và Moderation vẫn thuộc các sprint tiếp theo.
 
 Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
 
@@ -25,7 +25,7 @@ Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Iden
 - **Framework:** NestJS
 - **Database:** MongoDB with Mongoose
 - **Real-time:** Socket.IO
-- **Cache:** Redis (Socket.IO adapter)
+- **Cache:** Redis; adapter Socket.IO dùng khi triển khai nhiều instance
 - **Push Notifications:** Firebase Cloud Messaging
 
 ## Architecture
@@ -140,20 +140,34 @@ db.comments.createIndex({ authorId: 1 });
 ```javascript
 {
   _id: ObjectId,
-  participants: [String],  // Array of user IDs
-  type: String,            // USER_USER, USER_BUSINESS
-  lastMessage: {
-    content: String,
-    senderId: String,
-    sentAt: Date,
+  participants: [{
+    type: String,          // USER, BUSINESS
+    id: String,            // Identity/store UUID
+    name: String,
+    avatar: String,
+  }],
+  type: String,            // USER_TO_STORE
+  context: {
+    type: String,          // BOOK, ORDER
+    id: String,
   },
-  unreadCount: Map,        // userId -> count
-  isActive: Boolean,
+  status: String,          // ACTIVE, CLOSED
+  lastMessage: {
+    id: ObjectId,
+    content: String,
+    senderType: String,
+    senderId: String,
+    createdAt: Date,
+  },
+  unreadCount: Map,        // participant UUID -> count
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.conversations.createIndex({ participants: 1, updatedAt: -1 });
+db.conversations.createIndex({ "participants.id": 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, updatedAt: -1 });
+db.conversations.createIndex({ type: 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, "context.type": 1, "context.id": 1 });
 ```
 
 ### Messages Collection
@@ -162,20 +176,30 @@ db.conversations.createIndex({ participants: 1, updatedAt: -1 });
 {
   _id: ObjectId,
   conversationId: ObjectId,
+  senderType: String,      // USER, BUSINESS
   senderId: String,
+  senderName: String,
+  senderAvatar: String,
   content: String,
-  type: String,            // TEXT, IMAGE, FILE, SYSTEM
+  messageType: String,     // TEXT, IMAGE, FILE, ORDER, BOOK, SYSTEM
   attachments: [{
     type: String,
     url: String,
     name: String,
+    thumbnail: String,
+    size: Number,
   }],
   readBy: [String],        // User IDs who read
   status: String,          // SENT, DELIVERED, READ
+  deliveredAt: Date,
+  readAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
-db.messages.createIndex({ conversationId: 1, createdAt: 1 });
+db.messages.createIndex({ conversationId: 1, createdAt: -1 });
+db.messages.createIndex({ senderId: 1, createdAt: -1 });
+db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 ```
 
 ### Reviews Collection
@@ -277,6 +301,8 @@ const socket = io('https://api.huki-ebook.com/chat', {
 - `user:online` - User online
 - `user:offline` - User offline
 
+Các alias `join_conversation`, `leave_conversation`, `send_message`, `typing`, `new_message`, `message_read` và `user_typing` vẫn được hỗ trợ để tương thích client theo tài liệu API cũ. Socket.IO chạy cùng cổng HTTP của Community Service tại namespace `/chat`; Redis adapter chỉ cần khi scale nhiều instance.
+
 ### Scaling with Redis Adapter
 
 ```typescript
@@ -306,8 +332,11 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 ### Chat
 - GET /chat/conversations - List conversations
 - POST /chat/conversations - Start conversation
+- GET /chat/conversations/:id - Conversation detail with paginated messages
 - GET /chat/conversations/:id/messages - Get messages
 - POST /chat/conversations/:id/messages - Send message
+- PATCH /chat/conversations/:id/read - Mark incoming messages as read
+- POST /chat/conversations/:id/close - Close conversation
 
 ### Reviews
 - POST /reviews - Create review
@@ -354,13 +383,17 @@ RABBITMQ_EXCHANGE=huki.events
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
+# Chat attachments
+CLOUDINARY_CLOUD_NAME=xxx
+CLOUDINARY_API_KEY=xxx
+CLOUDINARY_API_SECRET=xxx
+
 # Firebase (Push Notifications)
 FIREBASE_PROJECT_ID=xxx
 FIREBASE_PRIVATE_KEY=xxx
 FIREBASE_CLIENT_EMAIL=xxx
 
-# Socket.IO
-SOCKET_PORT=3005
+# Socket.IO (same port as Community Service)
 SOCKET_CORS_ORIGIN=*
 ```
 
