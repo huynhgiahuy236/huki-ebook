@@ -20,6 +20,7 @@ import {
   ForumPostQueryDto,
   UpdateForumPostDto,
 } from './dto/forum.dto';
+import { AutoModerationService } from '../moderation/auto-moderation.service';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Thảo luận chung', slug: 'general', icon: '💬', sortOrder: 1 },
@@ -37,6 +38,7 @@ export class ForumService implements OnApplicationBootstrap {
     @InjectModel(ForumCategory.name)
     private readonly categories: Model<ForumCategory>,
     private readonly eventBus: RabbitMqEventBus,
+    private readonly autoModeration: AutoModerationService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -123,6 +125,11 @@ export class ForumService implements OnApplicationBootstrap {
 
   async createPost(actor: CommunityActor, dto: CreateForumPostDto) {
     const category = await this.activeCategory(dto.categoryId);
+    const moderation = this.autoModeration.inspect(
+      dto.title,
+      dto.content,
+      dto.tags,
+    );
     const post = await this.forums.create({
       title: dto.title.trim(),
       slug: this.slug(dto.title),
@@ -135,7 +142,8 @@ export class ForumService implements OnApplicationBootstrap {
       coverImage: dto.coverImage,
       bookId: dto.bookId,
       storeId: dto.storeId,
-      status: 'PENDING_REVIEW',
+      status: moderation.flagged ? 'FLAGGED' : 'PENDING_REVIEW',
+      moderationNote: this.autoModeration.note(moderation),
     });
     return {
       message: 'Post created successfully',
@@ -153,18 +161,36 @@ export class ForumService implements OnApplicationBootstrap {
     if (post.status === 'DELETED')
       throw new ConflictException('Deleted posts cannot be updated');
     if (dto.categoryId) await this.activeCategory(dto.categoryId);
+    const moderation = this.autoModeration.inspect(
+      dto.title ?? post.title,
+      dto.content ?? post.content,
+      dto.tags ?? post.tags,
+    );
     const updated = await this.forums.findByIdAndUpdate(
       post._id,
       {
-        ...(dto.title ? { title: dto.title.trim() } : {}),
-        ...(dto.content ? { content: dto.content.trim() } : {}),
-        ...(dto.categoryId
-          ? { categoryId: new Types.ObjectId(dto.categoryId) }
-          : {}),
-        ...(dto.tags ? { tags: this.tags(dto.tags) } : {}),
-        ...(dto.coverImage !== undefined ? { coverImage: dto.coverImage } : {}),
-        ...(dto.bookId !== undefined ? { bookId: dto.bookId } : {}),
-        ...(dto.storeId !== undefined ? { storeId: dto.storeId } : {}),
+        $set: {
+          ...(dto.title ? { title: dto.title.trim() } : {}),
+          ...(dto.content ? { content: dto.content.trim() } : {}),
+          ...(dto.categoryId
+            ? { categoryId: new Types.ObjectId(dto.categoryId) }
+            : {}),
+          ...(dto.tags ? { tags: this.tags(dto.tags) } : {}),
+          ...(dto.coverImage !== undefined
+            ? { coverImage: dto.coverImage }
+            : {}),
+          ...(dto.bookId !== undefined ? { bookId: dto.bookId } : {}),
+          ...(dto.storeId !== undefined ? { storeId: dto.storeId } : {}),
+          status: moderation.flagged ? 'FLAGGED' : 'PENDING_REVIEW',
+          ...(moderation.flagged
+            ? { moderationNote: this.autoModeration.note(moderation) }
+            : {}),
+        },
+        $unset: {
+          moderatedBy: 1,
+          moderatedAt: 1,
+          ...(!moderation.flagged ? { moderationNote: 1 } : {}),
+        },
       },
       { new: true, runValidators: true },
     );
@@ -234,18 +260,23 @@ export class ForumService implements OnApplicationBootstrap {
     const post = await this.publishedPost(postId);
     if (post.isLocked)
       throw new ConflictException('Comments are locked for this post');
+    const moderation = this.autoModeration.inspect(dto.content);
     const comment = await this.comments.create({
       postId: post._id,
       content: dto.content.trim(),
       authorId: actor.sub,
       authorName: actor.fullName ?? actor.email ?? actor.sub,
       authorAvatar: actor.avatar,
+      status: moderation.flagged ? 'FLAGGED' : 'PUBLISHED',
+      moderationNote: this.autoModeration.note(moderation),
     });
-    await this.forums.updateOne(
-      { _id: post._id },
-      { $inc: { commentCount: 1 } },
-    );
-    void this.publishCommentEvent(comment, post.authorId);
+    if (!moderation.flagged) {
+      await this.forums.updateOne(
+        { _id: post._id },
+        { $inc: { commentCount: 1 } },
+      );
+      void this.publishCommentEvent(comment, post.authorId);
+    }
     return {
       message: 'Comment added',
       data: this.commentView(comment.toObject(), actor),
@@ -262,6 +293,7 @@ export class ForumService implements OnApplicationBootstrap {
     const post = await this.publishedPost(parent.postId.toString());
     if (post.isLocked)
       throw new ConflictException('Comments are locked for this post');
+    const moderation = this.autoModeration.inspect(dto.content);
     const reply = await this.comments.create({
       postId: parent.postId,
       parentId: parent._id,
@@ -269,12 +301,16 @@ export class ForumService implements OnApplicationBootstrap {
       authorId: actor.sub,
       authorName: actor.fullName ?? actor.email ?? actor.sub,
       authorAvatar: actor.avatar,
+      status: moderation.flagged ? 'FLAGGED' : 'PUBLISHED',
+      moderationNote: this.autoModeration.note(moderation),
     });
-    await this.forums.updateOne(
-      { _id: post._id },
-      { $inc: { commentCount: 1 } },
-    );
-    void this.publishCommentEvent(reply, parent.authorId);
+    if (!moderation.flagged) {
+      await this.forums.updateOne(
+        { _id: post._id },
+        { $inc: { commentCount: 1 } },
+      );
+      void this.publishCommentEvent(reply, parent.authorId);
+    }
     return {
       message: 'Reply added',
       data: this.commentView(reply.toObject(), actor),

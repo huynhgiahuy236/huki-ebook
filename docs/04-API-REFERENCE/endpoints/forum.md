@@ -1,6 +1,8 @@
 # 💬 Forum API
 
-Sprint 12 implementation status: posts, comments/replies, post/comment likes, categories, view/popular and search are available. Reporting and moderation remain planned for Sprint 16.
+**Trạng thái:** ✅ Sprint 12 Forum và Sprint 16 Moderation đã hoàn thành<br>
+
+Posts, comments/replies, likes, categories, view/popular, search và report đều khả dụng. API quản trị được mô tả tại [Moderation API](moderation.md).
 
 ## GET /forum/posts
 
@@ -377,8 +379,6 @@ Authorization: Bearer <access_token>
 
 ## POST /forum/posts/:id/report
 
-> Planned for Sprint 16; this endpoint is not exposed by the Sprint 12 Forum module.
-
 Report a post.
 
 ### Request
@@ -400,8 +400,26 @@ Content-Type: application/json
 {
   "message": "Report submitted",
   "data": {
-    "reportId": "report-uuid"
+    "reportId": "66bdce20493f476fec2eab10",
+    "status": "PENDING"
   }
+}
+```
+
+Yêu cầu đăng nhập. Không thể tự report nội dung của mình. Mỗi user chỉ được report một lần cho cùng target; request trùng trả `409 FORUM_REPORT_EXISTS`. Report đầu tiên chuyển nội dung từ `PUBLISHED` sang `FLAGGED` để chờ admin xử lý.
+
+## POST /forum/comments/:id/report
+
+Report comment/reply với cùng body, validation và response như report post.
+
+```http
+POST /api/v1/forum/comments/66bdce20493f476fec2eab11/report
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "reason": "HARASSMENT",
+  "description": "Bình luận có nội dung công kích cá nhân"
 }
 ```
 

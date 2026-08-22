@@ -44,7 +44,10 @@ Stores forum, chat, reviews, and notifications.
   viewCount: Number,
   isPinned: Boolean,
   isLocked: Boolean,
-  status: String, // PUBLISHED, HIDDEN, DELETED
+  status: String, // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   attachments: [{
     type: String, // IMAGE, FILE
     url: String,
@@ -93,12 +96,15 @@ db.forum_categories.createIndex({ isActive: 1, sortOrder: 1, name: 1 });
   likes: [String],
   likeCount: Number,
   isEdited: Boolean,
-  status: String,
+  status: String, // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.comments.createIndex({ postId: 1, createdAt: 1 });
+db.comments.createIndex({ postId: 1, status: 1, createdAt: 1 });
 db.comments.createIndex({ parentId: 1 });
 db.comments.createIndex({ authorId: 1, createdAt: -1 });
 ```
@@ -224,6 +230,37 @@ db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
 
 db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
 db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
+```
+
+### reports
+
+```javascript
+{
+  _id: ObjectId,
+  reporterId: String,
+  targetType: String, // POST, COMMENT, REVIEW, USER, STORE
+  targetId: String,
+  targetAuthorId: String,
+  reason: String, // SPAM, HARASSMENT, OFFENSIVE, MISINFORMATION, COPYRIGHT, OTHER
+  description: String,
+  status: String, // PENDING, REVIEWING, RESOLVED, DISMISSED
+  reviewedBy: String,
+  reviewedAt: Date,
+  resolvedBy: String,
+  resolvedAt: Date,
+  action: String, // NONE, WARN, HIDE, DELETE, BAN
+  resolutionNote: String,
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.reports.createIndex(
+  { reporterId: 1, targetType: 1, targetId: 1 },
+  { unique: true }
+);
+db.reports.createIndex({ status: 1, createdAt: -1 });
+db.reports.createIndex({ targetType: 1, targetId: 1, status: 1 });
+db.reports.createIndex({ targetAuthorId: 1, createdAt: -1 });
 ```
 
 ### notifications

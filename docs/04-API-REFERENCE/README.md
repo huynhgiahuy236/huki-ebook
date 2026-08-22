@@ -114,6 +114,8 @@ Authorization: Bearer <access_token>
 - POST /forum/posts/:id/like - Like post
 - GET /forum/posts/:id/comments - Get comments
 - POST /forum/posts/:id/comments - Add comment
+- POST /forum/posts/:id/report - Report post
+- POST /forum/comments/:id/report - Report comment
 
 ### [Chat](endpoints/chat.md)
 - GET /chat/conversations - List conversations
@@ -132,6 +134,7 @@ Authorization: Bearer <access_token>
 - DELETE /reviews/:id - Delete review
 - POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
 - POST /reviews/:id/reply - Business reply
+- POST /reviews/:id/report - Report review
 
 ### [Notifications](endpoints/notifications.md)
 - GET /notifications và /notifications/:id - List/detail
@@ -141,6 +144,14 @@ Authorization: Bearer <access_token>
 - GET/PATCH /notifications/settings - Preferences
 - POST/DELETE /notifications/device - FCM device registration
 - WS /notifications - Realtime notification/read events
+
+### [Moderation](endpoints/moderation.md)
+- GET /admin/moderation/reports - List/filter reports
+- GET /admin/moderation/reports/:id - Report detail with content
+- PATCH /admin/moderation/reports/:id/review - Start review
+- PATCH /admin/moderation/reports/:id/resolve - Resolve/dismiss report
+- GET /admin/moderation/queue - Pending/flagged content queue
+- PATCH /admin/moderation/content/:targetType/:id - Approve/hide/delete content
 
 ## Common Responses
 

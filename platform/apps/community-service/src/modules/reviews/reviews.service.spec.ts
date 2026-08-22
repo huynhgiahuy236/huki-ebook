@@ -16,11 +16,16 @@ describe("ReviewsService", () => {
     businessAccess: jest.fn(),
   };
   const eventBus = { publish: jest.fn() };
+  const autoModeration = {
+    inspect: jest.fn().mockReturnValue({ flagged: false, reasons: [] }),
+    note: jest.fn().mockReturnValue(undefined),
+  };
   const service = new ReviewsService(
     reviews as any,
     replies as any,
     verification as any,
     eventBus as any,
+    autoModeration as any,
   );
   const actor = {
     sub: "user-1",

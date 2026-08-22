@@ -7,6 +7,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ForumModule } from './modules/forum/forum.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { ModerationModule } from './modules/moderation/moderation.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
     ForumModule,
     ChatModule,
     ReviewsModule,
+    ModerationModule,
   ],
 })
 export class AppModule {}

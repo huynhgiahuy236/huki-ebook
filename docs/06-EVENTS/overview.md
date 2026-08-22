@@ -201,8 +201,13 @@ Từ Sprint 15, payload shipment kèm `userId`, `ownerUserId` và `storeId` đ�
 | `review.created` | Review hợp lệ được gửi | Notification |
 | `forum.comment.created` | Comment/reply được tạo | Notification |
 | `notification.created` | Notification đã lưu | Analytics/integration tương lai |
+| `user.reported` | User gửi report cho content | Moderation analytics/admin integration |
+| `user.moderation.requested` | Admin chọn WARN hoặc BAN | Identity Service |
+| `moderation.report.resolved` | Report được resolve/dismiss | Notification/analytics integration |
 
 Sprint 15 dùng durable queue `community-service.order-confirmations` đã có từ Sprint 11 và mở rộng binding cho các event trên. Notification được xử lý theo thứ tự: kiểm tra preferences → MongoDB upsert idempotent → Socket.IO realtime → FCM.
+
+Sprint 16 không ghi trực tiếp database Identity. Community phát `user.moderation.requested` với `userId`, `action`, `reason`, `reportId` và `requestedBy`; Identity triển khai consumer để cảnh báo/khóa tài khoản khi luồng liên service được bật. Việc ẩn/xóa post, comment và review được xử lý ngay trong MongoDB Community.
 
 ## Consumer Implementation
 

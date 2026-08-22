@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { MongooseModule } from "@nestjs/mongoose";
+import { ThrottlerModule } from "@nestjs/throttler";
 import { EventsModule } from "../../../../../libs/shared/src";
 import {
   AuthenticatedCommunityGuard,
@@ -17,9 +18,12 @@ import {
 } from "./reviews.controller";
 import { ReviewVerificationService } from "./review-verification.service";
 import { ReviewsService } from "./reviews.service";
+import { ModerationModule } from "../moderation/moderation.module";
 
 @Module({
   imports: [
+    ModerationModule,
+    ThrottlerModule.forRoot([{ ttl: 60 * 60_000, limit: 10 }]),
     MongooseModule.forFeature([
       { name: Review.name, schema: ReviewSchema },
       { name: ReviewReply.name, schema: ReviewReplySchema },

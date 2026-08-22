@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -55,5 +56,16 @@ export class OptionalCommunityAuthGuard implements CanActivate {
       this.jwt,
       true,
     );
+  }
+}
+
+@Injectable()
+export class PlatformAdminCommunityGuard implements CanActivate {
+  canActivate(context: ExecutionContext) {
+    const actor = context.switchToHttp().getRequest<CommunityRequest>().user;
+    if (actor?.role !== 'PLATFORM_ADMIN') {
+      throw new ForbiddenException('Platform administrator role is required');
+    }
+    return true;
   }
 }

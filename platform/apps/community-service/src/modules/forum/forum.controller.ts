@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AuthenticatedCommunityGuard,
   CommunityActor,
@@ -68,8 +69,9 @@ export class ForumPostsController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedCommunityGuard)
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: CreateForumPostDto,
@@ -119,8 +121,9 @@ export class ForumPostsController {
   }
 
   @Post(':id/comments')
+  @Throttle({ default: { limit: 30, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedCommunityGuard)
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   addComment(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: MongoIdParamDto,
@@ -138,6 +141,8 @@ export class ForumCommentsController {
   constructor(private readonly forum: ForumService) {}
 
   @Post(':id/replies')
+  @Throttle({ default: { limit: 30, ttl: 60 * 60_000 } })
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   reply(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: MongoIdParamDto,
