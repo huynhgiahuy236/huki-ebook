@@ -24,13 +24,13 @@ export const PAYMENT_EVENTS = {
 } as const;
 
 export const SHIPPING_EVENTS = {
-  CREATED: 'shipment.created',
-  STAFF_ASSIGNED: 'shipment.staff-assigned',
-  PICKED_UP: 'shipment.picked_up',
-  IN_TRANSIT: 'shipment.in_transit',
-  OUT_FOR_DELIVERY: 'shipment.out_for_delivery',
-  DELIVERED: 'shipment.delivered',
-  FAILED: 'shipment.failed',
-  RETURNED: 'shipment.returned',
-  CANCELLED: 'shipment.cancelled',
+  CREATED: 'SHIPMENT_CREATED',
+  STAFF_ASSIGNED: 'SHIPMENT_STAFF_ASSIGNED',
+  PICKED_UP: 'SHIPMENT_PICKED_UP',
+  IN_TRANSIT: 'SHIPMENT_IN_TRANSIT',
+  OUT_FOR_DELIVERY: 'SHIPMENT_OUT_FOR_DELIVERY',
+  DELIVERED: 'SHIPMENT_DELIVERED',
+  FAILED: 'SHIPMENT_FAILED',
+  RETURNED: 'SHIPMENT_RETURNED',
+  CANCELLED: 'SHIPMENT_CANCELLED',
 } as const;

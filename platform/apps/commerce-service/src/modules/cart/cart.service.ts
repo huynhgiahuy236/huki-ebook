@@ -1,12 +1,24 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Prisma } from '../../../prisma/generated/client';
+import {
+  BookFormat,
+  BookStatus,
+  CartItemFormat,
+} from '../../../prisma/generated/client';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
-import { BookFormat, BookStatus, CartItemFormat } from '../../../prisma/generated/client';
+import { CartCacheService, CachedCart } from './cart-cache.service';
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cache: CartCacheService,
+  ) {}
 
   async getCartEntity(userId: string, create = true) {
     let cart = await this.prisma.cart.findUnique({
@@ -28,7 +40,12 @@ export class CartService {
         include: {
           items: {
             include: {
-              book: { include: { physicalDetails: true, digitalDetails: true } },
+              book: {
+                include: {
+                  physicalDetails: true,
+                  digitalDetails: true,
+                },
+              },
             },
           },
         },
@@ -40,32 +57,22 @@ export class CartService {
   }
 
   async getCart(userId: string) {
-    const cart = await this.getCartEntity(userId);
-    const items = cart.items.map((item) => ({
-      id: item.id,
-      bookId: item.bookId,
-      format: item.format,
-      quantity: item.quantity,
-      unitPrice: Number(item.unitPrice),
-      subtotal: Number(item.unitPrice) * item.quantity,
-      book: {
-        id: item.book.id,
-        storeId: item.book.storeId,
-        title: item.book.title,
-        slug: item.book.slug,
-        coverUrl: item.book.coverUrl,
-        status: item.book.status,
-      },
-    }));
+    // Try cache first
+    const cached = await this.cache.get(userId);
+    if (cached) {
+      // Refresh from DB in background for stock/price changes
+      void this.refreshCacheInBackground(userId);
+      return this.formatCartResponse(cached);
+    }
 
-    return {
-      id: cart.id,
-      userId,
-      items,
-      totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-      subtotal: items.reduce((sum, item) => sum + item.subtotal, 0),
-      updatedAt: cart.updatedAt,
-    };
+    // Load from DB
+    const cart = await this.getCartEntity(userId);
+    const result = this.transformToCachedCart(cart);
+
+    // Cache it
+    await this.cache.set(userId, result);
+
+    return this.formatCartResponse(result);
   }
 
   async add(userId: string, dto: AddCartItemDto) {
@@ -97,9 +104,10 @@ export class CartService {
         throw new ConflictException('Digital book is already in the cart');
       }
 
-      const quantity = dto.format === CartItemFormat.DIGITAL
-        ? 1
-        : (existing?.quantity ?? 0) + dto.quantity;
+      const quantity =
+        dto.format === CartItemFormat.DIGITAL
+          ? 1
+          : (existing?.quantity ?? 0) + dto.quantity;
 
       this.validateAvailability(book, dto.format, quantity);
 
@@ -128,6 +136,8 @@ export class CartService {
       });
     });
 
+    // Invalidate cache and return fresh data
+    await this.cache.invalidate(userId);
     return this.getCart(userId);
   }
 
@@ -138,13 +148,20 @@ export class CartService {
 
       const item = await tx.cartItem.findFirst({
         where: { id: itemId, cartId: cart.id },
-        include: { book: { include: { physicalDetails: true, digitalDetails: true } } },
+        include: {
+          book: { include: { physicalDetails: true, digitalDetails: true } },
+        },
       });
 
       if (!item) throw new NotFoundException('Cart item not found');
 
-      if (item.format === CartItemFormat.DIGITAL && quantity !== 1) {
-        throw new BadRequestException('Digital book quantity must be one');
+      if (
+        item.format === CartItemFormat.DIGITAL &&
+        quantity !== 1
+      ) {
+        throw new BadRequestException(
+          'Digital book quantity must be one',
+        );
       }
 
       this.validateAvailability(item.book, item.format, quantity);
@@ -160,6 +177,8 @@ export class CartService {
       });
     });
 
+    // Invalidate cache and return fresh data
+    await this.cache.invalidate(userId);
     return this.getCart(userId);
   }
 
@@ -182,6 +201,8 @@ export class CartService {
       });
     });
 
+    // Invalidate cache and return fresh data
+    await this.cache.invalidate(userId);
     return this.getCart(userId);
   }
 
@@ -194,9 +215,16 @@ export class CartService {
       where: { id: cart.id },
       data: { updatedAt: new Date() },
     });
+
+    // Invalidate cache
+    await this.cache.invalidate(userId);
   }
 
-  private validateAvailability(book: any, format: string, quantity: number) {
+  private validateAvailability(
+    book: any,
+    format: string,
+    quantity: number,
+  ) {
     if (format === CartItemFormat.PHYSICAL) {
       if (
         ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
@@ -204,7 +232,8 @@ export class CartService {
       ) {
         throw new BadRequestException('Physical format is unavailable');
       }
-      const available = book.physicalDetails.stock - book.physicalDetails.reserved;
+      const available =
+        book.physicalDetails.stock - book.physicalDetails.reserved;
       if (available < quantity) {
         throw new ConflictException('Insufficient stock');
       }
@@ -215,6 +244,53 @@ export class CartService {
       ) {
         throw new BadRequestException('Digital format is unavailable');
       }
+    }
+  }
+
+  private transformToCachedCart(cart: any): CachedCart {
+    return {
+      id: cart.id,
+      userId: cart.userId,
+      items: cart.items.map((item: any) => ({
+        id: item.id,
+        bookId: item.bookId,
+        format: item.format,
+        quantity: item.quantity,
+        unitPrice: Number(item.unitPrice),
+        subtotal: Number(item.unitPrice) * item.quantity,
+        book: {
+          id: item.book.id,
+          storeId: item.book.storeId,
+          title: item.book.title,
+          slug: item.book.slug,
+          coverUrl: item.book.coverUrl,
+          status: item.book.status,
+        },
+      })),
+      updatedAt: cart.updatedAt.toISOString(),
+    };
+  }
+
+  private formatCartResponse(cached: CachedCart) {
+    return {
+      id: cached.id,
+      userId: cached.userId,
+      items: cached.items,
+      totalItems: cached.items.reduce((sum, item) => sum + item.quantity, 0),
+      subtotal: cached.items.reduce((sum, item) => sum + item.subtotal, 0),
+      updatedAt: cached.updatedAt,
+    };
+  }
+
+  private async refreshCacheInBackground(userId: string): Promise<void> {
+    try {
+      const cart = await this.getCartEntity(userId, false);
+      if (cart) {
+        const cached = this.transformToCachedCart(cart);
+        await this.cache.set(userId, cached);
+      }
+    } catch {
+      // Silently fail - cache will be refreshed on next write
     }
   }
 }

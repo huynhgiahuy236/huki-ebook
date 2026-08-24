@@ -30,6 +30,7 @@ import {
   GhtkCallbackDto,
   UpdateShipmentStatusDto,
 } from './dto/shipment-status.dto';
+import { SHIPPING_EVENTS } from '../../../../../libs/shared/src';
 
 const NEXT_STATUSES: Record<ShipmentStatus, ShipmentStatus[]> = {
   PENDING: [
@@ -314,7 +315,7 @@ export class ShipmentsService {
         await tx.outboxEvent.create({
           data: {
             eventId: randomBytes(16).toString('hex'),
-            type: 'shipment.created',
+            type: SHIPPING_EVENTS.CREATED,
             aggregateId: row.id,
             payload: {
               shipmentId: row.id,
@@ -398,7 +399,7 @@ export class ShipmentsService {
       await tx.outboxEvent.create({
         data: {
           eventId: randomBytes(16).toString('hex'),
-          type: `shipment.${target.toLowerCase()}`,
+          type: this.getShippingEventType(target),
           aggregateId: shipmentId,
           payload: {
             shipmentId,
@@ -476,5 +477,19 @@ export class ShipmentsService {
       codAmount: Number(shipment.codAmount),
       codFee: Number(shipment.codFee),
     };
+  }
+
+  private getShippingEventType(status: ShipmentStatus): string {
+    const eventMap: Record<ShipmentStatus, string> = {
+      [ShipmentStatus.PENDING]: SHIPPING_EVENTS.CREATED,
+      [ShipmentStatus.PICKED_UP]: SHIPPING_EVENTS.PICKED_UP,
+      [ShipmentStatus.IN_TRANSIT]: SHIPPING_EVENTS.IN_TRANSIT,
+      [ShipmentStatus.OUT_FOR_DELIVERY]: SHIPPING_EVENTS.OUT_FOR_DELIVERY,
+      [ShipmentStatus.DELIVERED]: SHIPPING_EVENTS.DELIVERED,
+      [ShipmentStatus.FAILED]: SHIPPING_EVENTS.FAILED,
+      [ShipmentStatus.RETURNED]: SHIPPING_EVENTS.RETURNED,
+      [ShipmentStatus.CANCELLED]: SHIPPING_EVENTS.CANCELLED,
+    };
+    return eventMap[status] ?? `SHIPMENT_${status}`;
   }
 }
