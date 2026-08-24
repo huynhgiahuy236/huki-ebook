@@ -6,6 +6,7 @@ import {
 import { randomBytes } from 'crypto';
 import { ShipmentStatus, StaffStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SHIPPING_EVENTS } from '../../../../../libs/shared/src';
 import {
   AssignDeliveryStaffDto,
   CreateDeliveryStaffDto,
@@ -83,7 +84,7 @@ export class DeliveryStaffService {
       await tx.outboxEvent.create({
         data: {
           eventId: randomBytes(16).toString('hex'),
-          type: 'shipment.staff-assigned',
+          type: SHIPPING_EVENTS.STAFF_ASSIGNED,
           aggregateId: shipmentId,
           payload: { shipmentId, staffId: staff.id, staffUserId: staff.userId },
         },

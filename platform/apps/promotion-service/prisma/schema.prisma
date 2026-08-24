@@ -173,6 +173,8 @@ model FlashSale {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  items FlashSaleItem[]
+
   @@map("flash_sales")
 }
 
@@ -196,6 +198,8 @@ model FlashSaleItem {
   maxPerUser Int @default(1) @map("max_per_user")
 
   createdAt DateTime @default(now()) @map("created_at")
+
+  flashSale FlashSale @relation(fields: [flashSaleId], references: [id])
 
   @@index([flashSaleId])
   @@index([bookId])

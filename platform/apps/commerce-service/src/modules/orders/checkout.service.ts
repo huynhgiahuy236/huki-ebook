@@ -275,6 +275,33 @@ export class CheckoutService {
           });
         }
 
+        // Grant digital book access immediately for all orders (COD and online)
+        const allItems = snapshot.groups.flatMap((group: any) => group.items);
+        const digitalItems = allItems.filter(
+          (item: CheckoutSnapshotItem) => item.format === CartItemFormat.DIGITAL,
+        );
+        for (const item of digitalItems) {
+          const sellerOrder = snapshot.groups.find((g: any) =>
+            g.items.some((i: any) => i.cartItemId === item.cartItemId),
+          );
+          await tx.bookAccess.upsert({
+            where: {
+              userId_bookId: { userId, bookId: item.bookId },
+            },
+            create: {
+              userId,
+              bookId: item.bookId,
+              orderId: order.id,
+              sellerOrderId: sellerOrder?.sellerOrderId,
+            },
+            update: {
+              status: 'ACTIVE',
+              orderId: order.id,
+              sellerOrderId: sellerOrder?.sellerOrderId,
+            },
+          });
+        }
+
         const shipmentSellerOrders: Array<{
           sellerOrderId: string;
           storeId: string;
