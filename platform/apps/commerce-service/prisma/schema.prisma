@@ -95,6 +95,18 @@ enum AccessStatus {
   EXPIRED
 }
 
+/**
+ * Loại truy cập sách:
+ * - FREE: Sách thường, mua 1 lần đọc mãi mãi
+ * - PREMIUM: Sách premium, cần subscription hoặc trả thêm phí
+ */
+enum BookAccessType {
+  /** Sách miễn phí sau khi mua - truy cập vĩnh viễn */
+  FREE
+  /** Sách premium - cần subscription hoặc trả phí riêng */
+  PREMIUM
+}
+
 // ============================================
 // CATALOG
 // ============================================
@@ -222,6 +234,8 @@ model DigitalBookDetails {
   epubKey        String?  @map("epub_key")
   previewPdfKey  String?  @map("preview_pdf_key")
   digitalEnabled Boolean  @default(true) @map("digital_enabled")
+  /** Loại truy cập: FREE = mua đọc mãi mãi, PREMIUM = cần subscription */
+  accessType     BookAccessType @default(FREE) @map("access_type")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -465,19 +479,20 @@ model Refund {
 // ============================================
 
 model BookAccess {
-  id                 String       @id @default(uuid())
-  userId             String       @map("user_id")
-  bookId             String       @map("book_id")
-  orderId            String       @map("order_id")
-  sellerOrderId      String?      @map("seller_order_id")
-  accessKey          String?      @map("access_key")
-  signedUrlExpiresAt DateTime?    @map("signed_url_expires_at")
-  readingProgress    Int          @default(0) @map("reading_progress")
-  lastReadAt         DateTime?    @map("last_read_at")
-  status             AccessStatus @default(ACTIVE)
-  downloadCount      Int          @default(0) @map("download_count")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  updatedAt          DateTime     @updatedAt @map("updated_at")
+  id                 String         @id @default(uuid())
+  userId             String         @map("user_id")
+  bookId             String         @map("book_id")
+  orderId            String         @map("order_id")
+  sellerOrderId      String?        @map("seller_order_id")
+  accessType         BookAccessType @default(FREE) @map("access_type")
+  accessKey          String?        @map("access_key")
+  signedUrlExpiresAt DateTime?      @map("signed_url_expires_at")
+  readingProgress     Int            @default(0) @map("reading_progress")
+  lastReadAt         DateTime?      @map("last_read_at")
+  status             AccessStatus   @default(ACTIVE)
+  downloadCount      Int            @default(0) @map("download_count")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
 
   book Book @relation(fields: [bookId], references: [id])
 
