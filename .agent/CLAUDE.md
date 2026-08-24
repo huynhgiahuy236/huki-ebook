@@ -1,14 +1,17 @@
 # CLAUDE.md - HUKI EBOOK Agent Instructions
 
-> **Đọc `ebook.md` TRƯỚC KHI làm bất cứ gì**
+> **ĐỌC FILE NÀY ĐẦU TIÊN** trước khi làm bất cứ điều gì
+> Last updated: 2026-08-24
 
 ---
 
-## 🎯 Quick Start
+## 🚀 ONBOARDING (BẮT BUỘC đọc theo thứ tự)
 
-1. Đọc **`ebook.md`** - Tổng quan toàn bộ project
-2. Đọc **`docs/00-START-HERE/README.md`** - Chi tiết hơn
-3. Bắt đầu làm việc
+1. **`CLAUDE.md`** (file này) - Quy trình làm việc
+2. **`.agent/PROJECT-STATE.md`** - State hiện tại của project
+3. **`.agent/SESSION-LOG.md`** - Lịch sử các phiên làm việc
+4. **`.agent/WORKFLOW.md`** - Workflow Git & commit
+5. Bắt đầu làm việc
 
 ---
 
@@ -16,101 +19,94 @@
 
 ```
 HuKi/
-├── HuKi/              ← CODE
-│   ├── web/           ← Frontend (Next.js)
-│   ├── platform/      ← Backend (NestJS)
-│   └── mobile/        ← Mobile (Flutter)
-├── docs/              ← TÀI LIỆU
-├── ebook/             ← Tài liệu gốc (.docx)
-├── scripts/           ← Script test
-├── test/              ← File linh tinh
-├── skill/             ← UI/UX skills
-└── res/               ← BÁO CÁO
-    └── claude/        ← Báo cáo của bạn (Claude)
+├── .agent/              ← AGENT INSTRUCTIONS (đọc file này)
+│   ├── CLAUDE.md        ← File này - Main instructions
+│   ├── PROJECT-STATE.md ← State hiện tại của project
+│   ├── SESSION-LOG.md   ← Log các phiên làm việc
+│   ├── WORKFLOW.md      ← Git workflow & conventions
+│   └── TEMPLATES/       ← Templates cho reports/docs
+│
+├── docs/                ← TÀI LIỆU CHÍNH THỨC
+├── flow/                ← Business flow diagrams
+├── err/                 ← Error codes catalog
+├── res/                 ← Resources (API, domain, contracts)
+│   ├── DOMAIN/          ← Domain schemas
+│   ├── API/             ← API specs
+│   ├── CONTRACTS/       ← Event contracts
+│   └── claude/          ← Báo cáo sessions
+│
+├── task/                ← Task tracking
+├── skill/               ← UI/UX skills
+├── ebook/               ← Tài liệu gốc (.docx)
+├── scripts/             ← Utility scripts
+├── test/                ← Test files
+│
+├── platform/            ← Backend (NestJS microservices)
+│   ├── apps/
+│   ├── libs/shared/     ← Shared libraries
+│   └── ...
+│
+├── web/                 ← Frontend (Next.js)
+├── mobile/              ← Mobile (Flutter)
+│
+├── postman/             ← Postman collections (ignored)
+├── api/                 ← API stats (ignored)
+│
+└── docker-compose.yml   ← Docker setup
+```
+
+---
+
+## 🔄 QUY TRÌNH LÀM VIỆC (BẮT BUỘC)
+
+### Bắt đầu phiên mới
+```
+1. Đọc .agent/CLAUDE.md (file này)
+2. Đọc .agent/PROJECT-STATE.md (state hiện tại)
+3. Đọc .agent/SESSION-LOG.md (đã làm gì trước đó)
+4. Hiểu context → Bắt đầu task
+```
+
+### Trong phiên làm việc
+```
+1. Tạo branch mới theo convention (xem WORKFLOW.md)
+2. Làm task
+3. Update .agent/PROJECT-STATE.md nếu thay đổi lớn
+4. Tạo/sửa code
+5. Update docs liên quan
+6. Append log vào .agent/SESSION-LOG.md
+7. Hỏi user: "Push và merge develop không?"
+```
+
+### Kết thúc phiên
+```
+1. Commit với message rõ ràng
+2. Append session vào .agent/SESSION-LOG.md
+3. Tạo báo cáo trong res/claude/YYYY-MM-DD-sessionN.md
+4. Hỏi: "Push và merge develop không?"
+5. Nếu có → git pull → merge → push (xử lý conflict)
 ```
 
 ---
 
 ## 📋 QUY ĐỊNH VỀ FILE
 
-| Loại | Đặt ở |
-|------|--------|
-| **Code chính** | `HuKi/web`, `HuKi/platform`, `HuKi/mobile` |
-| **Script test** | `scripts/` |
-| **File linh tinh** | `test/` |
-| **Design/UI** | `skill/` |
-| **Báo cáo** | `res/claude/` |
-
----
-
-## 📊 BÁO CÁO SAU KHI LÀM VIỆC
-
-**SAU KHI LÀM XONG VIỆC → TẠO BÁO CÁO TRONG `res/claude/`**
-
-### Format báo cáo
-
-```markdown
-# 📋 Báo cáo - YYYY-MM-DD
-
-## Agent: Claude
-## Thời gian: HH:MM - HH:MM
-
----
-
-## ✅ Đã hoàn thành
-
-| Task | Files | Status |
-|------|-------|--------|
-| [Tên task] | [File] | ✅ Done |
-
-## 📁 Files đã tạo/sửa
-- `path/to/file` - Mô tả
-
-## 📈 Thống kê
-
-| Metric | Số lượng |
-|--------|----------|
-| Files created | X |
-| Files modified | X |
-
-## 🔜 Việc cần làm tiếp
-- [Task tiếp theo]
-
-## 📝 Notes
-- Ghi chú khác
-```
-
-### Ví dụ
-```markdown
-# 📋 Báo cáo - 2026-08-14
-
-## Agent: Claude
-## Thời gian: 14:00 - 16:00
-
----
-
-## ✅ Đã hoàn thành
-
-| Task | Files | Status |
-|------|-------|--------|
-| Tạo API docs | docs/04-API-REFERENCE/endpoints/orders.md | ✅ Done |
-
-## 📁 Files đã tạo
-- `docs/04-API-REFERENCE/endpoints/orders.md`
-
-## 📈 Thống kê
-
-| Metric | Số lượng |
-|--------|----------|
-| Files created | 1 |
-| API endpoints | 10 |
-
-## 🔜 Việc cần làm tiếp
-- Tạo payment API docs
-
-## 📝 Notes
-- Đã thống nhất format với team
-```
+| Loại file | Đặt ở | Ghi chú |
+|-----------|--------|---------|
+| **Code Backend** | `platform/apps/*/src/` | NestJS microservices |
+| **Code Frontend** | `web/` | Next.js |
+| **Code Mobile** | `mobile/` | Flutter |
+| **Shared Libs** | `platform/libs/shared/src/` | Dùng chung |
+| **API Docs** | `docs/04-API-REFERENCE/` | |
+| **Domain Schemas** | `res/DOMAIN/` | User, Book, Order, etc. |
+| **Business Flows** | `flow/` | Mermaid diagrams |
+| **Error Codes** | `err/CODES/` | Theo service |
+| **Event Contracts** | `res/CONTRACTS/` | RabbitMQ events |
+| **API Stats** | `api/` | Báo cáo (gitignored) |
+| **Postman** | `postman/` | Collections (gitignored) |
+| **Agent Reports** | `res/claude/` | Session reports |
+| **Test Scripts** | `scripts/` | |
+| **Temp/Test files** | `test/` | |
 
 ---
 
@@ -118,48 +114,71 @@ HuKi/
 
 ```
 API Gateway (:3000)
-├── Identity (:3001)    → Auth, Users
-├── Business (:3002)   → Business, Stores
-├── Commerce (:3003)   → Books, Cart, Orders, Payments
-├── Shipping (:3004)   → Shipping
-├── Community (:3005)  → Forum, Chat, Reviews
-└── Promotion (:3007)  → Vouchers
+├── Identity (:3001)    → Auth, Users, Sessions
+├── Business (:3002)    → Business, Stores, Members
+├── Commerce (:3003)    → Books, Cart, Orders, Payments
+├── Shipping (:3004)    → Shipments, Addresses
+├── Community (:3005)   → Forum, Chat, Reviews, Notifications
+└── Promotion (:3007)   → Vouchers, Banners, Flash Sales
 ```
 
-**Stack:** NestJS, PostgreSQL, MongoDB, Redis, RabbitMQ, VNPay, MoMo, R2, Cloudinary, Firebase
+**Stack:** NestJS, PostgreSQL, MongoDB, Redis, RabbitMQ, PayOS, Cloudflare R2, Cloudinary, Firebase FCM
+
+**Patterns:** Microservices, Event-Driven, Outbox, CQRS, Saga
 
 ---
 
-## 🔄 Working Guidelines
+## 🔑 KEY FILES (Đọc theo thứ tự ưu tiên)
 
-### Thêm feature
-1. Đọc `docs/03-PROJECTS/` - cấu trúc code
-2. Xem `docs/04-API-REFERENCE/` - pattern
-3. Xem `docs/05-DATABASE/` - schema
-4. Implement → Update docs nếu cần
-
-### Sửa lỗi
-1. Xem error codes trong `docs/04-API-REFERENCE/`
-2. Tìm service trong `docs/01-ARCHITECTURE/`
-
----
-
-## 🔑 Key Files
-
-| File | Mô tả |
-|------|--------|
-| **`ebook.md`** | **ĐỌC ĐẦU TIÊN** - Tổng quan project |
-| `docs/00-START-HERE/README.md` | Orientation |
-| `docs/04-API-REFERENCE/README.md` | API patterns |
-| `docs/05-DATABASE/README.md` | Database schemas |
+| Priority | File | Mô tả |
+|----------|------|--------|
+| 1 | `.agent/PROJECT-STATE.md` | State hiện tại |
+| 1 | `.agent/SESSION-LOG.md` | Lịch sử |
+| 2 | `res/DOMAIN/*.md` | Domain schemas |
+| 3 | `flow/*.md` | Business flows |
+| 4 | `err/CODES/*.md` | Error codes |
+| 5 | `docs/04-API-REFERENCE/` | API docs |
+| 6 | `docs/05-DATABASE/` | DB schemas |
 
 ---
 
-## ❓ Questions?
+## 📊 BÁO CÁO SAU MỖI PHIÊN
 
-1. `docs/00-START-HERE/glossary.md` - Thuật ngữ
-2. Hỏi team lead
+**SAU KHI LÀM XONG → TẠO FILE TRONG `res/claude/`**
+
+### Naming
+```
+res/claude/YYYY-MM-DD-sessionN.md
+```
+
+### Format mẫu: xem `.agent/TEMPLATES/session-report.md`
 
 ---
 
-*Last updated: 2026-08-14*
+## ⚠️ NGUYÊN TẮC
+
+1. **KHÔNG** tự ý push lên main → Hỏi user
+2. **LUÔN** update PROJECT-STATE.md khi thay đổi lớn
+3. **LUÔN** append vào SESSION-LOG.md
+4. **LUÔN** tạo báo cáo session
+5. **KHÔNG** skip bước onboarding
+6. **LUÔN** commit với message rõ ràng theo convention
+7. **LUÔN** test build trước khi commit
+
+---
+
+## 🔗 Quick Links
+
+- [Onboarding Checklist](.agent/WORKFLOW.md#onboarding-checklist)
+- [Git Workflow](.agent/WORKFLOW.md)
+- [Session Template](.agent/TEMPLATES/session-report.md)
+- [Project State](.agent/PROJECT-STATE.md)
+- [Session Log](.agent/SESSION-LOG.md)
+- [Domain Schemas](res/DOMAIN/)
+- [Business Flows](flow/)
+- [Error Codes](err/CODES/)
+
+---
+
+*Maintained by: Claude*
+*Version: 2.0*
