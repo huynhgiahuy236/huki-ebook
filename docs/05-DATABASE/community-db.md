@@ -13,18 +13,30 @@ db.forums.insertOne({
   authorId: UUID,
   authorName: "Nguyen Van A",
   authorAvatar: "url",
-  category: "review",
+  categoryId: ObjectId(), // Ref to forum_categories
   tags: ["clean-code", "programming"],
+  likes: [UUID],
   viewCount: 1250,
   likeCount: 45,
   commentCount: 23,
   status: "PUBLISHED",
   isPinned: false,
   isLocked: false,
-  isDeleted: false,
   moderatedBy: UUID,
   moderatedAt: ISODate(),
   moderationNote: "Approved",
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// Forum Categories
+db.forum_categories.insertOne({
+  _id: ObjectId(),
+  name: "Review sách",
+  slug: "reviews",
+  icon: "📚",
+  sortOrder: 2,
+  isActive: true,
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
@@ -38,8 +50,12 @@ db.comments.insertOne({
   authorId: UUID,
   authorName: "Tran Thi B",
   authorAvatar: "url",
+  likes: [UUID],
   likeCount: 5,
   status: "PUBLISHED",
+  moderatedBy: UUID,
+  moderatedAt: ISODate(),
+  moderationNote: "Approved",
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
@@ -48,8 +64,8 @@ db.comments.insertOne({
 db.conversations.insertOne({
   _id: ObjectId(),
   participants: [
-    { type: "USER", id: UUID },
-    { type: "BUSINESS", id: UUID }
+    { type: "USER", id: UUID, name: "Nguyen Van A", avatar: "url" },
+    { type: "BUSINESS", id: UUID, name: "Tech Books Store", avatar: "url" }
   ],
   type: "USER_TO_STORE",
   context: {
@@ -64,8 +80,8 @@ db.conversations.insertOne({
     createdAt: ISODate()
   },
   unreadCount: {
-    USER: 2,
-    BUSINESS: 0
+    "user-uuid": 2,
+    "store-uuid": 0
   },
   createdAt: ISODate(),
   updatedAt: ISODate()
@@ -78,6 +94,7 @@ db.messages.insertOne({
   senderType: "USER",
   senderId: UUID,
   senderName: "Nguyen Van A",
+  senderAvatar: "url",
   content: "Cho tôi hỏi về sách này",
   messageType: "TEXT",
   attachments: [{
@@ -87,6 +104,7 @@ db.messages.insertOne({
     size: 12345
   }],
   status: "DELIVERED",
+  readBy: [UUID],
   deliveredAt: ISODate(),
   readAt: ISODate(),
   createdAt: ISODate()
@@ -106,34 +124,42 @@ db.reviews.insertOne({
   format: "DIGITAL", // For book reviews
   verifiedPurchase: true,
   orderId: UUID,
+  sellerOrderId: UUID,
+  storeId: UUID,
+  storeOwnerId: UUID, // Snapshot used by notification routing
   images: [{
     url: "url",
     thumbnail: "thumb-url"
   }],
-  likeCount: 25,
+  helpful: [UUID],
   helpfulCount: 20,
   status: "PUBLISHED",
-  isDeleted: false,
   moderatedBy: UUID,
   moderatedAt: ISODate(),
+  moderationNote: "Approved",
   createdAt: ISODate(),
   updatedAt: ISODate()
 });
 
 // Review Replies
-db.reviewReplies.insertOne({
+db.review_replies.insertOne({
   _id: ObjectId(),
   reviewId: ObjectId(),
   businessId: UUID,
   storeId: UUID,
+  responderId: UUID,
+  businessName: "Tech Books Store",
   content: "Cảm ơn bạn đã phản hồi!",
-  createdAt: ISODate()
+  status: "ACTIVE",
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 
 // Notifications
 db.notifications.insertOne({
   _id: ObjectId(),
   recipientId: UUID,
+  sourceKey: "event-id:user-id:ORDER_STATUS",
   recipientType: "USER",
   type: "ORDER_STATUS",
   title: "Đơn hàng đã được xác nhận",
@@ -142,10 +168,47 @@ db.notifications.insertOne({
     orderId: UUID,
     status: "CONFIRMED"
   },
+  imageUrl: null,
+  actionUrl: "/orders/order-uuid",
   isRead: false,
   readAt: null,
   expiresAt: ISODate(),
-  createdAt: ISODate()
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// Notification Preferences
+db.notification_preferences.insertOne({
+  recipientId: UUID,
+  orderUpdates: true,
+  promotions: true,
+  newReviews: true,
+  chatMessages: true,
+  forumActivity: true,
+  emailNotifications: {
+    orderUpdates: true,
+    promotions: false,
+    newsletter: true
+  },
+  pushNotifications: {
+    enabled: true,
+    orderUpdates: true,
+    chatMessages: true
+  },
+  createdAt: ISODate(),
+  updatedAt: ISODate()
+});
+
+// FCM Devices
+db.notification_devices.insertOne({
+  recipientId: UUID,
+  deviceToken: "fcm-token",
+  deviceType: "ANDROID", // ANDROID, IOS, WEB
+  appVersion: "1.0.0",
+  enabled: true,
+  lastSeenAt: ISODate(),
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 
 // Reports
@@ -153,15 +216,19 @@ db.reports.insertOne({
   _id: ObjectId(),
   reporterId: UUID,
   targetType: "POST", // POST, COMMENT, REVIEW, USER, STORE
-  targetId: UUID,
+  targetId: "66bdce20493f476fec2eab10", // String: Mongo ObjectId or service UUID
+  targetAuthorId: UUID,
   reason: "SPAM",
   description: "Nội dung quảng cáo",
   status: "PENDING",
   reviewedBy: UUID,
   reviewedAt: ISODate(),
-  resolution: "DELETED",
+  resolvedBy: UUID,
+  resolvedAt: ISODate(),
+  action: "DELETE", // NONE, WARN, HIDE, DELETE, BAN
   resolutionNote: "Content violates community guidelines",
-  createdAt: ISODate()
+  createdAt: ISODate(),
+  updatedAt: ISODate()
 });
 ```
 
@@ -170,10 +237,17 @@ db.reports.insertOne({
 ```javascript
 // Forums indexes
 db.forums.createIndex({ authorId: 1 });
-db.forums.createIndex({ category: 1, status: 1, createdAt: -1 });
+db.forums.createIndex({ categoryId: 1, status: 1, createdAt: -1 });
 db.forums.createIndex({ tags: 1 });
 db.forums.createIndex({ status: 1, viewCount: -1 });
-db.forums.createIndex({ "$**": "text" }, { name: "forums_text_search" });
+db.forums.createIndex(
+  { title: "text", content: "text", tags: "text" },
+  { name: "forums_text_search", weights: { title: 10, tags: 5, content: 1 } }
+);
+
+// Forum category indexes
+db.forum_categories.createIndex({ slug: 1 }, { unique: true });
+db.forum_categories.createIndex({ isActive: 1, sortOrder: 1, name: 1 });
 
 // Comments indexes
 db.comments.createIndex({ postId: 1, status: 1, createdAt: 1 });
@@ -184,24 +258,54 @@ db.comments.createIndex({ authorId: 1 });
 db.conversations.createIndex({ "participants.id": 1, status: 1 });
 db.conversations.createIndex({ "participants.id": 1, updatedAt: -1 });
 db.conversations.createIndex({ type: 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, "context.type": 1, "context.id": 1 });
 
 // Messages indexes
 db.messages.createIndex({ conversationId: 1, createdAt: -1 });
 db.messages.createIndex({ senderId: 1, createdAt: -1 });
+db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 
 // Reviews indexes
-db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1 });
-db.reviews.createIndex({ authorId: 1 });
-db.reviews.createIndex({ rating: -1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, rating: 1 });
+db.reviews.createIndex({ authorId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex(
+  { authorId: 1, targetType: 1, targetId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: { $in: ["PENDING_REVIEW", "PUBLISHED", "HIDDEN", "FLAGGED"] }
+    }
+  }
+);
+
+// Review replies indexes
+db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
+db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
+db.review_replies.createIndex(
+  { reviewId: 1, storeId: 1 },
+  { unique: true, partialFilterExpression: { status: "ACTIVE" } }
+);
 
 // Notifications indexes
+db.notifications.createIndex({ sourceKey: 1 }, { unique: true });
+db.notifications.createIndex({ recipientId: 1, createdAt: -1 });
 db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
 db.notifications.createIndex({ recipientId: 1, type: 1, createdAt: -1 });
 db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+db.notification_preferences.createIndex({ recipientId: 1 }, { unique: true });
+db.notification_devices.createIndex({ deviceToken: 1 }, { unique: true });
+db.notification_devices.createIndex({ recipientId: 1, enabled: 1 });
 
 // Reports indexes
-db.reports.createIndex({ status: 1, createdAt: 1 });
-db.reports.createIndex({ targetType: 1, targetId: 1 });
+db.reports.createIndex(
+  { reporterId: 1, targetType: 1, targetId: 1 },
+  { unique: true }
+);
+db.reports.createIndex({ status: 1, createdAt: -1 });
+db.reports.createIndex({ targetType: 1, targetId: 1, status: 1 });
+db.reports.createIndex({ targetAuthorId: 1, createdAt: -1 });
 ```
 
 ## Aggregation Examples

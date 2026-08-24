@@ -7,6 +7,10 @@
 
 The Community Service handles all social features: forum discussions, real-time chat, reviews, and notifications.
 
+Sprint 12 Forum, Sprint 13 Chat, Sprint 14 Reviews & Ratings, Sprint 15 Notifications và Sprint 16 Moderation đã hoàn thành ngày 2026-08-22.
+
+Community lấy `sub`, `fullName`, `avatar` và `role` từ access token do Identity phát hành để lưu author snapshot; access token cũ thiếu profile claims sẽ fallback về email.
+
 ## Responsibilities
 
 - Forum (posts, comments, likes)
@@ -21,7 +25,7 @@ The Community Service handles all social features: forum discussions, real-time 
 - **Framework:** NestJS
 - **Database:** MongoDB with Mongoose
 - **Real-time:** Socket.IO
-- **Cache:** Redis (Socket.IO adapter)
+- **Cache:** Redis; adapter Socket.IO dùng khi triển khai nhiều instance
 - **Push Notifications:** Firebase Cloud Messaging
 
 ## Architecture
@@ -67,7 +71,7 @@ The Community Service handles all social features: forum discussions, real-time 
   authorId: String,        // UUID from Identity
   authorName: String,
   authorAvatar: String,
-  category: String,        // BOOK_DISCUSSION, GENERAL, ANNOUNCEMENT
+  categoryId: ObjectId,    // Ref to forum_categories
   tags: [String],
   bookId: String,          // Optional: related book
   storeId: String,         // Optional: related store
@@ -77,7 +81,10 @@ The Community Service handles all social features: forum discussions, real-time 
   viewCount: Number,
   isPinned: Boolean,
   isLocked: Boolean,
-  status: String,          // PUBLISHED, HIDDEN, DELETED
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   attachments: [{
     type: String,          // IMAGE, FILE
     url: String,
@@ -89,8 +96,24 @@ The Community Service handles all social features: forum discussions, real-time 
 // Indexes
 db.forums.createIndex({ authorId: 1, createdAt: -1 });
 db.forums.createIndex({ bookId: 1, createdAt: -1 });
-db.forums.createIndex({ category: 1, createdAt: -1 });
-db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' });
+db.forums.createIndex({ categoryId: 1, status: 1, createdAt: -1 });
+db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' }, { name: 'forums_text_search' });
+```
+
+### Forum Categories Collection
+
+```javascript
+{
+  _id: ObjectId,
+  name: String,
+  slug: String,       // unique
+  description: String,
+  icon: String,
+  sortOrder: Number,
+  isActive: Boolean,
+  createdAt: Date,
+  updatedAt: Date,
+}
 ```
 
 ### Comments Collection
@@ -106,7 +129,10 @@ db.forums.createIndex({ title: 'text', content: 'text', tags: 'text' });
   likes: [String],
   likeCount: Number,
   isEdited: Boolean,
-  status: String,
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
@@ -120,20 +146,34 @@ db.comments.createIndex({ authorId: 1 });
 ```javascript
 {
   _id: ObjectId,
-  participants: [String],  // Array of user IDs
-  type: String,            // USER_USER, USER_BUSINESS
-  lastMessage: {
-    content: String,
-    senderId: String,
-    sentAt: Date,
+  participants: [{
+    type: String,          // USER, BUSINESS
+    id: String,            // Identity/store UUID
+    name: String,
+    avatar: String,
+  }],
+  type: String,            // USER_TO_STORE
+  context: {
+    type: String,          // BOOK, ORDER
+    id: String,
   },
-  unreadCount: Map,        // userId -> count
-  isActive: Boolean,
+  status: String,          // ACTIVE, CLOSED
+  lastMessage: {
+    id: ObjectId,
+    content: String,
+    senderType: String,
+    senderId: String,
+    createdAt: Date,
+  },
+  unreadCount: Map,        // participant UUID -> count
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.conversations.createIndex({ participants: 1, updatedAt: -1 });
+db.conversations.createIndex({ "participants.id": 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, updatedAt: -1 });
+db.conversations.createIndex({ type: 1, status: 1 });
+db.conversations.createIndex({ "participants.id": 1, "context.type": 1, "context.id": 1 });
 ```
 
 ### Messages Collection
@@ -142,20 +182,30 @@ db.conversations.createIndex({ participants: 1, updatedAt: -1 });
 {
   _id: ObjectId,
   conversationId: ObjectId,
+  senderType: String,      // USER, BUSINESS
   senderId: String,
+  senderName: String,
+  senderAvatar: String,
   content: String,
-  type: String,            // TEXT, IMAGE, FILE, SYSTEM
+  messageType: String,     // TEXT, IMAGE, FILE, ORDER, BOOK, SYSTEM
   attachments: [{
     type: String,
     url: String,
     name: String,
+    thumbnail: String,
+    size: Number,
   }],
   readBy: [String],        // User IDs who read
   status: String,          // SENT, DELIVERED, READ
+  deliveredAt: Date,
+  readAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
-db.messages.createIndex({ conversationId: 1, createdAt: 1 });
+db.messages.createIndex({ conversationId: 1, createdAt: -1 });
+db.messages.createIndex({ senderId: 1, createdAt: -1 });
+db.messages.createIndex({ conversationId: 1, status: 1, createdAt: -1 });
 ```
 
 ### Reviews Collection
@@ -163,27 +213,55 @@ db.messages.createIndex({ conversationId: 1, createdAt: 1 });
 ```javascript
 {
   _id: ObjectId,
-  authorId: String,
   targetType: String,      // BOOK, STORE
   targetId: String,
   rating: Number,          // 1-5
   title: String,
   content: String,
-  images: [String],
-  verified: Boolean,       // Verified purchase
-  helpful: [String],
+  authorId: String,        // UUID from Identity
+  authorName: String,
+  authorAvatar: String,
+  format: String,          // PHYSICAL, DIGITAL; book review only
+  verifiedPurchase: Boolean,
+  orderId: String,
+  sellerOrderId: String,
+  storeId: String,
+  storeOwnerId: String,    // Snapshot dùng định tuyến NEW_REVIEW
+  images: [{ url: String, thumbnail: String }],
+  helpful: [String],       // User UUIDs; hidden by default
   helpfulCount: Number,
-  response: {              // Store/Business reply
-    content: String,
-    respondedAt: Date,
-  },
-  status: String,
+  status: String,          // PENDING_REVIEW, PUBLISHED, HIDDEN, DELETED, FLAGGED
+  moderatedBy: String,
+  moderatedAt: Date,
+  moderationNote: String,
   createdAt: Date,
   updatedAt: Date,
 }
 
-db.reviews.createIndex({ targetId: 1, targetType: 1, createdAt: -1 });
-db.reviews.createIndex({ authorId: 1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ targetType: 1, targetId: 1, status: 1, rating: 1 });
+db.reviews.createIndex({ authorId: 1, status: 1, createdAt: -1 });
+db.reviews.createIndex({ storeId: 1, status: 1, createdAt: -1 });
+```
+
+### Review Replies Collection
+
+```javascript
+{
+  _id: ObjectId,
+  reviewId: ObjectId,
+  businessId: String,
+  storeId: String,
+  responderId: String,
+  businessName: String,
+  content: String,
+  status: String,          // ACTIVE, DELETED
+  createdAt: Date,
+  updatedAt: Date,
+}
+
+db.review_replies.createIndex({ reviewId: 1, status: 1, createdAt: 1 });
+db.review_replies.createIndex({ businessId: 1, createdAt: -1 });
 ```
 
 ### Notifications Collection
@@ -192,19 +270,51 @@ db.reviews.createIndex({ authorId: 1 });
 {
   _id: ObjectId,
   recipientId: String,
-  type: String,            // ORDER, CHAT, FORUM, REVIEW, SYSTEM
+  sourceKey: String,       // unique: eventId:recipientId:type
+  recipientType: String,   // USER, BUSINESS, DELIVERY, ADMIN
+  type: String,
   title: String,
-  body: String,
-  data: Object,            // Additional payload
+  message: String,
+  payload: Object,
   imageUrl: String,
-  actionUrl: String,       // Deep link
+  actionUrl: String,
   isRead: Boolean,
   readAt: Date,
+  expiresAt: Date,
   createdAt: Date,
+  updatedAt: Date,
 }
 
 db.notifications.createIndex({ recipientId: 1, createdAt: -1 });
-db.notifications.createIndex({ recipientId: 1, isRead: 1 });
+db.notifications.createIndex({ recipientId: 1, isRead: 1, createdAt: -1 });
+db.notifications.createIndex({ recipientId: 1, type: 1, createdAt: -1 });
+db.notifications.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+```
+
+### Notification Preferences & Devices
+
+```javascript
+// notification_preferences: one document per Identity user
+{
+  recipientId: String,     // unique
+  orderUpdates: Boolean,
+  promotions: Boolean,
+  newReviews: Boolean,
+  chatMessages: Boolean,
+  forumActivity: Boolean,
+  emailNotifications: { orderUpdates, promotions, newsletter },
+  pushNotifications: { enabled, orderUpdates, chatMessages },
+}
+
+// notification_devices: many devices per user, globally unique token
+{
+  recipientId: String,
+  deviceToken: String,     // unique
+  deviceType: String,      // ANDROID, IOS, WEB
+  appVersion: String,
+  enabled: Boolean,
+  lastSeenAt: Date,
+}
 ```
 
 ### Reports Collection
@@ -213,11 +323,13 @@ db.notifications.createIndex({ recipientId: 1, isRead: 1 });
 {
   _id: ObjectId,
   reporterId: String,
-  targetType: String,      // FORUM, COMMENT, REVIEW, USER, STORE
+  targetType: String,      // POST, COMMENT, REVIEW, USER, STORE
   targetId: String,
   reason: String,
   description: String,
   status: String,          // PENDING, REVIEWING, RESOLVED, DISMISSED
+  reviewedBy: String,
+  reviewedAt: Date,
   resolvedBy: String,
   resolvedAt: Date,
   action: String,          // NONE, WARN, HIDE, DELETE, BAN
@@ -225,7 +337,9 @@ db.notifications.createIndex({ recipientId: 1, isRead: 1 });
   updatedAt: Date,
 }
 
+db.reports.createIndex({ reporterId: 1, targetType: 1, targetId: 1 }, { unique: true });
 db.reports.createIndex({ status: 1, createdAt: -1 });
+db.reports.createIndex({ targetType: 1, targetId: 1, status: 1 });
 ```
 
 ## Real-time Features (Socket.IO)
@@ -257,6 +371,8 @@ const socket = io('https://api.huki-ebook.com/chat', {
 - `user:online` - User online
 - `user:offline` - User offline
 
+Các alias `join_conversation`, `leave_conversation`, `send_message`, `typing`, `new_message`, `message_read` và `user_typing` vẫn được hỗ trợ để tương thích client theo tài liệu API cũ. Socket.IO chạy cùng cổng HTTP của Community Service tại namespace `/chat`; Redis adapter chỉ cần khi scale nhiều instance.
+
 ### Scaling with Redis Adapter
 
 ```typescript
@@ -270,6 +386,7 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 
 ### Forum
 - GET /forum/posts - List posts
+- GET /forum/posts/popular - Popular published posts
 - POST /forum/posts - Create post
 - GET /forum/posts/:id - Get post
 - PATCH /forum/posts/:id - Update post
@@ -277,31 +394,62 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - POST /forum/posts/:id/like - Like post
 - GET /forum/posts/:id/comments - Get comments
 - POST /forum/posts/:id/comments - Add comment
+- POST/DELETE /forum/comments/:id/like - Like/unlike comment
+- POST /forum/comments/:id/replies - Reply to comment
+- DELETE /forum/comments/:id - Soft-delete own comment
+- GET /forum/categories - List active categories
 
 ### Chat
 - GET /chat/conversations - List conversations
 - POST /chat/conversations - Start conversation
+- GET /chat/conversations/:id - Conversation detail with paginated messages
 - GET /chat/conversations/:id/messages - Get messages
 - POST /chat/conversations/:id/messages - Send message
+- PATCH /chat/conversations/:id/read - Mark incoming messages as read
+- POST /chat/conversations/:id/close - Close conversation
 
 ### Reviews
-- POST /reviews - Create review
-- GET /reviews/book/:bookId - Get book reviews
-- GET /reviews/store/:storeId - Get store reviews
+- GET/POST /books/:id/reviews - List/create book review
+- GET/POST /stores/:id/reviews - List/create store review
 - PATCH /reviews/:id - Update review
 - DELETE /reviews/:id - Delete review
+- POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
+- POST /reviews/:id/reply - Reply as owning business
+
+Review creation gọi Commerce Service để xác minh đơn hoàn thành. Business reply gọi Business Service để xác minh thành viên thuộc cửa hàng. Review mới/sau chỉnh sửa vào `PENDING_REVIEW` hoặc `FLAGGED`, sau đó Platform Admin duyệt qua Moderation API.
+
+### Reports & Moderation
+- POST /forum/posts/:id/report - Report forum post
+- POST /forum/comments/:id/report - Report comment/reply
+- POST /reviews/:id/report - Report review
+- GET /admin/moderation/reports - List/filter reports (Platform Admin)
+- GET /admin/moderation/reports/:id - Report detail (Platform Admin)
+- PATCH /admin/moderation/reports/:id/review - Start review (Platform Admin)
+- PATCH /admin/moderation/reports/:id/resolve - Resolve/dismiss (Platform Admin)
+- GET /admin/moderation/queue - Pending/flagged content (Platform Admin)
+- PATCH /admin/moderation/content/:targetType/:id - Approve/hide/delete (Platform Admin)
 
 ### Notifications
-- GET /notifications - Get notifications
+- GET /notifications - List/filter notifications and unread count
+- GET /notifications/:id - Notification detail
 - PATCH /notifications/:id/read - Mark as read
-- PATCH /notifications/read-all - Mark all as read
+- POST /notifications/read-all - Mark all as read
+- DELETE /notifications/:id - Delete one
+- DELETE /notifications/clear-all - Delete all
+- GET/PATCH /notifications/settings - Get/update preferences
+- POST /notifications/device - Register/refresh FCM token
+- DELETE /notifications/device/:token - Unregister FCM token
+
+Socket.IO namespace `/notifications` xác thực JWT, tự join room `user:<sub>` và phát `notification`, `notification_read`, `notification_read_all`.
 
 ## Content Moderation
 
-- Auto-flag posts with profanity
-- Manual review queue for reported content
-- Admin actions: warn, hide, delete, ban
-- Rate limiting for posts/comments
+- Report unique theo reporter/target và không cho tự report.
+- Manual queue cho post, comment và review `PENDING_REVIEW`/`FLAGGED`.
+- Workflow report: `PENDING → REVIEWING → RESOLVED/DISMISSED`.
+- Admin actions: approve, warn, hide, delete, ban; quyết định lưu người xử lý, thời gian và ghi chú.
+- Auto-flag từ khóa cấm, link spam và ký tự lặp bất thường.
+- Rate limiting cho post, comment/reply, review và report.
 
 ## Events
 
@@ -312,33 +460,50 @@ await app.useWebSocketAdapter(new RedisAdapter(redisClient, redisClient.duplicat
 - `review.created`
 - `notification.created`
 - `user.reported`
+- `user.moderation.requested`
+- `moderation.report.resolved`
 
 ### Received
-- `order.delivered` → Send review request notification
-- `order.paid` → Notify seller
-- `business.approved` → Welcome notification
+- Order/Payment: `ORDER_CREATED`, `ORDER_PAID`, `ORDER_CANCELLED`, `ORDER_COMPLETED`, `SELLER_ORDER_CONFIRMED`, `SELLER_ORDER_SHIPPED`, `SELLER_ORDER_CANCELLED`, `PAYMENT_FAILED`.
+- Shipping: `shipment.staff-assigned`, `shipment.out_for_delivery`, `shipment.delivered`, `shipment.failed`.
+- Community: `chat.message.sent`, `review.created`, `forum.comment.created`.
+
+Consumer dùng `sourceKey` unique để chống lặp. Preferences được kiểm tra trước khi lưu; sau khi lưu mới phát Socket.IO, gửi FCM và emit `notification.created`.
 
 ## Configuration
 
 ```env
 MONGODB_URI=mongodb://localhost:27017/community_db
+RABBITMQ_URL=amqp://guest:guest123@localhost:5672
+RABBITMQ_EXCHANGE=huki.events
 REDIS_HOST=localhost
 REDIS_PORT=6379
+
+# Chat attachments
+CLOUDINARY_CLOUD_NAME=xxx
+CLOUDINARY_API_KEY=xxx
+CLOUDINARY_API_SECRET=xxx
 
 # Firebase (Push Notifications)
 FIREBASE_PROJECT_ID=xxx
 FIREBASE_PRIVATE_KEY=xxx
 FIREBASE_CLIENT_EMAIL=xxx
 
-# Socket.IO
-SOCKET_PORT=3005
+# Socket.IO (same port as Community Service)
 SOCKET_CORS_ORIGIN=*
+
+# Review purchase/business verification
+COMMERCE_SERVICE_URL=http://localhost:3003
+BUSINESS_SERVICE_URL=http://localhost:3002
 ```
+
+Firebase Admin tự tắt khi credentials thiếu/còn placeholder để local vẫn chạy. Production phải dùng service-account credentials thật; `FIREBASE_PRIVATE_KEY` dùng `\n` cho newline khi lưu trên một dòng.
 
 ## Local Development
 
 ```bash
 npm install
+npm run test:community
 npm run start:community
 ```
 
@@ -347,4 +512,6 @@ npm run start:community
 - [API Reference](../../04-API-REFERENCE/endpoints/forum.md)
 - [API Reference - Chat](../../04-API-REFERENCE/endpoints/chat.md)
 - [API Reference - Reviews](../../04-API-REFERENCE/endpoints/reviews.md)
+- [API Reference - Notifications](../../04-API-REFERENCE/endpoints/notifications.md)
+- [API Reference - Moderation](../../04-API-REFERENCE/endpoints/moderation.md)
 - [Database Schema](../../05-DATABASE/community-db/README.md)

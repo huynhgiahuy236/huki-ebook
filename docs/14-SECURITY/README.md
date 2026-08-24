@@ -1,4 +1,4 @@
-# 🔒 Security Guidelines
+﻿# 🔒 Security Guidelines
 
 Hướng dẫn bảo mật cho dự án.
 
@@ -112,8 +112,8 @@ const query = `SELECT * FROM users WHERE id = '${userId}'`;
 const query = `SELECT * FROM users WHERE id = $1`;
 await db.query(query, [userId]);
 
-// Using TypeORM
-const user = await userRepo.findOne({
+// Using Prisma (values are parameterized)
+const user = await prisma.user.findUnique({
   where: { id: userId }, // Safe
 });
 ```

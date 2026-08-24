@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/out-tsc",
+    "outDir": "../../dist/apps/commerce-service",
     "module": "commonjs",
     "types": ["node", "multer"]
   },
+  "include": ["src/**/*.ts", "config/**/*.ts", "prisma/generated/**/*.d.ts"],
   "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
 }

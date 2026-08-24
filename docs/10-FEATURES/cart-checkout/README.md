@@ -1,4 +1,4 @@
-# 🛒 Cart & Checkout Feature
+﻿# 🛒 Cart & Checkout Feature
 
 Tài liệu về Cart và Checkout flow.
 
@@ -204,7 +204,7 @@ async function addToCart(userId: string, dto: AddToCartDto): Promise<Cart> {
 │  ┌──────────────────┐                                                   │
 │  │  PAYMENT         │                                                   │
 │  │  - User pays via │                                                   │
-│  │    VNPay/Momo    │                                                   │
+│  │    PayOS    │                                                   │
 │  │  - Webhook       │                                                   │
 │  │    confirms      │                                                   │
 │  └────────┬─────────┘                                                   │
@@ -214,7 +214,7 @@ async function addToCart(userId: string, dto: AddToCartDto): Promise<Cart> {
 │  Success      Failed                                                     │
 │     │           │                                                       │
 │     ▼           ▼                                                       │
-│  Order status = PAID  →  Order cancelled                               │
+│  Payment = SUCCEEDED  →  Refund request                                │
 │  Grant book access     Stock released                                  │
 │  Notify user           Refund if paid                                 │
 │                                                                          │
@@ -337,94 +337,50 @@ async function previewCheckout(userId: string, dto: PreviewCheckoutDto): Promise
 
 ```typescript
 async function createOrder(userId: string, dto: ConfirmCheckoutDto): Promise<Order> {
-  return this.db.transaction(async (manager) => {
-    // 1. Reserve stock for all physical items
-    await this.reserveStock(manager, cartItems.filter(i => i.format === 'PHYSICAL'));
-
-    // 2. Create main order
-    const order = await manager.save(Order, {
-      userId,
-      orderCode: await this.generateOrderCode(),
-      subtotal: preview.subtotal,
-      shippingTotal: preview.shippingTotal,
-      discountTotal: preview.voucherDiscount,
-      grandTotal: preview.grandTotal,
-      paymentMethod: dto.paymentMethod,
-      paymentStatus: 'PENDING',
-      orderStatus: 'PENDING',
-      shippingAddress: dto.shippingAddress,
-    });
-
-    // 3. Create SellerOrders (one per store)
-    const storeGroups = this.groupByStore(cartItems);
-    
-    for (const group of storeGroups) {
-      const hasPhysical = group.items.some(i => i.format === 'PHYSICAL');
-      
-      // Get shipping quote
-      let shippingFee = 0;
-      if (hasPhysical) {
-        shippingFee = await this.shippingService.createShipment({
-          storeId: group.storeId,
-          address: dto.shippingAddress,
-        });
-      }
-
-      // Calculate store discount (if voucher applies to this store)
-      const storeDiscount = this.calculateStoreDiscount(group, preview.voucher);
-
-      const sellerOrder = await manager.save(SellerOrder, {
-        orderId: order.id,
-        sellerOrderCode: await this.generateSellerOrderCode(),
-        storeId: group.storeId,
-        businessId: group.businessId,
-        itemsSubtotal: group.itemsSubtotal,
-        discountAmount: storeDiscount,
-        shippingFee,
-        totalAmount: group.itemsSubtotal - storeDiscount + shippingFee,
-        fulfillmentStatus: 'PENDING',
-      });
-
-      // Create order items
-      for (const item of group.items) {
-        await manager.save(OrderItem, {
-          sellerOrderId: sellerOrder.id,
-          bookId: item.bookId,
-          bookTitleSnapshot: item.book.title,
-          coverSnapshotUrl: item.book.coverUrl,
-          format: item.format,
-          unitPrice: item.book.price,
-          quantity: item.quantity,
-          subtotal: item.subtotal,
-        });
-      }
-    }
-
-    // 4. Create payment
-    const payment = await manager.save(Payment, {
-      orderId: order.id,
-      paymentCode: await this.generatePaymentCode(),
-      provider: dto.paymentProvider,
-      paymentMethod: dto.paymentMethod,
-      amount: preview.grandTotal,
-      status: 'PENDING',
-    });
-
-    // 5. Create voucher usage if voucher applied
-    if (preview.voucher) {
-      await manager.save(VoucherUsage, {
-        voucherId: preview.voucher.id,
+  return this.prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
         userId,
-        orderId: order.id,
-        discountAmount: preview.voucherDiscount,
-        status: 'RESERVED',
+        code: this.generateOrderCode(),
+        itemSubtotal: preview.itemSubtotal,
+        shippingTotal: preview.shippingTotal,
+        discountTotal: preview.discountTotal,
+        grandTotal: preview.grandTotal,
+        paymentMethod: dto.paymentMethod,
+        paymentProvider: dto.paymentMethod === 'ONLINE_PAYMENT' ? 'PAYOS' : 'COD',
+        paymentStatus: 'PENDING',
+        status: dto.paymentMethod === 'COD' ? 'PROCESSING' : 'PENDING_PAYMENT',
+        shippingAddress: preview.shippingAddress,
+      },
+    });
+
+    for (const group of preview.groups) {
+      const sellerOrder = await tx.sellerOrder.create({
+        data: {
+          orderId: order.id,
+          code: this.generateSellerOrderCode(),
+          storeId: group.storeId,
+          ownerUserId: group.ownerUserId,
+          itemSubtotal: group.itemSubtotal,
+          shippingFee: group.shippingFee,
+          grandTotal: group.grandTotal,
+          status: dto.paymentMethod === 'COD' ? 'PENDING_CONFIRMATION' : 'PENDING_PAYMENT',
+        },
       });
+      const items = await Promise.all(group.items.map(item =>
+        tx.orderItem.create({ data: { ...item, sellerOrderId: sellerOrder.id } }),
+      ));
+      await this.reservations.reserve(tx, order.id, items);
     }
 
-    // 6. Clear cart
-    await manager.delete(CartItem, { userId });
-
-    return { order, payment };
+    // Online payment attempt is created only when /payments/.../initiate is called.
+    if (dto.paymentMethod === 'COD') {
+      await tx.payment.create({
+        data: { orderId: order.id, amount: order.grandTotal, method: 'COD', provider: 'COD' },
+      });
+    }
+    await tx.cartItem.deleteMany({ where: { cartId: preview.cartId } });
+    return order;
   });
 }
 ```
@@ -474,6 +430,6 @@ Content-Type: application/json
 {
   "sessionId": "checkout-session-uuid",
   "paymentMethod": "ONLINE_PAYMENT",
-  "paymentProvider": "VNPAY"
+  "paymentProvider": "PAYOS"
 }
 ```

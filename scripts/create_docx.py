@@ -461,7 +461,7 @@ Các điểm nổi bật của hệ thống:
 
     future_items = [
         "Phát triển Mobile Application (Flutter)",
-        "Tích hợp thêm cổng thanh toán (VNPay, MoMo)",
+        "Hoàn thiện đối soát và vận hành cổng thanh toán PayOS",
         "Triển khai AI cho gợi ý sách",
         "Hệ thống khuyến nghị cá nhân hóa",
         "Tính năng audiobook"

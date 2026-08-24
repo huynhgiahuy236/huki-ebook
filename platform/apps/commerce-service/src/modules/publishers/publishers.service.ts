@@ -19,6 +19,7 @@ export class PublishersService {
     return this.prisma.publisher.create({
       data: {
         name,
+        normalizedName,
         slug,
         description: dto.description?.trim() || null,
         logo: dto.logoUrl ?? null,
@@ -60,6 +61,7 @@ export class PublishersService {
       where: { id },
       data: {
         name,
+        normalizedName,
         slug,
         description: dto.description === undefined ? existing.description : dto.description?.trim() || null,
         logo: dto.logoUrl === undefined ? existing.logo : dto.logoUrl,

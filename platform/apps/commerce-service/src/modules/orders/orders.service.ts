@@ -1,20 +1,35 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { CancelOrderDto, ShipOrderDto } from './dto/checkout.dto';
 import { OrderQueryDto, SellerOrderQueryDto } from './dto/order-query.dto';
 import { InventoryReservationService } from './inventory-reservation.service';
-import { SellerOrderStatus, Prisma } from '@prisma/client';
+import { SellerOrderStatus, Prisma } from '../../../prisma/generated/client';
+import { ORDER_EVENTS } from '../../../../../libs/shared/src';
+import { OrderCompletionService } from './order-completion.service';
 
-const IMMUTABLE = new Set([SellerOrderStatus.COMPLETED, SellerOrderStatus.CANCELLED]);
-const SHIPPED = new Set([SellerOrderStatus.SHIPPED, SellerOrderStatus.DELIVERED, SellerOrderStatus.COMPLETED]);
+const IMMUTABLE = new Set<SellerOrderStatus>([
+  SellerOrderStatus.COMPLETED,
+  SellerOrderStatus.CANCELLED,
+]);
+const SHIPPED = new Set<SellerOrderStatus>([
+  SellerOrderStatus.SHIPPED,
+  SellerOrderStatus.DELIVERED,
+  SellerOrderStatus.COMPLETED,
+]);
 
 @Injectable()
 export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reservations: InventoryReservationService,
+    private readonly completion: OrderCompletionService,
   ) {}
 
   async buyerList(userId: string, query: OrderQueryDto) {
@@ -81,45 +96,74 @@ export class OrdersService {
   }
 
   async confirm(actor: BookActor, id: string) {
-    return this.transition(actor, id, [SellerOrderStatus.PENDING_CONFIRMATION], async (tx, sellerOrder) => {
-      await tx.sellerOrder.update({
-        where: { id },
-        data: { confirmedAt: new Date() },
-      });
-      return sellerOrder.requiresShipping ? SellerOrderStatus.CONFIRMED : SellerOrderStatus.COMPLETED;
-    }, 'Seller confirmed order');
+    return this.transition(
+      actor,
+      id,
+      [SellerOrderStatus.PENDING_CONFIRMATION],
+      async (tx, sellerOrder) => {
+        await tx.sellerOrder.update({
+          where: { id },
+          data: { confirmedAt: new Date() },
+        });
+        return sellerOrder.requiresShipping
+          ? SellerOrderStatus.CONFIRMED
+          : SellerOrderStatus.COMPLETED;
+      },
+      'Seller confirmed order',
+    );
   }
 
   async prepare(actor: BookActor, id: string) {
-    return this.transition(actor, id, [SellerOrderStatus.CONFIRMED], async () => {
-      return SellerOrderStatus.PREPARING;
-    }, 'Seller is preparing order');
+    return this.transition(
+      actor,
+      id,
+      [SellerOrderStatus.CONFIRMED],
+      async () => {
+        return SellerOrderStatus.PREPARING;
+      },
+      'Seller is preparing order',
+    );
   }
 
   async ship(actor: BookActor, id: string, dto: ShipOrderDto) {
-    return this.transition(actor, id, [SellerOrderStatus.PREPARING], async (tx, sellerOrder) => {
-      const itemIds = sellerOrder.items.map((item) => item.id);
-      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
-      await tx.sellerOrder.update({
-        where: { id },
-        data: {
-          carrier: dto.carrier,
-          trackingCode: dto.trackingCode,
-          shippedAt: new Date(),
-        },
-      });
-      return SellerOrderStatus.SHIPPED;
-    }, 'Order handed to carrier', { carrier: dto.carrier, trackingCode: dto.trackingCode });
+    return this.transition(
+      actor,
+      id,
+      [SellerOrderStatus.PREPARING],
+      async (tx, sellerOrder) => {
+        const itemIds = sellerOrder.items.map(
+          (item: { id: string }) => item.id,
+        );
+        await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+        await tx.sellerOrder.update({
+          where: { id },
+          data: {
+            carrier: dto.carrier,
+            trackingCode: dto.trackingCode,
+            shippedAt: new Date(),
+          },
+        });
+        return SellerOrderStatus.SHIPPED;
+      },
+      'Order handed to carrier',
+      { carrier: dto.carrier, trackingCode: dto.trackingCode },
+    );
   }
 
   async deliver(actor: BookActor, id: string) {
-    return this.transition(actor, id, [SellerOrderStatus.SHIPPED], async (tx) => {
-      await tx.sellerOrder.update({
-        where: { id },
-        data: { completedAt: new Date() },
-      });
-      return SellerOrderStatus.COMPLETED;
-    }, 'Order delivered');
+    return this.transition(
+      actor,
+      id,
+      [SellerOrderStatus.SHIPPED],
+      async (tx, sellerOrder) => {
+        await tx.sellerOrder.update({
+          where: { id },
+          data: { completedAt: new Date() },
+        });
+        return SellerOrderStatus.COMPLETED;
+      },
+      'Order delivered',
+    );
   }
 
   async cancelBuyer(userId: string, id: string, dto: CancelOrderDto) {
@@ -131,7 +175,9 @@ export class OrdersService {
       if (!order) throw new NotFoundException('Order not found');
 
       if (order.sellerOrders.some((item) => SHIPPED.has(item.status))) {
-        throw new ConflictException('An order cannot be cancelled after shipment');
+        throw new ConflictException(
+          'An order cannot be cancelled after shipment',
+        );
       }
 
       const now = new Date();
@@ -153,9 +199,7 @@ export class OrdersService {
 
       await this.reservations.release(tx as any, order.id, itemIds);
 
-      const newStatus = order.sellerOrders.every((s) => s.status === SellerOrderStatus.CANCELLED)
-        ? 'CANCELLED'
-        : 'PARTIALLY_CANCELLED';
+      const newStatus = 'CANCELLED';
 
       await tx.order.update({
         where: { id },
@@ -163,7 +207,10 @@ export class OrdersService {
           status: newStatus,
           cancelReason: dto.reason,
           cancelledAt: now,
-          paymentStatus: order.paymentStatus === 'SUCCEEDED' ? 'REFUND_PENDING' : order.paymentStatus,
+          paymentStatus:
+            order.paymentStatus === 'SUCCEEDED'
+              ? 'REFUND_PENDING'
+              : order.paymentStatus,
         },
       });
 
@@ -181,9 +228,21 @@ export class OrdersService {
       await tx.outboxEvent.create({
         data: {
           eventId: randomBytes(16).toString('hex'),
-          type: 'order.cancelled',
+          type: ORDER_EVENTS.CANCELLED,
           aggregateId: order.id,
-          payload: { orderId: order.id, reason: dto.reason },
+          payload: {
+            orderId: order.id,
+            orderCode: order.code,
+            userId: order.userId,
+            reason: dto.reason,
+            sellerOrders: order.sellerOrders.map(
+              ({ id: sellerOrderId, ownerUserId, storeId }) => ({
+                sellerOrderId,
+                ownerUserId,
+                storeId,
+              }),
+            ),
+          },
           status: 'PENDING',
         },
       });
@@ -200,7 +259,10 @@ export class OrdersService {
       });
       this.assertSeller(sellerOrder, actor);
 
-      if (SHIPPED.has(sellerOrder!.status) || IMMUTABLE.has(sellerOrder!.status)) {
+      if (
+        SHIPPED.has(sellerOrder!.status) ||
+        IMMUTABLE.has(sellerOrder!.status)
+      ) {
         throw new ConflictException('Seller order can no longer be cancelled');
       }
 
@@ -228,12 +290,28 @@ export class OrdersService {
         },
       });
 
+      await this.completion.completeIfReady(tx, sellerOrder!.orderId);
+
       await tx.outboxEvent.create({
         data: {
           eventId: randomBytes(16).toString('hex'),
-          type: 'seller-order.cancelled',
+          type: ORDER_EVENTS.SELLER_CANCELLED,
           aggregateId: sellerOrder!.orderId,
-          payload: { sellerOrderId: sellerOrder!.id, reason: dto.reason },
+          payload: {
+            orderId: sellerOrder!.orderId,
+            orderCode: sellerOrder!.order.code,
+            userId: sellerOrder!.order.userId,
+            sellerOrderId: sellerOrder!.id,
+            requiresShipping: sellerOrder!.requiresShipping,
+            sellerOrders: [
+              {
+                sellerOrderId: sellerOrder!.id,
+                ownerUserId: sellerOrder!.ownerUserId,
+                storeId: sellerOrder!.storeId,
+              },
+            ],
+            reason: dto.reason,
+          },
           status: 'PENDING',
         },
       });
@@ -257,9 +335,15 @@ export class OrdersService {
     return {
       orderId: id,
       status: order.status,
-      sellers: order.sellerOrders.map(({ id, code, status, carrier, trackingCode }) => ({
-        id, code, status, carrier, trackingCode,
-      })),
+      sellers: order.sellerOrders.map(
+        ({ id, code, status, carrier, trackingCode }) => ({
+          id,
+          code,
+          status,
+          carrier,
+          trackingCode,
+        }),
+      ),
       timeline,
     };
   }
@@ -281,7 +365,9 @@ export class OrdersService {
       this.assertSeller(sellerOrder, actor);
 
       if (!allowed.includes(sellerOrder!.status)) {
-        throw new ConflictException(`Cannot transition from ${sellerOrder!.status}`);
+        throw new ConflictException(
+          `Cannot transition from ${sellerOrder!.status}`,
+        );
       }
 
       const fromStatus = sellerOrder!.status;
@@ -291,7 +377,8 @@ export class OrdersService {
         where: { id },
         data: {
           status: newStatus,
-          completedAt: newStatus === SellerOrderStatus.COMPLETED ? new Date() : undefined,
+          completedAt:
+            newStatus === SellerOrderStatus.COMPLETED ? new Date() : undefined,
         },
       });
 
@@ -304,15 +391,35 @@ export class OrdersService {
           title,
           actorType: 'SELLER',
           actorId: actor.sub,
+          metadata: metadata as Prisma.InputJsonValue | undefined,
         },
       });
+
+      if (newStatus === SellerOrderStatus.COMPLETED) {
+        await this.completion.completeIfReady(tx, sellerOrder!.orderId);
+      }
 
       await tx.outboxEvent.create({
         data: {
           eventId: randomBytes(16).toString('hex'),
-          type: 'seller-order.status-changed',
+          type:
+            newStatus === SellerOrderStatus.CONFIRMED ||
+            newStatus === SellerOrderStatus.COMPLETED
+              ? ORDER_EVENTS.SELLER_CONFIRMED
+              : newStatus === SellerOrderStatus.SHIPPED
+                ? ORDER_EVENTS.SELLER_SHIPPED
+                : 'SELLER_ORDER_STATUS_CHANGED',
           aggregateId: sellerOrder!.orderId,
-          payload: { sellerOrderId: sellerOrder!.id, from: fromStatus, to: newStatus },
+          payload: {
+            orderId: sellerOrder!.orderId,
+            orderCode: sellerOrder!.order.code,
+            userId: sellerOrder!.order.userId,
+            sellerOrderId: sellerOrder!.id,
+            ownerUserId: sellerOrder!.ownerUserId,
+            storeId: sellerOrder!.storeId,
+            from: fromStatus,
+            to: newStatus,
+          },
           status: 'PENDING',
         },
       });
@@ -324,7 +431,9 @@ export class OrdersService {
   private assertSeller(order: any, actor: BookActor): asserts order {
     if (!order) throw new NotFoundException('Seller order not found');
     if (actor.role !== 'PLATFORM_ADMIN' && order.ownerUserId !== actor.sub) {
-      throw new ForbiddenException('Seller order does not belong to this account');
+      throw new ForbiddenException(
+        'Seller order does not belong to this account',
+      );
     }
   }
 
@@ -377,16 +486,18 @@ export class OrdersService {
       createdAt: sellerOrder.createdAt,
       updatedAt: sellerOrder.updatedAt,
       items: sellerOrder.items,
-      order: sellerOrder.order ? {
-        id: sellerOrder.order.id,
-        code: sellerOrder.order.code,
-        status: sellerOrder.order.status,
-        paymentMethod: sellerOrder.order.paymentMethod,
-        paymentStatus: sellerOrder.order.paymentStatus,
-        shippingAddress: sellerOrder.order.shippingAddress,
-        note: sellerOrder.order.note,
-        createdAt: sellerOrder.order.createdAt,
-      } : null,
+      order: sellerOrder.order
+        ? {
+            id: sellerOrder.order.id,
+            code: sellerOrder.order.code,
+            status: sellerOrder.order.status,
+            paymentMethod: sellerOrder.order.paymentMethod,
+            paymentStatus: sellerOrder.order.paymentStatus,
+            shippingAddress: sellerOrder.order.shippingAddress,
+            note: sellerOrder.order.note,
+            createdAt: sellerOrder.order.createdAt,
+          }
+        : null,
     };
   }
 }

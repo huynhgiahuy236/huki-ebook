@@ -1,85 +1,95 @@
-# 📋 PHASE 3: Payment & Shipping
-**Thời gian ước tính: 3-4 tuần**
+﻿# PHASE 3: Payment & Shipping
+
+**Thời gian ước tính:** 3-4 tuần
 
 ## Mục tiêu
-- Payment integration (VNPay, MoMo, COD)
-- Shipping Service
-- Order completion flow
 
----
+- Thanh toán online qua PayOS và thanh toán COD.
+- Theo dõi hoàn tiền toàn phần/một phần.
+- Shipping Service và luồng hoàn tất đơn hàng.
 
-## 🐙 Tasks
+## Sprint 9: Payment Integration — Hoàn thành 2026-08-21
 
-### Sprint 9: Payment Integration (1.5 tuần)
+| Task | Người | Priority | Mô tả | Trạng thái |
+|---|---|---|---|---|
+| T9.1 | KIEN | HIGH | Prisma schema và migration cho `payments`, `refunds` | ✅ |
+| T9.2 | KIEN | HIGH | Tạo/reuse payment link PayOS | ✅ |
+| T9.3 | KIEN | HIGH | Webhook PayOS đúng contract, kiểm tra HMAC-SHA256 | ✅ |
+| T9.4 | KIEN | HIGH | Idempotency, đối chiếu số tiền và transaction | ✅ |
+| T9.5 | KIEN | HIGH | Quản lý trạng thái payment/order/seller-order | ✅ |
+| T9.6 | HUY | HIGH | COD cho đơn chỉ có sách vật lý; ghi nhận khi giao xong | ✅ |
+| T9.7 | HUY | MEDIUM | Refund toàn phần/một phần và đối soát PayOS | ✅ |
+| T9.8 | KIEN | MEDIUM | Timeout payment, nhả tồn kho, test và Swagger | ✅ |
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T9.1 | KIEN | HIGH | Database schema: payments, refunds |
-| T9.2 | KIEN | HIGH | Payment initiation (VNPay, MoMo) |
-| T9.3 | KIEN | HIGH | VNPay callback handling |
-| T9.4 | KIEN | HIGH | MoMo callback handling |
-| T9.5 | KIEN | HIGH | Payment status management |
-| T9.6 | HUY | HIGH | COD payment option |
-| T9.7 | HUY | MEDIUM | Refund request flow |
-| T9.8 | KIEN | MEDIUM | Payment verification |
+### Luồng PayOS đã triển khai
 
----
+1. Checkout tạo order `ONLINE_PAYMENT`, provider được chuẩn hóa thành `PAYOS`.
+2. `POST /api/v1/payments/orders/:orderId/initiate` tạo hoặc trả lại link PayOS còn hiệu lực.
+3. PayOS gửi `{ code, desc, success, data, signature }` tới `POST /api/v1/payments/webhooks/payos`.
+4. Backend bắt buộc có credentials, xác thực signature trong body, kiểm tra order code và số tiền.
+5. Transaction Prisma cập nhật payment/order/seller-order, tạo outbox event và cấp quyền sách số.
+6. Webhook lặp được acknowledge nhưng không xử lý lại.
+7. Payment link quá hạn được job nội bộ quét mỗi phút; order bị hủy và inventory reservation được nhả.
 
-### Sprint 10: Shipping Service (1 tuần)
+### Refund
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T10.1 | HUY | HIGH | Database schema: shipments, delivery_staff |
-| T10.2 | HUY | HIGH | Shipping fee calculation (GHTK mock) |
-| T10.3 | HUY | HIGH | Shipment creation on order |
-| T10.4 | HUY | HIGH | Shipment tracking |
-| T10.5 | HUY | HIGH | Delivery staff assignment |
-| T10.6 | KIEN | MEDIUM | GHTK integration (mock) |
-| T10.7 | HUY | MEDIUM | Delivery status updates |
+- Buyer hoặc platform admin tạo refund request.
+- PayOS không được giả định có API refund tự động trong code. Sau khi thao tác/đối soát trên PayOS, chỉ platform admin được gọi endpoint settle để ghi kết quả.
+- Refund đủ số tiền chuyển order sang `REFUNDED` và thu hồi quyền sách số; refund một phần dùng `PARTIAL_REFUND`.
 
----
+## Sprint 10: Shipping Service — Hoàn thành 2026-08-21
 
-### Sprint 11: Order Completion & Events (1 tuần)
+| Task | Người | Priority | Mô tả | Trạng thái |
+|---|---|---|---|---|
+| T10.1 | HUY | HIGH | Database schema: shipments, delivery_staff | ✅ |
+| T10.2 | HUY | HIGH | Shipping fee calculation (GHTK mock) | ✅ |
+| T10.3 | HUY | HIGH | Shipment creation on order | ✅ |
+| T10.4 | HUY | HIGH | Shipment tracking | ✅ |
+| T10.5 | HUY | HIGH | Delivery staff assignment | ✅ |
+| T10.6 | KIEN | MEDIUM | GHTK integration (mock) | ✅ |
+| T10.7 | HUY | MEDIUM | Delivery status updates | ✅ |
 
-| Task | Người | Priority | Mô tả |
-|------|-------|---------|--------|
-| T11.1 | KIEN | HIGH | Events: ORDER_CREATED, ORDER_PAID, ORDER_CANCELLED |
-| T11.2 | KIEN | HIGH | Events: PAYMENT_SUCCEEDED, PAYMENT_FAILED |
-| T11.3 | HUY | HIGH | Event consumer: inventory management |
-| T11.4 | HUY | HIGH | Order completion flow |
-| T11.5 | KIEN | HIGH | Order confirmation notifications |
-| T11.6 | HUY | MEDIUM | Order history |
+### Luồng Shipping đã triển khai
 
----
+1. Commerce ghi `ORDER_CREATED` với địa chỉ và các seller order; Shipping chỉ tạo shipment cho nhóm vật lý.
+2. Shipping tạo shipment idempotent theo `sellerOrderId`, tính phí và sinh tracking GHTK mock.
+3. Shipment đi theo `PENDING → PICKED_UP → IN_TRANSIT → OUT_FOR_DELIVERY → DELIVERED`; nhánh lỗi hỗ trợ retry/return/cancel.
+4. Callback GHTK xác thực HMAC-SHA256 và chống trùng bằng `eventId`.
+5. Platform admin phân công delivery staff; buyer/business/admin chỉ xem đúng phạm vi dữ liệu.
+6. Mọi thay đổi trạng thái ghi timeline và outbox; Sprint 11 publish/consume các event này qua RabbitMQ.
 
-## 📊 Progress Tracking
+## Sprint 11: Order Completion & Events — Hoàn thành 2026-08-21
 
-```
-✅ Sprint 9: Payment Integration
-✅ Sprint 10: Shipping Service
-✅ Sprint 11: Order Completion & Events
+| Task | Người | Priority | Mô tả | Trạng thái |
+|---|---|---|---|---|
+| T11.1 | KIEN | HIGH | Events: ORDER_CREATED, ORDER_PAID, ORDER_CANCELLED | ✅ |
+| T11.2 | KIEN | HIGH | Events: PAYMENT_SUCCEEDED, PAYMENT_FAILED | ✅ |
+| T11.3 | HUY | HIGH | Event consumer: inventory management | ✅ |
+| T11.4 | HUY | HIGH | Order completion flow | ✅ |
+| T11.5 | KIEN | HIGH | Order confirmation notifications | ✅ |
+| T11.6 | HUY | MEDIUM | Order history | ✅ |
 
-📦 Deliverables Phase 3:
-- [ ] VNPay integration
-- [ ] MoMo integration
-- [ ] COD payment
-- [ ] Refund flow
-- [ ] Shipping fee calculation
-- [ ] Shipment tracking
-- [ ] Event-driven order flow
-```
+### Luồng event và hoàn tất đơn đã triển khai
 
----
+1. Commerce và Shipping ghi event cùng transaction nghiệp vụ bằng Prisma outbox; publisher đóng gói theo `DomainEvent` v1 và gửi qua topic exchange `huki.events`.
+2. Publisher claim từng row `PENDING`, retry tối đa 3 lần; consumer cũng retry tối đa 3 lần rồi chuyển message sang queue `.dlq`.
+3. Shipping consume `ORDER_CREATED` để tạo shipment idempotent và `ORDER_CANCELLED` để hủy các shipment chưa terminal.
+4. Commerce consume event shipping: `shipment.picked_up` commit reservation, các trạng thái vận chuyển cập nhật seller order và timeline, `shipment.delivered` kích hoạt kiểm tra hoàn tất parent order.
+5. Khi toàn bộ seller order hoàn tất, parent order chuyển `COMPLETED`; COD được ghi nhận `SUCCEEDED` và phát `ORDER_COMPLETED`, `ORDER_PAID`, `PAYMENT_SUCCEEDED`.
+6. Community consume event order/payment, tạo notification idempotent cho buyer và business owner. Mỗi consumer lưu `eventId` trong inbox/source key để không xử lý lặp.
+7. Buyer xem lịch sử bất biến tại `GET /api/v1/orders/:id/history` hoặc dữ liệu tương đương tại endpoint tracking.
 
-## 🔗 Dependencies
+## Deliverables Phase 3
 
-- Sprint 9 cần Sprint 8 (Orders) xong
-- Sprint 10 có thể chạy song song với Sprint 9
-- Sprint 11 cần Sprint 9, 10 xong
+- [x] PayOS integration
+- [x] COD payment
+- [x] Refund flow
+- [x] Shipping fee calculation
+- [x] Shipment tracking
+- [x] Event consumers cho toàn bộ order flow
 
----
+## Dependencies
 
-## 📝 Notes
-
-**KIEN:** Payment, Events, Notifications
-**HUY:** Shipping, Refunds, Integration
+- Sprint 9 phụ thuộc Sprint 8 và đã hoàn thành.
+- Sprint 10 có thể chạy độc lập trên Shipping Service.
+- Sprint 11 cần Sprint 9 và Sprint 10 hoàn thành.

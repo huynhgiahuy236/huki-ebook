@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsUUID, Max, Min } from 'class-validator';
-import { CartItemFormat } from '@prisma/client';
+import { CartItemFormat } from '../../../../prisma/generated/client';
 
 export class AddCartItemDto {
   @IsUUID()

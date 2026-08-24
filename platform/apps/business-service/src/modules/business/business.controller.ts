@@ -13,7 +13,7 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
-import { Public } from '../../../shared/decorators/public.decorator';
+import { Public } from '../../../../../libs/shared/src/decorators/public.decorator';
 
 @ApiTags('Business')
 @ApiBearerAuth()

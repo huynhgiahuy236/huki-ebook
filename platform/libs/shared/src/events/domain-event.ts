@@ -1,0 +1,36 @@
+export interface DomainEvent<TPayload = Record<string, unknown>> {
+  eventId: string;
+  eventType: string;
+  occurredAt: string;
+  producer: string;
+  version: number;
+  aggregateId: string;
+  payload: TPayload;
+}
+
+export const ORDER_EVENTS = {
+  CREATED: 'ORDER_CREATED',
+  PAID: 'ORDER_PAID',
+  CANCELLED: 'ORDER_CANCELLED',
+  COMPLETED: 'ORDER_COMPLETED',
+  SELLER_CONFIRMED: 'SELLER_ORDER_CONFIRMED',
+  SELLER_SHIPPED: 'SELLER_ORDER_SHIPPED',
+  SELLER_CANCELLED: 'SELLER_ORDER_CANCELLED',
+} as const;
+
+export const PAYMENT_EVENTS = {
+  SUCCEEDED: 'PAYMENT_SUCCEEDED',
+  FAILED: 'PAYMENT_FAILED',
+} as const;
+
+export const SHIPPING_EVENTS = {
+  CREATED: 'SHIPMENT_CREATED',
+  STAFF_ASSIGNED: 'SHIPMENT_STAFF_ASSIGNED',
+  PICKED_UP: 'SHIPMENT_PICKED_UP',
+  IN_TRANSIT: 'SHIPMENT_IN_TRANSIT',
+  OUT_FOR_DELIVERY: 'SHIPMENT_OUT_FOR_DELIVERY',
+  DELIVERED: 'SHIPMENT_DELIVERED',
+  FAILED: 'SHIPMENT_FAILED',
+  RETURNED: 'SHIPMENT_RETURNED',
+  CANCELLED: 'SHIPMENT_CANCELLED',
+} as const;

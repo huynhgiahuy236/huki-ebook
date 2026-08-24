@@ -1,4 +1,4 @@
-# 📖 HUKI EBOOK
+﻿# 📖 HUKI EBOOK
 
 > **Đọc file này TRƯỚC KHI làm bất cứ gì**
 
@@ -15,7 +15,7 @@
 | 🏪 Marketplace | Nhiều cửa hàng bán trên nền tảng |
 | 💬 Forum | Diễn đàn thảo luận |
 | 💬 Chat | Chat real-time với người bán |
-| 💳 Payment | VNPay, MoMo, COD |
+| 💳 Payment | PayOS, COD |
 | 🚚 Shipping | Tích hợp GHTK |
 
 ---
@@ -92,7 +92,7 @@ HuKi/
 | Database | PostgreSQL + MongoDB |
 | Cache | Redis |
 | Queue | RabbitMQ |
-| Payments | VNPay, MoMo |
+| Payments | PayOS, COD |
 | Storage | Cloudflare R2, Cloudinary |
 | Push | Firebase |
 
@@ -254,6 +254,8 @@ docker-compose up -d postgres mongo redis rabbitmq
 # 4. Start backend
 cd platform
 npm install
+npm run prisma:generate
+npm run prisma:migrate:deploy
 npm run start:dev
 
 # 5. Start frontend

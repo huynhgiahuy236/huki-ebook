@@ -1,39 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
-import { User } from '../../entities/user.entity';
+import { Prisma, User } from '../../../prisma/generated/client';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class UserService {
-  constructor(
-    @InjectRepository(User)
-    private userRepository: Repository<User>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const user = await this.prisma.user.findFirst({ where: { id, deletedAt: null } });
+    if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { email } });
+    return this.prisma.user.findFirst({
+      where: { email: email.trim().toLowerCase(), deletedAt: null },
+    });
   }
 
-  async updateProfile(userId: string, data: Partial<User>): Promise<User> {
-    await this.userRepository.update(userId, data);
-    return this.findById(userId);
+  async updateProfile(
+    userId: string,
+    data: Pick<Prisma.UserUpdateInput, 'fullName' | 'phone' | 'avatar'>,
+  ): Promise<User> {
+    await this.findById(userId);
+    return this.prisma.user.update({ where: { id: userId }, data });
   }
 
   async getPublicProfile(userId: string) {
     const user = await this.findById(userId);
-    return {
-      id: user.id,
-      fullName: user.fullName,
-      avatar: user.avatar,
-      createdAt: user.createdAt,
-    };
+    return { id: user.id, fullName: user.fullName, avatar: user.avatar, createdAt: user.createdAt };
   }
 }

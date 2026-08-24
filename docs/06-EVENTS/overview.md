@@ -1,4 +1,4 @@
-# 📬 Events Overview
+﻿# 📬 Events Overview
 
 Tổng quan về Event-Driven Architecture.
 
@@ -88,7 +88,7 @@ interface DomainEvent {
     "paymentId": "payment-uuid",
     "orderId": "order-uuid",
     "amount": 613100,
-    "provider": "VNPAY",
+    "provider": "PAYOS",
     "providerTransactionId": "vnp-123456"
   }
 }
@@ -151,11 +151,12 @@ Format: `PREFIX_ACTION`
 | Event | Trigger | Consumers |
 |-------|---------|-----------|
 | ORDER_CREATED | New order | Notification, Shipping |
-| ORDER_PAID | Payment succeeded | Shipping, Library |
+| ORDER_PAID | Payment succeeded | Shipping, Library, Notification |
 | ORDER_CANCELLED | Order cancelled | Notification, Shipping |
 | ORDER_COMPLETED | All items delivered | Notification, Review |
 | SELLER_ORDER_CONFIRMED | Seller confirms | Notification |
 | SELLER_ORDER_SHIPPED | Seller ships | Notification |
+| SELLER_ORDER_CANCELLED | Seller cancels one seller order | Shipping, Notification |
 
 ### 5. Payment Events
 
@@ -174,6 +175,39 @@ Format: `PREFIX_ACTION`
 | BOOK_ACCESS_GRANTED | User gets book access | Library, Notification |
 | BOOK_ACCESS_REVOKED | Access revoked (refund) | Library |
 | READING_PROGRESS_UPDATED | User reads | Analytics |
+
+### 7. Shipping Events
+
+Sprint 10 ghi event vào Prisma outbox; Sprint 11 đã publish các row `PENDING` qua RabbitMQ topic exchange `huki.events`.
+Từ Sprint 15, payload shipment kèm `userId`, `ownerUserId` và `storeId` để Notification định tuyến đúng recipient mà không truy vấn chéo database.
+
+| Event | Trigger | Consumers |
+|-------|---------|-----------|
+| `SHIPMENT_CREATED` | Tạo shipment | Commerce, Notification |
+| `SHIPMENT_STAFF_ASSIGNED` | Phân công nhân viên | Notification |
+| `SHIPMENT_PICKED_UP` | Đã lấy hàng | Commerce |
+| `SHIPMENT_IN_TRANSIT` | Đang trung chuyển | Commerce |
+| `SHIPMENT_OUT_FOR_DELIVERY` | Đang giao | Commerce, Notification |
+| `SHIPMENT_DELIVERED` | Giao thành công | Commerce, Payment, Notification |
+| `SHIPMENT_FAILED` | Giao thất bại | Commerce, Notification |
+| `SHIPMENT_RETURNED` | Hoàn hàng | Commerce |
+| `SHIPMENT_CANCELLED` | Hủy vận đơn | Commerce |
+
+### 8. Community Events
+
+| Event | Trigger | Consumers |
+|---|---|---|
+| `chat.message.sent` | Tin nhắn đã lưu thành công | Notification |
+| `review.created` | Review hợp lệ được gửi | Notification |
+| `forum.comment.created` | Comment/reply được tạo | Notification |
+| `notification.created` | Notification đã lưu | Analytics/integration tương lai |
+| `user.reported` | User gửi report cho content | Moderation analytics/admin integration |
+| `user.moderation.requested` | Admin chọn WARN hoặc BAN | Identity Service |
+| `moderation.report.resolved` | Report được resolve/dismiss | Notification/analytics integration |
+
+Sprint 15 dùng durable queue `community-service.order-confirmations` đã có từ Sprint 11 và mở rộng binding cho các event trên. Notification được xử lý theo thứ tự: kiểm tra preferences → MongoDB upsert idempotent → Socket.IO realtime → FCM.
+
+Sprint 16 không ghi trực tiếp database Identity. Community phát `user.moderation.requested` với `userId`, `action`, `reason`, `reportId` và `requestedBy`; Identity triển khai consumer để cảnh báo/khóa tài khoản khi luồng liên service được bật. Việc ẩn/xóa post, comment và review được xử lý ngay trong MongoDB Community.
 
 ## Consumer Implementation
 
@@ -252,23 +286,23 @@ async handleBookAccessGranted(event: DomainEvent) {
 Để đảm bảo events được gửi sau khi transaction commit:
 
 ```typescript
-@Service()
+@Injectable()
 export class OrderService {
   constructor(
-    private readonly entityManager: EntityManager,
-    private readonly eventBus: EventBus,
+    private readonly prisma: PrismaService,
   ) {}
 
   async createOrder(data: CreateOrderDto): Promise<Order> {
-    return this.entityManager.transaction(async (manager) => {
+    return this.prisma.$transaction(async (tx) => {
       // 1. Create order
-      const order = await manager.save(Order, data);
+      const order = await tx.order.create({ data });
 
       // 2. Create outbox record (same transaction)
-      await manager.save(OutboxEvent, {
-        eventType: 'ORDER_CREATED',
-        payload: { orderId: order.id, ... },
-        status: 'PENDING',
+      await tx.outboxEvent.create({ data: {
+        eventId: randomUUID(),
+        type: 'ORDER_CREATED',
+        aggregateId: order.id,
+        payload: { orderId: order.id },
       });
 
       // 3. Commit transaction - order AND outbox saved atomically
@@ -280,15 +314,16 @@ export class OrderService {
 }
 ```
 
+Commerce và Shipping có `inbox_events.event_id` unique. Community dùng unique `sourceKey = eventId:recipientId:type`; vì vậy event redelivery không tạo lại notification, không phát Socket.IO hoặc gửi FCM lần hai.
+
 ## Dead Letter Queue
 
 Events không xử lý được sẽ được gửi vào DLQ:
 
 ```
-Queue: order.created.queue
+Queue: <service>.<purpose>
   → Consumer fails (3 retries)
-  → Dead Letter Exchange (dlx.order)
-  → Dead Letter Queue: order.created.dlq
+  → Dead Letter Queue: <service>.<purpose>.dlq
 ```
 
 ## Event Versioning

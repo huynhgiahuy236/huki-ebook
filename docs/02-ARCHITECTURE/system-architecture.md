@@ -1,4 +1,4 @@
-# 🏗️ System Architecture
+﻿# 🏗️ System Architecture
 
 Kiến trúc hệ thống HUKI EBOOK.
 
@@ -207,7 +207,7 @@ Service A → Database → Service B (limited)
 | Identity | identity_db | users, auth_sessions |
 | Business | business_db | businesses, stores, members |
 | Commerce | commerce_db | books, orders, payments |
-| Shipping | shipping_db | shipments, delivery_staff |
+| Shipping | shipping_db | shipments, addresses, delivery_staff, delivery_logs, outbox_events |
 | Promotion | promotion_db | vouchers, discounts |
 
 ### MongoDB Services
@@ -254,7 +254,7 @@ Service A → Database → Service B (limited)
 | Cloudinary | CDN | Image storage, optimization |
 | Cloudflare R2 | Object Storage | Ebook PDF storage |
 | Firebase | BaaS | Push notifications, Auth |
-| VNPay/Momo | Payment Gateway | Online payments |
+| PayOS | Payment Gateway | Online payments |
 | AI Moderation | External API | Content moderation |
 
 ## 📈 Scalability Patterns

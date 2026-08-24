@@ -1,4 +1,4 @@
-# 🛒 Commerce Service
+﻿# 🛒 Commerce Service
 
 **Port:** 3003
 **Database:** PostgreSQL (commerce_db)
@@ -20,7 +20,7 @@ The Commerce Service handles books catalog, shopping cart, orders, and payment p
 ## Tech Stack
 
 - **Framework:** NestJS
-- **Database:** PostgreSQL with TypeORM
+- **Database:** PostgreSQL with Prisma
 - **Cache:** Redis (cart caching)
 - **Storage:** Cloudinary (covers), Cloudflare R2 (PDFs)
 - **Payment:** PayOS, COD
@@ -183,13 +183,18 @@ CREATE TABLE order_items (
 ```sql
 CREATE TABLE payments (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  order_id UUID UNIQUE NOT NULL REFERENCES orders(id),
-  amount FLOAT NOT NULL,
-  method VARCHAR(20), -- PAYOS, COD
-  status VARCHAR(20), -- PENDING, PAID, FAILED, REFUNDED
+  order_id UUID NOT NULL REFERENCES orders(id),
+  amount DECIMAL(14,2) NOT NULL,
+  method VARCHAR(20), -- ONLINE_PAYMENT, COD
+  provider VARCHAR(20), -- PAYOS, COD
+  status VARCHAR(30), -- PENDING, PROCESSING, SUCCEEDED, EXPIRED, REFUND_PENDING...
   transaction_id VARCHAR(100),
   payos_order_id VARCHAR(100),
+  payos_payment_link_id VARCHAR(100),
   payos_return_code VARCHAR(50),
+  checkout_url TEXT,
+  qr_code TEXT,
+  expires_at TIMESTAMP,
   callback_data JSONB,
   paid_at TIMESTAMP,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -263,7 +268,9 @@ commerce-service/src/modules/
    ↓
 7. Each seller processes their SellerOrder
    ↓
-8. Ship + tracking → Delivered
+8. Shipping events đồng bộ tracking/timeline → Delivered
+   ↓
+9. Tất cả seller orders hoàn tất → parent Order COMPLETED
 ```
 
 ### Book Publishing
@@ -278,7 +285,7 @@ commerce-service/src/modules/
 
 - Reserve stock on order creation
 - Release stock on order cancellation
-- Decrement stock on delivery
+- Commit (decrement stock and reserved quantity) on `shipment.picked_up`
 - Inventory log for tracking
 
 ## API Endpoints
@@ -310,11 +317,12 @@ See [Cart API](../../04-API-REFERENCE/endpoints/cart.md), [Books API](../../04-A
 |-------|------|
 | `book.published` | Book published |
 | `cart.updated` | Cart item added/removed |
-| `order.created` | New order created |
-| `order.paid` | Order payment received |
-| `order.shipped` | Order shipped |
-| `order.delivered` | Order delivered |
-| `order.cancelled` | Order cancelled |
+| `ORDER_CREATED` | New order created |
+| `ORDER_PAID` | Order payment received |
+| `ORDER_CANCELLED` | Order cancelled |
+| `ORDER_COMPLETED` | All seller orders completed |
+| `PAYMENT_SUCCEEDED` | PayOS/COD payment succeeded |
+| `PAYMENT_FAILED` | PayOS payment expired/failed |
 | `inventory.reserved` | Inventory reserved |
 | `inventory.released` | Inventory released |
 

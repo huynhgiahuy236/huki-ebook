@@ -3,7 +3,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { BooksService } from './books.service';
-import { BookFormat, BookStatus } from '@prisma/client';
+import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 
 export interface PublishValidationError {
   field: string;
@@ -31,7 +31,7 @@ export class BookPublishingService {
     });
 
     if (!book) throw new ConflictException('Book not found');
-    if (![BookStatus.DRAFT, BookStatus.HIDDEN].includes(book.status)) {
+    if (!(new Set<BookStatus>([BookStatus.DRAFT, BookStatus.HIDDEN])).has(book.status)) {
       throw new ConflictException(`Cannot publish a book with status ${book.status}`);
     }
 
@@ -76,7 +76,7 @@ export class BookPublishingService {
   async archive(bookId: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id: bookId } });
     if (!book) throw new ConflictException('Book not found');
-    if (![BookStatus.DRAFT, BookStatus.HIDDEN, BookStatus.PUBLISHED].includes(book.status)) {
+    if (!(new Set<BookStatus>([BookStatus.DRAFT, BookStatus.HIDDEN, BookStatus.PUBLISHED])).has(book.status)) {
       throw new ConflictException(`Cannot archive a book with status ${book.status}`);
     }
     return this.prisma.book.update({

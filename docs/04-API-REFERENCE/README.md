@@ -1,4 +1,4 @@
-# 📚 API Reference
+﻿# 📚 API Reference
 
 ## Base URL
 
@@ -77,17 +77,27 @@ Authorization: Bearer <access_token>
 - PATCH /seller/orders/:id/status - Update order status
 
 ### [Payment](endpoints/payment.md)
-- POST /payments/payos/create - Create PayOS payment
-- POST /payments/payos/callback - PayOS callback
-- GET /payments/:id - Get payment status
+- POST /payments/orders/:orderId/initiate - Create/reuse PayOS payment link
+- POST /payments/webhooks/payos - Signed PayOS webhook
+- GET /payments/orders/:orderId - Get payment/refund status
+- POST /payments/orders/:orderId/refunds - Request refund
+- POST /payments/refunds/:refundId/settle - Admin refund reconciliation
 
 ### [Shipping](endpoints/shipping.md)
 - GET /shipping/fee - Calculate shipping fee
 - POST /shipping/address - Save address
 - GET /shipping/address - Get addresses
+- PATCH /shipping/address/:id - Update address
 - DELETE /shipping/address/:id - Delete address
 - GET /shipments - Get shipments
+- GET /shipments/tracking/:trackingNumber - Track shipment
 - GET /shipments/:id - Get shipment details
+- PATCH /shipments/:id/status - Update shipment status
+- POST /shipments/:id/assign - Assign delivery staff (Admin)
+- POST /delivery-staff - Create delivery staff (Admin)
+- GET /delivery-staff - List delivery staff (Admin)
+- PATCH /delivery-staff/:id - Update delivery staff (Admin)
+- POST /callbacks/ghtk - Signed carrier callback
 
 ### [Vouchers](endpoints/vouchers.md)
 - GET /vouchers - List vouchers
@@ -104,26 +114,44 @@ Authorization: Bearer <access_token>
 - POST /forum/posts/:id/like - Like post
 - GET /forum/posts/:id/comments - Get comments
 - POST /forum/posts/:id/comments - Add comment
+- POST /forum/posts/:id/report - Report post
+- POST /forum/comments/:id/report - Report comment
 
 ### [Chat](endpoints/chat.md)
 - GET /chat/conversations - List conversations
 - POST /chat/conversations - Start conversation
+- GET /chat/conversations/:id - Conversation detail
 - GET /chat/conversations/:id/messages - Get messages
 - POST /chat/conversations/:id/messages - Send message
+- PATCH /chat/conversations/:id/read - Mark messages as read
+- POST /chat/conversations/:id/close - Close conversation
 - WS /chat - WebSocket connection
 
 ### [Reviews](endpoints/reviews.md)
-- POST /reviews - Create review
-- GET /reviews/book/:bookId - Get book reviews
-- GET /reviews/store/:storeId - Get store reviews
+- GET/POST /books/:id/reviews - List/create verified book review
+- GET/POST /stores/:id/reviews - List/create verified store review
 - PATCH /reviews/:id - Update review
 - DELETE /reviews/:id - Delete review
+- POST/DELETE /reviews/:id/helpful - Mark/unmark helpful
+- POST /reviews/:id/reply - Business reply
+- POST /reviews/:id/report - Report review
 
 ### [Notifications](endpoints/notifications.md)
-- GET /notifications - Get notifications
+- GET /notifications và /notifications/:id - List/detail
 - PATCH /notifications/:id/read - Mark as read
-- PATCH /notifications/read-all - Mark all as read
-- DELETE /notifications/:id - Delete notification
+- POST /notifications/read-all - Mark all as read
+- DELETE /notifications/:id và /notifications/clear-all - Delete
+- GET/PATCH /notifications/settings - Preferences
+- POST/DELETE /notifications/device - FCM device registration
+- WS /notifications - Realtime notification/read events
+
+### [Moderation](endpoints/moderation.md)
+- GET /admin/moderation/reports - List/filter reports
+- GET /admin/moderation/reports/:id - Report detail with content
+- PATCH /admin/moderation/reports/:id/review - Start review
+- PATCH /admin/moderation/reports/:id/resolve - Resolve/dismiss report
+- GET /admin/moderation/queue - Pending/flagged content queue
+- PATCH /admin/moderation/content/:targetType/:id - Approve/hide/delete content
 
 ## Common Responses
 

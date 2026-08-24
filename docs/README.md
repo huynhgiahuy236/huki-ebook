@@ -1,4 +1,4 @@
-# 📚 HUKI EBOOK Documentation
+﻿# 📚 HUKI EBOOK Documentation
 
 Welcome to HUKI EBOOK project documentation.
 
@@ -18,6 +18,10 @@ Welcome to HUKI EBOOK project documentation.
 ### Architecture
 - [System Architecture](02-ARCHITECTURE/system-architecture.md) - High-level architecture
 - [Microservices Design](02-ARCHITECTURE/microservices-design.md) - Service design
+
+### Database
+
+- [Prisma standard and migrations](05-DATABASE/PRISMA.md) - Per-service clients, environment URLs and migration policy
 
 ### API Reference
 - [API Overview](04-API-REFERENCE/README.md) - API documentation index
@@ -87,8 +91,8 @@ Welcome to HUKI EBOOK project documentation.
 |-------|--------|-------------|
 | Phase 1: Backend Foundation | ✅ Complete | Auth, Business registration, Catalog |
 | Phase 2: Commerce & Cart | 🔄 In Progress | Books, Cart, Orders, Checkout |
-| Phase 3: Payment & Shipping | ⬜ Pending | PayOS, GHTK integration |
-| Phase 4: Community | ⬜ Pending | Forum, Chat, Reviews |
+| Phase 3: Payment & Shipping | ✅ Complete | Sprint 9 Payment, Sprint 10 Shipping và Sprint 11 Events hoàn thành |
+| Phase 4: Community | ✅ Complete | Sprint 12–16 hoàn thành: Forum, Chat, Reviews, Notifications và Moderation |
 | Phase 5: Frontend | ⬜ Pending | Next.js Web App |
 | Phase 6: Mobile | ⬜ Pending | Flutter Mobile App |
 

@@ -1,25 +1,32 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import configuration from '../config/configuration';
+import { JwtModule } from '@nestjs/jwt';
+import { CommonModule } from './common/common.module';
+import { AddressesModule } from './modules/addresses/addresses.module';
+import { DeliveryStaffModule } from './modules/delivery-staff/delivery-staff.module';
+import { ShipmentsModule } from './modules/shipments/shipments.module';
+import { ShippingModule } from './modules/shipping/shipping.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { ShippingEventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    TypeOrmModule.forRootAsync({
+    ConfigModule.forRoot({ isGlobal: true }),
+    JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        host: configService.get('database.host'),
-        port: configService.get('database.port'),
-        database: configService.get('database.shipping.name'),
-        username: configService.get('database.username'),
-        password: configService.get('database.password'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true,
+      useFactory: (config: ConfigService) => ({
+        global: true,
+        secret: config.get<string>('JWT_SECRET'),
       }),
     }),
+    CommonModule,
+    PrismaModule,
+    AddressesModule,
+    DeliveryStaffModule,
+    ShippingModule,
+    ShipmentsModule,
+    ShippingEventsModule,
   ],
 })
 export class AppModule {}

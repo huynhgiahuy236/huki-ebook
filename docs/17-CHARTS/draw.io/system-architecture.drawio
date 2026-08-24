@@ -73,7 +73,7 @@
         </mxCell>
 
         <!-- External -->
-        <mxCell id="ext1" value="VNPay/Momo" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f59e0b;strokeColor=#d97706;" vertex="1" parent="1">
+        <mxCell id="ext1" value="PayOS" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f59e0b;strokeColor=#d97706;" vertex="1" parent="1">
           <mxGeometry x="950" y="80" width="100" height="50" as="geometry"/>
         </mxCell>
         <mxCell id="ext2" value="Cloudflare R2&#xa;(Ebooks)" style="shape=hexagon;perimeter=hexagonPerimeter;whiteSpace=wrap;html=1;fillColor=#f97316;strokeColor=#ea580c;" vertex="1" parent="1">

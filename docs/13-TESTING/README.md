@@ -1,6 +1,13 @@
-# 🧪 Testing Guide
+﻿# 🧪 Testing Guide
 
 Hướng dẫn testing toàn diện.
+
+```bash
+cd platform
+npm run test:shipping -- --runInBand
+```
+
+Shipping tests bao phủ công thức GHTK mock, COD, tracking idempotent và shipment state machine.
 
 ## 📋 Testing Strategy
 
@@ -277,38 +284,25 @@ describe('AuthController', () => {
 // test/orders.integration-spec.ts
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { OrderModule } from '../../src/order/order.module';
-import { DataSource } from 'typeorm';
+import { AppModule } from '../../apps/commerce-service/src/app.module';
+import { PrismaService } from '../../apps/commerce-service/src/prisma/prisma.service';
 
 describe('Order Integration', () => {
   let app: INestApplication;
-  let dataSource: DataSource;
+  let prisma: PrismaService;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [
-        OrderModule,
-        TypeOrmModule.forRoot({
-          type: 'postgres',
-          host: 'localhost',
-          port: 5432,
-          username: 'test',
-          password: 'test',
-          database: 'test_huki',
-          entities: [Order, OrderItem],
-          synchronize: true, // Only for testing
-        }),
-      ],
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     await app.init();
-    dataSource = moduleFixture.get(DataSource);
+    prisma = moduleFixture.get(PrismaService);
   });
 
   afterAll(async () => {
-    await dataSource.dropDatabase();
+    await prisma.$disconnect();
     await app.close();
   });
 
@@ -542,23 +536,14 @@ export function createMockUsers(count: number): User[] {
 
 ```typescript
 // test/setup.ts
-import { DataSource } from 'typeorm';
-import { TestEnvironment } from './test-environment';
+import { execFileSync } from 'node:child_process';
+import { PrismaClient } from '../apps/commerce-service/prisma/generated/client';
 
-export async function setupTestDatabase(): Promise<DataSource> {
-  const dataSource = new DataSource({
-    type: 'postgres',
-    host: 'localhost',
-    port: 5432,
-    username: 'test',
-    password: 'test',
-    database: 'test_huki',
-    entities: [__dirname + '/../src/**/*.entity.ts'],
-    synchronize: true,
-    dropSchema: true,
-  });
-
-  await dataSource.initialize();
-  return dataSource;
+export async function setupTestDatabase(): Promise<PrismaClient> {
+  execFileSync('npx', [
+    'prisma', 'migrate', 'reset', '--force', '--skip-seed',
+    '--schema', 'apps/commerce-service/prisma/schema.prisma',
+  ], { env: process.env });
+  return new PrismaClient();
 }
 ```

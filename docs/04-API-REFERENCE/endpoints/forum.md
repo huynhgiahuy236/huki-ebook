@@ -1,5 +1,9 @@
 # 💬 Forum API
 
+**Trạng thái:** ✅ Sprint 12 Forum và Sprint 16 Moderation đã hoàn thành<br>
+
+Posts, comments/replies, likes, categories, view/popular, search và report đều khả dụng. API quản trị được mô tả tại [Moderation API](moderation.md).
+
 ## GET /forum/posts
 
 Get list of forum posts.
@@ -17,8 +21,8 @@ Authorization: Bearer <access_token> (Optional)
 |-----------|------|-------------|
 | page | integer | Page number |
 | limit | integer | Items per page |
-| category | string | Filter by category |
-| search | string | Search in title/content |
+| category | string | Filter by category slug or MongoDB ObjectId |
+| search | string | Weighted full-text search in title, tags and content |
 | sort | string | Sort field (created_at, view_count, like_count) |
 | order | string | Sort order (asc, desc) |
 
@@ -37,7 +41,7 @@ Authorization: Bearer <access_token> (Optional)
         "avatar": "https://example.com/avatar.jpg"
       },
       "category": {
-        "id": "cat-uuid",
+        "id": "66c7f4d0d8f77f75f4a01234",
         "name": "Review sách"
       },
       "tags": ["clean-code", "programming"],
@@ -58,6 +62,19 @@ Authorization: Bearer <access_token> (Optional)
   }
 }
 ```
+
+---
+
+## GET /forum/posts/popular
+
+Get published posts ordered by pinned status, view count, like count, comment count and creation time.
+
+```http
+GET /api/v1/forum/posts/popular?limit=10
+Authorization: Bearer <access_token> (Optional)
+```
+
+`limit` defaults to `10` and is capped at `50`. When authentication is provided, each item includes the correct `isLiked` value.
 
 ---
 
@@ -86,7 +103,7 @@ Authorization: Bearer <access_token> (Optional)
       "avatar": "https://example.com/avatar.jpg"
     },
     "category": {
-      "id": "cat-uuid",
+      "id": "66c7f4d0d8f77f75f4a01234",
       "name": "Review sách"
     },
     "tags": ["clean-code", "programming"],
@@ -143,7 +160,7 @@ Content-Type: application/json
 {
   "title": "Review sách Clean Code",
   "content": "Tôi vừa đọc xong cuốn Clean Code...",
-  "categoryId": "cat-uuid",
+  "categoryId": "66c7f4d0d8f77f75f4a01234",
   "tags": ["clean-code", "programming"],
   "coverImage": "https://example.com/post-cover.jpg"
 }
@@ -298,6 +315,17 @@ Content-Type: application/json
 
 ---
 
+## GET /forum/posts/:id/comments
+
+Get the published/deleted comment tree for a post. Deleted nodes remain as `[deleted]` so their replies keep the correct hierarchy.
+
+```http
+GET /api/v1/forum/posts/66c7f4d0d8f77f75f4a01234/comments
+Authorization: Bearer <access_token> (Optional)
+```
+
+---
+
 ## POST /forum/comments/:id/replies
 
 Reply to a comment.
@@ -312,6 +340,26 @@ Content-Type: application/json
 {
   "content": "Cảm ơn bạn đã phản hồi!"
 }
+```
+
+---
+
+## POST /forum/comments/:id/like
+
+Like a published comment. The operation is idempotent.
+
+```http
+POST /api/v1/forum/comments/66c7f4d0d8f77f75f4a01234/like
+Authorization: Bearer <access_token>
+```
+
+## DELETE /forum/comments/:id/like
+
+Unlike a comment. Repeating the request does not decrement `likeCount` again.
+
+```http
+DELETE /api/v1/forum/comments/66c7f4d0d8f77f75f4a01234/like
+Authorization: Bearer <access_token>
 ```
 
 ---
@@ -352,8 +400,26 @@ Content-Type: application/json
 {
   "message": "Report submitted",
   "data": {
-    "reportId": "report-uuid"
+    "reportId": "66bdce20493f476fec2eab10",
+    "status": "PENDING"
   }
+}
+```
+
+Yêu cầu đăng nhập. Không thể tự report nội dung của mình. Mỗi user chỉ được report một lần cho cùng target; request trùng trả `409 FORUM_REPORT_EXISTS`. Report đầu tiên chuyển nội dung từ `PUBLISHED` sang `FLAGGED` để chờ admin xử lý.
+
+## POST /forum/comments/:id/report
+
+Report comment/reply với cùng body, validation và response như report post.
+
+```http
+POST /api/v1/forum/comments/66bdce20493f476fec2eab11/report
+Authorization: Bearer <access_token>
+Content-Type: application/json
+
+{
+  "reason": "HARASSMENT",
+  "description": "Bình luận có nội dung công kích cá nhân"
 }
 ```
 
@@ -365,27 +431,29 @@ Content-Type: application/json
 
 Get all categories.
 
+Sprint 12 seeds `general`, `reviews` and `qa` idempotently. `postCount` includes published posts only.
+
 ### Response 200
 
 ```json
 {
   "data": [
     {
-      "id": "cat-uuid-1",
+      "id": "66c7f4d0d8f77f75f4a01231",
       "name": "Thảo luận chung",
       "slug": "general",
       "postCount": 150,
       "icon": "💬"
     },
     {
-      "id": "cat-uuid-2",
+      "id": "66c7f4d0d8f77f75f4a01232",
       "name": "Review sách",
       "slug": "reviews",
       "postCount": 85,
       "icon": "📚"
     },
     {
-      "id": "cat-uuid-3",
+      "id": "66c7f4d0d8f77f75f4a01233",
       "name": "Hỏi đáp",
       "slug": "qa",
       "postCount": 42,
