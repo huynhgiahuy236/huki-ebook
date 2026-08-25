@@ -24,10 +24,10 @@ Hoàn thiện API Gateway proxy, chuẩn hóa response format, error codes, Swag
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T17.1 | KIEN | HIGH | Gateway module: HTTP proxy routing for 6 microservices | 🔄 IN PROGRESS | Gateway build passes; runtime integration pending |
-| T17.2–T17.7 | KIEN | HIGH | Proxy routes for all six services | 🔄 IN PROGRESS | Route implementation complete; requests not yet integration-tested |
-| T17.8 | KIEN | HIGH | Gateway Swagger aggregate tất cả service docs | ⬜ TODO | Requires merged OpenAPI documents |
-| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | 🔄 IN PROGRESS | Endpoints and aggregation implemented; runtime check pending |
+| T17.1 | KIEN | HIGH | Gateway module: HTTP proxy routing for 6 microservices | ✅ DONE | Gateway build and local runtime verification pass |
+| T17.2–T17.7 | KIEN | HIGH | Proxy routes for all six services | ✅ DONE | Direct-vs-Gateway smoke test verified all six service mappings |
+| T17.8 | KIEN | HIGH | Gateway Swagger aggregate tất cả service docs | ✅ DONE | Dynamic `/api/openapi.json` merges local service OpenAPI documents; UI uses it |
+| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | ✅ DONE | `/api/v1/health/services` reports all six local services healthy |
 | T17.10 | KIEN | MEDIUM | Timeout & retry logic cho proxy | 🔄 IN PROGRESS | 30s timeout implemented; safe retry policy pending |
 
 #### Luồng Gateway Proxy
@@ -117,7 +117,7 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T19.1–T19.4 | KIEN | HIGH | Swagger aggregate and endpoint contract verification | 🔄 IN PROGRESS | Tags/summaries exist; aggregation, examples and response coverage pending |
+| T19.1–T19.4 | KIEN | HIGH | Swagger aggregate and endpoint contract verification | 🔄 IN PROGRESS | Aggregate is live (143 paths, 72 schemas); examples and response coverage remain |
 | T19.5–T19.7 | KIEN | MEDIUM | Postman coverage verification | 🔄 IN PROGRESS | Collection exists; runtime validation pending |
 | T19.8 | KIEN | MEDIUM | Environment variables: Local environment | ⬜ TODO | `.env.example` missing for several services |
 
@@ -206,3 +206,4 @@ Sprint 17 → Sprint 18 → Sprint 19 → Sprint 20 → Sprint 21
 |------|-------|---------|
 | 2026-08-24 | KIEN | Created Phase 5 structure |
 | 2026-08-25 | KIEN | Restructured: Sprints 17-21, updated status |
+| 2026-08-25 | Codex | Gateway proxy routing verified for 6 services; aggregate OpenAPI and all-service health check verified locally |
