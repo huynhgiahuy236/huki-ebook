@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
@@ -13,6 +8,8 @@ import { InventoryReservationService } from './inventory-reservation.service';
 import { SellerOrderStatus, Prisma } from '../../../prisma/generated/client';
 import { ORDER_EVENTS } from '../../../../../libs/shared/src';
 import { OrderCompletionService } from './order-completion.service';
+import { throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 const IMMUTABLE = new Set<SellerOrderStatus>([
   SellerOrderStatus.COMPLETED,
@@ -58,7 +55,7 @@ export class OrdersService {
       where: { id, userId },
       include: { sellerOrders: { include: { items: true } } },
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
     return this.buyerView(order);
   }
 
@@ -172,18 +169,17 @@ export class OrdersService {
         where: { id, userId },
         include: { sellerOrders: { include: { items: true } } },
       });
-      if (!order) throw new NotFoundException('Order not found');
+      if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+      const o = order!;
 
-      if (order.sellerOrders.some((item) => SHIPPED.has(item.status))) {
-        throw new ConflictException(
-          'An order cannot be cancelled after shipment',
-        );
+      if (o.sellerOrders.some((item) => SHIPPED.has(item.status))) {
+        throwConflict(ErrorCode.ORDER_CANNOT_CANCEL);
       }
 
       const now = new Date();
       const itemIds: string[] = [];
 
-      for (const sellerOrder of order.sellerOrders) {
+      for (const sellerOrder of o.sellerOrders) {
         if (!IMMUTABLE.has(sellerOrder.status)) {
           await tx.sellerOrder.update({
             where: { id: sellerOrder.id },
@@ -197,7 +193,7 @@ export class OrdersService {
         }
       }
 
-      await this.reservations.release(tx as any, order.id, itemIds);
+      await this.reservations.release(tx as any, o.id, itemIds);
 
       const newStatus = 'CANCELLED';
 
@@ -208,16 +204,16 @@ export class OrdersService {
           cancelReason: dto.reason,
           cancelledAt: now,
           paymentStatus:
-            order.paymentStatus === 'SUCCEEDED'
+            o.paymentStatus === 'SUCCEEDED'
               ? 'REFUND_PENDING'
-              : order.paymentStatus,
+              : o.paymentStatus,
         },
       });
 
       await tx.orderStatusHistory.create({
         data: {
-          orderId: order.id,
-          fromStatus: order.status,
+          orderId: o.id,
+          fromStatus: o.status,
           toStatus: newStatus,
           title: 'Buyer cancelled order',
           actorType: 'USER',
@@ -229,13 +225,13 @@ export class OrdersService {
         data: {
           eventId: randomBytes(16).toString('hex'),
           type: ORDER_EVENTS.CANCELLED,
-          aggregateId: order.id,
+          aggregateId: o.id,
           payload: {
-            orderId: order.id,
-            orderCode: order.code,
-            userId: order.userId,
+            orderId: o.id,
+            orderCode: o.code,
+            userId: o.userId,
             reason: dto.reason,
-            sellerOrders: order.sellerOrders.map(
+            sellerOrders: o.sellerOrders.map(
               ({ id: sellerOrderId, ownerUserId, storeId }) => ({
                 sellerOrderId,
                 ownerUserId,
@@ -247,7 +243,7 @@ export class OrdersService {
         },
       });
 
-      return order;
+      return o;
     });
   }
 
@@ -263,7 +259,7 @@ export class OrdersService {
         SHIPPED.has(sellerOrder!.status) ||
         IMMUTABLE.has(sellerOrder!.status)
       ) {
-        throw new ConflictException('Seller order can no longer be cancelled');
+        throwConflict(ErrorCode.SELLER_ORDER_CANNOT_CANCEL);
       }
 
       const itemIds = sellerOrder!.items.map((item) => item.id);
@@ -325,7 +321,7 @@ export class OrdersService {
       where: { id, userId },
       include: { sellerOrders: { include: { items: true } } },
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
 
     const timeline = await this.prisma.orderStatusHistory.findMany({
       where: { orderId: id },
@@ -334,8 +330,8 @@ export class OrdersService {
 
     return {
       orderId: id,
-      status: order.status,
-      sellers: order.sellerOrders.map(
+      status: order!.status,
+      sellers: order!.sellerOrders.map(
         ({ id, code, status, carrier, trackingCode }) => ({
           id,
           code,
@@ -365,9 +361,7 @@ export class OrdersService {
       this.assertSeller(sellerOrder, actor);
 
       if (!allowed.includes(sellerOrder!.status)) {
-        throw new ConflictException(
-          `Cannot transition from ${sellerOrder!.status}`,
-        );
+        throwConflict(ErrorCode.ORDER_STATUS_TRANSITION_INVALID);
       }
 
       const fromStatus = sellerOrder!.status;
@@ -429,11 +423,9 @@ export class OrdersService {
   }
 
   private assertSeller(order: any, actor: BookActor): asserts order {
-    if (!order) throw new NotFoundException('Seller order not found');
+    if (!order) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
     if (actor.role !== 'PLATFORM_ADMIN' && order.ownerUserId !== actor.sub) {
-      throw new ForbiddenException(
-        'Seller order does not belong to this account',
-      );
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
   }
 

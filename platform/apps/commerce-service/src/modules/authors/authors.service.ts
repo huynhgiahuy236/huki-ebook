@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PageQueryDto } from '../../common/dto/page-query.dto';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
@@ -6,6 +6,8 @@ import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.u
 import { CreateAuthorDto } from './dto/create-author.dto';
 import { UpdateAuthorDto } from './dto/update-author.dto';
 import { Prisma } from '../../../prisma/generated/client';
+import { throwConflict, throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class AuthorsService {
@@ -44,17 +46,17 @@ export class AuthorsService {
 
   async findOne(id: string) {
     const author = await this.prisma.author.findUnique({ where: { id } });
-    if (!author) throw new NotFoundException('Author not found');
+    if (!author) throwNotFound(ErrorCode.AUTHOR_NOT_FOUND);
     return author;
   }
 
   async update(id: string, dto: UpdateAuthorDto) {
     const existing = await this.findOne(id);
-    const name = dto.name?.trim() ?? existing.name;
+    const name = dto.name?.trim() ?? existing!.name;
     const normalizedName = normalizeCatalogText(name);
-    const slug = dto.slug ?? existing.slug;
+    const slug = dto.slug ?? existing!.slug;
 
-    if (slug !== existing.slug || normalizedName !== existing.normalizedName) {
+    if (slug !== existing!.slug || normalizedName !== existing!.normalizedName) {
       await this.ensureUnique(slug, normalizedName, id);
     }
 
@@ -64,9 +66,9 @@ export class AuthorsService {
         name,
         slug,
         normalizedName,
-        bio: dto.bio === undefined ? existing.bio : dto.bio?.trim() || null,
-        avatar: dto.avatarUrl === undefined ? existing.avatar : dto.avatarUrl,
-        isActive: dto.isActive ?? existing.isActive,
+        bio: dto.bio === undefined ? existing!.bio : dto.bio?.trim() || null,
+        avatar: dto.avatarUrl === undefined ? existing!.avatar : dto.avatarUrl,
+        isActive: dto.isActive ?? existing!.isActive,
       },
     });
   }
@@ -84,7 +86,7 @@ export class AuthorsService {
       },
     });
     if (existing) {
-      throw new ConflictException('Author name or slug already exists');
+      throwConflict(ErrorCode.AUTHOR_SLUG_EXISTS);
     }
   }
 }

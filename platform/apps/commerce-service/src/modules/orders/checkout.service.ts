@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -20,6 +15,8 @@ import {
   Prisma,
 } from '../../../prisma/generated/client';
 import { ORDER_EVENTS } from '../../../../../libs/shared/src';
+import { throwBadRequest, throwNotFound, throwConflict } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 export interface CheckoutSnapshotItem {
   cartItemId: string;
@@ -57,12 +54,12 @@ export class CheckoutService {
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
-    if (!cart.items.length) throw new BadRequestException('Cart is empty');
+    if (!cart!.items.length) throwBadRequest(ErrorCode.CART_EMPTY);
 
-    const items: CheckoutSnapshotItem[] = cart.items.map((item) => {
+    const items: CheckoutSnapshotItem[] = cart!.items.map((item) => {
       const book = item.book as any;
       if (book.status !== BookStatus.PUBLISHED) {
-        throw new ConflictException(`${book.title} is no longer available`);
+        throwConflict(ErrorCode.BOOK_NOT_FOUND);
       }
 
       if (item.format === CartItemFormat.PHYSICAL) {
@@ -70,24 +67,20 @@ export class CheckoutService {
           ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
           !book.physicalDetails?.physicalEnabled
         ) {
-          throw new ConflictException(
-            `${book.title} physical edition is unavailable`,
-          );
+          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
         }
         if (
           book.physicalDetails.stock - book.physicalDetails.reserved <
           item.quantity
         ) {
-          throw new ConflictException(`Insufficient stock for ${book.title}`);
+          throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
         }
       } else {
         if (
           ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
           !book.digitalDetails?.digitalEnabled
         ) {
-          throw new ConflictException(
-            `${book.title} digital edition is unavailable`,
-          );
+          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
         }
       }
 
@@ -115,9 +108,7 @@ export class CheckoutService {
       (item) => item.format === CartItemFormat.PHYSICAL,
     );
     if (requiresShipping && !dto.shippingAddress) {
-      throw new BadRequestException(
-        'Shipping address is required for physical books',
-      );
+      throwBadRequest(ErrorCode.SHIPPING_ADDRESS_REQUIRED);
     }
 
     const baseFee = Number(
@@ -170,8 +161,8 @@ export class CheckoutService {
     const session = await this.prisma.checkoutSession.create({
       data: {
         userId,
-        cartId: cart.id,
-        cartUpdatedAt: cart.updatedAt,
+        cartId: cart!.id,
+        cartUpdatedAt: cart!.updatedAt as Date,
         snapshot: snapshot as unknown as Prisma.InputJsonValue,
         expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
       },
@@ -186,9 +177,7 @@ export class CheckoutService {
     dto: CheckoutConfirmDto,
   ) {
     if (!idempotencyKey || idempotencyKey.length > 100) {
-      throw new BadRequestException(
-        'A valid Idempotency-Key header is required',
-      );
+      throwBadRequest(ErrorCode.IDEMPOTENCY_KEY_REQUIRED);
     }
 
     // Check for existing order
@@ -200,20 +189,19 @@ export class CheckoutService {
 
     try {
       const order = await this.prisma.$transaction(async (tx) => {
-        const session = await tx.checkoutSession.findUnique({
+        const rawSession = await tx.checkoutSession.findUnique({
           where: { id: dto.sessionId },
         });
 
-        if (!session || session.userId !== userId) {
-          throw new NotFoundException('Checkout session not found');
+        if (!rawSession || rawSession.userId !== userId) {
+          throwNotFound(ErrorCode.CHECKOUT_SESSION_NOT_FOUND);
         }
+        const session = rawSession!;
         if (session.consumedAt) {
-          throw new ConflictException(
-            'Checkout session has already been consumed',
-          );
+          throwConflict(ErrorCode.CHECKOUT_SESSION_CONSUMED);
         }
         if (session.expiresAt < new Date()) {
-          throw new ConflictException('Checkout session has expired');
+          throwConflict(ErrorCode.CHECKOUT_SESSION_EXPIRED);
         }
 
         const snapshot = session.snapshot as any;
@@ -223,9 +211,7 @@ export class CheckoutService {
           dto.paymentProvider &&
           dto.paymentProvider.toUpperCase() !== 'PAYOS'
         ) {
-          throw new BadRequestException(
-            'PAYOS is the only supported online payment provider',
-          );
+          throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
         }
         if (
           dto.paymentMethod === PaymentMethod.COD &&
@@ -233,9 +219,7 @@ export class CheckoutService {
             group.items.some((item) => item.format !== CartItemFormat.PHYSICAL),
           )
         ) {
-          throw new BadRequestException(
-            'COD is available only for physical books',
-          );
+          throwBadRequest(ErrorCode.COD_NOT_AVAILABLE);
         }
 
         // Create order
@@ -410,12 +394,12 @@ export class CheckoutService {
 
         // Mark session as consumed
         await tx.checkoutSession.update({
-          where: { id: session.id },
+          where: { id: session!.id },
           data: { consumedAt: new Date() },
         });
 
         // Clear cart items
-        await tx.cartItem.deleteMany({ where: { cartId: session.cartId } });
+        await tx.cartItem.deleteMany({ where: { cartId: session!.cartId } });
 
         return order;
       });

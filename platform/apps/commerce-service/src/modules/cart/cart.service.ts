@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   BookFormat,
@@ -12,6 +7,8 @@ import {
 } from '../../../prisma/generated/client';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { CartCacheService, CachedCart } from './cart-cache.service';
+import { throwConflict, throwNotFound, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class CartService {
@@ -52,7 +49,7 @@ export class CartService {
       });
     }
 
-    if (!cart) throw new NotFoundException('Cart not found');
+    if (!cart) throwNotFound(ErrorCode.CART_NOT_FOUND);
     return cart;
   }
 
@@ -90,18 +87,18 @@ export class CartService {
       });
 
       if (!book || book.status !== BookStatus.PUBLISHED) {
-        throw new NotFoundException('Published book not found');
+        throwNotFound(ErrorCode.BOOK_NOT_FOUND);
       }
 
       this.validateAvailability(book, dto.format, dto.quantity);
 
       // Check existing item
       const existing = await tx.cartItem.findFirst({
-        where: { cartId: cart.id, bookId: dto.bookId, format: dto.format },
+        where: { cartId: cart!.id, bookId: dto.bookId, format: dto.format },
       });
 
       if (existing?.format === CartItemFormat.DIGITAL) {
-        throw new ConflictException('Digital book is already in the cart');
+        throwConflict(ErrorCode.CART_DIGITAL_ALREADY_OWNED);
       }
 
       const quantity =
@@ -109,9 +106,9 @@ export class CartService {
           ? 1
           : (existing?.quantity ?? 0) + dto.quantity;
 
-      this.validateAvailability(book, dto.format, quantity);
+      this.validateAvailability(book!, dto.format, quantity);
 
-      const unitPrice = Number(book.price);
+      const unitPrice = Number(book!.price);
 
       if (existing) {
         await tx.cartItem.update({
@@ -121,8 +118,8 @@ export class CartService {
       } else {
         await tx.cartItem.create({
           data: {
-            cartId: cart.id,
-            bookId: book.id,
+            cartId: cart!.id,
+            bookId: book!.id,
             format: dto.format,
             quantity,
             unitPrice,
@@ -131,7 +128,7 @@ export class CartService {
       }
 
       await tx.cart.update({
-        where: { id: cart.id },
+        where: { id: cart!.id },
         data: { updatedAt: new Date() },
       });
     });
@@ -144,27 +141,25 @@ export class CartService {
   async update(userId: string, itemId: string, quantity: number) {
     await this.prisma.$transaction(async (tx) => {
       const cart = await tx.cart.findUnique({ where: { userId } });
-      if (!cart) throw new NotFoundException('Cart not found');
+      if (!cart) throwNotFound(ErrorCode.CART_NOT_FOUND);
 
       const item = await tx.cartItem.findFirst({
-        where: { id: itemId, cartId: cart.id },
+        where: { id: itemId, cartId: cart!.id },
         include: {
           book: { include: { physicalDetails: true, digitalDetails: true } },
         },
       });
 
-      if (!item) throw new NotFoundException('Cart item not found');
+      if (!item) throwNotFound(ErrorCode.CART_ITEM_NOT_FOUND);
 
       if (
-        item.format === CartItemFormat.DIGITAL &&
+        item!.format === CartItemFormat.DIGITAL &&
         quantity !== 1
       ) {
-        throw new BadRequestException(
-          'Digital book quantity must be one',
-        );
+        throwBadRequest(ErrorCode.CART_QUANTITY_INVALID);
       }
 
-      this.validateAvailability(item.book, item.format, quantity);
+      this.validateAvailability(item!.book, item!.format, quantity);
 
       await tx.cartItem.update({
         where: { id: itemId },
@@ -172,7 +167,7 @@ export class CartService {
       });
 
       await tx.cart.update({
-        where: { id: cart.id },
+        where: { id: cart!.id },
         data: { updatedAt: new Date() },
       });
     });
@@ -185,18 +180,18 @@ export class CartService {
   async remove(userId: string, itemId: string) {
     await this.prisma.$transaction(async (tx) => {
       const cart = await tx.cart.findUnique({ where: { userId } });
-      if (!cart) throw new NotFoundException('Cart not found');
+      if (!cart) throwNotFound(ErrorCode.CART_NOT_FOUND);
 
       const item = await tx.cartItem.findFirst({
-        where: { id: itemId, cartId: cart.id },
+        where: { id: itemId, cartId: cart!.id },
       });
 
-      if (!item) throw new NotFoundException('Cart item not found');
+      if (!item) throwNotFound(ErrorCode.CART_ITEM_NOT_FOUND);
 
       await tx.cartItem.delete({ where: { id: itemId } });
 
       await tx.cart.update({
-        where: { id: cart.id },
+        where: { id: cart!.id },
         data: { updatedAt: new Date() },
       });
     });
@@ -230,19 +225,19 @@ export class CartService {
         ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
         !book.physicalDetails?.physicalEnabled
       ) {
-        throw new BadRequestException('Physical format is unavailable');
+        throwBadRequest(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
       }
       const available =
         book.physicalDetails.stock - book.physicalDetails.reserved;
       if (available < quantity) {
-        throw new ConflictException('Insufficient stock');
+        throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
       }
     } else {
       if (
         ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
         !book.digitalDetails?.digitalEnabled
       ) {
-        throw new BadRequestException('Digital format is unavailable');
+        throwBadRequest(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
       }
     }
   }

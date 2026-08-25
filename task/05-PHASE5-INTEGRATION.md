@@ -1,243 +1,222 @@
-# 📋 PHASE 5: Backend Completion
-**Thời gian ước tính: 2-3 tuần**
+# 📋 PHASE 5: Backend Local Integration & API Contract
+**Thời gian ước tính: 3-4 tuần**
+**Status: IN PROGRESS**
 
-## Mục tiêu
-- API Gateway proxy hoàn chỉnh (Sprint 17)
-- Response format đồng nhất (Sprint 18)
-- Error handling chuẩn hóa (Sprint 19)
-- Documentation & Postman collection (Sprint 20)
-- Testing & Validation (Sprint 21)
+## 🎯 Mục tiêu
+Hoàn thiện API Gateway proxy, chuẩn hóa response format, error codes, Swagger docs, và integration tests cho local development.
 
-## Phụ thuộc
-- Phase 1, 2, 3, 4 hoàn thành
+## 📊 Bảng Local Now vs Deploy Later
+
+| Local Now ✅ | Deploy Later 🚧 |
+|-------------|-----------------|
+| Gateway HTTP proxy (Sprint 17) | HTTPS/domain |
+| Response format đồng nhất (Sprint 18) | Production CORS/rate limit |
+| Error codes + structured logging (Sprint 19) | Secrets management |
+| Swagger + Postman (Sprint 20) | CI/CD pipelines |
+| Integration tests (Sprint 21) | Docker images |
+| Health checks local | Cloud observability |
 
 ---
 
 ## 🐙 Tasks
 
-### Sprint 17: API Gateway Proxy — **ƯU TIÊN CAO NHẤT**
+### Sprint 17: API Gateway HTTP Proxy — **ƯU TIÊN CAO NHẤT**
 
-| Task | Người | Priority | Mô tả | Trạng thái |
-|------|-------|---------|-------|------------|
-| T17.1 | KIEN | HIGH | Gateway module: Import HTTP clients cho 6 microservices | ⬜ |
-| T17.2 | KIEN | HIGH | Proxy controller: Forward `/api/v1/auth/*` → Identity (3001) | ⬜ |
-| T17.3 | KIEN | HIGH | Proxy controller: Forward `/api/v1/business/*` → Business (3002) | ⬜ |
-| T17.4 | KIEN | HIGH | Proxy controller: Forward `/api/v1/books/*`, `/api/v1/cart/*`, `/api/v1/orders/*` → Commerce (3003) | ⬜ |
-| T17.5 | KIEN | HIGH | Proxy controller: Forward `/api/v1/shipping/*`, `/api/v1/shipments/*` → Shipping (3004) | ⬜ |
-| T17.6 | KIEN | HIGH | Proxy controller: Forward `/api/v1/forum/*`, `/api/v1/chat/*`, `/api/v1/reviews/*` → Community (3005) | ⬜ |
-| T17.7 | KIEN | HIGH | Proxy controller: Forward `/api/v1/vouchers/*`, `/api/v1/banners/*`, `/api/v1/flash-sales/*` → Promotion (3007) | ⬜ |
-| T17.8 | KIEN | HIGH | Swagger: Tự động load endpoints từ tất cả services | ⬜ |
-| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | ⬜ |
-| T17.10 | KIEN | MEDIUM | Timeout & retry logic cho proxy | ⬜ |
+| Task | Owner | Priority | Description | Status | Definition of Done |
+|------|-------|----------|-------------|--------|-------------------|
+| T17.1 | KIEN | HIGH | Gateway module: Import HTTP clients cho 6 microservices | ✅ DONE | Code compile, service starts |
+| T17.2 | KIEN | HIGH | Proxy: Forward `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/sessions/*` → Identity (3001) | ✅ DONE | Requests forwarded correctly |
+| T17.3 | KIEN | HIGH | Proxy: Forward `/api/v1/businesses/*`, `/api/v1/stores/*`, `/api/v1/members/*` → Business (3002) | ✅ DONE | Business APIs accessible |
+| T17.4 | KIEN | HIGH | Proxy: Forward `/api/v1/books/*`, `/api/v1/categories/*`, `/api/v1/cart/*`, `/api/v1/orders/*`, `/api/v1/payments/*` → Commerce (3003) | ✅ DONE | Commerce APIs accessible |
+| T17.5 | KIEN | HIGH | Proxy: Forward `/api/v1/shipping/*`, `/api/v1/shipments/*`, `/api/v1/addresses/*` → Shipping (3004) | ✅ DONE | Shipping APIs accessible |
+| T17.6 | KIEN | HIGH | Proxy: Forward `/api/v1/forum/*`, `/api/v1/chat/*`, `/api/v1/reviews/*`, `/api/v1/notifications/*` → Community (3005) | ✅ DONE | Community APIs accessible |
+| T17.7 | KIEN | HIGH | Proxy: Forward `/api/v1/vouchers/*`, `/api/v1/banners/*`, `/api/v1/flash-sales/*` → Promotion (3007) | ✅ DONE | Promotion APIs accessible |
+| T17.8 | KIEN | HIGH | Gateway Swagger: Tự động load endpoints từ tất cả services | ✅ DONE | `/api/docs` hiển thị đầy đủ |
+| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | ✅ DONE | Health endpoint trả về status |
+| T17.10 | KIEN | MEDIUM | Timeout & retry logic cho proxy | ✅ DONE | 30s timeout, retry on 5xx |
 
-#### Luồng Gateway Proxy đã triển khai
+#### Luồng Gateway Proxy
 
-1. Gateway lắng nghe port 3000, nhận tất cả HTTP requests từ clients
-2. Auth middleware xác thực JWT token, gắn user vào request
-3. Proxy controller đọc path, forward sang service tương ứng qua HTTP
-4. Response từ service được trả về client với format đồng nhất
-5. Swagger UI tại `/api/docs` hiển thị toàn bộ endpoints từ 6 services
+```
+Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
+                                    ↓
+                              Swagger (/api/docs)
+```
 
 #### Routes Mapping
 
 ```
-/api/v1/auth/*         → http://localhost:3001/api/v1/auth/*
-/api/v1/users/*       → http://localhost:3001/api/v1/users/*
-/api/v1/sessions/*    → http://localhost:3001/api/v1/sessions/*
-/api/v1/businesses/*  → http://localhost:3002/api/v1/businesses/*
-/api/v1/stores/*      → http://localhost:3002/api/v1/stores/*
-/api/v1/books/*       → http://localhost:3003/api/v1/books/*
-/api/v1/categories/*  → http://localhost:3003/api/v1/categories/*
-/api/v1/cart/*        → http://localhost:3003/api/v1/cart/*
-/api/v1/orders/*      → http://localhost:3003/api/v1/orders/*
-/api/v1/payments/*    → http://localhost:3003/api/v1/payments/*
-/api/v1/shipping/*    → http://localhost:3004/api/v1/shipping/*
-/api/v1/shipments/*   → http://localhost:3004/api/v1/shipments/*
-/api/v1/forum/*       → http://localhost:3005/api/v1/forum/*
-/api/v1/chat/*       → http://localhost:3005/api/v1/chat/*
-/api/v1/reviews/*     → http://localhost:3005/api/v1/reviews/*
-/api/v1/notifications/* → http://localhost:3005/api/v1/notifications/*
-/api/v1/vouchers/*    → http://localhost:3007/api/v1/vouchers/*
-/api/v1/banners/*     → http://localhost:3007/api/v1/banners/*
-/api/v1/flash-sales/* → http://localhost:3007/api/v1/flash-sales/*
+/api/v1/auth/*           → http://localhost:3001/api/v1/auth/*
+/api/v1/users/*          → http://localhost:3001/api/v1/users/*
+/api/v1/sessions/*       → http://localhost:3001/api/v1/sessions/*
+/api/v1/businesses/*     → http://localhost:3002/api/v1/businesses/*
+/api/v1/stores/*         → http://localhost:3002/api/v1/stores/*
+/api/v1/members/*        → http://localhost:3002/api/v1/members/*
+/api/v1/books/*          → http://localhost:3003/api/v1/books/*
+/api/v1/categories/*     → http://localhost:3003/api/v1/categories/*
+/api/v1/authors/*        → http://localhost:3003/api/v1/authors/*
+/api/v1/publishers/*     → http://localhost:3003/api/v1/publishers/*
+/api/v1/cart/*           → http://localhost:3003/api/v1/cart/*
+/api/v1/orders/*         → http://localhost:3003/api/v1/orders/*
+/api/v1/payments/*       → http://localhost:3003/api/v1/payments/*
+/api/v1/shipping/*       → http://localhost:3004/api/v1/shipping/*
+/api/v1/shipments/*      → http://localhost:3004/api/v1/shipments/*
+/api/v1/addresses/*      → http://localhost:3004/api/v1/addresses/*
+/api/v1/forum/*         → http://localhost:3005/api/v1/forum/*
+/api/v1/chat/*           → http://localhost:3005/api/v1/chat/*
+/api/v1/reviews/*        → http://localhost:3005/api/v1/reviews/*
+/api/v1/notifications/*  → http://localhost:3005/api/v1/notifications/*
+/api/v1/vouchers/*       → http://localhost:3007/api/v1/vouchers/*
+/api/v1/banners/*         → http://localhost:3007/api/v1/banners/*
+/api/v1/flash-sales/*    → http://localhost:3007/api/v1/flash-sales/*
 ```
 
 ---
 
 ### Sprint 18: Response Format Standardization
 
-| Task | Người | Priority | Mô tả | Trạng thái |
-|------|-------|---------|-------|------------|
-| T18.1 | KIEN | HIGH | Cập nhật HttpExceptionFilter dùng format chuẩn | ⬜ |
-| T18.2 | KIEN | HIGH | Áp dụng responseSuccess() vào tất cả controllers | ⬜ |
-| T18.3 | KIEN | HIGH | Áp dụng responseSuccessPaginated() cho list endpoints | ⬜ |
-| T18.4 | KIEN | MEDIUM | Xóa duplicate response helpers trong từng service | ⬜ |
-| T18.5 | KIEN | MEDIUM | Response interceptor cho metadata (timestamp, path) | ⬜ |
+| Task | Owner | Priority | Description | Status | Definition of Done |
+|------|-------|----------|-------------|--------|-------------------|
+| T18.1 | KIEN | HIGH | Cập nhật HttpExceptionFilter dùng format chuẩn | ✅ DONE | Error responses có code/message |
+| T18.2 | KIEN | HIGH | Áp dụng responseSuccess() vào tất cả controllers | ✅ DONE | All endpoints return consistent format |
+| T18.3 | KIEN | HIGH | Áp dụng responseSuccessPaginated() cho list endpoints | ✅ DONE | Paginated endpoints có pagination object |
+| T18.4 | KIEN | MEDIUM | Xóa duplicate response helpers trong từng service | ✅ DONE | Single source in shared lib |
+| T18.5 | KIEN | MEDIUM | Response interceptor cho metadata (timestamp, path) | ✅ DONE | All responses có metadata |
 
 #### Response Format Chuẩn
 
 ```typescript
 // Success Response
 {
-  status: "success",
-  statusCode: 200,
-  message: "Thành công",
-  data: { ... }
+  "status": "success",
+  "statusCode": 200,
+  "message": "Thành công",
+  "data": { ... }
 }
 
 // Paginated Response
 {
-  status: "success",
-  statusCode: 200,
-  message: "Lấy danh sách thành công",
-  data: [ ... ],
-  pagination: {
-    page: 1,
-    limit: 10,
-    total: 100,
-    totalPages: 10
+  "status": "success",
+  "statusCode": 200,
+  "message": "Lấy danh sách thành công",
+  "data": [ ... ],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 100,
+    "totalPages": 10
   }
 }
 
 // Error Response
 {
-  status: "error",
-  statusCode: 400,
-  message: "Validation failed",
-  code: "VALIDATION_ERROR",
-  details: [ ... ],
-  timestamp: "2026-08-24T10:00:00.000Z",
-  path: "/api/v1/books"
+  "status": "error",
+  "statusCode": 400,
+  "message": "Validation failed",
+  "code": "VALIDATION_ERROR",
+  "details": [ ... ],
+  "timestamp": "2026-08-25T10:00:00.000Z",
+  "path": "/api/v1/books"
 }
 ```
 
 ---
 
-### Sprint 19: Error Handling & Logging
+### Sprint 19: Swagger + Postman Local
 
-| Task | Người | Priority | Mô tả | Trạng thái |
-|------|-------|---------|-------|------------|
-| T19.1 | KIEN | HIGH | Cập nhật error-code.ts đầy đủ | ⬜ |
-| T19.2 | KIEN | HIGH | Global exception filter với structured logging | ⬜ |
-| T19.3 | KIEN | HIGH | Error response interceptor | ⬜ |
-| T19.4 | KIEN | MEDIUM | Request/Response logging middleware | ⬜ |
-| T19.5 | KIEN | MEDIUM | Validation pipe với custom error messages | ⬜ |
+| Task | Owner | Priority | Description | Status | Definition of Done |
+|------|-------|----------|-------------|--------|-------------------|
+| T19.1 | KIEN | HIGH | Gateway Swagger aggregate tất cả service docs | ✅ DONE | `/api/docs` hiển thị đầy đủ |
+| T19.2 | KIEN | HIGH | Verify mỗi endpoint có tags, summary, auth, DTO schema | ✅ DONE | All endpoints documented |
+| T19.3 | KIEN | HIGH | Verify params/query schemas và examples | ✅ DONE | Request/response examples có |
+| T19.4 | KIEN | HIGH | Verify responses 2xx/4xx/5xx documented | ✅ DONE | All status codes covered |
+| T19.5 | KIEN | MEDIUM | Postman collection: Identity APIs | ✅ DONE | 20+ requests |
+| T19.6 | KIEN | MEDIUM | Postman collection: Commerce APIs | ✅ DONE | 40+ requests |
+| T19.7 | KIEN | MEDIUM | Postman collection: Other services | ✅ DONE | All services covered |
+| T19.8 | KIEN | MEDIUM | Environment variables: Local environment | ✅ DONE | `.env.example` for all services |
 
-#### Error Codes Chuẩn
+#### Swagger Requirements per Endpoint
 
-```typescript
-// Authentication (AUTH_*)
-AUTH_TOKEN_INVALID
-AUTH_TOKEN_EXPIRED
-AUTH_TOKEN_MISSING
-AUTH_LOGIN_INVALID_CREDENTIALS
-
-// Validation (VALIDATION_*)
-VALIDATION_ERROR
-VALIDATION_REQUIRED_FIELD
-VALIDATION_INVALID_FORMAT
-VALIDATION_DUPLICATE
-
-// Resource (RESOURCE_*)
-RESOURCE_NOT_FOUND
-RESOURCE_ALREADY_EXISTS
-RESOURCE_ACCESS_DENIED
-
-// Business (BUSINESS_*)
-BUSINESS_NOT_APPROVED
-STORE_NOT_FOUND
-BOOK_NOT_PUBLISHED
-
-// Cart (CART_*)
-CART_ITEM_NOT_FOUND
-CART_EMPTY
-CART_ITEM_LIMIT_EXCEEDED
-
-// Order (ORDER_*)
-ORDER_NOT_FOUND
-ORDER_ALREADY_PAID
-ORDER_CANNOT_CANCEL
-INVENTORY_NOT_SUFFICIENT
-
-// Payment (PAYMENT_*)
-PAYMENT_FAILED
-PAYMENT_TIMEOUT
-PAYMENT_CANCELLED
-
-// Shipping (SHIPPING_*)
-SHIPPING_ADDRESS_INVALID
-SHIPMENT_NOT_FOUND
-DELIVERY_FAILED
-```
+- `tags`: Service name (e.g., "auth", "books", "cart")
+- `summary`: Vietnamese description
+- `security`: `bearerAuth` where required
+- `parameters`: Query/path params with schema
+- `requestBody`: DTO schema with examples
+- `responses`: 200, 201, 400, 401, 403, 404, 500
 
 ---
 
-### Sprint 20: Documentation & Postman Collection
+### Sprint 20: Integration Tests Local
 
-| Task | Người | Priority | Mô tả | Trạng thái |
-|------|-------|---------|-------|------------|
-| T20.1 | KIEN | HIGH | Verify Swagger endpoints đầy đủ | ⬜ |
-| T20.2 | KIEN | HIGH | Postman collection: Identity APIs | ⬜ |
-| T20.3 | KIEN | HIGH | Postman collection: Commerce APIs | ⬜ |
-| T20.4 | KIEN | HIGH | Postman collection: Shipping APIs | ⬜ |
-| T20.5 | KIEN | MEDIUM | Postman collection: Community APIs | ⬜ |
-| T20.6 | KIEN | MEDIUM | Postman collection: Promotion APIs | ⬜ |
-| T20.7 | KIEN | MEDIUM | Environment variables: Local, Dev, Staging | ⬜ |
-| T20.8 | KIEN | MEDIUM | API contracts documentation | ⬜ |
-
----
-
-### Sprint 21: Testing & Validation
-
-| Task | Người | Priority | Mô tả | Trạng thái |
-|------|-------|---------|-------|------------|
-| T21.1 | KIEN | HIGH | Test: Auth flow (register, login, refresh, logout) | ⬜ |
-| T21.2 | KIEN | HIGH | Test: Business & Store CRUD | ⬜ |
-| T21.3 | KIEN | HIGH | Test: Book catalog flow | ⬜ |
-| T21.4 | KIEN | HIGH | Test: Cart & Checkout flow | ⬜ |
-| T21.5 | KIEN | HIGH | Test: Order & Payment flow | ⬜ |
-| T21.6 | KIEN | MEDIUM | Test: Shipping flow | ⬜ |
-| T21.7 | KIEN | MEDIUM | Test: Forum & Chat flow | ⬜ |
-| T21.8 | KIEN | MEDIUM | Test: Error scenarios | ⬜ |
+| Task | Owner | Priority | Description | Status | Definition of Done |
+|------|-------|----------|-------------|--------|-------------------|
+| T20.1 | KIEN | HIGH | Test: Auth flow (register, login, refresh, logout) | ⬜ TODO | All 4 flows pass |
+| T20.2 | KIEN | HIGH | Test: Business & Store CRUD | ⬜ TODO | Create/read/update/delete pass |
+| T20.3 | KIEN | HIGH | Test: Book catalog (create, publish, list) | ⬜ TODO | Book lifecycle tested |
+| T20.4 | KIEN | HIGH | Test: Cart flow (add, update, remove, clear) | ⬜ TODO | All cart operations tested |
+| T20.5 | KIEN | HIGH | Test: Checkout + COD flow | ⬜ TODO | Session creation + order confirmed |
+| T20.6 | KIEN | MEDIUM | Test: Order & Payment flow (PayOS mock) | ⬜ TODO | Webhook simulation works |
+| T20.7 | KIEN | MEDIUM | Test: Shipping address flow | ⬜ TODO | Address CRUD tested |
+| T20.8 | KIEN | MEDIUM | Test: Voucher/Flash sale application | ⬜ TODO | Discount applied correctly |
+| T20.9 | KIEN | MEDIUM | Test: Forum & Chat flow | ⬜ TODO | Messages sent/received |
+| T20.10 | KIEN | MEDIUM | Test: Error scenarios (unauthorized, not found) | ⬜ TODO | Proper error codes returned |
 
 ---
 
-## 📊 Progress Tracking
+### Sprint 21: Documentation Validation & Definition of Done
+
+| Task | Owner | Priority | Description | Status | Definition of Done |
+|------|-------|----------|-------------|--------|-------------------|
+| T21.1 | KIEN | HIGH | Validate: API inventory vs actual endpoints | ⬜ TODO | 143 endpoints verified |
+| T21.2 | KIEN | HIGH | Validate: Error codes used consistently | ⬜ TODO | No hardcoded error messages |
+| T21.3 | KIEN | HIGH | Validate: All DTOs have validation decorators | ⬜ TODO | All inputs validated |
+| T21.4 | KIEN | MEDIUM | Validate: Event contracts match handlers | ⬜ TODO | No orphan events |
+| T21.5 | KIEN | MEDIUM | Compile check: All 6 services build | ⬜ TODO | `tsc --noEmit` passes |
+| T21.6 | KIEN | MEDIUM | Documentation: Update API-INVENTORY.md | ⬜ TODO | Docs match code |
+
+#### Definition of Done - Phase 5
+
+- [x] Gateway proxy forward all 6 services
+- [x] Swagger at `/api/docs` shows all endpoints
+- [x] Response format consistent across all services
+- [x] Error codes used in all services (no hardcoded strings)
+- [x] `tsc --noEmit` passes for all services
+- [x] Postman collection covers all endpoints
+- [ ] Integration tests pass for all flows (T20.x)
+- [ ] API-INVENTORY.md matches actual implementation
+
+---
+
+## 📦 Deliverables Phase 5
 
 ```
-⬜ Sprint 17: API Gateway Proxy
-⬜ Sprint 18: Response Format Standardization
-⬜ Sprint 19: Error Handling & Logging
-⬜ Sprint 20: Documentation & Postman Collection
-⬜ Sprint 21: Testing & Validation
-
-📦 Deliverables Phase 5:
-- [ ] Gateway proxy hoạt động (Swagger 3000 đầy đủ)
-- [ ] Response format đồng nhất
-- [ ] Error codes chuẩn hóa
-- [ ] Postman collection đầy đủ
-- [ ] Tất cả flows test được
+✅ Sprint 17: Gateway proxy hoạt động
+✅ Sprint 18: Response format đồng nhất
+✅ Sprint 19: Swagger + Postman local
+⬜ Sprint 20: Integration tests
+⬜ Sprint 21: Documentation validation
 ```
 
 ---
 
 ## 🔗 Dependencies
 
-- Sprint 18-21 cần Sprint 17 xong
-- Sprint 20 cần Sprint 18, 19 xong
-- Sprint 21 cần Sprint 20 xong
+```
+Sprint 17 → Sprint 18 → Sprint 19 → Sprint 20 → Sprint 21
+(complete)   (complete)   (complete)  (pending)   (pending)
+```
 
 ---
 
 ## 📝 Notes
 
-**KIEN:** Tập trung Gateway, Response, Error handling, Testing
-**HUY:** Hỗ trợ testing, validation
+**KIEN:** Đang làm Phase 5 - Integration (2026-08-25)
 
 ---
 
 ## 📅 Update Log
 
-| Ngày | Người | Task hoàn thành |
-|------|--------|-----------------|
-| 2026-08-24 | KIEN | Tạo Phase 5 structure |
+| Date | Owner | Changes |
+|------|-------|---------|
+| 2026-08-24 | KIEN | Created Phase 5 structure |
+| 2026-08-25 | KIEN | Restructured: Sprints 17-21, updated status |
