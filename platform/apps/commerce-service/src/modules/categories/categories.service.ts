@@ -82,7 +82,7 @@ export class CategoriesService {
       [CategorySortBy.SORT_ORDER]: 'sortOrder',
       [CategorySortBy.CREATED_AT]: 'createdAt',
     };
-    orderBy[sortMap[query.sortBy]] = query.order;
+    orderBy[sortMap[query.sortBy]] = query.order.toLowerCase();
     orderBy.name = 'asc';
 
     const [categories, total] = await this.prisma.$transaction([
