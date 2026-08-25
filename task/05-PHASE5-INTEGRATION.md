@@ -24,16 +24,11 @@ Hoàn thiện API Gateway proxy, chuẩn hóa response format, error codes, Swag
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T17.1 | KIEN | HIGH | Gateway module: Import HTTP clients cho 6 microservices | ✅ DONE | Code compile, service starts |
-| T17.2 | KIEN | HIGH | Proxy: Forward `/api/v1/auth/*`, `/api/v1/users/*`, `/api/v1/sessions/*` → Identity (3001) | ✅ DONE | Requests forwarded correctly |
-| T17.3 | KIEN | HIGH | Proxy: Forward `/api/v1/businesses/*`, `/api/v1/stores/*`, `/api/v1/members/*` → Business (3002) | ✅ DONE | Business APIs accessible |
-| T17.4 | KIEN | HIGH | Proxy: Forward `/api/v1/books/*`, `/api/v1/categories/*`, `/api/v1/cart/*`, `/api/v1/orders/*`, `/api/v1/payments/*` → Commerce (3003) | ✅ DONE | Commerce APIs accessible |
-| T17.5 | KIEN | HIGH | Proxy: Forward `/api/v1/shipping/*`, `/api/v1/shipments/*`, `/api/v1/addresses/*` → Shipping (3004) | ✅ DONE | Shipping APIs accessible |
-| T17.6 | KIEN | HIGH | Proxy: Forward `/api/v1/forum/*`, `/api/v1/chat/*`, `/api/v1/reviews/*`, `/api/v1/notifications/*` → Community (3005) | ✅ DONE | Community APIs accessible |
-| T17.7 | KIEN | HIGH | Proxy: Forward `/api/v1/vouchers/*`, `/api/v1/banners/*`, `/api/v1/flash-sales/*` → Promotion (3007) | ✅ DONE | Promotion APIs accessible |
-| T17.8 | KIEN | HIGH | Gateway Swagger: Tự động load endpoints từ tất cả services | ✅ DONE | `/api/docs` hiển thị đầy đủ |
-| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | ✅ DONE | Health endpoint trả về status |
-| T17.10 | KIEN | MEDIUM | Timeout & retry logic cho proxy | ✅ DONE | 30s timeout, retry on 5xx |
+| T17.1 | KIEN | HIGH | Gateway module: HTTP proxy routing for 6 microservices | 🔄 IN PROGRESS | Gateway build passes; runtime integration pending |
+| T17.2–T17.7 | KIEN | HIGH | Proxy routes for all six services | 🔄 IN PROGRESS | Route implementation complete; requests not yet integration-tested |
+| T17.8 | KIEN | HIGH | Gateway Swagger aggregate tất cả service docs | ⬜ TODO | Requires merged OpenAPI documents |
+| T17.9 | KIEN | MEDIUM | Health check: Kiểm tra tất cả 6 services | 🔄 IN PROGRESS | Endpoints and aggregation implemented; runtime check pending |
+| T17.10 | KIEN | MEDIUM | Timeout & retry logic cho proxy | 🔄 IN PROGRESS | 30s timeout implemented; safe retry policy pending |
 
 #### Luồng Gateway Proxy
 
@@ -77,11 +72,7 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T18.1 | KIEN | HIGH | Cập nhật HttpExceptionFilter dùng format chuẩn | ✅ DONE | Error responses có code/message |
-| T18.2 | KIEN | HIGH | Áp dụng responseSuccess() vào tất cả controllers | ✅ DONE | All endpoints return consistent format |
-| T18.3 | KIEN | HIGH | Áp dụng responseSuccessPaginated() cho list endpoints | ✅ DONE | Paginated endpoints có pagination object |
-| T18.4 | KIEN | MEDIUM | Xóa duplicate response helpers trong từng service | ✅ DONE | Single source in shared lib |
-| T18.5 | KIEN | MEDIUM | Response interceptor cho metadata (timestamp, path) | ✅ DONE | All responses có metadata |
+| T18.1–T18.5 | KIEN | HIGH | Global error filter and response interceptor | 🔄 IN PROGRESS | Registered for all services; contract runtime tests pending |
 
 #### Response Format Chuẩn
 
@@ -126,14 +117,9 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T19.1 | KIEN | HIGH | Gateway Swagger aggregate tất cả service docs | ✅ DONE | `/api/docs` hiển thị đầy đủ |
-| T19.2 | KIEN | HIGH | Verify mỗi endpoint có tags, summary, auth, DTO schema | ✅ DONE | All endpoints documented |
-| T19.3 | KIEN | HIGH | Verify params/query schemas và examples | ✅ DONE | Request/response examples có |
-| T19.4 | KIEN | HIGH | Verify responses 2xx/4xx/5xx documented | ✅ DONE | All status codes covered |
-| T19.5 | KIEN | MEDIUM | Postman collection: Identity APIs | ✅ DONE | 20+ requests |
-| T19.6 | KIEN | MEDIUM | Postman collection: Commerce APIs | ✅ DONE | 40+ requests |
-| T19.7 | KIEN | MEDIUM | Postman collection: Other services | ✅ DONE | All services covered |
-| T19.8 | KIEN | MEDIUM | Environment variables: Local environment | ✅ DONE | `.env.example` for all services |
+| T19.1–T19.4 | KIEN | HIGH | Swagger aggregate and endpoint contract verification | 🔄 IN PROGRESS | Tags/summaries exist; aggregation, examples and response coverage pending |
+| T19.5–T19.7 | KIEN | MEDIUM | Postman coverage verification | 🔄 IN PROGRESS | Collection exists; runtime validation pending |
+| T19.8 | KIEN | MEDIUM | Environment variables: Local environment | ⬜ TODO | `.env.example` missing for several services |
 
 #### Swagger Requirements per Endpoint
 
@@ -176,12 +162,12 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 #### Definition of Done - Phase 5
 
-- [x] Gateway proxy forward all 6 services
-- [x] Swagger at `/api/docs` shows all endpoints
-- [x] Response format consistent across all services
-- [x] Error codes used in all services (no hardcoded strings)
-- [x] `tsc --noEmit` passes for all services
-- [x] Postman collection covers all endpoints
+- [ ] Gateway proxy forward all 6 services verified by integration tests
+- [ ] Swagger at `/api/docs` shows all endpoints
+- [ ] Response format consistent across all services verified by tests
+- [ ] Error codes used in all services (no hardcoded strings)
+- [x] All seven Nest service builds pass
+- [ ] Postman collection covers all endpoints verified locally
 - [ ] Integration tests pass for all flows (T20.x)
 - [ ] API-INVENTORY.md matches actual implementation
 
@@ -190,9 +176,9 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 ## 📦 Deliverables Phase 5
 
 ```
-✅ Sprint 17: Gateway proxy hoạt động
-✅ Sprint 18: Response format đồng nhất
-✅ Sprint 19: Swagger + Postman local
+🔄 Sprint 17: Gateway proxy implementation
+🔄 Sprint 18: Response format standardization
+🔄 Sprint 19: Swagger + Postman local
 ⬜ Sprint 20: Integration tests
 ⬜ Sprint 21: Documentation validation
 ```

@@ -6,7 +6,8 @@
   "root": "apps/api-gateway",
   "compilerOptions": {
     "webpack": true,
-    "tsConfigPath": "tsconfig.base.json"
+    "tsConfigPath": "tsconfig.base.json",
+    "webpackConfigPath": "webpack.config.js"
   },
   "projects": {
     "identity-service": {
