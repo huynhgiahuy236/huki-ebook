@@ -8,6 +8,7 @@ import { ShipmentsModule } from './modules/shipments/shipments.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ShippingEventsModule } from './modules/events/events.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -28,5 +29,6 @@ import { ShippingEventsModule } from './modules/events/events.module';
     ShipmentsModule,
     ShippingEventsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

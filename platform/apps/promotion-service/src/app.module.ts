@@ -5,6 +5,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { FlashSalesModule } from './modules/flash-sales/flash-sales.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -15,5 +16,6 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
     BannersModule,
     PromotionsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

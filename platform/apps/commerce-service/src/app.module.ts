@@ -15,6 +15,7 @@ import { PublishersModule } from './modules/publishers/publishers.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { CommerceEventsModule } from './modules/events/events.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -41,5 +42,6 @@ import { CommerceEventsModule } from './modules/events/events.module';
     PaymentsModule,
     CommerceEventsModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

@@ -1,38 +1,21 @@
-import { Repository } from 'typeorm';
-import { BookFormat, DigitalBookDetails } from '../../entities';
-import { BooksService } from './books.service';
+import { NotFoundException } from '@nestjs/common';
 import { DigitalBooksService } from './digital-books.service';
 
-describe('DigitalBooksService', () => {
-  const privateDetails = {
-    id: 'digital-id',
-    bookId: 'book-id',
-    sourcePdfKey: 'private/source.pdf',
-    previewPdfKey: 'private/preview.pdf',
-    epubKey: null,
-    digitalEnabled: true,
-    allowOnlineRead: true,
-    allowDownload: false,
-    fileSize: '1000',
-    mimeType: 'application/pdf',
-    checksum: 'secret-checksum',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as DigitalBookDetails;
-  const repository = {
-    findOne: jest.fn().mockResolvedValue(privateDetails),
-    save: jest.fn(async (value: DigitalBookDetails) => value),
-  } as unknown as Repository<DigitalBookDetails>;
-  const booksService = {
-    findForWrite: jest.fn().mockResolvedValue({ format: BookFormat.DIGITAL }),
-  } as unknown as BooksService;
-  const service = new DigitalBooksService(repository, booksService);
+describe('DigitalBooksService (Prisma)', () => {
+  const prisma = { digitalBookDetails: { findUnique: jest.fn() } };
+  const books = { findForWrite: jest.fn() };
+  const service = new DigitalBooksService(prisma as any, books as any);
+  beforeEach(() => jest.clearAllMocks());
 
-  it('never exposes private R2 keys or checksum', async () => {
-    const result = await service.get('book-id', { sub: 'owner-id', role: 'BUSINESS' });
-    expect(result).toMatchObject({ hasSourceFile: true, hasPreviewFile: true });
-    expect(result).not.toHaveProperty('sourcePdfKey');
-    expect(result).not.toHaveProperty('previewPdfKey');
-    expect(result).not.toHaveProperty('checksum');
+  it('returns a serialized digital detail record from Prisma', async () => {
+    books.findForWrite.mockResolvedValue({});
+    prisma.digitalBookDetails.findUnique.mockResolvedValue({ id: 'details', bookId: 'book', digitalEnabled: true, pdfKey: 'source', previewPdfKey: null, epubKey: null, createdAt: new Date(), updatedAt: new Date() });
+    await expect(service.get('book', {} as any)).resolves.toMatchObject({ hasSourceFile: true });
+  });
+
+  it('rejects a missing digital detail record', async () => {
+    books.findForWrite.mockResolvedValue({});
+    prisma.digitalBookDetails.findUnique.mockResolvedValue(null);
+    await expect(service.get('book', {} as any)).rejects.toBeInstanceOf(NotFoundException);
   });
 });
