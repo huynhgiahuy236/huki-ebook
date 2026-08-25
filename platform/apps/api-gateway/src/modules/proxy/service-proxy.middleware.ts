@@ -45,7 +45,9 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   }
 
   use(req: Request, res: Response, next: NextFunction) {
-    const service = this.resolveService(req.path);
+    // Nest strips the matched route from req.path for wildcard middleware.
+    // originalUrl retains the client path, including the global /api/v1 prefix.
+    const service = this.resolveService(req.originalUrl);
     if (!service) return next();
 
     const host = this.config.get<string>(`services.${service}.host`);
@@ -98,7 +100,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   }
 
   private resolveService(path: string): ServiceName | undefined {
-    const match = path.match(/^\/api\/v1\/([^/?]+)/);
+    const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
     return match ? ROUTES[match[1]] : undefined;
   }
 

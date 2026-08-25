@@ -16,6 +16,7 @@ import { ThrottlerBehindProxyGuard } from './modules/auth/guards/throttle.guard'
 // Config
 import configuration from '../config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { HealthController } from './modules/health/health.controller';
 
 @Module({
   imports: [
@@ -53,5 +54,6 @@ import { PrismaModule } from './prisma/prisma.module';
       useClass: ThrottlerBehindProxyGuard,
     },
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}

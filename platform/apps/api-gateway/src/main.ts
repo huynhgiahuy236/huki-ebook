@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, NestApplicationOptions } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
+import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { aggregateOpenApi } from './modules/proxy/openapi-aggregator';
 
 async function bootstrap() {
   const options: NestApplicationOptions = {
@@ -35,6 +36,7 @@ async function bootstrap() {
   );
 
   // Global exception filter
+  app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new HttpExceptionFilter());
 
   // ========================================
@@ -155,7 +157,13 @@ Most endpoints require JWT Bearer token authentication.
     deepScanRoutes: true,
   };
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, config, documentOptions);
+
+  // The UI reads this endpoint at request time, so a temporarily unavailable
+  // service does not prevent the gateway from booting and returns when healthy.
+  app.getHttpAdapter().get('/api/openapi.json', async (_request, response) => {
+    response.json(await aggregateOpenApi(document));
+  });
 
   // Custom Swagger UI options
   SwaggerModule.setup('api/docs', app, document, {
@@ -205,6 +213,7 @@ Most endpoints require JWT Bearer token authentication.
     `,
     customCssUrl: [],
     swaggerOptions: {
+      url: '/api/openapi.json',
       persistAuthorization: true,
       docExpansion: 'list',
       filter: true,
