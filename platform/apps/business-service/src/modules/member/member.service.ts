@@ -1,12 +1,9 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { InviteMemberDto } from './dto/member.dto';
 import { InvitationStatus, MemberStatus } from '../../../prisma/generated/client';
+import { throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class MemberService {
@@ -17,7 +14,7 @@ export class MemberService {
     // Check if inviter is owner or manager
     const canInvite = await this.canManageMembers(businessId, userId);
     if (!canInvite) {
-      throw new BadRequestException('Bạn không có quyền mời thành viên');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
 
     // Check if email already invited
@@ -30,12 +27,8 @@ export class MemberService {
     });
 
     if (existingInvitation) {
-      throw new ConflictException('Lời mời đã được gửi đến email này');
+      throwBadRequest(ErrorCode.MEMBER_ALREADY_EXISTS);
     }
-
-    // Check if user is already a member
-    // Note: In real app, we need to lookup user by email first
-    // For now, create invitation directly
 
     // Create invitation (expires in 7 days)
     const expiresAt = new Date();
@@ -73,41 +66,41 @@ export class MemberService {
     });
 
     if (!invitation) {
-      throw new NotFoundException('Lời mời không tồn tại');
+      throwNotFound(ErrorCode.MEMBER_INVITATION_INVALID);
     }
 
-    if (invitation.status !== InvitationStatus.PENDING) {
-      throw new BadRequestException('Lời mời đã được xử lý');
+    if (invitation!.status !== InvitationStatus.PENDING) {
+      throwBadRequest(ErrorCode.MEMBER_INVITATION_INVALID);
     }
 
-    if (invitation.email !== userEmail) {
-      throw new BadRequestException('Email không khớp với lời mời');
+    if (invitation!.email !== userEmail) {
+      throwBadRequest(ErrorCode.MEMBER_INVITATION_INVALID);
     }
 
-    if (new Date() > invitation.expiresAt) {
+    if (new Date() > invitation!.expiresAt) {
       await this.prisma.invitation.update({
-        where: { id: invitation.id },
+        where: { id: invitation!.id },
         data: { status: InvitationStatus.EXPIRED },
       });
-      throw new BadRequestException('Lời mời đã hết hạn');
+      throwBadRequest(ErrorCode.MEMBER_INVITATION_EXPIRED);
     }
 
     // Create member
     const member = await this.prisma.member.create({
       data: {
-        businessId: invitation.businessId,
+        businessId: invitation!.businessId,
         userId,
-        role: invitation.role,
+        role: invitation!.role,
         status: MemberStatus.ACTIVE,
         invitedAt: new Date(),
-        invitedBy: invitation.invitedBy,
+        invitedBy: invitation!.invitedBy,
         acceptedAt: new Date(),
       },
     });
 
     // Update invitation
     await this.prisma.invitation.update({
-      where: { id: invitation.id },
+      where: { id: invitation!.id },
       data: {
         status: InvitationStatus.ACCEPTED,
         acceptedAt: new Date(),
@@ -146,7 +139,7 @@ export class MemberService {
     });
 
     if (!member) {
-      throw new NotFoundException('Thành viên không tồn tại');
+      throwNotFound(ErrorCode.MEMBER_NOT_FOUND);
     }
 
     return member;
@@ -162,14 +155,14 @@ export class MemberService {
     // Only owner can change roles
     const isOwner = await this.isOwner(businessId, adminId);
     if (!isOwner) {
-      throw new BadRequestException('Chỉ chủ doanh nghiệp mới có quyền thay đổi vai trò');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
 
     const member = await this.getMember(businessId, memberId);
 
     // Cannot change owner role
-    if (member.role === 'OWNER') {
-      throw new BadRequestException('Không thể thay đổi vai trò của chủ doanh nghiệp');
+    if (member!.role === 'OWNER') {
+      throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
     return this.prisma.member.update({
@@ -183,13 +176,13 @@ export class MemberService {
     // Only owner can remove members
     const isOwner = await this.isOwner(businessId, adminId);
     if (!isOwner) {
-      throw new BadRequestException('Chỉ chủ doanh nghiệp mới có quyền xóa thành viên');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
 
     const member = await this.getMember(businessId, memberId);
 
-    if (member.role === 'OWNER') {
-      throw new BadRequestException('Không thể xóa chủ doanh nghiệp');
+    if (member!.role === 'OWNER') {
+      throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
     return this.prisma.member.update({
@@ -210,15 +203,15 @@ export class MemberService {
     });
 
     if (!member) {
-      throw new NotFoundException('Bạn không phải thành viên của doanh nghiệp này');
+      throwNotFound(ErrorCode.MEMBER_NOT_FOUND);
     }
 
-    if (member.role === 'OWNER') {
-      throw new BadRequestException('Chủ doanh nghiệp không thể rời khỏi doanh nghiệp');
+    if (member!.role === 'OWNER') {
+      throwBadRequest(ErrorCode.MEMBER_CANNOT_LEAVE);
     }
 
     return this.prisma.member.update({
-      where: { id: member.id },
+      where: { id: member!.id },
       data: { deletedAt: new Date() },
     });
   }

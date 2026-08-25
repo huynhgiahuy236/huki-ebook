@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres123
-      POSTGRES_MULTIPLE_DATABASES: identity_db,business_db,commerce_db,shipping_db,promotion_db
+      POSTGRES_MULTIPLE_DATABASES: huki_identity,huki_business,huki_commerce,huki_shipping,huki_promotion
     ports:
       - "5432:5432"
     volumes:

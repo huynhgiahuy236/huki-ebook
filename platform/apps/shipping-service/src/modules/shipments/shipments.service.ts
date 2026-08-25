@@ -1,12 +1,4 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Inject,
-  Injectable,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
@@ -30,7 +22,9 @@ import {
   GhtkCallbackDto,
   UpdateShipmentStatusDto,
 } from './dto/shipment-status.dto';
-import { SHIPPING_EVENTS } from '../../../../../libs/shared/src';
+import { SHIPPING_EVENTS } from '@huki/shared/events';
+import { throwBadRequest, throwConflict, throwForbidden, throwNotFound, throwUnauthorized } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 const NEXT_STATUSES: Record<ShipmentStatus, ShipmentStatus[]> = {
   PENDING: [
@@ -81,13 +75,14 @@ export class ShipmentsService {
     const shippable = dto.sellerOrders.filter((item) => item.requiresShipping);
     if (!shippable.length)
       return { created: [], skipped: true, reason: 'NO_PHYSICAL_SELLER_ORDER' };
-    if (!dto.shippingAddress)
-      throw new BadRequestException(
-        'Shipping address is required for physical seller orders',
-      );
+    if (!dto.shippingAddress) {
+      throwBadRequest(ErrorCode.CHECKOUT_SHIPPING_REQUIRED);
+    }
+    const address = dto.shippingAddress as NonNullable<typeof dto.shippingAddress>;
     const created = [];
-    for (const sellerOrder of shippable)
-      created.push(await this.createOne(dto, sellerOrder, dto.shippingAddress));
+    for (const sellerOrder of shippable) {
+      created.push(await this.createOne(dto, sellerOrder, address));
+    }
     return { created, skipped: false };
   }
 
@@ -123,7 +118,7 @@ export class ShipmentsService {
         logs: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
       },
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
+    if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
     return this.view(shipment);
   }
 
@@ -135,7 +130,7 @@ export class ShipmentsService {
         logs: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
       },
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
+    if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
     return this.view(shipment);
   }
 
@@ -145,19 +140,17 @@ export class ShipmentsService {
     dto: UpdateShipmentStatusDto,
   ) {
     const shipment = await this.prisma.shipment.findUnique({ where: { id } });
-    if (!shipment) throw new NotFoundException('Shipment not found');
+    if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
     let staffId: string | undefined;
     let source: LogSource = LogSource.ADMIN;
     if (actor.role !== 'PLATFORM_ADMIN') {
       const staff = await this.prisma.deliveryStaff.findUnique({
         where: { userId: actor.sub },
       });
-      if (!staff || shipment.assignedStaffId !== staff.id) {
-        throw new ForbiddenException(
-          'Only assigned delivery staff or platform admin can update this shipment',
-        );
+      if (!staff || shipment!.assignedStaffId !== staff.id) {
+        throwForbidden(ErrorCode.SHIPMENT_STAFF_NOT_ASSIGNED);
       }
-      staffId = staff.id;
+      staffId = staff!.id;
       source = LogSource.STAFF;
     }
     return this.transition(id, dto.status, source, {
@@ -176,13 +169,13 @@ export class ShipmentsService {
     const shipment = await this.prisma.shipment.findUnique({
       where: { trackingNumber: dto.trackingNumber },
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-    if (shipment.status === dto.status) {
+    if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
+    if (shipment!.status === dto.status) {
       try {
         await this.prisma.deliveryLog.create({
           data: {
-            shipmentId: shipment.id,
-            status: shipment.status,
+            shipmentId: shipment!.id,
+            status: shipment!.status,
             source: LogSource.CARRIER,
             action: 'STATUS_CONFIRMED',
             externalEventId: dto.eventId,
@@ -197,12 +190,12 @@ export class ShipmentsService {
       return {
         accepted: true,
         idempotentReplay: false,
-        shipment: this.view(shipment),
+        shipment: this.view(shipment!),
       };
     }
     try {
       const updated = await this.transition(
-        shipment.id,
+        shipment!.id,
         dto.status,
         LogSource.CARRIER,
         {
@@ -224,13 +217,13 @@ export class ShipmentsService {
     const shipment = await this.prisma.shipment.findUnique({
       where: { sellerOrderId },
     });
-    if (!shipment) throw new NotFoundException('Shipment not found');
-    if (shipment.status === ShipmentStatus.CANCELLED)
-      return this.view(shipment);
-    if (shipment.trackingNumber)
-      await this.carrier.cancelShipment(shipment.trackingNumber);
+    if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
+    if (shipment!.status === ShipmentStatus.CANCELLED)
+      return this.view(shipment!);
+    if (shipment!.trackingNumber)
+      await this.carrier.cancelShipment(shipment!.trackingNumber);
     return this.transition(
-      shipment.id,
+      shipment!.id,
       ShipmentStatus.CANCELLED,
       LogSource.SYSTEM,
       { note: dto.reason },
@@ -365,15 +358,13 @@ export class ShipmentsService {
       const shipment = await tx.shipment.findUnique({
         where: { id: shipmentId },
       });
-      if (!shipment) throw new NotFoundException('Shipment not found');
-      if (!isShipmentTransitionAllowed(shipment.status, target)) {
-        throw new ConflictException(
-          `Cannot transition shipment from ${shipment.status} to ${target}`,
-        );
+      if (!shipment) throwNotFound(ErrorCode.SHIPMENT_NOT_FOUND);
+      if (!isShipmentTransitionAllowed(shipment!.status, target)) {
+        throwConflict(ErrorCode.SHIPMENT_STATUS_TRANSITION_INVALID);
       }
       const occurredAt = context.occurredAt ?? new Date();
       const changed = await tx.shipment.updateMany({
-        where: { id: shipmentId, status: shipment.status },
+        where: { id: shipmentId, status: shipment!.status },
         data: {
           status: target,
           ...this.timelineData(target, occurredAt),
@@ -382,7 +373,7 @@ export class ShipmentsService {
         },
       });
       if (changed.count !== 1)
-        throw new ConflictException('Shipment status changed concurrently');
+        throwConflict(ErrorCode.SHIPMENT_STATUS_TRANSITION_INVALID);
       await tx.deliveryLog.create({
         data: {
           shipmentId,
@@ -403,13 +394,13 @@ export class ShipmentsService {
           aggregateId: shipmentId,
           payload: {
             shipmentId,
-            orderId: shipment.orderId,
-            sellerOrderId: shipment.sellerOrderId,
-            userId: shipment.userId,
-            ownerUserId: shipment.ownerUserId,
-            storeId: shipment.storeId,
-            trackingNumber: shipment.trackingNumber,
-            from: shipment.status,
+            orderId: shipment!.orderId,
+            sellerOrderId: shipment!.sellerOrderId,
+            userId: shipment!.userId,
+            ownerUserId: shipment!.ownerUserId,
+            storeId: shipment!.storeId,
+            trackingNumber: shipment!.trackingNumber,
+            from: shipment!.status,
             to: target,
             occurredAt: occurredAt.toISOString(),
           },
@@ -422,7 +413,7 @@ export class ShipmentsService {
           logs: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
         },
       });
-      return this.view(updated);
+      return this.view(updated!);
     });
   }
 
@@ -449,9 +440,7 @@ export class ShipmentsService {
   private verifyCallback(dto: GhtkCallbackDto) {
     const secret = this.config.get<string>('SHIPPING_WEBHOOK_SECRET');
     if (!secret)
-      throw new UnauthorizedException(
-        'Shipping webhook secret is not configured',
-      );
+      throwUnauthorized(ErrorCode.SYSTEM_INTERNAL_ERROR, 'Webhook secret not configured');
     const canonical = [
       dto.eventId,
       dto.trackingNumber,
@@ -460,13 +449,13 @@ export class ShipmentsService {
       dto.location ?? '',
       dto.note ?? '',
     ].join('|');
-    const expected = createHmac('sha256', secret).update(canonical).digest();
+    const expected = createHmac('sha256', secret!).update(canonical).digest();
     const provided = Buffer.from(dto.signature, 'hex');
     if (
       provided.length !== expected.length ||
       !timingSafeEqual(provided, expected)
     ) {
-      throw new UnauthorizedException('Invalid GHTK callback signature');
+      throwUnauthorized(ErrorCode.PAYMENT_SIGNATURE_INVALID, 'Invalid GHTK callback signature');
     }
   }
 

@@ -1,8 +1,4 @@
 import { Module } from '@nestjs/common';
-import {
-  AuthenticatedGuard,
-  BookWriteGuard,
-} from '../../common/book-auth.guard';
 import { CartModule } from '../cart/cart.module';
 import { CheckoutController } from './checkout.controller';
 import { CheckoutService } from './checkout.service';
@@ -20,8 +16,6 @@ import { OrderCompletionService } from './order-completion.service';
     OrdersService,
     InventoryReservationService,
     OrderCompletionService,
-    AuthenticatedGuard,
-    BookWriteGuard,
   ],
   exports: [OrdersService, InventoryReservationService, OrderCompletionService],
 })

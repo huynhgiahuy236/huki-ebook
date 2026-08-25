@@ -1,8 +1,10 @@
-import { Controller, Post, Body, Headers, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Headers } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { VouchersService } from '../vouchers/vouchers.service';
 import { FlashSalesService } from '../flash-sales/flash-sales.service';
 import { ConfigService } from '@nestjs/config';
+import { throwUnauthorized } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @ApiTags('Internal')
 @Controller('internal')
@@ -26,7 +28,7 @@ export class InternalPromotionsController {
     @Body() body: { code: string; orderSubtotal: number; storeId?: string; userId: string },
   ) {
     if (!this.verifyApiKey(apiKey)) {
-      throw new UnauthorizedException('Invalid API key');
+      throwUnauthorized(ErrorCode.SYSTEM_INTERNAL_ERROR);
     }
     return this.vouchers.validate(body.userId, {
       code: body.code,
@@ -42,7 +44,7 @@ export class InternalPromotionsController {
     @Body() body: { voucherId: string; orderId: string; userId: string; discountAmount: number },
   ) {
     if (!this.verifyApiKey(apiKey)) {
-      throw new UnauthorizedException('Invalid API key');
+      throwUnauthorized(ErrorCode.SYSTEM_INTERNAL_ERROR);
     }
     return this.vouchers.apply(body.userId, body.voucherId, body.orderId, body.discountAmount);
   }
@@ -54,7 +56,7 @@ export class InternalPromotionsController {
     @Body() body: { bookIds: string[] },
   ) {
     if (!this.verifyApiKey(apiKey)) {
-      throw new UnauthorizedException('Invalid API key');
+      throwUnauthorized(ErrorCode.SYSTEM_INTERNAL_ERROR);
     }
     return Promise.all(
       body.bookIds.map((bookId) => this.flashSales.getBookFlashSalePrice(bookId))

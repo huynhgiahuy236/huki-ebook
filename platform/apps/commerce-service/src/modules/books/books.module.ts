@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { BookWriteGuard, OptionalBookAuthGuard } from '../../common/book-auth.guard';
 import { BooksController } from './books.controller';
 import { BooksService } from './books.service';
 import { PhysicalBooksController } from './physical-books.controller';
@@ -32,8 +31,6 @@ import { BookPublishingService } from './book-publishing.service';
     R2EbookStorage,
     { provide: COVER_STORAGE, useExisting: CloudinaryCoverStorage },
     { provide: EBOOK_STORAGE, useExisting: R2EbookStorage },
-    BookWriteGuard,
-    OptionalBookAuthGuard,
   ],
   exports: [BooksService],
 })

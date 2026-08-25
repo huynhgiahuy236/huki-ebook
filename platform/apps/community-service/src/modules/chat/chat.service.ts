@@ -1,14 +1,8 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";
 import { Model, Types } from "mongoose";
-import { RabbitMqEventBus } from "../../../../../libs/shared/src";
+import { RabbitMqEventBus } from "@huki/shared";
 import { CommunityActor } from "../../common/community-auth.guard";
 import {
   Conversation,
@@ -21,6 +15,8 @@ import {
   CreateConversationDto,
   SendMessageDto,
 } from "./dto/chat.dto";
+import { throwForbidden, throwBadRequest, throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 export interface ChatDelivery {
   data: Record<string, unknown>;
@@ -72,7 +68,7 @@ export class ChatService {
     const result = await this.messagePage(conversationId, query);
     return {
       data: {
-        ...this.conversationView(conversation, actor.sub),
+        ...this.conversationView(conversation!, actor.sub),
         messages: result.data,
         pagination: result.pagination,
       },
@@ -90,14 +86,10 @@ export class ChatService {
 
   async createConversation(actor: CommunityActor, dto: CreateConversationDto) {
     if (actor.role !== "USER") {
-      throw new ForbiddenException(
-        "Only customers can start a store conversation",
-      );
+      throwForbidden(ErrorCode.CHAT_BLOCKED);
     }
     if (actor.sub === dto.storeId) {
-      throw new BadRequestException(
-        "Conversation participants must be different",
-      );
+      throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
 
     const existing = await this.conversations.findOne({
@@ -115,7 +107,7 @@ export class ChatService {
     if (existing) {
       return {
         message: "Conversation already exists",
-        data: this.conversationView(existing, actor.sub),
+        data: this.conversationView(existing!, actor.sub),
       };
     }
 
@@ -142,7 +134,7 @@ export class ChatService {
     return {
       message: "Conversation created",
       data: {
-        ...this.conversationView(conversation, actor.sub),
+        ...this.conversationView(conversation!, actor.sub),
         messages: [delivery.data],
       },
       delivery,
@@ -157,16 +149,16 @@ export class ChatService {
     this.validateAttachments(dto);
     const conversation = await this.ensureWritable(actor, conversationId);
 
-    const sender = this.participant(conversation, actor.sub);
-    const recipientIds = conversation.participants
+    const sender = this.participant(conversation!, actor.sub);
+    const recipientIds = conversation!.participants
       .filter((item) => item.id !== actor.sub)
       .map((item) => item.id);
     const message = await this.messages.create({
-      conversationId: conversation._id,
-      senderType: sender.type,
+      conversationId: conversation!._id,
+      senderType: sender!.type,
       senderId: actor.sub,
-      senderName: this.actorName(actor, sender.name),
-      senderAvatar: actor.avatar ?? sender.avatar,
+      senderName: this.actorName(actor, sender!.name),
+      senderAvatar: actor.avatar ?? sender!.avatar,
       content: dto.content.trim(),
       messageType: dto.messageType ?? "TEXT",
       attachments: dto.attachments ?? [],
@@ -178,7 +170,7 @@ export class ChatService {
       recipientIds.map((id) => [`unreadCount.${this.safeMapKey(id)}`, 1]),
     );
     const update = await this.conversations.updateOne(
-      { _id: conversation._id, status: "ACTIVE" },
+      { _id: conversation!._id, status: "ACTIVE" },
       {
         $set: {
           lastMessage: {
@@ -194,14 +186,14 @@ export class ChatService {
     );
     if (!update.matchedCount) {
       await this.messages.deleteOne({ _id: message._id });
-      throw new BadRequestException("Conversation is closed");
+      throwBadRequest(ErrorCode.CHAT_BUSINESS_SUSPENDED);
     }
 
     const data = this.messageView(message);
-    void this.publishMessageEvent(data, conversation, recipientIds);
+    void this.publishMessageEvent(data, conversation!, recipientIds);
     return {
       data,
-      participantIds: conversation.participants.map((item) => item.id),
+      participantIds: conversation!.participants.map((item) => item.id),
       recipientIds,
     };
   }
@@ -211,9 +203,9 @@ export class ChatService {
       conversationId,
       actor.sub,
     );
-    if (conversation.status !== "CLOSED") {
-      conversation.status = "CLOSED";
-      await conversation.save();
+    if (conversation!.status !== "CLOSED") {
+      conversation!.status = "CLOSED";
+      await conversation!.save();
     }
     return { message: "Conversation closed" };
   }
@@ -228,7 +220,7 @@ export class ChatService {
     );
     const unread = await this.messages
       .find({
-        conversationId: conversation._id,
+        conversationId: conversation!._id,
         senderId: { $ne: actor.sub },
         status: { $ne: "READ" },
       })
@@ -247,7 +239,7 @@ export class ChatService {
       );
     }
     await this.conversations.updateOne(
-      { _id: conversation._id },
+      { _id: conversation!._id },
       { $set: { [`unreadCount.${this.safeMapKey(actor.sub)}`]: 0 } },
     );
 
@@ -256,7 +248,7 @@ export class ChatService {
       readerId: actor.sub,
       messageIds,
       readAt: readAt.toISOString(),
-      participantIds: conversation.participants.map((item) => item.id),
+      participantIds: conversation!.participants.map((item) => item.id),
     };
   }
 
@@ -281,7 +273,7 @@ export class ChatService {
     );
     const pending = await this.messages
       .find({
-        conversationId: conversation._id,
+        conversationId: conversation!._id,
         senderId: { $ne: actor.sub },
         status: "SENT",
       })
@@ -301,7 +293,7 @@ export class ChatService {
       conversationId,
       actor.sub,
     );
-    return conversation.participants.map((item) => item.id);
+    return conversation!.participants.map((item) => item.id);
   }
 
   async ensureWritable(actor: CommunityActor, conversationId: string) {
@@ -309,20 +301,20 @@ export class ChatService {
       conversationId,
       actor.sub,
     );
-    if (conversation.status !== "ACTIVE") {
-      throw new BadRequestException("Conversation is closed");
+    if (conversation!.status !== "ACTIVE") {
+      throwBadRequest(ErrorCode.CHAT_BUSINESS_SUSPENDED);
     }
     return conversation;
   }
 
   private async requireConversation(id: string, actorId: string) {
     if (!Types.ObjectId.isValid(id)) {
-      throw new NotFoundException("Conversation not found");
+      throwNotFound(ErrorCode.CHAT_CONVERSATION_NOT_FOUND);
     }
     const conversation = await this.conversations.findById(id);
-    if (!conversation) throw new NotFoundException("Conversation not found");
-    this.participant(conversation, actorId);
-    return conversation;
+    if (!conversation) throwNotFound(ErrorCode.CHAT_CONVERSATION_NOT_FOUND);
+    this.participant(conversation!, actorId);
+    return conversation!;
   }
 
   private participant(conversation: ConversationDocument, actorId: string) {
@@ -330,9 +322,7 @@ export class ChatService {
       (item) => item.id === actorId,
     );
     if (!participant) {
-      throw new ForbiddenException(
-        "You are not a participant of this conversation",
-      );
+      throwForbidden(ErrorCode.CHAT_BLOCKED);
     }
     return participant;
   }
@@ -430,15 +420,13 @@ export class ChatService {
       dto.messageType === "IMAGE" &&
       !attachments.some((item) => item.type === "IMAGE")
     ) {
-      throw new BadRequestException(
-        "IMAGE messages require an image attachment",
-      );
+      throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
     if (
       dto.messageType === "FILE" &&
       !attachments.some((item) => item.type === "FILE")
     ) {
-      throw new BadRequestException("FILE messages require a file attachment");
+      throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
   }
 
@@ -448,7 +436,7 @@ export class ChatService {
 
   private safeMapKey(id: string) {
     if (id.includes(".") || id.includes("$")) {
-      throw new BadRequestException("Invalid participant identifier");
+      throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
     return id;
   }

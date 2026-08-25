@@ -1,13 +1,14 @@
 import {
   Controller,
   Post,
+  Get,
+  Patch,
   Body,
+  Query,
   UseGuards,
   Req,
   HttpCode,
   HttpStatus,
-  Get,
-  Patch,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { Request } from 'express';
@@ -31,22 +32,36 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'Registration successful' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new user (requires email verification)' })
+  @ApiResponse({ status: 201, description: 'Registration successful, verify email' })
   @ApiResponse({ status: 409, description: 'Email already exists' })
   async register(@Body() dto: RegisterDto) {
     const result = await this.authService.register(dto);
-    return {
-      message: 'Registration successful',
-      data: result,
-    };
+    return result;
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify email with token' })
+  @ApiResponse({ status: 200, description: 'Email verified successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired token' })
+  async verifyEmail(@Body('token') token: string) {
+    return this.authService.verifyEmail(token);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Resend verification email' })
+  async resendVerification(@Body('email') email: string) {
+    return this.authService.resendVerification(email);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Login with email and password' })
+  @ApiOperation({ summary: 'Login with email and password (requires verified email)' })
   @ApiResponse({ status: 200, description: 'Login successful' })
-  @ApiResponse({ status: 401, description: 'Invalid credentials' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or unverified email' })
   async login(@Body() dto: LoginDto, @Req() req: Request) {
     const userAgent = req.get('user-agent');
     const ipAddress = req.ip;
@@ -100,7 +115,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Request password reset' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     await this.authService.forgotPassword(dto);
-    return { message: 'Password reset email sent' };
+    return { message: 'If email exists, reset link has been sent' };
   }
 
   @Post('reset-password')

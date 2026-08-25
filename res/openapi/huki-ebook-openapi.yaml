@@ -1,0 +1,4010 @@
+openapi: 3.0.4
+info:
+  title: HUKI EBOOK API
+  description: |
+    # HUKI EBOOK Platform API Documentation
+
+    Welcome to the HUKI EBOOK API documentation. This API provides comprehensive endpoints for managing a multi-vendor ebook platform.
+
+    ## 🎯 Overview
+
+    HUKI EBOOK is a microservices-based ebook platform supporting:
+    - **Multi-vendor bookstores**: Sellers can create their own stores
+    - **Physical & Digital books**: Support for both formats
+    - **Subscription model**: Free, Basic, Premium tiers
+    - **Real-time chat**: Buyer-seller communication
+    - **Community features**: Forums, reviews, ratings
+
+    ## 🔐 Authentication
+
+    All protected endpoints require JWT Bearer token authentication:
+
+    1. **Register**: `POST /api/v1/auth/register`
+    2. **Login**: `POST /api/v1/auth/login` → Returns `accessToken` and `refreshToken`
+    3. **Use Token**: Include header `Authorization: Bearer <accessToken>`
+
+    ## 📍 Base URL
+
+    - Local: `http://localhost:3000/api/v1`
+    - Development: `https://dev.huki.ebook.com/api/v1`
+
+    ## 📋 Services Architecture
+
+    | Service | Port | Description |
+    |---------|------|-------------|
+    | API Gateway | 3000 | Entry point, routes to microservices |
+    | Identity | 3001 | Authentication, Users, Sessions |
+    | Business | 3002 | Businesses, Stores, Members |
+    | Commerce | 3003 | Books, Cart, Orders, Payments |
+    | Shipping | 3004 | Shipments, Addresses, GHTK |
+    | Community | 3005 | Forum, Chat, Reviews, Notifications |
+    | Promotion | 3007 | Vouchers, Banners, Flash Sales |
+
+    ## ❌ Error Codes
+
+    | Code | Meaning |
+    |------|---------|
+    | 400 | Bad Request - Invalid input |
+    | 401 | Unauthorized - Token invalid/expired |
+    | 403 | Forbidden - No permission |
+    | 404 | Not Found - Resource doesn't exist |
+    | 409 | Conflict - Duplicate entry |
+    | 500 | Internal Server Error |
+
+    ## 📝 Common Headers
+
+    | Header | Required | Description |
+    |--------|----------|-------------|
+    | Content-Type | Yes | `application/json` |
+    | Authorization | For protected routes | `Bearer <token>` |
+    | Idempotency-Key | For checkout | UUID for idempotent operations |
+
+    ## 🔄 Pagination
+
+    List endpoints support pagination:
+
+    ```
+    GET /resource?page=1&limit=20
+    GET /resource?cursor=<lastId>&limit=20
+    ```
+
+    Response format:
+    ```json
+    {
+      "data": [...],
+      "meta": {
+        "page": 1,
+        "limit": 20,
+        "total": 100,
+        "totalPages": 5
+      }
+    }
+    ```
+  version: 1.0.0
+  termsOfService: https://huki.ebook.com/terms
+  contact:
+    name: HUKI Support
+    email: support@huki.ebook.com
+    url: https://huki.ebook.com
+  license:
+    name: MIT License
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Local Development
+  - url: https://dev.huki.ebook.com/api/v1
+    description: Development Server
+  - url: https://staging.huki.ebook.com/api/v1
+    description: Staging Server
+  - url: https://api.huki.ebook.com/api/v1
+    description: Production Server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Auth
+    description: Authentication endpoints (Register, Login, Logout)
+  - name: Users
+    description: User profile management
+  - name: Sessions
+    description: Session management
+  - name: Business
+    description: Business registration and management
+  - name: Stores
+    description: Store management
+  - name: Members
+    description: Team member management
+  - name: Books
+    description: Book CRUD and publishing
+  - name: Categories
+    description: Book categories
+  - name: Authors
+    description: Book authors
+  - name: Publishers
+    description: Book publishers
+  - name: Cart
+    description: Shopping cart operations
+  - name: Checkout
+    description: Order checkout
+  - name: Orders
+    description: Order management (buyer view)
+  - name: Seller Orders
+    description: Order management (seller view)
+  - name: Payments
+    description: Payment and refund operations
+  - name: Shipping
+    description: Shipping fee calculation
+  - name: Shipments
+    description: Shipment tracking
+  - name: Forum
+    description: Forum posts and comments
+  - name: Reviews
+    description: Book and store reviews
+  - name: Chat
+    description: Real-time chat
+  - name: Notifications
+    description: User notifications
+  - name: Moderation
+    description: Content moderation
+  - name: Vouchers
+    description: Voucher management
+  - name: Banners
+    description: Banner management
+  - name: Flash Sales
+    description: Flash sale management
+  - name: Search
+    description: Catalog search
+
+paths:
+  # ============================================
+  # HEALTH
+  # ============================================
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the API Gateway
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  # ============================================
+  # AUTH
+  # ============================================
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register new user
+      description: Create a new user account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+                - fullName
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 8
+                  example: Password123
+                fullName:
+                  type: string
+                  example: Nguyen Van A
+                phone:
+                  type: string
+                  example: "0912345678"
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '409':
+          description: Email already exists
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login
+      description: Authenticate user and get tokens
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout
+      description: Logout and revoke refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logout successful
+
+  /auth/refresh:
+    post:
+      tags:
+        - Auth
+      summary: Refresh token
+      description: Get new access token using refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+
+  /auth/me:
+    get:
+      tags:
+        - Auth
+      summary: Get current user
+      description: Get profile of authenticated user
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /auth/forgot-password:
+    post:
+      tags:
+        - Auth
+      summary: Forgot password
+      description: Request password reset email
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset email sent
+
+  /auth/change-password:
+    patch:
+      tags:
+        - Auth
+      summary: Change password
+      description: Change password while logged in
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        '200':
+          description: Password changed
+
+  # ============================================
+  # USERS
+  # ============================================
+  /users/profile:
+    get:
+      tags:
+        - Users
+      summary: Get user profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    patch:
+      tags:
+        - Users
+      summary: Update user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fullName:
+                  type: string
+                phone:
+                  type: string
+                avatar:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated
+
+  # ============================================
+  # SESSIONS
+  # ============================================
+  /sessions:
+    get:
+      tags:
+        - Sessions
+      summary: Get all sessions
+      description: List all active sessions for the user
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+    delete:
+      tags:
+        - Sessions
+      summary: Revoke all sessions except current
+      responses:
+        '200':
+          description: Sessions revoked
+
+  /sessions/{sessionId}:
+    delete:
+      tags:
+        - Sessions
+      summary: Revoke specific session
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session revoked
+
+  # ============================================
+  # BUSINESS
+  # ============================================
+  /businesses:
+    get:
+      tags:
+        - Business
+      summary: List all businesses
+      description: Public endpoint to list businesses
+      security: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, APPROVED, REJECTED, SUSPENDED]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of businesses
+    post:
+      tags:
+        - Business
+      summary: Register business
+      description: Register a new business (userId as query param)
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBusiness'
+      responses:
+        '201':
+          description: Business registered
+
+  /businesses/my:
+    get:
+      tags:
+        - Business
+      summary: Get my business
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: My business
+
+  /businesses/{id}:
+    get:
+      tags:
+        - Business
+      summary: Get business by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Business details
+    patch:
+      tags:
+        - Business
+      summary: Update business
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBusiness'
+      responses:
+        '200':
+          description: Business updated
+
+  /businesses/{id}/approve:
+    post:
+      tags:
+        - Business
+      summary: Approve business
+      description: Admin endpoint to approve a business
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Business approved
+
+  /businesses/{id}/reject:
+    post:
+      tags:
+        - Business
+      summary: Reject business
+      description: Admin endpoint to reject a business
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Business rejected
+
+  # ============================================
+  # STORES
+  # ============================================
+  /stores:
+    get:
+      tags:
+        - Stores
+      summary: List all stores
+      description: Public endpoint
+      security: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of stores
+    post:
+      tags:
+        - Stores
+      summary: Create store
+      parameters:
+        - name: businessId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStore'
+      responses:
+        '201':
+          description: Store created
+
+  /stores/my:
+    get:
+      tags:
+        - Stores
+      summary: Get my stores
+      parameters:
+        - name: businessId
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: My stores
+
+  /stores/slug/{slug}:
+    get:
+      tags:
+        - Stores
+      summary: Get store by slug
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Store details
+
+  /stores/{id}:
+    get:
+      tags:
+        - Stores
+      summary: Get store by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Store details
+    patch:
+      tags:
+        - Stores
+      summary: Update store
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStore'
+      responses:
+        '200':
+          description: Store updated
+    delete:
+      tags:
+        - Stores
+      summary: Delete store
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Store deleted
+
+  # ============================================
+  # MEMBERS
+  # ============================================
+  /businesses/{businessId}/members/invite:
+    post:
+      tags:
+        - Members
+      summary: Invite member
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                  enum: [OWNER, ADMIN, EDITOR, VIEWER]
+      responses:
+        '201':
+          description: Invitation sent
+
+  /businesses/{businessId}/members:
+    get:
+      tags:
+        - Members
+      summary: Get all members
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of members
+
+  /businesses/{businessId}/members/{memberId}/role:
+    patch:
+      tags:
+        - Members
+      summary: Update member role
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminId
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                  enum: [OWNER, ADMIN, EDITOR, VIEWER]
+      responses:
+        '200':
+          description: Role updated
+
+  /businesses/{businessId}/members/{memberId}:
+    delete:
+      tags:
+        - Members
+      summary: Remove member
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: adminId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Member removed
+
+  /businesses/{businessId}/leave:
+    post:
+      tags:
+        - Members
+      summary: Leave business
+      parameters:
+        - name: businessId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Left business
+
+  # ============================================
+  # BOOKS
+  # ============================================
+  /books:
+    get:
+      tags:
+        - Books
+      summary: List published books
+      description: Public endpoint - list all published books with filters
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: authorId
+          in: query
+          schema:
+            type: string
+        - name: storeId
+          in: query
+          schema:
+            type: string
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [PHYSICAL, DIGITAL, BOTH]
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, price, viewCount]
+        - name: sortOrder
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: List of books
+    post:
+      tags:
+        - Books
+      summary: Create book
+      description: Create a new book draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBook'
+      responses:
+        '201':
+          description: Book created
+
+  /books/slug/{slug}:
+    get:
+      tags:
+        - Books
+      summary: Get book by slug
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Book details
+
+  /books/{id}:
+    get:
+      tags:
+        - Books
+      summary: Get book by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book details
+    patch:
+      tags:
+        - Books
+      summary: Update book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBook'
+      responses:
+        '200':
+          description: Book updated
+    delete:
+      tags:
+        - Books
+      summary: Delete book
+      description: Soft delete a book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Book deleted
+
+  /books/{bookId}/publish:
+    post:
+      tags:
+        - Books
+      summary: Publish book
+      description: Change book status to PUBLISHED
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book published
+
+  /books/{bookId}/hide:
+    post:
+      tags:
+        - Books
+      summary: Hide book
+      description: Change book status to HIDDEN
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book hidden
+
+  /books/{bookId}/archive:
+    post:
+      tags:
+        - Books
+      summary: Archive book
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book archived
+
+  /books/{bookId}/suspend:
+    post:
+      tags:
+        - Books
+      summary: Suspend book
+      description: Platform admin action to suspend a book
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Book suspended
+
+  /books/{bookId}/physical:
+    get:
+      tags:
+        - Books
+      summary: Get physical details
+      description: Get private physical details for owned book
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Physical details
+    patch:
+      tags:
+        - Books
+      summary: Update physical details
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stock:
+                  type: integer
+                weight:
+                  type: number
+                dimensions:
+                  type: string
+                pageCount:
+                  type: integer
+      responses:
+        '200':
+          description: Physical details updated
+
+  /books/{bookId}/digital:
+    get:
+      tags:
+        - Books
+      summary: Get digital details
+      description: Get digital metadata (without private keys)
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Digital details
+    patch:
+      tags:
+        - Books
+      summary: Update digital details
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                digitalEnabled:
+                  type: boolean
+                allowOnlineRead:
+                  type: boolean
+                allowDownload:
+                  type: boolean
+      responses:
+        '200':
+          description: Digital details updated
+
+  /books/{bookId}/inventory:
+    patch:
+      tags:
+        - Books
+      summary: Update inventory
+      description: Adjust stock with audit log
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                adjustment:
+                  type: integer
+                  description: Positive to add, negative to subtract
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Inventory updated
+
+  # ============================================
+  # UPLOADS
+  # ============================================
+  /books/{bookId}/cover:
+    post:
+      tags:
+        - Books
+      summary: Upload cover image
+      description: Upload cover image to Cloudinary
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cover:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Cover uploaded
+
+  /books/{bookId}/file:
+    post:
+      tags:
+        - Books
+      summary: Upload source PDF
+      description: Upload private source PDF to R2
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: File uploaded
+
+  /books/{bookId}/preview:
+    post:
+      tags:
+        - Books
+      summary: Upload preview PDF
+      description: Upload private preview PDF to R2
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Preview uploaded
+
+  # ============================================
+  # CATEGORIES
+  # ============================================
+  /categories:
+    get:
+      tags:
+        - Categories
+      summary: List categories
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of categories
+    post:
+      tags:
+        - Categories
+      summary: Create category
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+                description:
+                  type: string
+                parentId:
+                  type: string
+                image:
+                  type: string
+                sortOrder:
+                  type: integer
+      responses:
+        '201':
+          description: Category created
+
+  /categories/tree:
+    get:
+      tags:
+        - Categories
+      summary: Get category tree
+      security: []
+      parameters:
+        - name: includeInactive
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Category tree
+
+  /categories/{id}:
+    get:
+      tags:
+        - Categories
+      summary: Get category by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Category details
+    patch:
+      tags:
+        - Categories
+      summary: Update category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Category updated
+    delete:
+      tags:
+        - Categories
+      summary: Delete category
+      description: Admin only - soft delete empty category
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Category deleted
+
+  # ============================================
+  # AUTHORS
+  # ============================================
+  /authors:
+    get:
+      tags:
+        - Authors
+      summary: List authors
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of authors
+    post:
+      tags:
+        - Authors
+      summary: Create author
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+                bio:
+                  type: string
+                avatar:
+                  type: string
+      responses:
+        '201':
+          description: Author created
+
+  /authors/{id}:
+    get:
+      tags:
+        - Authors
+      summary: Get author by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Author details
+    patch:
+      tags:
+        - Authors
+      summary: Update author
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Author updated
+    delete:
+      tags:
+        - Authors
+      summary: Delete author
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Author deleted
+
+  # ============================================
+  # PUBLISHERS
+  # ============================================
+  /publishers:
+    get:
+      tags:
+        - Publishers
+      summary: List publishers
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of publishers
+    post:
+      tags:
+        - Publishers
+      summary: Create publisher
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                slug:
+                  type: string
+                description:
+                  type: string
+                logo:
+                  type: string
+      responses:
+        '201':
+          description: Publisher created
+
+  /publishers/{id}:
+    get:
+      tags:
+        - Publishers
+      summary: Get publisher by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Publisher details
+    patch:
+      tags:
+        - Publishers
+      summary: Update publisher
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Publisher updated
+    delete:
+      tags:
+        - Publishers
+      summary: Delete publisher
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Publisher deleted
+
+  # ============================================
+  # CART
+  # ============================================
+  /cart:
+    get:
+      tags:
+        - Cart
+      summary: Get cart
+      description: Get current user's cart
+      responses:
+        '200':
+          description: Cart details
+    delete:
+      tags:
+        - Cart
+      summary: Clear cart
+      description: Remove all items from cart
+      responses:
+        '200':
+          description: Cart cleared
+
+  /cart/items:
+    post:
+      tags:
+        - Cart
+      summary: Add item to cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bookId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                  default: 1
+                format:
+                  type: string
+                  enum: [PHYSICAL, DIGITAL]
+      responses:
+        '201':
+          description: Item added
+
+  /cart/items/{itemId}:
+    patch:
+      tags:
+        - Cart
+      summary: Update cart item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+      responses:
+        '200':
+          description: Item updated
+    delete:
+      tags:
+        - Cart
+      summary: Remove cart item
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Item removed
+
+  # ============================================
+  # CHECKOUT
+  # ============================================
+  /cart/checkout/preview:
+    post:
+      tags:
+        - Checkout
+      summary: Checkout preview
+      description: Preview order before confirming
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shippingAddress:
+                  $ref: '#/components/schemas/ShippingAddress'
+                voucherCode:
+                  type: string
+      responses:
+        '200':
+          description: Order preview
+
+  /cart/checkout/confirm:
+    post:
+      tags:
+        - Checkout
+      summary: Confirm checkout
+      description: Create order from cart (requires Idempotency-Key header)
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentMethod:
+                  type: string
+                  enum: [COD, ONLINE_PAYMENT]
+                shippingAddress:
+                  $ref: '#/components/schemas/ShippingAddress'
+                voucherCode:
+                  type: string
+      responses:
+        '201':
+          description: Order created
+
+  # ============================================
+  # ORDERS (BUYER)
+  # ============================================
+  /orders:
+    get:
+      tags:
+        - Orders
+      summary: Get my orders
+      description: List orders for current user
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders
+
+  /orders/{id}:
+    get:
+      tags:
+        - Orders
+      summary: Get order details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order details
+
+  /orders/{id}/tracking:
+    get:
+      tags:
+        - Orders
+      summary: Track order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order tracking info
+
+  /orders/{id}/cancel:
+    post:
+      tags:
+        - Orders
+      summary: Cancel order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Order cancelled
+
+  # ============================================
+  # SELLER ORDERS
+  # ============================================
+  /seller/orders:
+    get:
+      tags:
+        - Seller Orders
+      summary: Get seller orders
+      description: List orders for seller (store owner)
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of seller orders
+
+  /seller/orders/{id}:
+    get:
+      tags:
+        - Seller Orders
+      summary: Get seller order details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order details
+
+  /seller/orders/{id}/confirm:
+    patch:
+      tags:
+        - Seller Orders
+      summary: Confirm order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order confirmed
+
+  /seller/orders/{id}/prepare:
+    patch:
+      tags:
+        - Seller Orders
+      summary: Start preparing
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order preparing
+
+  /seller/orders/{id}/ship:
+    patch:
+      tags:
+        - Seller Orders
+      summary: Ship order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                shippingProvider:
+                  type: string
+                  example: GHTK
+                trackingNumber:
+                  type: string
+      responses:
+        '200':
+          description: Order shipped
+
+  /seller/orders/{id}/deliver:
+    patch:
+      tags:
+        - Seller Orders
+      summary: Mark as delivered
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Order delivered
+
+  /seller/orders/{id}/cancel:
+    patch:
+      tags:
+        - Seller Orders
+      summary: Cancel seller order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Order cancelled
+
+  # ============================================
+  # PAYMENTS
+  # ============================================
+  /payments/orders/{orderId}/initiate:
+    post:
+      tags:
+        - Payments
+      summary: Initiate payment
+      description: Create payment link for online payment
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment initiated
+
+  /payments/orders/{orderId}:
+    get:
+      tags:
+        - Payments
+      summary: Get payment status
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment status
+
+  /payments/orders/{orderId}/refunds:
+    post:
+      tags:
+        - Payments
+      summary: Request refund
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      orderItemId:
+                        type: string
+                      quantity:
+                        type: integer
+      responses:
+        '200':
+          description: Refund requested
+
+  /payments/webhooks/payos:
+    post:
+      tags:
+        - Payments
+      summary: PayOS webhook
+      description: Receive PayOS payment notifications
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook received
+
+  # ============================================
+  # SHIPPING
+  # ============================================
+  /shipping/fee:
+    get:
+      tags:
+        - Shipping
+      summary: Calculate shipping fee
+      description: Public endpoint - get GHTK mock shipping quote
+      security: []
+      parameters:
+        - name: weight
+          in: query
+          required: true
+          schema:
+            type: number
+            description: Weight in grams
+        - name: fromProvince
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: toProvince
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Shipping fee calculated
+
+  # ============================================
+  # SHIPMENTS
+  # ============================================
+  /shipments:
+    get:
+      tags:
+        - Shipments
+      summary: Get my shipments
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of shipments
+
+  /shipments/{id}:
+    get:
+      tags:
+        - Shipments
+      summary: Get shipment details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Shipment details
+
+  /shipments/tracking/{trackingNumber}:
+    get:
+      tags:
+        - Shipments
+      summary: Track shipment
+      parameters:
+        - name: trackingNumber
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tracking info
+
+  /shipments/{id}/status:
+    patch:
+      tags:
+        - Shipments
+      summary: Update shipment status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+
+  # ============================================
+  # SHIPPING ADDRESSES
+  # ============================================
+  /shipping/address:
+    get:
+      tags:
+        - Shipments
+      summary: Get my addresses
+      responses:
+        '200':
+          description: List of addresses
+    post:
+      tags:
+        - Shipments
+      summary: Create address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingAddress'
+      responses:
+        '201':
+          description: Address created
+
+  /shipping/address/{id}:
+    patch:
+      tags:
+        - Shipments
+      summary: Update address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingAddress'
+      responses:
+        '200':
+          description: Address updated
+    delete:
+      tags:
+        - Shipments
+      summary: Delete address
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Address deleted
+
+  # ============================================
+  # FORUM
+  # ============================================
+  /forum/posts:
+    get:
+      tags:
+        - Forum
+      summary: Get forum posts
+      security: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: userId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of posts
+    post:
+      tags:
+        - Forum
+      summary: Create post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+                categoryId:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Post created
+
+  /forum/posts/popular:
+    get:
+      tags:
+        - Forum
+      summary: Get popular posts
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Popular posts
+
+  /forum/posts/{id}:
+    get:
+      tags:
+        - Forum
+      summary: Get post details
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post details
+    patch:
+      tags:
+        - Forum
+      summary: Update post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Post updated
+    delete:
+      tags:
+        - Forum
+      summary: Delete post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post deleted
+
+  /forum/posts/{id}/comments:
+    get:
+      tags:
+        - Forum
+      summary: Get post comments
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of comments
+    post:
+      tags:
+        - Forum
+      summary: Add comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Comment added
+
+  /forum/posts/{id}/like:
+    post:
+      tags:
+        - Forum
+      summary: Like post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post liked
+    delete:
+      tags:
+        - Forum
+      summary: Unlike post
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post unliked
+
+  /forum/posts/{id}/report:
+    post:
+      tags:
+        - Forum
+      summary: Report post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Report submitted
+
+  /forum/categories:
+    get:
+      tags:
+        - Forum
+      summary: Get forum categories
+      security: []
+      responses:
+        '200':
+          description: List of categories
+
+  /forum/comments/{id}/replies:
+    post:
+      tags:
+        - Forum
+      summary: Reply to comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Reply added
+
+  /forum/comments/{id}/like:
+    post:
+      tags:
+        - Forum
+      summary: Like comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment liked
+    delete:
+      tags:
+        - Forum
+      summary: Unlike comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment unliked
+
+  /forum/comments/{id}/report:
+    post:
+      tags:
+        - Forum
+      summary: Report comment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Report submitted
+
+  /forum/comments/{id}:
+    delete:
+      tags:
+        - Forum
+      summary: Delete comment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment deleted
+
+  # ============================================
+  # REVIEWS
+  # ============================================
+  /books/{id}/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Get book reviews
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of reviews
+    post:
+      tags:
+        - Reviews
+      summary: Create book review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Review created
+
+  /stores/{id}/reviews:
+    get:
+      tags:
+        - Reviews
+      summary: Get store reviews
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: List of reviews
+    post:
+      tags:
+        - Reviews
+      summary: Create store review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Review created
+
+  /reviews/{id}:
+    patch:
+      tags:
+        - Reviews
+      summary: Update review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                title:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '200':
+          description: Review updated
+    delete:
+      tags:
+        - Reviews
+      summary: Delete review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Review deleted
+
+  /reviews/{id}/helpful:
+    post:
+      tags:
+        - Reviews
+      summary: Mark as helpful
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Marked as helpful
+    delete:
+      tags:
+        - Reviews
+      summary: Unmark helpful
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Unmarked
+
+  /reviews/{id}/reply:
+    post:
+      tags:
+        - Reviews
+      summary: Reply to review
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Reply added
+
+  /reviews/{id}/report:
+    post:
+      tags:
+        - Reviews
+      summary: Report review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Report submitted
+
+  # ============================================
+  # CHAT
+  # ============================================
+  /chat/conversations:
+    get:
+      tags:
+        - Chat
+      summary: Get conversations
+      responses:
+        '200':
+          description: List of conversations
+    post:
+      tags:
+        - Chat
+      summary: Create conversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                participantId:
+                  type: string
+                message:
+                  type: string
+      responses:
+        '201':
+          description: Conversation created
+
+  /chat/conversations/{id}:
+    get:
+      tags:
+        - Chat
+      summary: Get conversation details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation details
+
+  /chat/conversations/{id}/messages:
+    get:
+      tags:
+        - Chat
+      summary: Get messages
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of messages
+    post:
+      tags:
+        - Chat
+      summary: Send message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                content:
+                  type: string
+                attachments:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Message sent
+
+  /chat/conversations/{id}/read:
+    patch:
+      tags:
+        - Chat
+      summary: Mark as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Marked as read
+
+  /chat/conversations/{id}/close:
+    post:
+      tags:
+        - Chat
+      summary: Close conversation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation closed
+
+  # ============================================
+  # NOTIFICATIONS
+  # ============================================
+  /notifications:
+    get:
+      tags:
+        - Notifications
+      summary: Get notifications
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of notifications
+
+  /notifications/{id}:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification details
+    delete:
+      tags:
+        - Notifications
+      summary: Delete notification
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+
+  /notifications/{id}/read:
+    patch:
+      tags:
+        - Notifications
+      summary: Mark as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Marked as read
+
+  /notifications/read-all:
+    post:
+      tags:
+        - Notifications
+      summary: Mark all as read
+      responses:
+        '200':
+          description: All marked as read
+
+  /notifications/clear-all:
+    delete:
+      tags:
+        - Notifications
+      summary: Clear all notifications
+      responses:
+        '200':
+          description: All cleared
+
+  /notifications/settings:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification settings
+      responses:
+        '200':
+          description: Notification settings
+    patch:
+      tags:
+        - Notifications
+      summary: Update notification settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emailEnabled:
+                  type: boolean
+                pushEnabled:
+                  type: boolean
+                orderNotifications:
+                  type: boolean
+                chatNotifications:
+                  type: boolean
+                marketingNotifications:
+                  type: boolean
+      responses:
+        '200':
+          description: Settings updated
+
+  /notifications/device:
+    post:
+      tags:
+        - Notifications
+      summary: Register device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                platform:
+                  type: string
+                  enum: [ios, android, web]
+      responses:
+        '201':
+          description: Device registered
+    delete:
+      tags:
+        - Notifications
+      summary: Unregister device
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device unregistered
+
+  # ============================================
+  # MODERATION (ADMIN)
+  # ============================================
+  /admin/moderation/reports:
+    get:
+      tags:
+        - Moderation
+      summary: Get reports
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, REVIEWING, RESOLVED, DISMISSED]
+      responses:
+        '200':
+          description: List of reports
+
+  /admin/moderation/reports/{id}:
+    get:
+      tags:
+        - Moderation
+      summary: Get report details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Report details
+
+  /admin/moderation/reports/{id}/review:
+    patch:
+      tags:
+        - Moderation
+      summary: Start reviewing report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Review started
+
+  /admin/moderation/reports/{id}/resolve:
+    patch:
+      tags:
+        - Moderation
+      summary: Resolve report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [DISMISS, HIDE_CONTENT, WARN_USER, SUSPEND_USER]
+                note:
+                  type: string
+      responses:
+        '200':
+          description: Report resolved
+
+  /admin/moderation/queue:
+    get:
+      tags:
+        - Moderation
+      summary: Get moderation queue
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [POST, COMMENT, REVIEW]
+      responses:
+        '200':
+          description: Moderation queue
+
+  /admin/moderation/content/{targetType}/{id}:
+    patch:
+      tags:
+        - Moderation
+      summary: Moderate content
+      parameters:
+        - name: targetType
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [POST, COMMENT, REVIEW]
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action:
+                  type: string
+                  enum: [APPROVE, HIDE, DELETE]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Content moderated
+
+  # ============================================
+  # VOUCHERS
+  # ============================================
+  /vouchers:
+    get:
+      tags:
+        - Vouchers
+      summary: List vouchers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: List of vouchers
+    post:
+      tags:
+        - Vouchers
+      summary: Create voucher
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVoucher'
+      responses:
+        '201':
+          description: Voucher created
+
+  /vouchers/{id}:
+    get:
+      tags:
+        - Vouchers
+      summary: Get voucher by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Voucher details
+    patch:
+      tags:
+        - Vouchers
+      summary: Update voucher
+      description: Admin only
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Voucher updated
+    delete:
+      tags:
+        - Vouchers
+      summary: Delete voucher
+      description: Admin only
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Voucher deleted
+
+  /vouchers/code/{code}:
+    get:
+      tags:
+        - Vouchers
+      summary: Get voucher by code
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Voucher details
+
+  /vouchers/validate:
+    post:
+      tags:
+        - Vouchers
+      summary: Validate voucher
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                orderTotal:
+                  type: number
+      responses:
+        '200':
+          description: Voucher valid
+
+  # ============================================
+  # BANNERS
+  # ============================================
+  /banners:
+    get:
+      tags:
+        - Banners
+      summary: List banners
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [PLATFORM, BUSINESS]
+      responses:
+        '200':
+          description: List of banners
+    post:
+      tags:
+        - Banners
+      summary: Create banner
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBanner'
+      responses:
+        '201':
+          description: Banner created
+
+  /banners/active:
+    get:
+      tags:
+        - Banners
+      summary: Get active banners
+      security: []
+      parameters:
+        - name: scope
+          in: query
+          schema:
+            type: string
+            enum: [PLATFORM, BUSINESS]
+        - name: storeId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active banners
+
+  /banners/{id}:
+    get:
+      tags:
+        - Banners
+      summary: Get banner by ID
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Banner details
+    patch:
+      tags:
+        - Banners
+      summary: Update banner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Banner updated
+    delete:
+      tags:
+        - Banners
+      summary: Delete banner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Banner deleted
+
+  # ============================================
+  # FLASH SALES
+  # ============================================
+  /flash-sales:
+    get:
+      tags:
+        - Flash Sales
+      summary: List flash sales
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [SCHEDULED, ACTIVE, ENDED]
+      responses:
+        '200':
+          description: List of flash sales
+    post:
+      tags:
+        - Flash Sales
+      summary: Create flash sale
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFlashSale'
+      responses:
+        '201':
+          description: Flash sale created
+
+  /flash-sales/active:
+    get:
+      tags:
+        - Flash Sales
+      summary: Get active flash sales
+      security: []
+      responses:
+        '200':
+          description: Active flash sales
+
+  /flash-sales/items:
+    get:
+      tags:
+        - Flash Sales
+      summary: Get flash sale items
+      security: []
+      parameters:
+        - name: saleId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Flash sale items
+    post:
+      tags:
+        - Flash Sales
+      summary: Add item to flash sale
+      description: Admin only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                saleId:
+                  type: string
+                  format: uuid
+                bookId:
+                  type: string
+                  format: uuid
+                flashPrice:
+                  type: number
+                stock:
+                  type: integer
+      responses:
+        '201':
+          description: Item added
+
+  /flash-sales/price/{bookId}:
+    get:
+      tags:
+        - Flash Sales
+      summary: Get flash sale price
+      security: []
+      parameters:
+        - name: bookId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Flash sale price
+
+  /flash-sales/{id}:
+    get:
+      tags:
+        - Flash Sales
+      summary: Get flash sale by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Flash sale details
+    patch:
+      tags:
+        - Flash Sales
+      summary: Update flash sale status
+      description: Admin only
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [SCHEDULED, ACTIVE, ENDED]
+      responses:
+        '200':
+          description: Status updated
+    delete:
+      tags:
+        - Flash Sales
+      summary: Delete flash sale
+      description: Admin only
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Flash sale deleted
+
+  /flash-sales/items/{itemId}/stock:
+    patch:
+      tags:
+        - Flash Sales
+      summary: Update flash sale item stock
+      description: Admin only
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stock:
+                  type: integer
+      responses:
+        '200':
+          description: Stock updated
+
+  # ============================================
+  # SEARCH
+  # ============================================
+  /catalog/search:
+    get:
+      tags:
+        - Search
+      summary: Search catalog
+      description: Full-text search for books, authors, publishers
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [all, books, authors, publishers]
+            default: all
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Search results
+
+# ============================================
+# COMPONENTS
+# ============================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ============================================
+    # COMMON SCHEMAS
+    # ============================================
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        phone:
+          type: string
+        avatar:
+          type: string
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE, BLOCKED]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        userAgent:
+          type: string
+        ipAddress:
+          type: string
+        isCurrent:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+            refreshToken:
+              type: string
+            expiresIn:
+              type: integer
+              description: Access token expiry in seconds
+
+    # ============================================
+    # BUSINESS SCHEMAS
+    # ============================================
+    CreateBusiness:
+      type: object
+      required:
+        - name
+        - email
+        - phone
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          type: string
+        description:
+          type: string
+        logo:
+          type: string
+        taxCode:
+          type: string
+
+    UpdateBusiness:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        description:
+          type: string
+        logo:
+          type: string
+
+    CreateStore:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        logo:
+          type: string
+        banner:
+          type: string
+
+    UpdateStore:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        logo:
+          type: string
+        banner:
+          type: string
+        isActive:
+          type: boolean
+
+    # ============================================
+    # BOOK SCHEMAS
+    # ============================================
+    CreateBook:
+      type: object
+      required:
+        - title
+        - slug
+        - description
+        - price
+      properties:
+        title:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        format:
+          type: string
+          enum: [PHYSICAL, DIGITAL, BOTH]
+          default: PHYSICAL
+        categoryId:
+          type: string
+          format: uuid
+        authorId:
+          type: string
+          format: uuid
+        publisherId:
+          type: string
+          format: uuid
+        isbn:
+          type: string
+        coverUrl:
+          type: string
+
+    UpdateBook:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        salePrice:
+          type: number
+        categoryId:
+          type: string
+        authorId:
+          type: string
+        publisherId:
+          type: string
+        isbn:
+          type: string
+
+    # ============================================
+    # SHIPPING SCHEMAS
+    # ============================================
+    ShippingAddress:
+      type: object
+      required:
+        - name
+        - phone
+        - province
+        - district
+        - ward
+        - street
+      properties:
+        name:
+          type: string
+          example: Nguyen Van A
+        phone:
+          type: string
+          example: "0912345678"
+        province:
+          type: string
+          example: Ho Chi Minh
+        district:
+          type: string
+          example: District 1
+        ward:
+          type: string
+          example: Ben Nghe
+        street:
+          type: string
+          example: 123 Nguyen Hue St
+        note:
+          type: string
+          example: Leave at door
+
+    # ============================================
+    # PROMOTION SCHEMAS
+    # ============================================
+    CreateVoucher:
+      type: object
+      required:
+        - code
+        - type
+        - value
+      properties:
+        code:
+          type: string
+          example: DISCOUNT10
+        type:
+          type: string
+          enum: [PERCENTAGE, FIXED_AMOUNT]
+        value:
+          type: number
+          description: Percentage (1-100) or fixed amount
+        minOrderAmount:
+          type: number
+          description: Minimum order amount to apply
+        maxDiscount:
+          type: number
+          description: Maximum discount cap
+        usageLimit:
+          type: integer
+          description: Total usage limit
+        perUserLimit:
+          type: integer
+          default: 1
+        startsAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        scope:
+          type: string
+          enum: [PLATFORM, BUSINESS]
+          default: PLATFORM
+        storeId:
+          type: string
+          format: uuid
+
+    CreateBanner:
+      type: object
+      required:
+        - title
+        - imageUrl
+        - linkUrl
+      properties:
+        title:
+          type: string
+        imageUrl:
+          type: string
+        linkUrl:
+          type: string
+        scope:
+          type: string
+          enum: [PLATFORM, BUSINESS]
+          default: PLATFORM
+        storeId:
+          type: string
+          format: uuid
+        position:
+          type: string
+          enum: [HOMEPAGE_BANNER, CATEGORY_BANNER, PRODUCT_BANNER]
+        startsAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+          default: true
+
+    CreateFlashSale:
+      type: object
+      required:
+        - name
+        - startsAt
+        - expiresAt
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        startsAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        maxOrdersPerUser:
+          type: integer
+          default: 1
+
+    # ============================================
+    # ERROR SCHEMA
+    # ============================================
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+        error:
+          type: string
+        details:
+          type: object
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
