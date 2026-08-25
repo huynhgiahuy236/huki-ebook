@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { Model, Types } from "mongoose";
 import { CommunityActor } from "../../common/community-auth.guard";
@@ -20,6 +20,8 @@ import {
   UpdateNotificationPreferenceDto,
 } from "./dto/notification.dto";
 import { NotificationGateway } from "./notification.gateway";
+import { throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class NotificationsService {
@@ -64,7 +66,7 @@ export class NotificationsService {
 
   async detail(actor: CommunityActor, id: string) {
     const notification = await this.owned(actor.sub, id);
-    return { data: this.view(notification) };
+    return { data: this.view(notification!) };
   }
 
   async markRead(actor: CommunityActor, id: string) {
@@ -78,9 +80,9 @@ export class NotificationsService {
       _id: objectId,
       recipientId: actor.sub,
     });
-    if (!notification) throw new NotFoundException("Notification not found");
-    this.gateway.read(actor.sub, notification.id);
-    return { data: this.view(notification) };
+    if (!notification) throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
+    this.gateway.read(actor.sub, notification!.id);
+    return { data: this.view(notification!) };
   }
 
   async markAllRead(actor: CommunityActor) {
@@ -101,7 +103,7 @@ export class NotificationsService {
       recipientId: actor.sub,
     });
     if (!result.deletedCount)
-      throw new NotFoundException("Notification not found");
+      throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
     return { message: "Notification deleted" };
   }
 
@@ -177,7 +179,7 @@ export class NotificationsService {
       _id: new Types.ObjectId(id),
       recipientId,
     });
-    if (!notification) throw new NotFoundException("Notification not found");
+    if (!notification) throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
     return notification;
   }
 

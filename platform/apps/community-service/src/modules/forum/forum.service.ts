@@ -1,15 +1,12 @@
 import {
-  ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomBytes, randomUUID } from 'crypto';
 import { FilterQuery, Model, Types } from 'mongoose';
-import { RabbitMqEventBus } from '../../../../../libs/shared/src';
+import { RabbitMqEventBus } from '@huki/shared';
 import { CommunityActor } from '../../common/community-auth.guard';
 import { Comment } from '../../entities/comment.schema';
 import { ForumCategory } from '../../entities/forum-category.schema';
@@ -21,6 +18,8 @@ import {
   UpdateForumPostDto,
 } from './dto/forum.dto';
 import { AutoModerationService } from '../moderation/auto-moderation.service';
+import { throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 const DEFAULT_CATEGORIES = [
   { name: 'Thảo luận chung', slug: 'general', icon: '💬', sortOrder: 1 },
@@ -57,7 +56,7 @@ export class ForumService implements OnApplicationBootstrap {
     const where: FilterQuery<Forum> = { status: 'PUBLISHED' };
     if (query.category) {
       const category = await this.findCategory(query.category);
-      where.categoryId = category._id;
+      where.categoryId = category!._id;
     }
     if (query.search) where.$text = { $search: query.search };
 
@@ -112,15 +111,15 @@ export class ForumService implements OnApplicationBootstrap {
 
   async getPost(id: string, actor?: CommunityActor) {
     const post = await this.findPost(id, actor, true);
-    if (post.status === 'PUBLISHED') {
+    if (post!.status === 'PUBLISHED') {
       await this.forums.updateOne(
-        { _id: post._id },
+        { _id: post!._id },
         { $inc: { viewCount: 1 } },
       );
-      post.viewCount += 1;
+      post!.viewCount += 1;
     }
-    const comments = await this.commentTree(post._id.toString(), actor);
-    return { data: { ...this.postView(post, actor), comments } };
+    const comments = await this.commentTree(post!._id.toString(), actor);
+    return { data: { ...this.postView(post!, actor), comments } };
   }
 
   async createPost(actor: CommunityActor, dto: CreateForumPostDto) {
@@ -137,7 +136,7 @@ export class ForumService implements OnApplicationBootstrap {
       authorId: actor.sub,
       authorName: actor.fullName ?? actor.email ?? actor.sub,
       authorAvatar: actor.avatar,
-      categoryId: category._id,
+      categoryId: category!._id,
       tags: this.tags(dto.tags),
       coverImage: dto.coverImage,
       bookId: dto.bookId,
@@ -158,16 +157,16 @@ export class ForumService implements OnApplicationBootstrap {
 
   async updatePost(actor: CommunityActor, id: string, dto: UpdateForumPostDto) {
     const post = await this.ownedPost(actor, id);
-    if (post.status === 'DELETED')
-      throw new ConflictException('Deleted posts cannot be updated');
+    if (post!.status === 'DELETED')
+      throwConflict(ErrorCode.FORUM_POST_DELETED);
     if (dto.categoryId) await this.activeCategory(dto.categoryId);
     const moderation = this.autoModeration.inspect(
-      dto.title ?? post.title,
-      dto.content ?? post.content,
-      dto.tags ?? post.tags,
+      dto.title ?? post!.title,
+      dto.content ?? post!.content,
+      dto.tags ?? post!.tags,
     );
     const updated = await this.forums.findByIdAndUpdate(
-      post._id,
+      post!._id,
       {
         $set: {
           ...(dto.title ? { title: dto.title.trim() } : {}),
@@ -206,14 +205,14 @@ export class ForumService implements OnApplicationBootstrap {
 
   async deletePost(actor: CommunityActor, id: string) {
     const post = await this.ownedPost(actor, id);
-    if (post.status !== 'DELETED') {
+    if (post!.status !== 'DELETED') {
       await Promise.all([
         this.forums.updateOne(
-          { _id: post._id },
+          { _id: post!._id },
           { $set: { status: 'DELETED' } },
         ),
         this.comments.updateMany(
-          { postId: post._id },
+          { postId: post!._id },
           { $set: { status: 'DELETED' } },
         ),
       ]);
@@ -238,11 +237,11 @@ export class ForumService implements OnApplicationBootstrap {
       post = await this.forums
         .findOne({ _id: id, status: 'PUBLISHED' })
         .select('+likes');
-    if (!post) throw new NotFoundException('Forum post not found');
+    if (!post) throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
     return {
       data: {
-        isLiked: post.likes.includes(actor.sub),
-        likeCount: post.likeCount,
+        isLiked: post!.likes.includes(actor.sub),
+        likeCount: post!.likeCount,
       },
     };
   }
@@ -258,11 +257,11 @@ export class ForumService implements OnApplicationBootstrap {
     dto: CreateCommentDto,
   ) {
     const post = await this.publishedPost(postId);
-    if (post.isLocked)
-      throw new ConflictException('Comments are locked for this post');
+    if (post!.isLocked)
+      throwConflict(ErrorCode.FORUM_POST_LOCKED);
     const moderation = this.autoModeration.inspect(dto.content);
     const comment = await this.comments.create({
-      postId: post._id,
+      postId: post!._id,
       content: dto.content.trim(),
       authorId: actor.sub,
       authorName: actor.fullName ?? actor.email ?? actor.sub,
@@ -272,10 +271,10 @@ export class ForumService implements OnApplicationBootstrap {
     });
     if (!moderation.flagged) {
       await this.forums.updateOne(
-        { _id: post._id },
+        { _id: post!._id },
         { $inc: { commentCount: 1 } },
       );
-      void this.publishCommentEvent(comment, post.authorId);
+      void this.publishCommentEvent(comment, post!.authorId);
     }
     return {
       message: 'Comment added',
@@ -289,14 +288,14 @@ export class ForumService implements OnApplicationBootstrap {
       _id: commentId,
       status: 'PUBLISHED',
     });
-    if (!parent) throw new NotFoundException('Comment not found');
-    const post = await this.publishedPost(parent.postId.toString());
-    if (post.isLocked)
-      throw new ConflictException('Comments are locked for this post');
+    if (!parent) throwNotFound(ErrorCode.FORUM_COMMENT_NOT_FOUND);
+    const post = await this.publishedPost(parent!.postId.toString());
+    if (post!.isLocked)
+      throwConflict(ErrorCode.FORUM_POST_LOCKED);
     const moderation = this.autoModeration.inspect(dto.content);
     const reply = await this.comments.create({
-      postId: parent.postId,
-      parentId: parent._id,
+      postId: parent!.postId,
+      parentId: parent!._id,
       content: dto.content.trim(),
       authorId: actor.sub,
       authorName: actor.fullName ?? actor.email ?? actor.sub,
@@ -306,10 +305,10 @@ export class ForumService implements OnApplicationBootstrap {
     });
     if (!moderation.flagged) {
       await this.forums.updateOne(
-        { _id: post._id },
+        { _id: post!._id },
         { $inc: { commentCount: 1 } },
       );
-      void this.publishCommentEvent(reply, parent.authorId);
+      void this.publishCommentEvent(reply, parent!.authorId);
     }
     return {
       message: 'Reply added',
@@ -320,15 +319,15 @@ export class ForumService implements OnApplicationBootstrap {
   async deleteComment(actor: CommunityActor, id: string) {
     this.assertId(id);
     const comment = await this.comments.findById(id);
-    if (!comment) throw new NotFoundException('Comment not found');
-    this.assertOwner(actor, comment.authorId);
-    if (comment.status !== 'DELETED') {
+    if (!comment) throwNotFound(ErrorCode.FORUM_COMMENT_NOT_FOUND);
+    this.assertOwner(actor, comment!.authorId);
+    if (comment!.status !== 'DELETED') {
       await this.comments.updateOne(
-        { _id: comment._id },
+        { _id: comment!._id },
         { $set: { status: 'DELETED' } },
       );
       await this.forums.updateOne(
-        { _id: comment.postId, commentCount: { $gt: 0 } },
+        { _id: comment!.postId, commentCount: { $gt: 0 } },
         { $inc: { commentCount: -1 } },
       );
     }
@@ -352,11 +351,11 @@ export class ForumService implements OnApplicationBootstrap {
       comment = await this.comments
         .findOne({ _id: id, status: 'PUBLISHED' })
         .select('+likes');
-    if (!comment) throw new NotFoundException('Comment not found');
+    if (!comment) throwNotFound(ErrorCode.FORUM_COMMENT_NOT_FOUND);
     return {
       data: {
-        isLiked: comment.likes.includes(actor.sub),
-        likeCount: comment.likeCount,
+        isLiked: comment!.likes.includes(actor.sub),
+        likeCount: comment!.likeCount,
       },
     };
   }
@@ -446,13 +445,13 @@ export class ForumService implements OnApplicationBootstrap {
     if (includeLikes || actor) query = query.select('+likes');
     const post = await query;
     if (!post || post.status === 'DELETED')
-      throw new NotFoundException('Forum post not found');
+      throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
     if (
-      post.status !== 'PUBLISHED' &&
-      actor?.sub !== post.authorId &&
+      post!.status !== 'PUBLISHED' &&
+      actor?.sub !== post!.authorId &&
       actor?.role !== 'PLATFORM_ADMIN'
     ) {
-      throw new NotFoundException('Forum post not found');
+      throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
     }
     return post;
   }
@@ -460,23 +459,21 @@ export class ForumService implements OnApplicationBootstrap {
   private async publishedPost(id: string) {
     this.assertId(id);
     const post = await this.forums.findOne({ _id: id, status: 'PUBLISHED' });
-    if (!post) throw new NotFoundException('Forum post not found');
-    return post;
+    if (!post) throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
+    return post!;
   }
 
   private async ownedPost(actor: CommunityActor, id: string) {
     this.assertId(id);
     const post = await this.forums.findById(id);
-    if (!post) throw new NotFoundException('Forum post not found');
-    this.assertOwner(actor, post.authorId);
-    return post;
+    if (!post) throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
+    this.assertOwner(actor, post!.authorId);
+    return post!;
   }
 
   private assertOwner(actor: CommunityActor, authorId: string) {
     if (actor.sub !== authorId && actor.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenException(
-        'Only the author or platform administrator can modify this content',
-      );
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
   }
 
@@ -485,20 +482,20 @@ export class ForumService implements OnApplicationBootstrap {
       ? await this.categories.findById(value)
       : await this.categories.findOne({ slug: value.toLowerCase() });
     if (!category || !category.isActive)
-      throw new NotFoundException('Forum category not found');
+      throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
     return category;
   }
 
   private async activeCategory(id: string) {
     this.assertId(id);
     const category = await this.categories.findOne({ _id: id, isActive: true });
-    if (!category) throw new NotFoundException('Forum category not found');
+    if (!category) throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
     return category;
   }
 
   private assertId(id: string) {
     if (!Types.ObjectId.isValid(id))
-      throw new NotFoundException('Resource not found');
+      throwNotFound(ErrorCode.FORUM_POST_NOT_FOUND);
   }
 
   private tags(tags?: string[]) {
@@ -512,7 +509,7 @@ export class ForumService implements OnApplicationBootstrap {
   private slug(title: string) {
     const base = title
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/đ/g, 'd')
       .replace(/Đ/g, 'D')
       .toLowerCase()

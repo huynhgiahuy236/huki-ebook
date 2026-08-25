@@ -24,8 +24,9 @@ model User {
   status UserStatus @default(ACTIVE)
 
   // Email verification
-  emailVerifiedAt        DateTime? @map("email_verified_at")
-  emailVerificationToken String?   @map("email_verification_token")
+  emailVerifiedAt           DateTime?  @map("email_verified_at")
+  emailVerificationToken    String?    @map("email_verification_token")
+  emailVerificationExpiresAt DateTime? @map("email_verification_expires_at")
 
   // Password reset
   passwordResetToken     String?   @map("password_reset_token")

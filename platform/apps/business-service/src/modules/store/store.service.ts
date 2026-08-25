@@ -1,15 +1,18 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto';
 import { StoreStatus } from '../../../prisma/generated/client';
+import { throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
+import { BUSINESS_EVENTS } from '@huki/shared/events';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Injectable()
 export class StoreService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private eventEmitter: EventEmitter2,
+  ) {}
 
   // ==================== CREATE ====================
   async createStore(businessId: string, userId: string, dto: CreateStoreDto) {
@@ -19,7 +22,7 @@ export class StoreService {
       'MANAGER',
     ]);
     if (!isMember) {
-      throw new BadRequestException('Bạn không có quyền tạo cửa hàng');
+      throwForbidden(ErrorCode.AUTHZ_NOT_MEMBER);
     }
 
     // Check if slug is unique
@@ -27,7 +30,7 @@ export class StoreService {
       where: { slug: dto.slug },
     });
     if (slugExists) {
-      throw new BadRequestException('Slug cửa hàng đã được sử dụng');
+      throwBadRequest(ErrorCode.STORE_SLUG_EXISTS);
     }
 
     // Check if business is approved
@@ -35,10 +38,10 @@ export class StoreService {
       where: { id: businessId },
     });
     if (!business || business.status !== 'APPROVED') {
-      throw new BadRequestException('Doanh nghiệp chưa được duyệt');
+      throwBadRequest(ErrorCode.BUSINESS_NOT_APPROVED);
     }
 
-    return this.prisma.store.create({
+    const store = await this.prisma.store.create({
       data: {
         name: dto.name,
         slug: dto.slug,
@@ -53,6 +56,14 @@ export class StoreService {
         status: StoreStatus.PENDING_APPROVAL,
       },
     });
+
+    // Emit event
+    this.eventEmitter.emit(BUSINESS_EVENTS.STORE_CREATED, {
+      storeId: store.id,
+      businessId,
+    });
+
+    return store;
   }
 
   // ==================== READ ====================
@@ -71,7 +82,7 @@ export class StoreService {
     });
 
     if (!store) {
-      throw new NotFoundException('Cửa hàng không tồn tại');
+      throwNotFound(ErrorCode.STORE_NOT_FOUND);
     }
 
     return store;
@@ -92,7 +103,7 @@ export class StoreService {
     });
 
     if (!store) {
-      throw new NotFoundException('Cửa hàng không tồn tại');
+      throwNotFound(ErrorCode.STORE_NOT_FOUND);
     }
 
     return store;
@@ -177,10 +188,10 @@ export class StoreService {
   ) {
     const store = await this.prisma.store.findUnique({ where: { id } });
     if (!store) {
-      throw new NotFoundException('Cửa hàng không tồn tại');
+      throwNotFound(ErrorCode.STORE_NOT_FOUND);
     }
 
-    await this.checkStorePermission(store.businessId, userId, ['OWNER', 'MANAGER']);
+    await this.checkStorePermission(store!.businessId, userId, ['OWNER', 'MANAGER']);
 
     return this.prisma.store.update({
       where: { id },

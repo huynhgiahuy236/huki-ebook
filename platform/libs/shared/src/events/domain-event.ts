@@ -101,6 +101,7 @@ export const FORUM_EVENTS = {
 // ============================================
 export const USER_EVENTS = {
   REGISTERED: 'USER_REGISTERED',
+  EMAIL_VERIFIED: 'USER_EMAIL_VERIFIED',
   LOGGED_IN: 'USER_LOGGED_IN',
   LOGGED_OUT: 'USER_LOGGED_OUT',
   BLOCKED: 'USER_BLOCKED',

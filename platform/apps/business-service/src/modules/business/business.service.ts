@@ -1,13 +1,11 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
 import { BusinessStatus, BusinessType } from '../../../prisma/generated/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { throwConflict, throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
+import { BUSINESS_EVENTS } from '@huki/shared/events';
 
 @Injectable()
 export class BusinessService {
@@ -24,7 +22,7 @@ export class BusinessService {
     });
 
     if (existingBusiness) {
-      throw new ConflictException('Bạn đã có doanh nghiệp đăng ký');
+      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS);
     }
 
     // Check if email already exists
@@ -33,7 +31,7 @@ export class BusinessService {
     });
 
     if (emailExists) {
-      throw new ConflictException('Email doanh nghiệp đã được sử dụng');
+      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS);
     }
 
     // Create business
@@ -62,7 +60,7 @@ export class BusinessService {
     });
 
     // Emit event
-    this.eventEmitter.emit('business.registered', {
+    this.eventEmitter.emit(BUSINESS_EVENTS.REGISTERED, {
       businessId: business.id,
       ownerId: userId,
       name: business.name,
@@ -100,7 +98,7 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Doanh nghiệp không tồn tại');
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND);
     }
 
     return business;
@@ -179,11 +177,11 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Doanh nghiệp không tồn tại');
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND);
     }
 
-    if (business.ownerId !== userId) {
-      throw new BadRequestException('Bạn không có quyền cập nhật doanh nghiệp này');
+    if (business!.ownerId !== userId) {
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
 
     return this.prisma.business.update({
@@ -199,15 +197,15 @@ export class BusinessService {
     });
 
     if (!business) {
-      throw new NotFoundException('Doanh nghiệp không tồn tại');
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND);
     }
 
-    if (business.status !== BusinessStatus.PENDING_APPROVAL) {
-      throw new BadRequestException('Doanh nghiệp không ở trạng thái chờ duyệt');
+    if (business!.status !== BusinessStatus.PENDING_APPROVAL) {
+      throwBadRequest(ErrorCode.BUSINESS_NOT_APPROVED);
     }
 
-    // Mock registry verification (in real app, call mock registry API)
-    const registryVerified = await this.mockRegistryVerification(business.taxCode);
+    // Mock registry verification (in real app, call actual registry API)
+    const registryVerified = await this.mockRegistryVerification(business!.taxCode);
 
     const updatedBusiness = await this.prisma.business.update({
       where: { id },
@@ -227,11 +225,14 @@ export class BusinessService {
     });
 
     // Emit event
-    this.eventEmitter.emit('business.approved', {
-      businessId: business.id,
-      ownerId: business.ownerId,
-      approved: registryVerified,
-    });
+    this.eventEmitter.emit(
+      registryVerified ? BUSINESS_EVENTS.APPROVED : BUSINESS_EVENTS.REJECTED,
+      {
+        businessId: business!.id,
+        ownerId: business!.ownerId,
+        approved: registryVerified,
+      },
+    );
 
     return updatedBusiness;
   }
