@@ -9,6 +9,7 @@ import {
 import { Request, Response } from 'express';
 
 interface ErrorResponse {
+  status: 'error';
   statusCode: number;
   message: string;
   code?: string;
@@ -58,6 +59,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
 
     const errorResponse: ErrorResponse = {
+      status: 'error',
       statusCode: status,
       message: Array.isArray(message) ? message.join(', ') : message,
       timestamp: new Date().toISOString(),

@@ -8,10 +8,12 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 export interface ApiResponse<T> {
-  success: boolean;
+  status: 'success';
+  statusCode: number;
   data: T;
   timestamp: string;
   path: string;
+  pagination?: { page: number; limit: number; total: number; totalPages: number };
 }
 
 @Injectable()
@@ -22,15 +24,22 @@ export class TransformInterceptor<T>
     context: ExecutionContext,
     next: CallHandler,
   ): Observable<ApiResponse<T>> {
-    const request = context.switchToHttp().getRequest();
+    const http = context.switchToHttp();
+    const request = http.getRequest();
+    const response = http.getResponse();
 
     return next.handle().pipe(
-      map((data) => ({
-        success: true,
-        data,
-        timestamp: new Date().toISOString(),
-        path: request.url,
-      })),
+      map((data) => {
+        const isPaginated = data && Array.isArray(data.data) && data.pagination;
+        return {
+          status: 'success' as const,
+          statusCode: response.statusCode,
+          data: isPaginated ? data.data : data,
+          ...(isPaginated ? { pagination: data.pagination } : {}),
+          timestamp: new Date().toISOString(),
+          path: request.originalUrl ?? request.url,
+        };
+      }),
     );
   }
 }

@@ -8,6 +8,7 @@ import { ForumModule } from './modules/forum/forum.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -33,5 +34,6 @@ import { ModerationModule } from './modules/moderation/moderation.module';
     ReviewsModule,
     ModerationModule,
   ],
+  controllers: [HealthController],
 })
 export class AppModule {}
