@@ -14,11 +14,13 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { StoreService } from './store.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto';
-import { Public } from '../../../../../libs/shared/src/decorators/public.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public, CurrentUser } from '@huki/shared/decorators';
 
 @ApiTags('Stores')
 @ApiBearerAuth()
 @Controller('stores')
+@UseGuards(JwtAuthGuard)
 export class StoreController {
   constructor(private storeService: StoreService) {}
 
@@ -28,7 +30,7 @@ export class StoreController {
   async createStore(
     @Body() dto: CreateStoreDto,
     @Query('businessId') businessId: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     const store = await this.storeService.createStore(businessId, userId, dto);
     return {
@@ -41,7 +43,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Get my stores' })
   async getMyStores(
     @Query('businessId') businessId: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     const stores = await this.storeService.getStoresByBusiness(businessId, userId);
     return { data: stores };
@@ -85,7 +87,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Update store' })
   async updateStore(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
     @Body() dto: UpdateStoreDto,
   ) {
     const store = await this.storeService.updateStore(id, userId, dto);
@@ -100,7 +102,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Delete store' })
   async deleteStore(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     await this.storeService.updateStore(id, userId, { isActive: false } as any);
     return { message: 'Xóa cửa hàng thành công' };
@@ -111,7 +113,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Admin: Approve store' })
   async approveStore(
     @Param('id') id: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
   ) {
     const store = await this.storeService.approveStore(id, adminId);
     return { message: 'Duyệt cửa hàng thành công', data: store };
@@ -122,7 +124,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Admin: Reject store' })
   async rejectStore(
     @Param('id') id: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
   ) {
     const store = await this.storeService.rejectStore(id, adminId);
     return { message: 'Từ chối cửa hàng', data: store };

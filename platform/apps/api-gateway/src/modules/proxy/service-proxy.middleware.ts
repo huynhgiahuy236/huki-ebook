@@ -30,6 +30,7 @@ const ROUTES: Record<string, ServiceName> = {
   reviews: 'community',
   notifications: 'community',
   moderation: 'community',
+  admin: 'community',
   vouchers: 'promotion',
   banners: 'promotion',
   'flash-sales': 'promotion',
@@ -155,8 +156,34 @@ export class ServiceProxyMiddleware implements NestMiddleware {
   }
 
   private resolveService(path: string): ServiceName | undefined {
+    // Match first segment
     const match = path.match(/^\/(?:api\/v1\/)?([^/?]+)/);
-    return match ? ROUTES[match[1]] : undefined;
+    if (!match) return undefined;
+
+    const firstSegment = match[1];
+
+    // Check for nested paths: /{first}/{id}/{second} or /{first}/{second}
+    const nestedMatch = path.match(/^\/(?:api\/v1\/)?[^/]+\/[^/?]+\/([^/?]+)/);
+    const secondNestedSegment = nestedMatch ? nestedMatch[1] : null;
+
+    // Route /books/:id/reviews → community
+    if (secondNestedSegment === 'reviews') {
+      return 'community';
+    }
+
+    // Route /stores/:id/reviews → community
+    // Route /admin/* → community
+    if (firstSegment === 'admin') {
+      return 'community';
+    }
+
+    // Route /reviews/* → community
+    if (firstSegment === 'reviews') {
+      return 'community';
+    }
+
+    // Standard first-segment routing
+    return ROUTES[firstSegment];
   }
 
   private serializeBody(req: Request): string | undefined {

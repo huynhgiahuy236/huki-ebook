@@ -13,11 +13,13 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { BusinessService } from './business.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
-import { Public } from '../../../../../libs/shared/src/decorators/public.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public, CurrentUser } from '@huki/shared/decorators';
 
 @ApiTags('Business')
 @ApiBearerAuth()
 @Controller('businesses')
+@UseGuards(JwtAuthGuard)
 export class BusinessController {
   constructor(private businessService: BusinessService) {}
 
@@ -26,7 +28,7 @@ export class BusinessController {
   @ApiOperation({ summary: 'Register a new business' })
   async registerBusiness(
     @Body() dto: CreateBusinessDto,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     const business = await this.businessService.registerBusiness(userId, dto);
     return {
@@ -37,12 +39,13 @@ export class BusinessController {
 
   @Get('my')
   @ApiOperation({ summary: 'Get current user business' })
-  async getMyBusiness(@Query('userId') userId: string) {
+  async getMyBusiness(@CurrentUser('id') userId: string) {
     const business = await this.businessService.getBusinessByOwner(userId);
     return { data: business };
   }
 
   @Get(':id')
+  @Public()
   @ApiOperation({ summary: 'Get business by ID' })
   async getBusiness(@Param('id') id: string) {
     const business = await this.businessService.getBusinessById(id);
@@ -75,7 +78,7 @@ export class BusinessController {
   @ApiOperation({ summary: 'Update business' })
   async updateBusiness(
     @Param('id') id: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
     @Body() dto: UpdateBusinessDto,
   ) {
     const business = await this.businessService.updateBusiness(id, userId, dto);
@@ -90,7 +93,7 @@ export class BusinessController {
   @ApiOperation({ summary: 'Admin: Approve business' })
   async approveBusiness(
     @Param('id') id: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
   ) {
     const business = await this.businessService.approveBusiness(id, adminId);
     return {
@@ -106,7 +109,7 @@ export class BusinessController {
   @ApiOperation({ summary: 'Admin: Reject business' })
   async rejectBusiness(
     @Param('id') id: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
     @Body('reason') reason: string,
   ) {
     const business = await this.businessService.rejectBusiness(id, adminId, reason);
