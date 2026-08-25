@@ -121,10 +121,11 @@ export class BooksService {
     if (query.maxPrice !== undefined) where.price = { ...where.price, lte: query.maxPrice };
 
     const orderBy: any = {};
-    if (query.sortBy === BookSortBy.CREATED_AT) orderBy.createdAt = query.order;
-    else if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = query.order;
-    else if (query.sortBy === BookSortBy.PRICE) orderBy.price = query.order;
-    else orderBy.title = query.order;
+    const direction = query.order.toLowerCase();
+    if (query.sortBy === BookSortBy.CREATED_AT) orderBy.createdAt = direction;
+    else if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = direction;
+    else if (query.sortBy === BookSortBy.PRICE) orderBy.price = direction;
+    else orderBy.title = direction;
 
     const [books, total] = await this.prisma.$transaction([
       this.prisma.book.findMany({

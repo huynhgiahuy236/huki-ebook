@@ -1,22 +1,27 @@
 # HUKI EBOOK - API Inventory
 
 > Thống kê tất cả APIs trong hệ thống
-> Generated: 2026-08-24
-> Branch: develop
+> Generated: 2026-08-25
+> Updated: 2026-08-25 (endpoint counts verified from code)
+> Branch: feature/phase5-claude
 
 ---
 
 ## 📊 TỔNG QUAN
 
-| Service | Controllers | Endpoints | Hoàn thiện |
-|---------|-------------|-----------|------------|
-| Identity Service | 3 | 15 | ✅ ~95% |
-| Business Service | 3 | 18 | ✅ ~90% |
-| Commerce Service | 11 | 45 | ✅ ~85% |
-| Shipping Service | 4 | 12 | ✅ ~80% |
-| Community Service | 5 | 35 | ✅ ~85% |
-| Promotion Service | 3 | 18 | ✅ ~75% |
-| **TỔNG** | **29** | **143** | **~85%** |
+| Service | Controllers | Endpoints | Verified |
+|---------|-------------|-----------|----------|
+| Identity Service | 4 | 17 | ✅ |
+| Business Service | 4 | 24 | ✅ |
+| Commerce Service | 13 | 60 | ✅ |
+| Shipping Service | 6 | 17 | ✅ |
+| Community Service | 6 | 51 | ✅ |
+| Promotion Service | 5 | 27 | ✅ |
+| API Gateway | 1 | 3 | ✅ |
+| **TỔNG** | **39** | **199** | ✅ |
+
+> **Note:** Endpoint count derived from actual code (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete` decorators).
+> Previous estimate was 143 endpoints; actual count is 199 endpoints.
 
 ---
 

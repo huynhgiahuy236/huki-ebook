@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { ErrorCode } from '../errors/error-code';
 
 interface ErrorResponse {
   status: 'error';
@@ -29,7 +30,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status: number;
     let message: string;
-    let code: string | undefined;
+    let code: string;
     let details: any;
 
     if (exception instanceof HttpException) {
@@ -38,37 +39,58 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
       if (typeof exceptionResponse === 'string') {
         message = exceptionResponse;
+        code = this.defaultCode(status);
       } else if (typeof exceptionResponse === 'object') {
         const responseObj = exceptionResponse as Record<string, any>;
-        message = responseObj.message || exception.message;
-        code = responseObj.code;
-        details = responseObj.details;
+        if (Array.isArray(responseObj.message)) {
+          message = 'Validation failed';
+          details = responseObj.details ?? responseObj.message;
+        } else {
+          message = responseObj.message || exception.message;
+          details = responseObj.details;
+        }
+        code = responseObj.code ?? this.defaultCode(status);
       } else {
         message = exception.message;
+        code = this.defaultCode(status);
       }
     } else if (exception instanceof Error) {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
-      code = 'SYSTEM_INTERNAL_ERROR';
+      code = ErrorCode.SYSTEM_INTERNAL_ERROR;
 
       this.logger.error(`Unexpected error: ${exception.message}`, exception.stack);
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
-      code = 'SYSTEM_INTERNAL_ERROR';
+      code = ErrorCode.SYSTEM_INTERNAL_ERROR;
     }
 
     const errorResponse: ErrorResponse = {
       status: 'error',
       statusCode: status,
-      message: Array.isArray(message) ? message.join(', ') : message,
+      message,
+      code,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request.originalUrl ?? request.url,
     };
 
-    if (code) errorResponse.code = code;
-    if (details) errorResponse.details = details;
+    if (details !== undefined) errorResponse.details = details;
 
     response.status(status).json(errorResponse);
+  }
+
+  private defaultCode(status: number): ErrorCode {
+    const codes: Partial<Record<number, ErrorCode>> = {
+      [HttpStatus.BAD_REQUEST]: ErrorCode.VALIDATION_ERROR,
+      [HttpStatus.UNAUTHORIZED]: ErrorCode.AUTH_TOKEN_INVALID,
+      [HttpStatus.FORBIDDEN]: ErrorCode.AUTHZ_FORBIDDEN,
+      [HttpStatus.TOO_MANY_REQUESTS]: ErrorCode.RATE_LIMIT_EXCEEDED,
+      [HttpStatus.BAD_GATEWAY]: ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR,
+      [HttpStatus.SERVICE_UNAVAILABLE]: ErrorCode.SYSTEM_UNAVAILABLE,
+      [HttpStatus.GATEWAY_TIMEOUT]: ErrorCode.SYSTEM_UNAVAILABLE,
+      [HttpStatus.INTERNAL_SERVER_ERROR]: ErrorCode.SYSTEM_INTERNAL_ERROR,
+    };
+    return codes[status] ?? ErrorCode.SYSTEM_ERROR;
   }
 }
