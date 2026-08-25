@@ -1,4 +1,4 @@
-import { ConflictException, BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
@@ -7,6 +7,8 @@ import { CreateBookDto } from './dto/create-book.dto';
 import { UpdateBookDto } from './dto/update-book.dto';
 import { BookListQueryDto, BookSortBy } from './dto/book-list-query.dto';
 import { BookFormat, BookStatus } from '../../../prisma/generated/client';
+import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class BooksService {
@@ -80,19 +82,19 @@ export class BooksService {
       },
     });
 
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
     const canAccess = this.canManage(book, actor);
-    if (book.status !== BookStatus.PUBLISHED && !canAccess) {
-      throw new NotFoundException('Book not found');
+    if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
+      throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
-    return this.serializeBook(book, canAccess);
+    return this.serializeBook(book!, canAccess);
   }
 
   async findAll(query: BookListQueryDto) {
     if (query.minPrice !== undefined && query.maxPrice !== undefined && query.minPrice > query.maxPrice) {
-      throw new BadRequestException('minPrice cannot be greater than maxPrice');
+      throwBadRequest(ErrorCode.VALIDATION_ERROR);
     }
 
     const where: any = { status: BookStatus.PUBLISHED };
@@ -100,7 +102,7 @@ export class BooksService {
     if (query.search) {
       const search = normalizeCatalogText(query.search);
       if (search.length < 2) {
-        throw new BadRequestException('Search query must contain at least 2 characters');
+        throwBadRequest(ErrorCode.VALIDATION_MIN_LENGTH);
       }
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
@@ -156,38 +158,38 @@ export class BooksService {
       },
     });
 
-    if (!book) throw new NotFoundException('Book not found');
+    if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
     const canAccess = this.canManage(book, actor);
-    if (book.status !== BookStatus.PUBLISHED && !canAccess) {
-      throw new NotFoundException('Book not found');
+    if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
+      throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
-    return this.serializeBook(book, canAccess);
+    return this.serializeBook(book!, canAccess);
   }
 
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
     const existing = await this.prisma.book.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Book not found');
-    if (!this.canManage(existing, actor)) throw new ForbiddenException('You do not own this book');
+    if (!existing) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
+    if (!this.canManage(existing, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
-    if (existing.status === BookStatus.PUBLISHED) {
-      throw new ConflictException('Hide the book before changing catalog details');
+    if (existing!.status === BookStatus.PUBLISHED) {
+      throwConflict(ErrorCode.BOOK_ARCHIVED);
     }
 
-    const categoryId = dto.categoryId ?? existing.categoryId;
-    const authorId = dto.authorId ?? existing.authorId;
-    const publisherId = dto.publisherId ?? existing.publisherId;
+    const categoryId = dto.categoryId ?? existing!.categoryId;
+    const authorId = dto.authorId ?? existing!.authorId;
+    const publisherId = dto.publisherId ?? existing!.publisherId;
 
     if (categoryId || authorId || publisherId) {
       await this.validateCatalog(categoryId, authorId, publisherId);
     }
 
-    const title = dto.title?.trim() ?? existing.title;
-    const slug = dto.slug ?? existing.slug;
+    const title = dto.title?.trim() ?? existing!.title;
+    const slug = dto.slug ?? existing!.slug;
 
-    if (slug !== existing.slug) {
-      await this.ensureSlugAvailable(existing.storeId, slug, id);
+    if (slug !== existing!.slug) {
+      await this.ensureSlugAvailable(existing!.storeId, slug, id);
     }
 
     const updated = await this.prisma.book.update({
@@ -196,13 +198,13 @@ export class BooksService {
         title,
         normalizedTitle: normalizeCatalogText(title),
         slug,
-        isbn: dto.isbn === undefined ? existing.isbn : dto.isbn ?? null,
-        description: dto.description?.trim() ?? existing.description,
-        price: dto.price ?? existing.price,
+        isbn: dto.isbn === undefined ? existing!.isbn : dto.isbn ?? null,
+        description: dto.description?.trim() ?? existing!.description,
+        price: dto.price ?? existing!.price,
         categoryId,
         authorId,
         publisherId,
-        format: dto.format ?? existing.format,
+        format: dto.format ?? existing!.format,
       },
     });
 
@@ -211,15 +213,15 @@ export class BooksService {
 
   async findForWrite(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
-    if (!book) throw new NotFoundException('Book not found');
-    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+    if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
+    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
     return book;
   }
 
   async publish(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
-    if (!book) throw new NotFoundException('Book not found');
-    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+    if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
+    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
     return this.prisma.book.update({
       where: { id },
@@ -232,8 +234,8 @@ export class BooksService {
 
   async remove(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
-    if (!book) throw new NotFoundException('Book not found');
-    if (!this.canManage(book, actor)) throw new ForbiddenException('You do not own this book');
+    if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
+    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
     await this.prisma.book.delete({ where: { id } });
   }
@@ -245,24 +247,24 @@ export class BooksService {
   private async validateCatalog(categoryId: string | null, authorId: string | null, publisherId: string | null) {
     if (categoryId) {
       const cat = await this.prisma.category.findUnique({ where: { id: categoryId } });
-      if (!cat || !cat.isActive) throw new NotFoundException('Active category not found');
+      if (!cat || !cat.isActive) throwNotFound(ErrorCode.CATEGORY_NOT_FOUND);
     }
     if (authorId) {
       const author = await this.prisma.author.findUnique({ where: { id: authorId } });
-      if (!author || !author.isActive) throw new NotFoundException('Active author not found');
+      if (!author || !author.isActive) throwNotFound(ErrorCode.AUTHOR_NOT_FOUND);
     }
     if (publisherId) {
       const pub = await this.prisma.publisher.findUnique({ where: { id: publisherId } });
-      if (!pub || !pub.isActive) throw new NotFoundException('Active publisher not found');
+      if (!pub || !pub.isActive) throwNotFound(ErrorCode.PUBLISHER_NOT_FOUND);
     }
   }
 
   private validateFormatPayload(format: BookFormat, physical?: any, digital?: any) {
     if ((new Set<BookFormat>([BookFormat.PHYSICAL, BookFormat.BOTH])).has(format) && !physical) {
-      throw new ConflictException('Physical details are required for this format');
+      throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
     }
     if ((new Set<BookFormat>([BookFormat.DIGITAL, BookFormat.BOTH])).has(format) && !digital) {
-      throw new ConflictException('Digital details are required for this format');
+      throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
     }
   }
 
@@ -270,7 +272,7 @@ export class BooksService {
     const existing = await this.prisma.book.findFirst({
       where: { storeId, slug, ...(excludeId && { NOT: { id: excludeId } }) },
     });
-    if (existing) throw new ConflictException('Book slug already exists in this store');
+    if (existing) throwConflict(ErrorCode.BOOK_SLUG_EXISTS);
   }
 
   private serializeBook(book: any, isPrivate: boolean) {

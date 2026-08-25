@@ -1,7 +1,7 @@
 # PROJECT STATE - HUKI EBOOK
 
 > State hiện tại của project
-> Last updated: 2026-08-24
+> Last updated: 2026-08-25
 > Updated by: Claude
 
 ---
@@ -12,149 +12,130 @@
 |--------|--------|-------------|-------------|
 | `main` | ✅ Active | 2026-08-24 | Production-ready code |
 | `develop` | ✅ Active | 2026-08-24 | Latest development |
+| ~~`feature/swagger-docs`~~ | ✅ Merged | 2026-08-25 | Swagger docs, dev tooling |
 | ~~`feature/update-common`~~ | ✅ Merged | 2026-08-24 | Common libs |
 | ~~`feature/implement-errors-flows`~~ | ✅ Merged | 2026-08-24 | Flows + schemas |
-| ~~`feature/validate-and-subscription`~~ | ✅ Merged | 2026-08-24 | Validation + subscription |
 
-**Current Branch:** `main` (merged with develop)
+**Current Branch:** `develop` (on feature branch work)
 
 ---
 
 ## 📊 Project Health
 
-| Metric | Status |
-|--------|--------|
-| Build | ✅ Passing |
-| Type Check | ✅ Passing (commerce-service) |
-| Tests | ⚠️ Partial (some .spec.ts files) |
-| Docs | ✅ Up to date |
-| API Coverage | ✅ ~85% |
+| Metric | Status | Notes |
+|--------|--------|-------|
+| Build | ✅ Passing | All services compile |
+| Type Check | ✅ Passing | `tsc --noEmit` for all 6 services |
+| Tests | ⚠️ TODO | Unit tests - not yet implemented |
+| Docs | ✅ Up to date | Roadmap restructured |
+| API Coverage | ✅ ~85% | Gateway proxy complete |
 
 ---
 
 ## 🏗️ Services Status
 
-| Service | Port | Status | Notes |
-|---------|------|--------|-------|
-| API Gateway | 3000 | ✅ | |
-| Identity | 3001 | ✅ | Auth, Users, Sessions |
-| Business | 3002 | ✅ | Business, Stores, Members |
-| Commerce | 3003 | ✅ | Books, Cart, Orders, Payments |
-| Shipping | 3004 | ✅ | Shipments, Addresses |
-| Community | 3005 | ✅ | Forum, Chat, Reviews, Notifications |
-| Promotion | 3007 | ✅ | Vouchers, Banners, Flash Sales |
+| Service | Port | TypeScript | Error Codes | Swagger | Status |
+|---------|------|------------|------------|---------|--------|
+| API Gateway | 3000 | ✅ | ✅ | ✅ | ✅ DONE |
+| Identity | 3001 | ✅ | ✅ | ✅ | ✅ DONE |
+| Business | 3002 | ✅ | ✅ | ✅ | ✅ DONE |
+| Commerce | 3003 | ✅ | ✅ | ✅ | ✅ DONE |
+| Shipping | 3004 | ✅ | ✅ | ✅ | ✅ DONE |
+| Community | 3005 | ✅ | ✅ | ✅ | ✅ DONE |
+| Promotion | 3007 | ✅ | ✅ | ✅ | ✅ DONE |
+
+**All 7 services: TypeScript compile passing, ErrorCode adoption complete**
+
+---
+
+## 📋 Phase Status
+
+| Phase | Name | Status | Sprint | Deliverables |
+|-------|------|--------|--------|--------------|
+| 1 | Backend Foundation | ✅ DONE | 1-4 | Identity, Business |
+| 2 | Commerce & Catalog | ✅ DONE | 5-8 | Books, Cart, Orders |
+| 3 | Payment & Shipping | ✅ DONE | 9-11 | PayOS, GHTK |
+| 4 | Community | ✅ DONE | 12-16 | Forum, Chat, Reviews |
+| 5 | Backend Integration | 🔄 IN PROGRESS | 17-21 | Gateway, docs, tests |
+| 6 | Backend Quality | 📋 PLANNED | 22-26 | Unit tests, logging |
+| 7 | Production Readiness | ⏸️ DEFERRED | 27-30 | PayOS production, CI/CD |
+| 8 | Web Frontend | ⏸️ DEFERRED | 31-36 | Next.js app |
+| 9 | Mobile | ⏸️ DEFERRED | 37-42 | Flutter app |
+
+---
+
+## 🔄 Current Sprint
+
+**Sprint 20: Integration Tests (Phase 5)**
+
+| Task | Status |
+|------|--------|
+| T20.1: Test auth flow | ⬜ TODO |
+| T20.2: Test Business & Store CRUD | ⬜ TODO |
+| T20.3: Test Book catalog | ⬜ TODO |
+| T20.4: Test Cart flow | ⬜ TODO |
+| T20.5: Test Checkout + COD | ⬜ TODO |
+| T20.6: Test Order & Payment (mock) | ⬜ TODO |
+| T20.7: Test Shipping | ⬜ TODO |
+| T20.8: Test Voucher/Flash sale | ⬜ TODO |
+| T20.9: Test Forum & Chat | ⬜ TODO |
+| T20.10: Test error scenarios | ⬜ TODO |
 
 ---
 
 ## 📦 Recent Changes
 
+### v2026-08-25
+- ✅ Restructured roadmap (Phases 5-9)
+- ✅ Commerce service: ErrorCode adoption complete
+- ✅ All 6 services: TypeScript compile passing
+- ✅ Swagger docs setup complete
+- ✅ Nodemon configs for local dev
+- ✅ DEV-GUIDE.md created
+
 ### v2026-08-24
-- ✅ Fixed main branch (broken code)
-- ✅ Added missing event constants:
-  - LIBRARY_EVENTS
-  - SUBSCRIPTION_EVENTS
-  - CHAT_EVENTS
-  - REVIEW_EVENTS
-  - FORUM_EVENTS
-  - USER_EVENTS
-  - BUSINESS_EVENTS
-- ✅ Subscription Model implemented:
-  - `Subscription` table
-  - `SubscriptionAccessLog` table
-  - `BookAccessService` (checkAccess, grantAccess, revokeAccess)
-- ✅ API Inventory (143 endpoints across 7 services)
-- ✅ Postman Collection (full coverage)
-- ✅ Validation Report (code vs docs)
-
-### Earlier
-- v2026-08-23: Sprint 15 - 16 features
-- v2026-08-22: Sprint 11 - 14 features
+- ✅ Swagger/OpenAPI setup for all services
+- ✅ Postman collection (full coverage)
+- ✅ API Inventory (143 endpoints)
+- ✅ Phase 5-8 planning docs
 
 ---
 
-## 🎯 What's Done
+## 🚧 What's Next
 
-### Backend
-- ✅ Microservices architecture (7 services)
-- ✅ Authentication (JWT + refresh tokens)
-- ✅ Business & Store management
-- ✅ Book CRUD + Physical + Digital
-- ✅ Cart + Checkout + Orders
-- ✅ Payments (PayOS)
-- ✅ Shipments + GHTK integration
-- ✅ Forum, Chat, Reviews
-- ✅ Notifications (FCM)
-- ✅ Vouchers, Banners, Flash Sales
+### Immediate (Phase 5)
+1. Sprint 20: Integration tests
+2. Sprint 21: Documentation validation
 
-### Documentation
-- ✅ API Reference (4 docs)
-- ✅ Database schemas
-- ✅ Event contracts
-- ✅ Error codes catalog
-- ✅ Business flows
-- ✅ Domain schemas (User, Book, Order, Shipment, Subscription)
-- ✅ Code validation report
-
-### Testing
-- ✅ Postman Collection (Local environment)
-- ⚠️ Unit tests (partial)
-- ⚠️ Integration tests (TODO)
-- ⚠️ E2E tests (TODO)
-
----
-
-## 🚧 What's In Progress
-
-| # | Task | Status | Priority |
-|---|------|--------|----------|
-| 1 | Subscription endpoints | 🔧 In progress | High |
-| 2 | Integration tests | 🔧 Pending | High |
-| 3 | Catalog Search improvements | 🟡 Pending | Medium |
-| 4 | Payment webhook reliability | 🟡 Pending | Medium |
-
----
-
-## 🔜 TODO - Next Sprint
-
-| # | Task | Priority |
-|---|------|----------|
-| 1 | Subscription UI (frontend) | High |
-| 2 | Premium book paywall | High |
-| 3 | Notification preferences UI | Medium |
-| 4 | Search với Elasticsearch | Medium |
-| 5 | Mobile app integration | Medium |
-| 6 | Performance optimization | Low |
-| 7 | API analytics | Low |
+### After Phase 5 (Phase 6)
+1. Sprint 22: Error-code adoption verification
+2. Sprint 23: Health checks
+3. Sprint 24: Outbox & events
+4. Sprint 25: Unit test coverage (80%+)
+5. Sprint 26: E2E tests via gateway
 
 ---
 
 ## 🔧 Known Issues
 
-| # | Issue | Severity | Workaround |
-|---|-------|----------|------------|
-| 1 | Old `book-response.util.ts` removed | Resolved | ✅ |
-| 2 | Old `checkout.types.ts` removed | Resolved | ✅ |
-| 3 | Conflict between main & develop | Resolved | ✅ |
-| 4 | Missing event constants | Resolved | ✅ |
+| Issue | Severity | Status | Workaround |
+|-------|----------|--------|------------|
+| Legacy TypeORM migrations (commerce) | Low | Known | Not used, only Prisma |
+| Unit tests | Medium | TODO | Implement in Phase 6 |
+| Integration tests | Medium | TODO | Implement in Phase 5 |
 
 ---
 
-## 📁 Key Directories
+## 📁 Key Files
 
-| Directory | Purpose |
-|-----------|---------|
-| `.agent/` | Agent instructions (READ FIRST) |
-| `docs/` | Official documentation |
-| `flow/` | Business flow diagrams |
-| `err/` | Error codes catalog |
-| `res/DOMAIN/` | Domain schemas |
-| `res/CONTRACTS/` | Event contracts |
-| `res/claude/` | Session reports |
-| `platform/` | Backend (NestJS) |
-| `web/` | Frontend (Next.js) |
-| `mobile/` | Mobile (Flutter) |
-| `postman/` | Postman collections |
-| `api/` | API statistics |
+| File | Purpose |
+|------|---------|
+| `.agent/CLAUDE.md` | Agent instructions (READ FIRST) |
+| `.agent/PROJECT-STATE.md` | This file - project state |
+| `.agent/SESSION-LOG.md` | Session history |
+| `task/README.md` | Task overview |
+| `task/05-PHASE5-INTEGRATION.md` | Current phase |
+| `api/API-INVENTORY.md` | API documentation |
 
 ---
 
@@ -162,9 +143,8 @@
 
 - **Onboarding:** `.agent/CLAUDE.md`
 - **Workflow:** `.agent/WORKFLOW.md`
-- **Session Log:** `.agent/SESSION-LOG.md`
 - **API Inventory:** `api/API-INVENTORY.md`
-- **Validation Report:** `docs/CODE-VALIDATION.md`
+- **Roadmap:** `task/README.md`
 
 ---
 

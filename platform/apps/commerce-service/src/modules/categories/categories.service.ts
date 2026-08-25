@@ -1,10 +1,12 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
 import { CategoryListQueryDto, CategorySortBy } from './dto/category-list-query.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
+import { throwConflict, throwNotFound, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 const MAX_CATEGORY_DEPTH = 4;
 
@@ -36,7 +38,7 @@ export class CategoriesService {
 
     const depth = parent ? 1 : 0;
     if (depth > MAX_CATEGORY_DEPTH) {
-      throw new ConflictException(`Category depth cannot exceed ${MAX_CATEGORY_DEPTH}`);
+      throwConflict(ErrorCode.CATEGORY_HAS_CHILDREN);
     }
 
     return this.prisma.category.create({
@@ -57,13 +59,13 @@ export class CategoriesService {
       where: { id },
       include: { parent: true },
     });
-    if (!category) throw new NotFoundException('Category not found');
+    if (!category) throwNotFound(ErrorCode.CATEGORY_NOT_FOUND);
     return category;
   }
 
   async findAll(query: CategoryListQueryDto): Promise<PaginatedResult<any>> {
     if (query.parentId && query.rootOnly) {
-      throw new BadRequestException('parentId and rootOnly cannot be used together');
+      throwBadRequest(ErrorCode.VALIDATION_ERROR);
     }
 
     const where: any = {};
@@ -120,18 +122,18 @@ export class CategoriesService {
 
   async update(id: string, dto: UpdateCategoryDto) {
     const existing = await this.findOne(id);
-    const nextParentId = dto.parentId === undefined ? existing.parentId : dto.parentId;
+    const nextParentId = dto.parentId === undefined ? existing!.parentId : dto.parentId;
     const parent = nextParentId ? await this.prisma.category.findUnique({ where: { id: nextParentId } }) : null;
 
     if (parent?.id === id) {
-      throw new ConflictException('Category cannot be its own parent');
+      throwConflict(ErrorCode.CATEGORY_HAS_CHILDREN);
     }
 
-    const name = dto.name?.trim() ?? existing.name;
-    const slug = dto.slug ?? existing.slug;
+    const name = dto.name?.trim() ?? existing!.name;
+    const slug = dto.slug ?? existing!.slug;
     const normalizedName = normalizeCatalogText(name);
 
-    if (slug !== existing.slug || normalizedName !== existing.normalizedName) {
+    if (slug !== existing!.slug || normalizedName !== existing!.normalizedName) {
       await this.ensureUnique(slug, normalizedName, parent?.id ?? null, id);
     }
 
@@ -141,10 +143,10 @@ export class CategoriesService {
         name,
         normalizedName,
         slug,
-        description: dto.description === undefined ? existing.description : dto.description?.trim() || null,
+        description: dto.description === undefined ? existing!.description : dto.description?.trim() || null,
         parentId: parent?.id ?? null,
-        sortOrder: dto.sortOrder ?? existing.sortOrder,
-        isActive: dto.isActive ?? existing.isActive,
+        sortOrder: dto.sortOrder ?? existing!.sortOrder,
+        isActive: dto.isActive ?? existing!.isActive,
       },
     });
   }
@@ -153,7 +155,7 @@ export class CategoriesService {
     await this.findOne(id);
     const children = await this.prisma.category.count({ where: { parentId: id } });
     if (children > 0) {
-      throw new ConflictException('Category with children cannot be deleted');
+      throwConflict(ErrorCode.CATEGORY_HAS_CHILDREN);
     }
     await this.prisma.category.delete({ where: { id } });
   }
@@ -169,7 +171,7 @@ export class CategoriesService {
       },
     });
     if (existing) {
-      throw new ConflictException('Category name or slug already exists');
+      throwConflict(ErrorCode.CATEGORY_NOT_FOUND);
     }
   }
 }

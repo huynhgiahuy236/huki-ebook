@@ -1,4 +1,4 @@
-﻿# 📋 HUKI EBOOK - TASK OVERVIEW
+# 📋 HUKI EBOOK - TASK OVERVIEW
 
 ## 👥 Team
 - **HUY** - Backend, Database, Infrastructure
@@ -8,22 +8,25 @@
 
 ## 📅 Project Phases
 
-| Phase | Name | Duration | Focus |
-|-------|------|---------|-------|
-| **Phase 1** | Backend Foundation | 4-6 weeks | NestJS setup, Identity, Business |
-| **Phase 2** | Commerce & Catalog | 4-6 weeks | Books, Cart, Orders |
-| **Phase 3** | Payment & Shipping | 3-4 weeks | PayOS, COD, GHTK |
-| **Phase 4** | Community | 3-4 weeks | Forum, Chat, Reviews |
-| **Phase 5** | Frontend Web | 6-8 weeks | Next.js application |
-| **Phase 6** | Mobile & Testing | 4-6 weeks | Flutter, Tests |
+| Phase | Name | Status | Duration | Focus |
+|-------|------|--------|---------|-------|
+| **Phase 1** | Backend Foundation | ✅ DONE | 4-6 weeks | NestJS setup, Identity, Business |
+| **Phase 2** | Commerce & Catalog | ✅ DONE | 4-6 weeks | Books, Cart, Orders |
+| **Phase 3** | Payment & Shipping | ✅ DONE | 3-4 weeks | PayOS, COD, GHTK |
+| **Phase 4** | Community | ✅ DONE | 3-4 weeks | Forum, Chat, Reviews |
+| **Phase 5** | Backend Integration | 🔄 IN PROGRESS | 3-4 weeks | Gateway, API contract, docs, tests |
+| **Phase 6** | Backend Quality | 📋 PLANNED | 2-3 weeks | Error codes, logging, unit tests |
+| **Phase 7** | Production Readiness | ⏸️ DEFERRED | TBD | PayOS production, HTTPS, CI/CD |
+| **Phase 8** | Web Frontend | ⏸️ DEFERRED | TBD | Next.js application |
+| **Phase 9** | Mobile | ⏸️ DEFERRED | TBD | Flutter app |
 
-**Total: ~24-34 weeks (6-8 months)**
+**Total Backend Phases 1-6: ~16-22 weeks**
 
 ---
 
 ## 🎯 Work Distribution
 
-### Phase 1-4 (Backend)
+### Phase 1-4 (Backend Foundation) - ✅ DONE
 
 | Sprint | KIEN | HUY |
 |--------|------|-----|
@@ -45,88 +48,118 @@
 
 | Sprint | KIEN | HUY |
 |--------|------|-----|
-| Sprint 9 | PayOS, COD ✅ | Refunds, reconciliation ✅ |
-| Sprint 10 | GHTK integration ✅ | Shipments, Delivery ✅ |
-| Sprint 11 | Events, Notifications ✅ | Order completion ✅ |
+| Sprint 9 | PayOS, COD | Refunds, reconciliation |
+| Sprint 10 | GHTK integration | Shipments, Delivery |
+| Sprint 11 | Events, Notifications | Order completion |
 
 ### Phase 4 (Community)
 
 | Sprint | KIEN | HUY |
 |--------|------|-----|
-| Sprint 12 | Search, Categories ✅ | Forum, Comments ✅ |
-| Sprint 13 | Socket.IO ✅ | Chat, Conversations ✅ |
-| Sprint 14 | - | Reviews, Ratings ✅ |
-| Sprint 15 | Notifications ✅ | Firebase ✅ |
-| Sprint 16 | - | Moderation, Reports ✅ |
+| Sprint 12 | Search, Categories | Forum, Comments |
+| Sprint 13 | Socket.IO | Chat, Conversations |
+| Sprint 14 | - | Reviews, Ratings |
+| Sprint 15 | Notifications | Firebase |
+| Sprint 16 | Moderation | Reports |
 
-### Phase 5 (Frontend)
+### Phase 5 (Backend Integration) - 🔄 IN PROGRESS
 
-| Sprint | KIEN | HUY |
-|--------|------|-----|
-| Sprint 17 | Next.js setup, Auth | Design system, Components |
-| Sprint 18 | Home, Catalog, Search | Categories, Store pages |
-| Sprint 19 | Cart, Checkout, Orders | Order history, Profile |
-| Sprint 20 | Seller: Orders, Vouchers | Seller: Books, Dashboard |
-| Sprint 21 | Admin: Users, Business | Admin: Moderation |
-| Sprint 22 | Library, PDF reader | Reading progress |
+| Sprint | KIEN | HUY | Status |
+|--------|------|-----|--------|
+| Sprint 17 | Gateway HTTP proxy | - | ✅ DONE |
+| Sprint 18 | Response format | - | ✅ DONE |
+| Sprint 19 | Swagger + Postman | - | ✅ DONE |
+| Sprint 20 | Integration tests | - | 📋 PLANNED |
+| Sprint 21 | Documentation validation | - | 📋 PLANNED |
 
-### Phase 6 (Mobile & Testing)
+### Phase 6 (Backend Quality) - 📋 PLANNED
 
-| Sprint | KIEN | HUY |
-|--------|------|-----|
-| Sprint 23 | - | Promotion Service |
-| Sprint 24 | Flutter setup, Auth | Design system |
-| Sprint 25 | Browse, Cart, Orders | Profile, Notifications |
-| Sprint 26 | Download manager | Library, PDF reader |
-| Sprint 27 | E2E tests | Unit tests |
+| Sprint | KIEN | HUY | Status |
+|--------|------|-----|--------|
+| Sprint 22 | Error-code adoption | - | 📋 PLANNED |
+| Sprint 23 | Health checks | - | 📋 PLANNED |
+| Sprint 24 | Outbox & events | - | 📋 PLANNED |
+| Sprint 25 | Unit tests | - | 📋 PLANNED |
+| Sprint 26 | E2E tests | - | 📋 PLANNED |
+
+### Phase 7 (Production Readiness) - ⏸️ DEFERRED
+
+> Deferred vì hiện chỉ chạy local. Cần PayOS credentials thật, public webhook URL, HTTPS/domain.
+
+| Sprint | KIEN | HUY | Status |
+|--------|------|-----|--------|
+| Sprint 27 | PayOS production | Webhook | ⏸️ DEFERRED |
+| Sprint 28 | HTTPS, CORS | Domain | ⏸️ DEFERRED |
+| Sprint 29 | Secrets management | CI/CD | ⏸️ DEFERRED |
+| Sprint 30 | Docker, observability | Backup | ⏸️ DEFERRED |
+
+### Phase 8-9 - ⏸️ DEFERRED
+
+- **Phase 8**: Next.js web app (chờ Phase 6 xong)
+- **Phase 9**: Flutter mobile app (chờ Phase 8 xong)
 
 ---
 
 ## 📊 Task Files
 
-| File | Description |
-|------|-------------|
-| `01-PHASE1-BACKEND-SETUP.md` | Backend foundation |
-| `02-PHASE2-COMMERCE-CATALOG.md` | Commerce & catalog |
-| `03-PHASE3-PAYMENT-SHIPPING.md` | Payment & shipping |
-| `04-PHASE4-COMMUNITY.md` | Forum, Chat, Reviews |
-| `05-PHASE5-FRONTEND.md` | Next.js web app |
-| `06-PHASE6-PROMOTION-MOBILE.md` | Mobile & testing |
+| File | Phase | Description | Status |
+|------|-------|-------------|--------|
+| `01-PHASE1-BACKEND-SETUP.md` | Phase 1 | Backend foundation | ✅ DONE |
+| `02-PHASE2-COMMERCE-CATALOG.md` | Phase 2 | Commerce & catalog | ✅ DONE |
+| `03-PHASE3-PAYMENT-SHIPPING.md` | Phase 3 | Payment & shipping | ✅ DONE |
+| `04-PHASE4-COMMUNITY.md` | Phase 4 | Forum, Chat, Reviews | ✅ DONE |
+| `05-PHASE5-Integration.md` | Phase 5 | Gateway, docs, tests | 🔄 IN PROGRESS |
+| `06-PHASE6-QUALITY.md` | Phase 6 | Quality, tests | 📋 PLANNED |
+| `07-PHASE7-PRODUCTION.md` | Phase 7 | Production readiness | ⏸️ DEFERRED |
+| `08-PHASE8-WEB-FRONTEND.md` | Phase 8 | Next.js app | ⏸️ DEFERRED |
+| `09-PHASE9-MOBILE.md` | Phase 9 | Flutter app | ⏸️ DEFERRED |
 
 ---
 
-## 🚀 Starting Point
+## 🚀 Current Focus
 
-### Week 1 Checklist
+### Phase 5 - Backend Integration
 
-**KIEN:**
-- [ ] Setup NestJS monorepo
-- [ ] Create 7 services structure
-- [x] Config Prisma clients and migrations for PostgreSQL services
+**KIEN đang làm:**
+- Sprint 20: Integration tests
+- Sprint 21: Documentation validation
 
-**HUY:**
-- [ ] Setup Docker (Postgres, Mongo, Redis, RabbitMQ)
-- [ ] Config MongoDB schemas
-- [ ] Create shared library structure
+**Definition of Done:**
+- [x] Gateway proxy hoạt động (Swagger 3000 đầy đủ)
+- [x] Response format đồng nhất
+- [x] Error codes chuẩn hóa
+- [x] `tsc --noEmit` passes for all 6 services
+- [ ] Integration tests pass cho all flows
+- [ ] API-INVENTORY.md matches actual implementation
 
 ---
 
 ## 📌 Task Naming Convention
 
 ```
-T<number>.<sub> - <description>
+T<sprint>.<number> - <description>
 
 Ví dụ:
-T1.1 - Setup NestJS monorepo structure
-T2.3 - Auth login endpoint
+T17.1 - Gateway module HTTP clients
+T20.1 - Test auth flow
 ```
 
 ---
 
-## 🎯 Definition of Done
+## 🎯 Definition of Done (General)
 
-- [ ] Code implemented
-- [ ] Unit tests written
-- [ ] API documented (Swagger)
-- [ ] No console errors
+- [x] Code implemented
+- [ ] Unit tests written (Phase 6)
+- [x] API documented (Swagger)
+- [x] No TypeScript errors (`tsc --noEmit` passes)
 - [ ] PR reviewed and merged
+
+---
+
+## 📝 Update Log
+
+| Date | Phase | Changes |
+|------|-------|---------|
+| 2026-08-25 | All | Restructured phases 5-9, added local/deploy split |
+| 2026-08-24 | All | Created Phase 5-8 structure |
+| 2026-08-23 | 1-4 | Backend phases completed |
