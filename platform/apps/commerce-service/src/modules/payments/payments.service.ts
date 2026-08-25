@@ -1,9 +1,5 @@
 import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
   Injectable,
-  NotFoundException,
   Logger,
   OnApplicationBootstrap,
   OnModuleDestroy,
@@ -27,6 +23,8 @@ import {
 } from './dto/payment.dto';
 import { PayOSService } from './payos.service';
 import { ORDER_EVENTS, PAYMENT_EVENTS } from '../../../../../libs/shared/src';
+import { throwBadRequest, throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class PaymentsService
@@ -59,17 +57,16 @@ export class PaymentsService
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, userId },
     });
-    if (!order) throw new NotFoundException('Order not found');
-    if (order.paymentMethod !== PaymentMethod.ONLINE_PAYMENT) {
-      throw new BadRequestException(
-        'COD orders do not use a PayOS payment link',
-      );
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+    const o = order!;
+    if (o.paymentMethod !== PaymentMethod.ONLINE_PAYMENT) {
+      throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
     }
-    if (order.paymentStatus === PaymentStatus.SUCCEEDED) {
-      throw new ConflictException('Order has already been paid');
+    if (o.paymentStatus === PaymentStatus.SUCCEEDED) {
+      throwConflict(ErrorCode.ORDER_ALREADY_PAID);
     }
-    if (['CANCELLED', 'REFUNDED'].includes(order.status)) {
-      throw new ConflictException('Order can no longer be paid');
+    if (['CANCELLED', 'REFUNDED'].includes(o.status)) {
+      throwConflict(ErrorCode.ORDER_CANNOT_CANCEL);
     }
 
     const active = await this.prisma.payment.findFirst({
@@ -83,11 +80,9 @@ export class PaymentsService
     });
     if (active?.checkoutUrl) return this.paymentView(active);
 
-    const amount = Number(order.grandTotal);
+    const amount = Number(o.grandTotal);
     if (!Number.isSafeInteger(amount) || amount <= 0) {
-      throw new BadRequestException(
-        'PayOS amount must be a positive integer in VND',
-      );
+      throwBadRequest(ErrorCode.VALIDATION_MIN_VALUE);
     }
     const orderCode =
       Math.floor(Date.now() / 1000) * 1000 + Math.floor(Math.random() * 1000);
@@ -95,7 +90,7 @@ export class PaymentsService
     const link = await this.payos.createPaymentLink({
       orderCode,
       amount,
-      description: `HUKI ${order.code.slice(-16)}`.slice(0, 25),
+      description: `HUKI ${o.code.slice(-16)}`.slice(0, 25),
       returnUrl: dto.returnUrl,
       cancelUrl: dto.cancelUrl,
       expiredAt: Math.floor(expiresAt.getTime() / 1000),
@@ -134,13 +129,14 @@ export class PaymentsService
       where: { id: orderId, userId },
       include: { payments: { orderBy: { createdAt: 'desc' } }, refunds: true },
     });
-    if (!order) throw new NotFoundException('Order not found');
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+    const o = order!;
     return {
-      orderId: order.id,
-      orderCode: order.code,
-      paymentStatus: order.paymentStatus,
-      payments: order.payments.map((payment) => this.paymentView(payment)),
-      refunds: order.refunds.map((refund) => ({
+      orderId: o.id,
+      orderCode: o.code,
+      paymentStatus: o.paymentStatus,
+      payments: o.payments.map((payment) => this.paymentView(payment)),
+      refunds: o.refunds.map((refund) => ({
         ...refund,
         amount: Number(refund.amount),
       })),
@@ -149,7 +145,7 @@ export class PaymentsService
 
   async handlePayOSWebhook(payload: PayOSWebhookDto) {
     if (!payload?.data || !this.payos.verifyWebhook(payload)) {
-      throw new BadRequestException('Invalid PayOS webhook signature');
+      throwBadRequest(ErrorCode.PAYMENT_SIGNATURE_INVALID);
     }
     if (!payload.success || payload.code !== '00') return { success: true };
 
@@ -164,9 +160,7 @@ export class PaymentsService
     if (!payment) return { success: true };
     if (payment.status === PaymentStatus.SUCCEEDED) return { success: true };
     if (Number(payment.amount) !== Number(payload.data.amount)) {
-      throw new BadRequestException(
-        'PayOS webhook amount does not match the order',
-      );
+      throwBadRequest(ErrorCode.PAYMENT_AMOUNT_MISMATCH);
     }
 
     const paidAt = this.parsePayOSDate(payload.data.transactionDateTime);
@@ -296,23 +290,21 @@ export class PaymentsService
         },
       },
     });
-    if (!order) throw new NotFoundException('Order not found');
-    if (actor.role !== 'PLATFORM_ADMIN' && order.userId !== actor.sub) {
-      throw new ForbiddenException('Order does not belong to this account');
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+    if (actor.role !== 'PLATFORM_ADMIN' && order!.userId !== actor.sub) {
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
-    const payment = order.payments[0];
+    const payment = order!.payments[0];
     if (!payment)
-      throw new ConflictException('Order has no successful payment to refund');
-    const alreadyRequested = order.refunds.reduce(
+      throwConflict(ErrorCode.REFUND_NOT_ALLOWED);
+    const alreadyRequested = order!.refunds.reduce(
       (sum, refund) => sum + Number(refund.amount),
       0,
     );
     const remaining = Number(payment.amount) - alreadyRequested;
     const amount = dto.amount ?? remaining;
     if (amount <= 0 || amount > remaining) {
-      throw new BadRequestException(
-        `Refund amount exceeds remaining refundable amount (${remaining})`,
-      );
+      throwBadRequest(ErrorCode.REFUND_AMOUNT_INVALID);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -355,22 +347,19 @@ export class PaymentsService
 
   async settleRefund(actor: BookActor, refundId: string, dto: SettleRefundDto) {
     if (actor.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenException(
-        'Only a platform administrator can reconcile refunds',
-      );
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
     const refund = await this.prisma.refund.findUnique({
       where: { id: refundId },
       include: { payment: true, order: true },
     });
-    if (!refund) throw new NotFoundException('Refund not found');
-    if (!['PENDING', 'PROCESSING'].includes(refund.status)) {
-      throw new ConflictException('Refund has already been reconciled');
+    if (!refund) throwNotFound(ErrorCode.REFUND_NOT_FOUND);
+    const r = refund!;
+    if (!['PENDING', 'PROCESSING'].includes(r.status)) {
+      throwConflict(ErrorCode.REFUND_ALREADY_PROCESSED);
     }
     if (!dto.succeeded && !dto.failureReason) {
-      throw new BadRequestException(
-        'failureReason is required for a failed refund',
-      );
+      throwBadRequest(ErrorCode.VALIDATION_REQUIRED);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -393,11 +382,11 @@ export class PaymentsService
       });
 
       const succeeded = await tx.refund.aggregate({
-        where: { paymentId: refund.paymentId, status: 'SUCCEEDED' },
+        where: { paymentId: r.paymentId, status: 'SUCCEEDED' },
         _sum: { amount: true },
       });
       const refundedAmount = Number(succeeded._sum.amount ?? 0);
-      const fullyRefunded = refundedAmount >= Number(refund.payment.amount);
+      const fullyRefunded = refundedAmount >= Number(r.payment.amount);
       const paymentStatus = dto.succeeded
         ? fullyRefunded
           ? PaymentStatus.REFUNDED
@@ -407,11 +396,11 @@ export class PaymentsService
           : PaymentStatus.SUCCEEDED;
 
       await tx.payment.update({
-        where: { id: refund.paymentId },
+        where: { id: r.paymentId },
         data: { status: paymentStatus },
       });
       await tx.order.update({
-        where: { id: refund.orderId },
+        where: { id: r.orderId },
         data: {
           paymentStatus,
           ...(fullyRefunded ? { status: 'REFUNDED' } : {}),
@@ -419,7 +408,7 @@ export class PaymentsService
       });
       if (fullyRefunded) {
         await tx.bookAccess.updateMany({
-          where: { orderId: refund.orderId, status: 'ACTIVE' },
+          where: { orderId: r.orderId, status: 'ACTIVE' },
           data: { status: 'REVOKED' },
         });
       }
@@ -427,11 +416,11 @@ export class PaymentsService
         data: {
           eventId: randomBytes(16).toString('hex'),
           type: dto.succeeded ? 'refund.succeeded' : 'refund.failed',
-          aggregateId: refund.orderId,
+          aggregateId: r.orderId,
           payload: {
             refundId,
-            orderId: refund.orderId,
-            amount: Number(refund.amount),
+            orderId: r.orderId,
+            amount: Number(r.amount),
             providerReference: dto.providerReference,
           },
         },

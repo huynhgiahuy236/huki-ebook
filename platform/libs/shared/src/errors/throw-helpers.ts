@@ -75,7 +75,9 @@ const ERROR_MESSAGES: Partial<Record<ErrorCode, string>> = {
   [ErrorCode.CART_QUANTITY_INVALID]: 'Số lượng không hợp lệ',
 
   // CHECKOUT
-  [ErrorCode.CHECKOUT_CART_EMPTY]: 'Giỏ hàng trống',
+  [ErrorCode.CART_EMPTY]: 'Giỏ hàng trống',
+  [ErrorCode.CHECKOUT_SESSION_NOT_FOUND]: 'Phiên thanh toán không tìm thấy',
+  [ErrorCode.CHECKOUT_SESSION_CONSUMED]: 'Phiên thanh toán đã được sử dụng',
   [ErrorCode.CHECKOUT_SESSION_EXPIRED]: 'Phiên thanh toán đã hết hạn',
   [ErrorCode.CHECKOUT_SHIPPING_REQUIRED]: 'Vui lòng nhập địa chỉ giao hàng',
   [ErrorCode.CHECKOUT_SHIPPING_INVALID]: 'Địa chỉ giao hàng không hợp lệ',

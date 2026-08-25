@@ -1,10 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { PageQueryDto } from '../../common/dto/page-query.dto';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
 import { CreatePublisherDto } from './dto/create-publisher.dto';
 import { UpdatePublisherDto } from './dto/update-publisher.dto';
+import { throwConflict, throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class PublishersService {
@@ -43,17 +45,17 @@ export class PublishersService {
 
   async findOne(id: string) {
     const publisher = await this.prisma.publisher.findUnique({ where: { id } });
-    if (!publisher) throw new NotFoundException('Publisher not found');
+    if (!publisher) throwNotFound(ErrorCode.PUBLISHER_NOT_FOUND);
     return publisher;
   }
 
   async update(id: string, dto: UpdatePublisherDto) {
     const existing = await this.findOne(id);
-    const name = dto.name?.trim() ?? existing.name;
-    const slug = dto.slug ?? existing.slug;
+    const name = dto.name?.trim() ?? existing!.name;
+    const slug = dto.slug ?? existing!.slug;
     const normalizedName = normalizeCatalogText(name);
 
-    if (slug !== existing.slug || normalizedName !== existing.normalizedName) {
+    if (slug !== existing!.slug || normalizedName !== existing!.normalizedName) {
       await this.ensureUnique(slug, normalizedName, id);
     }
 
@@ -63,9 +65,9 @@ export class PublishersService {
         name,
         normalizedName,
         slug,
-        description: dto.description === undefined ? existing.description : dto.description?.trim() || null,
-        logo: dto.logoUrl === undefined ? existing.logo : dto.logoUrl,
-        isActive: dto.isActive ?? existing.isActive,
+        description: dto.description === undefined ? existing!.description : dto.description?.trim() || null,
+        logo: dto.logoUrl === undefined ? existing!.logo : dto.logoUrl,
+        isActive: dto.isActive ?? existing!.isActive,
       },
     });
   }
@@ -83,7 +85,7 @@ export class PublishersService {
       },
     });
     if (existing) {
-      throw new ConflictException('Publisher name or slug already exists');
+      throwConflict(ErrorCode.PUBLISHER_SLUG_EXISTS);
     }
   }
 }
