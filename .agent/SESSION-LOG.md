@@ -30,6 +30,40 @@
 
 ## 📅 2026-08-25
 
+### [2026-08-25 22:30] Session 7 - Phase 5 Sprint 19 & 21
+**Agent:** Claude
+**Duration:** 22:00 - 23:00
+**Branch:** `feature/phase5-claude`
+**Worktree:** E:/huki-claude
+
+**Tasks:**
+- ✅ T19.8: Created 5 missing .env.example files
+  - identity-service/.env.example
+  - business-service/.env.example
+  - shipping-service/.env.example
+  - community-service/.env.example
+  - promotion-service/.env.example
+- ✅ T21.1: Verified API inventory from code (199 endpoints vs 143 estimated)
+- ✅ T21.2: Audited error code usage (20+ hardcoded errors found)
+- ✅ Created CLAUDE_HANDOFF.md for Codex
+- ⏳ T21.5: Build verification (npm install in progress)
+
+**Findings:**
+- Swagger decorators: 132 @ApiOperation/@ApiResponse across 40 files
+- ErrorCode usage: 190+ throwBadRequest/throwNotFound with ErrorCode
+- Hardcoded errors: 20+ instances needing ErrorCode migration
+- Missing .env.example: 5 services missing
+
+**Files Created:** 6
+**Files Modified:** 1 (API-INVENTORY.md)
+
+**Notes:**
+- Endpoint count is 199 (verified from code), not 143 as previously documented
+- Hardcoded errors in commerce, identity, shipping services need ErrorCode migration
+- Gateway HttpExceptionFilter has different format than shared library (handoff to Codex)
+
+---
+
 ### [2026-08-25 HH:MM] Session 6 - Roadmap Restructure & Commerce ErrorCode Adoption
 **Agent:** Claude
 **Duration:** ~2 hours
@@ -236,3 +270,12 @@
 
 *Maintained by: Claude*
 *Auto-updated: Yes*
+
+---
+
+## 2026-08-25 — Commerce Prisma local baseline
+
+- Diagnosed missing PayOS columns in the pre-existing local `huki_commerce` schema.
+- Synchronized the empty local database with `apps/commerce-service/prisma/schema.prisma`.
+- Marked the three existing Commerce migrations as applied in `_prisma_migrations`.
+- Verified: `prisma migrate status --schema apps/commerce-service/prisma/schema.prisma` reports the schema is up to date.

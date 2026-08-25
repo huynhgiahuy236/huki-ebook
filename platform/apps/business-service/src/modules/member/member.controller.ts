@@ -6,7 +6,6 @@ import {
   Delete,
   Body,
   Param,
-  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -14,10 +13,13 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MemberService } from './member.service';
 import { InviteMemberDto, AcceptInvitationDto, UpdateMemberRoleDto } from './dto/member.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '@huki/shared/decorators';
 
 @ApiTags('Members')
 @ApiBearerAuth()
 @Controller()
+@UseGuards(JwtAuthGuard)
 export class MemberController {
   constructor(private memberService: MemberService) {}
 
@@ -26,7 +28,7 @@ export class MemberController {
   @ApiOperation({ summary: 'Invite a new member' })
   async inviteMember(
     @Param('businessId') businessId: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
     @Body() dto: InviteMemberDto,
   ) {
     return this.memberService.inviteMember(businessId, userId, dto);
@@ -36,8 +38,8 @@ export class MemberController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Accept invitation' })
   async acceptInvitation(
-    @Query('userId') userId: string,
-    @Query('email') email: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('email') email: string,
     @Body() dto: AcceptInvitationDto,
   ) {
     return this.memberService.acceptInvitation(userId, email, dto);
@@ -47,7 +49,7 @@ export class MemberController {
   @ApiOperation({ summary: 'Get all members of a business' })
   async getMembers(
     @Param('businessId') businessId: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     return this.memberService.getMembers(businessId, userId);
   }
@@ -66,7 +68,7 @@ export class MemberController {
   async updateMemberRole(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
     const member = await this.memberService.updateMemberRole(
@@ -84,7 +86,7 @@ export class MemberController {
   async removeMember(
     @Param('businessId') businessId: string,
     @Param('memberId') memberId: string,
-    @Query('adminId') adminId: string,
+    @CurrentUser('id') adminId: string,
   ) {
     await this.memberService.removeMember(businessId, memberId, adminId);
     return { message: 'Xóa thành viên thành công' };
@@ -95,7 +97,7 @@ export class MemberController {
   @ApiOperation({ summary: 'Leave a business' })
   async leaveBusiness(
     @Param('businessId') businessId: string,
-    @Query('userId') userId: string,
+    @CurrentUser('id') userId: string,
   ) {
     await this.memberService.leaveBusiness(businessId, userId);
     return { message: 'Rời doanh nghiệp thành công' };

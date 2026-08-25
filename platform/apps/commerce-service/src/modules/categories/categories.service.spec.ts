@@ -26,4 +26,25 @@ describe('CategoriesService (Prisma)', () => {
     expect(result).toHaveLength(1);
     expect(result[0].children[0].id).toBe('child');
   });
+
+  it('normalizes API sort direction for Prisma', async () => {
+    prisma.category.findMany.mockReturnValue('categories-query');
+    prisma.category.count.mockReturnValue('count-query');
+    prisma.$transaction.mockResolvedValue([[], 0]);
+
+    await service.findAll({
+      page: 1,
+      limit: 20,
+      sortBy: 'createdAt',
+      order: 'DESC',
+      includeInactive: false,
+      rootOnly: false,
+    } as any);
+
+    expect(prisma.category.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderBy: { createdAt: 'desc', name: 'asc' },
+      }),
+    );
+  });
 });

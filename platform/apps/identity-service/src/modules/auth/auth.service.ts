@@ -241,12 +241,33 @@ export class AuthService {
     if (!token || token.expiresAt < new Date() || token.session.revokedAt) {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
-    await this.prisma.refreshToken.update({
-      where: { id: token!.id },
-      data: { revokedAt: new Date(), revokedReason: 'token_rotation' },
+    const refreshToken = randomUUID();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
+    await this.prisma.$transaction(async (tx) => {
+      const revoked = await tx.refreshToken.updateMany({
+        where: { id: token!.id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'token_rotation' },
+      });
+      if (revoked.count !== 1) {
+        throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
+      }
+
+      const replacement = await tx.refreshToken.create({
+        data: {
+          sessionId: token!.sessionId,
+          tokenFamily: token!.tokenFamily,
+          tokenHash: this.hashToken(refreshToken),
+          expiresAt,
+        },
+      });
+      await tx.refreshToken.update({
+        where: { id: token!.id },
+        data: { replacedByTokenId: replacement.id },
+      });
     });
     return {
       accessToken: this.signAccessToken(token!.session.user),
+      refreshToken,
       expiresIn: 900,
     };
   }
