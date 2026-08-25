@@ -1,14 +1,11 @@
 import {
-  ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { randomUUID } from 'crypto';
 import { Model, Types } from 'mongoose';
-import { RabbitMqEventBus } from '../../../../../libs/shared/src';
+import { RabbitMqEventBus } from '@huki/shared';
 import { CommunityActor } from '../../common/community-auth.guard';
 import { Comment, CommentDocument } from '../../entities/comment.schema';
 import { Forum, ForumDocument } from '../../entities/forum.schema';
@@ -26,6 +23,8 @@ import {
   ReportListQueryDto,
   ResolveReportDto,
 } from './dto/moderation.dto';
+import { throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 type ContentType = Extract<ReportTargetType, 'POST' | 'COMMENT' | 'REVIEW'>;
 type ContentDocument = ForumDocument | CommentDocument | ReviewDocument;
@@ -53,36 +52,36 @@ export class ModerationService {
     dto: CreateReportDto,
   ) {
     const target = await this.requireContent(targetType, targetId);
-    if (!['PUBLISHED', 'FLAGGED'].includes(target.status)) {
-      throw new NotFoundException('Content not found');
+    if (!['PUBLISHED', 'FLAGGED'].includes(target!.status)) {
+      throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
     }
-    if (target.authorId === actor.sub) {
-      throw new ForbiddenException('You cannot report your own content');
+    if (target!.authorId === actor.sub) {
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
     try {
       const report = await this.reports.create({
         reporterId: actor.sub,
         targetType,
         targetId,
-        targetAuthorId: target.authorId,
+        targetAuthorId: target!.authorId,
         reason: dto.reason,
         description: dto.description?.trim(),
         status: 'PENDING',
       });
       const flagged = await this.model(targetType).updateOne(
-        { _id: target._id, status: 'PUBLISHED' },
+        { _id: target!._id, status: 'PUBLISHED' },
         { $set: { status: 'FLAGGED' } },
       );
       if (targetType === 'COMMENT' && flagged.modifiedCount) {
         await this.forums.updateOne(
-          { _id: (target as CommentDocument).postId },
+          { _id: (target! as CommentDocument).postId },
           { $inc: { commentCount: -1 } },
         );
       }
       void this.publish('user.reported', report.id, {
         reportId: report.id,
         reporterId: actor.sub,
-        reportedUserId: target.authorId,
+        reportedUserId: target!.authorId,
         targetType,
         targetId,
         reason: dto.reason,
@@ -93,10 +92,7 @@ export class ModerationService {
       };
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        throw new ConflictException({
-          message: 'You have already reported this content',
-          code: 'FORUM_REPORT_EXISTS',
-        });
+        throwConflict(ErrorCode.MODERATION_REPORT_ALREADY_EXISTS);
       }
       throw error;
     }
@@ -124,16 +120,16 @@ export class ModerationService {
 
   async reportDetail(id: string) {
     const report = await this.reports.findById(id).lean();
-    if (!report) throw new NotFoundException('Report not found');
-    const contentType = this.isContentType(report.targetType)
-      ? report.targetType
+    if (!report) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
+    const contentType = this.isContentType(report!.targetType)
+      ? report!.targetType
       : null;
     const content = contentType
-      ? await this.findContent(contentType, report.targetId)
+      ? await this.findContent(contentType, report!.targetId)
       : null;
     return {
       data: {
-        ...this.reportView(report),
+        ...this.reportView(report!),
         content:
           contentType && content
             ? this.contentView(contentType, content)
@@ -160,85 +156,85 @@ export class ModerationService {
         data: this.reportView(report),
       };
     const existing = await this.reports.findById(id);
-    if (!existing) throw new NotFoundException('Report not found');
-    if (existing.status === 'REVIEWING' && existing.reviewedBy === actor.sub) {
+    if (!existing) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
+    if (existing!.status === 'REVIEWING' && existing!.reviewedBy === actor.sub) {
       return {
         message: 'Report is being reviewed',
-        data: this.reportView(existing),
+        data: this.reportView(existing!),
       };
     }
-    throw new ConflictException('Report is not pending');
+    throwConflict(ErrorCode.MODERATION_REPORT_NOT_FOUND);
   }
 
   async resolve(actor: CommunityActor, id: string, dto: ResolveReportDto) {
     const report = await this.reports.findById(id);
-    if (!report) throw new NotFoundException('Report not found');
-    if (['RESOLVED', 'DISMISSED'].includes(report.status)) {
-      throw new ConflictException('Report has already been resolved');
+    if (!report) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
+    if (['RESOLVED', 'DISMISSED'].includes(report!.status)) {
+      throwConflict(ErrorCode.MODERATION_REPORT_ALREADY_EXISTS);
     }
     if (dto.outcome === 'DISMISSED' && dto.action !== 'NONE') {
-      throw new ConflictException('Dismissed reports require action NONE');
+      throwConflict(ErrorCode.MODERATION_CONTENT_DELETED);
     }
     if (
       ['HIDE', 'DELETE'].includes(dto.action) &&
-      !this.isContentType(report.targetType)
+      !this.isContentType(report!.targetType)
     ) {
-      throw new ConflictException('This action requires a content target');
+      throwConflict(ErrorCode.MODERATION_CONTENT_DELETED);
     }
-    if (['WARN', 'BAN'].includes(dto.action) && !report.targetAuthorId) {
-      throw new ConflictException('This action requires a reported user');
+    if (['WARN', 'BAN'].includes(dto.action) && !report!.targetAuthorId) {
+      throwConflict(ErrorCode.MODERATION_CONTENT_DELETED);
     }
 
     let shouldUpdateContent = true;
     if (
-      this.isContentType(report.targetType) &&
+      this.isContentType(report!.targetType) &&
       (dto.outcome === 'DISMISSED' || dto.action === 'NONE')
     ) {
       const otherOpenReports = await this.reports.countDocuments({
-        _id: { $ne: report._id },
-        targetType: report.targetType,
-        targetId: report.targetId,
+        _id: { $ne: report!._id },
+        targetType: report!.targetType,
+        targetId: report!.targetId,
         status: { $in: ['PENDING', 'REVIEWING'] },
       });
       shouldUpdateContent = otherOpenReports === 0;
     }
-    if (this.isContentType(report.targetType) && shouldUpdateContent) {
+    if (this.isContentType(report!.targetType) && shouldUpdateContent) {
       await this.applyContentAction(
-        report.targetType,
-        report.targetId,
+        report!.targetType,
+        report!.targetId,
         dto.outcome === 'DISMISSED' ? 'NONE' : dto.action,
         actor.sub,
         dto.note,
       );
     }
     const now = new Date();
-    report.status = dto.outcome;
-    report.reviewedBy ??= actor.sub;
-    report.reviewedAt ??= now;
-    report.resolvedBy = actor.sub;
-    report.resolvedAt = now;
-    report.action = dto.outcome === 'DISMISSED' ? 'NONE' : dto.action;
-    report.resolutionNote = dto.note.trim();
-    await report.save();
+    report!.status = dto.outcome;
+    report!.reviewedBy ??= actor.sub;
+    report!.reviewedAt ??= now;
+    report!.resolvedBy = actor.sub;
+    report!.resolvedAt = now;
+    report!.action = dto.outcome === 'DISMISSED' ? 'NONE' : dto.action;
+    report!.resolutionNote = dto.note.trim();
+    await report!.save();
 
-    if (['WARN', 'BAN'].includes(report.action)) {
-      void this.publish('user.moderation.requested', report.id, {
-        reportId: report.id,
-        userId: report.targetAuthorId,
-        action: report.action,
-        reason: report.resolutionNote,
+    if (['WARN', 'BAN'].includes(report!.action)) {
+      void this.publish('user.moderation.requested', report!.id, {
+        reportId: report!.id,
+        userId: report!.targetAuthorId,
+        action: report!.action,
+        reason: report!.resolutionNote,
         requestedBy: actor.sub,
       });
     }
-    void this.publish('moderation.report.resolved', report.id, {
-      reportId: report.id,
-      status: report.status,
-      action: report.action,
-      targetType: report.targetType,
-      targetId: report.targetId,
+    void this.publish('moderation.report.resolved', report!.id, {
+      reportId: report!.id,
+      status: report!.status,
+      action: report!.action,
+      targetType: report!.targetType,
+      targetId: report!.targetId,
       resolvedBy: actor.sub,
     });
-    return { message: 'Report resolved', data: this.reportView(report) };
+    return { message: 'Report resolved', data: this.reportView(report!) };
   }
 
   async queue(query: ModerationQueueQueryDto) {
@@ -317,7 +313,7 @@ export class ModerationService {
     const content = await this.requireContent(targetType, targetId, true);
     return {
       message: 'Content moderated',
-      data: this.contentView(targetType, content),
+      data: this.contentView(targetType, content!),
     };
   }
 
@@ -346,13 +342,13 @@ export class ModerationService {
         },
       },
     );
-    if (!result.matchedCount) throw new NotFoundException('Content not found');
+    if (!result.matchedCount) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
     if (targetType === 'COMMENT') {
-      const wasVisible = current.status === 'PUBLISHED';
+      const wasVisible = current!.status === 'PUBLISHED';
       const isVisible = status === 'PUBLISHED';
       if (wasVisible !== isVisible) {
         await this.forums.updateOne(
-          { _id: (current as CommentDocument).postId },
+          { _id: (current! as CommentDocument).postId },
           { $inc: { commentCount: isVisible ? 1 : -1 } },
         );
       }
@@ -376,10 +372,10 @@ export class ModerationService {
     targetType: ContentType,
     targetId: string,
     includeDeleted = false,
-  ): Promise<ContentDocument> {
+  ): Promise<ContentDocument | null> {
     const content = await this.findContent(targetType, targetId);
     if (!content || (!includeDeleted && content.status === 'DELETED')) {
-      throw new NotFoundException('Content not found');
+      throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
     }
     return content as ContentDocument;
   }

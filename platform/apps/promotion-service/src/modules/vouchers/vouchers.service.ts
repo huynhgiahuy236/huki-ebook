@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateVoucherDto,
@@ -11,6 +6,8 @@ import {
   VoucherQueryDto,
   ValidateVoucherDto,
 } from './dto/voucher.dto';
+import { throwConflict, throwNotFound, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 export interface VoucherValidationResult {
   valid: boolean;
@@ -34,13 +31,13 @@ export class VouchersService {
       where: { code: dto.code },
     });
     if (existing) {
-      throw new ConflictException(`Voucher code ${dto.code} already exists`);
+      throwConflict(ErrorCode.VOUCHER_CODE_EXISTS);
     }
 
     const startsAt = new Date(dto.startsAt);
     const expiresAt = new Date(dto.expiresAt);
     if (expiresAt <= startsAt) {
-      throw new BadRequestException('Expiry date must be after start date');
+      throwBadRequest(ErrorCode.VOUCHER_EXPIRED);
     }
 
     return this.prisma.voucher.create({
@@ -93,7 +90,7 @@ export class VouchersService {
 
   async findOne(id: string) {
     const voucher = await this.prisma.voucher.findUnique({ where: { id } });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
     return voucher;
   }
 
@@ -101,13 +98,13 @@ export class VouchersService {
     const voucher = await this.prisma.voucher.findUnique({
       where: { code: code.toUpperCase() },
     });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
     return voucher;
   }
 
   async update(id: string, dto: UpdateVoucherDto) {
     const voucher = await this.prisma.voucher.findUnique({ where: { id } });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
 
     return this.prisma.voucher.update({
       where: { id },
@@ -196,7 +193,6 @@ export class VouchersService {
         discount = Math.min(voucher.value, dto.orderSubtotal);
         break;
       case 'FREE_SHIPPING':
-        // Discount amount will be determined at checkout based on shipping fee
         discount = 0;
         break;
     }
@@ -223,7 +219,7 @@ export class VouchersService {
     const voucher = await this.prisma.voucher.findUnique({
       where: { id: voucherId },
     });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
 
     return this.prisma.$transaction(async (tx) => {
       // Create usage record
@@ -244,8 +240,8 @@ export class VouchersService {
 
       // Check if reached limit
       if (
-        voucher.totalUsage > 0 &&
-        voucher.currentUsage + 1 >= voucher.totalUsage
+        voucher!.totalUsage > 0 &&
+        voucher!.currentUsage + 1 >= voucher!.totalUsage
       ) {
         await tx.voucher.update({
           where: { id: voucherId },
@@ -273,10 +269,10 @@ export class VouchersService {
 
   async delete(id: string) {
     const voucher = await this.prisma.voucher.findUnique({ where: { id } });
-    if (!voucher) throw new NotFoundException('Voucher not found');
+    if (!voucher) throwNotFound(ErrorCode.VOUCHER_NOT_FOUND);
 
-    if (voucher.currentUsage > 0) {
-      throw new ConflictException('Cannot delete voucher that has been used');
+    if (voucher!.currentUsage > 0) {
+      throwBadRequest(ErrorCode.VOUCHER_EXHAUSTED);
     }
 
     await this.prisma.voucher.delete({ where: { id } });

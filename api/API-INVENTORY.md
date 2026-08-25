@@ -40,8 +40,10 @@
 
 | Method | Endpoint | Mô tả | Status |
 |--------|----------|--------|--------|
-| POST | `/auth/register` | Đăng ký tài khoản mới | ✅ |
-| POST | `/auth/login` | Đăng nhập | ✅ |
+| POST | `/auth/register` | Đăng ký tài khoản mới (cần verify email) | ✅ |
+| POST | `/auth/verify-email` | Xác thực email | ✅ |
+| POST | `/auth/resend-verification` | Gửi lại email xác thực | ✅ |
+| POST | `/auth/login` | Đăng nhập (cần email đã verify) | ✅ |
 | POST | `/auth/logout` | Đăng xuất | ✅ |
 | POST | `/auth/logout-all` | Đăng xuất tất cả thiết bị | ✅ |
 | POST | `/auth/refresh` | Làm mới token | ✅ |
@@ -65,7 +67,7 @@
 | DELETE | `/sessions/:sessionId` | Xóa 1 session | ✅ |
 | DELETE | `/sessions` | Xóa tất cả sessions | ✅ |
 
-**Identity Service:** ✅ ~95% hoàn thành
+**Identity Service:** ✅ ~95% hoàn thành (15 endpoints)
 
 ---
 

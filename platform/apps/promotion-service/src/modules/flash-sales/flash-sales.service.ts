@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateFlashSaleDto,
@@ -11,6 +7,8 @@ import {
   FlashSaleItemQueryDto,
   FlashSaleStatus,
 } from './dto/flash-sale.dto';
+import { throwNotFound, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class FlashSalesService {
@@ -21,7 +19,7 @@ export class FlashSalesService {
     const endsAt = new Date(dto.endsAt);
 
     if (endsAt <= startsAt) {
-      throw new BadRequestException('End date must be after start date');
+      throwBadRequest(ErrorCode.BANNER_INVALID_DATE_RANGE);
     }
 
     const status = this.calculateStatus(startsAt, endsAt);
@@ -67,7 +65,7 @@ export class FlashSalesService {
       where: { id },
       include: { items: true },
     });
-    if (!flashSale) throw new NotFoundException('Flash sale not found');
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
     return flashSale;
   }
 
@@ -76,10 +74,10 @@ export class FlashSalesService {
     const flashSale = await this.prisma.flashSale.findUnique({
       where: { id: dto.flashSaleId },
     });
-    if (!flashSale) throw new NotFoundException('Flash sale not found');
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
 
     if (dto.salePrice >= dto.originalPrice) {
-      throw new BadRequestException('Sale price must be less than original price');
+      throwBadRequest(ErrorCode.BOOK_PRICE_INVALID);
     }
 
     // Check if book already in flash sale
@@ -87,7 +85,7 @@ export class FlashSalesService {
       where: { flashSaleId: dto.flashSaleId, bookId: dto.bookId },
     });
     if (existing) {
-      throw new BadRequestException('Book already in this flash sale');
+      throwBadRequest(ErrorCode.FLASH_SALE_NOT_FOUND);
     }
 
     return this.prisma.flashSaleItem.create({
@@ -165,10 +163,10 @@ export class FlashSalesService {
     const item = await this.prisma.flashSaleItem.findUnique({
       where: { id: itemId },
     });
-    if (!item) throw new NotFoundException('Flash sale item not found');
+    if (!item) throwNotFound(ErrorCode.FLASH_SALE_ITEM_NOT_FOUND);
 
-    if (item.stock < quantity) {
-      throw new BadRequestException('Insufficient flash sale stock');
+    if (item!.stock < quantity) {
+      throwBadRequest(ErrorCode.FLASH_SALE_STOCK_EXHAUSTED);
     }
 
     return this.prisma.flashSaleItem.update({
@@ -209,7 +207,7 @@ export class FlashSalesService {
     const flashSale = await this.prisma.flashSale.findUnique({
       where: { id },
     });
-    if (!flashSale) throw new NotFoundException('Flash sale not found');
+    if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
 
     await this.prisma.flashSaleItem.deleteMany({
       where: { flashSaleId: id },

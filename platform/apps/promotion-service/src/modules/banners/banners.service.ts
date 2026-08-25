@@ -1,7 +1,4 @@
-import {
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CreateBannerDto,
@@ -9,6 +6,8 @@ import {
   BannerQueryDto,
   BannerScope,
 } from './dto/banner.dto';
+import { throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class BannersService {
@@ -59,13 +58,13 @@ export class BannersService {
 
   async findOne(id: string) {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
-    if (!banner) throw new NotFoundException('Banner not found');
+    if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
     return banner;
   }
 
   async update(id: string, dto: UpdateBannerDto) {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
-    if (!banner) throw new NotFoundException('Banner not found');
+    if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
 
     return this.prisma.banner.update({
       where: { id },
@@ -83,7 +82,7 @@ export class BannersService {
 
   async delete(id: string) {
     const banner = await this.prisma.banner.findUnique({ where: { id } });
-    if (!banner) throw new NotFoundException('Banner not found');
+    if (!banner) throwNotFound(ErrorCode.BANNER_NOT_FOUND);
 
     await this.prisma.banner.delete({ where: { id } });
     return { success: true };

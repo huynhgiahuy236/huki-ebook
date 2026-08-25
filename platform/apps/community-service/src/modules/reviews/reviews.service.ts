@@ -1,15 +1,11 @@
 import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
   Injectable,
   Logger,
-  NotFoundException,
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
 import { randomUUID } from "crypto";
 import { Model, Types } from "mongoose";
-import { RabbitMqEventBus } from "../../../../../libs/shared/src";
+import { RabbitMqEventBus } from "@huki/shared";
 import { CommunityActor } from "../../common/community-auth.guard";
 import {
   ReviewReply,
@@ -29,6 +25,8 @@ import {
 } from "./dto/review.dto";
 import { ReviewVerificationService } from "./review-verification.service";
 import { AutoModerationService } from "../moderation/auto-moderation.service";
+import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
 export class ReviewsService {
@@ -157,31 +155,31 @@ export class ReviewsService {
 
   async update(actor: CommunityActor, reviewId: string, dto: UpdateReviewDto) {
     const review = await this.requireOwned(actor, reviewId);
-    if (dto.rating !== undefined) review.rating = dto.rating;
-    if (dto.title !== undefined) review.title = dto.title.trim();
-    if (dto.content !== undefined) review.content = dto.content.trim();
-    if (dto.images !== undefined) review.images = this.images(dto.images);
+    if (dto.rating !== undefined) review!.rating = dto.rating;
+    if (dto.title !== undefined) review!.title = dto.title.trim();
+    if (dto.content !== undefined) review!.content = dto.content.trim();
+    if (dto.images !== undefined) review!.images = this.images(dto.images);
     const moderation = this.autoModeration.inspect(
-      review.title,
-      review.content,
+      review!.title,
+      review!.content,
     );
-    review.status = moderation.flagged ? "FLAGGED" : "PENDING_REVIEW";
-    review.moderatedAt = undefined;
-    review.moderatedBy = undefined;
-    review.moderationNote = this.autoModeration.note(moderation);
-    await review.save();
+    review!.status = moderation.flagged ? "FLAGGED" : "PENDING_REVIEW";
+    review!.moderatedAt = undefined;
+    review!.moderatedBy = undefined;
+    review!.moderationNote = this.autoModeration.note(moderation);
+    await review!.save();
     return {
       message: "Review updated",
-      data: this.reviewView(review, actor, []),
+      data: this.reviewView(review!, actor, []),
     };
   }
 
   async remove(actor: CommunityActor, reviewId: string) {
     const review = await this.requireOwned(actor, reviewId);
-    review.status = "DELETED";
-    await review.save();
+    review!.status = "DELETED";
+    await review!.save();
     await this.replies.updateMany(
-      { reviewId: review._id, status: "ACTIVE" },
+      { reviewId: review!._id, status: "ACTIVE" },
       { $set: { status: "DELETED" } },
     );
     return { message: "Review deleted" };
@@ -205,11 +203,11 @@ export class ReviewsService {
         .findOne({ _id: id, status: "PUBLISHED" })
         .select("+helpful")
         .exec()) as ReviewDocument | null);
-    if (!review) throw new NotFoundException("Review not found");
+    if (!review) throwNotFound(ErrorCode.REVIEW_NOT_FOUND);
     return {
       data: {
-        helpfulCount: Math.max(0, review.helpfulCount),
-        isHelpful: review.helpful.includes(actor.sub),
+        helpfulCount: Math.max(0, review!.helpfulCount),
+        isHelpful: review!.helpful.includes(actor.sub),
       },
     };
   }
@@ -221,17 +219,18 @@ export class ReviewsService {
     authorization: string,
   ) {
     if (actor.role !== "BUSINESS") {
-      throw new ForbiddenException("Business role is required");
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
     const review = await this.reviews.findOne({
       _id: new Types.ObjectId(reviewId),
       status: "PUBLISHED",
     });
-    if (!review) throw new NotFoundException("Review not found");
-    const storeId =
-      review.storeId ??
-      (review.targetType === "STORE" ? review.targetId : undefined);
-    if (!storeId) throw new ForbiddenException("Review has no verified store");
+    if (!review) throwNotFound(ErrorCode.REVIEW_NOT_FOUND);
+    const storeId: string =
+      review!.storeId ??
+      (review!.targetType === "STORE" ? review!.targetId : undefined) ??
+      '';
+    if (!storeId) throwForbidden(ErrorCode.REVIEW_NOT_FOUND);
     const business = await this.verification.businessAccess(
       authorization,
       actor.sub,
@@ -239,7 +238,7 @@ export class ReviewsService {
     );
     try {
       const reply = await this.replies.create({
-        reviewId: review._id,
+        reviewId: review!._id,
         businessId: business.businessId,
         storeId,
         responderId: actor.sub,
@@ -252,7 +251,7 @@ export class ReviewsService {
       };
     } catch (error) {
       if ((error as { code?: number }).code === 11000) {
-        throw new ConflictException("This store has already replied");
+        throwConflict(ErrorCode.REVIEW_ALREADY_EXISTS);
       }
       throw error;
     }
@@ -309,9 +308,9 @@ export class ReviewsService {
       _id: new Types.ObjectId(reviewId),
       status: { $ne: "DELETED" },
     });
-    if (!review) throw new NotFoundException("Review not found");
-    if (review.authorId !== actor.sub) {
-      throw new ForbiddenException("You can only modify your own review");
+    if (!review) throwNotFound(ErrorCode.REVIEW_NOT_FOUND);
+    if (review!.authorId !== actor.sub) {
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
     return review;
   }
@@ -387,7 +386,7 @@ export class ReviewsService {
 
   private assertCustomer(actor: CommunityActor) {
     if (actor.role !== "USER") {
-      throw new ForbiddenException("Only customers can submit reviews");
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
   }
 
@@ -396,17 +395,13 @@ export class ReviewsService {
   }
 
   private purchaseRequired(): never {
-    throw new BadRequestException({
-      message: "Purchase verification required",
-      code: "REVIEW_PURCHASE_REQUIRED",
-    });
+    throwBadRequest(ErrorCode.REVIEW_PURCHASE_REQUIRED);
+    return undefined as never;
   }
 
   private reviewAlreadyExists(): never {
-    throw new ConflictException({
-      message: "You have already reviewed this item",
-      code: "REVIEW_ALREADY_EXISTS",
-    });
+    throwConflict(ErrorCode.REVIEW_ALREADY_EXISTS);
+    return undefined as never;
   }
 
   private async publishCreated(review: ReviewDocument) {
