@@ -207,3 +207,4 @@ Sprint 17 → Sprint 18 → Sprint 19 → Sprint 20 → Sprint 21
 | 2026-08-24 | KIEN | Created Phase 5 structure |
 | 2026-08-25 | KIEN | Restructured: Sprints 17-21, updated status |
 | 2026-08-25 | Codex | Gateway proxy routing verified for 6 services; aggregate OpenAPI and all-service health check verified locally |
+| 2026-08-25 | Codex | Commerce unit specs migrated from legacy TypeORM mocks to Prisma/Prisma transaction mocks; `test:commerce` passes 16 suites, 28 tests |
