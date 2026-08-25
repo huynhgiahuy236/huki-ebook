@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { JwtModule } from '@nestjs/jwt';
 import configuration from '../config/configuration';
+import { CommonModule } from './common/common.module';
 import { AuthorsModule } from './modules/authors/authors.module';
 import { BooksModule } from './modules/books/books.module';
 import { CartModule } from './modules/cart/cart.module';
@@ -27,6 +28,7 @@ import { CommerceEventsModule } from './modules/events/events.module';
       }),
     }),
     EventEmitterModule.forRoot(),
+    CommonModule,
     PrismaModule,
     RedisModule,
     CategoriesModule,
