@@ -121,6 +121,7 @@
 | Issue | Severity | Status | Workaround |
 |-------|----------|--------|------------|
 | Legacy TypeORM migrations (commerce) | Low | Known | Not used, only Prisma |
+| Commerce local Prisma baseline | Resolved | Local schema and `_prisma_migrations` synchronized on 2026-08-25 | Use `prisma migrate deploy` for subsequent Commerce migrations |
 | Unit tests | Medium | TODO | Implement in Phase 6 |
 | Integration tests | Medium | TODO | Implement in Phase 5 |
 

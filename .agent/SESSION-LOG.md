@@ -236,3 +236,12 @@
 
 *Maintained by: Claude*
 *Auto-updated: Yes*
+
+---
+
+## 2026-08-25 — Commerce Prisma local baseline
+
+- Diagnosed missing PayOS columns in the pre-existing local `huki_commerce` schema.
+- Synchronized the empty local database with `apps/commerce-service/prisma/schema.prisma`.
+- Marked the three existing Commerce migrations as applied in `_prisma_migrations`.
+- Verified: `prisma migrate status --schema apps/commerce-service/prisma/schema.prisma` reports the schema is up to date.
