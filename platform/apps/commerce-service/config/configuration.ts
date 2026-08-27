@@ -10,7 +10,7 @@ export default () => ({
     logging: process.env.DATABASE_LOGGING === 'true',
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
+    secret: process.env.JWT_SECRET || 'huki-dev-jwt-secret-change-in-production-2026',
   },
   checkout: {
     sessionTtlMinutes: parseInt(process.env.CHECKOUT_SESSION_TTL_MINUTES || '15', 10),

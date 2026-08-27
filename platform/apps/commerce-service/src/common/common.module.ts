@@ -9,7 +9,12 @@ import { CatalogAdminGuard } from './catalog-admin.guard';
 
 @Global()
 @Module({
-  imports: [JwtModule],
+  imports: [
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'huki-dev-jwt-secret-change-in-production-2026',
+      signOptions: { expiresIn: '15m' },
+    }),
+  ],
   providers: [
     AuthenticatedGuard,
     BookWriteGuard,
