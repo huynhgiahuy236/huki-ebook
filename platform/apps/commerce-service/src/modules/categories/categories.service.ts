@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
-import { CategoryListQueryDto, CategorySortBy } from './dto/category-list-query.dto';
+import { CategoryListQueryDto, CategorySortBy, SortDirection } from './dto/category-list-query.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { throwConflict, throwNotFound, throwBadRequest } from '@huki/shared/errors';
@@ -73,17 +73,21 @@ export class CategoriesService {
     if (query.parentId) where.parentId = query.parentId;
     else if (query.rootOnly) where.parentId = null;
     if (query.search) {
-      where.normalizedName = { contains: normalizeCatalogText(query.search), mode: 'insensitive' };
+      where.normalizedName = { contains: normalizeCatalogText(query.search) };
     }
 
-    const orderBy: any = {};
-    const sortMap: Record<CategorySortBy, string> = {
+    // Map sort field to Prisma snake_case
+    const sortFieldMap: Record<CategorySortBy, string> = {
       [CategorySortBy.NAME]: 'name',
       [CategorySortBy.SORT_ORDER]: 'sortOrder',
       [CategorySortBy.CREATED_AT]: 'createdAt',
     };
-    orderBy[sortMap[query.sortBy]] = query.order.toLowerCase();
-    orderBy.name = 'asc';
+
+    const orderBy: any[] = [];
+    const sortField = sortFieldMap[query.sortBy] || 'sortOrder';
+    const sortDirection = query.order === SortDirection.DESC ? 'desc' : 'asc';
+    orderBy.push({ [sortField]: sortDirection });
+    orderBy.push({ name: 'asc' }); // Secondary sort by name
 
     const [categories, total] = await this.prisma.$transaction([
       this.prisma.category.findMany({
