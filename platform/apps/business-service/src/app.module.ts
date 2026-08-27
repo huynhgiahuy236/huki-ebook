@@ -9,6 +9,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { BusinessModule } from './modules/business/business.module';
 import { StoreModule } from './modules/store/store.module';
 import { MemberModule } from './modules/member/member.module';
+import { BusinessOutboxModule } from './modules/outbox/outbox.module';
 
 // Health
 import { HealthController } from './modules/health/health.controller';
@@ -30,6 +31,7 @@ import { HealthController } from './modules/health/health.controller';
     BusinessModule,
     StoreModule,
     MemberModule,
+    BusinessOutboxModule,
   ],
   controllers: [HealthController],
 })

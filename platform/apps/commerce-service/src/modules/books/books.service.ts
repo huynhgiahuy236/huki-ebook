@@ -127,16 +127,29 @@ export class BooksService {
     else if (query.sortBy === BookSortBy.PRICE) orderBy.price = direction;
     else orderBy.title = direction;
 
+    // Select only needed fields for public list view (exclude inventory details)
+    const listSelect = {
+      id: true,
+      storeId: true,
+      title: true,
+      slug: true,
+      isbn: true,
+      description: true,
+      price: true,
+      format: true,
+      status: true,
+      coverUrl: true,
+      publishedAt: true,
+      viewCount: true,
+      category: true,
+      author: true,
+      publisher: true,
+    };
+
     const [books, total] = await this.prisma.$transaction([
       this.prisma.book.findMany({
         where,
-        include: {
-          category: true,
-          author: true,
-          publisher: true,
-          physicalDetails: true,
-          digitalDetails: true,
-        },
+        select: listSelect,
         orderBy,
         skip: (query.page - 1) * query.limit,
         take: query.limit,

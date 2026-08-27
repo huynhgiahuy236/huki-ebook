@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import {
   AuthenticatedCommunityGuard,
@@ -27,12 +27,13 @@ import {
 } from './dto/forum.dto';
 import { ForumService } from './forum.service';
 
-@ApiTags('Forum posts')
+@ApiTags('Forum')
 @Controller('forum/posts')
 export class ForumPostsController {
   constructor(private readonly forum: ForumService) {}
 
   @Get()
+  @ApiOperation({ summary: 'List forum posts with pagination' })
   @UseGuards(OptionalCommunityAuthGuard)
   list(
     @Query() query: ForumPostQueryDto,
@@ -42,6 +43,7 @@ export class ForumPostsController {
   }
 
   @Get('popular')
+  @ApiOperation({ summary: 'Get popular forum posts' })
   @UseGuards(OptionalCommunityAuthGuard)
   popular(
     @Query() query: PopularPostQueryDto,
@@ -51,6 +53,7 @@ export class ForumPostsController {
   }
 
   @Get(':id/comments')
+  @ApiOperation({ summary: 'Get comments for a post' })
   @UseGuards(OptionalCommunityAuthGuard)
   comments(
     @Param() { id }: MongoIdParamDto,
@@ -60,6 +63,7 @@ export class ForumPostsController {
   }
 
   @Get(':id')
+  @ApiOperation({ summary: 'Get forum post by ID' })
   @UseGuards(OptionalCommunityAuthGuard)
   detail(
     @Param() { id }: MongoIdParamDto,
@@ -71,6 +75,7 @@ export class ForumPostsController {
   @Post()
   @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new forum post' })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -81,6 +86,7 @@ export class ForumPostsController {
 
   @Patch(':id')
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update a forum post' })
   @UseGuards(AuthenticatedCommunityGuard)
   update(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -92,6 +98,7 @@ export class ForumPostsController {
 
   @Delete(':id')
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete a forum post' })
   @UseGuards(AuthenticatedCommunityGuard)
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -102,6 +109,7 @@ export class ForumPostsController {
 
   @Post(':id/like')
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Like a forum post' })
   @UseGuards(AuthenticatedCommunityGuard)
   like(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -112,6 +120,7 @@ export class ForumPostsController {
 
   @Delete(':id/like')
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unlike a forum post' })
   @UseGuards(AuthenticatedCommunityGuard)
   unlike(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -123,6 +132,7 @@ export class ForumPostsController {
   @Post(':id/comments')
   @Throttle({ default: { limit: 30, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
+  @ApiOperation({ summary: 'Add a comment to a post' })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   addComment(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -133,7 +143,7 @@ export class ForumPostsController {
   }
 }
 
-@ApiTags('Forum comments')
+@ApiTags('Forum')
 @ApiBearerAuth()
 @UseGuards(AuthenticatedCommunityGuard)
 @Controller('forum/comments')
@@ -142,6 +152,7 @@ export class ForumCommentsController {
 
   @Post(':id/replies')
   @Throttle({ default: { limit: 30, ttl: 60 * 60_000 } })
+  @ApiOperation({ summary: 'Reply to a comment' })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   reply(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -152,6 +163,7 @@ export class ForumCommentsController {
   }
 
   @Delete(':id')
+  @ApiOperation({ summary: 'Delete a comment' })
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: MongoIdParamDto,
@@ -160,6 +172,7 @@ export class ForumCommentsController {
   }
 
   @Post(':id/like')
+  @ApiOperation({ summary: 'Like a comment' })
   like(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: MongoIdParamDto,
@@ -168,6 +181,7 @@ export class ForumCommentsController {
   }
 
   @Delete(':id/like')
+  @ApiOperation({ summary: 'Unlike a comment' })
   unlike(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: MongoIdParamDto,
@@ -176,12 +190,13 @@ export class ForumCommentsController {
   }
 }
 
-@ApiTags('Forum categories')
+@ApiTags('Forum')
 @Controller('forum/categories')
 export class ForumCategoriesController {
   constructor(private readonly forum: ForumService) {}
 
   @Get()
+  @ApiOperation({ summary: 'Get all forum categories' })
   list() {
     return this.forum.listCategories();
   }

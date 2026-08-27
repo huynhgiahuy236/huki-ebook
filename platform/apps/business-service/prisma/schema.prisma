@@ -169,3 +169,23 @@ enum InvitationStatus {
   EXPIRED
   CANCELLED
 }
+
+// ============================================
+// OUTBOX (Event Sourcing)
+// ============================================
+
+model OutboxEvent {
+  id          String    @id @default(uuid())
+  eventId     String    @unique @map("event_id")
+  type        String
+  aggregateId String    @map("aggregate_id")
+  payload     Json
+  status      String    @default("PENDING")
+  attempts    Int       @default(0)
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@map("outbox_events")
+}

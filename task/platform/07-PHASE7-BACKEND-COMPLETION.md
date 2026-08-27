@@ -1,152 +1,175 @@
-# 📋 PHASE 7: Backend Completion
+# 📋 PHASE 7: Backend Completion (Consolidated)
 **Thời gian ước tính: 2-3 tuần**
-**Status: 🔄 IN PROGRESS**
+**Status: 🔄 IN PROGRESS (60%)**
 **Dependency: Phase 5 (Integration)**
 
 ## 🎯 Mục tiêu
-Hoàn thiện backend đạt 90%+ về:
-- API completeness (đủ endpoints)
-- Error codes standardization
-- API documentation đầy đủ
-- Swagger hiển thị chính xác
+Hoàn thiện backend đạt 90%+ để chuyển sang Frontend:
+- ✅ API completeness (đủ endpoints)
+- ✅ Error codes standardization (84 strings → ErrorCode)
+- ✅ API documentation đầy đủ (Swagger)
+- 🔄 Performance optimization
+- 🔄 Health checks
+- 🔄 Outbox pattern
+- 🔄 Unit tests
 
-## ⚠️ Lưu ý
-- Tập trung local development
-- Không đưa production vào phase này
-
----
-
-## 🐙 Tasks
-
-### Sprint 27: API Completeness Check
-
-| Task | Owner | Priority | Description | Status | Definition of Done |
-|------|-------|----------|-------------|--------|-------------------|
-| T27.1 | KIEN | HIGH | Verify Identity API endpoints | ⬜ TODO | All CRUD endpoints exist |
-| T27.2 | KIEN | HIGH | Verify Business API endpoints | ⬜ TODO | All CRUD endpoints exist |
-| T27.3 | KIEN | HIGH | Verify Commerce API endpoints | ⬜ TODO | All CRUD endpoints exist |
-| T27.4 | KIEN | HIGH | Verify Shipping API endpoints | ⬜ TODO | All CRUD endpoints exist |
-| T27.5 | KIEN | HIGH | Verify Community API endpoints | ⬜ TODO | All CRUD endpoints exist |
-| T27.6 | KIEN | HIGH | Verify Promotion API endpoints | ⬜ TODO | All CRUD endpoints exist |
-
-#### API Inventory Check
-
-```
-Identity (14 endpoints):
-├── Auth: register, login, logout, refresh, verify-email
-├── User: get-profile, update-profile, change-password
-├── Address: CRUD
-└── Health: /health
-
-Business (15 endpoints):
-├── Business: register, get, update, approve, reject
-├── Store: CRUD, members
-└── Health: /health
-
-Commerce (25 endpoints):
-├── Books: CRUD, publish, hide, archive
-├── Cart: add, update, remove, clear
-├── Checkout: create-session, confirm
-├── Orders: CRUD, cancel, history
-├── Payments: create, webhook, callback
-├── Categories, Authors, Publishers
-└── Health: /health
-
-Shipping (10 endpoints):
-├── Addresses: CRUD
-├── Shipping: calculate-fee, create-shipment
-├── Tracking: get, update
-└── Health: /health
-
-Community (20 endpoints):
-├── Forum: categories, posts, comments
-├── Chat: conversations, messages
-├── Reviews: CRUD, moderation
-├── Notifications: list, mark-read
-└── Health: /health
-
-Promotion (12 endpoints):
-├── Vouchers: CRUD, apply
-├── Banners: CRUD, active
-├── Flash Sales: CRUD, active
-└── Health: /health
-```
+**Note:** Sprint 26 (E2E tests) - SKIPPED để tập trung Frontend
 
 ---
 
-### Sprint 28: Error Codes Standardization
+## 📊 Progress Summary
 
-| Task | Owner | Priority | Description | Status | Definition of Done |
-|------|-------|----------|-------------|--------|-------------------|
-| T28.1 | KIEN | HIGH | ErrorCode enum review | ⬜ TODO | All error codes defined |
-| T28.2 | KIEN | HIGH | Identity error codes | ⬜ TODO | No hardcoded strings |
-| T28.3 | KIEN | HIGH | Business error codes | ⬜ TODO | No hardcoded strings |
-| T28.4 | KIEN | HIGH | Commerce error codes | ⬜ TODO | No hardcoded strings |
-| T28.5 | KIEN | HIGH | Shipping error codes | ⬜ TODO | No hardcoded strings |
-| T28.6 | KIEN | HIGH | Community error codes | ⬜ TODO | No hardcoded strings |
-| T28.7 | KIEN | HIGH | Promotion error codes | ⬜ TODO | No hardcoded strings |
+| Sprint | Task | Status | Notes |
+|--------|------|--------|-------|
+| 27 | API completeness | ✅ DONE | Categories fixed |
+| 28 | Error codes | ✅ DONE | 84 strings → ErrorCode |
+| 29 | Swagger docs | ✅ DONE | All @ApiOperation added |
+| 23 | Health checks | ⬜ TODO | DB/Redis/RabbitMQ |
+| 24 | Outbox pattern | ⬜ TODO | 3 services pending |
+| 30 | Performance | ⬜ TODO | Cache + optimize |
+| 25 | Unit tests | ⬜ TODO | 80%+ coverage |
 
-#### Error Code Categories
-
-```
-AUTH_         - Authentication errors
-BUSINESS_     - Business logic errors
-BOOK_         - Book/catalog errors
-CART_         - Cart errors
-ORDER_        - Order errors
-PAYMENT_      - Payment errors
-SHIPPING_     - Shipping errors
-FORUM_        - Forum errors
-CHAT_         - Chat errors
-REVIEW_       - Review errors
-VOUCHER_      - Voucher errors
-SYSTEM_       - System errors
-```
+**Overall Progress: 60%**
 
 ---
 
-### Sprint 29: Swagger Documentation
+## 🐙 Tasks Details
 
-| Task | Owner | Priority | Description | Status | Definition of Done |
-|------|-------|----------|-------------|--------|-------------------|
-| T29.1 | KIEN | HIGH | Swagger decorators review | ⬜ TODO | All endpoints documented |
-| T29.2 | KIEN | HIGH | Response schemas | ⬜ TODO | All responses have schemas |
-| T29.3 | KIEN | HIGH | Examples | ⬜ TODO | Request/response examples |
-| T29.4 | KIEN | MEDIUM | Tags organization | ⬜ TODO | Logical grouping |
+### ✅ Sprint 27: API Completeness Check (DONE)
 
-#### Swagger Requirements
+| Task | Status |
+|------|--------|
+| Verify Identity API endpoints | ✅ DONE |
+| Verify Business API endpoints | ✅ DONE |
+| Verify Commerce API endpoints | ✅ DONE |
+| Verify Shipping API endpoints | ✅ DONE |
+| Verify Community API endpoints | ✅ DONE |
+| Verify Promotion API endpoints | ✅ DONE |
 
-```typescript
-@ApiTags('Auth')
-@ApiOperation({ summary: '...' })
-@ApiResponse({ status: 200, description: 'Success', type: UserResponseDto })
-@ApiResponse({ status: 400, description: 'Validation error', type: ErrorResponseDto })
-@ApiResponse({ status: 401, description: 'Unauthorized', type: ErrorResponseDto })
-@ApiBearerAuth()
-@Post('login')
-async login(@Body() dto: LoginDto) {}
+---
+
+### ✅ Sprint 28: Error Codes Standardization (DONE)
+
+| Task | Status |
+|------|--------|
+| ErrorCode enum review | ✅ DONE |
+| Identity error codes | ✅ DONE |
+| Business error codes | ✅ DONE |
+| Commerce error codes | ✅ DONE |
+| Shipping error codes | ✅ DONE |
+| Community error codes | ✅ DONE |
+| Promotion error codes | ✅ DONE |
+
+**Result:** 84 hardcoded strings converted to ErrorCode enum ✅
+
+---
+
+### ✅ Sprint 29: Swagger Documentation (DONE)
+
+| Task | Status |
+|------|--------|
+| Swagger decorators review | ✅ DONE |
+| Response schemas | ✅ DONE |
+| API tags organization | ✅ DONE |
+| Fix missing @ApiOperation | ✅ DONE |
+
+**Result:** 
+- Forum, Reviews, Chat, Notifications: All @ApiOperation added
+- Tags unified: "Forum", "Reviews" (instead of "Forum posts", "Book reviews", etc.)
+
+---
+
+### 🔄 Sprint 23: Health Checks (TODO)
+
+| Task | Priority | Status |
+|------|----------|--------|
+| DB connection health per service | HIGH | ⬜ TODO |
+| Redis connection health | HIGH | ⬜ TODO |
+| RabbitMQ connection health | HIGH | ⬜ TODO |
+| Gateway readiness probe | MEDIUM | ⚠️ PARTIAL |
+| Graceful shutdown | MEDIUM | ⬜ TODO |
+| Connection pool monitoring | MEDIUM | ⬜ TODO |
+
+#### Current Health Status
+```
+GET /health - Returns: { status: "ok", service: "xxx-service" }
+```
+#### Target Health Response
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-08-27T10:00:00.000Z",
+  "services": {
+    "database": { "status": "ok", "latency": 5 },
+    "redis": { "status": "ok", "latency": 2 },
+    "rabbitmq": { "status": "ok", "latency": 10 }
+  }
+}
 ```
 
 ---
 
-### Sprint 30: Performance & Optimization
+### 🔄 Sprint 24: Outbox Pattern (TODO)
 
-| Task | Owner | Priority | Description | Status | Definition of Done |
-|------|-------|----------|-------------|--------|-------------------|
-| T30.1 | KIEN | HIGH | Database query optimization | ⬜ TODO | No N+1 queries |
-| T30.2 | KIEN | MEDIUM | Index optimization | ⬜ TODO | Proper indexes on frequently queried columns |
-| T30.3 | KIEN | MEDIUM | Cache strategy | ⬜ TODO | Redis caching for static data |
-| T30.4 | KIEN | MEDIUM | API response time | ⬜ TODO | < 200ms for list endpoints |
+| Service | Outbox | Status |
+|---------|--------|--------|
+| Commerce | ✅ | Implemented |
+| Shipping | ✅ | Implemented |
+| Identity | ❌ | ⬜ TODO |
+| Business | ❌ | ⬜ TODO |
+| Promotion | ❌ | ⬜ TODO |
+
+**Features to verify:**
+- [ ] Event stored before publishing
+- [ ] Version field in events
+- [ ] Retry logic (3 attempts)
+- [ ] Dead Letter Queue
+- [ ] Idempotency handling
 
 ---
 
-## 📦 Deliverables Phase 7
+### 🔄 Sprint 25: Unit Tests (TODO)
+
+| Service | Target | Status |
+|---------|--------|--------|
+| Identity | 80%+ | ⬜ TODO |
+| Business | 80%+ | ⬜ TODO |
+| Commerce | 80%+ | ⚠️ Partial (30 tests) |
+| Shipping | 80%+ | ⚠️ Partial (12 tests) |
+| Community | 80%+ | ⚠️ Partial (47 tests) |
+| Promotion | 80%+ | ⬜ TODO |
+
+**Total Tests Now:** 96 unit + 27 integration = 123 tests
+
+---
+
+### 🔄 Sprint 30: Performance & Optimization (TODO)
+
+| Task | Priority | Status |
+|------|----------|--------|
+| Database query optimization | HIGH | ⬜ TODO |
+| Index optimization | MEDIUM | ⬜ TODO |
+| Redis caching for static data | MEDIUM | ⬜ TODO |
+| API response time < 200ms | MEDIUM | ⬜ TODO |
+
+**Target benchmarks:**
+- GET /books < 100ms
+- GET /cart < 50ms
+- GET /orders < 100ms
+
+---
+
+## 📦 Deliverables
 
 ```
-🔄 Sprint 27: API completeness check
-🔄 Sprint 28: Error codes standardization
-🔄 Sprint 29: Swagger documentation
-🔄 Sprint 30: Performance optimization
+✅ Sprint 27: API completeness (100%)
+✅ Sprint 28: Error codes (100%)
+✅ Sprint 29: Swagger docs (100%)
+⬜ Sprint 23: Health checks (0%)
+⬜ Sprint 24: Outbox pattern (40% - Commerce & Shipping done)
+⬜ Sprint 30: Performance (0%)
+⬜ Sprint 25: Unit tests (varies)
+⬜ Sprint 26: E2E tests (SKIPPED)
 ```
 
 ---
@@ -155,19 +178,20 @@ async login(@Body() dto: LoginDto) {}
 
 ```
 Phase 5 Sprint 21 → Sprint 27 → Sprint 28 → Sprint 29 → Sprint 30
-                        (api)        (errors)  (swagger)  (perf)
+                        ✅          ✅          ✅         ⬜
+
+Parallel Work:
+├── Sprint 23 (Health)
+├── Sprint 24 (Outbox)
+└── Sprint 25 (Unit tests)
 ```
 
 ---
 
-## 📝 Notes
-
-**KIEN:** Working on Phase 7 Backend Completion
-
----
-
-## 📅 Update Log
+## 📝 Update Log
 
 | Date | Owner | Changes |
 |------|-------|---------|
-| 2026-08-27 | KIEN | Created Phase 7 |
+| 2026-08-27 | KIEN | Consolidated Phase 6 into Phase 7 |
+| 2026-08-27 | KIEN | Sprint 27-29 DONE |
+| 2026-08-27 | KIEN | Sprint 26 (E2E) SKIPPED |
