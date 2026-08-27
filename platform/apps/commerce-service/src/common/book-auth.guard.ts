@@ -1,12 +1,12 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { throwUnauthorized, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 export interface BookActor {
   sub: string;
@@ -24,14 +24,15 @@ async function authenticate(
   const [type, token] = request.headers.authorization?.split(' ') ?? [];
   if (!token && optional) return null;
   if (type !== 'Bearer' || !token) {
-    throw new UnauthorizedException('Bearer token is required');
+    throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Bearer token is required');
   }
   try {
     const actor = await jwtService.verifyAsync<BookActor>(token);
     request.user = actor;
     return actor;
   } catch {
-    throw new UnauthorizedException('Invalid or expired access token');
+    throwUnauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired access token');
+    return null; // unreachable but satisfies TS
   }
 }
 
@@ -60,7 +61,7 @@ export class BookWriteGuard implements CanActivate {
       false,
     );
     if (!actor || !['BUSINESS', 'PLATFORM_ADMIN'].includes(actor.role)) {
-      throw new ForbiddenException('Business or platform administrator role is required');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Business or platform administrator role is required');
     }
     return true;
   }
