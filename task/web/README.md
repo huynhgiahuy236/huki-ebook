@@ -8,7 +8,7 @@ React/Vue frontend web application for HUKI EBOOK.
 ### In Progress 🔄
 | Phase | Name | Status |
 |-------|------|--------|
-| 08a | Web Frontend | 🔄 IN PROGRESS |
+| 01 | Web Frontend | 🔄 IN PROGRESS |
 
 ## Tech Stack
 - React / Next.js

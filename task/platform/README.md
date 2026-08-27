@@ -22,11 +22,11 @@ Backend microservices architecture for HUKI EBOOK platform.
 platform/
 ├── api-gateway/        # HTTP Gateway (Port 3000)
 ├── identity-service/   # Auth & Users (Port 3001)
-├── business-service/    # Business & Store (Port 3002)
+├── business-service/   # Business & Store (Port 3002)
 ├── commerce-service/   # Books, Cart, Orders (Port 3003)
 ├── shipping-service/   # Addresses, Shipping (Port 3004)
-├── community-service/   # Forum, Chat (Port 3005)
-└── promotion-service/ # Vouchers, Banners (Port 3007)
+├── community-service/  # Forum, Chat (Port 3005)
+└── promotion-service/  # Vouchers, Banners (Port 3007)
 ```
 
 ## Quick Start

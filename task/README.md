@@ -23,12 +23,12 @@ task/
 │
 ├── web/                  ← Frontend Web (Next.js)
 │   ├── README.md
-│   └── 08a-PHASE8-WEB-FRONTEND.md
+│   └── 01-PHASE1-WEB-FRONTEND.md
 │
 └── mobile/              ← Frontend Mobile (React Native)
     ├── README.md
-    ├── 08a-PHASE8-MOBILE.md
-    └── 09-PHASE9-MOBILE.md
+    ├── 01-PHASE1-MOBILE-SETUP.md
+    └── 02-PHASE2-MOBILE-FEATURES.md
 ```
 
 ---
@@ -54,19 +54,19 @@ task/
 ### Web Frontend
 | Phase | Name | Status |
 |-------|------|--------|
-| 08a | Web Frontend | 🔄 IN PROGRESS |
+| 01 | Web Frontend | 🔄 IN PROGRESS |
 
 ### Mobile Frontend
 | Phase | Name | Status |
 |-------|------|--------|
-| 08a | Mobile Setup | 🔄 IN PROGRESS |
-| 09 | Mobile Features | 🔄 IN PROGRESS |
+| 01 | Mobile Setup | 🔄 IN PROGRESS |
+| 02 | Mobile Features | 🔄 IN PROGRESS |
 
 ---
 
 ## 🎯 Work Distribution
 
-### Phase 1-4 (Backend Foundation) - ✅ DONE
+### Phase 1-5 (Backend Foundation) - ✅ DONE
 
 | Sprint | KIEN | HUY |
 |--------|------|------|
@@ -74,38 +74,18 @@ task/
 | Sprint 2 | Auth (Register, Login, JWT) | RBAC, Session management |
 | Sprint 3 | API Gateway | Error handling, Health checks |
 | Sprint 4 | Business events | Business, Store, Members |
-
-### Phase 2 (Commerce)
-
-| Sprint | KIEN | HUY |
-|--------|------|------|
 | Sprint 5 | Search | Categories, Authors, Publishers |
 | Sprint 6 | Book listing, Publishing | Book CRUD, Upload |
 | Sprint 7 | Cart logic, Validation | Cart persistence |
 | Sprint 8 | Checkout, Orders | Inventory, Seller orders |
-
-### Phase 3 (Payment)
-
-| Sprint | KIEN | HUY |
-|--------|------|------|
 | Sprint 9 | PayOS, COD | Refunds, reconciliation |
 | Sprint 10 | GHTK integration | Shipments, Delivery |
 | Sprint 11 | Events, Notifications | Order completion |
-
-### Phase 4 (Community)
-
-| Sprint | KIEN | HUY |
-|--------|------|------|
 | Sprint 12 | Search, Categories | Forum, Comments |
 | Sprint 13 | Socket.IO | Chat, Conversations |
 | Sprint 14 | - | Reviews, Ratings |
 | Sprint 15 | Notifications | Firebase |
 | Sprint 16 | Moderation | Reports |
-
-### Phase 5 (Backend Integration) - ✅ DONE
-
-| Sprint | KIEN | Status |
-|--------|-----|--------|
 | Sprint 17 | Gateway HTTP proxy | ✅ DONE |
 | Sprint 18 | Response format | ✅ DONE |
 | Sprint 19 | Swagger + Postman | ✅ DONE |
@@ -114,24 +94,22 @@ task/
 
 ### Phase 6 (Backend Quality) - 🔄 IN PROGRESS
 
-| Sprint | KIEN | Status |
-|--------|-----|--------|
-| Sprint 22 | Error-code adoption | 📋 PLANNED |
-| Sprint 23 | Health checks | 📋 PLANNED |
-| Sprint 24 | Outbox & events | 📋 PLANNED |
-| Sprint 25 | Unit tests | 📋 PLANNED |
-| Sprint 26 | E2E tests | 📋 PLANNED |
+| Sprint | Status |
+|--------|--------|
+| Sprint 22 | 📋 PLANNED |
+| Sprint 23 | 📋 PLANNED |
+| Sprint 24 | 📋 PLANNED |
+| Sprint 25 | 📋 PLANNED |
+| Sprint 26 | 📋 PLANNED |
 
 ### Phase 7 (Production Readiness) - 🔄 IN PROGRESS
 
-> Deferred vì hiện chỉ chạy local. Cần PayOS credentials thật, public webhook URL, HTTPS/domain.
-
-| Sprint | KIEN | Status |
-|--------|-----|--------|
-| Sprint 27 | PayOS production | 🔄 IN PROGRESS |
-| Sprint 28 | HTTPS, CORS | 🔄 IN PROGRESS |
-| Sprint 29 | Secrets management | 🔄 IN PROGRESS |
-| Sprint 30 | Docker, observability | 🔄 IN PROGRESS |
+| Sprint | Status |
+|--------|--------|
+| Sprint 27 | 🔄 IN PROGRESS |
+| Sprint 28 | 🔄 IN PROGRESS |
+| Sprint 29 | 🔄 IN PROGRESS |
+| Sprint 30 | 🔄 IN PROGRESS |
 
 ---
 
@@ -150,7 +128,6 @@ T20.1 - Test auth flow
 ## 🚀 Current Focus
 
 ### Phase 6 - Backend Quality
-
 **Đang làm:**
 - Sprint 22: Error-code adoption
 - Sprint 25: Unit tests
@@ -170,6 +147,7 @@ T20.1 - Test auth flow
 
 | Date | Phase | Changes |
 |------|-------|---------|
+| 2026-08-27 | All | Renumbered phases (mobile: 01-02, web: 01) |
 | 2026-08-27 | All | Restructured into platform/web/mobile folders |
 | 2026-08-25 | All | Restructured phases 5-9, added local/deploy split |
 | 2026-08-24 | All | Created Phase 5-8 structure |

@@ -8,8 +8,8 @@ React Native mobile application for HUKI EBOOK.
 ### In Progress 🔄
 | Phase | Name | Status |
 |-------|------|--------|
-| 08a | Mobile Setup | 🔄 IN PROGRESS |
-| 09 | Mobile Features | 🔄 IN PROGRESS |
+| 01 | Mobile Setup | 🔄 IN PROGRESS |
+| 02 | Mobile Features | 🔄 IN PROGRESS |
 
 ## Tech Stack
 - React Native / Expo
