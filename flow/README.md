@@ -56,10 +56,33 @@ Each flow document includes:
 | Create Shipment | Shipping | ORDER_CREATED event |
 | Voucher Apply | Promotion | User enters voucher code |
 
+---
+
+## 🔄 Phase 07 Updates (2026-08-27)
+
+### Sprint 24: Outbox Pattern ✅
+
+| Service | Outbox | Status |
+|---------|--------|--------|
+| Commerce | ✅ | Implemented |
+| Shipping | ✅ | Implemented |
+| Identity | ✅ | NEW - Added |
+| Business | ✅ | NEW - Added |
+| Promotion | ✅ | NEW - Added |
+
+**Features:**
+- Events stored before publishing (transactional)
+- Polling every 1 second
+- Retry up to 3 times
+- Stale recovery on startup
+
+---
+
 ## Update History
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-27 | Sprint 24 - Outbox pattern added | KIEN |
 | 2026-08-24 | Initial structure | Claude |
 
 ---

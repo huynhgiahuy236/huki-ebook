@@ -1,6 +1,8 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from '../../../../../../libs/shared/src/decorators/roles.decorator';
+import { throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 // Role hierarchy
 export enum UserRole {
@@ -27,7 +29,8 @@ export class RolesGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {
-      throw new ForbiddenException('User not authenticated');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'User not authenticated');
+      return false;
     }
 
     const userRole = user.role;
@@ -36,9 +39,8 @@ export class RolesGuard implements CanActivate {
     const hasRole = requiredRoles.some((role) => userRole === role);
 
     if (!hasRole) {
-      throw new ForbiddenException(
-        `Access denied. Required roles: ${requiredRoles.join(', ')}. Your role: ${userRole}`,
-      );
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, `Access denied. Required roles: ${requiredRoles.join(', ')}. Your role: ${userRole}`);
+      return false;
     }
 
     return true;
@@ -52,11 +54,13 @@ export class AdminGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {
-      throw new ForbiddenException('User not authenticated');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'User not authenticated');
+      return false;
     }
 
     if (user.role !== UserRole.PLATFORM_ADMIN) {
-      throw new ForbiddenException('Admin access required');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Admin access required');
+      return false;
     }
 
     return true;
@@ -70,11 +74,13 @@ export class UserOnlyGuard implements CanActivate {
     const { user } = context.switchToHttp().getRequest();
 
     if (!user) {
-      throw new ForbiddenException('User not authenticated');
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'User not authenticated');
+      return false;
     }
 
     if (user.role !== UserRole.USER) {
-      throw new ForbiddenException('This route is for regular users only');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'This route is for regular users only');
+      return false;
     }
 
     return true;

@@ -2,26 +2,51 @@
 
 > Thống kê tất cả APIs trong hệ thống
 > Generated: 2026-08-25
-> Updated: 2026-08-25 (endpoint counts verified from code)
-> Branch: feature/phase5-claude
+> Updated: 2026-08-27 (verified directly from controller decorators)
+> Branch: develop
 
 ---
 
 ## 📊 TỔNG QUAN
 
-| Service | Controllers | Endpoints | Verified |
-|---------|-------------|-----------|----------|
-| Identity Service | 4 | 17 | ✅ |
-| Business Service | 4 | 24 | ✅ |
-| Commerce Service | 13 | 60 | ✅ |
-| Shipping Service | 6 | 17 | ✅ |
-| Community Service | 6 | 51 | ✅ |
-| Promotion Service | 5 | 27 | ✅ |
+| Service | Controller files | HTTP endpoints | Status |
+|---------|-----------------:|---------------:|--------|
+| Identity Service | 4 | 19 | ✅ |
+| Business Service | 4 | 26 | ✅ |
+| Commerce Service | 15 | 62 | ✅ |
+| Shipping Service | 5 | 19 | ✅ |
+| Community Service | 6 | 53 | ✅ |
+| Promotion Service | 5 | 29 | ✅ |
 | API Gateway | 1 | 3 | ✅ |
-| **TỔNG** | **39** | **199** | ✅ |
+| **TỔNG** | **40** | **211** | ✅ |
 
-> **Note:** Endpoint count derived from actual code (`@Get`, `@Post`, `@Put`, `@Patch`, `@Delete` decorators).
-> Previous estimate was 143 endpoints; actual count is 199 endpoints.
+Ngoài HTTP, Community Service có **10 WebSocket inbound event handlers** (`@SubscribeMessage`). Tổng số handler giao tiếp được kiểm kê là **221 = 211 HTTP + 10 WebSocket**.
+
+Con số 199 trước đây không tính 12 endpoint `liveness`/`readiness` của sáu microservice. Số liệu hiện tại được đếm từ `@Get`, `@Post`, `@Put`, `@Patch`, `@Delete`, `@Options`, `@Head` trong toàn bộ `*controller.ts`.
+
+---
+
+## 📋 HEALTH CHECKS (Phase 07 - Sprint 23)
+
+| Service | Endpoint | Dependencies |
+|---------|----------|--------------|
+| Identity | `/health` | DB, Redis, RabbitMQ |
+| Commerce | `/health` | DB, Redis |
+| Shipping | `/health` | DB |
+| Business | `/health` | DB |
+| Community | `/health` | MongoDB |
+| Promotion | `/health` | DB |
+| Gateway | `/health/services` | All services |
+
+Mỗi microservice còn có `/health/liveness` và `/health/readiness`; các endpoint này được tính trong 211 HTTP endpoints.
+
+## 🔌 WEBSOCKET EVENTS
+
+| Gateway | Inbound events | Count |
+|---------|----------------|------:|
+| Chat | `conversation:join`, `join_conversation`, `conversation:leave`, `leave_conversation`, `message:send`, `send_message`, `message:read`, `typing:start`, `typing:stop`, `typing` | 10 |
+
+Notification gateway hiện phát sự kiện server-to-client nhưng không có `@SubscribeMessage`, nên không cộng thêm inbound handler.
 
 ---
 

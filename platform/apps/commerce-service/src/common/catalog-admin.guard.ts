@@ -1,12 +1,12 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { throwUnauthorized, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 interface AccessTokenPayload {
   sub: string;
@@ -20,18 +20,23 @@ export class CatalogAdminGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
     const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    if (type !== 'Bearer' || !token) throw new UnauthorizedException('Bearer token is required');
+    if (type !== 'Bearer' || !token) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Bearer token is required');
+    }
 
-    let payload: AccessTokenPayload;
+    let payload: AccessTokenPayload | undefined;
     try {
       payload = await this.jwtService.verifyAsync<AccessTokenPayload>(token);
     } catch {
-      throw new UnauthorizedException('Invalid or expired access token');
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired access token');
+      return false; // unreachable but satisfies TS
     }
-    if (payload.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenException('Platform administrator role is required');
+    if (payload && payload.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Platform administrator role is required');
     }
-    (request as Request & { user?: AccessTokenPayload }).user = payload;
+    if (payload) {
+      (request as Request & { user?: AccessTokenPayload }).user = payload;
+    }
     return true;
   }
 }

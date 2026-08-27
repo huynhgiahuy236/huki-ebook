@@ -1,12 +1,12 @@
 import {
   CanActivate,
   ExecutionContext,
-  ForbiddenException,
   Injectable,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
+import { throwUnauthorized, throwForbidden } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 
 export interface CommunityActor {
   sub: string;
@@ -25,20 +25,23 @@ async function authenticate(
 ): Promise<boolean> {
   const [type, token] = request.headers.authorization?.split(' ') ?? [];
   if (!token && optional) return true;
-  if (type !== 'Bearer' || !token)
-    throw new UnauthorizedException('Bearer token is required');
+  if (type !== 'Bearer' || !token) {
+    throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Bearer token is required');
+    return false;
+  }
   try {
     request.user = await jwt.verifyAsync<CommunityActor>(token);
     return true;
   } catch {
-    throw new UnauthorizedException('Invalid or expired access token');
+    throwUnauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired access token');
+    return false;
   }
 }
 
 @Injectable()
 export class AuthenticatedCommunityGuard implements CanActivate {
   constructor(private readonly jwt: JwtService) {}
-  canActivate(context: ExecutionContext) {
+  canActivate(context: ExecutionContext): Promise<boolean> {
     return authenticate(
       context.switchToHttp().getRequest<CommunityRequest>(),
       this.jwt,
@@ -50,7 +53,7 @@ export class AuthenticatedCommunityGuard implements CanActivate {
 @Injectable()
 export class OptionalCommunityAuthGuard implements CanActivate {
   constructor(private readonly jwt: JwtService) {}
-  canActivate(context: ExecutionContext) {
+  canActivate(context: ExecutionContext): Promise<boolean> {
     return authenticate(
       context.switchToHttp().getRequest<CommunityRequest>(),
       this.jwt,
@@ -61,10 +64,11 @@ export class OptionalCommunityAuthGuard implements CanActivate {
 
 @Injectable()
 export class PlatformAdminCommunityGuard implements CanActivate {
-  canActivate(context: ExecutionContext) {
+  canActivate(context: ExecutionContext): boolean {
     const actor = context.switchToHttp().getRequest<CommunityRequest>().user;
     if (actor?.role !== 'PLATFORM_ADMIN') {
-      throw new ForbiddenException('Platform administrator role is required');
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Platform administrator role is required');
+      return false;
     }
     return true;
   }

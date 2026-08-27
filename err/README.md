@@ -75,15 +75,39 @@ throw new NotFoundException({
 ## Validation Checklist
 
 - [x] All errors use ErrorCode enum
-- [ ] All errors have Vietnamese message
-- [ ] HTTP status matches error type
-- [ ] Client can handle based on error code
-- [ ] Error codes documented in CODES/
+- [x] All errors have Vietnamese message
+- [x] HTTP status matches error type
+- [x] Client can handle based on error code
+- [x] Error codes documented in CODES/
+
+---
+
+## 🔄 Phase 07 Updates (2026-08-27)
+
+### Sprint 28: Error Codes Standardized ✅
+
+| Service | Guards/Services | Status |
+|---------|----------------|--------|
+| Commerce | book-auth.guard, catalog-admin.guard | ✅ |
+| Shipping | shipping-auth.guard, addresses.service | ✅ |
+| Community | community-auth.guard | ✅ |
+| Promotion | roles.guard | ✅ |
+| Identity | business-roles.guard, roles.guard | ✅ |
+
+**Result:** 84 hardcoded strings → ErrorCode enum
+
+**New Error Code Added:**
+```
+AUTH_INTERNAL_API_KEY_INVALID
+```
+
+---
 
 ## Update History
 
 | Date | Change | Author |
 |------|--------|--------|
+| 2026-08-27 | Sprint 28 - Error codes standardized | KIEN |
 | 2026-08-24 | Initial structure | Claude |
 
 ---

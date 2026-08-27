@@ -9,6 +9,7 @@ import { UserModule } from './modules/user/user.module';
 import { SessionModule } from './modules/session/session.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
+import { IdentityOutboxModule } from './modules/outbox/outbox.module';
 
 // Guards
 import { ThrottlerBehindProxyGuard } from './modules/auth/guards/throttle.guard';
@@ -24,7 +25,10 @@ import { HealthController } from './modules/health/health.controller';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: ['.env', '.env.local'],
+      // `npm run dev:identity` starts nodemon from apps/identity-service,
+      // while the shared development env file lives at platform/.env.
+      // Keep the local paths first so service-specific overrides still work.
+      envFilePath: ['.env.local', '.env', '../../.env.local', '../../.env'],
     }),
 
     PrismaModule,
@@ -47,6 +51,7 @@ import { HealthController } from './modules/health/health.controller';
     AuthModule,
     UserModule,
     SessionModule,
+    IdentityOutboxModule,
   ],
   providers: [
     {

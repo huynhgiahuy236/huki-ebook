@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import {
   AuthenticatedCommunityGuard,
   CommunityActor,
@@ -31,6 +31,7 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
+  @ApiOperation({ summary: "List user's notifications" })
   list(
     @CurrentCommunityActor() actor: CommunityActor,
     @Query() query: NotificationListQueryDto,
@@ -39,21 +40,25 @@ export class NotificationsController {
   }
 
   @Post("read-all")
+  @ApiOperation({ summary: "Mark all notifications as read" })
   readAll(@CurrentCommunityActor() actor: CommunityActor) {
     return this.notifications.markAllRead(actor);
   }
 
   @Delete("clear-all")
+  @ApiOperation({ summary: "Clear all notifications" })
   clear(@CurrentCommunityActor() actor: CommunityActor) {
     return this.notifications.clear(actor);
   }
 
   @Get("settings")
+  @ApiOperation({ summary: "Get notification settings" })
   settings(@CurrentCommunityActor() actor: CommunityActor) {
     return this.notifications.settings(actor);
   }
 
   @Patch("settings")
+  @ApiOperation({ summary: "Update notification settings" })
   updateSettings(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: UpdateNotificationPreferenceDto,
@@ -62,6 +67,7 @@ export class NotificationsController {
   }
 
   @Post("device")
+  @ApiOperation({ summary: "Register notification device" })
   registerDevice(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: RegisterNotificationDeviceDto,
@@ -70,6 +76,7 @@ export class NotificationsController {
   }
 
   @Delete("device/:token")
+  @ApiOperation({ summary: "Unregister notification device" })
   unregisterDevice(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param("token") token: string,
@@ -78,6 +85,7 @@ export class NotificationsController {
   }
 
   @Get(":id")
+  @ApiOperation({ summary: "Get notification details" })
   detail(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,
@@ -86,6 +94,7 @@ export class NotificationsController {
   }
 
   @Patch(":id/read")
+  @ApiOperation({ summary: "Mark notification as read" })
   read(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,
@@ -94,6 +103,7 @@ export class NotificationsController {
   }
 
   @Delete(":id")
+  @ApiOperation({ summary: "Delete a notification" })
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: NotificationIdParamDto,

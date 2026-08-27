@@ -1,16 +1,28 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../../../prisma/prisma.service';
-import { InviteMemberDto } from './dto/member.dto';
-import { InvitationStatus, MemberStatus } from '../../../prisma/generated/client';
-import { throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
-import { ErrorCode } from '@huki/shared/errors';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../../../prisma/prisma.service";
+import { InviteMemberDto } from "./dto/member.dto";
+import {
+  InvitationStatus,
+  MemberStatus,
+} from "../../../prisma/generated/client";
+import {
+  throwNotFound,
+  throwBadRequest,
+  throwForbidden,
+} from "@huki/shared/errors";
+import { ErrorCode } from "@huki/shared/errors";
+import { EmailService } from "@huki/shared";
 
 @Injectable()
 export class MemberService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emailService: EmailService,
+  ) {}
 
   // ==================== INVITE MEMBER ====================
   async inviteMember(businessId: string, userId: string, dto: InviteMemberDto) {
+    const email = dto.email.trim().toLowerCase();
     // Check if inviter is owner or manager
     const canInvite = await this.canManageMembers(businessId, userId);
     if (!canInvite) {
@@ -20,7 +32,7 @@ export class MemberService {
     // Check if email already invited
     const existingInvitation = await this.prisma.invitation.findFirst({
       where: {
-        email: dto.email,
+        email,
         businessId,
         status: InvitationStatus.PENDING,
       },
@@ -36,7 +48,7 @@ export class MemberService {
 
     const invitation = await this.prisma.invitation.create({
       data: {
-        email: dto.email,
+        email,
         businessId,
         invitedBy: userId,
         role: dto.role,
@@ -45,11 +57,13 @@ export class MemberService {
       },
     });
 
-    // TODO: Send email with invitation link
-    // await this.emailService.sendInvitationEmail(dto.email, invitation.token);
+    await this.emailService.sendInvitationEmail(
+      invitation.email,
+      invitation.token,
+    );
 
     return {
-      message: 'Đã gửi lời mời thành công',
+      message: "Đã gửi lời mời thành công",
       data: {
         id: invitation.id,
         email: invitation.email,
@@ -60,7 +74,11 @@ export class MemberService {
   }
 
   // ==================== ACCEPT INVITATION ====================
-  async acceptInvitation(userId: string, userEmail: string, dto: { token: string }) {
+  async acceptInvitation(
+    userId: string,
+    userEmail: string,
+    dto: { token: string },
+  ) {
     const invitation = await this.prisma.invitation.findUnique({
       where: { token: dto.token },
     });
@@ -108,7 +126,7 @@ export class MemberService {
     });
 
     return {
-      message: 'Chấp nhận lời mời thành công',
+      message: "Chấp nhận lời mời thành công",
       data: member,
     };
   }
@@ -123,7 +141,7 @@ export class MemberService {
         businessId,
         deletedAt: null,
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: "desc" },
     });
 
     return { data: members };
@@ -161,7 +179,7 @@ export class MemberService {
     const member = await this.getMember(businessId, memberId);
 
     // Cannot change owner role
-    if (member!.role === 'OWNER') {
+    if (member!.role === "OWNER") {
       throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
@@ -181,7 +199,7 @@ export class MemberService {
 
     const member = await this.getMember(businessId, memberId);
 
-    if (member!.role === 'OWNER') {
+    if (member!.role === "OWNER") {
       throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
@@ -206,7 +224,7 @@ export class MemberService {
       throwNotFound(ErrorCode.MEMBER_NOT_FOUND);
     }
 
-    if (member!.role === 'OWNER') {
+    if (member!.role === "OWNER") {
       throwBadRequest(ErrorCode.MEMBER_CANNOT_LEAVE);
     }
 
@@ -217,16 +235,28 @@ export class MemberService {
   }
 
   // ==================== HELPERS ====================
-  private async canManageMembers(businessId: string, userId: string): Promise<boolean> {
-    return this.checkMemberRole(businessId, userId, ['OWNER', 'MANAGER']);
+  private async canManageMembers(
+    businessId: string,
+    userId: string,
+  ): Promise<boolean> {
+    return this.checkMemberRole(businessId, userId, ["OWNER", "MANAGER"]);
   }
 
   private async isOwner(businessId: string, userId: string): Promise<boolean> {
-    return this.checkMemberRole(businessId, userId, ['OWNER']);
+    return this.checkMemberRole(businessId, userId, ["OWNER"]);
   }
 
-  private async checkMemberAccess(businessId: string, userId: string): Promise<boolean> {
-    return this.checkMemberRole(businessId, userId, ['OWNER', 'MANAGER', 'ORDER_STAFF', 'CONTENT_STAFF', 'FINANCE_STAFF']);
+  private async checkMemberAccess(
+    businessId: string,
+    userId: string,
+  ): Promise<boolean> {
+    return this.checkMemberRole(businessId, userId, [
+      "OWNER",
+      "MANAGER",
+      "ORDER_STAFF",
+      "CONTENT_STAFF",
+      "FINANCE_STAFF",
+    ]);
   }
 
   private async checkMemberRole(
@@ -243,7 +273,7 @@ export class MemberService {
       },
     });
 
-    if (!member || member.status !== 'ACTIVE') {
+    if (!member || member.status !== "ACTIVE") {
       return false;
     }
 

@@ -89,12 +89,43 @@ Welcome to HUKI EBOOK project documentation.
 
 | Phase | Status | Description |
 |-------|--------|-------------|
-| Phase 1: Backend Foundation | ✅ Complete | Auth, Business registration, Catalog |
-| Phase 2: Commerce & Cart | 🔄 In Progress | Books, Cart, Orders, Checkout |
-| Phase 3: Payment & Shipping | ✅ Complete | Sprint 9 Payment, Sprint 10 Shipping và Sprint 11 Events hoàn thành |
-| Phase 4: Community | ✅ Complete | Sprint 12–16 hoàn thành: Forum, Chat, Reviews, Notifications và Moderation |
-| Phase 5: Frontend | ⬜ Pending | Next.js Web App |
-| Phase 6: Mobile | ⬜ Pending | Flutter Mobile App |
+| Phase 1-5: Backend Foundation | ✅ Complete | All backend phases complete |
+| Phase 7: Backend Completion | ✅ Complete | Sprint 23-30: Health, Outbox, Tests, Swagger, Error Codes |
+| Phase 8: Production | ⬜ Pending | PayOS, HTTPS, CI/CD |
+| Frontend Web | ⬜ Pending | Phase 01-07 planning complete |
+| Mobile App | ⬜ Pending | TBD |
+
+---
+
+## 🔄 Backend Completion (Phase 07)
+
+| Sprint | Task | Status |
+|--------|------|--------|
+| 27 | API completeness | ✅ |
+| 28 | Error codes | ✅ |
+| 29 | Swagger docs | ✅ |
+| 23 | Health checks | ✅ |
+| 24 | Outbox pattern | ✅ |
+| 25 | Unit tests | ✅ |
+| 30 | Performance | ✅ |
+
+**Overall: 100% COMPLETE**
+
+---
+
+## 📋 Frontend Planning (Web)
+
+| Phase | Backend | Name |
+|-------|---------|------|
+| 01 | Identity | Auth & Layout |
+| 02 | Commerce | Product Catalog |
+| 03 | Commerce + Shipping | Cart & Checkout |
+| 04 | Commerce + Promotion | User Dashboard |
+| 05 | Community | Community |
+| 06 | Business + Commerce | Seller Dashboard |
+| 07 | All | Polish & Launch |
+
+**Total: 28 sprints (7 phases)**
 
 ---
 

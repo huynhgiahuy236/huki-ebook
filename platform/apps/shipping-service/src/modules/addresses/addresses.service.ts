@@ -1,6 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAddressDto, UpdateAddressDto } from './address.dto';
+import { throwNotFound } from '@huki/shared/errors';
+import { ErrorCode } from '@huki/shared/errors';
 @Injectable()
 export class AddressesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -51,11 +53,11 @@ export class AddressesService {
       return { deleted: true };
     });
   }
-  private async requireOwned(userId: string, id: string) {
+  private async requireOwned(userId: string, id: string): Promise<NonNullable<Awaited<ReturnType<typeof this.prisma.address.findFirst>>>> {
     const address = await this.prisma.address.findFirst({
       where: { id, userId },
     });
-    if (!address) throw new NotFoundException('Address not found');
-    return address;
+    if (!address) throwNotFound(ErrorCode.ADDRESS_NOT_FOUND);
+    return address as NonNullable<typeof address>;
   }
 }

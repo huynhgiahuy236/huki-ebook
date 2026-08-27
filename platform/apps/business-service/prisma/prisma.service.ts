@@ -8,7 +8,10 @@ export class PrismaService
 {
   constructor() {
     super({
-      log: ['query', 'info', 'warn', 'error'],
+      // Outbox polling runs every second. Logging every Prisma query makes the
+      // development console look like an error stream even when the queue is
+      // idle, so keep operational messages and suppress routine SQL output.
+      log: ['info', 'warn', 'error'],
     });
   }
 
