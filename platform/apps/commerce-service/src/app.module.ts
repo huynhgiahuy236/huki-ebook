@@ -20,13 +20,10 @@ import { HealthController } from './health.controller';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        global: true,
-        secret: configService.get<string>('jwt.secret'),
-      }),
+    JwtModule.register({
+      global: true,
+      secret: process.env.JWT_SECRET || 'huki-dev-jwt-secret-change-in-production-2026',
+      signOptions: { expiresIn: '15m' },
     }),
     EventEmitterModule.forRoot(),
     CommonModule,

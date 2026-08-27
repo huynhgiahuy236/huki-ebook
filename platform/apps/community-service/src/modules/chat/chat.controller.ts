@@ -11,7 +11,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FilesInterceptor } from "@nestjs/platform-express";
-import { ApiBearerAuth, ApiConsumes, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiConsumes, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   AuthenticatedCommunityGuard,
@@ -41,11 +41,13 @@ export class ChatController {
   ) {}
 
   @Get()
+  @ApiOperation({ summary: "List user's conversations" })
   list(@CurrentCommunityActor() actor: CommunityActor) {
     return this.chat.listConversations(actor);
   }
 
   @Post()
+  @ApiOperation({ summary: "Create a new conversation" })
   async create(
     @CurrentCommunityActor() actor: CommunityActor,
     @Body() dto: CreateConversationDto,
@@ -57,6 +59,7 @@ export class ChatController {
   }
 
   @Get(":id/messages")
+  @ApiOperation({ summary: "Get messages in a conversation" })
   messages(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -67,6 +70,7 @@ export class ChatController {
 
   @Post(":id/messages")
   @ApiConsumes("application/json", "multipart/form-data")
+  @ApiOperation({ summary: "Send a message in a conversation" })
   @UseInterceptors(
     FilesInterceptor("attachments", 10, {
       limits: { fileSize: 10 * 1024 * 1024 },
@@ -89,6 +93,7 @@ export class ChatController {
   }
 
   @Patch(":id/read")
+  @ApiOperation({ summary: "Mark conversation as read" })
   async read(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -99,6 +104,7 @@ export class ChatController {
   }
 
   @Post(":id/close")
+  @ApiOperation({ summary: "Close a conversation" })
   async close(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
@@ -110,6 +116,7 @@ export class ChatController {
   }
 
   @Get(":id")
+  @ApiOperation({ summary: "Get conversation details" })
   detail(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,

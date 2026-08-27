@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle, ThrottlerGuard } from "@nestjs/throttler";
 import {
   AuthenticatedCommunityGuard,
@@ -29,12 +29,13 @@ import {
 } from "./dto/review.dto";
 import { ReviewsService } from "./reviews.service";
 
-@ApiTags("Book reviews")
+@ApiTags("Reviews")
 @Controller("books/:id/reviews")
 export class BookReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
   @Get()
+  @ApiOperation({ summary: "List book reviews with pagination" })
   @UseGuards(OptionalCommunityAuthGuard)
   list(
     @Param() { id }: ReviewTargetParamDto,
@@ -47,6 +48,7 @@ export class BookReviewsController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
+  @ApiOperation({ summary: "Create a book review" })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -58,12 +60,13 @@ export class BookReviewsController {
   }
 }
 
-@ApiTags("Store reviews")
+@ApiTags("Reviews")
 @Controller("stores/:id/reviews")
 export class StoreReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
   @Get()
+  @ApiOperation({ summary: "List store reviews with pagination" })
   @UseGuards(OptionalCommunityAuthGuard)
   list(
     @Param() { id }: ReviewTargetParamDto,
@@ -76,6 +79,7 @@ export class StoreReviewsController {
   @Post()
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiBearerAuth()
+  @ApiOperation({ summary: "Create a store review" })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   create(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -96,6 +100,7 @@ export class ReviewsController {
 
   @Patch(":id")
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
+  @ApiOperation({ summary: "Update a review" })
   @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   update(
     @CurrentCommunityActor() actor: CommunityActor,
@@ -106,6 +111,7 @@ export class ReviewsController {
   }
 
   @Delete(":id")
+  @ApiOperation({ summary: "Delete a review" })
   remove(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -114,6 +120,7 @@ export class ReviewsController {
   }
 
   @Post(":id/helpful")
+  @ApiOperation({ summary: "Mark review as helpful" })
   helpful(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -122,6 +129,7 @@ export class ReviewsController {
   }
 
   @Delete(":id/helpful")
+  @ApiOperation({ summary: "Remove helpful mark from review" })
   unhelpful(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -130,6 +138,7 @@ export class ReviewsController {
   }
 
   @Post(":id/reply")
+  @ApiOperation({ summary: "Reply to a review" })
   reply(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,

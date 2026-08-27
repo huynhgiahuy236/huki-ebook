@@ -381,8 +381,8 @@ export class AuthService {
         avatar: user.avatar,
       },
       {
-        secret: this.configService.get('jwt.secret'),
-        expiresIn: this.configService.get('jwt.accessTokenExpiresIn'),
+        secret: this.configService.get('JWT_SECRET'),
+        expiresIn: this.configService.get('JWT_ACCESS_EXPIRES_IN'),
       },
     );
   }
@@ -409,14 +409,20 @@ export class AuthService {
   // ============================================
 
   private emitUserRegistered(event: UserRegisteredEvent) {
-    this.eventEmitter.emit(USER_EVENTS.REGISTERED, event);
+    setImmediate(() => {
+      this.eventEmitter.emit(USER_EVENTS.REGISTERED, event);
+    });
   }
 
   private emitUserLoggedIn(event: UserLoggedInEvent) {
-    this.eventEmitter.emit(USER_EVENTS.LOGGED_IN, event);
+    setImmediate(() => {
+      this.eventEmitter.emit(USER_EVENTS.LOGGED_IN, event);
+    });
   }
 
   private emitUserEmailVerified(event: UserEmailVerifiedEvent) {
-    this.eventEmitter.emit(USER_EVENTS.EMAIL_VERIFIED, event);
+    setImmediate(() => {
+      this.eventEmitter.emit(USER_EVENTS.EMAIL_VERIFIED, event);
+    });
   }
 }

@@ -1,14 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { paginate, PaginatedResult } from '../../common/pagination.util';
-import { CategoryListQueryDto, CategorySortBy } from './dto/category-list-query.dto';
+import { CategoryListQueryDto, CategorySortBy, SortDirection } from './dto/category-list-query.dto';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { throwConflict, throwNotFound, throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
 const MAX_CATEGORY_DEPTH = 4;
+const CATEGORY_TREE_CACHE_KEY = 'categories:tree';
+const CATEGORY_TREE_CACHE_TTL = 300; // 5 minutes
 
 export interface CategoryTreeNode {
   id: string;
@@ -26,7 +29,12 @@ export interface CategoryTreeNode {
 
 @Injectable()
 export class CategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(CategoriesService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   async create(dto: CreateCategoryDto) {
     const name = dto.name.trim();
@@ -41,7 +49,7 @@ export class CategoriesService {
       throwConflict(ErrorCode.CATEGORY_HAS_CHILDREN);
     }
 
-    return this.prisma.category.create({
+    const category = await this.prisma.category.create({
       data: {
         name,
         normalizedName,
@@ -52,6 +60,9 @@ export class CategoriesService {
         isActive: dto.isActive ?? true,
       },
     });
+
+    await this.invalidateCache();
+    return category;
   }
 
   async findOne(id: string) {
@@ -73,21 +84,38 @@ export class CategoriesService {
     if (query.parentId) where.parentId = query.parentId;
     else if (query.rootOnly) where.parentId = null;
     if (query.search) {
-      where.normalizedName = { contains: normalizeCatalogText(query.search), mode: 'insensitive' };
+      where.normalizedName = { contains: normalizeCatalogText(query.search) };
     }
 
-    const orderBy: any = {};
-    const sortMap: Record<CategorySortBy, string> = {
+    // Map sort field to Prisma snake_case
+    const sortFieldMap: Record<CategorySortBy, string> = {
       [CategorySortBy.NAME]: 'name',
       [CategorySortBy.SORT_ORDER]: 'sortOrder',
       [CategorySortBy.CREATED_AT]: 'createdAt',
     };
-    orderBy[sortMap[query.sortBy]] = query.order.toLowerCase();
-    orderBy.name = 'asc';
+
+    const orderBy: any[] = [];
+    const sortField = sortFieldMap[query.sortBy] || 'sortOrder';
+    const sortDirection = query.order === SortDirection.DESC ? 'desc' : 'asc';
+    orderBy.push({ [sortField]: sortDirection });
+    orderBy.push({ name: 'asc' }); // Secondary sort by name
+
+    // Select only needed fields for list view
+    const listSelect = {
+      id: true,
+      name: true,
+      slug: true,
+      description: true,
+      parentId: true,
+      sortOrder: true,
+      isActive: true,
+      createdAt: true,
+    };
 
     const [categories, total] = await this.prisma.$transaction([
       this.prisma.category.findMany({
         where,
+        select: listSelect,
         orderBy,
         skip: (query.page - 1) * query.limit,
         take: query.limit,
@@ -98,11 +126,26 @@ export class CategoriesService {
   }
 
   async findTree(includeInactive = false): Promise<CategoryTreeNode[]> {
+    const cacheKey = includeInactive ? `${CATEGORY_TREE_CACHE_KEY}:all` : CATEGORY_TREE_CACHE_KEY;
+
+    // Try cache first
+    const cached = await this.redis.get<CategoryTreeNode[]>(cacheKey);
+    if (cached) {
+      this.logger.debug(`Cache hit for category tree: ${cacheKey}`);
+      return cached;
+    }
+
     const categories = await this.prisma.category.findMany({
       where: includeInactive ? {} : { isActive: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
-    return this.buildTree(categories);
+    const tree = this.buildTree(categories);
+
+    // Cache the result
+    await this.redis.set(cacheKey, tree, CATEGORY_TREE_CACHE_TTL);
+    this.logger.debug(`Cached category tree: ${cacheKey}`);
+
+    return tree;
   }
 
   private buildTree(categories: any[]): CategoryTreeNode[] {
@@ -137,7 +180,7 @@ export class CategoriesService {
       await this.ensureUnique(slug, normalizedName, parent?.id ?? null, id);
     }
 
-    return this.prisma.category.update({
+    const category = await this.prisma.category.update({
       where: { id },
       data: {
         name,
@@ -149,6 +192,9 @@ export class CategoriesService {
         isActive: dto.isActive ?? existing!.isActive,
       },
     });
+
+    await this.invalidateCache();
+    return category;
   }
 
   async remove(id: string) {
@@ -158,6 +204,12 @@ export class CategoriesService {
       throwConflict(ErrorCode.CATEGORY_HAS_CHILDREN);
     }
     await this.prisma.category.delete({ where: { id } });
+    await this.invalidateCache();
+  }
+
+  private async invalidateCache(): Promise<void> {
+    await this.redis.del(CATEGORY_TREE_CACHE_KEY);
+    await this.redis.del(`${CATEGORY_TREE_CACHE_KEY}:all`);
   }
 
   private async ensureUnique(slug: string, normalizedName: string, parentId: string | null, excludeId?: string) {

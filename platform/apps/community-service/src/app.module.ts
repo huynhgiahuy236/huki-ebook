@@ -18,7 +18,7 @@ import { HealthController } from './health.controller';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('jwt.secret'),
+        secret: config.get<string>('JWT_SECRET'),
       }),
     }),
     MongooseModule.forRootAsync({

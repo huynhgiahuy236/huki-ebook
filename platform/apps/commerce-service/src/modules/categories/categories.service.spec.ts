@@ -3,7 +3,8 @@ import { CategoriesService } from './categories.service';
 
 describe('CategoriesService (Prisma)', () => {
   const prisma = { category: { findFirst: jest.fn(), create: jest.fn(), findMany: jest.fn(), count: jest.fn(), findUnique: jest.fn(), update: jest.fn(), delete: jest.fn() }, $transaction: jest.fn() };
-  const service = new CategoriesService(prisma as any);
+  const redis = { get: jest.fn(), set: jest.fn(), del: jest.fn() };
+  const service = new CategoriesService(prisma as any, redis as any);
   beforeEach(() => jest.clearAllMocks());
 
   it('creates a normalized root category with Prisma', async () => {
@@ -43,7 +44,7 @@ describe('CategoriesService (Prisma)', () => {
 
     expect(prisma.category.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        orderBy: { createdAt: 'desc', name: 'asc' },
+        orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
       }),
     );
   });
