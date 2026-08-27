@@ -1,54 +1,94 @@
 # HUKI EBOOK - Memory
 
-## Recent Tasks
+## ⚠️ QUY TẮC LÀM VIỆC
 
-### sw-001: Sprint 20 Integration Tests - INCOMPLETE
-**Status:** Partial (T20.1-T20.3, T20.9, T20.10 done, T20.4-T20.8 pending)
+### KHÔNG commit hay push gì hết
+- Làm code xong → Báo cáo cho user
+- Để user tự review và commit
+- **Lí do:** Tránh conflict, user control final code
 
-**What was done:**
-- Unit tests pass: Commerce (30), Identity (1), Shipping (12), Community (47), Gateway (6)
-- Integration tests: 8 gateway tests pass
-- Manual verification: Auth, Business CRUD, Commerce public endpoints work
+---
 
-**What's missing:**
-- T20.4: Cart flow integration test (add, update, remove, clear via API)
-- T20.5: Checkout + COD flow integration test
-- T20.6: Order & Payment (PayOS mock) integration test
-- T20.7: Shipping address flow integration test
-- T20.8: Voucher/Flash sale integration test
+## Project Structure
 
-**Scope for sw-001:**
-1. Create integration tests for Cart flow (T20.4)
-2. Create integration tests for Checkout + COD (T20.5)
-3. Create integration tests for Order & Payment (T20.6)
-4. Create integration tests for Shipping address (T20.7)
-5. Create integration tests for Voucher/Flash sale (T20.8)
-6. Run all integration tests via `npm run test:integration`
+```
+HuKi/
+├── api/        ← API inventory
+├── docs/       ← Documentation
+├── err/        ← Error codes & handlers
+├── flow/       ← Business flows
+├── res/        ← Response schemas
+├── task/       ← Task lists
+├── postman/    ← Postman collection
+├── platform/   ← Backend code
+└── web/        ← Frontend code
+```
 
-**Files to create/modify:**
-- `platform/test/integration/cart.integration-spec.ts`
-- `platform/test/integration/checkout.integration-spec.ts`
-- `platform/test/integration/order-payment.integration-spec.ts`
-- `platform/test/integration/shipping.integration-spec.ts`
-- `platform/test/integration/voucher.integration-spec.ts`
+---
 
-## Project Context
+## Backend Phases (Platform)
 
-### Services Running (2026-08-27)
-- API Gateway: 3000
-- Identity: 3001
-- Business: 3002
-- Commerce: 3003
-- Shipping: 3004
-- Community: 3005
-- Promotion: 3007
+| Phase | Name | Status |
+|-------|------|--------|
+| 01 | Backend Setup | ✅ DONE |
+| 02 | Commerce Catalog | ✅ DONE |
+| 03 | Payment Shipping | ✅ DONE |
+| 04 | Community | ✅ DONE |
+| 05 | Integration | ✅ DONE |
+| 07 | Backend Completion | ✅ DONE (100%) |
+| 08 | Production | 📋 PLANNED |
 
-### Key Fixes Applied
-1. Database names aligned with docker-compose (huki_*)
-2. Duplicate migrations removed
-3. JWT_SECRET config fixed (jwt.secret → JWT_SECRET)
-4. Missing column email_verification_expires_at added
-5. Child .env files removed
+---
+
+## Phase 07: Backend Completion (COMPLETE ✅)
+
+| Sprint | Task | Status |
+|--------|------|--------|
+| 27 | API completeness | ✅ |
+| 28 | Error codes | ✅ |
+| 29 | Swagger docs | ✅ |
+| 23 | Health checks | ✅ |
+| 24 | Outbox pattern | ✅ |
+| 25 | Unit tests | ✅ |
+| 30 | Performance | ✅ |
+
+---
+
+## Statistics
+
+| Metric | Count |
+|--------|-------|
+| Total Endpoints | 199 |
+| Unit Tests | 180+ |
+| Integration Tests | 27 |
+| Total Tests | 207+ |
+
+---
+
+## Services Running
+
+| Service | Port |
+|---------|------|
+| Gateway | 3000 |
+| Identity | 3001 |
+| Business | 3002 |
+| Commerce | 3003 |
+| Shipping | 3004 |
+| Community | 3005 |
+| Promotion | 3007 |
+
+---
+
+## Files Changed (chưa commit)
+
+Backend Phase 07: ~50+ files
+
+Xem chi tiết trong `task/` folder
+
+---
 
 ## References
-- [Phase 5 Status](task/05-PHASE5-INTEGRATION.md)
+- API Inventory: `api/API-INVENTORY.md`
+- Errors: `err/README.md`
+- Flows: `flow/README.md`
+- Docs: `docs/README.md`

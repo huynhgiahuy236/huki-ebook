@@ -1,6 +1,5 @@
-import { Controller, Get, Inject } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { MongooseHealthIndicator, HealthCheckService, HealthCheck } from '@nestjs/terminus';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection } from 'mongoose';
 
@@ -17,7 +16,6 @@ interface HealthStatus {
 @Controller('health')
 export class HealthController {
   constructor(
-    private readonly health: HealthCheckService,
     @InjectConnection() private readonly connection: Connection,
   ) {}
 

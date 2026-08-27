@@ -32,7 +32,7 @@
 - [x] T20.10 Test: Error scenarios (unauthorized, not found) **✅ PASS (8 gateway tests + 27 integration tests)**
 
 ### Sprint 21: Documentation Validation & Definition of Done
-- [x] T21.1 Validate: API inventory vs actual endpoints (199 endpoints)
+- [x] T21.1 Validate: API inventory vs actual endpoints (211 HTTP endpoints)
 - [x] T21.2 Validate: Error codes used consistently **✅ FIXED**
 - [x] T21.3 Validate: All DTOs have validation decorators
 - [x] T21.4 Validate: Event contracts match handlers **✅ VERIFIED**
@@ -171,7 +171,7 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T19.1–T19.4 | Claude | HIGH | Swagger aggregate and endpoint contract verification | ✅ DONE | Aggregate is live (199 endpoints, 132 Swagger decorators); examples and response coverage verified |
+| T19.1–T19.4 | Claude | HIGH | Swagger aggregate and endpoint contract verification | ✅ DONE | Aggregate is live; generated artifact and drift check are available |
 | T19.5–T19.7 | Claude | MEDIUM | Postman coverage verification | ✅ DONE | Collection fixed: `/api/v1/*` via Gateway, removed userId/adminId query params (now JWT only) |
 | T19.8 | Claude | MEDIUM | Environment variables: Local environment | ✅ DONE | Created 5 .env.example files; aligned DB names with docker-compose (huki_identity, etc.) |
 
@@ -207,12 +207,12 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 
 | Task | Owner | Priority | Description | Status | Definition of Done |
 |------|-------|----------|-------------|--------|-------------------|
-| T21.1 | Claude | HIGH | Validate: API inventory vs actual endpoints | ✅ DONE | 199 endpoints verified (not 143); API-INVENTORY.md updated |
+| T21.1 | Claude | HIGH | Validate: API inventory vs actual endpoints | ✅ DONE | 211 HTTP endpoints + 10 WebSocket inbound events verified from source |
 | T21.2 | Claude | HIGH | Validate: Error codes used consistently | ✅ DONE | JWT_SECRET config fixed, ErrorCode used consistently |
 | T21.3 | Claude | HIGH | Validate: All DTOs have validation decorators | ✅ DONE | Sample audit shows DTOs have proper validators |
 | T21.4 | Claude | MEDIUM | Validate: Event contracts match handlers | ✅ DONE | Event emitter handlers verified |
 | T21.5 | Claude | MEDIUM | Compile check: All 6 services build | ✅ DONE | `tsc --noEmit` passes for all 6 services + shared lib + api-gateway |
-| T21.6 | Claude | MEDIUM | Documentation: Update API-INVENTORY.md | ✅ DONE | Docs match code (199 endpoints) |
+| T21.6 | Claude | MEDIUM | Documentation: Update API-INVENTORY.md | ✅ DONE | Docs match code (211 HTTP + 10 WebSocket) |
 
 #### Definition of Done - Phase 5
 
@@ -223,7 +223,7 @@ Client → Gateway (3000) → Auth Middleware → Route → Service (3001-3007)
 - [x] All seven Nest service builds pass
 - [x] Postman collection covers all endpoints verified locally (URLs fixed to use Gateway `/api/v1`)
 - [x] Integration tests pass for all flows (T20.x) — *27 integration tests + 96 unit tests PASS*
-- [x] API-INVENTORY.md matches actual implementation (199 endpoints)
+- [x] API-INVENTORY.md matches actual implementation (211 HTTP endpoints + 10 WebSocket inbound events)
 
 ---
 
@@ -266,7 +266,7 @@ Sprint 17 → Sprint 18 → Sprint 19 → Sprint 20 → Sprint 21
 | 2026-08-25 | Claude | T18 response interceptor/filter with double-wrapping prevention |
 | 2026-08-25 | Claude | T19.8 created 5 missing .env.example files; aligned DB names with docker-compose |
 | 2026-08-25 | Claude | T19.5-7 Postman URLs fixed (/api/v1/* via Gateway); userId/adminId removed |
-| 2026-08-25 | Claude | T21.1 verified 199 endpoints (not 143); updated API-INVENTORY.md |
+| 2026-08-27 | Codex | Recounted 211 HTTP endpoints and 10 WebSocket inbound events directly from source |
 | 2026-08-25 | Claude | T21.5 tsc --noEmit passes for all 6 services |
 | 2026-08-25 | Claude | Deleted TypeORM legacy files (migrations/, numeric.transformer.ts) |
 | 2026-08-25 | Claude | Fixed Business Auth Bypass: added JWT guards, replaced @Query userId with @CurrentUser |
