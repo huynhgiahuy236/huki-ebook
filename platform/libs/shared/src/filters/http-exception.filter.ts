@@ -1,3 +1,13 @@
+/**
+ * HUKI EBOOK - HTTP Exception Filter
+ *
+ * Standardizes all error responses.
+ * P3: Response Contract Standardization
+ *
+ * Error codes use ErrorCode enum from @huki/shared/errors
+ * Messages are in Vietnamese
+ */
+
 import {
   ExceptionFilter,
   Catch,
@@ -7,16 +17,21 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { ErrorCode } from '../errors/error-code';
 
-interface ErrorResponse {
+/**
+ * P3 Error Response Format
+ */
+export interface P3ErrorResponse {
   status: 'error';
   statusCode: number;
+  code: string;
   message: string;
-  code?: string;
   details?: any;
-  timestamp: string;
   path: string;
+  requestId: string;
+  timestamp: string;
 }
 
 @Catch()
@@ -27,6 +42,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+
+    const requestId = (request as any).id ?? (request.headers as any)?.['x-request-id'] ?? uuidv4();
+    const path = request.originalUrl ?? request.url;
 
     let status: number;
     let message: string;
@@ -42,14 +60,18 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code = this.defaultCode(status);
       } else if (typeof exceptionResponse === 'object') {
         const responseObj = exceptionResponse as Record<string, any>;
+
+        // Extract code and message from structured response
+        code = responseObj.code ?? this.defaultCode(status);
+        details = responseObj.details;
+
+        // Handle validation errors from class-validator
         if (Array.isArray(responseObj.message)) {
           message = 'Validation failed';
-          details = responseObj.details ?? responseObj.message;
+          details = this.formatValidationErrors(responseObj.message);
         } else {
           message = responseObj.message || exception.message;
-          details = responseObj.details;
         }
-        code = responseObj.code ?? this.defaultCode(status);
       } else {
         message = exception.message;
         code = this.defaultCode(status);
@@ -59,32 +81,75 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
       code = ErrorCode.SYSTEM_INTERNAL_ERROR;
 
-      this.logger.error(`Unexpected error: ${exception.message}`, exception.stack);
+      // Log internal errors but don't expose details
+      this.logger.error(
+        `Internal error: ${exception.message}`,
+        exception.stack,
+      );
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
       code = ErrorCode.SYSTEM_INTERNAL_ERROR;
     }
 
-    const errorResponse: ErrorResponse = {
+    // Build error response (P3 format)
+    const errorResponse: P3ErrorResponse = {
       status: 'error',
       statusCode: status,
-      message,
       code,
+      message,
+      path,
+      requestId,
       timestamp: new Date().toISOString(),
-      path: request.originalUrl ?? request.url,
     };
 
-    if (details !== undefined) errorResponse.details = details;
+    // Only include details for validation errors and client-safe errors
+    if (details !== undefined && this.shouldIncludeDetails(status)) {
+      errorResponse.details = details;
+    }
 
     response.status(status).json(errorResponse);
   }
 
-  private defaultCode(status: number): ErrorCode {
+  /**
+   * Format validation errors from class-validator
+   */
+  private formatValidationErrors(messages: string[]): Array<{
+    field: string;
+    code: string;
+    message: string;
+  }> {
+    return messages.map((msg) => {
+      // Try to extract field name from message
+      // Format: "fieldname must be..."
+      const match = msg.match(/^(\w+)\s/);
+      const field = match ? match[1] : 'unknown';
+
+      return {
+        field,
+        code: ErrorCode.VALIDATION_ERROR,
+        message: msg,
+      };
+    });
+  }
+
+  /**
+   * Only include details for 4xx errors (client-safe)
+   */
+  private shouldIncludeDetails(status: number): boolean {
+    return status >= 400 && status < 500;
+  }
+
+  /**
+   * Map HTTP status to default ErrorCode
+   */
+  private defaultCode(status: number): string {
     const codes: Partial<Record<number, ErrorCode>> = {
       [HttpStatus.BAD_REQUEST]: ErrorCode.VALIDATION_ERROR,
       [HttpStatus.UNAUTHORIZED]: ErrorCode.AUTH_TOKEN_INVALID,
       [HttpStatus.FORBIDDEN]: ErrorCode.AUTHZ_FORBIDDEN,
+      [HttpStatus.NOT_FOUND]: ErrorCode.SYSTEM_ERROR,
+      [HttpStatus.CONFLICT]: ErrorCode.SYSTEM_ERROR,
       [HttpStatus.TOO_MANY_REQUESTS]: ErrorCode.RATE_LIMIT_EXCEEDED,
       [HttpStatus.BAD_GATEWAY]: ErrorCode.SYSTEM_EXTERNAL_SERVICE_ERROR,
       [HttpStatus.SERVICE_UNAVAILABLE]: ErrorCode.SYSTEM_UNAVAILABLE,

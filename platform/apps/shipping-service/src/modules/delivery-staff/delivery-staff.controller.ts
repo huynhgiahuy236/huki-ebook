@@ -10,7 +10,17 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { StaffStatus } from '../../../prisma/generated/client';
 import {
   AuthenticatedGuard,
@@ -28,16 +38,34 @@ import {
 @Controller('delivery-staff')
 export class DeliveryStaffController {
   constructor(private readonly staff: DeliveryStaffService) {}
-  @Post() create(@Body() dto: CreateDeliveryStaffDto) {
+  @Post()
+  @ApiOperation({ summary: 'Create delivery staff (platform admin)' })
+  @ApiResponse({ status: 201, description: 'Delivery staff created' })
+  @ApiBadRequestResponse({ description: 'Invalid or duplicate staff data' })
+  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  create(@Body() dto: CreateDeliveryStaffDto) {
     return this.staff.create(dto);
   }
-  @Get() list(
+  @Get()
+  @ApiOperation({ summary: 'List delivery staff (platform admin)' })
+  @ApiResponse({ status: 200, description: 'Delivery staff list' })
+  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  list(
     @Query('status', new ParseEnumPipe(StaffStatus, { optional: true }))
     status?: StaffStatus,
   ) {
     return this.staff.list(status);
   }
-  @Patch(':id') update(
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update delivery staff (platform admin)' })
+  @ApiParam({ name: 'id', description: 'Delivery staff UUID' })
+  @ApiResponse({ status: 200, description: 'Delivery staff updated' })
+  @ApiNotFoundResponse({ description: 'Delivery staff not found' })
+  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateDeliveryStaffDto,
   ) {
@@ -50,7 +78,15 @@ export class DeliveryStaffController {
 @Controller('shipments')
 export class ShipmentAssignmentController {
   constructor(private readonly staff: DeliveryStaffService) {}
-  @Post(':id/assign') assign(
+  @Post(':id/assign')
+  @ApiOperation({ summary: 'Assign delivery staff to a shipment (platform admin)' })
+  @ApiParam({ name: 'id', description: 'Shipment UUID' })
+  @ApiResponse({ status: 201, description: 'Delivery staff assigned' })
+  @ApiNotFoundResponse({ description: 'Shipment or delivery staff not found' })
+  @ApiBadRequestResponse({ description: 'Shipment cannot be assigned' })
+  @ApiUnauthorizedResponse({ description: 'Authentication required' })
+  @ApiForbiddenResponse({ description: 'Platform administrator role required' })
+  assign(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: AssignDeliveryStaffDto,
   ) {

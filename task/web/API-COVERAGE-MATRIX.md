@@ -2,7 +2,7 @@
 
 ## Baseline
 
-`api/API-INVENTORY.md` công bố 211 HTTP endpoint và 10 WebSocket inbound events, trong khi OpenAPI legacy chưa phản ánh đầy đủ controller. Sprint 01 phải tạo snapshot máy đọc được và một dòng cho **từng method + path/event**. Bảng này xác định ownership theo route family; snapshot chi tiết mới là bằng chứng closure.
+`api/API-INVENTORY.md` công bố 211 HTTP handlers và 10 WebSocket inbound events. OpenAPI aggregate runtime hiện export 195 public operations vì health route trùng giữa service và các loại system API cần được tính riêng. Sprint 01 phải tạo snapshot máy đọc được và một dòng cho **từng method + path/event**. Bảng này xác định ownership theo route family; snapshot chi tiết mới là bằng chứng closure.
 
 Trạng thái: `UNMAPPED`, `PLANNED`, `IMPLEMENTED`, `VERIFIED`, `SYSTEM_TESTED`, `N/A-APPROVED`.
 
@@ -53,10 +53,13 @@ Trạng thái: `UNMAPPED`, `PLANNED`, `IMPLEMENTED`, `VERIFIED`, `SYSTEM_TESTED`
 ## Công thức closure
 
 ```text
-total_discovered = verified_browser + system_tested + n/a_approved
+total_source = browser + internal + webhook + callback + health + socket
+browser = verified_browser
+internal + webhook + callback + health = system_tested + n/a_approved
+total_source = verified_browser + system_tested + n/a_approved
 unmapped = 0
 planned = 0
 implemented_not_verified = 0
 ```
 
-Số liệu phải được sinh trong CI, không nhập tay từ README.
+Không dùng điều kiện `211 = 195`; CI phải so từng operation sau khi normalize path và classification. Số liệu phải được sinh trong CI, không nhập tay từ README.

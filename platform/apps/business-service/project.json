@@ -1,0 +1,31 @@
+{
+  "name": "business-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/business-service/src",
+  "projectType": "application",
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p apps/business-service/tsconfig.app.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/business-service"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/apps/business-service/main.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config apps/business-service/jest.config.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

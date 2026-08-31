@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/shipping-service",
-    "module": "commonjs",
+    "outDir": "../../dist/out-tsc/shipping-service",
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "prisma/generated/**/*.d.ts"],

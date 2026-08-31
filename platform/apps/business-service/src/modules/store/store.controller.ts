@@ -1,3 +1,9 @@
+/**
+ * HUKI EBOOK - Store Controller
+ *
+ * Handles store creation, management, and admin approval
+ */
+
 import {
   Controller,
   Get,
@@ -11,11 +17,23 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiParam,
+  ApiResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { StoreService } from './store.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { Public, CurrentUser } from '@huki/shared/decorators';
+import { Public, CurrentUser, Roles } from '@huki/shared/decorators';
+import { RolesGuard } from '@huki/shared/guards';
 
 @ApiTags('Stores')
 @ApiBearerAuth()
@@ -26,7 +44,15 @@ export class StoreController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new store' })
+  @ApiOperation({
+    summary: 'Create a new store',
+    description: 'Creates a new store under a business.',
+  })
+  @ApiQuery({ name: 'businessId', description: 'Business ID' })
+  @ApiResponse({ status: 201, description: 'Store created successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid input data' })
+  @ApiNotFoundResponse({ description: 'Business not found' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async createStore(
     @Body() dto: CreateStoreDto,
     @Query('businessId') businessId: string,
@@ -40,7 +66,13 @@ export class StoreController {
   }
 
   @Get('my')
-  @ApiOperation({ summary: 'Get my stores' })
+  @ApiOperation({
+    summary: 'Get my stores',
+    description: 'Returns stores belonging to the user\'s business.',
+  })
+  @ApiQuery({ name: 'businessId', description: 'Business ID' })
+  @ApiResponse({ status: 200, description: 'List of stores' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async getMyStores(
     @Query('businessId') businessId: string,
     @CurrentUser('id') userId: string,
@@ -51,7 +83,15 @@ export class StoreController {
 
   @Get()
   @Public()
-  @ApiOperation({ summary: 'Get all stores (public)' })
+  @ApiOperation({
+    summary: 'List all stores',
+    description: 'Returns a paginated list of all stores.',
+  })
+  @ApiQuery({ name: 'status', required: false, description: 'Filter by status' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by name' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiResponse({ status: 200, description: 'Paginated list of stores' })
   async getAllStores(
     @Query('status') status?: string,
     @Query('search') search?: string,
@@ -69,7 +109,13 @@ export class StoreController {
 
   @Get(':id')
   @Public()
-  @ApiOperation({ summary: 'Get store by ID' })
+  @ApiOperation({
+    summary: 'Get store by ID',
+    description: 'Returns store details by ID.',
+  })
+  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiResponse({ status: 200, description: 'Store details' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
   async getStoreById(@Param('id') id: string) {
     const store = await this.storeService.getStoreById(id);
     return { data: store };
@@ -77,14 +123,28 @@ export class StoreController {
 
   @Get('slug/:slug')
   @Public()
-  @ApiOperation({ summary: 'Get store by slug' })
+  @ApiOperation({
+    summary: 'Get store by slug',
+    description: 'Returns store details by URL-friendly slug.',
+  })
+  @ApiParam({ name: 'slug', description: 'Store slug' })
+  @ApiResponse({ status: 200, description: 'Store details' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
   async getStoreBySlug(@Param('slug') slug: string) {
     const store = await this.storeService.getStoreBySlug(slug);
     return { data: store };
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update store' })
+  @ApiOperation({
+    summary: 'Update store',
+    description: 'Updates store details. Only business owner/admin can update.',
+  })
+  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiResponse({ status: 200, description: 'Store updated successfully' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
+  @ApiForbiddenResponse({ description: 'Not authorized to update this store' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async updateStore(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -99,7 +159,15 @@ export class StoreController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Delete store' })
+  @ApiOperation({
+    summary: 'Delete store',
+    description: 'Soft deletes a store. Only business owner/admin can delete.',
+  })
+  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiResponse({ status: 200, description: 'Store deleted successfully' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
+  @ApiForbiddenResponse({ description: 'Not authorized to delete this store' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async deleteStore(
     @Param('id') id: string,
     @CurrentUser('id') userId: string,
@@ -110,7 +178,17 @@ export class StoreController {
 
   @Post(':id/approve')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Admin: Approve store' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({
+    summary: 'Approve store',
+    description: 'Admin endpoint: Approves a pending store. Requires PLATFORM_ADMIN role.',
+  })
+  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiResponse({ status: 200, description: 'Store approved successfully' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
+  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async approveStore(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,
@@ -121,7 +199,18 @@ export class StoreController {
 
   @Post(':id/reject')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Admin: Reject store' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({
+    summary: 'Reject store',
+    description: 'Admin endpoint: Rejects a pending store. Requires PLATFORM_ADMIN role.',
+  })
+  @ApiParam({ name: 'id', description: 'Store ID' })
+  @ApiResponse({ status: 200, description: 'Store rejected' })
+  @ApiBadRequestResponse({ description: 'Store already approved/rejected' })
+  @ApiNotFoundResponse({ description: 'Store not found' })
+  @ApiForbiddenResponse({ description: 'Requires PLATFORM_ADMIN role' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async rejectStore(
     @Param('id') id: string,
     @CurrentUser('id') adminId: string,

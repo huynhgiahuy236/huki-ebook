@@ -79,7 +79,7 @@ export class ShipmentsService {
       throwBadRequest(ErrorCode.CHECKOUT_SHIPPING_REQUIRED);
     }
     const address = dto.shippingAddress as NonNullable<typeof dto.shippingAddress>;
-    const created = [];
+    const created: any[] = [];
     for (const sellerOrder of shippable) {
       created.push(await this.createOne(dto, sellerOrder, address));
     }
@@ -234,7 +234,7 @@ export class ShipmentsService {
     const shipments = await this.prisma.shipment.findMany({
       where: { orderId },
     });
-    const cancelled = [];
+    const cancelled: any[] = [];
     for (const shipment of shipments) {
       if (
         shipment.status === ShipmentStatus.DELIVERED ||

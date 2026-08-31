@@ -20,7 +20,10 @@ export const RABBITMQ_CLIENT = 'RABBITMQ_CLIENT';
             queueOptions: {
               durable: true,
             },
-            noAck: false,
+            // This module is an RMQ client. Nest creates a temporary reply
+            // consumer for request/response calls (health.check); RabbitMQ
+            // requires that reply consumer to use automatic acknowledgements.
+            noAck: true,
           },
         }),
       },

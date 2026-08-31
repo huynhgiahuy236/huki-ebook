@@ -1,3 +1,9 @@
+/**
+ * HUKI EBOOK - Addresses Controller
+ *
+ * Handles user shipping address management
+ */
+
 import {
   Body,
   Controller,
@@ -8,8 +14,20 @@ import {
   Patch,
   Post,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiParam,
+  ApiResponse,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
+  ApiBadRequestResponse,
+  ApiForbiddenResponse,
+} from '@nestjs/swagger';
 import { CurrentActor } from '../../common/current-actor.decorator';
 import {
   AuthenticatedGuard,
@@ -26,13 +44,25 @@ export class AddressesController {
   constructor(private readonly addresses: AddressesService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List user shipping addresses' })
+  @ApiOperation({
+    summary: 'List user shipping addresses',
+    description: 'Returns all shipping addresses for the authenticated user.',
+  })
+  @ApiResponse({ status: 200, description: 'List of addresses' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   list(@CurrentActor() actor: ShippingActor) {
     return this.addresses.list(actor.sub);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a new shipping address' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new shipping address',
+    description: 'Creates a new shipping address for the user.',
+  })
+  @ApiResponse({ status: 201, description: 'Address created successfully' })
+  @ApiBadRequestResponse({ description: 'Invalid address data' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   create(
     @CurrentActor() actor: ShippingActor,
     @Body() dto: CreateAddressDto,
@@ -41,7 +71,15 @@ export class AddressesController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update a shipping address' })
+  @ApiOperation({
+    summary: 'Update a shipping address',
+    description: 'Updates an existing shipping address.',
+  })
+  @ApiParam({ name: 'id', description: 'Address ID' })
+  @ApiResponse({ status: 200, description: 'Address updated successfully' })
+  @ApiNotFoundResponse({ description: 'Address not found' })
+  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   update(
     @CurrentActor() actor: ShippingActor,
     @Param('id', ParseUUIDPipe) id: string,
@@ -51,7 +89,15 @@ export class AddressesController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a shipping address' })
+  @ApiOperation({
+    summary: 'Delete a shipping address',
+    description: 'Deletes a shipping address.',
+  })
+  @ApiParam({ name: 'id', description: 'Address ID' })
+  @ApiResponse({ status: 200, description: 'Address deleted successfully' })
+  @ApiNotFoundResponse({ description: 'Address not found' })
+  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   remove(
     @CurrentActor() actor: ShippingActor,
     @Param('id', ParseUUIDPipe) id: string,

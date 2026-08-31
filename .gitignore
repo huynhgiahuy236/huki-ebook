@@ -5,6 +5,7 @@ node_modules/
 .pnp
 .pnp.js
 package-lock.json
+!web/package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -16,7 +17,10 @@ api/
 # ============================================
 # Postman Collections
 # ============================================
-postman/
+postman/*
+!postman/HUKI_EBOOK_API.postman_collection.json
+!postman/HUKI-Local.postman_environment.json
+!postman/README.md
 
 # ============================================
 # Build outputs

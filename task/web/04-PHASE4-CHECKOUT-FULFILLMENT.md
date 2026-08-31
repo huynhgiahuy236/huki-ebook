@@ -8,13 +8,13 @@ Get/add/update/remove/clear cart; optimistic rollback; hết hàng, đổi giá,
 
 CRUD địa chỉ, tính phí ship, checkout preview/confirm; voucher lookup/validate, breakdown và chống double submit.
 
-## Sprint 15 - PayOS payment and refund entry
+## Sprint 15 - COD completion and PayOS preparation
 
-Initiate, redirect/QR, poll status, return/cancel page; buyer tạo refund. PayOS webhook chỉ backend gọi và có integration test.
+COD là payment path bắt buộc của MVP. Chuẩn bị UI state và adapter cho initiate, redirect/QR, poll status, return/cancel và buyer refund nhưng không chặn MVP khi thiếu PayOS credential. PayOS webhook chỉ backend gọi và chỉ chuyển `SYSTEM_TESTED` khi có chữ ký/integration test hợp lệ.
 
-## Sprint 16 - Checkout hardening
+## Sprint 16 - COD checkout hardening
 
-E2E COD/online, invalid voucher, inventory race, timeout/retry-safe; reconciliation khi callback chậm.
+E2E COD, invalid voucher, inventory race, timeout/retry-safe và double-submit. Online-payment E2E cùng reconciliation callback chậm chuyển sang post-MVP nếu môi trường PayOS chưa sẵn sàng.
 
-**Phase DoD:** cart/checkout/address/fee/payment buyer API `VERIFIED`; webhook `SYSTEM_TESTED`.
+**Phase DoD MVP:** cart/address/fee/COD checkout API `VERIFIED`; PayOS được phép `ENV_BLOCKED` với adapter/UI state và ticket rõ ràng. Khi bật online payment, webhook phải đạt `SYSTEM_TESTED`.
 

@@ -1,0 +1,23 @@
+{
+  "name": "shared",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p libs/shared/tsconfig.lib.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/libs/shared"]
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config libs/shared/jest.config.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

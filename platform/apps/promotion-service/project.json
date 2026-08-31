@@ -1,0 +1,31 @@
+{
+  "name": "promotion-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/promotion-service/src",
+  "projectType": "application",
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p apps/promotion-service/tsconfig.app.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/promotion-service"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/apps/promotion-service/main.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config apps/promotion-service/jest.config.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

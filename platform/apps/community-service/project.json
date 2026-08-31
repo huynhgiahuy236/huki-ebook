@@ -1,0 +1,31 @@
+{
+  "name": "community-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/community-service/src",
+  "projectType": "application",
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p apps/community-service/tsconfig.app.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/community-service"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/apps/community-service/main.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config apps/community-service/jest.config.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

@@ -1,3 +1,10 @@
+/**
+ * HUKI EBOOK - Transform Interceptor
+ *
+ * Wraps all responses in standard envelope.
+ * P3: Response Contract Standardization
+ */
+
 import {
   Injectable,
   NestInterceptor,
@@ -6,15 +13,38 @@ import {
 } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { v4 as uuidv4 } from 'uuid';
 
+/**
+ * Standard API response envelope
+ */
 export interface ApiResponse<T> {
   status: 'success';
   statusCode: number;
-  message: string;
+  message?: string;
   data: T;
+  pagination?: PaginationMeta;
+  meta: ResponseMeta;
+}
+
+/**
+ * Pagination metadata
+ */
+export interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
+/**
+ * Response metadata
+ */
+export interface ResponseMeta {
+  requestId: string;
   timestamp: string;
-  path: string;
-  pagination?: { page: number; limit: number; total: number; totalPages: number };
 }
 
 @Injectable()
@@ -28,35 +58,60 @@ export class TransformInterceptor<T>
     const http = context.switchToHttp();
     const request = http.getRequest();
     const response = http.getResponse();
+    const requestId = (request as any).id ?? (request.headers as any)?.['x-request-id'] ?? uuidv4();
+    const path = request.originalUrl ?? request.url;
 
     return next.handle().pipe(
-      map((data) => {
-        const path = request.originalUrl ?? request.url;
-        if (this.isStandardResponse(data)) {
-          return {
-            ...data,
-            statusCode: data.statusCode ?? response.statusCode,
-            message: data.message ?? this.defaultMessage(response.statusCode),
-            timestamp: data.timestamp ?? new Date().toISOString(),
-            path: data.path ?? path,
-          } as ApiResponse<T>;
+      map((data): ApiResponse<T> => {
+        // 204 No Content - return null
+        if (data === null || data === undefined) {
+          return null as unknown as ApiResponse<T>;
         }
 
-        const envelope = this.extractEnvelope(data);
-        return {
-          status: 'success' as const,
-          statusCode: response.statusCode,
-          message: envelope.message ?? this.defaultMessage(response.statusCode),
-          data: envelope.data,
-          ...(envelope.pagination ? { pagination: envelope.pagination } : {}),
+        // Already wrapped with our envelope
+        if (this.isApiResponse(data)) {
+          const wrapped = data as ApiResponse<T>;
+          return {
+            ...wrapped,
+            statusCode: wrapped.statusCode ?? response.statusCode,
+            meta: {
+              requestId: wrapped.meta?.requestId ?? requestId,
+              timestamp: wrapped.meta?.timestamp ?? new Date().toISOString(),
+            },
+          };
+        }
+
+        // Extract data from various response formats
+        const { data: extractedData, message, pagination } = this.extractData(data);
+
+        const meta: ResponseMeta = {
+          requestId,
           timestamp: new Date().toISOString(),
-          path,
+        };
+
+        if (pagination) {
+          return {
+            status: 'success',
+            statusCode: response.statusCode,
+            message: message ?? this.defaultMessage(response.statusCode),
+            data: extractedData as T,
+            pagination,
+            meta,
+          };
+        }
+
+        return {
+          status: 'success',
+          statusCode: response.statusCode,
+          message: message ?? this.defaultMessage(response.statusCode),
+          data: extractedData as T,
+          meta,
         };
       }),
     );
   }
 
-  private isStandardResponse(data: unknown): data is Partial<ApiResponse<T>> & { status: 'success' } {
+  private isApiResponse(data: unknown): data is ApiResponse<unknown> & { meta?: ResponseMeta } {
     return Boolean(
       data &&
         typeof data === 'object' &&
@@ -64,10 +119,10 @@ export class TransformInterceptor<T>
     );
   }
 
-  private extractEnvelope(data: T): {
+  private extractData(data: T): {
+    data: unknown;
     message?: string;
-    data: T;
-    pagination?: ApiResponse<T>['pagination'];
+    pagination?: PaginationMeta;
   } {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       return { data };
@@ -82,8 +137,8 @@ export class TransformInterceptor<T>
 
     if (hasData || pagination) {
       return {
+        data: value.data,
         message: hasMessage ? (value.message as string) : undefined,
-        data: value.data as T,
         pagination,
       };
     }
@@ -91,23 +146,33 @@ export class TransformInterceptor<T>
     if (hasMessage) {
       const { message, ...rest } = value;
       return {
+        data: Object.keys(rest).length > 0 ? rest : null,
         message: message as string,
-        data: (Object.keys(rest).length ? rest : null) as T,
       };
     }
 
     return { data };
   }
 
-  private isPagination(value: unknown): value is ApiResponse<T>['pagination'] {
+  private isPagination(value: unknown): value is PaginationMeta {
     if (!value || typeof value !== 'object') return false;
     const pagination = value as Record<string, unknown>;
-    return ['page', 'limit', 'total', 'totalPages'].every(
-      (key) => typeof pagination[key] === 'number',
+    return (
+      typeof pagination.page === 'number' &&
+      typeof pagination.limit === 'number' &&
+      typeof pagination.total === 'number' &&
+      typeof pagination.totalPages === 'number'
     );
   }
 
   private defaultMessage(statusCode: number): string {
-    return statusCode === 201 ? 'Tạo thành công' : 'Thành công';
+    switch (statusCode) {
+      case 201:
+        return 'Tạo thành công';
+      case 204:
+        return '';
+      default:
+        return 'Thành công';
+    }
   }
 }

@@ -1,0 +1,31 @@
+{
+  "name": "commerce-service",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/commerce-service/src",
+  "projectType": "application",
+  "implicitDependencies": ["shared"],
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc -p apps/commerce-service/tsconfig.app.json",
+        "cwd": "{workspaceRoot}"
+      },
+      "outputs": ["{workspaceRoot}/dist/apps/commerce-service"]
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node dist/apps/commerce-service/main.js",
+        "cwd": "{workspaceRoot}"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "jest --config apps/commerce-service/jest.config.js",
+        "cwd": "{workspaceRoot}"
+      }
+    }
+  }
+}

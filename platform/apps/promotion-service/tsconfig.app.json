@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/out-tsc",
-    "module": "commonjs",
+    "outDir": "../../dist/out-tsc/promotion-service",
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "prisma/generated/**/*.d.ts"],

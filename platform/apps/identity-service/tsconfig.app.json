@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/out-tsc",
-    "module": "commonjs",
+    "outDir": "../../dist/out-tsc/identity-service",
     "types": ["node"]
   },
   "include": ["src/**/*.ts", "config/**/*.ts", "prisma/generated/**/*.d.ts"],

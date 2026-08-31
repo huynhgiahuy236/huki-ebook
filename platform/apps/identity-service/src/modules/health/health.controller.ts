@@ -66,8 +66,9 @@ export class HealthController {
     // Check RabbitMQ
     try {
       const start = Date.now();
-      // Try to send a test message - will timeout if not connected
-      await this.rabbitmq.send('health.check', {}).toPromise();
+      // Establishing the client connection verifies the broker without
+      // requiring a separate service to implement a health.check responder.
+      await this.rabbitmq.connect();
       dependencies.rabbitmq = {
         status: 'ok',
         latency: Date.now() - start,

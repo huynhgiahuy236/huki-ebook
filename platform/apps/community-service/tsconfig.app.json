@@ -1,10 +1,9 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "../../dist/apps/community-service",
-    "module": "commonjs",
+    "outDir": "../../dist/out-tsc/community-service",
     "types": ["node", "multer"]
   },
   "include": ["src/**/*.ts", "config/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "exclude": ["node_modules", "dist", "test", "**/*.spec.ts"]
 }

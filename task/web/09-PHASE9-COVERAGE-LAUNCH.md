@@ -16,5 +16,5 @@ Health/liveness/readiness probes; security, accessibility, performance, SEO, com
 
 UAT theo guest, buyer, seller owner/member, delivery, admin; production smoke, rollback rehearsal và ký duyệt ngoại lệ.
 
-**Final DoD:** `total_discovered = VERIFIED + SYSTEM_TESTED + N/A-APPROVED`; `UNMAPPED=0`, `PLANNED=0`, `IMPLEMENTED_NOT_VERIFIED=0`; tất cả quality/security/release gates đạt.
+**Final DoD:** mọi source handler/event được phân loại; `total_source = VERIFIED + SYSTEM_TESTED + N/A-APPROVED`; không yêu cầu tổng source handlers bằng tổng public OpenAPI operations; `UNMAPPED=0`, `PLANNED=0`, `IMPLEMENTED_NOT_VERIFIED=0`; tất cả quality/security/release gates đạt.
 

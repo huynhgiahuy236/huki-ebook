@@ -2,94 +2,54 @@
  * HUKI EBOOK - HTTP Response Helpers
  *
  * Standard response format for all API responses.
- * Inspired by Express reference project.
+ * P3: Response Contract Standardization
  */
 
 import { HttpStatus } from './http-status';
 
 /**
- * Standard success response
- */
-export interface SuccessResponse<T = any> {
-  /** Always "success" for successful responses */
-  status: 'success';
-  /** HTTP status code */
-  statusCode: number;
-  /** Human-readable message */
-  message?: string;
-  /** Response data */
-  data?: T;
-  /** Pagination info (if applicable) */
-  pagination?: PaginationMeta;
-}
-
-/**
- * Standard error response
- */
-export interface ApiErrorResponse {
-  /** Always "error" for error responses */
-  status: 'error';
-  /** HTTP status code */
-  statusCode: number;
-  /** Error message */
-  message: string;
-  /** Error code for client handling */
-  code?: string;
-  /** Additional error details */
-  details?: any;
-  /** Stack trace (development only) */
-  stack?: string;
-  /** Request path */
-  path?: string;
-  /** Timestamp */
-  timestamp: string;
-}
-
-/**
- * Pagination metadata
+ * Pagination metadata - complete spec
  */
 export interface PaginationMeta {
   page: number;
   limit: number;
   total: number;
   totalPages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
 }
 
 /**
- * Build success response
+ * Validation error item
  */
-export function responseSuccess<T>(
-  data: T,
-  message?: string,
-  statusCode: number = HttpStatus.OK,
-): SuccessResponse<T> {
-  return {
-    status: 'success',
-    statusCode,
-    message,
-    data,
-  };
+export interface ValidationErrorItem {
+  field: string;
+  code: string;
+  message: string;
 }
 
 /**
- * Build success response with pagination
+ * Build paginated meta from raw values
  */
-export function responseSuccessPaginated<T>(
-  data: T[],
-  pagination: PaginationMeta,
-  message?: string,
-): SuccessResponse<T[]> {
+export function buildPaginationMeta(
+  page: number,
+  limit: number,
+  total: number,
+): PaginationMeta {
+  const totalPages = Math.ceil(total / limit);
   return {
-    status: 'success',
-    statusCode: HttpStatus.OK,
-    message,
-    data,
-    pagination,
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPreviousPage: page > 1,
   };
 }
 
 /**
  * Build error response
+ * Note: Does NOT include stack trace or sensitive data
  */
 export function responseError(
   message: string,
@@ -97,38 +57,37 @@ export function responseError(
   options?: {
     code?: string;
     details?: any;
-    stack?: string;
     path?: string;
+    requestId?: string;
   },
-): ApiErrorResponse {
-  return {
+) {
+  const timestamp = new Date().toISOString();
+  const response: any = {
     status: 'error',
     statusCode,
-    message,
     code: options?.code,
-    details: options?.details,
-    stack: process.env.NODE_ENV === 'development' ? options?.stack : undefined,
+    message,
     path: options?.path,
-    timestamp: new Date().toISOString(),
+    requestId: options?.requestId,
+    timestamp,
   };
+
+  if (options?.details !== undefined) {
+    response.details = options.details;
+  }
+
+  return response;
 }
 
 /**
- * Response creators for common patterns
+ * Create validation error details
  */
-export const responses = {
-  /** 200 OK */
-  ok: <T>(data: T, message?: string) =>
-    responseSuccess(data, message, HttpStatus.OK),
-
-  /** 201 Created */
-  created: <T>(data: T, message?: string) =>
-    responseSuccess(data, message ?? 'Tạo thành công', HttpStatus.CREATED),
-
-  /** 204 No Content */
-  noContent: () => null,
-
-  /** Paginated response */
-  paginated: <T>(data: T[], pagination: PaginationMeta, message?: string) =>
-    responseSuccessPaginated(data, pagination, message),
-};
+export function createValidationErrors(
+  errors: Array<{ field: string; message: string; code?: string }>,
+): ValidationErrorItem[] {
+  return errors.map((e) => ({
+    field: e.field,
+    code: e.code ?? 'VALIDATION_ERROR',
+    message: e.message,
+  }));
+}
