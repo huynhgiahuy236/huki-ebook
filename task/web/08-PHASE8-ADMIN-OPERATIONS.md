@@ -1,20 +1,37 @@
-# Phase 08 - Admin & Operations
+# Phase 08 — Admin HUKI
 
-## Sprint 29 - Approvals and moderation
+**Persona:** Admin HUKI
+**Status:** `🔴 TODO` — backend approval/admin API có sẵn một phần; frontend chưa có admin routes/screens thật.
 
-Business/store approve/reject; reports list/detail/review/resolve; moderation queue và content action.
+## Sprint 29 — Admin shell và dashboard
 
-## Sprint 30 - Catalog administration
+- [ ] 🔴 `/admin` layout/navigation riêng.
+- [ ] 🔴 Chỉ `PLATFORM_ADMIN` truy cập.
+- [ ] 🔴 Dashboard: business/store chờ duyệt, sách active/suspended, COD orders và service health.
 
-Category/author/publisher CRUD, book suspend và conflict handling khi taxonomy đang được dùng.
+## Sprint 30 — Business/store approvals
 
-## Sprint 31 - Promotion and payment administration
+- [ ] 🔴 Business queue/detail/approve/reject và rejection reason.
+- [ ] 🔴 Store queue/detail/approve/reject.
+- [ ] 🔴 Mutation có confirmation, audit và idempotency.
+- [ ] 🔴 Approval phản ánh vào workspace Owner và public storefront.
 
-Voucher/banner/flash-sale CRUD, item/stock/status; refund queue và settle với idempotent confirmation.
+## Sprint 31 — Catalog administration
 
-## Sprint 32 - Shipping operations and health
+- [ ] 🔴 Book administration/suspend.
+- [ ] 🔴 Category/author/publisher CRUD.
+- [ ] 🔴 Conflict handling khi taxonomy đang được dùng.
 
-Delivery staff create/list/update, shipment assign/status; Gateway health/services dashboard và deployment probes.
+## Sprint 32 — System health
 
-**Phase DoD:** admin/delivery API `VERIFIED`; health có probe evidence; mọi mutation có RBAC.
+- [ ] 🔴 Gateway `/health/services` dashboard.
+- [ ] 🔴 Loading/degraded/unavailable states.
+- [ ] 🔴 Không hiển thị secret hoặc dữ liệu hạ tầng nhạy cảm.
 
+## Deferred
+
+`⚪ DEFERRED`: moderation, report queue, promotion admin, refund queue, shipment operations và delivery staff.
+
+## Phase DoD
+
+Admin HUKI duyệt được business/store, quản trị catalog và xem health; mọi route/mutation bắt buộc `PLATFORM_ADMIN` và có E2E RBAC.

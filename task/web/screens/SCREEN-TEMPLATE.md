@@ -1,71 +1,72 @@
 # {SCREEN_ID} — {Screen name}
 
-## Checklist
+## Control
 
-- [ ] 🔴 Screen spec approved
+| Field | Value |
+|---|---|
+| Persona | `GUEST/USER/BUSINESS_OWNER/BUSINESS_ADMIN/PLATFORM_ADMIN` |
+| Happy case | `YES/NO` |
+| Priority | `P0/P1/DEFERRED` |
+| Phase | `{PHASE}` |
+| Route | `{ROUTE}` |
+| Owner | `{NAME/UNASSIGNED}` |
+| Reviewer | `{NAME/UNASSIGNED}` |
+| Work | `🔴 TODO` |
+| Started at | `YYYY-MM-DD/-` |
+| Last updated | `YYYY-MM-DD` |
+| Depends on | `{SCREEN/API/NONE}` |
+
+## Track checklist
+
+- [ ] 🔴 Spec approved
 - [ ] 🔴 UI implemented
 - [ ] 🔴 API integrated
-- [ ] 🔴 UX states completed
+- [ ] 🔴 Role/business scope/permission enforced
+- [ ] 🔴 Loading/empty/success/error/forbidden completed
 - [ ] 🔴 Responsive verified
 - [ ] 🔴 Accessibility verified
 - [ ] 🔴 Tests passed
 - [ ] 🔴 API matrix updated
 - [ ] 🔴 Reviewer approved
 
-## Metadata
+Đang làm đổi đúng track thành `🟢 IN_PROGRESS`; có một phần dùng `🟡 PARTIAL`; hoàn thành dùng `- [x] ✅`. Screen `DEFERRED` không được code nếu chưa đổi scope.
 
-| Field | Value |
+## User outcome
+
+Kết quả cụ thể persona đạt được.
+
+## Access contract
+
+| Check | Requirement |
 |---|---|
-| Screen ID | `{SCREEN_ID}` |
-| Route | `{ROUTE}` |
-| Owner | `A` or `B` |
-| Reviewer | `B` or `A` |
-| Roles | `{ROLES}` |
-| Phase/Sprint | `{PHASE_SPRINT}` |
-| Priority | `P0/P1/P2` |
-| Status | `PLANNED` |
+| Authentication | Public hoặc signed-in |
+| Global role | Role cho phép |
+| Business scope | `businessId` được phép |
+| Permissions | Danh sách permission bắt buộc |
+| Failure | Redirect/login/403/404 behavior |
 
-## Mục tiêu người dùng
-
-Mô tả một kết quả cụ thể mà người dùng đạt được trên màn hình.
-
-## Điều kiện truy cập
-
-- Authentication.
-- Role/permission.
-- Redirect hoặc forbidden behavior.
-- Điều kiện dữ liệu đầu vào.
+Đối với Admin con, kiểm tra từng permission; không dùng tên chức danh thay permission. Owner có toàn quyền trong business nhưng không có quyền platform.
 
 ## Navigation
 
 - Entry points.
 - Success destination.
-- Cancel/back behavior.
-- Deep-link behavior.
+- Cancel/back/deep-link behavior.
+- Menu/action bị ẩn hoặc khóa khi thiếu permission.
 
 ## API mapping
 
-| Method | Endpoint | Client function | Trigger | Auth/Role | Test ID |
-|---|---|---|---|---|---|
-| GET | `/example` | `exampleApi.list()` | Page load | Public | `E2E-...` |
+| Method | Endpoint | Client function | Trigger | Consumer | Auth/permission | Test ID | Status |
+|---|---|---|---|---|---|---|---|
+| GET | `/example` | `exampleApi.list()` | Load | BROWSER | `{permission}` | `E2E-...` | 🔴 TODO |
 
-Liệt kê rõ endpoint `INTERNAL`, `WEBHOOK`, `CALLBACK` liên quan nhưng đánh dấu `BROWSER_FORBIDDEN`; browser không được gọi trực tiếp.
+Internal/webhook/callback liên quan phải ghi `BROWSER_FORBIDDEN`.
 
-## Request và response contract
+## Contracts
 
-Ghi type/schema màn hình thật sự sử dụng, pagination và error codes liên quan. Không copy toàn bộ OpenAPI nếu màn hình không dùng.
+Ghi params/query/body, response fields thật sự dùng, pagination, idempotency và error codes. Không đoán theo UI mock.
 
-## Layout/wireframe
-
-Mô tả desktop, tablet và mobile; liệt kê section và hierarchy chính.
-
-## Components
-
-- Shared components.
-- Feature components.
-- Component mới cần bổ sung.
-
-## UI states
+## UI/UX states
 
 ### Loading
 
@@ -73,53 +74,40 @@ Mô tả desktop, tablet và mobile; liệt kê section và hierarchy chính.
 
 ### Success
 
-### Error và retry
+### Validation/error/retry
 
-### Permission/blocked
+### Forbidden/blocked/suspended
 
-## Interaction và validation
-
-- Form rules.
-- Mutation behavior.
-- Double-submit/idempotency.
-- Cache invalidation hoặc optimistic rollback.
-
-## Error mapping
-
-| HTTP/code | UX behavior |
-|---|---|
-| 400 | Field/general validation |
-| 401 | Refresh hoặc login |
-| 403 | Forbidden state |
-| 404 | Not-found state |
-| 409 | Conflict recovery |
-| 429 | Retry countdown |
-| 503 | Service unavailable |
-
-## Responsive và accessibility
+## Responsive/accessibility
 
 - 360px, 768px, 1280px+.
 - Keyboard/focus/label/contrast/reduced-motion.
-- Screen-reader announcements cho async state.
+- Async announcement và disabled semantics.
 
-## Security và privacy
+## Security
 
-- Token/PII handling.
-- XSS/upload/input rules.
-- Không log dữ liệu nhạy cảm.
+- Tenant isolation theo `businessId`.
+- Permission enforced ở backend.
+- Token/PII/password handling.
+- Admin con bắt đổi mật khẩu lần đầu.
+- Không log credential tạm hoặc secret.
 
-## SEO và analytics
+## Tests/evidence
 
-Ghi `index/noindex`, metadata, canonical và event không chứa PII nếu phù hợp.
-
-## Tests
-
-### Unit/component
-
-### Integration/MSW
-
-### E2E backend thật
+| Layer | Evidence | Status |
+|---|---|---|
+| Unit/component | | 🔴 TODO |
+| API/contract | | 🔴 TODO |
+| Positive E2E | | 🔴 TODO |
+| Negative RBAC/permission | | 🔴 TODO |
+| Responsive/A11y | | 🔴 TODO |
 
 ## Notes/blockers
 
-Ghi blocker, quyết định và link issue/ADR. Nếu có blocker, trạng thái phải là `BLOCKED` và inventory vẫn `🔴`.
+Ghi quyết định, blocker và người có thể gỡ chặn.
+
+## Change log
+
+| Date | Person | Track | From | To | Evidence/note |
+|---|---|---|---|---|---|
+| YYYY-MM-DD | `{NAME}` | `{TRACK}` | 🔴 TODO | 🟢 IN_PROGRESS | |

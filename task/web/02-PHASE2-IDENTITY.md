@@ -1,20 +1,41 @@
-# Phase 02 - Identity, Profile & Sessions
+# Phase 02 — Identity & Role Routing
 
-## Sprint 05 - Registration and email verification
+**Persona:** Guest, User, Admin doanh nghiệp, Admin con doanh nghiệp, Admin HUKI
+**Status:** `🟡 PARTIAL` — UI auth đã có; frontend chưa nối API thật.
 
-Đăng ký, verify-email callback, resend verification; xử lý expired/already-used. API: register, verify-email, resend-verification.
+## Sprint 05 — Guest/User identity
 
-## Sprint 06 - Login and token lifecycle
+- [ ] 🟡 Register UI → API → verify account.
+- [ ] 🟡 Login UI → session bootstrap.
+- [ ] 🟡 Verify/resend UI → token expiry/already-used states.
+- [ ] 🔴 Blocked/unverified và unauthorized state.
 
-Login, bootstrap bằng `/auth/me`, refresh, logout, logout-all; role routing và blocked/unverified states.
+## Sprint 06 — Role routing
 
-## Sprint 07 - Password lifecycle
+- [ ] 🔴 `USER` vào storefront/account.
+- [ ] 🔴 `BUSINESS + OWNER` vào Admin doanh nghiệp.
+- [ ] 🔴 `BUSINESS + member permissions` vào workspace giới hạn.
+- [ ] 🔴 `PLATFORM_ADMIN` vào Admin HUKI.
+- [ ] 🔴 Sai role/permission trả UI forbidden và backend `403`.
 
-Forgot, reset, change password; token expiry, password rules, không tiết lộ email tồn tại và invalidation session.
+## Sprint 07 — Provisioned Admin con login
 
-## Sprint 08 - Profile and session security
+- [ ] 🔴 Tài khoản được Owner tạo trực tiếp, không invitation.
+- [ ] 🔴 Đăng nhập bằng credential được cấp.
+- [ ] 🔴 `mustChangePassword = true` ở lần đăng nhập đầu.
+- [ ] 🔴 Đổi mật khẩu xong mới vào workspace.
+- [ ] 🔴 Tài khoản suspended không tạo được session mới.
 
-Xem/sửa profile; list sessions, revoke một hoặc tất cả; current-device marker và optimistic rollback.
+## Sprint 08 — Session tối thiểu
 
-**Phase DoD:** toàn bộ Identity browser API `VERIFIED`; auth E2E gồm success, invalid, expired, 401/403/429.
+- [ ] 🔴 Refresh/logout/logout-all.
+- [ ] 🟡 Profile cơ bản.
+- [ ] 🔴 Session expiration và 401 recovery.
 
+## Deferred
+
+`⚪ DEFERRED`: forgot/reset self-service, device management và session UI nâng cao. Owner reset credential cho Admin con thuộc Phase 06.
+
+## Phase DoD
+
+Năm persona được định tuyến đúng bằng backend thật; không thể nâng role/permission từ client; forced password change và negative RBAC test đạt.

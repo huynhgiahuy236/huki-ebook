@@ -1,20 +1,40 @@
-# Phase 07 - Seller & Business Workspace
+# Phase 07 — Admin Doanh Nghiệp Operations
 
-## Sprint 25 - Business onboarding
+**Persona:** Admin doanh nghiệp, Admin con doanh nghiệp
+**Status:** `🟡 PARTIAL` — seller dashboard/product/order có UI mock; backend có nhiều API nhưng permission granular chưa hoàn chỉnh.
 
-Register, view/update my business, application status/rejection reason và permission-aware navigation.
+## Sprint 25 — Business/store workspace
 
-## Sprint 26 - Store and seller orders
+- [ ] 🟡 Dashboard doanh nghiệp.
+- [ ] 🟡 Business registration/status/settings.
+- [ ] 🔴 Store list/create/settings.
+- [ ] 🔴 Workspace luôn khóa theo `businessId` hiện tại.
 
-Create/view/update/delete my store; seller orders list/detail và confirm/prepare/ship/deliver/cancel state machine.
+## Sprint 26 — Product operations
 
-## Sprint 27 - Members and invitations
+- [ ] 🟡 Product list/create/edit/media.
+- [ ] 🔴 Physical/digital/hybrid contract thật.
+- [ ] 🔴 Inventory, publish/hide/archive.
+- [ ] 🔴 `PRODUCT_*` và `INVENTORY_UPDATE` enforcement.
 
-Invite, accept, list/detail, role change, remove và leave; owner constraints và permission refresh.
+## Sprint 27 — Seller orders
 
-## Sprint 28 - Products and campaigns
+- [ ] 🟡 Seller order list.
+- [ ] 🔴 Seller order detail.
+- [ ] 🔴 Confirm/prepare/complete/cancel bằng workflow nội bộ.
+- [ ] 🔴 `ORDER_VIEW`, `ORDER_PROCESS`, `ORDER_CANCEL` tách riêng.
+- [ ] 🔴 Không cho xem/xử lý order thuộc business khác.
 
-Book CRUD, physical/digital, inventory, cover/file/preview upload, publish/hide/archive; seller promotion actions theo guard thực tế.
+## Sprint 28 — Owner/member integration
 
-**Phase DoD:** seller/business/member/product/order API `VERIFIED`; upload có progress/retry/validation.
+- [ ] 🔴 Owner xem toàn bộ chức năng.
+- [ ] 🔴 Admin con chỉ thấy menu/action được cấp.
+- [ ] 🔴 Empty/loading/error/403 và audit evidence.
 
+## Deferred
+
+`⚪ DEFERRED`: seller chat, campaigns, voucher/banner/flash sale, GHTK label/tracking và product correction/edge-case library không chặn happy case.
+
+## Phase DoD
+
+Owner và Admin con xử lý product/order đúng business scope; permission được backend enforcement và buyer nhìn thấy trạng thái order mới.

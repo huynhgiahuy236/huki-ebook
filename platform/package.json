@@ -4,6 +4,7 @@
   "description": "HUKI EBOOK - Backend Microservices",
   "private": true,
   "scripts": {
+    "env:check": "node scripts/check-env.mjs",
     "build": "npm run build:shared && npm run build:gateway && npm run build:identity && npm run build:business && npm run build:commerce && npm run build:shipping && npm run build:community && npm run build:promotion",
     "build:all": "npm run build",
     "build:shared": "tsc -p libs/shared/tsconfig.lib.json",

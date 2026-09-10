@@ -1,48 +1,47 @@
-# Web Screens Workspace
+# Web Screens — Quy tắc phối hợp
 
-Thư mục này là nguồn theo dõi chính thức cho 90 màn hình web HUKI.
+## Đọc trước khi nhận screen
 
-## Quy ước checkbox
+- Chỉ nhận screen có `Happy case = YES` và status `🔴 TODO` hoặc `🟡 PARTIAL`.
+- Trước khi code: ghi owner/ngày và đổi thành `🟢 IN_PROGRESS`.
+- Không sửa screen đang do người khác giữ.
+- Không mở lại `⚪ DEFERRED` nếu chưa cập nhật scope ở `PHASES-PLAN.md`.
+- UI mock không phải feature hoàn thành.
 
-- `- [ ] 🔴` — chưa đạt Definition of Done.
-- `- [x] ✅` — đã hoàn thành code, API thật, responsive, accessibility và test theo screen spec.
+## Status
 
-Không tích xanh khi mới có UI tĩnh. Nếu đang làm hoặc bị chặn, checkbox vẫn đỏ và ghi trạng thái chi tiết trong screen spec.
+| Ký hiệu | Dùng khi |
+|---|---|
+| `- [x] ✅ DONE` | Toàn bộ screen DoD đã được reviewer xác nhận |
+| `- [ ] 🟢 IN_PROGRESS` | Có owner đang thực hiện |
+| `- [ ] 🟡 PARTIAL` | Có UI/backend một phần, chưa integrated |
+| `- [ ] 🔴 TODO` | Happy case cần làm nhưng chưa có implementation đáng kể |
+| `⚪ DEFERRED` | Không phát triển trong happy case hiện tại |
+| `⛔ BLOCKED` | Không thể tiếp tục; có blocker/owner gỡ chặn |
 
-## Trạng thái chi tiết
+## Năm persona
 
-`PLANNED -> SPEC_WRITING -> DESIGN_APPROVED -> IMPLEMENTING -> REVIEW -> VERIFIED`
+- Guest: public browse và auth entry.
+- User/Buyer: account, address, cart, COD và orders của mình.
+- Admin doanh nghiệp: `BUSINESS + OWNER`, toàn quyền business.
+- Admin con: Owner tạo trực tiếp và cấp tập con `permissions[]`.
+- Admin HUKI: `PLATFORM_ADMIN`, approval/catalog/health.
 
-Chỉ `VERIFIED` mới được đổi thành `- [x] ✅` trong inventory. `BLOCKED` vẫn là `- [ ] 🔴` và phải có lý do.
+Admin con không có invitation. Tài khoản dùng credential tạm, bắt đổi mật khẩu lần đầu. UI phải ẩn/khóa action không được cấp nhưng backend vẫn phải trả `403` nếu gọi vượt quyền.
 
-## Files
+## Tracks độc lập
 
-- `SCREEN-INVENTORY.md`: checklist 90 màn hình.
-- `SCREEN-TEMPLATE.md`: template bắt buộc cho từng screen spec.
+Mỗi screen theo dõi `Spec`, `UI`, `API`, `Permission`, `UX states`, `Responsive/A11y`, `Tests`, `Review`. Tích xanh từng track khi có evidence; checkbox đầu screen chỉ xanh sau Review.
 
-## Owner
+## Handoff
 
-- `A`: Customer Experience — public, auth, buyer và community.
-- `B`: Business Operations — seller, admin và system.
-- `A+B`: quyết định shared architecture hoặc review chéo.
+1. Owner nhận việc và khóa track.
+2. Hoàn thành track, ghi evidence/test.
+3. Chuyển `REVIEW` và gắn reviewer.
+4. Reviewer chạy backend thật.
+5. Cập nhật API matrix và inventory.
+6. Chỉ reviewer chuyển `DONE`.
 
-Mỗi màn hình có một owner thực hiện và người còn lại review.
+## Deferred hiện tại
 
-## Quy trình đóng một screen
-
-1. Tạo spec từ `SCREEN-TEMPLATE.md`.
-2. Map API và xác nhận không gọi system API từ browser.
-3. Reviewer chuyển spec sang `DESIGN_APPROVED`.
-4. Implement route, UI, API, UX states và test.
-5. Chạy responsive/accessibility check.
-6. Reviewer chạy với backend thật.
-7. Cập nhật API matrix.
-8. Chuyển `VERIFIED`, sau đó mới đổi inventory thành `- [x] ✅`.
-
-## Definition of Done ngắn
-
-- Route, navigation, auth và role đúng.
-- API thật cùng request/response/error mapping đúng.
-- Loading, empty, success, error và retry đầy đủ.
-- Responsive, accessibility và test đạt.
-- Reviewer khác owner xác nhận.
+Community, chat, reviews, notification realtime, GHTK/shipment/delivery, online payment, promotion, refund/return, Wallet/reward và Reader/DRM.

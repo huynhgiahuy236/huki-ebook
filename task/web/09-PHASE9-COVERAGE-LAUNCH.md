@@ -1,20 +1,41 @@
-# Phase 09 - Coverage Closure, Quality & Launch
+# Phase 09 — Happy-case E2E & Release Gate
 
-## Sprint 33 - Endpoint audit
+**Persona:** tất cả
+**Status:** `🔴 TODO`
 
-Sinh lại controller snapshot, diff OpenAPI/client/matrix; tìm API thiếu client, screen, role hoặc test. Đóng toàn bộ drift.
+## Sprint 33 — Contract closure
 
-## Sprint 34 - Internal, callback and webhook tests
+- [ ] 🔴 Mọi API happy case có client function, persona, permission và test ID.
+- [ ] 🔴 Không còn happy-case operation `UNMAPPED` hoặc `PLANNED`.
+- [ ] 🔴 Browser bundle không gọi internal/webhook/callback.
 
-Integration test shipment from-order/cancel, internal voucher/apply/book-price, PayOS webhook và GHTK callback; chứng minh browser bundle không gọi chúng.
+## Sprint 34 — Cross-persona E2E
 
-## Sprint 35 - Non-functional and operations
+- [ ] 🔴 User đăng ký → business application.
+- [ ] 🔴 Admin HUKI approve business/store.
+- [ ] 🔴 Owner tạo/publish sách.
+- [ ] 🔴 Guest tìm thấy sách.
+- [ ] 🔴 Buyer checkout COD và xem order.
+- [ ] 🔴 Owner provision Admin con với permission tùy chọn.
+- [ ] 🔴 Admin con có `ORDER_VIEW/ORDER_PROCESS` xử lý được đơn.
+- [ ] 🔴 Admin con thiếu permission nhận `403` và không thấy action.
 
-Health/liveness/readiness probes; security, accessibility, performance, SEO, compatibility/load tests; observability và rollback.
+## Sprint 35 — Quality
 
-## Sprint 36 - UAT and launch
+- [ ] 🔴 Typecheck, lint, unit/component/integration/E2E đạt.
+- [ ] 🔴 Responsive, accessibility, security và performance happy path đạt.
+- [ ] 🔴 Session, permission revocation, idempotency và tenant isolation test đạt.
 
-UAT theo guest, buyer, seller owner/member, delivery, admin; production smoke, rollback rehearsal và ký duyệt ngoại lệ.
+## Sprint 36 — UAT
 
-**Final DoD:** mọi source handler/event được phân loại; `total_source = VERIFIED + SYSTEM_TESTED + N/A-APPROVED`; không yêu cầu tổng source handlers bằng tổng public OpenAPI operations; `UNMAPPED=0`, `PLANNED=0`, `IMPLEMENTED_NOT_VERIFIED=0`; tất cả quality/security/release gates đạt.
+- [ ] 🔴 UAT sign-off cho Guest, User, Owner, Admin con và Admin HUKI.
+- [ ] 🔴 Không còn critical/high trong happy case.
+- [ ] 🔴 Có rollback và smoke checklist.
 
+## Deferred không chặn release happy case
+
+Community, GHTK, PayOS/online payment, promotion, refund, delivery, realtime notification, Reader/DRM và các system screen mở rộng được theo dõi là `DEFERRED`, không cần giả lập là đã hoàn thành.
+
+## Final DoD
+
+Vertical slice năm persona chạy bằng backend thật; permission và tenant isolation có positive/negative evidence; mọi task happy case là `DONE` hoặc ngoại lệ được phê duyệt rõ ràng.

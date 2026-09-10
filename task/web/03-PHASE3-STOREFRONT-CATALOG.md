@@ -1,20 +1,39 @@
-# Phase 03 - Storefront, Catalog & Discovery
+# Phase 03 — Business Supply & Guest Storefront
 
-## Sprint 09 - Homepage merchandising
+**Persona:** Admin doanh nghiệp, Admin HUKI, Guest
+**Status:** `🟡 PARTIAL` — storefront và seller product có UI mock; chưa nối backend.
 
-Active banners, flash sales/items/prices và category tree; countdown theo server time, expired/empty/error states.
+## Sprint 09 — Nguồn cung tối thiểu
 
-## Sprint 10 - Book catalog and details
+- [ ] 🟡 User gửi business registration và xem trạng thái.
+- [ ] 🔴 Admin HUKI approve business.
+- [ ] 🔴 Owner tạo store.
+- [ ] 🔴 Admin HUKI approve store.
+- [ ] 🟡 Owner tạo sách, inventory và publish.
 
-Books pagination/filter/sort; detail theo slug và ID; physical/digital, inventory, price và metadata.
+## Sprint 10 — Guest catalog
 
-## Sprint 11 - Store discovery
+- [ ] 🟡 Home hiển thị sách thật.
+- [ ] 🟡 Books pagination/filter/sort.
+- [ ] 🟡 Book detail có giá, format và tồn kho.
+- [ ] 🔴 Search và category browsing.
 
-Store list/detail theo slug/ID, business public detail, store reviews; SEO, canonical URL và structured data.
+## Sprint 11 — Store discovery
 
-## Sprint 12 - Search and taxonomy
+- [ ] 🔴 Store list.
+- [ ] 🟡 Store detail theo slug/ID.
+- [ ] 🔴 Chỉ hiển thị store/book được duyệt và đang active.
 
-Full-text search, type filters, URL state, debounce/cancel; category/author/publisher browsing.
+## Sprint 12 — Cross-role verification
 
-**Phase DoD:** public read API liên quan `VERIFIED`; responsive, SEO và performance budget đạt.
+- [ ] 🔴 Sách chưa publish/đã suspend không xuất hiện cho Guest.
+- [ ] 🔴 Giá/tồn kho trên storefront khớp dữ liệu Owner cập nhật.
+- [ ] 🔴 SEO/canonical và responsive public pages.
 
+## Deferred
+
+`⚪ DEFERRED`: banner, flash sale, voucher, trang tác giả/NXB riêng, store reviews, audiobook và Ebook preview/DRM.
+
+## Phase DoD
+
+Một business/store đã được Admin HUKI duyệt có thể publish sách và Guest tìm thấy đúng dữ liệu qua API thật.

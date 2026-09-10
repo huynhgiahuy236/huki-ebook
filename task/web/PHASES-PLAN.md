@@ -1,95 +1,66 @@
-# Web Frontend - Master Phases Plan
+# Web Frontend — Happy-case Phases Plan
 
-## Mục tiêu
+## Status tổng
 
-Web responsive phục vụ guest, buyer, seller/business member, delivery operator và admin; đồng thời đóng coverage toàn bộ API platform.
+| Phase | Nhóm chính | Status | Kết quả cần bàn giao |
+|---|---|---|---|
+| 01 | Shared foundation | 🟢 IN_PROGRESS | Typed client, auth/session, permission contract |
+| 02 | Tất cả persona | 🟡 PARTIAL | Identity và role routing bằng backend thật |
+| 03 | Admin doanh nghiệp + Guest | 🟡 PARTIAL | Nguồn cung đã duyệt xuất hiện trên storefront |
+| 04 | User/Buyer | 🟡 PARTIAL | Checkout COD tạo đơn thật |
+| 05 | User/Buyer | 🟡 PARTIAL | Buyer xem đơn và lịch sử nội bộ |
+| 06 | Admin con doanh nghiệp | 🔴 TODO | Owner tạo tài khoản và cấp permission tùy chọn |
+| 07 | Admin doanh nghiệp/Admin con | 🟡 PARTIAL | Quản lý sản phẩm và xử lý đơn theo permission |
+| 08 | Admin HUKI | 🔴 TODO | Approval, catalog admin và health UI |
+| 09 | Tất cả persona | 🔴 TODO | E2E xuyên vai trò và release gate happy case |
 
-## Thứ tự triển khai
+`PARTIAL` chủ yếu phản ánh UI mock hoặc backend riêng lẻ; không phase nào ngoài backend runtime được coi là hoàn tất.
+
+## Dependency thực thi
 
 ```text
-P01 Foundation -> P02 Identity -> P03 Catalog -> P04 COD Checkout
-                                                   |
-                                                   v
-P09 Audit & Launch <- P08 Admin <- P06 Community <- P07 Seller <- P05 Buyer
+P01 Foundation
+ └─ P02 Identity/roles
+     ├─ P03 Business supply + Guest storefront
+     │   ├─ P04 Buyer COD checkout → P05 Buyer orders
+     │   └─ P07 Business operations
+     ├─ P06 Admin con permissions
+     └─ P08 Admin HUKI approvals
+
+P03 + P04 + P05 + P06 + P07 + P08 → P09 Cross-persona E2E
 ```
 
-Thứ tự ưu tiên MVP là Identity -> Catalog -> Cart/COD -> Buyer Orders -> Seller.
-Community làm sau Seller để không chặn luồng thương mại. P09 luôn làm cuối.
+## Persona ownership
 
-## MVP và phạm vi sau MVP
+| Persona | Phases | Quyền cốt lõi |
+|---|---|---|
+| Guest | P02, P03 | Public read, register/login |
+| User/Buyer | P02, P04, P05 | Cart/address/COD/order của chính mình |
+| Admin doanh nghiệp | P02, P03, P06, P07 | `BUSINESS + OWNER`, toàn quyền trong business |
+| Admin con doanh nghiệp | P02, P06, P07 | Tài khoản provision bởi Owner, quyền là tập con |
+| Admin HUKI | P02, P03, P08 | `PLATFORM_ADMIN`, duyệt và quản trị nền tảng |
 
-### MVP
+## Happy-case scope
 
-- Đăng ký, đăng nhập, profile và session.
-- Homepage, catalog, search, category, store và book detail.
-- Cart, address, shipping fee và checkout COD.
-- Buyer order list/detail/history/tracking/cancel.
-- Seller business/store/book và seller-order state machine.
-- Loading, empty, retry và lỗi 400/401/403/404/409/429.
+- Identity: register, verify, login, refresh, logout, me, forced password change.
+- Business: registration/status/approval, store create/approval.
+- Catalog: category, book, inventory, publish, public browse/search/detail.
+- Commerce: cart, address, checkout preview/confirm, COD, buyer/seller orders.
+- Membership: Owner tạo tài khoản con; granular permission; suspend/reset.
+- Admin: approvals, taxonomy/book administration, system health.
 
-### Sau MVP
+## Deferred
 
-- PayOS production, refund automation và reconciliation.
-- Forum, realtime chat, push notification và moderation đầy đủ.
-- Admin operations, load test sâu và coverage closure cho system APIs.
+Community cũ của P06, GHTK/shipping/delivery, online payment, promotion, refund/return, chat/reviews/notifications, Reader/DRM và Wallet/reward đều không chặn happy-case milestone.
 
-## Kiến trúc đề xuất
+## Permission model
 
-- Next.js App Router, TypeScript strict, responsive và SSR/SEO cho public pages.
-- TanStack Query cho server state; Zustand chỉ cho client state thực sự cần thiết.
-- React Hook Form + Zod; typed client sinh/đối chiếu từ OpenAPI.
-- API qua Gateway, refresh token single-flight, lỗi theo `err/`, response theo `res/`.
-- Route groups public/auth/account/seller/delivery/admin và RBAC cả server/client.
-- Socket client cho chat/notification với reconnect, dedupe và fallback.
-- MSW + component tests; Playwright cho critical E2E; contract drift test trong CI.
-- Web development chạy cố định ở `http://localhost:3100`; API Gateway ở `http://localhost:3000`.
-- Backend local đặt `CORS_ORIGIN=http://localhost:3100`.
+- Global: `USER`, `BUSINESS`, `PLATFORM_ADMIN`.
+- `OWNER` luôn có toàn quyền trong business.
+- Admin con nhận từ 1 đến toàn bộ permission; preset chức danh chỉ là gợi ý.
+- Frontend dùng permission để hiển thị/khóa UI; backend quyết định cuối cùng.
+- Mọi mutation kiểm tra `businessId`, membership active và permission.
 
-## Quyết định auth bắt buộc trong Phase 01
+## Release gate
 
-- Ưu tiên BFF của Next.js và `HttpOnly`, `Secure`, `SameSite` cookie để browser JavaScript không đọc refresh token.
-- Trước khi chốt, phải làm proof-of-concept login -> refresh -> logout với backend thật.
-- Nếu backend hiện tại chưa hỗ trợ cookie an toàn, ghi ADR và dùng Bearer-token adapter tạm thời; không trộn localStorage và cookie giữa các màn hình.
-- Refresh phải single-flight; SSR và client navigation dùng chung một session contract.
-
-## Chiến lược OpenAPI và typed client
-
-- Controller/guard/DTO là nguồn chuẩn; OpenAPI generated là input cho browser client, không phải bằng chứng duy nhất.
-- Không ép `211 handlers = 195 public OpenAPI operations`: health trùng, internal, webhook, callback và socket phải được phân loại riêng.
-- Phase 01 tạo API wrapper và types theo module trước. Chỉ generate toàn bộ client sau khi response schema liên quan đã được xác minh.
-- Mọi operation dành cho browser phải có response type, error mapping và test; system API không được đưa vào browser bundle.
-
-## Definition of Done cho mọi Sprint
-
-- Story và route hoạt động trên 360/768/1280+, keyboard accessible.
-- API thật đi qua typed client; không hard-code mock trong production path.
-- Có loading, empty, retry và xử lý 400/401/403/404/409/429 phù hợp.
-- Cache ownership/invalidation rõ; mutation có rollback hoặc refetch an toàn.
-- Unit/component test cho logic và E2E cho luồng quan trọng.
-- Dòng API liên quan đã cập nhật status, client function và test ID.
-- Internal/webhook/callback tuyệt đối không được mở thành browser client.
-
-## Release gates
-
-| Gate | Điều kiện |
-|---|---|
-| Contract | Mọi source handler/event được phân loại; browser operations khớp OpenAPI hoặc có drift ticket |
-| Functional | API trong Phase ở `VERIFIED`/`SYSTEM_TESTED` |
-| Security | RBAC, token, upload, XSS/CSRF review đạt |
-| Quality | Typecheck, lint, unit, integration, E2E đạt |
-| UX | Responsive, accessibility, error states đạt |
-| Release | Không còn critical/high; rollback và observability sẵn sàng |
-
-## “Dùng hết API” theo đúng loại
-
-| Loại | Cách hoàn thành |
-|---|---|
-| Public/user/seller/admin | UI/workflow + E2E/contract verification |
-| Upload/download | Progress, retry, validation và test |
-| WebSocket | Subscribe/emit/reconnect/dedupe test |
-| Webhook/callback | Backend integration test; browser không gọi trực tiếp |
-| Internal service API | Service integration/contract test |
-| Health/liveness/readiness | Deployment probe hoặc ops dashboard test |
-
-CI phải diff endpoint snapshot. Endpoint mới làm coverage gate thất bại cho tới khi có owner, Sprint, consumer và test plan.
-
+Happy case chỉ `DONE` khi năm persona chạy xuyên suốt bằng backend thật, Admin con bị từ chối đúng với quyền không được cấp, COD tạo đơn idempotent và các quality gate đạt. Hạng mục `DEFERRED` không chặn milestone.

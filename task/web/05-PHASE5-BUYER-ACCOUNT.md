@@ -1,20 +1,37 @@
-# Phase 05 - Buyer Account, Orders & Notifications
+# Phase 05 — Buyer Account & Orders
 
-## Sprint 17 - Buyer orders
+**Persona:** User/Buyer
+**Status:** `🟡 PARTIAL` — profile/order detail có UI mock; order list/API chưa hoàn chỉnh.
 
-Order list/detail, history timeline, tracking, cancel và eligibility; đồng bộ payment/refund state.
+## Sprint 17 — Account tối thiểu
 
-## Sprint 18 - Shipment tracking
+- [ ] 🟡 Account overview/profile.
+- [ ] 🟡 Address CRUD.
+- [ ] 🔴 Chỉ đọc/sửa dữ liệu của chính user.
 
-Shipment list/detail và tracking-number lookup; carrier timeline, delayed/failed/delivered states.
+## Sprint 18 — Buyer orders
 
-## Sprint 19 - Notification center
+- [ ] 🔴 Order list thật.
+- [ ] 🟡 Order detail.
+- [ ] 🔴 Internal order history timeline.
+- [ ] 🔴 Empty/loading/error/not-found.
 
-List/detail/read/delete, read-all, clear-all, unread badge, settings, register/remove device token; socket reconnect/dedupe.
+## Sprint 19 — Order authorization
 
-## Sprint 20 - Account resilience
+- [ ] 🔴 User khác không xem được đơn.
+- [ ] 🔴 Admin con chỉ xem order thuộc business và có `ORDER_VIEW`.
+- [ ] 🔴 Trạng thái buyer thấy khớp trạng thái seller cập nhật.
 
-Deep link notification tới order/chat/review, cross-tab sync, cache/offline-read và accessibility polish.
+## Sprint 20 — E2E
 
-**Phase DoD:** buyer order/shipment/notification REST và socket contracts `VERIFIED`.
+- [ ] 🔴 Checkout success deep-link vào order detail.
+- [ ] 🔴 Refresh trang vẫn tải được order từ backend.
+- [ ] 🔴 Responsive/accessibility/test evidence.
 
+## Deferred
+
+`⚪ DEFERRED`: carrier tracking/GHTK, cancel automation, refund/return, review, chat, notification center và offline cache.
+
+## Phase DoD
+
+Buyer xem được danh sách, chi tiết và lịch sử nội bộ của đơn COD vừa tạo; ownership/RBAC được backend kiểm tra.

@@ -32,7 +32,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.PORT || 3001;
+  const port = process.env.IDENTITY_SERVICE_PORT || 3001;
   await app.listen(port);
 
   console.log(`🚀 Identity Service running on: http://localhost:${port}`);

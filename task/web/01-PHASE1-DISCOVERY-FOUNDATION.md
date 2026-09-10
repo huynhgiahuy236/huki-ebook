@@ -1,36 +1,43 @@
-# Phase 01 - Discovery, Contracts & Foundation
+# Phase 01 — Shared Foundation
 
-**Mục tiêu:** khóa phạm vi API và tạo nền tảng tích hợp nhất quán.
+**Persona:** tất cả
 
-## Sprint 01 - Endpoint snapshot
+**Status:** `🟢 IN_PROGRESS`
+**Mục tiêu:** frontend có nền API/auth/permission thật để các persona không tiếp tục phát triển trên mock.
 
-- Quét controller, method/path, guard, role, DTO và socket gateway.
-- So inventory 211 HTTP handlers + 10 WebSocket events với 195 public OpenAPI operations; tạo drift report theo loại thay vì ép hai tổng bằng nhau.
-- Phân loại `BROWSER`, `INTERNAL`, `WEBHOOK`, `CALLBACK`, `HEALTH`, `SOCKET`.
-- Tạo một dòng chi tiết cho từng endpoint/event; gán owner, screen/flow và test strategy.
+## Sprint 01 — Contract snapshot
 
-**DoD:** mọi handler/event trong mã nguồn đều được phân loại, browser operations khớp OpenAPI và `UNMAPPED=0`.
+- [ ] 🟡 Phân loại 211 HTTP handlers và 10 WebSocket inbound events.
+- [ ] 🔴 Snapshot machine-readable theo method/path, guard, role và DTO.
+- [ ] 🔴 Gắn consumer, flow, client function và test ID cho API happy case.
+- [ ] 🔴 Đạt `UNMAPPED = 0` trong phạm vi happy case.
 
-## Sprint 02 - Architecture and design system
+## Sprint 02 — Typed API client
 
-- Next.js/TypeScript strict, layouts public/account/seller/admin/delivery.
-- Web chạy port `3100`; API Gateway chạy port `3000`; kiểm tra CORS với `CORS_ORIGIN=http://localhost:3100`.
-- Tokens, typography, responsive grid, theme và base components cần cho Identity/Catalog; Storybook mở rộng dần, không chặn MVP.
-- Accessibility baseline: focus, keyboard, label, contrast, reduced motion.
+- [ ] 🔴 Client dùng `NEXT_PUBLIC_API_BASE_URL` và Gateway `/api/v1`.
+- [ ] 🔴 Chuẩn hóa response envelope, pagination và error code.
+- [ ] 🔴 Abort/retry, idempotency key và request correlation.
+- [ ] 🔴 Không export internal/webhook/callback vào browser bundle.
 
-## Sprint 03 - Typed API platform
+## Sprint 03 — Auth/session platform
 
-- Tạo API wrapper và types theo module; chỉ generate full client khi response schema liên quan đã verified.
-- Response envelope, pagination và error mapping dùng chung.
-- Query keys, cache, abort/retry, idempotency, multipart và socket client.
-- Refresh single-flight; logging không lộ token/PII.
-- Làm auth proof-of-concept với backend thật và ghi ADR chọn BFF/HttpOnly cookie hoặc Bearer adapter tạm thời.
-- Không trộn cookie và localStorage; internal/webhook/callback không được xuất vào browser client.
+- [ ] 🔴 Login → `/auth/me` → refresh single-flight → logout bằng backend thật.
+- [ ] 🔴 Chốt BFF/HttpOnly cookie hoặc ghi ADR cho Bearer adapter tạm thời.
+- [ ] 🔴 Route guard cho Guest, User, Business và Platform Admin.
+- [ ] 🔴 Session contract chứa business membership và permissions cần cho UI.
 
-## Sprint 04 - Test, security and CI/CD
+## Sprint 04 — Permission foundation và quality
 
-- Unit/component/integration/E2E, MSW và seeded accounts theo role.
-- CSP, CSRF decision, secure token/cookie strategy, env validation.
-- Preview deployment, bundle/a11y/performance budget và coverage-drift gate.
+- [ ] 🔴 Chốt permission catalog cho product/order/store/member/finance.
+- [ ] 🔴 Helper `can(permission, businessId)` dùng thống nhất.
+- [ ] 🔴 Forbidden state và xử lý `403`.
+- [ ] 🟡 Next.js typecheck/build đang đạt.
+- [ ] 🔴 Frontend test/E2E và integration blockers được xử lý.
 
-**Phase DoD:** pipeline xanh; local web/API không xung đột port; auth proof-of-concept pass; contract snapshot và typed API wrapper dùng được cho Phase sau.
+## Không thuộc Phase
+
+`⚪ DEFERRED`: socket Community, GHTK callback, PayOS webhook và production hardening không cần để đóng foundation happy case.
+
+## Phase DoD
+
+Typed client và auth POC chạy qua backend thật; permission contract được cả frontend/backend thống nhất; ít nhất `AUT-001 Login` có test evidence.

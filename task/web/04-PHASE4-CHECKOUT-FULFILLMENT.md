@@ -1,20 +1,38 @@
-# Phase 04 - Cart, Checkout, Payment & Shipping
+# Phase 04 — Buyer Cart & COD Checkout
 
-## Sprint 13 - Cart
+**Persona:** User/Buyer
+**Status:** `🟡 PARTIAL` — Cart/Checkout/Success có UI mock; chưa tạo đơn thật.
 
-Get/add/update/remove/clear cart; optimistic rollback; hết hàng, đổi giá, digital/physical và multi-store.
+## Sprint 13 — Cart
 
-## Sprint 14 - Address, shipping fee and checkout
+- [ ] 🟡 Get/add/update/remove/clear cart.
+- [ ] 🔴 Kiểm tra tồn kho và thay đổi giá.
+- [ ] 🔴 Empty/loading/error và optimistic rollback.
 
-CRUD địa chỉ, tính phí ship, checkout preview/confirm; voucher lookup/validate, breakdown và chống double submit.
+## Sprint 14 — Address và checkout preview
 
-## Sprint 15 - COD completion and PayOS preparation
+- [ ] 🟡 Address list/create/edit.
+- [ ] 🔴 Chọn địa chỉ nhận hàng.
+- [ ] 🔴 Checkout preview qua API thật.
+- [ ] 🔴 Phí giao hàng tạm tính nội bộ, không gọi GHTK.
 
-COD là payment path bắt buộc của MVP. Chuẩn bị UI state và adapter cho initiate, redirect/QR, poll status, return/cancel và buyer refund nhưng không chặn MVP khi thiếu PayOS credential. PayOS webhook chỉ backend gọi và chỉ chuyển `SYSTEM_TESTED` khi có chữ ký/integration test hợp lệ.
+## Sprint 15 — COD confirm
 
-## Sprint 16 - COD checkout hardening
+- [ ] 🟡 COD là payment method duy nhất đang mở.
+- [ ] 🔴 Checkout confirm và order result bằng backend thật.
+- [ ] 🔴 Idempotency chống double submit.
+- [ ] 🔴 Xử lý out-of-stock, price conflict, timeout và retry-safe.
 
-E2E COD, invalid voucher, inventory race, timeout/retry-safe và double-submit. Online-payment E2E cùng reconciliation callback chậm chuyển sang post-MVP nếu môi trường PayOS chưa sẵn sàng.
+## Sprint 16 — E2E
 
-**Phase DoD MVP:** cart/address/fee/COD checkout API `VERIFIED`; PayOS được phép `ENV_BLOCKED` với adapter/UI state và ticket rõ ràng. Khi bật online payment, webhook phải đạt `SYSTEM_TESTED`.
+- [ ] 🔴 Book detail → cart → address → COD → success.
+- [ ] 🔴 Giỏ được clear đúng sau khi backend xác nhận.
+- [ ] 🔴 Không tạo hai đơn khi retry.
 
+## Deferred
+
+`⚪ DEFERRED`: GHTK/Grab/SPX, shipping callback, PayOS/VNPay/MoMo, voucher, refund và online reconciliation.
+
+## Phase DoD
+
+Buyer tạo đúng một đơn COD bằng backend thật; tổng tiền và inventory được server xác nhận; không phụ thuộc hãng vận chuyển.
