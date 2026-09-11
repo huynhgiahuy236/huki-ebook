@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
-import "./legacy.css";
+import "./ui.css";
 
 export const metadata: Metadata = {
   title: {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description: "Nền tảng khám phá, mua bán và kết nối cộng đồng sách HUKI.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="vi" className="h-full antialiased" suppressHydrationWarning>
       <head>

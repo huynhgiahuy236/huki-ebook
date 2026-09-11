@@ -1,5 +1,5 @@
-import LegacyAppClient from "../legacy-app-client";
+import UiAppClient from "../ui-app-client";
 
-export default function LegacyRoutePage() {
-  return <LegacyAppClient />;
+export default function UiRoutePage() {
+  return <UiAppClient />;
 }
