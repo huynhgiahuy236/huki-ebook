@@ -191,6 +191,13 @@ media/
 *.svg
 !docs/**/*.svg
 
+# Web UI assets are source-controlled application fixtures.
+!web/public/
+!web/public/banners/
+!web/public/banners/*.jpg
+!web/public/books/
+!web/public/books/Con_duong_phia_truoc__Bill_Gates.pdf
+
 # ============================================
 # Secrets - NEVER COMMIT
 # ============================================
