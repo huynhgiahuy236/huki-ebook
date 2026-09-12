@@ -2,7 +2,7 @@
 
 ## 1. Việc đang tập trung
 
-`Phase 01` và `Phase 02` đã `✅ DONE`: typed API client, session/auth thật, permission contract, role routing, RBAC, register/verify OTP, forced password change (`mustChangePassword`), logout/profile.
+`Phase 01` và `Phase 02` đã `✅ DONE`. `Phase 03` đang `🟡 READY_FOR_REVIEW`: implementation và automated quality gates đã đạt, chờ reviewer chạy E2E backend thật.
 
 | Hạng mục | Status | Việc tiếp theo |
 |---|---|---|
@@ -12,6 +12,7 @@
 | Auth browser integration | ✅ DONE | Login → `/auth/me` → refresh → logout |
 | Granular business permission | ✅ DONE | Permission catalog và helper `can()` enforcement |
 | Phase 02 Identity & RBAC | ✅ DONE | Full identity flow, role routing, forced password change, session state |
+| Phase 03 Storefront & Catalog | 🟡 READY_FOR_REVIEW | Reviewer chạy E2E business → store → product → Guest |
 
 ## 2. Happy case duy nhất
 

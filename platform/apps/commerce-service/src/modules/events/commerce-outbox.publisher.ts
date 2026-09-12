@@ -45,11 +45,18 @@ export class CommerceOutboxPublisher
     if (this.publishing) return;
     this.publishing = true;
     try {
-      const events = await this.prisma.outboxEvent.findMany({
-        where: { status: 'PENDING' },
-        orderBy: { createdAt: 'asc' },
-        take: 50,
-      });
+      let events: any[] = [];
+      try {
+        events = await this.prisma.outboxEvent.findMany({
+          where: { status: 'PENDING' },
+          orderBy: { createdAt: 'asc' },
+          take: 50,
+        });
+      } catch (dbError) {
+        this.logger.warn('Transient DB query error in outbox publisher, will retry next interval', dbError instanceof Error ? dbError.message : String(dbError));
+        return;
+      }
+
       for (const row of events) {
         const claimed = await this.prisma.outboxEvent.updateMany({
           where: { id: row.id, status: 'PENDING' },
@@ -83,6 +90,8 @@ export class CommerceOutboxPublisher
           );
         }
       }
+    } catch (err) {
+      this.logger.error('Unexpected error in publishPending', err);
     } finally {
       this.publishing = false;
     }

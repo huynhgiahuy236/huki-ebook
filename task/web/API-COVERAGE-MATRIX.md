@@ -31,12 +31,12 @@
 | Forced password change | Admin con | P02/P06 | ✅ DONE | One-time credential test |
 | Member list/detail/suspend/reset | Owner | P06 | 🔴 TODO | Tenant isolation |
 | Granular permission update | Owner | P06 | 🔴 TODO | Grant/revoke + audit |
-| Business register/my/status | Owner candidate | P03/P07 | 🟡 PARTIAL | Ownership E2E |
-| Business approve/reject | Admin HUKI | P08 | 🔴 TODO | `PLATFORM_ADMIN` |
-| Store public/my/create/update | Guest/Owner | P03/P07 | 🟡 PARTIAL | `STORE_VIEW/STORE_UPDATE` |
-| Store approve/reject | Admin HUKI | P08 | 🔴 TODO | `PLATFORM_ADMIN` |
-| Books public CRUD/inventory/publish | Guest/Business | P03/P07 | 🟡 PARTIAL | `PRODUCT_*`, `INVENTORY_UPDATE` |
-| Category/search | Guest/Admin HUKI | P03/P08 | 🔴 TODO | Public read/admin mutation |
+| Business register/my/status | Owner candidate | P03/P07 | 🟡 READY_FOR_REVIEW | Ownership E2E |
+| Business approve/reject | Admin HUKI | P03/P08 | 🟡 READY_FOR_REVIEW | `PLATFORM_ADMIN` |
+| Store public/my/create/update | Guest/Owner | P03/P07 | 🟡 READY_FOR_REVIEW | `STORE_VIEW/STORE_UPDATE` |
+| Store approve/reject | Admin HUKI | P03/P08 | 🟡 READY_FOR_REVIEW | `PLATFORM_ADMIN` |
+| Books public CRUD/inventory/publish | Guest/Business | P03/P07 | 🟡 READY_FOR_REVIEW | `PRODUCT_*`, `INVENTORY_UPDATE` |
+| Category/search | Guest/Admin HUKI | P03/P08 | 🟡 READY_FOR_REVIEW | Public read/admin mutation |
 | Cart | Buyer | P04 | 🟡 PARTIAL | User ownership |
 | Address CRUD | Buyer | P04/P05 | 🟡 PARTIAL | User ownership |
 | Checkout preview/confirm COD | Buyer | P04 | 🔴 TODO | Idempotency/inventory |

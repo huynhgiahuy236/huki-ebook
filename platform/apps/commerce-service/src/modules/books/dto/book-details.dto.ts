@@ -59,4 +59,9 @@ export class DigitalBookDetailsDto {
   @IsOptional()
   @IsBoolean()
   allowDownload?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  drmEnabled?: boolean;
 }

@@ -27,7 +27,16 @@ describe('BooksService (Prisma)', () => {
     } as any);
 
     expect(prisma.book.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ orderBy: { createdAt: 'desc' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ status: 'PUBLISHED' }),
+        orderBy: { createdAt: 'desc' },
+      }),
     );
+  });
+
+  it('hides an unpublished book from a guest', async () => {
+    prisma.book.findUnique.mockResolvedValue({ id: 'draft', status: 'DRAFT', ownerUserId: 'owner' });
+
+    await expect(service.findOne('draft')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

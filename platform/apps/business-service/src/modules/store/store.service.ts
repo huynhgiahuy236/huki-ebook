@@ -85,6 +85,8 @@ export class StoreService {
       throwNotFound(ErrorCode.STORE_NOT_FOUND);
     }
 
+    this.ensurePublicStore(store);
+
     return store;
   }
 
@@ -105,6 +107,8 @@ export class StoreService {
     if (!store) {
       throwNotFound(ErrorCode.STORE_NOT_FOUND);
     }
+
+    this.ensurePublicStore(store);
 
     return store;
   }
@@ -132,15 +136,22 @@ export class StoreService {
     search?: string;
     page?: number;
     limit?: number;
-  }) {
+  }, includeNonPublic = false) {
     const { status, search, page = 1, limit = 20 } = filters;
 
     const where: any = {
       deletedAt: null,
-      status: StoreStatus.APPROVED,
+      ...(!includeNonPublic && {
+        status: StoreStatus.APPROVED,
+        isActive: true,
+        business: {
+          status: 'APPROVED',
+          deletedAt: null,
+        },
+      }),
     };
 
-    if (status) {
+    if (includeNonPublic && status) {
       where.status = status;
     }
 
@@ -228,6 +239,17 @@ export class StoreService {
   }
 
   // ==================== HELPERS ====================
+  private ensurePublicStore(store: any) {
+    if (
+      store.deletedAt ||
+      !store.isActive ||
+      store.status !== StoreStatus.APPROVED ||
+      store.business?.status !== 'APPROVED'
+    ) {
+      throwNotFound(ErrorCode.STORE_NOT_FOUND);
+    }
+  }
+
   private async checkStorePermission(
     businessId: string,
     userId: string,

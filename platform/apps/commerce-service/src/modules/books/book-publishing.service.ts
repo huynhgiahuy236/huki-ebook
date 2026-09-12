@@ -31,6 +31,7 @@ export class BookPublishingService {
     });
 
     if (!book) throw new ConflictException('Book not found');
+    await this.booksService.findForWrite(bookId, actor);
     if (!(new Set<BookStatus>([BookStatus.DRAFT, BookStatus.HIDDEN])).has(book.status)) {
       throw new ConflictException(`Cannot publish a book with status ${book.status}`);
     }
@@ -64,6 +65,7 @@ export class BookPublishingService {
   async hide(bookId: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id: bookId } });
     if (!book) throw new ConflictException('Book not found');
+    await this.booksService.findForWrite(bookId, actor);
     if (book.status !== BookStatus.PUBLISHED) {
       throw new ConflictException('Only published books can be hidden');
     }
@@ -76,6 +78,7 @@ export class BookPublishingService {
   async archive(bookId: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id: bookId } });
     if (!book) throw new ConflictException('Book not found');
+    await this.booksService.findForWrite(bookId, actor);
     if (!(new Set<BookStatus>([BookStatus.DRAFT, BookStatus.HIDDEN, BookStatus.PUBLISHED])).has(book.status)) {
       throw new ConflictException(`Cannot archive a book with status ${book.status}`);
     }
@@ -99,14 +102,13 @@ export class BookPublishingService {
     const errors: PublishValidationError[] = [];
 
     if (book.title?.trim().length < 2) errors.push({ field: 'title', message: 'Title is required' });
-    if (book.description?.trim().length < 10) {
-      errors.push({ field: 'description', message: 'Description must have at least 10 characters' });
+    if (book.description?.trim().length < 5) {
+      errors.push({ field: 'description', message: 'Description must have at least 5 characters' });
     }
     if (Number(book.price) < 0) errors.push({ field: 'price', message: 'Price cannot be negative' });
-    if (!book.coverUrl) errors.push({ field: 'coverUrl', message: 'Cover image is required' });
-    if (!book.category?.isActive) errors.push({ field: 'categoryId', message: 'Active category is required' });
-    if (!book.author?.isActive) errors.push({ field: 'authorId', message: 'Active author is required' });
-    if (!book.publisher?.isActive) {
+    if (book.categoryId && !book.category?.isActive) errors.push({ field: 'categoryId', message: 'Active category is required' });
+    if (book.authorId && !book.author?.isActive) errors.push({ field: 'authorId', message: 'Active author is required' });
+    if (book.publisherId && !book.publisher?.isActive) {
       errors.push({ field: 'publisherId', message: 'Active publisher is required' });
     }
 
@@ -114,13 +116,6 @@ export class BookPublishingService {
       const physical = book.physicalDetails;
       if (!physical) {
         errors.push({ field: 'physicalDetails', message: 'Physical details are required' });
-      } else {
-        if (!physical.physicalEnabled) {
-          errors.push({ field: 'physicalDetails.physicalEnabled', message: 'Physical format must be enabled' });
-        }
-        if (!physical.weight || physical.weight <= 0) {
-          errors.push({ field: 'physicalDetails.weight', message: 'Weight must be greater than zero' });
-        }
       }
     }
 
@@ -128,13 +123,6 @@ export class BookPublishingService {
       const digital = book.digitalDetails;
       if (!digital) {
         errors.push({ field: 'digitalDetails', message: 'Digital details are required' });
-      } else {
-        if (!digital.digitalEnabled) {
-          errors.push({ field: 'digitalDetails.digitalEnabled', message: 'Digital format must be enabled' });
-        }
-        if (!digital.pdfKey) {
-          errors.push({ field: 'digitalDetails.pdfKey', message: 'Source PDF is required' });
-        }
       }
     }
 

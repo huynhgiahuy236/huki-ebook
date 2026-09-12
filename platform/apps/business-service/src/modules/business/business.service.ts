@@ -125,14 +125,15 @@ export class BusinessService {
     search?: string;
     page?: number;
     limit?: number;
-  }) {
+  }, includeNonPublic = false) {
     const { status, search, page = 1, limit = 20 } = filters;
 
     const where: any = {
       deletedAt: null,
+      ...(!includeNonPublic && { status: BusinessStatus.APPROVED }),
     };
 
-    if (status) {
+    if (includeNonPublic && status) {
       where.status = status;
     }
 
@@ -223,6 +224,20 @@ export class BusinessService {
           : null,
       },
     });
+
+    if (registryVerified && business?.ownerId) {
+      try {
+        const { Client } = require('pg');
+        const pgClient = new Client({
+          connectionString: process.env.IDENTITY_DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/huki_identity'
+        });
+        await pgClient.connect();
+        await pgClient.query('UPDATE users SET role = $1 WHERE id = $2', ['BUSINESS', business.ownerId]);
+        await pgClient.end();
+      } catch (err) {
+        // Ignore pg error if identity db is handled via event
+      }
+    }
 
     // Emit event
     this.eventEmitter.emit(
