@@ -6,7 +6,7 @@ import StoreFooter from './StoreFooter';
 import { useCart } from '../../context/CartContext';
 
 export const LayoutContext = createContext({
-  isSidebarCollapsed: false,
+  isSidebarCollapsed: true,
   setIsSidebarCollapsed: () => {},
   isMobileOpen: false,
   setIsMobileOpen: () => {},
@@ -17,7 +17,7 @@ export const useLayout = () => useContext(LayoutContext);
 
 export default function AppLayout() {
   const { totalItemsCount } = useCart();
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const toggleSidebar = () => {
@@ -99,14 +99,17 @@ export default function AppLayout() {
             <span>Khám phá</span>
           </NavLink>
 
-          <span
-            className="flex flex-col items-center gap-0.5 text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] opacity-40 cursor-not-allowed"
-            aria-disabled="true"
-            title="Tạm khóa — ngoài happy case hiện tại"
+          <NavLink
+            to="/library"
+            className={({ isActive }) =>
+              `flex flex-col items-center gap-0.5 text-[10px] font-bold transition-colors ${
+                isActive ? 'text-[var(--theme-primary,#003b2b)]' : 'text-[var(--theme-text-muted,#6b7280)] hover:text-[var(--theme-text,#17201f)]'
+              }`
+            }
           >
             <span className="material-symbols-outlined text-[20px]">auto_stories</span>
-            <span>Tạm khóa</span>
-          </span>
+            <span>Tủ sách</span>
+          </NavLink>
 
           <NavLink
             to="/cart"

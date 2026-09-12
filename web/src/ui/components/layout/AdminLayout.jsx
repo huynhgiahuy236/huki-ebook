@@ -1,17 +1,79 @@
-import React, { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import UserAvatar from '../common/UserAvatar';
+import { businessApi } from '../../api/businessApi';
+import { catalogApi } from '../../api/catalogApi';
 
 export default function AdminLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // Số lượng thực tế lấy từ Database Gateway
+  const [dbStats, setDbStats] = useState({
+    publishersCount: 0,
+    pendingPublishersCount: 0,
+    booksCount: 0,
+    drmBooksCount: 0,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchNavStats = async () => {
+      try {
+        const [bizRes, booksRes] = await Promise.allSettled([
+          businessApi.getAllBusinesses(),
+          catalogApi.getPublicBooks({ limit: 100 })
+        ]);
+
+        let pubCount = 0;
+        let pendingCount = 0;
+        let bookCount = 0;
+        let drmCount = 0;
+
+        if (bizRes.status === 'fulfilled' && bizRes.value?.success && Array.isArray(bizRes.value.data)) {
+          const list = bizRes.value.data;
+          pubCount = list.length;
+          pendingCount = list.filter(b => b.status === 'PENDING_APPROVAL').length;
+        }
+
+        if (booksRes.status === 'fulfilled' && booksRes.value?.success && Array.isArray(booksRes.value.data)) {
+          const books = booksRes.value.data;
+          bookCount = books.length;
+          drmCount = books.filter(b => b.format === 'DIGITAL' || b.format === 'BOTH' || b.digitalDetails?.drmEnabled).length;
+        }
+
+        if (isMounted) {
+          setDbStats({
+            publishersCount: pubCount,
+            pendingPublishersCount: pendingCount,
+            booksCount: bookCount,
+            drmBooksCount: drmCount,
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load admin nav stats from DB', err);
+      }
+    };
+
+    fetchNavStats();
+    return () => { isMounted = false; };
+  }, [location.pathname]);
+
+  const adminName = user?.fullName || user?.name || (user?.role === 'PLATFORM_ADMIN' ? 'Super Admin' : 'Admin Trưởng Sàn');
 
   const routeMap = {
     '/admin': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/dashboard': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
+    '/admin/leads': { parent: 'Đối Tác & NXB', title: 'Duyệt Đăng Ký Mới' },
     '/admin/publishers': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
     '/admin/companies': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
-    '/admin/leads': { parent: 'Đối Tác & NXB', title: 'Duyệt Đăng Ký Mới' },
+    '/admin/businesses': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
+    '/admin/stores': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
     '/admin/tasks': { parent: 'Nội Dung & Bản Quyền', title: 'Hàng Chờ Kiểm Duyệt Sách' },
     '/admin/moderation': { parent: 'Nội Dung & Bản Quyền', title: 'Hàng Chờ Kiểm Duyệt Sách' },
     '/admin/drm': { parent: 'Nội Dung & Bản Quyền', title: 'Kho Bản Quyền DRM' },
@@ -40,46 +102,81 @@ export default function AdminLayout() {
     {
       group: 'ĐỐI TÁC & NXB',
       items: [
-        { label: 'Quản Lý Nhà Xuất Bản', to: '/admin/publishers', icon: 'domain', count: '1.024' },
-        { label: 'Duyệt Đăng Ký Mới', to: '/admin/leads', icon: 'group_add', count: '18', badgeColor: 'bg-amber-500' }
+        { 
+          label: 'Duyệt Đăng Ký Mới', 
+          to: '/admin/leads', 
+          icon: 'how_to_reg',
+          count: dbStats.pendingPublishersCount > 0 
+            ? String(dbStats.pendingPublishersCount) 
+            : undefined,
+          badgeColor: 'bg-amber-500 text-white'
+        },
+        { 
+          label: 'Quản Lý Nhà Xuất Bản', 
+          to: '/admin/publishers', 
+          icon: 'domain',
+          count: dbStats.publishersCount > 0 
+            ? String(dbStats.publishersCount) 
+            : undefined,
+          badgeColor: 'bg-emerald-600 text-white'
+        }
       ]
     },
     {
       group: 'NỘI DUNG & BẢN QUYỀN',
       items: [
-        { label: 'Hàng Chờ Kiểm Duyệt', to: '/admin/tasks', icon: 'verified', disabled: true },
-        { label: 'Kho Bản Quyền DRM', to: '/admin/drm', icon: 'security', disabled: true }
+        { 
+          label: 'Hàng Chờ Kiểm Duyệt', 
+          to: '/admin/tasks', 
+          icon: 'verified',
+          count: dbStats.booksCount > 0 ? String(dbStats.booksCount) : undefined,
+          badgeColor: 'bg-indigo-600'
+        },
+        { 
+          label: 'Kho Bản Quyền DRM', 
+          to: '/admin/drm', 
+          icon: 'security',
+          count: dbStats.drmBooksCount > 0 ? String(dbStats.drmBooksCount) : undefined,
+          badgeColor: 'bg-purple-600'
+        }
       ]
     },
     {
       group: 'ĐỘC GIẢ & HỘI VIÊN',
       items: [
-        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups', disabled: true }
+        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' }
       ]
     },
     {
       group: 'TÀI CHÍNH & ĐƠN HÀNG',
       items: [
-        { label: 'Đối Soát Doanh Thu', to: '/admin/deals', icon: 'payments', disabled: true },
-        { label: 'Báo Cáo Phân Tích', to: '/admin/reports', icon: 'monitoring', disabled: true }
+        { label: 'Đối Soát Doanh Thu', to: '/admin/deals', icon: 'payments' },
+        { label: 'Báo Cáo Phân Tích', to: '/admin/reports', icon: 'monitoring' }
       ]
     },
     {
       group: 'MARKETING & SỰ KIỆN',
       items: [
-        { label: 'Banner & Flash Deal', to: '/admin/automation', icon: 'campaign', disabled: true },
-        { label: 'Lịch Trình Toàn Sàn', to: '/admin/calendar', icon: 'calendar_month', disabled: true }
+        { label: 'Banner & Flash Deal', to: '/admin/automation', icon: 'campaign' },
+        { label: 'Lịch Trình Toàn Sàn', to: '/admin/calendar', icon: 'calendar_month' }
       ]
     },
     {
       group: 'HẠ TẦNG KỸ THUẬT',
       items: [
-        { label: 'Cổng Tích Hợp DRM', to: '/admin/integrations', icon: 'hub', disabled: true },
-        { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings', disabled: true },
-        { label: 'Hỗ Trợ & Khiếu Nại', to: '/admin/support', icon: 'support_agent', disabled: true }
+        { label: 'Cổng Tích Hợp DRM', to: '/admin/integrations', icon: 'hub' },
+        { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings' },
+        { label: 'Hỗ Trợ & Khiếu Nại', to: '/admin/support', icon: 'support_agent' }
       ]
     }
   ];
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/admin/tasks?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
 
   return (
     <div className="h-screen w-full bg-white text-[#1E293B] flex flex-col font-sans antialiased overflow-hidden selection:bg-[#00875A] selection:text-white">
@@ -132,16 +229,16 @@ export default function AdminLayout() {
           </Link>
 
           {/* Global Search Bar */}
-          <div className="relative hidden md:block w-64 lg:w-80 ml-2 opacity-50" title="Tạm khóa — tìm kiếm kiểm duyệt ngoài happy case hiện tại">
+          <form onSubmit={handleSearch} className="relative hidden md:block w-64 lg:w-80 ml-2">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
             <input
               type="text"
               placeholder="Tìm kiếm NXB, mã ISBN, bản quyền DRM..."
-              disabled
-              aria-disabled="true"
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 cursor-not-allowed"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
             />
-          </div>
+          </form>
         </div>
 
         {/* Right: Date, DRM Status, Notification & Profile */}
@@ -160,22 +257,26 @@ export default function AdminLayout() {
           </div>
 
           {/* Notification Bell */}
-          <button disabled aria-disabled="true" title="Tạm khóa — thông báo realtime ngoài happy case hiện tại" className="relative w-9 h-9 rounded-xl border border-[#E2E8F0] flex items-center justify-center text-gray-400 opacity-50 cursor-not-allowed">
+          <button className="relative w-9 h-9 rounded-xl border border-[#E2E8F0] flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">
             <span className="material-symbols-outlined text-[20px]">notifications</span>
             <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#EF4444] ring-2 ring-white"></span>
           </button>
 
           {/* Super Admin Profile */}
           <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-gray-200">
-            <img
-              src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
-              alt="Super Admin"
-              className="w-8 h-8 rounded-full object-cover ring-2 ring-[#00875A]/30"
-            />
+            <UserAvatar src={user?.avatar} name={adminName} size="w-8 h-8" />
             <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-bold text-gray-900 leading-tight">Admin Trưởng Sàn</span>
-              <span className="text-[10px] text-gray-500 font-medium">Head of Operations</span>
+              <span className="text-xs font-bold text-gray-900 leading-tight">{adminName}</span>
+              <span className="text-[10px] text-[#00875A] font-bold uppercase">{user?.role || 'Super Admin'}</span>
             </div>
+            <Link
+              to="/"
+              className="ml-2 text-xs font-bold text-[#00875A] hover:bg-[#EBF7F2] px-2.5 py-1.5 rounded-xl border border-[#BDE6D7] transition-colors flex items-center gap-1"
+              title="Về Sàn TMĐT HUKI"
+            >
+              <span className="material-symbols-outlined text-[16px]">storefront</span>
+              <span className="hidden md:inline">Về Sàn</span>
+            </Link>
           </div>
         </div>
       </header>
@@ -202,57 +303,70 @@ export default function AdminLayout() {
                 
                 <div className="space-y-0.5">
                   {sec.items.map((item, iIdx) => {
+                    const isHappyRoute = ['/admin/dashboard', '/admin/publishers', '/admin/leads'].includes(item.to);
                     const isActive = location.pathname === item.to || 
                       (item.to === '/admin/dashboard' && location.pathname === '/admin') ||
-                      (item.to === '/admin/tasks' && location.pathname === '/admin/moderation') ||
-                      (item.to === '/admin/publishers' && (location.pathname === '/admin/companies')) ||
-                      (item.to === '/admin/users' && location.pathname === '/admin/contacts') ||
-                      (item.to === '/admin/deals' && location.pathname === '/admin/finance') ||
-                      (item.to === '/admin/automation' && location.pathname === '/admin/marketing');
+                      (item.to === '/admin/publishers' && (location.pathname === '/admin/companies' || location.pathname === '/admin/businesses' || location.pathname === '/admin/stores'));
+
+                    if (!isHappyRoute) {
+                      return (
+                        <div
+                          key={iIdx}
+                          title={isSidebarCollapsed ? `${item.label} (Sắp ra mắt)` : undefined}
+                          className={`
+                            flex items-center rounded-xl text-xs font-semibold relative opacity-35 cursor-not-allowed pointer-events-none select-none bg-black/[0.02]
+                            ${isSidebarCollapsed ? 'justify-center p-3 text-gray-400' : 'justify-between px-3.5 py-2.5 text-gray-400'}
+                          `}
+                        >
+                          <div className={`flex items-center gap-2.5 ${isSidebarCollapsed ? 'justify-center' : 'min-w-0'}`}>
+                            <span className="material-symbols-outlined text-[20px] shrink-0 text-gray-400">
+                              {item.icon}
+                            </span>
+                            {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
+                          </div>
+
+                          {!isSidebarCollapsed && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-gray-200/80 text-gray-500 shrink-0">
+                              Sắp ra mắt
+                            </span>
+                          )}
+                        </div>
+                      );
+                    }
 
                     return (
                       <Link
                         key={iIdx}
                         to={item.to}
-                        onClick={(event) => {
-                          if (item.disabled) {
-                            event.preventDefault();
-                            return;
-                          }
-                          setIsMobileMenuOpen(false);
-                        }}
-                        aria-disabled={item.disabled || undefined}
-                        tabIndex={item.disabled ? -1 : undefined}
-                        title={item.disabled ? 'Tạm khóa — ngoài happy case hiện tại' : (isSidebarCollapsed ? item.label : undefined)}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        title={isSidebarCollapsed ? item.label : undefined}
                         className={`
-                          flex items-center rounded-xl text-xs font-semibold transition-all group relative
+                          flex items-center rounded-xl text-xs font-semibold transition-all group cursor-pointer relative
                           ${isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'}
-                          ${item.disabled
-                            ? 'text-gray-400 opacity-50 cursor-not-allowed'
-                            : isActive
+                          ${isActive 
                             ? 'bg-[#EBF7F2] text-[#00875A] font-bold shadow-2xs' 
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80 cursor-pointer'}
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'}
                         `}
                       >
                         <div className={`flex items-center gap-2.5 ${isSidebarCollapsed ? 'justify-center' : 'min-w-0'}`}>
                           <span className={`material-symbols-outlined text-[20px] shrink-0 ${isActive ? 'text-[#00875A]' : 'text-gray-400 group-hover:text-gray-700'} transition-colors`}>
                             {item.icon}
                           </span>
-                          {!isSidebarCollapsed && <span className="truncate">{item.label}{item.disabled ? ' · Tạm khóa' : ''}</span>}
+                          {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
                         </div>
 
-                        {item.count && !isSidebarCollapsed && (
-                          <span className={`text-[9.5px] px-1.5 py-0.5 rounded-md font-bold shrink-0 ${
+                        {item.count !== undefined && !isSidebarCollapsed && (
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 min-w-[20px] text-center shadow-2xs ${
                             isActive 
                               ? 'bg-[#00875A] text-white' 
-                              : `${item.badgeColor ? `${item.badgeColor} text-white` : 'bg-gray-200/70 text-gray-600'}`
+                              : `${item.badgeColor ? `${item.badgeColor} text-white` : 'bg-gray-200 text-gray-700'}`
                           }`}>
                             {item.count}
                           </span>
                         )}
 
                         {/* Collapsed dot badge indicator */}
-                        {item.count && isSidebarCollapsed && (
+                        {item.count !== undefined && isSidebarCollapsed && (
                           <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${item.badgeColor ? item.badgeColor : 'bg-[#00875A]'}`}></span>
                         )}
                       </Link>

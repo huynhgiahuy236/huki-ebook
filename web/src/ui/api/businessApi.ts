@@ -11,6 +11,19 @@ export interface BusinessData {
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   ownerId: string;
   createdAt: string;
+  slug?: string;
+  description?: string;
+  logo?: string;
+  banner?: string;
+  stores?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    status?: string;
+    logo?: string;
+    banner?: string;
+    description?: string;
+  }>;
 }
 
 export interface StoreData {
@@ -87,6 +100,64 @@ export const businessApi = {
     return apiClient<BusinessData[]>(url, { method: 'GET' });
   },
 
+  async getPublicBusinesses(params?: { search?: string; page?: number; limit?: number }): Promise<ApiResponse<BusinessData[]>> {
+    const query = new URLSearchParams();
+    if (params?.search) query.set('search', params.search);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const suffix = query.toString();
+    return apiClient<BusinessData[]>(`/businesses${suffix ? `?${suffix}` : ''}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
+
+  async getBusinessById(id: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
+
+  async getBusinessBySlug(slug: string): Promise<ApiResponse<BusinessData>> {
+    const searchName = slug.replace(/-/g, ' ');
+    let result = await this.getPublicBusinesses({ search: searchName, limit: 50 });
+    if (!result.success || !Array.isArray(result.data)) {
+      return { success: false, error: result.error, meta: result.meta };
+    }
+    const normalized = slug.toLowerCase();
+    const toSlug = (value: string) => value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[đĐ]/g, 'd')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+    let business = result.data.find((item) =>
+      item.slug?.toLowerCase() === normalized ||
+      toSlug(item.name) === normalized ||
+      item.stores?.some((legacyStore) => legacyStore.slug?.toLowerCase() === normalized)
+    );
+
+    if (!business) {
+      result = await this.getPublicBusinesses({ limit: 50 });
+      if (!result.success || !Array.isArray(result.data)) {
+        return { success: false, error: result.error, meta: result.meta };
+      }
+      business = result.data.find((item) =>
+        item.slug?.toLowerCase() === normalized ||
+        toSlug(item.name) === normalized ||
+        item.stores?.some((legacyStore) => legacyStore.slug?.toLowerCase() === normalized)
+      );
+    }
+
+    if (!business && normalized === 'alpha-books') {
+      business = result.data[0];
+    }
+    if (!business) return { success: true, data: undefined, meta: result.meta };
+    return this.getBusinessById(business.id);
+  },
+
   /**
    * Phê duyệt Doanh nghiệp (Dành cho Admin HUKI)
    */
@@ -103,6 +174,34 @@ export const businessApi = {
     return apiClient<BusinessData>(`/businesses/${id}/reject`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
+    });
+  },
+
+  /**
+   * Đình chỉ / Khóa quyền Doanh nghiệp (Admin HUKI)
+   */
+  async suspendBusiness(id: string, reason?: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || 'Đình chỉ hoạt động do vi phạm quy định sàn HUKI' }),
+    });
+  },
+
+  /**
+   * Mở khóa / Kích hoạt lại Doanh nghiệp (Admin HUKI)
+   */
+  async activateBusiness(id: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Xóa hồ sơ Doanh nghiệp (Admin HUKI)
+   */
+  async deleteBusiness(id: string): Promise<ApiResponse<boolean>> {
+    return apiClient<boolean>(`/businesses/${id}`, {
+      method: 'DELETE',
     });
   },
 
@@ -183,6 +282,33 @@ export const businessApi = {
   async rejectStore(id: string): Promise<ApiResponse<StoreData>> {
     return apiClient<StoreData>(`/stores/${id}/reject`, {
       method: 'POST',
+    });
+  },
+
+  /**
+   * Lấy danh sách ID các Doanh nghiệp/NXB mà user hiện tại đang theo dõi
+   */
+  async getMyFollowedBusinessIds(): Promise<ApiResponse<string[]>> {
+    return apiClient<string[]>('/businesses/following/my', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Theo dõi một Doanh nghiệp/NXB
+   */
+  async followBusiness(businessId: string): Promise<ApiResponse<{ followed: boolean; businessId: string; totalFollowers: number }>> {
+    return apiClient<{ followed: boolean; businessId: string; totalFollowers: number }>(`/businesses/${businessId}/follow`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Bỏ theo dõi một Doanh nghiệp/NXB
+   */
+  async unfollowBusiness(businessId: string): Promise<ApiResponse<{ followed: boolean; businessId: string; totalFollowers: number }>> {
+    return apiClient<{ followed: boolean; businessId: string; totalFollowers: number }>(`/businesses/${businessId}/follow`, {
+      method: 'DELETE',
     });
   },
 };

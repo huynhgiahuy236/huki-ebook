@@ -1,173 +1,97 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { catalogApi, BookData } from '../../api/catalogApi';
 
 export default function AdminBookModerationPage() {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState('pending');
+  const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('all');
   const [inspectingBook, setInspectingBook] = useState(null);
   const [isDrmPreviewOpen, setIsDrmPreviewOpen] = useState(false);
   const [rejectReasonModal, setRejectReasonModal] = useState(null);
   const [customReason, setCustomReason] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  const [queueItems, setQueueItems] = useState([
-    {
-      id: 'MOD-8821',
-      title: 'Kinh Tế Học Hành Vi - Ứng Dụng Trong Kỷ Nguyên Số',
-      publisher: 'Nhà Xuất Bản Trẻ',
-      publisherCode: 'TRE',
-      publisherLogo: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?w=300&auto=format&fit=crop&q=80',
-      author: 'PGS. TS. Trần Minh Tuấn',
-      format: 'hybrid',
-      formatLabel: 'Combo Sách Giấy + Ebook DRM',
-      isbn: '978-604-1-23845-6',
-      licenseNo: 'QĐXB-892/QĐ-NXBTRE-2026',
-      price: 245000,
-      ebookPrice: 99000,
-      submittedAt: '11/06/2026 - 14:30',
-      status: 'pending',
-      statusLabel: 'Chờ kiểm duyệt',
-      drmStatus: 'Đã mã hóa AES-256 (Hợp lệ)',
-      samplePages: 18,
-      totalPages: 384,
-      fileSize: '24.6 MB (EPUB + PDF Fixed)',
-      urgency: 'high',
-      notes: 'Hồ sơ bản quyền đầy đủ, tem chống giả điện tử sẵn sàng.'
-    },
-    {
-      id: 'MOD-8822',
-      title: 'Tâm Lý Học Về Tiền (Tái Bản Có Bổ Sung 2026)',
-      publisher: 'Alpha Books Official',
-      publisherCode: 'ALPHABOOKS',
-      publisherLogo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1592496431122-2349e0fbc666?w=300&auto=format&fit=crop&q=80',
-      author: 'Morgan Housel (Dịch: Lê Đình Triều)',
-      format: 'ebook',
-      formatLabel: 'Ebook Độc Quyền DRM',
-      isbn: '978-604-77-9912-1',
-      licenseNo: 'QĐXB-104/QĐ-NXBTT-2026',
-      price: 120000,
-      ebookPrice: 79000,
-      submittedAt: '11/06/2026 - 11:15',
-      status: 'pending',
-      statusLabel: 'Chờ kiểm duyệt',
-      drmStatus: 'Đã nhúng Watermark động',
-      samplePages: 25,
-      totalPages: 312,
-      fileSize: '14.2 MB (EPUB Reflowable)',
-      urgency: 'normal',
-      notes: 'Đã đính kèm Hợp đồng nhượng quyền tác giả gốc Harriman House.'
-    },
-    {
-      id: 'MOD-8823',
-      title: 'Chiến Tranh Tiền Tệ - Tập 5: Kỷ Nguyên Tiền Mã Hóa',
-      publisher: 'Nhã Nam Books',
-      publisherCode: 'NHANAM',
-      publisherLogo: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1553729459-efe14ef6055d?w=300&auto=format&fit=crop&q=80',
-      author: 'Song Hongbing',
-      format: 'physical',
-      formatLabel: 'Sách Giấy Bìa Cứng',
-      isbn: '978-604-2-18490-3',
-      licenseNo: 'QĐXB-441/QĐ-NXBHNV-2026',
-      price: 280000,
-      ebookPrice: null,
-      submittedAt: '10/06/2026 - 16:45',
-      status: 'pending',
-      statusLabel: 'Chờ kiểm duyệt',
-      drmStatus: 'Không áp dụng (Sách in)',
-      samplePages: 0,
-      totalPages: 520,
-      fileSize: 'N/A (Sách vật lý)',
-      urgency: 'normal',
-      notes: 'Kho sách tại Hà Nội & TP.HCM cam kết giao 2h chuẩn HUKI Fast.'
-    },
-    {
-      id: 'MOD-8820',
-      title: 'Trí Tuệ Nhân Tạo & Tương Lai Nhân Loại 2030',
-      publisher: 'First News - Trí Việt',
-      publisherCode: 'FIRSTNEWS',
-      publisherLogo: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300&auto=format&fit=crop&q=80',
-      author: 'Dr. Max Tegmark (Dịch: Hoàng Uyên)',
-      format: 'hybrid',
-      formatLabel: 'Combo Sách Giấy + Ebook DRM',
-      isbn: '978-604-56-7810-0',
-      licenseNo: 'QĐXB-312/QĐ-NXBTG-2026',
-      price: 320000,
-      ebookPrice: 145000,
-      submittedAt: '10/06/2026 - 09:20',
-      status: 'need_update',
-      statusLabel: 'Cần bổ sung thông tin',
-      drmStatus: 'Chờ cập nhật chứng chỉ ký số',
-      samplePages: 12,
-      totalPages: 440,
-      fileSize: '32.1 MB',
-      urgency: 'high',
-      notes: 'Thiếu trang bản quyền tiếng Việt ghi nhận đơn vị phát hành HUKI.'
-    },
-    {
-      id: 'MOD-8819',
-      title: 'Tư Duy Ngược Để Thành Công Vượt Trội',
-      publisher: 'Nhà Sách Minh Long',
-      publisherCode: 'MINHLONG',
-      publisherLogo: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=300&auto=format&fit=crop&q=80',
-      author: 'Nguyễn Anh Dũng',
-      format: 'ebook',
-      formatLabel: 'Ebook DRM',
-      isbn: '978-604-89-1120-4',
-      licenseNo: 'QĐXB-190/QĐ-NXBLD-2026',
-      price: 95000,
-      ebookPrice: 59000,
-      submittedAt: '09/06/2026 - 15:10',
-      status: 'approved',
-      statusLabel: 'Đã phê duyệt',
-      drmStatus: 'Đã cấp khóa bảo vệ & lên sàn',
-      samplePages: 15,
-      totalPages: 260,
-      fileSize: '8.4 MB',
-      urgency: 'low',
-      notes: 'Đã lên kệ phân phối chính thức từ 10/06/2026.'
-    },
-    {
-      id: 'MOD-8818',
-      title: 'Cổ Phiếu Thường Lợi Nhuận Phi Thường',
-      publisher: 'Alpha Books Official',
-      publisherCode: 'ALPHABOOKS',
-      publisherLogo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&auto=format&fit=crop&q=80',
-      cover: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&auto=format&fit=crop&q=80',
-      author: 'Philip A. Fisher',
-      format: 'hybrid',
-      formatLabel: 'Combo Sách Giấy + Ebook DRM',
-      isbn: '978-604-77-8890-2',
-      licenseNo: 'QĐXB-554/QĐ-NXBTT-2026',
-      price: 199000,
-      ebookPrice: 85000,
-      submittedAt: '09/06/2026 - 10:00',
-      status: 'approved',
-      statusLabel: 'Đã phê duyệt',
-      drmStatus: 'Đã cấp khóa bảo vệ & lên sàn',
-      samplePages: 20,
-      totalPages: 340,
-      fileSize: '19.8 MB',
-      urgency: 'low',
-      notes: 'Đã tích hợp Fast 2H Delivery toàn quốc.'
-    }
-  ]);
+  const [queueItems, setQueueItems] = useState([]);
 
-  const handleApprove = (bookId) => {
-    setQueueItems(prev => prev.map(item => {
-      if (item.id === bookId) {
-        return { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' };
+  const fetchBooksQueue = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await catalogApi.getPublicBooks({ limit: 100 });
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        const mapped = res.data.map(b => {
+          const isPublished = b.status === 'PUBLISHED';
+          const isDraft = b.status === 'DRAFT' || !b.status;
+          const format = b.format === 'PHYSICAL' ? 'physical' : b.format === 'DIGITAL' ? 'ebook' : 'hybrid';
+          const formatLabel = b.format === 'PHYSICAL' ? 'Sách Giấy' : b.format === 'DIGITAL' ? 'Ebook DRM' : 'Combo Sách + Ebook';
+          const cover = b.coverUrl || b.coverImage || b.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=300&auto=format&fit=crop&q=80';
+
+          return {
+            id: b.id,
+            rawBookId: b.id,
+            title: b.title,
+            publisher: b.publisher?.name || 'Nhà Xuất Bản Đối Tác',
+            publisherCode: b.publisher?.name?.substring(0, 4)?.toUpperCase() || 'NXB',
+            publisherLogo: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=100&auto=format&fit=crop&q=80',
+            cover,
+            author: b.author?.name || 'Tác giả chính',
+            format,
+            formatLabel,
+            isbn: b.isbn || 'Chưa cấp ISBN',
+            licenseNo: `QĐXB-${b.id.substring(0, 6).toUpperCase()}-2026`,
+            price: b.price || 0,
+            ebookPrice: b.format !== 'PHYSICAL' ? (b.price ? Math.round(b.price * 0.6) : 0) : null,
+            submittedAt: b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN') : 'Gần đây',
+            status: isPublished ? 'approved' : 'pending',
+            statusLabel: isPublished ? 'Đã phê duyệt' : 'Chờ kiểm duyệt',
+            drmStatus: b.format !== 'PHYSICAL' ? 'Đã mã hóa AES-256 (Hợp lệ)' : 'Không áp dụng (Sách in)',
+            samplePages: 15,
+            totalPages: 320,
+            fileSize: b.format !== 'PHYSICAL' ? '18.4 MB (EPUB)' : 'N/A',
+            urgency: isDraft ? 'high' : 'low',
+            notes: b.description || 'Đầy đủ hồ sơ kiểm duyệt nội dung theo tiêu chuẩn xuất bản.',
+          };
+        });
+        setQueueItems(mapped);
+      } else {
+        setQueueItems([]);
       }
-      return item;
-    }));
-    showToast('Đã phê duyệt và kích hoạt phân phối toàn sàn HUKI!', 'success');
-    setInspectingBook(null);
+    } catch {
+      setQueueItems([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBooksQueue();
+  }, [fetchBooksQueue]);
+
+  const handleApprove = async (bookId) => {
+    setActionLoadingId(bookId);
+    try {
+      const res = await catalogApi.publishBook(bookId);
+      if (res.success) {
+        showToast('Đã phê duyệt và kích hoạt phân phối toàn sàn HUKI!', 'success');
+        setQueueItems(prev => prev.map(item => {
+          if (item.id === bookId) {
+            return { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' };
+          }
+          return item;
+        }));
+        await fetchBooksQueue();
+      } else {
+        showToast(res.error?.message || 'Không thể phê duyệt sách.', 'error');
+      }
+    } catch {
+      showToast('Lỗi kết nối khi phê duyệt sách.', 'error');
+    } finally {
+      setActionLoadingId(null);
+      setInspectingBook(null);
+    }
   };
 
   const handleRequestEdit = (bookId) => {

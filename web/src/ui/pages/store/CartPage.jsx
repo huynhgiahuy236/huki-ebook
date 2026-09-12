@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import EmptyState from '../../components/common/EmptyState';
 
 export default function CartPage() {
   const navigate = useNavigate();
@@ -42,6 +43,9 @@ export default function CartPage() {
     }
   ]);
 
+  // Vouchers state
+  const [hukiVoucher, setHukiVoucher] = useState({ code: 'HUKI30', discount: 30000, desc: 'Giảm 30.000đ cho đơn từ 300.000đ' });
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Calculations
@@ -49,9 +53,9 @@ export default function CartPage() {
   const rawOriginalSubtotal = checkedItems.reduce((acc, item) => acc + ((item.originalPrice || item.price * 1.3) * item.quantity), 0);
   const directDiscount = rawOriginalSubtotal - checkedSubtotal;
 
-  // Promotion/voucher is deferred; totals only include direct product pricing.
-  const shopDiscount = 0;
-  const hukiDiscount = 0;
+  // Shop vouchers discount calculation
+  const shopDiscount = checkedSubtotal >= 200000 ? 20000 : 0;
+  const hukiDiscount = (checkedSubtotal >= 300000 && hukiVoucher) ? hukiVoucher.discount : 0;
 
   // Shipping fee: 25.000đ if any physical book is selected, free if physical items >= 250k
   const physicalSubtotal = checkedItems.filter(i => i.type === 'physical').reduce((acc, i) => acc + (i.price * i.quantity), 0);
@@ -165,25 +169,14 @@ export default function CartPage() {
 
         {/* Cart Main Content Grid */}
         {cartItems.length === 0 ? (
-          /* Empty Cart State */
-          <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-12 text-center my-6 flex flex-col items-center max-w-xl mx-auto shadow-sm">
-            <div className="w-20 h-20 rounded-full bg-primary/10 text-primary flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-[40px]">shopping_cart_off</span>
-            </div>
-            <h2 className="font-editorial text-xl font-bold text-on-surface mb-2">
-              Giỏ hàng của bạn đang trống
-            </h2>
-            <p className="text-xs text-on-surface-variant mb-6 max-w-md leading-relaxed">
-              Hàng ngàn tựa sách hay, Ebook bản quyền DRM và sách nói Dolby Atmos đang chờ bạn khám phá.
-            </p>
-            <Link
-              to="/books"
-              className="px-6 py-2.5 rounded-xl bg-primary hover:bg-[#00523c] text-white font-bold text-xs shadow-sm transition-all flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">menu_book</span>
-              Khám Phá Sách Ngay
-            </Link>
-          </div>
+          <EmptyState
+            icon="shopping_cart_off"
+            title="Giỏ hàng của bạn đang trống"
+            description="Hàng ngàn tựa sách hay, Ebook bản quyền DRM và sách nói đang chờ bạn khám phá."
+            actionText="Khám Phá Sách Ngay"
+            actionLink="/books"
+            actionIcon="menu_book"
+          />
         ) : (
           <div className="grid grid-cols-12 gap-6 lg:gap-8 items-start">
 
@@ -239,14 +232,11 @@ export default function CartPage() {
                     </div>
 
                     <button
-                      type="button"
-                      disabled
-                      aria-disabled="true"
-                      title="Tạm khóa — promotion nằm ngoài happy case hiện tại"
-                      className="text-xs text-on-surface-variant font-semibold flex items-center gap-1 cursor-not-allowed opacity-60"
+                      onClick={() => setShowVoucherModal(true)}
+                      className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-[15px]">confirmation_number</span>
-                      Mã giảm shop (Tạm khóa)
+                      Mã giảm shop ({store.vouchersCount})
                     </button>
                   </div>
 
@@ -389,17 +379,15 @@ export default function CartPage() {
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[18px] text-secondary">confirmation_number</span>
                     <div>
-                      <span className="text-xs font-bold text-on-surface block">Mã giảm giá HUKI</span>
-                      <span className="text-[11px] text-on-surface-variant">Tạm khóa — ngoài happy case hiện tại</span>
+                      <span className="text-xs font-bold text-on-surface block">Mã HUKI30 (-30k)</span>
+                      <span className="text-[11px] text-on-surface-variant">Đã tự động áp dụng</span>
                     </div>
                   </div>
                   <button
-                    type="button"
-                    disabled
-                    aria-disabled="true"
-                    className="text-xs text-on-surface-variant font-semibold cursor-not-allowed opacity-60"
+                    onClick={() => setShowVoucherModal(true)}
+                    className="text-xs text-primary hover:underline font-semibold"
                   >
-                    Chưa mở
+                    Đổi mã
                   </button>
                 </div>
 
@@ -483,6 +471,61 @@ export default function CartPage() {
         )}
       </div>
 
+      {/* Voucher Modal */}
+      {showVoucherModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-2xl max-w-md w-full p-6 shadow-xl border border-outline-variant/30 flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between pb-2 border-b border-outline-variant/20">
+              <h3 className="font-editorial text-lg font-bold text-on-surface flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-primary text-[20px]">confirmation_number</span>
+                Mã Giảm Giá HUKI
+              </h3>
+              <button onClick={() => setShowVoucherModal(false)} className="p-1 rounded-lg hover:bg-surface-container" aria-label="Đóng popup">
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+              <div
+                onClick={() => {
+                  setHukiVoucher({ code: 'HUKI30', discount: 30000, desc: 'Giảm 30.000đ cho đơn từ 300.000đ' });
+                  setShowVoucherModal(false);
+                  showToast('Đã áp dụng mã HUKI30!', 'success');
+                }}
+                className="p-3 rounded-xl border-2 border-primary bg-primary/5 cursor-pointer flex items-center justify-between"
+              >
+                <div>
+                  <span className="text-xs font-bold text-primary block">HUKI30 - Giảm 30.000đ</span>
+                  <span className="text-[11px] text-on-surface-variant">Áp dụng cho đơn từ 300.000đ</span>
+                </div>
+                <span className="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+              </div>
+
+              <div
+                onClick={() => {
+                  setHukiVoucher({ code: 'FREESHIP', discount: 25000, desc: 'Miễn phí vận chuyển 25.000đ' });
+                  setShowVoucherModal(false);
+                  showToast('Đã áp dụng mã FREESHIP!', 'success');
+                }}
+                className="p-3 rounded-xl border border-outline-variant/50 hover:border-primary bg-surface-container-low cursor-pointer flex items-center justify-between"
+              >
+                <div>
+                  <span className="text-xs font-bold text-on-surface block">FREESHIP - Giảm 25.000đ vận chuyển</span>
+                  <span className="text-[11px] text-on-surface-variant">Áp dụng cho đơn sách giấy từ 200.000đ</span>
+                </div>
+                <button className="px-2.5 py-1 rounded bg-primary/10 text-primary text-[11px] font-bold">Dùng</button>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowVoucherModal(false)}
+              className="w-full py-2.5 rounded-xl bg-surface-container hover:bg-surface-container-high text-xs font-bold transition-colors"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

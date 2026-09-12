@@ -36,8 +36,9 @@ model Business {
   ownerId String @map("owner_id")
 
   // Relations
-  stores  Store[]
-  members Member[]
+  stores    Store[]
+  members   Member[]
+  followers BusinessFollower[]
 
   // Timestamps
   createdAt DateTime  @default(now()) @map("created_at")
@@ -47,6 +48,20 @@ model Business {
   @@index([ownerId])
   @@index([status])
   @@map("businesses")
+}
+
+model BusinessFollower {
+  id         String   @id @default(uuid())
+  businessId String   @map("business_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+  @@index([businessId])
+  @@map("business_followers")
 }
 
 enum BusinessType {

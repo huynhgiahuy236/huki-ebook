@@ -12,58 +12,9 @@ export const CartProvider = ({ children }) => {
       const savedCart = window.localStorage.getItem('huki.cart.items');
       if (savedCart) return JSON.parse(savedCart);
     } catch {
-      // Fall back to demo items if persisted data is unavailable.
+      // Fall back to empty cart if persisted data is unavailable.
     }
-    return [
-    {
-      id: "atomic-habits-paper",
-      bookId: "atomic-habits",
-      title: "Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ",
-      author: "James Clear",
-      publisher: "Alpha Books Official",
-      storeId: "store-alpha",
-      format: "Sách giấy",
-      formatTag: "Bìa mềm cao cấp · Tái bản 2025",
-      price: 129000,
-      originalPrice: 169000,
-      quantity: 1,
-      checked: true,
-      cover: booksData[0]?.cover || 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcU26O9RXxuUE6tEdj3lV_IkEPeAEbV_XINI408XHscj13B9Jt1eC7uQrRDXyu3byi6MeVzLdEBIBHf5L8tmx014XlWWOzO01LApRCq4Le5GtlpUO9P3z4OnOy3u0_l9rOnFsQkRnUijXOyWPLwafoYZuaoB7ydHbcfLvstaGLDTSn3h3RHfCblHEFxRUKl6kfs2bFvKAg1rLzGwyefjfrMpJky9GO477VUaNcWoT2osMgxUat2Zyelw',
-      type: "physical"
-    },
-    {
-      id: "deep-work-ebook",
-      bookId: "deep-work",
-      title: "Deep Work – Làm Ra Làm, Chơi Ra Chơi",
-      author: "Cal Newport",
-      publisher: "Alpha Books Official",
-      storeId: "store-alpha",
-      format: "Ebook Số",
-      formatTag: "Ebook (EPUB + PDF) · DRM vĩnh viễn",
-      price: 79000,
-      originalPrice: 119000,
-      quantity: 1,
-      checked: true,
-      cover: booksData[3]?.cover || 'https://lh3.googleusercontent.com/aida-public/AB6AXuA62ygeX4HioU7gYvlmmpgNNTgKeSlXvDw5GwpDj3xf04iSpU9ZfBZRnLQe5nXAwrtqhxPFu5fXkQvCqGcoeEHZIEGJex1LPIFiTOujpnZCNePfHl6gsENVGgOVLcNp7w4k4HmoZgB_6MZWF0P5CfmSkRiecUcK8EzdW9WXLK6wAcyosRBMSruNquOVVJB4fUDfII1Gy_YE6RnTKZ3ZYQhaR9pi4F8WdoJZBwqF8Sa_BVVSXkA4rXxIVQ',
-      type: "ebook"
-    },
-    {
-      id: "tam-ly-hoc-paper",
-      bookId: "tam-ly-hoc-ve-tien",
-      title: "Tâm Lý Học Về Tiền (The Psychology of Money)",
-      author: "Morgan Housel",
-      publisher: "Nhà Sách First News Trí Việt",
-      storeId: "store-firstnews",
-      format: "Sách giấy",
-      formatTag: "Bìa mềm dập nổi · Tập 1",
-      price: 149000,
-      originalPrice: 189000,
-      quantity: 2,
-      checked: true,
-      cover: booksData[2]?.cover || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBJ9lJefwh7SJsM-d-yKmavwMuSTbUtKJj-cZwvWAegojU70CFmrOCJdnnT-shs6lLglKJfVIuXwIkabc64a9-lG6Z_KTtOg00vErrb2W1ic9ON7-F6e9uHNzAnuFWZ4UZCXJDDSl4bsQuOlrncR7TRp6uTxk8DCht7yUhEocR1qaEHvjqIhM4S0r-q0WQh9GxdSZd78yx8oeuPJOt3s9YSFMLgMkfY4ahtq9qAlTkASPMz8nMvj-3f6g',
-      type: "physical"
-    }
-    ];
+    return [];
   });
 
   useEffect(() => {

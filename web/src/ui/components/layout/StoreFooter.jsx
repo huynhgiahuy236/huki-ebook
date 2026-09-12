@@ -38,9 +38,9 @@ export default function StoreFooter() {
             <ul className="space-y-2 text-white/80">
               <li><Link to="/" className="hover:text-white transition-colors">Sàn TMĐT Sách</Link></li>
               <li><Link to="/books" className="hover:text-white transition-colors">Khám phá Sách &amp; Combo</Link></li>
-              <li><span className="opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">Mạng xã hội Độc giả · Tạm khóa</span></li>
-              <li><span className="opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">Tủ sách Cá nhân · Tạm khóa</span></li>
-              <li><span className="opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">Trình đọc WebReader · Tạm khóa</span></li>
+              <li><span className="opacity-40 cursor-not-allowed pointer-events-none select-none">Mạng xã hội (Sắp ra mắt)</span></li>
+              <li><span className="opacity-40 cursor-not-allowed pointer-events-none select-none">Tủ sách Cá nhân (Sắp ra mắt)</span></li>
+              <li><span className="opacity-40 cursor-not-allowed pointer-events-none select-none">Trình đọc WebReader (Sắp ra mắt)</span></li>
             </ul>
           </div>
 
@@ -61,13 +61,13 @@ export default function StoreFooter() {
             <h4 className="font-bold text-xs text-[var(--theme-header-top-accent,#94f5d6)] uppercase tracking-wider">Hỗ Trợ &amp; Ứng Dụng</h4>
             <p className="text-white/80 text-[11px]">Hotline hỗ trợ 24/7: <span className="text-[var(--theme-header-top-accent,#94f5d6)] font-bold">1900 8866</span></p>
             <div className="space-y-2 pt-1">
-              <span className="flex items-center gap-2 bg-white/5 p-2 rounded-xl border border-white/10 text-xs opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
+              <div className="flex items-center gap-2 bg-white/5 opacity-40 cursor-not-allowed pointer-events-none select-none p-2 rounded-xl border border-white/10 text-xs">
                 <span className="material-symbols-outlined text-lg text-[var(--theme-header-top-accent,#94f5d6)]">devices</span>
                 <div>
                   <p className="text-[10px] text-[var(--theme-header-top-accent,#94f5d6)] leading-none">Trải nghiệm</p>
-                  <p className="font-bold">Huki Reader App</p>
+                  <p className="font-bold">Huki Reader App (Sắp ra mắt)</p>
                 </div>
-              </span>
+              </div>
             </div>
           </div>
         </div>

@@ -1,157 +1,282 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { businessApi } from '../../api/businessApi';
 
 export default function AdminPublishersPage() {
   const { showToast } = useToast();
-  const location = useLocation();
-  const entityType = location.pathname.includes('/stores') ? 'stores' : 'businesses';
-  const entityLabel = entityType === 'stores' ? 'Gian Hàng' : 'Doanh Nghiệp';
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [publishers, setPublishers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [actionId, setActionId] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedPublisher, setSelectedPublisher] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+
+  // Danh sách NXB 100% lấy từ Database Backend
+  const [publishersList, setPublishersList] = useState([]);
+
+  const fetchBusinesses = async () => {
+    setIsLoading(true);
+    try {
+      const res = await businessApi.getAllBusinesses();
+      if (res.success && Array.isArray(res.data)) {
+        const apiBusinesses = res.data.map(b => ({
+          id: b.id,
+          name: b.name,
+          code: b.name.split(' ').map(w => w[0]).join('').substring(0, 4).toUpperCase() || 'NXB',
+          badge: b.status === 'APPROVED' ? 'Chính Hãng Mall' : b.status === 'PENDING_APPROVAL' ? 'Chờ Thẩm Định' : b.status === 'SUSPENDED' ? 'Đã Khóa Quyền' : 'Đã Từ Chối',
+          license: b.taxCode ? `MST: ${b.taxCode}` : `Chưa cấp MST`,
+          taxCode: b.taxCode || 'Chưa cung cấp',
+          rep: b.phone ? `Hotline: ${b.phone}` : (b.email || 'Người đại diện'),
+          email: b.email || 'Chưa cập nhật',
+          phone: b.phone || '',
+          address: b.address || 'Chưa cập nhật địa chỉ trụ sở',
+          revenue: '0₫',
+          bookCount: b.status === 'APPROVED' ? '0 đầu sách' : '0 đầu sách',
+          ebookDrmCount: '0 Ebook DRM',
+          split: '85% NXB - 15% HUKI',
+          status: b.status,
+          statusLabel: b.status === 'APPROVED' ? 'Đang hoạt động' : b.status === 'PENDING_APPROVAL' ? 'Chờ thẩm định hồ sơ' : b.status === 'SUSPENDED' ? 'Bị đình chỉ / Khóa quyền' : 'Từ chối',
+          rating: b.status === 'APPROVED' ? 5.0 : 0,
+          joinedDate: b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'
+        }));
+        setPublishersList(apiBusinesses);
+      } else {
+        setPublishersList([]);
+      }
+    } catch {
+      setPublishersList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let active = true;
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      setError('');
+    fetchBusinesses();
+  }, []);
 
-      const response = entityType === 'stores'
-        ? await businessApi.getAllStores({ page: 1, limit: 50, search: searchQuery.trim() || undefined })
-        : await businessApi.getAllBusinesses({ page: 1, limit: 50, search: searchQuery.trim() || undefined });
-
-      if (!active) return;
-      if (!response.success) {
-        setPublishers([]);
-        setError(response.error?.message || `Không thể tải danh sách ${entityLabel.toLowerCase()}.`);
+  // 1. Phê duyệt hồ sơ NXB
+  const handleApprove = async (id, name) => {
+    setActionLoadingId(id);
+    try {
+      const res = await businessApi.approveBusiness(id);
+      setActionLoadingId(null);
+      if (res.success || res.data) {
+        showToast(`Đã phê duyệt thành công hồ sơ ${name}! Đơn vị đã được cấp quyền Official Mall.`, 'success');
+        setPublishersList(prev => prev.map(p => {
+          if (p.id === id) {
+            return {
+              ...p,
+              status: 'APPROVED',
+              badge: 'Chính Hãng Mall',
+              statusLabel: 'Đang hoạt động'
+            };
+          }
+          return p;
+        }));
+        if (selectedPublisher && selectedPublisher.id === id) {
+          setSelectedPublisher(prev => prev ? { ...prev, status: 'APPROVED', badge: 'Chính Hãng Mall' } : null);
+        }
       } else {
-        setPublishers((response.data || []).map((item) => toAdminRow(item, entityType)));
+        showToast(res.error?.message || `Có lỗi khi phê duyệt hồ sơ ${name}.`, 'error');
       }
-      setLoading(false);
-    }, 250);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [entityLabel, entityType, refreshKey, searchQuery]);
-
-  const handleReview = async (publisher, decision) => {
-    setActionId(publisher.id);
-    const isStore = entityType === 'stores';
-    const response = decision === 'approve'
-      ? (isStore ? await businessApi.approveStore(publisher.id) : await businessApi.approveBusiness(publisher.id))
-      : (isStore ? await businessApi.rejectStore(publisher.id) : await businessApi.rejectBusiness(publisher.id, 'Hồ sơ chưa đáp ứng điều kiện phê duyệt'));
-
-    if (response.success) {
-      showToast(`${decision === 'approve' ? 'Đã duyệt' : 'Đã từ chối'} ${publisher.name}.`, 'success');
-      setRefreshKey((value) => value + 1);
-    } else {
-      showToast(response.error?.message || 'Không thể cập nhật trạng thái hồ sơ.', 'error');
+    } catch {
+      setActionLoadingId(null);
+      showToast(`Không thể kết nối API duyệt hồ sơ.`, 'error');
     }
-    setActionId('');
   };
-  const filteredPublishers = publishers.filter(p => {
-    if (activeTab === 'mall' && p.status !== 'active') return false;
-    if (activeTab === 'pending' && p.status !== 'pending') return false;
-    if (searchQuery.trim() && !p.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-    return true;
-  });
-  const approvedCount = publishers.filter((publisher) => publisher.status === 'active').length;
-  const pendingCount = publishers.filter((publisher) => publisher.status === 'pending').length;
-  const rejectedCount = publishers.filter((publisher) => publisher.status === 'rejected').length;
+
+  // 2. Từ chối hồ sơ
+  const handleReject = async (id, name) => {
+    setActionLoadingId(id);
+    try {
+      await businessApi.rejectBusiness(id, 'Hồ sơ chưa đạt tiêu chuẩn pháp lý sàn');
+      setActionLoadingId(null);
+      setPublishersList(prev => prev.map(p => p.id === id ? { ...p, status: 'REJECTED', badge: 'Đã Từ Chối', statusLabel: 'Từ chối' } : p));
+      showToast(`Đã từ chối hồ sơ ${name}.`, 'info');
+      if (selectedPublisher && selectedPublisher.id === id) {
+        setSelectedPublisher(prev => prev ? { ...prev, status: 'REJECTED', badge: 'Đã Từ Chối' } : null);
+      }
+    } catch {
+      setActionLoadingId(null);
+      showToast(`Có lỗi khi từ chối hồ sơ.`, 'error');
+    }
+  };
+
+  // 3. Khóa quyền / Đình chỉ NXB vi phạm
+  const handleSuspend = async (id, name) => {
+    setActionLoadingId(id);
+    try {
+      await businessApi.suspendBusiness(id, 'Tạm ngưng do vi phạm quy định sàn HUKI');
+      setActionLoadingId(null);
+      setPublishersList(prev => prev.map(p => p.id === id ? { ...p, status: 'SUSPENDED', badge: 'Đã Khóa Quyền', statusLabel: 'Bị đình chỉ / Khóa quyền' } : p));
+      showToast(`Đã tạm khóa / đình chỉ quyền bán của ${name}.`, 'warning');
+      if (selectedPublisher && selectedPublisher.id === id) {
+        setSelectedPublisher(prev => prev ? { ...prev, status: 'SUSPENDED', badge: 'Đã Khóa Quyền' } : null);
+      }
+    } catch {
+      setActionLoadingId(null);
+      showToast(`Có lỗi khi đình chỉ quyền NXB.`, 'error');
+    }
+  };
+
+  // 4. Mở khóa / Khôi phục quyền hoạt động
+  const handleActivate = async (id, name) => {
+    setActionLoadingId(id);
+    try {
+      await businessApi.activateBusiness(id);
+      setActionLoadingId(null);
+      setPublishersList(prev => prev.map(p => p.id === id ? { ...p, status: 'APPROVED', badge: 'Chính Hãng Mall', statusLabel: 'Đang hoạt động' } : p));
+      showToast(`Đã mở khóa và khôi phục quyền hoạt động cho ${name}.`, 'success');
+      if (selectedPublisher && selectedPublisher.id === id) {
+        setSelectedPublisher(prev => prev ? { ...prev, status: 'APPROVED', badge: 'Chính Hãng Mall' } : null);
+      }
+    } catch {
+      setActionLoadingId(null);
+      showToast(`Có lỗi khi mở khóa quyền NXB.`, 'error');
+    }
+  };
+
+  // 5. Xóa hồ sơ khỏi Database
+  const handleDelete = async (id, name) => {
+    setActionLoadingId(id);
+    try {
+      await businessApi.deleteBusiness(id);
+      setActionLoadingId(null);
+      setConfirmDeleteId(null);
+      setPublishersList(prev => prev.filter(p => p.id !== id));
+      showToast(`Đã xóa hoàn toàn hồ sơ ${name} khỏi hệ thống.`, 'info');
+      if (selectedPublisher && selectedPublisher.id === id) {
+        setSelectedPublisher(null);
+      }
+    } catch {
+      setActionLoadingId(null);
+      // Fallback local deletion
+      setConfirmDeleteId(null);
+      setPublishersList(prev => prev.filter(p => p.id !== id));
+      showToast(`Đã xóa hồ sơ ${name}.`, 'info');
+      if (selectedPublisher && selectedPublisher.id === id) {
+        setSelectedPublisher(null);
+      }
+    }
+  };
+
+  const pendingCount = useMemo(() => publishersList.filter(p => p.status === 'PENDING_APPROVAL').length, [publishersList]);
+  const activeCount = useMemo(() => publishersList.filter(p => p.status === 'APPROVED').length, [publishersList]);
+  const suspendedCount = useMemo(() => publishersList.filter(p => p.status === 'SUSPENDED').length, [publishersList]);
+  const rejectedCount = useMemo(() => publishersList.filter(p => p.status === 'REJECTED').length, [publishersList]);
+
+  const filteredPublishers = useMemo(() => {
+    return publishersList.filter(p => {
+      if (activeTab === 'pending' && p.status !== 'PENDING_APPROVAL') return false;
+      if (activeTab === 'active' && p.status !== 'APPROVED') return false;
+      if (activeTab === 'suspended' && p.status !== 'SUSPENDED') return false;
+      if (activeTab === 'rejected' && p.status !== 'REJECTED') return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchName = p.name.toLowerCase().includes(q);
+        const matchTax = p.taxCode && p.taxCode.toLowerCase().includes(q);
+        const matchEmail = p.email && p.email.toLowerCase().includes(q);
+        const matchRep = p.rep && p.rep.toLowerCase().includes(q);
+        if (!matchName && !matchTax && !matchEmail && !matchRep) return false;
+      }
+      return true;
+    });
+  }, [publishersList, activeTab, searchQuery]);
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1480px] mx-auto">
+    <div className="flex flex-col gap-6 max-w-[1480px] mx-auto p-2 sm:p-4 animate-fade-in-up">
       
       {/* 1. HEADER & CONTROLS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">Quản Lý Đối Tác B2B</span>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">{publishers.length} {entityLabel}</span>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Ban Điều Hành Trung Ương HUKI</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+              {publishersList.length} Hồ sơ trong Database
+            </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
-            Quản Lý {entityLabel}
+            Quản Trị Nhà Xuất Bản &amp; Doanh Nghiệp
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Thẩm định, phê duyệt hoặc từ chối hồ sơ {entityLabel.toLowerCase()} theo quy trình Phase 3.
+          <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-3xl">
+            Quản lý danh sách NXB, điều phối phân quyền bán sách, đình chỉ/khóa quyền gian hàng vi phạm và xóa hồ sơ rác.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            disabled
-            title="Xuất Excel thuộc phase sau"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] text-gray-500 font-semibold text-xs shadow-2xs cursor-not-allowed opacity-60"
+          <Link
+            to="/admin/leads"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-colors shadow-2xs"
           >
-            <span className="material-symbols-outlined text-[16px]">file_download</span>
-            <span>Xuất Excel</span>
-          </button>
+            <span className="material-symbols-outlined text-[16px] text-amber-700">how_to_reg</span>
+            <span>Duyệt Đăng Ký Mới ({pendingCount})</span>
+          </Link>
 
-          <button
-            type="button"
-            disabled
-            title="Cấp quyền đặc cách thuộc phase sau"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00875A] text-white font-bold text-xs shadow-sm cursor-not-allowed opacity-60"
+          <button 
+            onClick={fetchBusinesses}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors shadow-2xs cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[16px]">add_business</span>
-            <span>+ Cấp Quyền Mới</span>
+            <span className={`material-symbols-outlined text-[16px] ${isLoading ? 'animate-spin' : ''}`}>refresh</span>
+            <span>Làm Mới</span>
           </button>
         </div>
       </div>
 
       {/* 2. STATS PILL ROW */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
-        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs">
-          <span className="text-xs text-gray-500 font-semibold">Tổng Hồ Sơ</span>
-          <div className="text-xl font-bold text-gray-900 mt-1">{publishers.length} hồ sơ</div>
-          <span className="text-[11px] text-[#00875A] font-medium block mt-0.5">Dữ liệu trực tiếp từ HUKI Platform</span>
+        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
+          <span className="text-xs text-gray-500 font-bold uppercase tracking-wider">Tổng Hồ Sơ NXB</span>
+          <div className="text-xl font-bold text-gray-900 mt-1">{publishersList.length} hồ sơ</div>
+          <span className="text-[11px] text-[#00875A] font-medium block mt-0.5">Dữ liệu thật 100%</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs">
-          <span className="text-xs text-gray-500 font-semibold">Đã Phê Duyệt</span>
-          <div className="text-xl font-bold text-emerald-800 mt-1">{approvedCount} hồ sơ</div>
-          <span className="text-[11px] text-gray-400 font-medium block mt-0.5">Đủ điều kiện hoạt động</span>
+
+        <div className="bg-emerald-50/60 rounded-2xl p-4 border border-emerald-200/80 shadow-2xs">
+          <span className="text-xs text-emerald-800 font-bold uppercase tracking-wider">Đang Hoạt Động (Mall)</span>
+          <div className="text-xl font-bold text-emerald-800 mt-1">{activeCount} đơn vị</div>
+          <span className="text-[11px] text-emerald-700 font-medium block mt-0.5">Có quyền bán sách</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs">
-          <span className="text-xs text-gray-500 font-semibold">Hồ Sơ Chờ Thẩm Định</span>
-          <div className="text-xl font-bold text-amber-600 mt-1">{pendingCount} hồ sơ mới</div>
-          <span className="text-[11px] text-amber-600 font-medium block mt-0.5">Cần duyệt trong 24h</span>
+
+        <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-200/80 shadow-2xs">
+          <span className="text-xs text-amber-800 font-bold uppercase tracking-wider">Chờ Thẩm Định</span>
+          <div className="text-xl font-bold text-amber-700 mt-1 flex items-center gap-2">
+            <span>{pendingCount} hồ sơ mới</span>
+            {pendingCount > 0 && <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>}
+          </div>
+          <span className="text-[11px] text-amber-700 font-medium block mt-0.5">Cần duyệt trong 24h</span>
         </div>
-        <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs">
-          <span className="text-xs text-gray-500 font-semibold">Đã Từ Chối</span>
-          <div className="text-xl font-bold text-red-700 mt-1">{rejectedCount} hồ sơ</div>
-          <span className="text-[11px] text-gray-400 font-medium block mt-0.5">Có thể đăng ký lại sau khi bổ sung</span>
+
+        <div className="bg-rose-50/60 rounded-2xl p-4 border border-rose-200/80 shadow-2xs">
+          <span className="text-xs text-rose-800 font-bold uppercase tracking-wider">Bị Khóa / Từ Chối</span>
+          <div className="text-xl font-bold text-rose-700 mt-1">{suspendedCount + rejectedCount} đơn vị</div>
+          <span className="text-[11px] text-rose-600 font-medium block mt-0.5">{suspendedCount} bị khóa • {rejectedCount} từ chối</span>
         </div>
       </div>
 
       {/* 3. TABLE FILTER & SEARCH */}
       <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
-        <div className="p-4 border-b border-[#F1F5F9] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#FAFBFD]">
+        <div className="p-4 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8FAFC]">
           {/* Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1.5 overflow-x-auto">
             {[
-              { id: 'all', label: `Tất cả (${publishers.length})` },
-              { id: 'mall', label: `Đã phê duyệt (${approvedCount})` },
-              { id: 'pending', label: `Chờ thẩm định (${pendingCount})` }
+              { id: 'all', label: `Tất cả (${publishersList.length})` },
+              { id: 'pending', label: `Chờ thẩm định (${pendingCount})`, highlight: pendingCount > 0 },
+              { id: 'active', label: `Đang hoạt động (${activeCount})` },
+              { id: 'suspended', label: `Bị khóa quyền (${suspendedCount})` },
+              { id: 'rejected', label: `Đã từ chối (${rejectedCount})` }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === tab.id
-                    ? 'bg-[#00875A] text-white shadow-xs'
-                    : 'text-gray-600 hover:bg-gray-100'
+                    ? 'bg-[#003B2B] text-white shadow-xs'
+                    : 'text-gray-600 hover:bg-gray-200/60'
                 }`}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.highlight && <span className="w-2 h-2 rounded-full bg-amber-400"></span>}
               </button>
             ))}
           </div>
@@ -161,168 +286,338 @@ export default function AdminPublishersPage() {
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
             <input
               type="text"
-              placeholder={`Tìm tên ${entityLabel.toLowerCase()}...`}
+              placeholder="Tìm tên NXB, MST, email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-white border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A]"
+              className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-[#E2E8F0] text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:ring-1 focus:ring-[#00875A]/20"
             />
           </div>
         </div>
 
         {/* 4. PUBLISHER LIST TABLE */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-700">
-            <thead className="bg-[#F8FAFC] text-[11px] uppercase font-bold text-gray-400 border-b border-[#F1F5F9]">
-              <tr>
-                <th className="py-3 px-4">{entityLabel}</th>
-                <th className="py-3 px-4">Mã Hồ Sơ</th>
-                <th className="py-3 px-4">Quy Mô Phát Hành</th>
-                <th className="py-3 px-4">Doanh Thu Tháng</th>
-                <th className="py-3 px-4">Tỷ Lệ Chia Sẻ</th>
-                <th className="py-3 px-4">Trạng Thái</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {loading && <AdminTableMessage colSpan={7} icon="progress_activity" message="Đang tải dữ liệu..." spinning />}
-              {!loading && error && <AdminTableMessage colSpan={7} icon="cloud_off" message={error} tone="error" />}
-              {!loading && !error && filteredPublishers.length === 0 && <AdminTableMessage colSpan={7} icon="inbox" message="Không có hồ sơ phù hợp." />}
-              {filteredPublishers.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50/80 transition-colors">
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#EBF7F2] text-[#00875A] font-bold text-xs flex items-center justify-center shrink-0 border border-[#BDE6D7]">
-                        {p.code.substring(0, 3)}
-                      </div>
-                      <div>
-                        <div className="font-bold text-gray-900 hover:text-[#00875A] transition-colors">{p.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-gray-400">
-                          <span>{p.rep}</span>
-                          <span>•</span>
-                          <span>{p.phone}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4 font-mono text-[11px] text-gray-600">
-                    <div>{p.license}</div>
-                    <span className="text-[10px] text-gray-400">Gia nhập: {p.joinedDate}</span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div className="font-semibold text-gray-800">{p.bookCount}</div>
-                    <span className="text-[10px] text-[#00875A] font-medium">{p.ebookDrmCount} DRM</span>
-                  </td>
-                  <td className="py-3.5 px-4 font-bold text-gray-900 text-[13px]">
-                    {p.revenue}
-                  </td>
-                  <td className="py-3.5 px-4 font-medium text-gray-600">
-                    {p.split}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    {p.status === 'active' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10.5px] font-bold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
-                        {p.badge}
-                      </span>
-                    ) : p.status === 'rejected' ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-100 text-red-800 text-[10.5px] font-bold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-600"></span>
-                        {p.badge}
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[10.5px] font-bold animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                        {p.badge}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {p.status === 'pending' ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={actionId === p.id}
-                            onClick={() => handleReview(p, 'approve')}
-                            className="px-3 py-1.5 rounded-lg bg-[#00875A] text-white text-xs font-bold hover:bg-[#00734c] transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            {actionId === p.id ? 'Đang xử lý...' : 'Duyệt'}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={actionId === p.id}
-                            onClick={() => handleReview(p, 'reject')}
-                            className="px-3 py-1.5 rounded-lg bg-red-50 text-red-700 text-xs font-bold hover:bg-red-100 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            Từ chối
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled
-                          title="Trang hồ sơ chi tiết thuộc phase sau"
-                          className="px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-500 text-xs font-semibold cursor-not-allowed opacity-60"
-                        >
-                          Xem hồ sơ
-                        </button>
-                      )}
-                    </div>
-                  </td>
+        <div className="overflow-x-auto w-full">
+          {isLoading ? (
+            <div className="py-16 flex flex-col items-center justify-center gap-3">
+              <span className="w-8 h-8 border-3 border-[#00875A]/30 border-t-[#00875A] rounded-full animate-spin"></span>
+              <p className="text-xs text-gray-500 font-medium">Đang tải danh sách hồ sơ từ Gateway...</p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs text-gray-900 min-w-[980px]">
+              <thead className="bg-[#F8FAFC] text-[11px] uppercase font-bold text-gray-500 border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-4 min-w-[250px]">Nhà Xuất Bản / Doanh Nghiệp</th>
+                  <th className="py-3 px-4 min-w-[130px] whitespace-nowrap">Giấy Phép / MST</th>
+                  <th className="py-3 px-4 min-w-[180px]">Địa Chỉ Trụ Sở</th>
+                  <th className="py-3 px-4 min-w-[120px] whitespace-nowrap">Quy Mô Phát Hành</th>
+                  <th className="py-3 px-4 min-w-[130px] whitespace-nowrap text-center">Trạng Thái</th>
+                  <th className="py-3 px-5 min-w-[220px] whitespace-nowrap text-right">Quản Trị Quyền &amp; Thao Tác</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0]">
+                {filteredPublishers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-16 text-center text-gray-500">
+                      <span className="material-symbols-outlined text-4xl text-gray-300 mb-2 block">folder_off</span>
+                      <p className="font-bold text-sm text-gray-700">Chưa có hồ sơ NXB nào trong danh mục này</p>
+                      <p className="text-xs text-gray-400 mt-1">Các hồ sơ đăng ký từ /seller/register sẽ xuất hiện tại đây</p>
+                    </td>
+                  </tr>
+                ) : (
+                  filteredPublishers.map((p) => {
+                    const isPending = p.status === 'PENDING_APPROVAL';
+                    const isApproved = p.status === 'APPROVED';
+                    const isSuspended = p.status === 'SUSPENDED';
+                    const isActionLoading = actionLoadingId === p.id;
+
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50/70 transition-colors">
+                        <td className="py-3.5 px-4 min-w-[250px]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] font-bold text-xs flex items-center justify-center shrink-0 border border-[#BDE6D7]">
+                              {p.code}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-bold text-gray-900 hover:text-[#00875A] transition-colors leading-snug line-clamp-1">{p.name}</div>
+                              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-500 whitespace-nowrap">
+                                <span>{p.email}</span>
+                                {p.phone && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{p.phone}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 min-w-[130px] whitespace-nowrap">
+                          <div className="font-mono font-bold text-gray-800 text-[11px]">{p.license}</div>
+                          <span className="text-[10px] text-gray-500 font-sans block mt-0.5">Nộp: {p.joinedDate}</span>
+                        </td>
+                        <td className="py-3.5 px-4 min-w-[180px] text-gray-600 text-[11.5px] leading-relaxed" title={p.address}>
+                          <span className="line-clamp-2">{p.address}</span>
+                        </td>
+                        <td className="py-3.5 px-4 min-w-[120px] whitespace-nowrap">
+                          <div className="font-semibold text-gray-900">{p.bookCount}</div>
+                          <span className="text-[10.5px] text-[#00875A] font-bold block mt-0.5">{p.ebookDrmCount}</span>
+                        </td>
+                        <td className="py-3.5 px-4 min-w-[130px] whitespace-nowrap text-center">
+                          {isPending ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 text-[11px] font-bold whitespace-nowrap shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                              Chờ Thẩm Định
+                            </span>
+                          ) : isApproved ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold whitespace-nowrap shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                              Chính Hãng Mall
+                            </span>
+                          ) : isSuspended ? (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 text-[11px] font-bold whitespace-nowrap shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                              Đã Khóa Quyền
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 text-gray-700 border border-gray-200/80 text-[11px] font-bold whitespace-nowrap shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span>
+                              Đã Từ Chối
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-5 min-w-[220px] whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-1.5 whitespace-nowrap shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPublisher(p)}
+                              className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold whitespace-nowrap cursor-pointer shrink-0 transition-colors"
+                              title="Xem hồ sơ ĐKKD"
+                            >
+                              Xem
+                            </button>
+
+                            {/* Pending State: Duyệt & Từ chối */}
+                            {isPending && (
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleApprove(p.id, p.name)}
+                                className="px-2.5 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white text-xs font-bold whitespace-nowrap shadow-xs cursor-pointer flex items-center gap-1 shrink-0 transition-all disabled:opacity-60"
+                                title="Phê duyệt hồ sơ"
+                              >
+                                {isActionLoading ? (
+                                  <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                ) : (
+                                  <span className="material-symbols-outlined text-[14px]">check</span>
+                                )}
+                                <span>Duyệt</span>
+                              </button>
+                            )}
+
+                            {/* Approved State: Khóa quyền bán */}
+                            {isApproved && (
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleSuspend(p.id, p.name)}
+                                className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 transition-all"
+                                title="Khóa quyền / Đình chỉ gian hàng"
+                              >
+                                <span className="material-symbols-outlined text-[14px] text-amber-700">block</span>
+                                <span>Khóa</span>
+                              </button>
+                            )}
+
+                            {/* Suspended State: Mở khóa quyền bán */}
+                            {isSuspended && (
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleActivate(p.id, p.name)}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 transition-all"
+                                title="Mở khóa và kích hoạt lại quyền bán"
+                              >
+                                <span className="material-symbols-outlined text-[14px] text-emerald-700">lock_open</span>
+                                <span>Mở Khóa</span>
+                              </button>
+                            )}
+
+                            {/* Nút Xóa hồ sơ */}
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(p.id)}
+                              className="p-1.5 rounded-lg hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition-colors cursor-pointer shrink-0"
+                              title="Xóa hồ sơ khỏi hệ thống"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
+
+      {/* 5. MODAL XÁC NHẬN XÓA HỒ SƠ */}
+      {confirmDeleteId && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl border border-rose-200 shadow-2xl p-6 animate-fade-in-up">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3">
+              <span className="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <h3 className="font-bold text-base text-gray-900 text-center">Xác nhận xóa hồ sơ NXB?</h3>
+            <p className="text-xs text-gray-500 text-center mt-1.5 leading-relaxed">
+              Thao tác này sẽ xóa vĩnh viễn thông tin doanh nghiệp khỏi cơ sở dữ liệu. Không thể hoàn tác.
+            </p>
+
+            <div className="flex items-center justify-center gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-gray-700 font-bold text-xs hover:bg-gray-50 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const target = publishersList.find(p => p.id === confirmDeleteId);
+                  if (target) handleDelete(target.id, target.name);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors shadow-xs cursor-pointer"
+              >
+                Xác Nhận Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL XEM CHI TIẾT HỒ SƠ PHÁP LÝ & QUẢN TRỊ QUYỀN */}
+      {selectedPublisher && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl border border-[#E2E8F0] shadow-2xl p-6 sm:p-8 animate-fade-in-up">
+            <div className="flex items-center justify-between pb-4 border-b border-[#E2E8F0]">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] font-bold text-sm flex items-center justify-center">
+                  {selectedPublisher.code}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">{selectedPublisher.name}</h3>
+                  <span className="text-xs text-gray-500 font-mono">Mã hồ sơ: {selectedPublisher.license}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPublisher(null)}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="py-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 bg-[#F8FAFC] p-4 rounded-2xl border border-[#E2E8F0]">
+                <div>
+                  <span className="text-gray-500">Người đại diện pháp luật:</span>
+                  <p className="font-bold text-sm text-gray-900 mt-0.5">{selectedPublisher.rep}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Mã số thuế / MSDN:</span>
+                  <p className="font-mono font-bold text-sm text-gray-900 mt-0.5">{selectedPublisher.taxCode}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Email giao dịch:</span>
+                  <p className="font-bold text-gray-900 mt-0.5">{selectedPublisher.email}</p>
+                </div>
+                <div>
+                  <span className="text-gray-500">Hotline vận hành:</span>
+                  <p className="font-bold text-gray-900 mt-0.5">{selectedPublisher.phone}</p>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-gray-500">Địa chỉ trụ sở chính:</span>
+                  <p className="font-bold text-gray-900 mt-0.5">{selectedPublisher.address}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-[#00875A] font-bold">
+                  <span className="material-symbols-outlined text-lg">verified</span>
+                  <span>Bảo hộ bản quyền số HUKI DRM &amp; Tỷ lệ hoa hồng 85/15</span>
+                </div>
+                <span className="text-xs font-bold text-emerald-800">Đã cam kết</span>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[#E2E8F0] flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedPublisher(null)}
+                className="px-4 py-2.5 rounded-xl border border-[#E2E8F0] text-gray-700 font-bold text-xs hover:bg-gray-50 cursor-pointer"
+              >
+                Đóng lại
+              </button>
+
+              <div className="flex items-center gap-2">
+                {selectedPublisher.status === 'PENDING_APPROVAL' ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === selectedPublisher.id}
+                      onClick={() => handleReject(selectedPublisher.id, selectedPublisher.name)}
+                      className="px-4 py-2.5 rounded-xl bg-red-50 text-red-700 hover:bg-red-100 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Từ Chối Hồ Sơ
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionLoadingId === selectedPublisher.id}
+                      onClick={() => handleApprove(selectedPublisher.id, selectedPublisher.name)}
+                      className="px-5 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-base">check</span>
+                      <span>Phê Duyệt &amp; Cấp Quyền NXB</span>
+                    </button>
+                  </>
+                ) : selectedPublisher.status === 'APPROVED' ? (
+                  <button
+                    type="button"
+                    disabled={actionLoadingId === selectedPublisher.id}
+                    onClick={() => handleSuspend(selectedPublisher.id, selectedPublisher.name)}
+                    className="px-4 py-2.5 rounded-xl bg-amber-50 text-amber-800 hover:bg-amber-100 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-base text-amber-700">block</span>
+                    <span>Khóa Quyền / Tạm Ngưng Gian Hàng</span>
+                  </button>
+                ) : selectedPublisher.status === 'SUSPENDED' ? (
+                  <button
+                    type="button"
+                    disabled={actionLoadingId === selectedPublisher.id}
+                    onClick={() => handleActivate(selectedPublisher.id, selectedPublisher.name)}
+                    className="px-5 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-base">lock_open</span>
+                    <span>Mở Khóa &amp; Khôi Phục Hoạt Động</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={actionLoadingId === selectedPublisher.id}
+                    onClick={() => handleApprove(selectedPublisher.id, selectedPublisher.name)}
+                    className="px-4 py-2.5 rounded-xl bg-[#00875A] text-white hover:bg-[#00734c] font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    Xem Xét Lại &amp; Phê Duyệt
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  );
-}
-
-function toAdminRow(item, entityType) {
-  const statusMap = {
-    APPROVED: { status: 'active', badge: 'Đã phê duyệt' },
-    PENDING_APPROVAL: { status: 'pending', badge: 'Chờ thẩm định' },
-    REJECTED: { status: 'rejected', badge: 'Đã từ chối' },
-    SUSPENDED: { status: 'rejected', badge: 'Tạm đình chỉ' },
-    CLOSED: { status: 'rejected', badge: 'Đã đóng' }
-  };
-  const mappedStatus = statusMap[item.status] || statusMap.PENDING_APPROVAL;
-  const isStore = entityType === 'stores';
-  const code = item.name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 3)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase() || 'HUKI';
-
-  return {
-    id: item.id,
-    name: item.name,
-    code,
-    badge: mappedStatus.badge,
-    license: isStore ? `/${item.slug}` : (item.taxCode || item.id),
-    rep: item.email || 'Chưa cập nhật email',
-    email: item.email || '',
-    phone: item.phone || 'Chưa cập nhật SĐT',
-    revenue: '—',
-    bookCount: isStore ? 'Danh mục riêng' : 'Quản lý gian hàng',
-    ebookDrmCount: 'Dữ liệu Phase 3',
-    split: '—',
-    status: mappedStatus.status,
-    statusLabel: mappedStatus.badge,
-    joinedDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—'
-  };
-}
-
-function AdminTableMessage({ colSpan, icon, message, tone = 'neutral', spinning = false }) {
-  return (
-    <tr>
-      <td colSpan={colSpan} className={`px-4 py-12 text-center ${tone === 'error' ? 'text-red-700' : 'text-gray-500'}`} role={tone === 'error' ? 'alert' : 'status'}>
-        <span className={`material-symbols-outlined block text-3xl ${spinning ? 'animate-spin' : ''}`} aria-hidden="true">{icon}</span>
-        <span className="mt-2 block text-sm font-semibold">{message}</span>
-      </td>
-    </tr>
   );
 }

@@ -1,13 +1,72 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { catalogApi, CategoryData } from '../../api/catalogApi';
+import { businessApi } from '../../api/businessApi';
 
 export default function SellerCreatePhysical() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { user } = useAuth();
+
+  const [categories, setCategories] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [shippingEnabled, setShippingEnabled] = useState(true);
+  const [activeSection, setActiveSection] = useState('sec-basic');
+
+  const [form, setForm] = useState({
+    title: 'Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ (Bản Bìa Cứng)',
+    teaser: 'Cuốn sách kinh điển hướng dẫn từng bước thiết lập hệ thống thói quen nguyên tử, giúp cải thiện 1% mỗi ngày để đạt thành tựu vượt bậc trong sự nghiệp và đời sống.',
+    description: 'Trong Atomic Habits, James Clear chắt lọc những phát hiện đã được khoa học kiểm chứng từ sinh học, tâm lý học và thần kinh học để tạo ra một chỉ dẫn hành động dễ áp dụng cho bất kỳ ai muốn thay đổi nếp sống thường nhật.',
+    language: 'Tiếng Việt',
+    publishDate: '2026-08-15',
+    isbn: '978-604-58-9123-4',
+    edition: 'Tái bản lần thứ 12',
+    pages: 384,
+    coverType: 'Bìa cứng có áo ôm (Hardcover w/ Jacket)',
+    categoryId: '',
+    authorName: 'James Clear',
+    publisherName: user?.business?.name || 'Alpha Books Official',
+    distributorName: 'Alpha Books',
+    coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
+    originalPrice: 189000,
+    price: 149000,
+    sku: 'AB-ATOMIC-HARD-01',
+    stock: 120,
+    lowStockThreshold: 10,
+    warehouseLocation: 'Kho Tân Phú, TP. HCM (Khu B-12)',
+    weight: 450,
+    length: 21,
+    width: 15,
+    height: 3,
+    publishMode: 'instant',
+  });
+
   const [tags, setTags] = useState(['Thói quen', 'Kỷ luật bản thân', 'Năng suất']);
   const [newTag, setNewTag] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
-  const [publishMode, setPublishMode] = useState('instant');
-  const [activeSection, setActiveSection] = useState('sec-basic');
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const res = await catalogApi.getCategories();
+        if (res.success && Array.isArray(res.data)) {
+          setCategories(res.data);
+          if (res.data.length > 0 && !form.categoryId) {
+            setForm(prev => ({ ...prev, categoryId: res.data[0].id }));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load categories', err);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleAddTag = () => {
     if (newTag.trim() && !tags.includes(newTag.trim())) {
@@ -29,6 +88,95 @@ export default function SellerCreatePhysical() {
     }
   };
 
+  const handleSubmit = async (isDraft = false) => {
+    if (!form.title.trim()) {
+      showToast('Vui lòng nhập tên sản phẩm sách.', 'error');
+      scrollToSection('sec-basic');
+      return;
+    }
+    if (!form.price || Number(form.price) <= 0) {
+      showToast('Vui lòng nhập giá bán hợp lệ.', 'error');
+      scrollToSection('sec-pricing');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let businessId = user?.business?.id;
+      if (!businessId) {
+        try {
+          const myBiz = await businessApi.getMyBusiness();
+          if (myBiz.success && myBiz.data?.id) {
+            businessId = myBiz.data.id;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      if (!businessId) {
+        showToast('Bạn cần có doanh nghiệp đã được duyệt trước khi thêm sách.', 'error');
+        return;
+      }
+
+      const payload = {
+        title: form.title,
+        isbn: form.isbn || undefined,
+        description: form.description || form.teaser,
+        price: Number(form.price),
+        format: 'PHYSICAL',
+        categoryId: form.categoryId || undefined,
+        coverUrl: form.coverUrl || undefined,
+        businessId,
+        physicalDetails: {
+          stock: Number(form.stock || 0),
+          weight: Number(form.weight || 450),
+          length: Number(form.length || 21),
+          width: Number(form.width || 15),
+          height: Number(form.height || 3),
+          physicalEnabled: true,
+        },
+      };
+
+      const res = await catalogApi.createBook(payload);
+
+      if (res.success && res.data?.id) {
+        const bookId = res.data.id;
+
+        if (Number(form.stock) > 0) {
+          try {
+            await catalogApi.updateInventory(bookId, Number(form.stock));
+          } catch (e) {
+            console.warn('Inventory update failed', e);
+          }
+        }
+
+        if (!isDraft) {
+          const publishRes = await catalogApi.publishBook(bookId);
+          if (!publishRes.success) {
+            showToast(publishRes.error?.message || 'Đã tạo bản nháp nhưng không thể xuất bản sách.', 'error');
+            return;
+          }
+        }
+
+        showToast(
+          isDraft
+            ? `Đã lưu bản nháp sách "${form.title}" thành công!`
+            : `Đã xuất bản thành công sách giấy: "${form.title}"!`,
+          'success'
+        );
+
+        navigate('/seller/products');
+      } else {
+        showToast(res.error?.message || 'Có lỗi khi tạo sách giấy.', 'error');
+      }
+    } catch {
+      showToast('Không thể kết nối API tạo sách.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const navItems = [
     { id: 'sec-basic', label: 'Thông Tin Cơ Bản', completed: true },
     { id: 'sec-category', label: 'Phân Loại Sách', completed: true },
@@ -40,8 +188,9 @@ export default function SellerCreatePhysical() {
   ];
 
   return (
-    <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen py-6 pb-28">
-      <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-6 pb-0 flex flex-col justify-between">
+      <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6 flex-1 pb-10">
+
 
         {/* Top Header & Breadcrumbs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-theme-border/60 pb-5">
@@ -216,7 +365,9 @@ export default function SellerCreatePhysical() {
                 <input 
                   className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-medium text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
                   type="text" 
-                  defaultValue="Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ (Bản Bìa Cứng)" 
+                  value={form.title}
+                  onChange={(e) => handleChange('title', e.target.value)}
+                  placeholder="Nhập tựa đề sách in..."
                 />
                 <p className="font-label-sm text-[11px] text-on-surface-variant mt-1.5">Nên bao gồm tên tác phẩm và quy cách bìa (VD: Bìa mềm / Bìa cứng đặc biệt).</p>
               </div>
@@ -224,12 +375,14 @@ export default function SellerCreatePhysical() {
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="font-title-md text-xs font-bold text-on-surface">Giới thiệu ngắn (Lead text)</label>
-                  <span className="font-label-sm text-[11px] text-on-surface-variant">142 / 300 ký tự</span>
+                  <span className="font-label-sm text-[11px] text-on-surface-variant">{form.teaser.length} / 300 ký tự</span>
                 </div>
                 <textarea 
                   className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none leading-relaxed transition-all resize-none" 
                   rows={2}
-                  defaultValue="Cuốn sách kinh điển hướng dẫn từng bước thiết lập hệ thống thói quen nguyên tử, giúp cải thiện 1% mỗi ngày để đạt thành tựu vượt bậc trong sự nghiệp và đời sống."
+                  value={form.teaser}
+                  onChange={(e) => handleChange('teaser', e.target.value)}
+                  placeholder="Tóm tắt ngắn gọn 1-2 câu..."
                 />
               </div>
 
@@ -237,46 +390,36 @@ export default function SellerCreatePhysical() {
                 <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">
                   Mô tả chi tiết sách <span className="text-primary">*</span>
                 </label>
-                <div className="border border-theme-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all">
-                  <div className="bg-surface-container-low/70 px-3 py-2 border-b border-theme-border flex flex-wrap items-center gap-1 text-on-surface-variant">
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">B</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container italic text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">I</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">H1</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">H2</button>
-                    <span className="w-px h-4 bg-theme-border mx-1"></span>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">format_list_bulleted</span>
-                    </button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">format_list_numbered</span>
-                    </button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">format_quote</span>
-                    </button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">link</span>
-                    </button>
-                  </div>
-
-                  <div className="p-4 text-sm font-body-md text-on-surface leading-relaxed space-y-2 bg-surface-container-lowest min-h-[140px]">
-                    <p className="font-headline-sm text-base text-primary italic">"Bạn không đạt tới mức độ của mục tiêu mà bạn đặt ra. Bạn rơi xuống mức độ của hệ thống mà bạn xây dựng."</p>
-                    <p>Trong <strong>Atomic Habits</strong>, James Clear chắt lọc những phát hiện đã được khoa học kiểm chứng từ sinh học, tâm lý học và thần kinh học để tạo ra một chỉ dẫn hành động dễ áp dụng cho bất kỳ ai muốn thay đổi nếp sống thường nhật.</p>
-                  </div>
-                </div>
+                <textarea
+                  className="w-full rounded-xl border border-theme-border bg-surface-container-lowest p-3.5 text-sm font-body-md text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none leading-relaxed transition-all min-h-[140px]"
+                  value={form.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="Mô tả chi tiết tác phẩm, mục lục, thông điệp chính..."
+                  rows={5}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ngôn ngữ bản in</label>
-                  <select className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all">
-                    <option>Tiếng Việt</option>
-                    <option>Tiếng Anh (Bản gốc)</option>
-                    <option>Song ngữ</option>
+                  <select 
+                    value={form.language}
+                    onChange={(e) => handleChange('language', e.target.value)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
+                  >
+                    <option value="Tiếng Việt">Tiếng Việt</option>
+                    <option value="Tiếng Anh (Bản gốc)">Tiếng Anh (Bản gốc)</option>
+                    <option value="Song ngữ">Song ngữ</option>
                   </select>
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ngày phát hành</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="15/09/2023" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="date" 
+                    value={form.publishDate}
+                    onChange={(e) => handleChange('publishDate', e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -285,25 +428,44 @@ export default function SellerCreatePhysical() {
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">
                     Mã ISBN <span className="text-on-surface-variant font-normal text-[11px]">(Định danh quốc tế)</span>
                   </label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="978-604-58-9123-4" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.isbn}
+                    onChange={(e) => handleChange('isbn', e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Lần tái bản</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Tái bản lần thứ 12" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.edition}
+                    onChange={(e) => handleChange('edition', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Số trang *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="384 trang" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.pages}
+                    onChange={(e) => handleChange('pages', Number(e.target.value))}
+                  />
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Định dạng bìa</label>
-                  <select className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all">
-                    <option>Bìa cứng có áo ôm (Hardcover w/ Jacket)</option>
-                    <option>Bìa mềm cao cấp (Paperback)</option>
-                    <option>Bìa da đặc biệt đánh số</option>
+                  <select 
+                    value={form.coverType}
+                    onChange={(e) => handleChange('coverType', e.target.value)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
+                  >
+                    <option value="Bìa cứng có áo ôm (Hardcover w/ Jacket)">Bìa cứng có áo ôm (Hardcover w/ Jacket)</option>
+                    <option value="Bìa mềm cao cấp (Paperback)">Bìa mềm cao cấp (Paperback)</option>
+                    <option value="Bìa da đặc biệt đánh số">Bìa da đặc biệt đánh số</option>
                   </select>
                 </div>
               </div>
@@ -325,37 +487,64 @@ export default function SellerCreatePhysical() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Thể loại chính *</label>
-                  <select className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all">
-                    <option>Phát Triển Bản Thân &amp; Kỹ Năng</option>
-                    <option>Kinh Doanh &amp; Khởi Nghiệp</option>
-                    <option>Văn Học Kinh Điển</option>
+                  <select 
+                    value={form.categoryId}
+                    onChange={(e) => handleChange('categoryId', e.target.value)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all font-medium"
+                  >
+                    {categories.length > 0 ? (
+                      categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))
+                    ) : (
+                      <option value="">Đang tải thể loại...</option>
+                    )}
                   </select>
                 </div>
                 <div>
-                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Thể loại phụ</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Thói Quen &amp; Năng Suất Làm Việc" />
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Đơn vị phát hành</label>
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.distributorName}
+                    onChange={(e) => handleChange('distributorName', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="font-title-md text-xs font-bold text-on-surface">Tác giả *</label>
-                  <Link className="text-primary font-label-sm text-[11px] hover:underline" to="/">Không tìm thấy? Đề xuất tác giả mới</Link>
                 </div>
                 <div className="relative">
                   <span className="material-symbols-outlined absolute left-3.5 top-2.5 text-on-surface-variant text-lg">person</span>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest pl-10 pr-4 py-2.5 text-sm font-medium text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="James Clear" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest pl-10 pr-4 py-2.5 text-sm font-medium text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.authorName}
+                    onChange={(e) => handleChange('authorName', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Nhà xuất bản *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="NXB Thế Giới" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.publisherName}
+                    onChange={(e) => handleChange('publisherName', e.target.value)}
+                  />
                 </div>
                 <div>
-                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Đơn vị phát hành</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Alpha Books" />
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ảnh bìa URL</label>
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.coverUrl}
+                    onChange={(e) => handleChange('coverUrl', e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -489,7 +678,12 @@ export default function SellerCreatePhysical() {
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá niêm yết (Giá bìa NXB)</label>
                   <div className="relative">
-                    <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="189.000" />
+                    <input 
+                      className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                      type="number" 
+                      value={form.originalPrice}
+                      onChange={(e) => handleChange('originalPrice', Number(e.target.value))}
+                    />
                     <span className="absolute right-4 top-2.5 text-xs text-on-surface-variant font-bold">₫</span>
                   </div>
                 </div>
@@ -498,7 +692,12 @@ export default function SellerCreatePhysical() {
                     Giá bán tại HUKI <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
-                    <input className="w-full rounded-xl border-2 border-primary bg-primary/[0.02] px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="149.000" />
+                    <input 
+                      className="w-full rounded-xl border-2 border-primary bg-primary/[0.02] px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                      type="number" 
+                      value={form.price}
+                      onChange={(e) => handleChange('price', Number(e.target.value))}
+                    />
                     <span className="absolute right-4 top-2.5 text-xs text-primary font-bold">₫</span>
                   </div>
                 </div>
@@ -507,10 +706,10 @@ export default function SellerCreatePhysical() {
               <div className="p-4 rounded-xl bg-gradient-to-r from-primary/[0.06] to-transparent border border-primary/20 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className="material-symbols-outlined text-primary text-xl">savings</span>
-                  <span className="text-xs text-on-surface">Tiết kiệm cho độc giả: <strong className="text-primary font-bold">40.000 ₫</strong></span>
+                  <span className="text-xs text-on-surface">Tiết kiệm cho độc giả: <strong className="text-primary font-bold">{Math.max(0, form.originalPrice - form.price).toLocaleString('vi-VN')} ₫</strong></span>
                 </div>
                 <span className="px-2.5 py-1 rounded-lg bg-primary/15 text-primary font-bold text-xs">
-                  -21% Ưu đãi HUKI
+                  {form.originalPrice > form.price ? `-${Math.round(((form.originalPrice - form.price) / form.originalPrice) * 100)}% Ưu đãi` : 'Giá chuẩn'}
                 </span>
               </div>
             </section>
@@ -525,28 +724,47 @@ export default function SellerCreatePhysical() {
                     <p className="font-body-sm text-xs text-on-surface-variant">Quản lý tồn kho thực tế và cảnh báo tồn thấp tự động.</p>
                   </div>
                 </div>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-200">Cần kiểm tra</span>
+                <span className="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-200">Kho thực tế</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Mã SKU gian hàng *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="AB-ATOMIC-HARD-01" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.sku}
+                    onChange={(e) => handleChange('sku', e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Số lượng tồn kho ban đầu *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="120" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.stock}
+                    onChange={(e) => handleChange('stock', Number(e.target.value))}
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ngưỡng cảnh báo hết hàng</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="10" />
-                  <p className="font-label-sm text-[11px] text-on-surface-variant mt-1">Thông báo khi tồn kho chạm mức này.</p>
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.lowStockThreshold}
+                    onChange={(e) => handleChange('lowStockThreshold', Number(e.target.value))}
+                  />
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Vị trí lưu kho</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Kho Tân Phú, TP. HCM (Khu B-12)" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.warehouseLocation}
+                    onChange={(e) => handleChange('warehouseLocation', e.target.value)}
+                  />
                 </div>
               </div>
             </section>
@@ -561,7 +779,6 @@ export default function SellerCreatePhysical() {
                     <p className="font-body-sm text-xs text-on-surface-variant">Kích thước và trọng lượng sau khi đã đóng gói chống sốc.</p>
                   </div>
                 </div>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-200">Cần xác nhận</span>
               </div>
 
               <div className="flex items-center justify-between p-4 rounded-xl bg-surface-container-low/70 border border-theme-border/50">
@@ -586,29 +803,40 @@ export default function SellerCreatePhysical() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div>
                   <label className="block font-label-sm text-xs font-bold text-on-surface mb-1">Khối lượng (g) *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="450" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.weight}
+                    onChange={(e) => handleChange('weight', Number(e.target.value))}
+                  />
                 </div>
                 <div>
                   <label className="block font-label-sm text-xs font-bold text-on-surface mb-1">Dài (cm) *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="21" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.length}
+                    onChange={(e) => handleChange('length', Number(e.target.value))}
+                  />
                 </div>
                 <div>
                   <label className="block font-label-sm text-xs font-bold text-on-surface mb-1">Rộng (cm) *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="15" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.width}
+                    onChange={(e) => handleChange('width', Number(e.target.value))}
+                  />
                 </div>
                 <div>
                   <label className="block font-label-sm text-xs font-bold text-on-surface mb-1">Cao (cm) *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" step="0.5" type="number" defaultValue="3.5" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.height}
+                    onChange={(e) => handleChange('height', Number(e.target.value))}
+                  />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Thời gian chuẩn bị hàng *</label>
-                <select defaultValue="Trong vòng 24 giờ (1 ngày làm việc)" className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all">
-                  <option>Trong vòng 24 giờ (1 ngày làm việc)</option>
-                  <option>Trong vòng 48 giờ (2 ngày làm việc)</option>
-                  <option>Hàng đặt trước (Pre-order 7-14 ngày)</option>
-                </select>
               </div>
             </section>
 
@@ -626,44 +854,44 @@ export default function SellerCreatePhysical() {
 
               <div className="space-y-3">
                 <label 
-                  onClick={() => setPublishMode('instant')}
+                  onClick={() => handleChange('publishMode', 'instant')}
                   className={`flex items-start gap-3.5 p-4 rounded-xl border cursor-pointer transition-all ${
-                    publishMode === 'instant' 
+                    form.publishMode === 'instant' 
                       ? 'border-primary bg-primary/[0.03] ring-2 ring-primary/10' 
                       : 'border-theme-border hover:bg-surface-container-low'
                   }`}
                 >
                   <input 
-                    checked={publishMode === 'instant'} 
-                    onChange={() => setPublishMode('instant')}
+                    checked={form.publishMode === 'instant'} 
+                    onChange={() => handleChange('publishMode', 'instant')}
                     className="mt-1 text-primary focus:ring-0 focus:outline-none cursor-pointer" 
                     name="publish_mode" 
                     type="radio" 
                   />
                   <div>
-                    <span className="block text-xs font-bold text-on-surface">Tự động hiển thị và mở bán ngay sau khi HUKI duyệt</span>
-                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Sản phẩm sẽ xuất hiện lập tức trên gian hàng Alpha Books khi được đội ngũ phê duyệt hợp lệ.</span>
+                    <span className="block text-xs font-bold text-on-surface">Tự động hiển thị và mở bán ngay trên Storefront</span>
+                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Sản phẩm sẽ xuất hiện lập tức trên gian hàng khi tạo thành công.</span>
                   </div>
                 </label>
 
                 <label 
-                  onClick={() => setPublishMode('draft')}
+                  onClick={() => handleChange('publishMode', 'draft')}
                   className={`flex items-start gap-3.5 p-4 rounded-xl border cursor-pointer transition-all ${
-                    publishMode === 'draft' 
+                    form.publishMode === 'draft' 
                       ? 'border-primary bg-primary/[0.03] ring-2 ring-primary/10' 
                       : 'border-theme-border hover:bg-surface-container-low'
                   }`}
                 >
                   <input 
-                    checked={publishMode === 'draft'} 
-                    onChange={() => setPublishMode('draft')}
+                    checked={form.publishMode === 'draft'} 
+                    onChange={() => handleChange('publishMode', 'draft')}
                     className="mt-1 text-primary focus:ring-0 focus:outline-none cursor-pointer" 
                     name="publish_mode" 
                     type="radio" 
                   />
                   <div>
-                    <span className="block text-xs font-bold text-on-surface">Lưu ở trạng thái ẩn sau khi duyệt (kích hoạt thủ công)</span>
-                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Phù hợp khi bạn đang chờ đúng ngày chiến dịch truyền thông ra mắt sách mới.</span>
+                    <span className="block text-xs font-bold text-on-surface">Lưu bản nháp ẩn (DRAFT)</span>
+                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Phù hợp khi bạn đang chuẩn bị hồ sơ hoặc chờ đúng ngày ra mắt.</span>
                   </div>
                 </label>
               </div>
@@ -678,27 +906,31 @@ export default function SellerCreatePhysical() {
             <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs">
               <div className="flex items-center justify-between mb-3.5">
                 <span className="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">XEM TRƯỚC THẺ SÁCH</span>
-                <span className="px-2 py-0.5 rounded-full bg-theme-secondary-subtle font-label-sm text-[10px] text-theme-primary font-bold border border-theme-border">BẢN NHÁP</span>
+                <span className="px-2 py-0.5 rounded-full bg-theme-secondary-subtle font-label-sm text-[10px] text-theme-primary font-bold border border-theme-border">
+                  {form.publishMode === 'draft' ? 'BẢN NHÁP' : 'SẴN SÀNG'}
+                </span>
               </div>
               <div className="flex gap-3.5 items-start">
                 <div className="w-20 sm:w-22 aspect-[2/3] rounded-xl overflow-hidden shadow-md border border-theme-border shrink-0 relative bg-surface-container">
-                  <img className="w-full h-full object-cover" alt="Miniature front view of Atomic Habits" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw" />
+                  <img className="w-full h-full object-cover" alt="Miniature front view of book" src={form.coverUrl} />
                 </div>
                 <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
                   <div>
                     <span className="inline-block font-label-sm text-[9px] px-2 py-0.5 rounded bg-primary/10 text-primary font-bold uppercase mb-1">Sách Giấy</span>
-                    <h4 className="font-title-md text-xs font-bold text-on-surface truncate">Atomic Habits</h4>
-                    <p className="font-body-sm text-[11px] text-on-surface-variant truncate">James Clear</p>
+                    <h4 className="font-title-md text-xs font-bold text-on-surface truncate">{form.title || 'Tên sách...'}</h4>
+                    <p className="font-body-sm text-[11px] text-on-surface-variant truncate">{form.authorName || 'Tác giả...'}</p>
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="font-bold text-sm text-primary">149.000 ₫</span>
-                    <span className="text-[10px] line-through text-on-surface-variant">189.000 ₫</span>
+                    <span className="font-bold text-sm text-primary">{form.price ? `${form.price.toLocaleString('vi-VN')} ₫` : '0 ₫'}</span>
+                    {form.originalPrice > form.price && (
+                      <span className="text-[10px] line-through text-on-surface-variant">{form.originalPrice.toLocaleString('vi-VN')} ₫</span>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="mt-3.5 pt-3 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-on-surface-variant">
                 <span>Gian hàng:</span>
-                <span className="font-semibold text-on-surface">Alpha Books Official</span>
+                <span className="font-semibold text-on-surface truncate max-w-[130px]">{form.publisherName}</span>
               </div>
             </div>
 
@@ -706,66 +938,16 @@ export default function SellerCreatePhysical() {
             <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-title-md text-xs font-bold text-on-surface">Mức độ hoàn thiện</span>
-                <span className="font-title-md text-xs font-bold text-primary">71%</span>
+                <span className="font-title-md text-xs font-bold text-primary">100%</span>
               </div>
 
               <div className="w-full h-2.5 rounded-full bg-surface-container overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: '71%' }}></div>
+                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: '100%' }}></div>
               </div>
-              <p className="text-[11px] text-amber-700 font-medium flex items-center gap-1.5 bg-amber-50 p-2 rounded-lg border border-amber-100">
-                <span className="material-symbols-outlined text-sm">info</span>
-                <span>Còn 2 mục cần kiểm tra trước khi gửi duyệt.</span>
+              <p className="text-[11px] text-emerald-800 font-medium flex items-center gap-1.5 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                <span className="material-symbols-outlined text-sm text-emerald-700">task_alt</span>
+                <span>Thông tin hợp lệ &amp; sẵn sàng lưu.</span>
               </p>
-            </div>
-
-            {/* Checklist */}
-            <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs space-y-3">
-              <h4 className="font-label-sm text-[11px] uppercase font-bold text-on-surface-variant tracking-wider">
-                CHECKLIST XUẤT BẢN
-              </h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Tên sản phẩm &amp; mô tả</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Phân loại &amp; Tác giả</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Ảnh bìa chính tỉ lệ 2:3</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Giá bán hợp lệ</span>
-                </div>
-                <div className="flex items-center gap-2 text-amber-700 font-medium">
-                  <span className="material-symbols-outlined text-amber-600 text-sm">warning</span>
-                  <span>Kiểm tra lại tồn kho vật lý</span>
-                </div>
-                <div className="flex items-center gap-2 text-amber-700 font-medium">
-                  <span className="material-symbols-outlined text-amber-600 text-sm">warning</span>
-                  <span>Xác nhận thời gian lấy hàng</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Support widget */}
-            <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-theme-border/60 space-y-2">
-              <div className="flex items-center gap-2 text-on-surface font-bold text-xs">
-                <span className="material-symbols-outlined text-primary text-base">headset_mic</span>
-                <span>Trợ giúp NXB &amp; Người Bán</span>
-              </div>
-              <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                Cần hướng dẫn về bản quyền ISBN hoặc quy chuẩn lưu kho?
-              </p>
-              <div className="pt-1">
-                <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline" to="/">
-                  <span className="material-symbols-outlined text-sm">call</span>
-                  <span>Hotline: 1900 8866 (Nhánh 2)</span>
-                </Link>
-              </div>
             </div>
           </aside>
 
@@ -776,23 +958,39 @@ export default function SellerCreatePhysical() {
       <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border/70 px-6 sm:px-8 py-3.5 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs text-on-surface-variant font-medium">
           <span className="material-symbols-outlined text-primary text-base">cloud_done</span>
-          <span>Đã tự động lưu nháp lúc 10:42</span>
+          <span>Sẵn sàng lưu vào hệ thống</span>
         </div>
 
         <div className="flex items-center gap-3">
           <Link to="/seller/products" className="px-3.5 py-2 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
             Hủy / Thoát
           </Link>
-          <button className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer" type="button">
+          <button 
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => handleSubmit(true)}
+            className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer disabled:opacity-60"
+          >
             Lưu Bản Nháp
           </button>
-          <button className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container text-xs font-semibold text-on-surface hover:bg-surface-container-high transition-all cursor-pointer" type="button">
-            Xem Trước Giao Diện Gian Hàng
-          </button>
 
-          <button className="px-6 py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer" type="button">
-            <span>GỬI DUYỆT SẢN PHẨM</span>
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          <button 
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => handleSubmit(false)}
+            className="px-6 py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-60"
+          >
+            {isSubmitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                <span>Đang xử lý...</span>
+              </>
+            ) : (
+              <>
+                <span>XUẤT BẢN SÁCH GIẤY</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </>
+            )}
           </button>
         </div>
       </footer>

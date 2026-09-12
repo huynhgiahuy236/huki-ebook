@@ -14,8 +14,28 @@ export const AuthProvider = ({ children }) => {
 
   const isLoggedIn = Boolean(user);
 
-  const hydrateBusiness = async (userData) => {
-    if (!userData || userData.role === 'PLATFORM_ADMIN') return userData;
+  const normalizeUserData = (userData) => {
+    if (!userData) return null;
+    const normalizedName =
+      userData.fullName ||
+      userData.name ||
+      userData.profile?.fullName ||
+      (userData.role === 'PLATFORM_ADMIN'
+        ? 'Super Admin'
+        : userData.role === 'BUSINESS'
+        ? 'Chủ Doanh Nghiệp'
+        : userData.email?.split('@')[0] || 'Người Dùng');
+    return {
+      ...userData,
+      name: normalizedName,
+      fullName: userData.fullName || normalizedName,
+    };
+  };
+
+  const hydrateBusiness = async (rawUserData) => {
+    if (!rawUserData) return null;
+    const userData = normalizeUserData(rawUserData);
+    if (userData.role === 'PLATFORM_ADMIN') return userData;
     const bizRes = await businessApi.getMyBusiness();
     if (!bizRes.success || !bizRes.data) return userData;
     if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
@@ -137,7 +157,7 @@ export const AuthProvider = ({ children }) => {
         // Chỉ lưu session & setUser khi có token và tài khoản đã ACTIVE (không PENDING)
         if (accessToken && refreshToken && userData?.status === 'ACTIVE') {
           tokenStorage.setTokens({ accessToken, refreshToken });
-          setUser(userData);
+          setUser(normalizeUserData(userData));
         } else {
           tokenStorage.clearTokens();
           setUser(null);

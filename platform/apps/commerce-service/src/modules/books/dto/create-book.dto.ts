@@ -17,6 +17,11 @@ import { BookFormat } from '../../../../prisma/generated/client';
 import { DigitalBookDetailsDto, PhysicalBookDetailsDto } from './book-details.dto';
 
 export class CreateBookDto {
+  @ApiPropertyOptional({ format: 'uuid', description: 'Business that owns this book/storefront' })
+  @IsOptional()
+  @IsUUID()
+  businessId?: string;
+
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
   @IsUUID()

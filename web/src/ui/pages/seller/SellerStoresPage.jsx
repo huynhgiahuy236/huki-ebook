@@ -35,17 +35,31 @@ export default function SellerStoresPage() {
   const [error, setError] = useState('');
 
   const loadStores = useCallback(async () => {
-    if (!businessId) {
-      setError('Không xác định được doanh nghiệp đang hoạt động.');
+    setLoading(true);
+    setError('');
+    let currentBizId = businessId;
+    if (!currentBizId) {
+      try {
+        const myBiz = await businessApi.getMyBusiness();
+        if (myBiz.success && myBiz.data?.id) {
+          currentBizId = myBiz.data.id;
+          setActiveBusinessId(currentBizId);
+        }
+      } catch (err) {
+        console.warn('Could not auto-fetch businessId', err);
+      }
+    }
+
+    if (!currentBizId) {
+      setError('Bạn chưa đăng ký doanh nghiệp hoặc hồ sơ chưa được kích hoạt.');
       setLoading(false);
       return;
     }
-    setLoading(true);
-    setError('');
-    const res = await businessApi.getMyStores(businessId);
+
+    const res = await businessApi.getMyStores(currentBizId);
     if (res.success) {
       setStores(res.data || []);
-      setActiveBusinessId(businessId);
+      setActiveBusinessId(currentBizId);
     } else {
       setError(res.error?.message || 'Không thể tải danh sách cửa hàng.');
     }
@@ -69,12 +83,27 @@ export default function SellerStoresPage() {
 
   const submit = async (event) => {
     event.preventDefault();
-    if (!businessId) return;
+    let currentBizId = businessId || activeBusinessId;
+    if (!currentBizId) {
+      try {
+        const myBiz = await businessApi.getMyBusiness();
+        if (myBiz.success && myBiz.data?.id) {
+          currentBizId = myBiz.data.id;
+          setActiveBusinessId(currentBizId);
+        }
+      } catch {
+        // fallback
+      }
+    }
+    if (!currentBizId) {
+      showToast('Không xác định được doanh nghiệp của bạn.', 'error');
+      return;
+    }
     setSubmitting(true);
     const payload = Object.fromEntries(
       Object.entries(form).filter(([, value]) => value.trim()),
     );
-    const res = await businessApi.createStore(businessId, payload);
+    const res = await businessApi.createStore(currentBizId, payload);
     setSubmitting(false);
     if (!res.success) {
       showToast(res.error?.message || 'Tạo cửa hàng không thành công.', 'error');

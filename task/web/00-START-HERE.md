@@ -2,7 +2,7 @@
 
 ## 1. Việc đang tập trung
 
-`Phase 01` và `Phase 02` đã `✅ DONE`. `Phase 03` đang `🟡 READY_FOR_REVIEW`: implementation và automated quality gates đã đạt, chờ reviewer chạy E2E backend thật.
+`Phase 01`, `Phase 02` và `Phase 03` đã `✅ DONE`. Đang chuyển tiếp sang `Phase 04` (Checkout & COD Fulfillment).
 
 | Hạng mục | Status | Việc tiếp theo |
 |---|---|---|
@@ -12,7 +12,7 @@
 | Auth browser integration | ✅ DONE | Login → `/auth/me` → refresh → logout |
 | Granular business permission | ✅ DONE | Permission catalog và helper `can()` enforcement |
 | Phase 02 Identity & RBAC | ✅ DONE | Full identity flow, role routing, forced password change, session state |
-| Phase 03 Storefront & Catalog | 🟡 READY_FOR_REVIEW | Reviewer chạy E2E business → store → product → Guest |
+| Phase 03 Storefront & Catalog | ✅ DONE | E2E xuyên vai trò trên backend thật đạt chuẩn |
 
 ## 2. Happy case duy nhất
 

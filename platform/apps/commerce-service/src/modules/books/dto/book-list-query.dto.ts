@@ -76,6 +76,11 @@ export class BookListQueryDto {
   @IsUUID()
   store?: string;
 
+  @ApiPropertyOptional({ format: 'uuid', description: 'Business storefront owner' })
+  @IsOptional()
+  @IsUUID()
+  business?: string;
+
   @ApiPropertyOptional({ enum: BookFormat })
   @IsOptional()
   @IsEnum(BookFormat)

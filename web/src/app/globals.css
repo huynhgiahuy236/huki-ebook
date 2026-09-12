@@ -1,24 +1,16 @@
-:root {
-  --background: #f7f4ed;
-  --foreground: #1c1917;
-}
-
 * {
   box-sizing: border-box;
 }
 
-html {
-  background: var(--background);
-}
-
+html,
 body {
   min-width: 320px;
-  background: var(--background);
-  color: var(--foreground);
+  background-color: var(--theme-bg, #f2fbf9);
+  color: var(--theme-text, #141d1c);
   font-family: "Be Vietnam Pro", Arial, Helvetica, sans-serif;
 }
 
 ::selection {
-  background: #fde68a;
-  color: #1c1917;
+  background-color: var(--theme-accent, #ac2c19);
+  color: #ffffff;
 }

@@ -14,7 +14,11 @@ import { CatalogAdminGuard } from './catalog-admin.guard';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || process.env.JWT_SECRET || 'huki-dev-jwt-secret-change-in-production-2026',
+        secret:
+          configService.get<string>('jwt.secret') ||
+          configService.get<string>('JWT_SECRET') ||
+          process.env.JWT_SECRET ||
+          'your-super-secret-jwt-key',
         signOptions: { expiresIn: '15m' },
       }),
       inject: [ConfigService],

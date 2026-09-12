@@ -5,11 +5,12 @@ import { useToast } from '../../context/ToastContext';
 export default function WalletPage() {
   const { showToast } = useToast();
 
-  const [walletBalance, setWalletBalance] = useState(350000);
-  const [rewardPoints, setRewardPoints] = useState(1420);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [rewardPoints, setRewardPoints] = useState(0);
   const [activeHistoryTab, setActiveHistoryTab] = useState('all');
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [selectedTopupAmount, setSelectedTopupAmount] = useState(300000);
+  const [transactions, setTransactions] = useState([]);
 
   const topupPackages = [
     {
@@ -85,48 +86,6 @@ export default function WalletPage() {
     }
   ];
 
-  const transactions = [
-    {
-      id: 'TX-98210',
-      title: 'Nạp Xu Ví Huki (Gói Tinh Hoa)',
-      type: 'topup',
-      date: '08/09/2026 09:15',
-      amount: '+350.000 Xu',
-      amountColor: 'text-emerald-600 dark:text-emerald-400',
-      status: 'Thành công',
-      statusColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-    },
-    {
-      id: 'TX-98211',
-      title: 'Thanh toán đơn hàng #HUKI-8892401',
-      type: 'purchase',
-      date: '08/09/2026 09:30',
-      amount: '-100.000 Xu',
-      amountColor: 'text-theme-accent',
-      status: 'Đã trừ ví',
-      statusColor: 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300'
-    },
-    {
-      id: 'TX-97500',
-      title: 'Tích điểm đọc sách hoàn thành 3 chương',
-      type: 'points',
-      date: '07/09/2026 21:40',
-      amount: '+30 Points',
-      amountColor: 'text-amber-600 dark:text-amber-400',
-      status: 'Thành công',
-      statusColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-    },
-    {
-      id: 'TX-96400',
-      title: 'Đổi điểm lấy Voucher Giảm 20.000đ',
-      type: 'reward',
-      date: '05/09/2026 14:10',
-      amount: '-200 Points',
-      amountColor: 'text-theme-accent',
-      status: 'Đã nhận mã',
-      statusColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300'
-    }
-  ];
 
   const handleExecuteTopup = () => {
     setWalletBalance(prev => prev + selectedTopupAmount);
@@ -189,7 +148,7 @@ export default function WalletPage() {
       </div>
 
       {/* Luxury Hero Wallet Balance & VIP Tier Card */}
-      <div 
+      <div
         style={{ background: 'linear-gradient(to bottom right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #002B20), var(--theme-hero-to, #001A12))' }}
         className="relative overflow-hidden rounded-3xl text-white p-6 sm:p-10 mb-10 shadow-xl border border-white/20">
         <div className="absolute -right-16 -top-16 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -265,11 +224,10 @@ export default function WalletPage() {
           {topupPackages.map(pkg => (
             <div
               key={pkg.id}
-              className={`bg-theme-surface rounded-3xl p-6 flex flex-col justify-between transition-all relative group ${
-                pkg.popular
+              className={`bg-theme-surface rounded-3xl p-6 flex flex-col justify-between transition-all relative group ${pkg.popular
                   ? 'border-2 border-theme-primary shadow-md ring-4 ring-theme-primary/10'
                   : 'border border-theme-border hover:shadow-lg'
-              }`}
+                }`}
             >
               {pkg.popular && (
                 <div className="absolute -top-3 right-6 px-3 py-0.5 bg-theme-primary text-white rounded-full text-[10px] font-bold uppercase tracking-wider">
@@ -296,11 +254,10 @@ export default function WalletPage() {
                   setSelectedTopupAmount(pkg.coins);
                   setShowTopupModal(true);
                 }}
-                className={`w-full py-3 rounded-xl font-bold text-xs transition-all ${
-                  pkg.popular
+                className={`w-full py-3 rounded-xl font-bold text-xs transition-all ${pkg.popular
                     ? 'bg-theme-primary hover:bg-theme-primary-hover text-white shadow-sm'
                     : 'bg-theme-surface-subtle hover:bg-theme-primary hover:text-white text-on-surface'
-                }`}
+                  }`}
               >
                 Chọn Gói Này
               </button>
@@ -364,11 +321,10 @@ export default function WalletPage() {
               <button
                 key={tab.id}
                 onClick={() => setActiveHistoryTab(tab.id)}
-                className={`px-3 py-1.5 rounded-xl font-medium transition-all ${
-                  activeHistoryTab === tab.id
+                className={`px-3 py-1.5 rounded-xl font-medium transition-all ${activeHistoryTab === tab.id
                     ? 'bg-theme-surface text-theme-primary font-bold shadow-xs'
                     : 'text-on-surface-variant hover:text-theme-primary'
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -421,11 +377,10 @@ export default function WalletPage() {
                     <button
                       key={amt}
                       onClick={() => setSelectedTopupAmount(amt)}
-                      className={`p-3 rounded-2xl border-2 text-xs font-bold transition-all ${
-                        selectedTopupAmount === amt
+                      className={`p-3 rounded-2xl border-2 text-xs font-bold transition-all ${selectedTopupAmount === amt
                           ? 'border-theme-primary bg-theme-secondary-subtle text-theme-primary'
                           : 'border-theme-border text-on-surface'
-                      }`}
+                        }`}
                     >
                       {amt.toLocaleString('vi-VN')}đ
                     </button>

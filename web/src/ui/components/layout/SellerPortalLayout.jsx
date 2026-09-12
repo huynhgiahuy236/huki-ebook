@@ -37,9 +37,9 @@ export default function SellerPortalLayout() {
               <Link to="/seller/register" className={`hover:text-[#003B2B] transition-colors ${isRegisterPage ? 'text-[#003B2B] font-bold' : ''}`}>
                 Đăng Ký Đối Tác NXB
               </Link>
-              <span className="opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
-                Thư Viện Trạng Thái Sách · Tạm khóa
-              </span>
+              <Link to="/seller/edge-cases" className="hover:text-[#003B2B] transition-colors">
+                Thư Viện Trạng Thái Sách
+              </Link>
             </nav>
           </div>
 

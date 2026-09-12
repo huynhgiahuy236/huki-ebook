@@ -1,7 +1,7 @@
 import { tokenStorage } from './tokenStorage';
 import type { ApiResponse, ApiError, AuthTokens } from './types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
 
 let refreshPromise: Promise<string | null> | null = null;
 

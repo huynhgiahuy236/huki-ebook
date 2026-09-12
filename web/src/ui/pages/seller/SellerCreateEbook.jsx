@@ -1,108 +1,63 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { catalogApi } from '../../api/catalogApi';
-import { businessApi } from '../../api/businessApi';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { catalogApi, CategoryData } from '../../api/catalogApi';
+import { businessApi } from '../../api/businessApi';
 
 export default function SellerCreateEbook() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { showToast } = useToast();
-  const { user, activeBusinessId } = useAuth();
-  const format = location.pathname.includes('physical')
-    ? 'PHYSICAL'
-    : location.pathname.includes('hybrid')
-      ? 'BOTH'
-      : 'DIGITAL';
-  const formatLabel = format === 'PHYSICAL' ? 'Sách Giấy' : format === 'BOTH' ? 'Combo Sách Giấy + Ebook' : 'Ebook DRM';
-  const [title, setTitle] = useState('Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ (Bản Kỹ Thuật Số DRM)');
-  const [author, setAuthor] = useState('James Clear');
-  const [description, setDescription] = useState('Cuốn sách kinh điển toàn cầu về việc hình thành thói quen tốt và loại bỏ thói quen xấu một cách tự nhiên thông qua hệ thống phân tầng hành vi 1% mỗi ngày.');
-  const [priceEbook, setPriceEbook] = useState('79000');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [stores, setStores] = useState([]);
-  const [storeId, setStoreId] = useState('');
-  const [stock, setStock] = useState('0');
-  const [loadingStores, setLoadingStores] = useState(true);
+  const { user } = useAuth();
 
+  const [categories, setCategories] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [sampleEnabled, setSampleEnabled] = useState(true);
+  const [activeSection, setActiveSection] = useState('section-basic');
+
+  const [form, setForm] = useState({
+    title: 'Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ (Bản Kỹ Thuật Số DRM)',
+    teaser: 'Cuốn sách kinh điển toàn cầu về việc hình thành thói quen tốt và loại bỏ thói quen xấu một cách tự nhiên thông qua hệ thống phân tầng hành vi 1% mỗi ngày.',
+    description: 'Trong ấn bản điện tử chính thức phân phối trên HUKI, độc giả được tiếp cận toàn bộ sơ đồ ma trận hành vi độ phân giải cao, chỉ mục tương tác chuyển chương tức thì và tính năng ghi chú riêng tư đồng bộ qua Cloud Reader.',
+    language: 'Tiếng Việt',
+    publishDate: '2026-08-15',
+    isbn: '978-604-58-9123-4-EB',
+    pages: 380,
+    categoryId: '',
+    authorName: 'James Clear',
+    publisherName: user?.business?.name || 'Alpha Books Official',
+    coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOYh4ba1idBkiR2I8t0pbdA5FVcmBvHkOWsn-6ihQAw4v36GBdi9qZb-Ef2l9Q7pwf8U5b-YhC_MHz4uICBBj1fVy10mzaI1UWVXqpQY8u2Pt0bsfSl7mZtxUx2jwedu3VpfRL-dHGtqxlrkAAJCUYiX9sL3DilKi9JH38UBhTg7gbdhOvQ49VfEsuXjVZSGFMhjkdSxAVpWEetgSSRzLHqYif101iDoUn8nRyClOOEC8cuhL8j3JLag',
+    originalPrice: 149000,
+    price: 79000,
+    allowOnlineRead: true,
+    allowDownload: false,
+    drmEnabled: true,
+    publishMode: 'instant',
+  });
+
   const [tags, setTags] = useState(['Atomic Habits', 'Ebook bản quyền', 'Kỷ luật bản thân']);
   const [newTag, setNewTag] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
-  const [publishMode, setPublishMode] = useState('instant');
-  const [activeSection, setActiveSection] = useState('section-basic');
 
   useEffect(() => {
-    let active = true;
-    const businessId = user?.business?.id || activeBusinessId;
-    if (!businessId) {
-      setLoadingStores(false);
-      return undefined;
-    }
-    businessApi.getMyStores(businessId).then((res) => {
-      if (!active) return;
-      const approvedStores = res.success ? (res.data || []).filter((store) => store.status === 'APPROVED' && store.isActive) : [];
-      setStores(approvedStores);
-      setStoreId((current) => current || approvedStores[0]?.id || '');
-      setLoadingStores(false);
-    });
-    return () => { active = false; };
-  }, [activeBusinessId, user?.business?.id]);
+    const loadCategories = async () => {
+      try {
+        const res = await catalogApi.getCategories();
+        if (res.success && Array.isArray(res.data)) {
+          setCategories(res.data);
+          if (res.data.length > 0 && !form.categoryId) {
+            setForm(prev => ({ ...prev, categoryId: res.data[0].id }));
+          }
+        }
+      } catch (err) {
+        console.warn('Could not load categories', err);
+      }
+    };
+    loadCategories();
+  }, []);
 
-  const handleCreateBook = async (e, requestedMode = publishMode) => {
-    if (e) e.preventDefault();
-    setErrorMsg('');
-    setSubmitting(true);
-    try {
-      if (!storeId) {
-        throw new Error('Bạn cần có ít nhất một cửa hàng đã được phê duyệt trước khi tạo sách.');
-      }
-      const numericPrice = parseFloat(String(priceEbook).replace(/[^0-9.]/g, '')) || 0;
-      const hasPhysical = format === 'PHYSICAL' || format === 'BOTH';
-      const hasDigital = format === 'DIGITAL' || format === 'BOTH';
-      const res = await catalogApi.createBook({
-        storeId,
-        title,
-        description,
-        price: numericPrice,
-        format,
-        ...(hasPhysical && {
-          physicalDetails: {
-            stock: Number(stock) || 0,
-            weight: 300,
-            length: 20,
-            width: 14,
-            height: 2,
-            physicalEnabled: true,
-          },
-        }),
-        ...(hasDigital && { digitalDetails: { digitalEnabled: true, drmEnabled: true } }),
-      });
-      if (res.error) {
-        const msg = typeof res.error === 'string' ? res.error : (res.error.message || JSON.stringify(res.error));
-        setErrorMsg(msg);
-        showToast(msg || 'Lỗi khi tạo sách. Vui lòng kiểm tra lại phiên đăng nhập.', 'error');
-      } else {
-        if (res.data?.id && hasPhysical) {
-          const inventoryRes = await catalogApi.updateInventory(res.data.id, Number(stock) || 0);
-          if (!inventoryRes.success) throw new Error(inventoryRes.error?.message || 'Không thể cập nhật tồn kho.');
-        }
-        if (requestedMode === 'instant' && res.data?.id) {
-          const publishRes = await catalogApi.publishBook(res.data.id);
-          if (!publishRes.success) throw new Error(publishRes.error?.message || 'Không thể xuất bản sách.');
-        }
-        showToast(requestedMode === 'instant' ? `Đã xuất bản ${formatLabel}.` : `Đã lưu bản nháp ${formatLabel}.`, 'success');
-        navigate('/seller/products');
-      }
-    } catch (err) {
-      const msg = (err && typeof err === 'object' && 'message' in err) ? String(err.message) : 'Có lỗi xảy ra khi tạo Ebook';
-      setErrorMsg(msg);
-      showToast(msg, 'error');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleChange = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
   };
 
   const handleAddTag = () => {
@@ -125,19 +80,99 @@ export default function SellerCreateEbook() {
     }
   };
 
+  const handleSubmit = async (isDraft = false) => {
+    if (!form.title.trim()) {
+      showToast('Vui lòng nhập tên sản phẩm Ebook.', 'error');
+      scrollToSection('section-basic');
+      return;
+    }
+    if (!form.price || Number(form.price) <= 0) {
+      showToast('Vui lòng nhập giá bán Ebook hợp lệ.', 'error');
+      scrollToSection('section-pricing');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      let businessId = user?.business?.id;
+      if (!businessId) {
+        try {
+          const myBiz = await businessApi.getMyBusiness();
+          if (myBiz.success && myBiz.data?.id) {
+            businessId = myBiz.data.id;
+          }
+        } catch {
+          // fallback
+        }
+      }
+
+      if (!businessId) {
+        showToast('Bạn cần có doanh nghiệp đã được duyệt trước khi thêm sách.', 'error');
+        return;
+      }
+
+      const payload = {
+        title: form.title,
+        isbn: form.isbn || undefined,
+        description: form.description || form.teaser,
+        price: Number(form.price),
+        format: 'DIGITAL',
+        categoryId: form.categoryId || undefined,
+        coverUrl: form.coverUrl || undefined,
+        businessId,
+        digitalDetails: {
+          digitalEnabled: true,
+          allowOnlineRead: form.allowOnlineRead,
+          allowDownload: form.allowDownload,
+          drmEnabled: form.drmEnabled,
+        },
+      };
+
+      const res = await catalogApi.createBook(payload);
+
+      if (res.success && res.data?.id) {
+        const bookId = res.data.id;
+
+        if (!isDraft) {
+          const publishRes = await catalogApi.publishBook(bookId);
+          if (!publishRes.success) {
+            showToast(publishRes.error?.message || 'Đã tạo bản nháp nhưng không thể xuất bản Ebook.', 'error');
+            return;
+          }
+        }
+
+        showToast(
+          isDraft
+            ? `Đã lưu bản nháp Ebook "${form.title}" thành công!`
+            : `Đã xuất bản thành công Ebook DRM: "${form.title}"!`,
+          'success'
+        );
+
+        navigate('/seller/products');
+      } else {
+        showToast(res.error?.message || 'Có lỗi khi tạo Ebook.', 'error');
+      }
+    } catch {
+      showToast('Không thể kết nối API tạo sách.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const navItems = [
     { id: 'section-basic', label: 'Thông Tin Cơ Bản', completed: true },
     { id: 'section-category', label: 'Phân Loại & Tác Giả', completed: true },
     { id: 'section-media', label: 'Ảnh Bìa & Media', completed: true },
-    { id: 'section-pricing', label: 'Giá Bán', completed: true },
-    ...(format !== 'PHYSICAL' ? [{ id: 'section-ebook-content', label: 'Tệp Ebook & DRM', completed: true, drm: true }] : []),
+    { id: 'section-pricing', label: 'Giá Bán Ebook', completed: true },
+    { id: 'section-ebook-content', label: 'Tệp Ebook & DRM', completed: true, drm: true },
     { id: 'section-rights', label: 'Cam Kết Bản Quyền', completed: false, warning: true },
     { id: 'section-publish', label: 'Xuất Bản & Mở Bán', completed: false }
   ];
 
   return (
-    <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen py-6 pb-28">
-      <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-6 pb-0 flex flex-col justify-between">
+      <main className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6 flex-1 pb-10">
+
 
         {/* Top Header & Breadcrumbs */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-theme-border/60 pb-5">
@@ -150,19 +185,23 @@ export default function SellerCreateEbook() {
               <span>Danh Sách Sản Phẩm</span>
             </Link>
             <div className="flex items-center gap-3">
-              <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">Thêm Sản Phẩm {formatLabel}</h1>
+              <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">Thêm Sản Phẩm Ebook DRM</h1>
               <span className="px-2.5 py-0.5 rounded-full border border-theme-border bg-theme-secondary-subtle text-theme-primary font-label-sm text-[11px] tracking-wider uppercase font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                {format === 'PHYSICAL' ? 'SÁCH IN' : format === 'BOTH' ? 'COMBO HYBRID' : 'BẢN QUYỀN SỐ'}
+                BẢN QUYỀN SỐ
               </span>
             </div>
             <p className="font-body-md text-body-md text-on-surface-variant mt-1">
-              Tạo {formatLabel.toLowerCase()} cho cửa hàng đã được HUKI phê duyệt.
+              Tạo sản phẩm sách điện tử DRM cho gian hàng <span className="text-on-surface font-semibold">Alpha Books Official</span>.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <button disabled title="Tạm khóa — Reader thuộc phase sau" className="px-3.5 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface-variant opacity-50 flex items-center gap-1.5 shadow-xs cursor-not-allowed">
+            <div className="flex items-center gap-1.5 text-xs text-primary bg-primary/5 border border-primary/15 px-3 py-1.5 rounded-full font-label-md">
+              <span className="material-symbols-outlined text-sm">cloud_done</span>
+              <span>Đã tự động lưu lúc 10:42</span>
+            </div>
+            <button className="px-3.5 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container hover:border-theme-primary/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer">
               <span className="material-symbols-outlined text-sm">visibility</span>
               <span>Xem Trước Reader</span>
             </button>
@@ -183,7 +222,7 @@ export default function SellerCreateEbook() {
             {/* Physical - Inactive */}
             <Link
               to="/seller/product/create-physical"
-              className={`relative rounded-2xl p-5 cursor-pointer transition-all flex flex-col justify-between group ${format === 'PHYSICAL' ? 'border-2 border-primary bg-primary/[0.04] shadow-md ring-4 ring-primary/10' : 'border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] hover:shadow-md hover:-translate-y-0.5'}`}
+              className="relative rounded-2xl border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -195,7 +234,7 @@ export default function SellerCreateEbook() {
                     <span className="text-[10px] text-on-surface-variant font-medium tracking-wide uppercase">Vận chuyển vật lý</span>
                   </div>
                 </div>
-                <FormatIndicator active={format === 'PHYSICAL'} />
+                <div className="w-6 h-6 rounded-full border-2 border-theme-border group-hover:border-primary transition-colors"></div>
               </div>
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Có tồn kho vật lý và đóng gói giao đến khách hàng qua các đối tác vận chuyển toàn quốc.
@@ -205,7 +244,7 @@ export default function SellerCreateEbook() {
             {/* Ebook - Active */}
             <Link
               to="/seller/product/create-ebook"
-              className={`relative rounded-2xl p-5 cursor-pointer transition-all flex flex-col justify-between ${format === 'DIGITAL' ? 'border-2 border-primary bg-primary/[0.04] shadow-md ring-4 ring-primary/10' : 'border border-theme-border/80 bg-surface-container-lowest hover:border-primary/50'}`}
+              className="relative rounded-2xl border-2 border-primary bg-primary/[0.04] p-5 cursor-pointer shadow-md ring-4 ring-primary/10 transition-all flex flex-col justify-between"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -217,7 +256,9 @@ export default function SellerCreateEbook() {
                     <span className="text-[10px] text-primary font-bold tracking-wide uppercase">DRM Bản Quyền</span>
                   </div>
                 </div>
-                <FormatIndicator active={format === 'DIGITAL'} />
+                <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-sm">check</span>
+                </div>
               </div>
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Đọc trực tuyến trên HUKI Reader sau khi được cấp quyền DRM số. Không tốn phí kho bãi.
@@ -227,7 +268,7 @@ export default function SellerCreateEbook() {
             {/* Hybrid - Inactive */}
             <Link
               to="/seller/product/create-hybrid"
-              className={`relative rounded-2xl p-5 cursor-pointer transition-all flex flex-col justify-between group ${format === 'BOTH' ? 'border-2 border-primary bg-primary/[0.04] shadow-md ring-4 ring-primary/10' : 'border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] hover:shadow-md hover:-translate-y-0.5'}`}
+              className="relative rounded-2xl border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -242,7 +283,7 @@ export default function SellerCreateEbook() {
                     <span className="text-[10px] text-on-surface-variant font-bold tracking-wide uppercase">Combo Hybrid HUKI</span>
                   </div>
                 </div>
-                <FormatIndicator active={format === 'BOTH'} />
+                <div className="w-6 h-6 rounded-full border-2 border-theme-border group-hover:border-primary transition-colors"></div>
               </div>
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Khách nhận bản sách in tận tay, đồng thời được mở khóa đọc ngay bản điện tử trên app.
@@ -311,52 +352,27 @@ export default function SellerCreateEbook() {
                 <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">
                   Tên sản phẩm Ebook <span className="text-primary">*</span>
                 </label>
-                {errorMsg && (
-                  <div className="p-3 mb-3 rounded-xl bg-error/10 border border-error/20 text-xs font-semibold text-error">
-                    {typeof errorMsg === 'string' ? errorMsg : (errorMsg.message || JSON.stringify(errorMsg))}
-                  </div>
-                )}
                 <input 
                   className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-medium text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
                   type="text" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  value={form.title}
+                  onChange={(e) => handleChange('title', e.target.value)}
+                  placeholder="Nhập tựa sách điện tử..."
                 />
                 <p className="font-label-sm text-[11px] text-on-surface-variant mt-1.5">Tên sách điện tử kèm định danh bản quyền để bạn đọc dễ nhận diện trên HUKI Reader.</p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <label className="block font-title-md text-xs font-bold text-on-surface">
-                  Cửa hàng phát hành <span className="text-primary">*</span>
-                  <select
-                    value={storeId}
-                    onChange={(event) => setStoreId(event.target.value)}
-                    disabled={loadingStores}
-                    className="mt-1.5 w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-medium focus:border-primary focus:outline-none disabled:opacity-60"
-                    required
-                  >
-                    <option value="">{loadingStores ? 'Đang tải cửa hàng…' : 'Chọn cửa hàng đã duyệt'}</option>
-                    {stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
-                  </select>
-                  {!loadingStores && stores.length === 0 && <span className="mt-1.5 block text-[11px] text-error">Chưa có cửa hàng được duyệt. Hãy tạo cửa hàng trước.</span>}
-                </label>
-                {(format === 'PHYSICAL' || format === 'BOTH') && (
-                  <label className="block font-title-md text-xs font-bold text-on-surface">
-                    Tồn kho ban đầu <span className="text-primary">*</span>
-                    <input type="number" min="0" value={stock} onChange={(event) => setStock(event.target.value)} className="mt-1.5 w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm focus:border-primary focus:outline-none" required />
-                  </label>
-                )}
               </div>
 
               <div>
                 <div className="flex justify-between items-center mb-1.5">
                   <label className="font-title-md text-xs font-bold text-on-surface">Giới thiệu ngắn (Lead text)</label>
-                  <span className="font-label-sm text-[11px] text-on-surface-variant">142 / 300 ký tự</span>
+                  <span className="font-label-sm text-[11px] text-on-surface-variant">{form.teaser.length} / 300 ký tự</span>
                 </div>
                 <textarea 
                   className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none leading-relaxed transition-all resize-none" 
                   rows={2}
-                  defaultValue="Cuốn sách kinh điển toàn cầu về việc hình thành thói quen tốt và loại bỏ thói quen xấu một cách tự nhiên thông qua hệ thống phân tầng hành vi 1% mỗi ngày."
+                  value={form.teaser}
+                  onChange={(e) => handleChange('teaser', e.target.value)}
+                  placeholder="Tóm tắt ngắn 1-2 câu..."
                 />
               </div>
 
@@ -364,54 +380,57 @@ export default function SellerCreateEbook() {
                 <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">
                   Mô tả chi tiết nội dung sách <span className="text-primary">*</span>
                 </label>
-                <div className="border border-theme-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all">
-                  <div className="bg-surface-container-low/70 px-3 py-2 border-b border-theme-border flex flex-wrap items-center gap-1 text-on-surface-variant">
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">B</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container italic text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">I</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">H1</button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container font-bold text-xs w-7 h-7 flex items-center justify-center cursor-pointer" type="button">H2</button>
-                    <span className="w-px h-4 bg-theme-border mx-1"></span>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">format_list_bulleted</span>
-                    </button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">format_quote</span>
-                    </button>
-                    <button className="p-1 rounded-lg hover:bg-surface-container flex items-center justify-center w-7 h-7 cursor-pointer" type="button">
-                      <span className="material-symbols-outlined text-base">link</span>
-                    </button>
-                  </div>
-
-                  <div className="p-4 text-sm font-body-md text-on-surface leading-relaxed space-y-2 bg-surface-container-lowest min-h-[140px]">
-                    <p className="font-headline-sm text-base text-primary italic">"Thay đổi không bắt đầu từ mục tiêu lớn lao, mà từ chu kỳ 1% cải thiện nhỏ nhặt mỗi ngày."</p>
-                    <p>Trong ấn bản điện tử chính thức phân phối trên HUKI, độc giả được tiếp cận toàn bộ sơ đồ ma trận hành vi độ phân giải cao, chỉ mục tương tác chuyển chương tức thì và tính năng ghi chú riêng tư đồng bộ qua Cloud Reader.</p>
-                  </div>
-                </div>
+                <textarea
+                  className="w-full rounded-xl border border-theme-border bg-surface-container-lowest p-3.5 text-sm font-body-md text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none leading-relaxed transition-all min-h-[140px]"
+                  value={form.description}
+                  onChange={(e) => handleChange('description', e.target.value)}
+                  placeholder="Mô tả chi tiết về nội dung ebook, tính năng bản quyền số..."
+                  rows={5}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ngôn ngữ <span className="text-primary">*</span></label>
-                  <select className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all">
-                    <option>Tiếng Việt</option>
-                    <option>English</option>
-                    <option>Song ngữ Anh - Việt</option>
+                  <select 
+                    value={form.language}
+                    onChange={(e) => handleChange('language', e.target.value)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
+                  >
+                    <option value="Tiếng Việt">Tiếng Việt</option>
+                    <option value="English">English</option>
+                    <option value="Song ngữ Anh - Việt">Song ngữ Anh - Việt</option>
                   </select>
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ngày phát hành điện tử <span className="text-primary">*</span></label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="date" defaultValue="2025-05-15" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="date" 
+                    value={form.publishDate}
+                    onChange={(e) => handleChange('publishDate', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Mã eISBN Bản Quyền Số <span className="text-primary">*</span></label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="978-604-58-9123-4-EB" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm font-mono text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.isbn}
+                    onChange={(e) => handleChange('isbn', e.target.value)}
+                  />
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Số trang kỹ thuật số <span className="text-primary">*</span></label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="number" defaultValue="380" />
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="number" 
+                    value={form.pages}
+                    onChange={(e) => handleChange('pages', Number(e.target.value))}
+                  />
                 </div>
               </div>
             </section>
@@ -432,26 +451,40 @@ export default function SellerCreateEbook() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Danh mục chính *</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Phát Triển Bản Thân" />
+                  <select 
+                    value={form.categoryId}
+                    onChange={(e) => handleChange('categoryId', e.target.value)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all font-medium"
+                  >
+                    {categories.length > 0 ? (
+                      categories.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))
+                    ) : (
+                      <option value="">Đang tải thể loại...</option>
+                    )}
+                  </select>
                 </div>
                 <div>
-                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Danh mục phụ</label>
-                  <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="Thói Quen &amp; Kỷ Luật" />
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Ảnh bìa URL</label>
+                  <input 
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-3.5 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                    type="text" 
+                    value={form.coverUrl}
+                    onChange={(e) => handleChange('coverUrl', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="font-title-md text-xs font-bold text-on-surface">Tác giả *</label>
-                    <Link className="font-body-sm text-[11px] text-primary hover:underline" to="/">Không tìm thấy? Đề xuất mới</Link>
-                  </div>
+                  <label className="font-title-md text-xs font-bold text-on-surface block mb-1.5">Tác giả *</label>
                   <div className="relative">
-                    <input
-                      className="w-full rounded-xl border border-theme-border bg-surface-container-lowest pl-4 pr-10 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
-                      type="text"
-                      value={author}
-                      onChange={(e) => setAuthor(e.target.value)}
+                    <input 
+                      className="w-full rounded-xl border border-theme-border bg-surface-container-lowest pl-4 pr-10 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                      type="text" 
+                      value={form.authorName}
+                      onChange={(e) => handleChange('authorName', e.target.value)}
                     />
                     <span className="material-symbols-outlined absolute right-3.5 top-2.5 text-primary text-lg">check</span>
                   </div>
@@ -580,7 +613,12 @@ export default function SellerCreateEbook() {
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá bìa niêm yết (Tham chiếu sách giấy)</label>
                   <div className="relative">
-                    <input className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" type="text" defaultValue="149.000" />
+                    <input 
+                      className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                      type="number" 
+                      value={form.originalPrice}
+                      onChange={(e) => handleChange('originalPrice', Number(e.target.value))}
+                    />
                     <span className="absolute right-4 top-2.5 text-xs text-on-surface-variant font-bold">₫</span>
                   </div>
                 </div>
@@ -589,11 +627,11 @@ export default function SellerCreateEbook() {
                     Giá bán Ebook HUKI <span className="text-primary">*</span>
                   </label>
                   <div className="relative">
-                    <input
-                      className="w-full rounded-xl border-2 border-primary bg-primary/[0.02] px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
-                      type="text"
-                      value={priceEbook}
-                      onChange={(e) => setPriceEbook(e.target.value)}
+                    <input 
+                      className="w-full rounded-xl border-2 border-primary bg-primary/[0.02] px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
+                      type="number" 
+                      value={form.price}
+                      onChange={(e) => handleChange('price', Number(e.target.value))}
                     />
                     <span className="absolute right-4 top-2.5 text-xs text-primary font-bold">₫</span>
                   </div>
@@ -603,10 +641,10 @@ export default function SellerCreateEbook() {
               <div className="p-4 rounded-xl bg-gradient-to-r from-primary/[0.06] to-transparent border border-primary/20 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
                   <span className="material-symbols-outlined text-primary text-xl">savings</span>
-                  <span className="text-xs text-on-surface">Độc giả tiết kiệm: <strong className="text-primary font-bold">70.000 ₫ (-47%)</strong> so với bản giấy</span>
+                  <span className="text-xs text-on-surface">Độc giả tiết kiệm: <strong className="text-primary font-bold">{Math.max(0, form.originalPrice - form.price).toLocaleString('vi-VN')} ₫</strong> so với bản giấy</span>
                 </div>
                 <span className="px-2.5 py-1 rounded-lg bg-primary/15 text-primary font-bold text-xs">
-                  Tỉ lệ chuyển đổi cao
+                  {form.originalPrice > form.price ? `-${Math.round(((form.originalPrice - form.price) / form.originalPrice) * 100)}% Ưu đãi` : 'Giá chuẩn'}
                 </span>
               </div>
             </section>
@@ -669,7 +707,7 @@ export default function SellerCreateEbook() {
                     </div>
                     <button className="px-3 py-1.5 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 font-body-sm text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer" type="button">
                       <span className="material-symbols-outlined text-sm">fingerprint</span>
-                      <span>Kiểm Tra DRM & Watermark</span>
+                      <span>Kiểm Tra DRM &amp; Watermark</span>
                     </button>
                   </div>
                 </div>
@@ -719,14 +757,14 @@ export default function SellerCreateEbook() {
                     <p className="font-body-sm text-xs text-on-surface-variant">Xác nhận tư cách pháp lý của gian hàng đối với tác phẩm này.</p>
                   </div>
                 </div>
-                <span className="text-[11px] px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-200">Cần xác nhận</span>
+                <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200">Đã cam kết</span>
               </div>
 
               <div className="space-y-3">
                 <label className="flex items-start gap-3 p-3.5 rounded-xl border border-theme-border/70 hover:bg-surface-container-low cursor-pointer transition-colors">
                   <input defaultChecked className="mt-1 text-primary focus:ring-0" type="checkbox" />
                   <span className="text-xs text-on-surface leading-relaxed">
-                    Gian hàng <strong>Alpha Books Official</strong> cam kết sở hữu hợp đồng bản quyền phân phối điện tử hợp pháp từ tác giả/đơn vị chủ quản tác phẩm <strong>Atomic Habits</strong> tại thị trường Việt Nam.
+                    Gian hàng <strong>{form.publisherName}</strong> cam kết sở hữu hợp đồng bản quyền phân phối điện tử hợp pháp từ tác giả/đơn vị chủ quản tác phẩm <strong>{form.title}</strong> tại thị trường Việt Nam.
                   </span>
                 </label>
                 <label className="flex items-start gap-3 p-3.5 rounded-xl border border-theme-border/70 hover:bg-surface-container-low cursor-pointer transition-colors">
@@ -752,43 +790,43 @@ export default function SellerCreateEbook() {
 
               <div className="space-y-3">
                 <label 
-                  onClick={() => setPublishMode('instant')}
+                  onClick={() => handleChange('publishMode', 'instant')}
                   className={`flex items-start gap-3.5 p-4 rounded-xl border cursor-pointer transition-all ${
-                    publishMode === 'instant' 
+                    form.publishMode === 'instant' 
                       ? 'border-primary bg-primary/[0.03] ring-2 ring-primary/10' 
                       : 'border-theme-border hover:bg-surface-container-low'
                   }`}
                 >
                   <input 
-                    checked={publishMode === 'instant'} 
-                    onChange={() => setPublishMode('instant')}
+                    checked={form.publishMode === 'instant'} 
+                    onChange={() => handleChange('publishMode', 'instant')}
                     className="mt-1 text-primary focus:ring-0 focus:outline-none cursor-pointer" 
                     name="publish_mode_ebook" 
                     type="radio" 
                   />
                   <div>
-                    <span className="block text-xs font-bold text-on-surface">Tự động phát hành Ebook ngay sau khi phê duyệt</span>
-                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Sách sẽ mở bán tức thì trên HUKI Reader Store sau khi biên tập viên thông qua DRM.</span>
+                    <span className="block text-xs font-bold text-on-surface">Tự động hiển thị và mở bán ngay trên HUKI Storefront</span>
+                    <span className="block text-[11px] text-on-surface-variant mt-0.5">Sách sẽ mở bán tức thì trên HUKI Reader Store sau khi tạo thành công.</span>
                   </div>
                 </label>
 
                 <label 
-                  onClick={() => setPublishMode('draft')}
+                  onClick={() => handleChange('publishMode', 'draft')}
                   className={`flex items-start gap-3.5 p-4 rounded-xl border cursor-pointer transition-all ${
-                    publishMode === 'draft' 
+                    form.publishMode === 'draft' 
                       ? 'border-primary bg-primary/[0.03] ring-2 ring-primary/10' 
                       : 'border-theme-border hover:bg-surface-container-low'
                   }`}
                 >
                   <input 
-                    checked={publishMode === 'draft'} 
-                    onChange={() => setPublishMode('draft')}
+                    checked={form.publishMode === 'draft'} 
+                    onChange={() => handleChange('publishMode', 'draft')}
                     className="mt-1 text-primary focus:ring-0 focus:outline-none cursor-pointer" 
                     name="publish_mode_ebook" 
                     type="radio" 
                   />
                   <div>
-                    <span className="block text-xs font-bold text-on-surface">Lưu trữ ở trạng thái Riêng tư / Chờ phát hành</span>
+                    <span className="block text-xs font-bold text-on-surface">Lưu trữ ở trạng thái Bản nháp (DRAFT)</span>
                     <span className="block text-[11px] text-on-surface-variant mt-0.5">Cho phép bạn chủ động chọn ngày giờ mở bán khớp với kế hoạch truyền thông.</span>
                   </div>
                 </label>
@@ -804,27 +842,31 @@ export default function SellerCreateEbook() {
             <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs">
               <div className="flex items-center justify-between mb-3.5">
                 <span className="font-label-sm text-[10px] uppercase font-bold text-on-surface-variant tracking-wider">XEM TRƯỚC EBOOK</span>
-                <span className="px-2 py-0.5 rounded-full bg-primary/10 font-label-sm text-[10px] text-primary font-bold border border-primary/20">DRM READY</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 font-label-sm text-[10px] text-primary font-bold border border-primary/20">
+                  {form.publishMode === 'draft' ? 'BẢN NHÁP' : 'DRM READY'}
+                </span>
               </div>
               <div className="flex gap-3.5 items-start">
                 <div className="w-20 sm:w-22 aspect-[3/4] rounded-xl overflow-hidden shadow-md border border-theme-border shrink-0 relative bg-surface-container">
-                  <img className="w-full h-full object-cover" alt="Atomic Habits Ebook" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOYh4ba1idBkiR2I8t0pbdA5FVcmBvHkOWsn-6ihQAw4v36GBdi9qZb-Ef2l9Q7pwf8U5b-YhC_MHz4uICBBj1fVy10mzaI1UWVXqpQY8u2Pt0bsfSl7mZtxUx2jwedu3VpfRL-dHGtqxlrkAAJCUYiX9sL3DilKi9JH38UBhTg7gbdhOvQ49VfEsuXjVZSGFMhjkdSxAVpWEetgSSRzLHqYif101iDoUn8nRyClOOEC8cuhL8j3JLag" />
+                  <img className="w-full h-full object-cover" alt="Ebook cover" src={form.coverUrl} />
                 </div>
                 <div className="min-w-0 flex-1 flex flex-col justify-between py-0.5">
                   <div>
                     <span className="inline-block font-label-sm text-[9px] px-2 py-0.5 rounded bg-primary text-white font-bold uppercase mb-1">Ebook DRM</span>
-                    <h4 className="font-title-md text-xs font-bold text-on-surface truncate">Atomic Habits</h4>
-                    <p className="font-body-sm text-[11px] text-on-surface-variant truncate">James Clear</p>
+                    <h4 className="font-title-md text-xs font-bold text-on-surface truncate">{form.title || 'Tên sách...'}</h4>
+                    <p className="font-body-sm text-[11px] text-on-surface-variant truncate">{form.authorName || 'Tác giả...'}</p>
                   </div>
                   <div className="mt-2 flex items-baseline gap-1.5">
-                    <span className="font-bold text-sm text-primary">79.000 ₫</span>
-                    <span className="text-[10px] line-through text-on-surface-variant">149.000 ₫</span>
+                    <span className="font-bold text-sm text-primary">{form.price ? `${form.price.toLocaleString('vi-VN')} ₫` : '0 ₫'}</span>
+                    {form.originalPrice > form.price && (
+                      <span className="text-[10px] line-through text-on-surface-variant">{form.originalPrice.toLocaleString('vi-VN')} ₫</span>
+                    )}
                   </div>
                 </div>
               </div>
               <div className="mt-3.5 pt-3 border-t border-theme-border/60 flex items-center justify-between text-[11px] text-on-surface-variant">
                 <span>Gian hàng:</span>
-                <span className="font-semibold text-on-surface">Alpha Books Official</span>
+                <span className="font-semibold text-on-surface truncate max-w-[130px]">{form.publisherName}</span>
               </div>
             </div>
 
@@ -832,62 +874,16 @@ export default function SellerCreateEbook() {
             <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <span className="font-title-md text-xs font-bold text-on-surface">Mức độ hoàn thiện</span>
-                <span className="font-title-md text-xs font-bold text-primary">85%</span>
+                <span className="font-title-md text-xs font-bold text-primary">100%</span>
               </div>
 
               <div className="w-full h-2.5 rounded-full bg-surface-container overflow-hidden">
-                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: '85%' }}></div>
+                <div className="h-full rounded-full bg-primary transition-all duration-500" style={{ width: '100%' }}></div>
               </div>
               <p className="text-[11px] text-emerald-800 font-medium flex items-center gap-1.5 bg-emerald-50 p-2 rounded-lg border border-emerald-100">
                 <span className="material-symbols-outlined text-sm text-emerald-700">task_alt</span>
-                <span>Tệp DRM đã hợp lệ &amp; sẵn sàng xuất bản.</span>
+                <span>Tệp DRM đã hợp lệ &amp; sẵn sàng lưu.</span>
               </p>
-            </div>
-
-            {/* Checklist */}
-            <div className="bg-surface-container-lowest rounded-2xl p-5 border border-theme-border/70 shadow-xs space-y-3">
-              <h4 className="font-label-sm text-[11px] uppercase font-bold text-on-surface-variant tracking-wider">
-                CHECKLIST EBOOK DRM
-              </h4>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Thông tin bản quyền &amp; eISBN</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Tệp PDF/EPUB mã hóa DRM</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Ảnh bìa 3:4 Hi-Res</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Trích xuất đọc thử (Sample)</span>
-                </div>
-                <div className="flex items-center gap-2 text-on-surface">
-                  <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
-                  <span>Cam kết sở hữu trí tuệ</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Support widget */}
-            <div className="p-4 rounded-2xl bg-surface-container-low/70 border border-theme-border/60 space-y-2">
-              <div className="flex items-center gap-2 text-on-surface font-bold text-xs">
-                <span className="material-symbols-outlined text-primary text-base">verified_user</span>
-                <span>Hỗ trợ Kỹ thuật DRM</span>
-              </div>
-              <p className="text-[11px] text-on-surface-variant leading-relaxed">
-                Cần trợ giúp chuyển đổi định dạng EPUB 3.0 hoặc mã hóa bảo mật?
-              </p>
-              <div className="pt-1">
-                <Link className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline" to="/">
-                  <span className="material-symbols-outlined text-sm">call</span>
-                  <span>Hotline DRM: 1900 8866</span>
-                </Link>
-              </div>
             </div>
           </aside>
 
@@ -898,39 +894,42 @@ export default function SellerCreateEbook() {
       <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border/70 px-6 sm:px-8 py-3.5 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-2 text-xs text-on-surface-variant font-medium">
           <span className="material-symbols-outlined text-primary text-base">cloud_done</span>
-          <span>Thay đổi chỉ được lưu khi bạn bấm nút bên cạnh</span>
+          <span>Sẵn sàng lưu vào hệ thống</span>
         </div>
 
         <div className="flex items-center gap-3">
           <Link to="/seller/products" className="px-3.5 py-2 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
             Hủy / Thoát
           </Link>
-          <button onClick={(event) => handleCreateBook(event, 'draft')} disabled={submitting} className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer disabled:opacity-50" type="button">
+          <button 
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => handleSubmit(true)}
+            className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer disabled:opacity-60"
+          >
             Lưu Bản Nháp
           </button>
-          <button disabled title="Tạm khóa — xem trước thuộc phase sau" className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container text-xs font-semibold text-on-surface-variant opacity-50 cursor-not-allowed" type="button">
-            Xem Trước Giao Diện Gian Hàng
-          </button>
 
-          <button
-            onClick={(event) => handleCreateBook(event, publishMode)}
-            disabled={submitting}
-            className="px-6 py-2.5 rounded-xl bg-primary hover:opacity-90 disabled:opacity-50 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer"
+          <button 
             type="button"
+            disabled={isSubmitting}
+            onClick={() => handleSubmit(false)}
+            className="px-6 py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-60"
           >
-            <span>{submitting ? 'ĐANG TẠO SÁCH...' : publishMode === 'instant' ? `XUẤT BẢN ${formatLabel.toUpperCase()}` : 'LƯU BẢN NHÁP'}</span>
-            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            {isSubmitting ? (
+              <>
+                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin"></span>
+                <span>Đang xử lý...</span>
+              </>
+            ) : (
+              <>
+                <span>XUẤT BẢN EBOOK DRM</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </>
+            )}
           </button>
         </div>
       </footer>
     </div>
   );
-}
-
-function FormatIndicator({ active }) {
-  return active ? (
-    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-white shadow-xs" aria-label="Đang chọn">
-      <span className="material-symbols-outlined text-sm">check</span>
-    </span>
-  ) : <span className="h-6 w-6 rounded-full border-2 border-theme-border" aria-hidden="true" />;
 }

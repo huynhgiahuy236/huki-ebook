@@ -64,10 +64,10 @@ export default function SellerEditHybrid() {
                 Sản phẩm đã phát sinh giao dịch và cấp quyền đọc số. Không thể chuyển đổi hoặc xóa định dạng.
               </p>
             </div>
-            <span className="font-label-sm text-xs text-on-surface-variant opacity-50 inline-flex items-center gap-1 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
-              <span>Hỗ trợ thay đổi mô hình · Tạm khóa</span>
+            <Link className="font-label-sm text-xs text-tertiary hover:underline inline-flex items-center gap-1" to="/seller/edge-cases">
+              <span>Liên hệ hỗ trợ thay đổi mô hình</span>
               <span className="material-symbols-outlined text-xs">arrow_forward</span>
-            </span>
+            </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 
@@ -131,21 +131,21 @@ export default function SellerEditHybrid() {
                 <span className="w-2 h-2 rounded-full bg-secondary" title="Có thay đổi chờ duyệt"></span>
               </Link>
 
-              <span className="flex items-center justify-between px-3 py-2 rounded-lg text-on-surface-variant opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
+              <Link className="flex items-center justify-between px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest transition-colors" to="/seller/edge-cases">
                 <div className="flex items-center gap-2 truncate">
                   <span className="material-symbols-outlined text-sm">category</span>
                   <span className="truncate">02 Tác Giả &amp; Loại</span>
                 </div>
                 <span className="material-symbols-outlined text-xs text-tertiary font-bold">check</span>
-              </span>
+              </Link>
 
-              <span className="flex items-center justify-between px-3 py-2 rounded-lg text-on-surface-variant opacity-45 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — media/DRM ngoài happy case hiện tại">
+              <Link className="flex items-center justify-between px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest transition-colors" to="/library">
                 <div className="flex items-center gap-2 truncate">
                   <span className="material-symbols-outlined text-sm">photo_library</span>
                   <span className="truncate">03 Bìa &amp; Media</span>
                 </div>
                 <span className="material-symbols-outlined text-xs text-secondary font-bold" title="Ảnh mới chờ duyệt">warning</span>
-              </span>
+              </Link>
 
               <Link className="flex items-center justify-between px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest transition-colors" to="/">
                 <div className="flex items-center gap-2 truncate">

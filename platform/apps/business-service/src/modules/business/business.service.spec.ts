@@ -14,6 +14,9 @@ describe('BusinessService', () => {
       create: jest.fn(),
       findUnique: jest.fn(),
     },
+    store: {
+      updateMany: jest.fn(),
+    },
   };
 
   const mockEventEmitter = {

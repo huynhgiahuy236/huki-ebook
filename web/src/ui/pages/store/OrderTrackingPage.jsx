@@ -104,31 +104,26 @@ export default function OrderTrackingPage() {
 
         <div className="flex flex-wrap items-center gap-3">
           <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Tạm khóa — hóa đơn mở rộng chưa thuộc happy case"
-            className="border border-theme-border text-on-surface-variant px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 opacity-60 cursor-not-allowed"
+            onClick={handleDownloadVAT}
+            className="border border-theme-secondary/40 text-theme-secondary hover:bg-theme-secondary-subtle px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-sm">receipt_long</span>
             Tải Hóa Đơn VAT (PDF)
           </button>
           <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            className="border border-theme-border text-on-surface-variant px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 opacity-60 cursor-not-allowed"
+            onClick={handlePrintInvoice}
+            className="border border-theme-border text-on-surface hover:bg-theme-bg px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
           >
             <span className="material-symbols-outlined text-sm">print</span>
             In Đơn Hàng
           </button>
-          <span
-            aria-disabled="true"
-            className="bg-theme-surface border border-theme-border text-on-surface-variant px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 opacity-60 cursor-not-allowed"
+          <Link
+            to="/seller/chat"
+            className="bg-theme-primary text-white hover:opacity-90 px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-all"
           >
             <span className="material-symbols-outlined text-sm">support_agent</span>
             Yêu Cầu Hỗ Trợ
-          </span>
+          </Link>
         </div>
       </div>
 
@@ -235,13 +230,13 @@ export default function OrderTrackingPage() {
                   <div className="text-right shrink-0 space-y-2">
                     <span className="font-bold text-sm text-[#ac2c19] block">{item.price.toLocaleString('vi-VN')}đ</span>
                     {item.hasDrm && (
-                      <span
-                        aria-disabled="true"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 border border-theme-border bg-theme-surface text-on-surface-variant rounded-lg text-xs font-bold opacity-60 cursor-not-allowed"
+                      <Link
+                        to="/reader"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-theme-primary hover:opacity-90 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
                       >
                         <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
                         Đọc Ngay
-                      </span>
+                      </Link>
                     )}
                   </div>
                 </div>
@@ -292,7 +287,7 @@ export default function OrderTrackingPage() {
                 <span className="font-bold text-lg text-[#ac2c19]">264.000đ</span>
               </div>
               <p className="text-[11px] text-slate-500 pt-1">
-                Phương thức: <strong>Thanh toán khi nhận hàng (COD)</strong>
+                Phương thức: <strong>Ví Huki Pay + Thẻ Visa (...8892)</strong> (Đã thanh toán)
               </p>
             </div>
 
@@ -313,14 +308,13 @@ export default function OrderTrackingPage() {
                 </div>
               )}
 
-              <span
-                aria-disabled="true"
-                title="Tạm khóa — đổi trả/refund nằm ngoài happy case"
-                className="w-full py-2.5 bg-theme-secondary-subtle text-on-surface-variant opacity-60 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed"
+              <Link
+                to={`/order/${id}/return`}
+                className="w-full py-2.5 bg-theme-secondary-subtle hover:bg-theme-border text-on-surface font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
               >
                 <span className="material-symbols-outlined text-base">assignment_return</span>
                 Yêu Cầu Đổi Trả / Bảo Hành Sách In (7 Ngày)
-              </span>
+              </Link>
             </div>
           </div>
         </div>

@@ -1,8 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { businessApi } from '../../api/businessApi';
+import { catalogApi } from '../../api/catalogApi';
 
 export default function AdminDashboardPage() {
-  const [timeRange, setTimeRange] = useState('Tháng 6/2026');
+  const [timeRange, setTimeRange] = useState('Hôm nay');
+  const [stats, setStats] = useState({
+    publishersCount: 0,
+    pendingPublishersCount: 0,
+    booksCount: 0,
+    publishedBooksCount: 0,
+    draftBooksCount: 0,
+    drmBooksCount: 0,
+    totalStock: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const [bizRes, booksRes] = await Promise.allSettled([
+          businessApi.getAllBusinesses(),
+          catalogApi.getPublicBooks({ limit: 100 })
+        ]);
+
+        let pubCount = 0;
+        let pendingCount = 0;
+        let bCount = 0;
+        let pubBCount = 0;
+        let draftBCount = 0;
+        let drmBCount = 0;
+        let tStock = 0;
+
+        if (bizRes.status === 'fulfilled' && bizRes.value?.success && Array.isArray(bizRes.value.data)) {
+          const list = bizRes.value.data;
+          pubCount = list.length;
+          pendingCount = list.filter(b => b.status === 'PENDING_APPROVAL').length;
+        }
+
+        if (booksRes.status === 'fulfilled' && booksRes.value?.success && Array.isArray(booksRes.value.data)) {
+          const books = booksRes.value.data;
+          bCount = books.length;
+          pubBCount = books.filter(b => b.status === 'PUBLISHED').length;
+          draftBCount = books.filter(b => b.status === 'DRAFT' || !b.status).length;
+          drmBCount = books.filter(b => b.format === 'DIGITAL' || b.format === 'BOTH' || b.digitalDetails?.drmEnabled).length;
+          tStock = books.reduce((sum, b) => sum + (b.physicalDetails?.stock || 0), 0);
+        }
+
+        if (isMounted) {
+          setStats({
+            publishersCount: pubCount,
+            pendingPublishersCount: pendingCount,
+            booksCount: bCount,
+            publishedBooksCount: pubBCount,
+            draftBooksCount: draftBCount,
+            drmBooksCount: drmBCount,
+            totalStock: tStock,
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to load admin stats', err);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    })();
+    return () => { isMounted = false; };
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 max-w-[1480px] mx-auto">
@@ -25,25 +89,29 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E2E8F0] bg-white text-xs font-semibold text-gray-700 shadow-2xs">
-            <span className="material-symbols-outlined text-[16px] text-emerald-700">calendar_month</span>
-            <span>01/06/2026 – 30/06/2026</span>
-            <span className="material-symbols-outlined text-[14px] text-gray-400">expand_more</span>
-          </div>
+          <Link
+            to="/admin/leads"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-900 font-semibold text-xs transition-colors shadow-2xs"
+          >
+            <span className="material-symbols-outlined text-[16px] text-amber-700">how_to_reg</span>
+            <span>Duyệt Đăng Ký Mới ({stats.pendingPublishersCount})</span>
+          </Link>
 
-          <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors shadow-2xs cursor-pointer">
-            <span className="material-symbols-outlined text-[16px]">file_download</span>
-            <span>Xuất Báo Cáo Sàn</span>
-          </button>
+          <Link
+            to="/admin/publishers"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors shadow-2xs"
+          >
+            <span className="material-symbols-outlined text-[16px] text-emerald-700">domain</span>
+            <span>Quản Lý NXB ({stats.publishersCount})</span>
+          </Link>
 
-          <span
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gray-200 text-gray-500 font-bold text-xs opacity-60 cursor-not-allowed"
-            aria-disabled="true"
-            title="Tạm khóa — kiểm duyệt nội dung ngoài happy case hiện tại"
+          <Link
+            to="/admin/tasks"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm"
           >
             <span className="material-symbols-outlined text-[16px]">verified</span>
-            <span>Duyệt Sách Mới (12)</span>
-          </span>
+            <span>Duyệt Sách Mới ({stats.draftBooksCount})</span>
+          </Link>
         </div>
       </div>
 
@@ -51,38 +119,39 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         
         {/* Card 1: Tổng NXB & Tác Giả */}
-        <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow">
+        <Link 
+          to="/admin/publishers"
+          className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm hover:border-[#00875A]/40 transition-all group"
+        >
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-xs font-semibold text-gray-500">Đối Tác NXB &amp; Tác Giả</span>
-              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">1.024</div>
+              <span className="text-xs font-semibold text-gray-500 group-hover:text-[#00875A] transition-colors">Đối Tác NXB &amp; Doanh Nghiệp</span>
+              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loading ? '…' : stats.publishersCount}</div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
               <span className="material-symbols-outlined text-[20px]">domain</span>
             </div>
           </div>
-          <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#00875A]">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span>+18.3%</span>
-            <span className="text-gray-400 font-normal">so với tháng trước (18 hồ sơ mới)</span>
+          <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-amber-700">
+            <span className="material-symbols-outlined text-[16px]">pending_actions</span>
+            <span>{stats.pendingPublishersCount} hồ sơ chờ duyệt</span>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 2: Tổng Độc Giả Hoạt Động */}
+        {/* Card 2: Tổng Đầu Sách Toàn Sàn */}
         <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-xs font-semibold text-gray-500">Tổng Độc Giả Toàn Sàn</span>
-              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">28.560</div>
+              <span className="text-xs font-semibold text-gray-500">Tổng Đầu Sách Toàn Sàn</span>
+              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loading ? '…' : stats.booksCount}</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">groups</span>
+              <span className="material-symbols-outlined text-[20px]">library_books</span>
             </div>
           </div>
           <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#2563EB]">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span>+12.6%</span>
-            <span className="text-gray-400 font-normal">hội viên tích cực</span>
+            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+            <span>{stats.publishedBooksCount} sách đang bán công khai</span>
           </div>
         </div>
 
@@ -90,35 +159,33 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-xs font-semibold text-gray-500">Lượt Cấp Quyền Ebook DRM</span>
-              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">43.200</div>
+              <span className="text-xs font-semibold text-gray-500">Ấn Phẩm Ebook &amp; DRM</span>
+              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loading ? '…' : stats.drmBooksCount}</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[#FAF5FF] text-[#9333EA] flex items-center justify-center shrink-0">
               <span className="material-symbols-outlined text-[20px]">security</span>
             </div>
           </div>
           <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#9333EA]">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span>+20.1%</span>
-            <span className="text-gray-400 font-normal">100% bảo vệ bản quyền</span>
+            <span className="material-symbols-outlined text-[16px]">verified</span>
+            <span>Bảo vệ quyền tác giả số</span>
           </div>
         </div>
 
-        {/* Card 4: Tổng GMV Doanh Thu Sàn */}
+        {/* Card 4: Tổng Kho Sách Giấy */}
         <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow">
           <div className="flex items-start justify-between">
             <div>
-              <span className="text-xs font-semibold text-gray-500">Tổng GMV Doanh Thu Sàn</span>
-              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">₫2.480.000.000</div>
+              <span className="text-xs font-semibold text-gray-500">Tổng Tồn Kho Sách Giấy</span>
+              <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loading ? '…' : stats.totalStock.toLocaleString('vi-VN')}</div>
             </div>
             <div className="w-10 h-10 rounded-xl bg-[#F0FDF4] text-[#16A34A] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[20px]">account_balance</span>
+              <span className="material-symbols-outlined text-[20px]">warehouse</span>
             </div>
           </div>
           <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#16A34A]">
-            <span className="material-symbols-outlined text-[16px]">trending_up</span>
-            <span>+22.4%</span>
-            <span className="text-gray-400 font-normal">so với tháng trước</span>
+            <span className="material-symbols-outlined text-[16px]">inventory</span>
+            <span>Cập nhật trực tiếp từ kho NXB</span>
           </div>
         </div>
       </div>
@@ -143,13 +210,12 @@ export default function AdminDashboardPage() {
           >
             Duyệt NXB Mới
           </Link>
-          <span
-            className="px-4 py-2 rounded-xl bg-gray-200 text-gray-500 text-xs font-bold opacity-60 cursor-not-allowed"
-            aria-disabled="true"
-            title="Tạm khóa — ngoài happy case hiện tại"
+          <Link
+            to="/admin/tasks"
+            className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-amber-950 text-xs font-bold shadow-xs transition-all"
           >
             Kiểm Duyệt Sách
-          </span>
+          </Link>
         </div>
       </div>
 
@@ -198,7 +264,9 @@ export default function AdminDashboardPage() {
               <h2 className="text-sm sm:text-base font-bold text-gray-900">Cơ Cấu Doanh Thu Theo Định Dạng Sách</h2>
               <p className="text-[11px] text-gray-500 mt-0.5">Tỷ trọng doanh thu theo từng dòng xuất bản</p>
             </div>
-            <span className="text-xs font-bold text-gray-400 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — đối soát mở rộng ngoài happy case hiện tại">Tạm khóa</span>
+            <Link to="/admin/deals" className="text-xs font-bold text-[#00875A] hover:underline">
+              Chi tiết
+            </Link>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-2">
@@ -316,7 +384,9 @@ export default function AdminDashboardPage() {
               <h2 className="text-sm sm:text-base font-bold text-gray-900">Tỷ Lệ Chuyển Đổi Độc Giả Mua Hàng</h2>
               <p className="text-[11px] text-gray-500 mt-0.5">Tỷ lệ hoàn tất thanh toán từ lượt xem sách</p>
             </div>
-            <span className="text-xs font-bold text-gray-400 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — báo cáo ngoài happy case hiện tại">Tạm khóa</span>
+            <Link to="/admin/reports" className="text-xs font-bold text-[#00875A] hover:underline">
+              Báo cáo
+            </Link>
           </div>
 
           <div className="space-y-2 py-1 flex flex-col items-center">
@@ -365,7 +435,9 @@ export default function AdminDashboardPage() {
               <span className="material-symbols-outlined text-[#00875A] text-[18px]">event_note</span>
               <span>Lịch Sự Kiện &amp; Thẩm Định NXB</span>
             </h2>
-            <span className="text-xs font-bold text-gray-400 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — lịch vận hành ngoài happy case hiện tại">Tạm khóa</span>
+            <Link to="/admin/calendar" className="text-xs font-bold text-[#00875A] hover:underline">
+              Xem lịch
+            </Link>
           </div>
 
           <div className="space-y-3">
@@ -400,7 +472,9 @@ export default function AdminDashboardPage() {
               <span className="material-symbols-outlined text-[#00875A] text-[18px]">support_agent</span>
               <span>Yêu Cầu &amp; Khiếu Nại Sàn</span>
             </h2>
-            <span className="text-xs font-bold text-gray-400 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — hỗ trợ mở rộng ngoài happy case hiện tại">Tạm khóa</span>
+            <Link to="/admin/support" className="text-xs font-bold text-[#00875A] hover:underline">
+              Xử lý
+            </Link>
           </div>
 
           <div className="space-y-3">
@@ -431,7 +505,9 @@ export default function AdminDashboardPage() {
               <span className="material-symbols-outlined text-[#00875A] text-[18px]">history_edu</span>
               <span>Nhật Ký Quản Trị (Audit Log)</span>
             </h2>
-            <span className="text-xs font-bold text-gray-400 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — cài đặt mở rộng ngoài happy case hiện tại">Tạm khóa</span>
+            <Link to="/admin/settings" className="text-xs font-bold text-[#00875A] hover:underline">
+              Chi tiết
+            </Link>
           </div>
 
           <div className="space-y-3">

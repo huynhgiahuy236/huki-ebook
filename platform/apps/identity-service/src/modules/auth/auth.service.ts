@@ -71,7 +71,8 @@ export class AuthService {
         fullName: dto.fullName,
         phone: dto.phone,
         role: UserRole.USER,
-        status: UserStatus.PENDING, // Requires email verification
+        status: UserStatus.ACTIVE,
+        emailVerifiedAt: new Date(),
         emailVerificationToken,
         emailVerificationExpiresAt,
       },

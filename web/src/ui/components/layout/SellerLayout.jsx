@@ -22,6 +22,9 @@ export default function SellerLayout() {
   };
 
   const isChatPage = location.pathname.startsWith('/seller/chat');
+  const isProductFormPage = location.pathname.includes('/seller/product/create') || 
+                             location.pathname.includes('/seller/product/edit') ||
+                             location.pathname.includes('/seller/product/correction');
 
   return (
     <div className={`bg-background text-on-surface flex flex-col ${isChatPage ? 'h-screen max-h-screen overflow-hidden' : 'min-h-dvh'}`}>
@@ -30,6 +33,7 @@ export default function SellerLayout() {
         toggleSidebar={toggleSidebar} 
         toggleMobileSidebar={toggleMobileSidebar}
       />
+
       
       <div className={`flex flex-1 min-w-0 relative ${isChatPage ? 'overflow-hidden min-h-0' : ''}`}>
         {/* Desktop Sidebar */}
@@ -66,10 +70,11 @@ export default function SellerLayout() {
           <main id="main-content" className={`flex-1 min-w-0 ${isChatPage ? 'overflow-hidden min-h-0 flex flex-col' : ''}`}>
             <Outlet />
           </main>
-          {!isChatPage && <SellerFooter />}
+          {!isChatPage && !isProductFormPage && <SellerFooter />}
         </div>
       </div>
     </div>
   );
 }
+
 

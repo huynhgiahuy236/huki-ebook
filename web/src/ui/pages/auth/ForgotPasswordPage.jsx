@@ -10,12 +10,30 @@ export default function ForgotPasswordPage() {
 
   const [channel, setChannel] = useState('email'); // 'email' | 'phone'
   const [inputValue, setInputValue] = useState('nguyenvanan@huki.vn');
+  const [touched, setTouched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const validateInput = (val, ch) => {
+    const trimmed = val.trim();
+    if (!trimmed) {
+      return ch === 'email' ? 'Vui lòng nhập địa chỉ Email.' : 'Vui lòng nhập số điện thoại.';
+    }
+    if (ch === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      return 'Địa chỉ Email không hợp lệ (vd: name@domain.com).';
+    }
+    if (ch === 'phone' && !/^0\d{9}$/.test(trimmed)) {
+      return 'Số điện thoại phải gồm 10 chữ số bắt đầu bằng số 0.';
+    }
+    return '';
+  };
+
+  const error = validateInput(inputValue, channel);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!inputValue.trim()) {
-      showToast('Vui lòng nhập địa chỉ Email hoặc Số điện thoại!', 'error');
+    setTouched(true);
+
+    if (error) {
       return;
     }
 
@@ -161,10 +179,11 @@ export default function ForgotPasswordPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} noValidate className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-[#17201f] mb-1.5">
-                  {channel === 'email' ? 'Địa chỉ Email đã đăng ký' : 'Số điện thoại nhận tin nhắn OTP'}
+                  {channel === 'email' ? 'Địa chỉ Email đã đăng ký' : 'Số điện thoại nhận tin nhắn OTP'}{' '}
+                  <span className="text-[#ac2c19]">*</span>
                 </label>
                 <div className="relative flex items-center">
                   <span className="material-symbols-outlined absolute left-3.5 text-[#6b7280] text-lg pointer-events-none">
@@ -172,13 +191,26 @@ export default function ForgotPasswordPage() {
                   </span>
                   <input
                     type={channel === 'email' ? 'email' : 'tel'}
-                    required
                     value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
+                    onChange={(e) => {
+                      setInputValue(e.target.value);
+                      setTouched(true);
+                    }}
+                    onBlur={() => setTouched(true)}
                     placeholder={channel === 'email' ? 'nguyenvanan@huki.vn' : '0912 345 678'}
-                    className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-2xl pl-10 pr-4 py-3 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all"
+                    className={`w-full bg-[#fbf9f4] border ${
+                      touched && error
+                        ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                        : 'border-[#e8e5df]'
+                    } rounded-2xl pl-10 pr-4 py-3 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all`}
                   />
                 </div>
+                {touched && error && (
+                  <p className="text-[11px] text-[#ac2c19] font-medium mt-1.5 flex items-center gap-1 animate-fade-in-up">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
+                    <span>{error}</span>
+                  </p>
+                )}
               </div>
 
               {/* Security Notice Box */}

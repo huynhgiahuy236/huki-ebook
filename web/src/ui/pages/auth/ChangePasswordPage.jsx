@@ -12,22 +12,46 @@ export default function ChangePasswordPage() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [serverError, setServerError] = useState('');
+  const [touched, setTouched] = useState({
+    currentPassword: false,
+    newPassword: false,
+    confirmPassword: false,
+  });
+
+  const validateCurrent = (val) => {
+    if (!val) return 'Vui lòng nhập mật khẩu hiện tại.';
+    return '';
+  };
+
+  const validateNew = (val) => {
+    if (!val) return 'Vui lòng nhập mật khẩu mới.';
+    if (val.length < 8) return 'Mật khẩu mới phải từ 8 ký tự trở lên.';
+    return '';
+  };
+
+  const validateConfirm = (conf, pwd) => {
+    if (!conf) return 'Vui lòng xác nhận lại mật khẩu mới.';
+    if (conf !== pwd) return 'Mật khẩu xác nhận không khớp.';
+    return '';
+  };
+
+  const errors = {
+    currentPassword: validateCurrent(currentPassword),
+    newPassword: validateNew(newPassword),
+    confirmPassword: validateConfirm(confirmPassword, newPassword),
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setServerError('');
+    setTouched({ currentPassword: true, newPassword: true, confirmPassword: true });
 
-    if (!currentPassword) {
-      setError('Vui lòng nhập mật khẩu hiện tại!');
-      return;
-    }
-    if (!newPassword || newPassword.length < 8) {
-      setError('Mật khẩu mới phải từ 8 ký tự trở lên (gồm chữ hoa, chữ thường, số & ký tự đặc biệt)!');
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp!');
+    if (errors.currentPassword || errors.newPassword || errors.confirmPassword) {
       return;
     }
 
@@ -45,7 +69,7 @@ export default function ChangePasswordPage() {
         navigate('/');
       }
     } else {
-      setError(res.error?.message || 'Đổi mật khẩu không thành công.');
+      setServerError(res.error?.message || 'Đổi mật khẩu không thành công.');
       showToast(res.error?.message || 'Lỗi đổi mật khẩu', 'error');
     }
   };
@@ -67,45 +91,93 @@ export default function ChangePasswordPage() {
           </p>
         </div>
 
-        {error && (
+        {serverError && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 flex items-center gap-2">
             <span className="material-symbols-outlined text-base text-red-600">error</span>
-            <span>{error}</span>
+            <span>{serverError}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-[#17201f] mb-1">Mật khẩu hiện tại</label>
+            <label className="block text-xs font-bold text-[#17201f] mb-1">
+              Mật khẩu hiện tại <span className="text-[#ac2c19]">*</span>
+            </label>
             <input
               type="password"
               value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
+              onChange={(e) => {
+                setCurrentPassword(e.target.value);
+                setTouched((prev) => ({ ...prev, currentPassword: true }));
+              }}
+              onBlur={() => handleBlur('currentPassword')}
               placeholder="Nhập mật khẩu hiện tại..."
-              className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]"
+              className={`w-full bg-[#fbf9f4] border ${
+                touched.currentPassword && errors.currentPassword
+                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                  : 'border-[#e8e5df]'
+              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
             />
+            {touched.currentPassword && errors.currentPassword && (
+              <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
+                <span className="material-symbols-outlined text-[13px]">error</span>
+                <span>{errors.currentPassword}</span>
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#17201f] mb-1">Mật khẩu mới</label>
+            <label className="block text-xs font-bold text-[#17201f] mb-1">
+              Mật khẩu mới <span className="text-[#ac2c19]">*</span>
+            </label>
             <input
               type="password"
               value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
+              onChange={(e) => {
+                setNewPassword(e.target.value);
+                setTouched((prev) => ({ ...prev, newPassword: true }));
+              }}
+              onBlur={() => handleBlur('newPassword')}
               placeholder="Tối thiểu 8 ký tự (hoa, thường, số, đặc biệt)..."
-              className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]"
+              className={`w-full bg-[#fbf9f4] border ${
+                touched.newPassword && errors.newPassword
+                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                  : 'border-[#e8e5df]'
+              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
             />
+            {touched.newPassword && errors.newPassword && (
+              <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
+                <span className="material-symbols-outlined text-[13px]">error</span>
+                <span>{errors.newPassword}</span>
+              </p>
+            )}
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#17201f] mb-1">Xác nhận mật khẩu mới</label>
+            <label className="block text-xs font-bold text-[#17201f] mb-1">
+              Xác nhận mật khẩu mới <span className="text-[#ac2c19]">*</span>
+            </label>
             <input
               type="password"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setTouched((prev) => ({ ...prev, confirmPassword: true }));
+              }}
+              onBlur={() => handleBlur('confirmPassword')}
               placeholder="Nhập lại mật khẩu mới..."
-              className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]"
+              className={`w-full bg-[#fbf9f4] border ${
+                touched.confirmPassword && errors.confirmPassword
+                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                  : 'border-[#e8e5df]'
+              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
             />
+            {touched.confirmPassword && errors.confirmPassword && (
+              <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
+                <span className="material-symbols-outlined text-[13px]">error</span>
+                <span>{errors.confirmPassword}</span>
+              </p>
+            )}
           </div>
 
           <button

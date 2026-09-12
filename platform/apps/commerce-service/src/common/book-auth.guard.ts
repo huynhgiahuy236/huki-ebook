@@ -30,7 +30,8 @@ async function authenticate(
     const actor = await jwtService.verifyAsync<BookActor>(token);
     request.user = actor;
     return actor;
-  } catch {
+  } catch (err) {
+    console.error('[BookAuthGuard] verify error:', err);
     throwUnauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired access token');
     return null; // unreachable but satisfies TS
   }

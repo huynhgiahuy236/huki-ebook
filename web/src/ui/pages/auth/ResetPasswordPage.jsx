@@ -14,6 +14,10 @@ export default function ResetPasswordPage() {
   const [logoutAllDevices, setLogoutAllDevices] = useState(true);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [touched, setTouched] = useState({
+    password: false,
+    confirmPassword: false,
+  });
 
   const criteria = [
     { label: 'Tối thiểu 8 ký tự', met: password.length >= 8 },
@@ -22,14 +26,32 @@ export default function ResetPasswordPage() {
     { label: 'Có ký tự đặc biệt (!@#$...)', met: /[^A-Za-z0-9]/.test(password) },
   ];
 
+  const validatePassword = (pwd) => {
+    if (!pwd) return 'Vui lòng nhập mật khẩu mới.';
+    if (pwd.length < 8) return 'Mật khẩu phải có tối thiểu 8 ký tự.';
+    return '';
+  };
+
+  const validateConfirmPassword = (conf, pwd) => {
+    if (!conf) return 'Vui lòng xác nhận lại mật khẩu mới.';
+    if (conf !== pwd) return 'Mật khẩu xác nhận không trùng khớp.';
+    return '';
+  };
+
+  const errors = {
+    password: validatePassword(password),
+    confirmPassword: validateConfirmPassword(confirmPassword, password),
+  };
+
+  const handleBlur = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!password || password.length < 6) {
-      showToast('Mật khẩu phải có tối thiểu 6 ký tự!', 'error');
-      return;
-    }
-    if (password !== confirmPassword) {
-      showToast('Mật khẩu xác nhận không trùng khớp!', 'error');
+    setTouched({ password: true, confirmPassword: true });
+
+    if (errors.password || errors.confirmPassword) {
       return;
     }
 
@@ -123,7 +145,7 @@ export default function ResetPasswordPage() {
                   </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} noValidate className="space-y-4">
                   {/* New Password */}
                   <div>
                     <label className="block text-xs font-bold text-[#17201f] mb-1.5">
@@ -135,11 +157,18 @@ export default function ResetPasswordPage() {
                       </span>
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        required
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setTouched((prev) => ({ ...prev, password: true }));
+                        }}
+                        onBlur={() => handleBlur('password')}
                         placeholder="Nhập mật khẩu mới..."
-                        className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-2xl pl-10 pr-11 py-2.5 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all"
+                        className={`w-full bg-[#fbf9f4] border ${
+                          touched.password && errors.password
+                            ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                            : 'border-[#e8e5df]'
+                        } rounded-2xl pl-10 pr-11 py-2.5 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all`}
                       />
                       <button
                         type="button"
@@ -151,6 +180,12 @@ export default function ResetPasswordPage() {
                         </span>
                       </button>
                     </div>
+                    {touched.password && errors.password && (
+                      <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
+                        <span className="material-symbols-outlined text-[13px]">error</span>
+                        <span>{errors.password}</span>
+                      </p>
+                    )}
                   </div>
 
                   {/* Confirm New Password */}
@@ -164,17 +199,24 @@ export default function ResetPasswordPage() {
                       </span>
                       <input
                         type={showPassword ? 'text' : 'password'}
-                        required
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setTouched((prev) => ({ ...prev, confirmPassword: true }));
+                        }}
+                        onBlur={() => handleBlur('confirmPassword')}
                         placeholder="Nhập lại chính xác mật khẩu..."
-                        className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-2xl pl-10 pr-4 py-2.5 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all"
+                        className={`w-full bg-[#fbf9f4] border ${
+                          touched.confirmPassword && errors.confirmPassword
+                            ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                            : 'border-[#e8e5df]'
+                        } rounded-2xl pl-10 pr-4 py-2.5 text-sm text-[#17201f] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all`}
                       />
                     </div>
-                    {confirmPassword && password !== confirmPassword && (
-                      <p className="text-[11px] text-[#ac2c19] font-semibold mt-1 flex items-center gap-1">
-                        <span className="material-symbols-outlined text-xs">error</span>
-                        Mật khẩu xác nhận chưa khớp!
+                    {touched.confirmPassword && errors.confirmPassword && (
+                      <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
+                        <span className="material-symbols-outlined text-[13px]">error</span>
+                        <span>{errors.confirmPassword}</span>
                       </p>
                     )}
                   </div>

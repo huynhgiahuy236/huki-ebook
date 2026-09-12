@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
-import { BusinessStatus, BusinessType } from '../../../prisma/generated/client';
+import { BusinessStatus, BusinessType, StoreStatus } from '../../../prisma/generated/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { throwConflict, throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
@@ -18,20 +18,36 @@ export class BusinessService {
   async registerBusiness(userId: string, dto: CreateBusinessDto) {
     // Check if user already has a business
     const existingBusiness = await this.prisma.business.findFirst({
-      where: { ownerId: userId },
+      where: { ownerId: userId, deletedAt: null },
     });
 
     if (existingBusiness) {
-      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS);
+      if (existingBusiness.status === BusinessStatus.APPROVED) {
+        throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Tài khoản của bạn đã có một doanh nghiệp được phê duyệt.');
+      }
+      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Bạn đã có một hồ sơ đăng ký đang chờ xét duyệt hoặc đã tồn tại.');
     }
 
     // Check if email already exists
-    const emailExists = await this.prisma.business.findUnique({
-      where: { email: dto.email },
-    });
+    if (dto.email) {
+      const emailExists = await this.prisma.business.findFirst({
+        where: { email: dto.email, deletedAt: null },
+      });
 
-    if (emailExists) {
-      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS);
+      if (emailExists) {
+        throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Email doanh nghiệp này đã được đăng ký.');
+      }
+    }
+
+    // Check if taxCode already exists
+    if (dto.taxCode) {
+      const taxExists = await this.prisma.business.findFirst({
+        where: { taxCode: dto.taxCode, deletedAt: null },
+      });
+
+      if (taxExists) {
+        throwConflict(ErrorCode.BUSINESS_TAX_CODE_EXISTS, 'Mã số thuế này đã được đăng ký bởi một đơn vị khác.');
+      }
     }
 
     // Create business
@@ -45,6 +61,36 @@ export class BusinessService {
         businessType: dto.businessType as BusinessType,
         ownerId: userId,
         status: BusinessStatus.PENDING_APPROVAL,
+      },
+    });
+
+    // Auto-create primary store for the business (1-to-1 unified model)
+    const normalizedSlug = dto.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[đĐ]/g, 'd')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-');
+    let slug = normalizedSlug || `shop-${Date.now()}`;
+    const existingStore = await this.prisma.store.findUnique({ where: { slug } });
+    if (existingStore) {
+      slug = `${slug}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
+    await this.prisma.store.create({
+      data: {
+        name: dto.name,
+        slug,
+        description: `Gian hàng chính hãng phân phối sách của ${dto.name}`,
+        email: dto.email,
+        phone: dto.phone,
+        address: dto.address,
+        businessId: business.id,
+        status: StoreStatus.PENDING_APPROVAL,
+        isActive: true,
+        categoryIds: [],
       },
     });
 
@@ -226,6 +272,15 @@ export class BusinessService {
     });
 
     if (registryVerified && business?.ownerId) {
+      // Sync store approval
+      await this.prisma.store.updateMany({
+        where: { businessId: business.id },
+        data: {
+          status: StoreStatus.APPROVED,
+          isActive: true,
+        },
+      });
+
       try {
         const { Client } = require('pg');
         const pgClient = new Client({
@@ -237,6 +292,14 @@ export class BusinessService {
       } catch (err) {
         // Ignore pg error if identity db is handled via event
       }
+    } else if (business) {
+      await this.prisma.store.updateMany({
+        where: { businessId: business.id },
+        data: {
+          status: StoreStatus.REJECTED,
+          isActive: false,
+        },
+      });
     }
 
     // Emit event
@@ -253,6 +316,14 @@ export class BusinessService {
   }
 
   async rejectBusiness(id: string, adminId: string, reason: string) {
+    await this.prisma.store.updateMany({
+      where: { businessId: id },
+      data: {
+        status: StoreStatus.REJECTED,
+        isActive: false,
+      },
+    });
+
     return this.prisma.business.update({
       where: { id },
       data: {
@@ -265,12 +336,88 @@ export class BusinessService {
   }
 
   async suspendBusiness(id: string) {
+    await this.prisma.store.updateMany({
+      where: { businessId: id },
+      data: {
+        status: StoreStatus.SUSPENDED,
+        isActive: false,
+      },
+    });
+
     return this.prisma.business.update({
       where: { id },
       data: {
         status: BusinessStatus.SUSPENDED,
       },
     });
+  }
+
+  // ==================== FOLLOW / UNFOLLOW ====================
+  async followBusiness(userId: string, businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+    });
+    if (!business) {
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy nhà xuất bản/doanh nghiệp');
+    }
+
+    const follower = await (this.prisma as any).businessFollower.upsert({
+      where: {
+        businessId_userId: {
+          businessId,
+          userId,
+        },
+      },
+      create: {
+        businessId,
+        userId,
+      },
+      update: {},
+    });
+
+    const totalFollowers = await (this.prisma as any).businessFollower.count({
+      where: { businessId },
+    });
+
+    return {
+      followed: true,
+      businessId,
+      totalFollowers,
+      follower,
+    };
+  }
+
+  async unfollowBusiness(userId: string, businessId: string) {
+    try {
+      await (this.prisma as any).businessFollower.delete({
+        where: {
+          businessId_userId: {
+            businessId,
+            userId,
+          },
+        },
+      });
+    } catch {
+      // Ignored if not found
+    }
+
+    const totalFollowers = await (this.prisma as any).businessFollower.count({
+      where: { businessId },
+    });
+
+    return {
+      followed: false,
+      businessId,
+      totalFollowers,
+    };
+  }
+
+  async getMyFollowedBusinessIds(userId: string): Promise<string[]> {
+    const records = await (this.prisma as any).businessFollower.findMany({
+      where: { userId },
+      select: { businessId: true },
+    });
+    return records.map((r: { businessId: string }) => r.businessId);
   }
 
   // ==================== HELPERS ====================

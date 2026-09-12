@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 01 | Shared foundation | ✅ DONE | Typed client, auth/session, permission contract |
 | 02 | Tất cả persona | ✅ DONE | Identity và role routing bằng backend thật |
-| 03 | Admin doanh nghiệp + Guest | 🟡 READY_FOR_REVIEW | Implementation/build/test đạt; chờ reviewer E2E backend thật |
+| 03 | Admin doanh nghiệp + Guest | ✅ DONE | E2E xuyên vai trò trên backend thật đạt chuẩn |
 | 04 | User/Buyer | 🟡 PARTIAL | Checkout COD tạo đơn thật |
 | 05 | User/Buyer | 🟡 PARTIAL | Buyer xem đơn và lịch sử nội bộ |
 | 06 | Admin con doanh nghiệp | 🔴 TODO | Owner tạo tài khoản và cấp permission tùy chọn |

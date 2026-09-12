@@ -9,6 +9,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -92,6 +93,58 @@ export class BusinessController {
       page: page ? parseInt(page) : 1,
       limit: limit ? parseInt(limit) : 20,
     }, true);
+  }
+
+  @Get('following/my')
+  @ApiOperation({
+    summary: 'Get IDs of businesses followed by current user',
+    description: 'Returns a list of business IDs followed by the logged-in user.',
+  })
+  @ApiResponse({ status: 200, description: 'List of followed business IDs' })
+  async getMyFollowedBusinesses(@CurrentUser('id') userId: string) {
+    const data = await this.businessService.getMyFollowedBusinessIds(userId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post(':id/follow')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Follow a business/publisher',
+    description: 'Adds the business to the user\'s followed list.',
+  })
+  @ApiParam({ name: 'id', description: 'Business ID' })
+  async followBusiness(
+    @Param('id') businessId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const result = await this.businessService.followBusiness(userId, businessId);
+    return {
+      success: true,
+      message: 'Đã theo dõi nhà xuất bản thành công',
+      data: result,
+    };
+  }
+
+  @Delete(':id/follow')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Unfollow a business/publisher',
+    description: 'Removes the business from the user\'s followed list.',
+  })
+  @ApiParam({ name: 'id', description: 'Business ID' })
+  async unfollowBusiness(
+    @Param('id') businessId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    const result = await this.businessService.unfollowBusiness(userId, businessId);
+    return {
+      success: true,
+      message: 'Đã bỏ theo dõi nhà xuất bản',
+      data: result,
+    };
   }
 
   @Get(':id')

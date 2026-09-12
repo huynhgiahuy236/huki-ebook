@@ -15,7 +15,9 @@ export class BooksService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateBookDto, actor: BookActor) {
-    const storeId = dto.storeId || actor.sub || '00000000-0000-0000-0000-000000000000';
+    // Business is the storefront. The physical column is still named store_id
+    // for database compatibility while the Store domain is being retired.
+    const storeId = dto.businessId || dto.storeId || actor.sub || '00000000-0000-0000-0000-000000000000';
     const format = dto.format || (dto.physicalDetails ? (dto.digitalDetails ? BookFormat.BOTH : BookFormat.PHYSICAL) : BookFormat.DIGITAL);
     const description = dto.description ? dto.description.trim() : 'Mô tả tác phẩm sách';
     const price = dto.price ?? 0;
@@ -120,7 +122,7 @@ export class BooksService {
     if (query.category) where.categoryId = query.category;
     if (query.author) where.authorId = query.author;
     if (query.publisher) where.publisherId = query.publisher;
-    if (query.store) where.storeId = query.store;
+    if (query.business || query.store) where.storeId = query.business || query.store;
     if (query.format) where.format = query.format;
     if (query.minPrice !== undefined) where.price = { ...where.price, gte: query.minPrice };
     if (query.maxPrice !== undefined) where.price = { ...where.price, lte: query.maxPrice };
@@ -298,6 +300,7 @@ export class BooksService {
     return {
       id: book.id,
       storeId: book.storeId,
+      businessId: book.storeId,
       title: book.title,
       slug: book.slug,
       isbn: book.isbn,

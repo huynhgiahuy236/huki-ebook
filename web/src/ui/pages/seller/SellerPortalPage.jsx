@@ -25,7 +25,7 @@ export default function SellerPortalPage() {
           </p>
 
 <div className="flex flex-wrap items-center gap-4 pt-2">
-<Link className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-tertiary text-white font-title-md text-[15px] hover:bg-[#005140] transition-all shadow-sm hover:shadow-md" to="/seller/register">
+<Link className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-tertiary text-white font-title-md text-[15px] hover:bg-[#005140] transition-all shadow-sm hover:shadow-md" to="/seller/edge-cases">
 <span className="material-symbols-outlined text-[20px] fill-icon">add_business</span>
               Đăng Ký Bán Hàng Ngay
               <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
@@ -569,7 +569,7 @@ export default function SellerPortalPage() {
 </div>
 </div>
 <div className="mt-8 text-center">
-<Link className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-tertiary text-white font-title-md text-[15px] hover:bg-[#005140] transition-all shadow-sm" to="/seller/register">
+<Link className="inline-flex items-center gap-2 px-8 py-3.5 rounded-lg bg-tertiary text-white font-title-md text-[15px] hover:bg-[#005140] transition-all shadow-sm" to="/seller/edge-cases">
             Bắt Đầu Bước 01 Ngay Bây Giờ
             <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
 </Link>
@@ -795,10 +795,10 @@ export default function SellerPortalPage() {
 <span className="material-symbols-outlined text-[20px] fill-icon">add_business</span>
                 Đăng Ký Mở Gian Hàng Ngay
               </Link>
-<span className="inline-flex items-center gap-2 px-6 py-4 rounded-xl bg-white/5 border border-white/20 text-white/50 font-title-md text-[15px] cursor-not-allowed backdrop-blur-sm" aria-disabled="true" title="Tạm khóa — tài liệu tải xuống ngoài happy case hiện tại">
+<Link className="inline-flex items-center gap-2 px-6 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-title-md text-[15px] transition-all backdrop-blur-sm" to="/seller/edge-cases">
 <span className="material-symbols-outlined text-[20px]">download</span>
                 Tải Bộ Tài Liệu Hướng Dẫn (PDF)
-</span>
+              </Link>
 </div>
 <div className="mt-8 pt-6 border-t border-white/15 flex flex-wrap items-center gap-4 sm:gap-6 text-[13px] text-[#ECF6F3]">
 <span className="flex items-center gap-1.5">

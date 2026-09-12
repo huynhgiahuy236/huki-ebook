@@ -176,14 +176,14 @@ export default function OrderSuccessPage() {
 </div>
 </div>
 <div className="mt-6 pt-4 border-t border-tertiary/20 flex flex-wrap items-center justify-between gap-3">
-<span className="h-11 px-6 rounded-lg bg-gray-300 text-gray-500 font-title-md text-body-sm flex items-center gap-2 opacity-60 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — WebReader ngoài happy case hiện tại">
-              WebReader · Tạm khóa
+<Link className="h-11 px-6 rounded-lg bg-tertiary hover:bg-[#005240] text-on-tertiary font-title-md text-body-sm flex items-center gap-2 transition-all shadow-sm" to="/reader">
+              Đọc Ngay Bây Giờ
               <span className="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
-</span>
-<span className="font-title-md text-body-sm text-on-surface-variant flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — tủ sách DRM ngoài happy case hiện tại">
-              Tủ sách · Tạm khóa
+</Link>
+<Link className="font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" to="/library">
+              Mở Tủ Sách Của Tôi
               <span className="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span>
-</span>
+</Link>
 </div>
 </div>
 </section>
@@ -432,10 +432,10 @@ export default function OrderSuccessPage() {
                 Trải nghiệm trình đọc hiện đại Huki Reader trên trình duyệt web hoặc ứng dụng di động iOS/Android không cần tải file nặng.
               </p>
 </div>
-<span className="mt-4 font-title-md text-body-sm text-on-surface-variant flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
-              WebReader · Tạm khóa
+<Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" to="/reader">
+              Khám phá Web Reader
               <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
-</span>
+</Link>
 </div>
 
 <div className="p-5 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col justify-between">
@@ -448,10 +448,10 @@ export default function OrderSuccessPage() {
                 Highlight các đoạn văn tâm đắc, lưu trích dẫn và đồng bộ trang đang đọc liền mạch giữa điện thoại, máy tính bảng và laptop.
               </p>
 </div>
-<span className="mt-4 font-title-md text-body-sm text-on-surface-variant flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
-              Tủ sách · Tạm khóa
+<Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" to="/library">
+              Xem Tủ Sách Cá Nhân
               <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
-</span>
+</Link>
 </div>
 
 <div className="p-5 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col justify-between">
@@ -464,10 +464,10 @@ export default function OrderSuccessPage() {
                 Tham gia phòng đọc ảo cùng 48.000+ thành viên mê sách, trao đổi góc nhìn và nhận điểm thưởng cho mỗi bài review chất lượng.
               </p>
 </div>
-<span className="mt-4 font-title-md text-body-sm text-on-surface-variant flex items-center gap-1 opacity-50 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
-              Cộng đồng · Tạm khóa
+<Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" to="/community">
+              Ghé Mạng Xã Hội Sách
               <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
-</span>
+</Link>
 </div>
 </div>
 

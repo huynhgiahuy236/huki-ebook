@@ -6,66 +6,53 @@ import { useToast } from '../../context/ToastContext';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, authError } = useAuth();
+  const { login } = useAuth();
   const { showToast } = useToast();
 
   const [loginMethod, setLoginMethod] = useState('password'); // 'password' | 'otp' | 'passkey'
-  const [emailOrPhone, setEmailOrPhone] = useState(process.env.NODE_ENV === 'development' ? 'user@huki.com' : '');
-  const [password, setPassword] = useState(process.env.NODE_ENV === 'development' ? 'User123!' : '');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const redirectPath = location.state?.from || '/';
-
-  const fillCredentials = (email, pass) => {
-    setEmailOrPhone(email);
-    setPassword(pass);
-    setErrorMessage('');
-  };
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage('');
-
     if (!emailOrPhone.trim()) {
-      const msg = 'Vui lòng nhập Email hợp lệ!';
-      setErrorMessage(msg);
-      showToast(msg, 'error');
+      showToast('Vui lòng nhập Email hoặc Số điện thoại!', 'error');
       return;
     }
     if (loginMethod === 'password' && !password.trim()) {
-      const msg = 'Vui lòng nhập mật khẩu tài khoản!';
-      setErrorMessage(msg);
-      showToast(msg, 'error');
+      showToast('Vui lòng nhập mật khẩu tài khoản!', 'error');
       return;
     }
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     const res = await login(emailOrPhone.trim(), password);
-    setIsSubmitting(false);
+    setIsLoading(false);
 
     if (res.success && res.user) {
       showToast(`Đăng nhập thành công! Chào mừng trở lại, ${res.user.fullName || res.user.email}.`, 'success');
+      const rawTarget = location.state?.from?.pathname || location.state?.from || '/';
+
       if (res.user.mustChangePassword) {
         navigate('/change-password');
       } else if (res.user.role === 'PLATFORM_ADMIN') {
-        navigate('/admin');
-      } else if (res.user.role === 'BUSINESS') {
-        navigate(location.state?.from || '/seller/dashboard');
+        navigate(rawTarget.startsWith('/admin') ? rawTarget : '/admin');
+      } else if (res.user.role === 'BUSINESS' || res.user.hasApprovedBusiness) {
+        navigate(rawTarget.startsWith('/seller') ? rawTarget : '/seller/dashboard');
       } else {
-        navigate(redirectPath);
+        // Độc giả / Khách hàng (USER): chỉ chuyển hướng đến trang công khai hoặc trang cá nhân độc giả
+        const isRestricted = rawTarget.startsWith('/seller') || rawTarget.startsWith('/admin');
+        navigate(isRestricted ? '/' : rawTarget);
       }
     } else {
-      const errorMsg = res.error || authError || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.';
-      setErrorMessage(errorMsg);
-      showToast(errorMsg, 'error');
+      showToast(res.error || 'Đăng nhập không thành công.', 'error');
     }
   };
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-dvh w-full bg-white outline-none">
+    <main id="main-content" tabIndex="-1" className="min-h-dvh w-full bg-white outline-none">
       <div className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-white lg:grid-cols-12">
         
         {/* Left Column: Brand & Editorial Identity */}
@@ -169,77 +156,28 @@ export default function LoginPage() {
                 <span className="material-symbols-outlined text-base">lock</span>
                 Mật Khẩu
               </button>
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="Tạm khóa — đăng nhập OTP không thuộc happy case hiện tại"
-                className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 text-[#6b7280] opacity-40 cursor-not-allowed"
+              <div
+                className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 opacity-35 cursor-not-allowed pointer-events-none select-none text-[#6b7280]"
               >
                 <span className="material-symbols-outlined text-base">sms</span>
-                Mã OTP SMS
-              </button>
-              <button
-                type="button"
-                disabled
-                aria-disabled="true"
-                title="Tạm khóa — Passkey không thuộc happy case hiện tại"
-                className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 text-[#6b7280] opacity-40 cursor-not-allowed"
+                <span>OTP (Mẫu)</span>
+              </div>
+              <div
+                className="flex-1 py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1 opacity-35 cursor-not-allowed pointer-events-none select-none text-[#6b7280]"
               >
                 <span className="material-symbols-outlined text-base">fingerprint</span>
-                Passkey
-              </button>
+                <span>Passkey (Mẫu)</span>
+              </div>
             </div>
 
-            {/* Quick Test Credentials bar (Dev mode) */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mb-5 p-3 bg-[#f8f6f1] rounded-2xl border border-[#e8e5df]">
-                <div className="flex items-center justify-between text-[11px] font-bold text-[#684000] mb-2">
-                  <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm text-[#fea619]">bolt</span>
-                    Chọn tài khoản mẫu Backend để test:
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fillCredentials('user@huki.com', 'User123!')}
-                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#003b2b] hover:text-white text-[#003b2b] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
-                  >
-                    <span>User/Buyer</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fillCredentials('business@huki.com', 'Business123!')}
-                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#ac2c19] hover:text-white text-[#ac2c19] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
-                  >
-                    <span>Business</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fillCredentials('admin@huki.com', 'Admin123!')}
-                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#4338ca] hover:text-white text-[#4338ca] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
-                  >
-                    <span>Admin HUKI</span>
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {/* Error Message Box */}
-            {errorMessage && (
-              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-red-600">error</span>
-                <span className="flex-1">{errorMessage}</span>
-              </div>
-            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email / Phone Field */}
               <div>
                 <label className="block text-xs font-bold text-[#17201f] mb-1.5">
-                  Email tài khoản
+                  Email hoặc Số điện thoại
                 </label>
                 <div className="relative flex items-center">
                   <span className="material-symbols-outlined absolute left-3.5 text-[#6b7280] text-lg pointer-events-none">
@@ -249,7 +187,7 @@ export default function LoginPage() {
                     type="text"
                     value={emailOrPhone}
                     onChange={(e) => setEmailOrPhone(e.target.value)}
-                    placeholder="user@huki.com hoặc email đăng ký..."
+                    placeholder="nguyenvanan@huki.vn hoặc 0912 345 678"
                     className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-2xl pl-10 pr-4 py-2.5 text-sm text-[#17201f] placeholder-[#9ca3af] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all"
                   />
                 </div>
@@ -262,13 +200,12 @@ export default function LoginPage() {
                     <label className="block text-xs font-bold text-[#17201f]">
                       Mật khẩu bảo mật
                     </label>
-                    <span
-                      className="text-xs font-semibold text-[#6b7280] opacity-50 cursor-not-allowed"
-                      aria-disabled="true"
-                      title="Tạm khóa — khôi phục mật khẩu nâng cao ngoài happy case hiện tại"
+                    <Link
+                      to="/forgot-password"
+                      className="text-xs font-semibold text-[#ac2c19] hover:text-[#8e1404] hover:underline"
                     >
-                      Quên mật khẩu? · Tạm khóa
-                    </span>
+                      Quên mật khẩu?
+                    </Link>
                   </div>
                   <div className="relative flex items-center">
                     <span className="material-symbols-outlined absolute left-3.5 text-[#6b7280] text-lg pointer-events-none">
@@ -295,6 +232,32 @@ export default function LoginPage() {
                 </div>
               )}
 
+              {/* Method is OTP */}
+              {loginMethod === 'otp' && (
+                <div className="p-3.5 bg-[#f2fbf9] rounded-2xl border border-[#94f5d6]/50 text-xs text-[#006953]">
+                  <p className="flex items-center gap-1.5 font-bold mb-1">
+                    <span className="material-symbols-outlined text-base">info</span>
+                    Xác thực một chạm không cần nhớ mật khẩu
+                  </p>
+                  <p className="text-[11px] text-[#17201f]/80 leading-relaxed">
+                    Hệ thống sẽ gửi mã xác thực 6 số qua tin nhắn SMS/Zalo ZNS đến số điện thoại đã đăng ký.
+                  </p>
+                </div>
+              )}
+
+              {/* Method is Passkey */}
+              {loginMethod === 'passkey' && (
+                <div className="p-4 bg-[#f8f6f1] rounded-2xl border border-[#e8e5df] text-center">
+                  <div className="w-12 h-12 rounded-full bg-[#003b2b]/10 text-[#003b2b] flex items-center justify-center mx-auto mb-2">
+                    <span className="material-symbols-outlined text-2xl">fingerprint</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-[#17201f] mb-1">Đăng nhập bằng Sinh trắc học</h4>
+                  <p className="text-[11px] text-[#6b7280] max-w-xs mx-auto mb-3">
+                    Sử dụng TouchID, FaceID hoặc Windows Hello đã liên kết với thiết bị này.
+                  </p>
+                </div>
+              )}
+
               {/* Remember Me & Terms */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#17201f]">
@@ -311,18 +274,18 @@ export default function LoginPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isLoading}
                 className="w-full bg-[#003b2b] text-white py-3 rounded-2xl text-sm font-bold hover:bg-[#00523c] active:scale-[0.99] transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
               >
-                {isSubmitting ? (
+                {isLoading ? (
                   <>
                     <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    <span>Đang kết nối Máy chủ API Gateway...</span>
+                    <span>Đang xác thực hệ thống...</span>
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-lg">login</span>
-                    <span>Đăng Nhập HUKI</span>
+                    <span>{loginMethod === 'passkey' ? 'Xác thực Sinh Trắc Học' : 'Đăng Nhập HUKI'}</span>
                   </>
                 )}
               </button>
@@ -337,16 +300,12 @@ export default function LoginPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-3 gap-2.5 opacity-35 cursor-not-allowed pointer-events-none select-none">
                 {/* Google */}
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Tạm khóa — đăng nhập mạng xã hội ngoài happy case hiện tại"
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#6b7280] opacity-40 cursor-not-allowed"
+                <div
+                  className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#17201f] bg-black/[0.02]"
                 >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
                     <path
                       fill="#4285F4"
                       d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -365,35 +324,27 @@ export default function LoginPage() {
                     />
                   </svg>
                   <span>Google</span>
-                </button>
+                </div>
 
                 {/* Apple */}
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Tạm khóa — đăng nhập mạng xã hội ngoài happy case hiện tại"
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#6b7280] opacity-40 cursor-not-allowed"
+                <div
+                  className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#17201f] bg-black/[0.02]"
                 >
-                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
                     <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.35-.58.66-1.09 1.74-.95 2.76.99.08 2.05-.51 2.68-1.26z" />
                   </svg>
                   <span>Apple ID</span>
-                </button>
+                </div>
 
                 {/* Facebook */}
-                <button
-                  type="button"
-                  disabled
-                  aria-disabled="true"
-                  title="Tạm khóa — đăng nhập mạng xã hội ngoài happy case hiện tại"
-                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#6b7280] opacity-40 cursor-not-allowed"
+                <div
+                  className="flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-2xl border border-[#e8e5df] text-xs font-semibold text-[#17201f] bg-black/[0.02]"
                 >
-                  <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5 fill-[#1877F2]" viewBox="0 0 24 24">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                   </svg>
                   <span>Facebook</span>
-                </button>
+                </div>
               </div>
             </div>
           </div>

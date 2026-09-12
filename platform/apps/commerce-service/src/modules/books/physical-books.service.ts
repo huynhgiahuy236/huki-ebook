@@ -82,7 +82,7 @@ export class PhysicalBooksService {
       // Create inventory log
       await tx.inventoryLog.create({
         data: {
-          bookId,
+          bookId: details.id,
           change: dto.operation === InventoryOperation.ADD ? dto.quantity : -dto.quantity,
           balance: stockAfter,
           reason: dto.reason ?? '',

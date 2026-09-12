@@ -8,7 +8,7 @@ export default function CheckoutPage() {
   const { cartItems, storeGroups, checkedSubtotal, checkedItemsCount, hasPhysicalItems, hasEbookItems, clearCart } = useCart();
   const { showToast } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = useState('cod');
+  const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' (active) | 'hukipay' | 'vnpay' | 'momo' (deferred)
   const [shippingMethod, setShippingMethod] = useState('standard'); // 'standard' | 'express'
   const [useVatInvoice, setUseVatInvoice] = useState(false);
   const [note, setNote] = useState('');
@@ -29,17 +29,13 @@ export default function CheckoutPage() {
 
   const rawSubtotal = checkedSubtotal;
   const shippingFee = hasPhysicalItems ? (shippingMethod === 'express' ? 35000 : 20000) : 0;
-  const voucherDiscount = 0;
+  const voucherDiscount = rawSubtotal >= 300000 ? 30000 : 0;
   const grandTotal = Math.max(0, rawSubtotal - voucherDiscount + shippingFee);
 
   const handlePlaceOrder = () => {
     if (checkedItemsCount === 0) {
       showToast('Giỏ hàng chưa có sản phẩm được chọn.', 'error');
       navigate('/cart');
-      return;
-    }
-    if (!hasPhysicalItems || paymentMethod !== 'cod') {
-      showToast('Happy case hiện tại chỉ mở thanh toán COD cho sách giấy.', 'warning');
       return;
     }
     setIsSubmitting(true);
@@ -248,107 +244,90 @@ export default function CheckoutPage() {
               </h2>
 
               <div className="space-y-2.5">
-                {/* HukiPay Wallet */}
+                {/* COD (Primary Happy Case) */}
                 <label
-                  aria-disabled="true"
-                  className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low opacity-55 cursor-not-allowed flex items-center justify-between"
+                  onClick={() => setPaymentMethod('cod')}
+                  className={`p-3.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
+                    paymentMethod === 'cod' ? 'border-2 border-primary bg-primary/5 shadow-xs' : 'border-outline-variant/40 bg-surface-container-low'
+                  }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-theme-primary to-theme-secondary text-white flex items-center justify-center text-xs font-bold shadow-xs">
-                      H
+                    <span className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center text-xs">
+                      <span className="material-symbols-outlined text-[18px]">payments</span>
                     </span>
                     <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs sm:text-sm text-on-surface">Ví HukiPay (Khuyên Dùng)</span>
-                        <span className="bg-gray-200 text-gray-600 text-[9px] font-bold px-1.5 py-0.5 rounded">TẠM KHÓA</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs sm:text-sm text-on-surface">Thanh toán khi nhận hàng (COD)</span>
+                        <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">Khuyên dùng</span>
                       </div>
-                      <span className="text-[11px] text-on-surface-variant">Số dư ví: <strong>1.450.000đ</strong> (Thanh toán 1-chạm không mã OTP)</span>
+                      <span className="text-[11px] text-on-surface-variant">Thanh toán tiền mặt cho bưu tá khi nhận sách giấy hoặc kích hoạt tức thì</span>
                     </div>
                   </div>
                   <input
                     type="radio"
                     name="pay"
-                    checked={false}
-                    disabled
-                    readOnly
+                    checked={paymentMethod === 'cod'}
+                    onChange={() => setPaymentMethod('cod')}
                     className="w-4 h-4 text-primary focus:ring-primary border-outline-variant"
                   />
                 </label>
 
-                {/* VNPay */}
-                <label
-                  aria-disabled="true"
-                  className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low opacity-55 cursor-not-allowed flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
-                      VNP
-                    </div>
-                    <div>
-                      <span className="font-bold text-xs sm:text-sm text-on-surface block">Cổng VNPay QR</span>
-                      <span className="text-[11px] text-on-surface-variant">Tạm khóa — ngoài happy case COD</span>
-                    </div>
-                  </div>
-                  <input
-                    type="radio"
-                    name="pay"
-                    checked={false}
-                    disabled
-                    readOnly
-                    className="w-4 h-4 text-primary focus:ring-primary border-outline-variant"
-                  />
-                </label>
-
-                {/* MoMo */}
-                <label
-                  aria-disabled="true"
-                  className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low opacity-55 cursor-not-allowed flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-pink-600 text-white flex items-center justify-center text-xs font-bold">
-                      MoMo
-                    </div>
-                    <div>
-                      <span className="font-bold text-xs sm:text-sm text-on-surface block">Ví MoMo</span>
-                      <span className="text-[11px] text-on-surface-variant">Tạm khóa — ngoài happy case COD</span>
-                    </div>
-                  </div>
-                  <input
-                    type="radio"
-                    name="pay"
-                    checked={false}
-                    disabled
-                    readOnly
-                    className="w-4 h-4 text-primary focus:ring-primary border-outline-variant"
-                  />
-                </label>
-
-                {/* COD (Only for Physical) */}
-                {hasPhysicalItems && (
-                  <label
-                    onClick={() => setPaymentMethod('cod')}
-                    className={`p-3.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
-                      paymentMethod === 'cod' ? 'border-2 border-primary bg-primary/5 shadow-xs' : 'border-outline-variant/40 bg-surface-container-low'
-                    }`}
-                  >
+                {/* HukiPay Wallet (Deferred) */}
+                <div className="relative pointer-events-none opacity-60 select-none">
+                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center text-xs">
-                        <span className="material-symbols-outlined text-[18px]">payments</span>
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-theme-primary to-theme-secondary text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                        H
                       </span>
                       <div>
-                        <span className="font-bold text-xs sm:text-sm text-on-surface block">Thanh toán khi nhận hàng (COD)</span>
-                        <span className="text-[11px] text-on-surface-variant">Thanh toán tiền mặt cho bưu tá khi nhận sách giấy</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs sm:text-sm text-on-surface">Ví HukiPay</span>
+                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                        </div>
+                        <span className="text-[11px] text-on-surface-variant">Số dư ví: 1.450.000đ (Chưa kích hoạt kết nối ví)</span>
                       </div>
                     </div>
-                    <input
-                      type="radio"
-                      name="pay"
-                      checked={paymentMethod === 'cod'}
-                      onChange={() => setPaymentMethod('cod')}
-                      className="w-4 h-4 text-primary focus:ring-primary border-outline-variant"
-                    />
-                  </label>
-                )}
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                  </div>
+                </div>
+
+                {/* VNPay (Deferred) */}
+                <div className="relative pointer-events-none opacity-60 select-none">
+                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                        VNP
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs sm:text-sm text-on-surface">Cổng VNPay QR</span>
+                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                        </div>
+                        <span className="text-[11px] text-on-surface-variant">Quét mã QR qua ứng dụng ngân hàng</span>
+                      </div>
+                    </div>
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                  </div>
+                </div>
+
+                {/* MoMo (Deferred) */}
+                <div className="relative pointer-events-none opacity-60 select-none">
+                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-pink-600 text-white flex items-center justify-center text-xs font-bold">
+                        MoMo
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs sm:text-sm text-on-surface">Ví MoMo</span>
+                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                        </div>
+                        <span className="text-[11px] text-on-surface-variant">Thanh toán qua ứng dụng Ví MoMo</span>
+                      </div>
+                    </div>
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -435,7 +414,7 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePlaceOrder}
-                disabled={isSubmitting || checkedItemsCount === 0 || !hasPhysicalItems || paymentMethod !== 'cod'}
+                disabled={isSubmitting || checkedItemsCount === 0}
                 className="w-full h-12 bg-primary hover:bg-[#00523c] text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 {isSubmitting ? (

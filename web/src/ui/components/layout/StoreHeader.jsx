@@ -10,13 +10,38 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
   const location = useLocation();
   const navigate = useNavigate();
   const { totalItemsCount } = useCart();
-  const { user, isLoggedIn, logout, switchDemoAccount, hasRole } = useAuth();
+  const { user, isLoggedIn, logout, hasRole } = useAuth();
   const { theme, setTheme, isDarkMode, toggleDarkMode, palettes, currentPalette } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const userMenuRef = useRef(null);
   const searchContainerRef = useRef(null);
+
+  // Derived user display properties
+  const userDisplayName = useMemo(() => {
+    if (!user) return 'Khách';
+    return (
+      user.fullName ||
+      user.name ||
+      user.profile?.fullName ||
+      (user.role === 'PLATFORM_ADMIN'
+        ? 'Super Admin'
+        : user.role === 'BUSINESS'
+        ? 'Chủ Doanh Nghiệp'
+        : user.email
+        ? user.email.split('@')[0]
+        : 'Khách Hàng')
+    );
+  }, [user]);
+
+  const roleLabel = useMemo(() => {
+    if (!user) return '';
+    if (user.role === 'PLATFORM_ADMIN') return 'Super Admin';
+    if (user.role === 'BUSINESS') return 'Chủ Doanh Nghiệp';
+    if (user.role === 'USER') return 'Độc Giả HUKI';
+    return user.role || 'Hội viên';
+  }, [user]);
 
   // Live matching books for autocomplete
   const searchResults = useMemo(() => {
@@ -90,14 +115,10 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
             <span>Kênh Người Bán</span>
           </Link>
           <span className="opacity-40">|</span>
-          <span
-            className="hidden sm:flex items-center gap-1 opacity-50 cursor-not-allowed"
-            aria-disabled="true"
-            title="Tạm khóa — ngoài happy case hiện tại"
-          >
+          <div className="opacity-40 cursor-not-allowed pointer-events-none select-none hidden sm:flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">download</span>
-            <span>Tải App Huki</span>
-          </span>
+            <span>Tải App (Sắp ra mắt)</span>
+          </div>
           <span className="opacity-40 hidden sm:inline">|</span>
           <span className="text-[var(--theme-header-top-accent,#94f5d6)] font-semibold">VN</span>
         </div>
@@ -223,15 +244,16 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
 
         {/* Right Actions: Messenger, Cart & User Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Messenger / Tin nhắn */}
-          <span
-            className="w-10 h-10 rounded-xl border border-[var(--theme-border,#e8e5df)] flex items-center justify-center relative text-[var(--theme-text-muted,#6b7280)] opacity-45 cursor-not-allowed"
-            title="Tạm khóa — ngoài happy case hiện tại"
-            aria-label="Tin nhắn & Trò chuyện"
-            aria-disabled="true"
+          {/* Messenger / Tin nhắn (Deferred) */}
+          <div
+            className="w-10 h-10 rounded-xl border border-[var(--theme-border,#e8e5df)] flex items-center justify-center relative opacity-35 cursor-not-allowed pointer-events-none select-none text-[var(--theme-text-muted,#8d706b)] bg-black/5 dark:bg-white/5"
+            title="Tin nhắn (Sắp ra mắt)"
+            aria-label="Tin nhắn (Sắp ra mắt)"
           >
-            <span className="material-symbols-outlined text-[22px]">chat</span>
-          </span>
+            <span className="material-symbols-outlined text-[22px]">
+              chat
+            </span>
+          </div>
 
           {/* Cart Icon */}
           <Link
@@ -267,9 +289,9 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
                 aria-expanded={showUserMenu}
                 aria-label="Menu tài khoản"
               >
-                <UserAvatar src={user?.avatar} name={user?.name || "Khách"} size="w-7 h-7" />
-                <span className="hidden xl:inline text-xs font-bold text-[var(--theme-text,#17201f)] pr-1.5 truncate max-w-[110px]">
-                  {user?.name || "Khách"}
+                <UserAvatar src={user?.avatar} name={userDisplayName} size="w-7 h-7" />
+                <span className="hidden xl:inline text-xs font-bold text-[var(--theme-text,#17201f)] pr-1.5 truncate max-w-[120px]">
+                  {userDisplayName}
                 </span>
                 <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)] -ml-1">
                   expand_more
@@ -278,71 +300,176 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
 
               {showUserMenu && (
                 <div
-                  className="absolute right-0 mt-2 w-72 sm:w-80 max-h-[calc(100vh-105px)] overflow-y-auto overscroll-contain custom-scroll bg-[var(--theme-surface,#ffffff)] rounded-2xl shadow-2xl border border-[var(--theme-border,#e8e5df)] p-2.5 z-50 text-xs animate-fade-in-up"
+                  className="absolute right-0 mt-2 w-76 sm:w-80 max-h-[calc(100vh-100px)] overflow-y-auto overscroll-contain custom-scroll bg-[var(--theme-surface,#ffffff)] rounded-2xl shadow-2xl border border-[var(--theme-border,#e8e5df)] p-3 z-50 text-xs animate-fade-in-up"
                 >
-                  <div className="px-3 py-2.5 border-b border-[var(--theme-border,#e8e5df)] mb-1 bg-[var(--theme-surface-subtle,#f9fbfb)] rounded-xl">
-                    <p className="font-bold text-[var(--theme-text,#17201f)] text-sm truncate">{user?.name || "Khách Hàng"}</p>
-                    <p className="text-[11px] text-[var(--theme-text-muted,#6b7280)] truncate">{user?.email}</p>
-                    <div className="flex items-center justify-between mt-1.5">
-                      <span className="text-[var(--theme-accent,#ac2c19)] font-bold text-[11px]">{user?.role || "Hội viên Gold"}</span>
-                      <span className="text-[10px] bg-[#fea619]/20 text-[#684000] px-1.5 py-0.5 rounded font-bold">
-                        🔥 {user?.streakDays || 14} ngày
+                  {/* User Profile Header Card */}
+                  <div className="p-3 border border-[var(--theme-border,#e8e5df)] mb-2 bg-[var(--theme-surface-subtle,#f9fbfb)] rounded-xl">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <UserAvatar src={user?.avatar} name={userDisplayName} size="w-9 h-9" />
+                        <div className="min-w-0">
+                          <p className="font-bold text-[var(--theme-text,#17201f)] text-sm truncate">{userDisplayName}</p>
+                          <p className="text-[11px] text-[var(--theme-text-muted,#6b7280)] truncate">{user?.email}</p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] bg-[#fea619]/20 text-[#684000] px-2 py-0.5 rounded-full font-bold shrink-0 flex items-center gap-1">
+                        🔥 {user?.streakDays || 0} ngày
                       </span>
+                    </div>
+
+                    <div className="mt-2.5 pt-2 border-t border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between gap-2">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                        user?.role === 'PLATFORM_ADMIN'
+                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                          : user?.role === 'BUSINESS' || user?.hasApprovedBusiness || Boolean(user?.business)
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}>
+                        {user?.role === 'PLATFORM_ADMIN'
+                          ? 'SUPER ADMIN (ROOT)'
+                          : user?.role === 'BUSINESS' || user?.hasApprovedBusiness || Boolean(user?.business)
+                          ? 'NXB CHÍNH HÃNG (MALL)'
+                          : 'ĐỘC GIẢ THÂN THIẾT'}
+                      </span>
+                      <Link
+                        to="/profile"
+                        onClick={() => setShowUserMenu(false)}
+                        className="text-[11px] text-[var(--theme-primary,#003b2b)] hover:underline font-semibold flex items-center gap-0.5"
+                      >
+                        <span>Hồ sơ cá nhân</span>
+                        <span className="material-symbols-outlined text-[13px]">chevron_right</span>
+                      </Link>
                     </div>
                   </div>
 
-                  <Link
-                    to="/profile"
-                    onClick={() => setShowUserMenu(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-medium"
-                  >
-                    <span className="material-symbols-outlined text-base text-[var(--theme-secondary,#006953)]">account_circle</span>
-                    <span>Hồ sơ cá nhân &amp; Streak</span>
-                  </Link>
+                  {/* ---------------------------------------------------- */}
+                  {/* CASE 1: SUPER ADMIN (PLATFORM_ADMIN)                */}
+                  {/* ---------------------------------------------------- */}
+                  {user?.role === 'PLATFORM_ADMIN' && (
+                    <div className="mb-2 space-y-1">
+                      <div className="px-2 py-1 text-[10px] font-bold text-purple-800 uppercase tracking-wider flex items-center justify-between">
+                        <span>Ban Quản Trị Hệ Thống</span>
+                        <span className="text-[9px] bg-purple-100 text-purple-800 px-1.5 py-0.2 rounded font-extrabold">ADMIN</span>
+                      </div>
 
-                  <span
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--theme-text-muted,#6b7280)] font-medium opacity-45 cursor-not-allowed"
-                    aria-disabled="true"
-                    title="Tạm khóa — ngoài happy case hiện tại"
-                  >
-                    <span className="material-symbols-outlined text-base text-[var(--theme-secondary,#006953)]">auto_stories</span>
-                    <span>Tủ sách của tôi · Tạm khóa</span>
-                  </span>
+                      <Link
+                        to="/admin/dashboard"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-900 font-bold border border-purple-200/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-purple-700">dashboard</span>
+                          <span>Bảng Điều Hành Sàn</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-purple-700">chevron_right</span>
+                      </Link>
 
-                  <Link
-                    to="/orders"
-                    onClick={() => setShowUserMenu(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-medium"
-                  >
-                    <span className="material-symbols-outlined text-base text-[var(--theme-secondary,#006953)]">local_shipping</span>
-                    <span>Lịch sử đơn hàng</span>
-                  </Link>
+                      <Link
+                        to="/admin/leads"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-1.5 rounded-xl hover:bg-purple-50/50 text-purple-950 font-semibold transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-amber-600">how_to_reg</span>
+                          <span>Duyệt Đăng Ký Mới</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-gray-400">chevron_right</span>
+                      </Link>
+                    </div>
+                  )}
 
-                  <span
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-[var(--theme-text-muted,#6b7280)] font-medium opacity-45 cursor-not-allowed"
-                    aria-disabled="true"
-                    title="Tạm khóa — ngoài happy case hiện tại"
-                  >
-                    <span className="material-symbols-outlined text-base text-[var(--theme-secondary,#006953)]">account_balance_wallet</span>
-                    <span>Ví HUKI Xu &amp; Ưu Đãi · Tạm khóa</span>
-                  </span>
+                  {/* ---------------------------------------------------- */}
+                  {/* CASE 2: SELLER / PUBLISHER (BUSINESS)               */}
+                  {/* ---------------------------------------------------- */}
+                  {user?.role !== 'PLATFORM_ADMIN' && (user?.role === 'BUSINESS' || user?.hasApprovedBusiness || Boolean(user?.business)) && (
+                    <div className="mb-2 space-y-1">
+                      <div className="px-2 py-1 text-[10px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                        <span>Kênh Nhà Xuất Bản</span>
+                        <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-extrabold">MALL</span>
+                      </div>
 
-                  <Link
-                    to={hasRole('seller') ? '/seller/dashboard' : '/seller/register'}
-                    onClick={() => setShowUserMenu(false)}
-                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-accent,#ac2c19)] font-bold"
-                  >
-                    <span className="material-symbols-outlined text-base text-[var(--theme-accent,#ac2c19)]">store</span>
-                    <span>{hasRole('seller') ? 'Kênh Người Bán & DRM' : 'Đăng ký Người Bán'}</span>
-                  </Link>
+                      <Link
+                        to="/seller/dashboard"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 font-bold border border-emerald-200/80 transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-emerald-700">dashboard</span>
+                          <span>Bàn Làm Việc NXB</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-emerald-700">chevron_right</span>
+                      </Link>
+
+                      <Link
+                        to="/seller/products"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-1.5 rounded-xl hover:bg-emerald-50/50 text-[var(--theme-text,#17201f)] font-semibold transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">inventory</span>
+                          <span>Kho Sách &amp; Xuất Bản</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">chevron_right</span>
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* ---------------------------------------------------- */}
+                  {/* CASE 3: BUYER / REGULAR USER (USER)                 */}
+                  {/* ---------------------------------------------------- */}
+                  {user?.role !== 'PLATFORM_ADMIN' && user?.role !== 'BUSINESS' && !user?.hasApprovedBusiness && !user?.business && (
+                    <div className="mb-2 space-y-1">
+                      <div className="px-2 py-1 text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider">
+                        Lối Tắt Bạn Đọc
+                      </div>
+
+                      <Link
+                        to="/orders"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-semibold transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">local_shipping</span>
+                          <span>Đơn Mua Của Tôi</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">chevron_right</span>
+                      </Link>
+
+                      <Link
+                        to="/settings/addresses"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-semibold transition-colors"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">location_on</span>
+                          <span>Sổ Địa Chỉ Giao Hàng</span>
+                        </div>
+                        <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">chevron_right</span>
+                      </Link>
+
+                      <div className="pt-1">
+                        <Link
+                          to="/seller/register"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold border border-amber-200/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-base text-amber-700">store</span>
+                            <span>Đăng Ký Trở Thành NXB</span>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-amber-700">chevron_right</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
 
                   {/* ---------------------------------------------------- */}
                   {/* READING THEME / COLOR PALETTES PERSONALIZATION SECTION */}
                   {/* ---------------------------------------------------- */}
                   <div className="border-t border-[var(--theme-border,#e8e5df)] my-1.5 pt-1.5">
-                    <div className="px-2.5 py-1 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider">
-                        <span className="material-symbols-outlined text-[14px] text-[var(--theme-primary,#003b2b)]">palette</span>
+                    <div className="px-2 py-1 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider">
+                        <span className="material-symbols-outlined text-[13px] text-[var(--theme-primary,#003b2b)]">palette</span>
                         <span>Giao Diện Đọc &amp; Màu Sắc</span>
                       </div>
                       <span className="text-[10px] font-bold text-[var(--theme-primary,#003b2b)] bg-[var(--theme-secondary-subtle,#e6f4f0)] px-2 py-0.5 rounded-full">
@@ -404,33 +531,7 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
                     </div>
                   </div>
 
-                  <div className="border-t border-[var(--theme-border,#e8e5df)] my-1"></div>
-
-                  {import.meta.env.DEV && <><div className="px-2 py-1 text-[10px] text-[var(--theme-text-muted,#6b7280)] font-bold uppercase tracking-wider">
-                    Đổi Tài Khoản Mẫu:
-                  </div></>}
-                  <div className="grid grid-cols-2 gap-1 mb-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchDemoAccount('reader');
-                        setShowUserMenu(false);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-[var(--theme-surface-subtle,#f8f6f1)] hover:bg-[var(--theme-primary,#003b2b)] hover:text-white text-[var(--theme-primary,#003b2b)] text-[11px] font-semibold text-left truncate transition-colors cursor-pointer"
-                    >
-                      Độc giả VIP
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        switchDemoAccount('seller');
-                        setShowUserMenu(false);
-                      }}
-                      className="px-2 py-1 rounded-lg bg-[var(--theme-surface-subtle,#f8f6f1)] hover:bg-[var(--theme-accent,#ac2c19)] hover:text-white text-[var(--theme-accent,#ac2c19)] text-[11px] font-semibold text-left truncate transition-colors cursor-pointer"
-                    >
-                      NXB Alpha
-                    </button>
-                  </div>
+                  <div className="border-t border-[var(--theme-border,#e8e5df)] my-1.5"></div>
 
                   <button
                     type="button"

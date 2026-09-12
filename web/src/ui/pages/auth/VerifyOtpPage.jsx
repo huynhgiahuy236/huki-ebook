@@ -8,6 +8,7 @@ export default function VerifyOtpPage() {
   const location = useLocation();
   const { verifyEmail, resendVerification, pendingResetTarget } = useAuth();
   const { showToast } = useToast();
+
   const targetEmail = location.state?.email || pendingResetTarget || 'user@huki.com';
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -65,7 +66,7 @@ export default function VerifyOtpPage() {
   const handleFillDemoCode = () => {
     setOtp(['1', '2', '3', '4', '5', '6']);
     inputRefs.current[5]?.focus();
-    showToast('Đã điền mã OTP 123456', 'info');
+    showToast('Đã điền mã OTP mẫu 123456', 'info');
   };
 
   const handleResendOtp = async () => {
@@ -74,29 +75,28 @@ export default function VerifyOtpPage() {
     setCanResend(false);
     const res = await resendVerification(targetEmail);
     if (res.success) {
-      showToast(`Đã gửi lại email xác thực tới ${targetEmail}!`, 'success');
+      showToast(`Đã gửi lại mã OTP tới ${targetEmail}!`, 'success');
     } else {
-      showToast(res.error?.message || 'Không thể gửi lại email xác thực.', 'error');
+      showToast(res.error || 'Gửi lại mã không thành công.', 'error');
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const token = otp.join('');
-    if (token.length < 6) {
-      showToast('Vui lòng nhập đầy đủ mã xác thực!', 'error');
+    const otpCode = otp.join('');
+    if (otpCode.length < 6) {
+      showToast('Vui lòng nhập đầy đủ 6 chữ số mã OTP!', 'error');
       return;
     }
 
     setIsLoading(true);
-    const res = await verifyEmail(token);
+    const res = await verifyEmail(otpCode);
     setIsLoading(false);
-
     if (res.success) {
-      showToast('Xác thực tài khoản thành công! Bạn có thể đăng nhập ngay.', 'success');
+      showToast('Xác thực tài khoản thành công! Bạn có thể đăng nhập ngay bây giờ.', 'success');
       navigate('/login');
     } else {
-      showToast(res.error?.message || 'Mã xác thực không hợp lệ hoặc đã hết hạn.', 'error');
+      showToast(res.error || 'Mã OTP không hợp lệ hoặc đã hết hạn.', 'error');
     }
   };
 
@@ -149,7 +149,7 @@ export default function VerifyOtpPage() {
 
             <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-xs">
               <div className="font-bold text-[#94f5d6] mb-1">Địa chỉ nhận mã:</div>
-              <div className="font-mono text-sm text-white font-semibold">{maskTarget(targetEmail)}</div>
+              <div className="font-mono text-sm text-white font-semibold">{maskTarget(pendingResetTarget)}</div>
             </div>
           </div>
 
@@ -249,10 +249,10 @@ export default function VerifyOtpPage() {
           </div>
 
           <div className="mt-8 pt-4 border-t border-[#e8e5df] text-center text-xs">
-            <span className="font-bold text-[#6b7280] opacity-50 flex items-center justify-center gap-1 cursor-not-allowed" aria-disabled="true" title="Tạm khóa — ngoài happy case hiện tại">
+            <Link to="/forgot-password" className="font-bold text-[#6b7280] hover:text-[#003b2b] flex items-center justify-center gap-1">
               <span className="material-symbols-outlined text-base">arrow_back</span>
               Thay đổi địa chỉ Email / SĐT nhận mã
-            </span>
+            </Link>
           </div>
         </div>
 

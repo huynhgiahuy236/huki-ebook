@@ -61,6 +61,8 @@ export interface BookData {
 
 export interface CreateBookPayload {
   title: string;
+  /** Business is the storefront. `storeId` is retained only for legacy API compatibility. */
+  businessId?: string;
   storeId?: string;
   slug?: string;
   isbn?: string;
@@ -86,6 +88,7 @@ export const catalogApi = {
     q?: string;
     category?: string;
     categoryId?: string;
+    business?: string;
     store?: string;
     format?: BookFormat;
     sortBy?: 'createdAt' | 'publishedAt' | 'price' | 'title';
@@ -98,6 +101,7 @@ export const catalogApi = {
     if (searchQuery) query.set('search', searchQuery);
     const cat = params?.categoryId || params?.category;
     if (cat) query.set('category', cat);
+    if (params?.business) query.set('business', params.business);
     if (params?.store) query.set('store', params.store);
     if (params?.format) query.set('format', params.format);
     if (params?.sortBy) query.set('sortBy', params.sortBy);
@@ -115,6 +119,13 @@ export const catalogApi = {
       method: 'GET',
       skipAuth: true,
     });
+  },
+
+  /**
+   * Alias: Lấy chi tiết sách Public theo ID
+   */
+  async getPublicBookById(id: string): Promise<ApiResponse<BookData>> {
+    return this.getBookById(id);
   },
 
   /**

@@ -6,7 +6,7 @@ export default function UserAvatar({ src, name = 'Người Dùng', size = 'w-8 h
 
   const getInitials = (n) => {
     if (!n) return 'U';
-    const parts = n.trim().split(' ');
+    const parts = n.trim().split(/\s+/);
     if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
     return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   };

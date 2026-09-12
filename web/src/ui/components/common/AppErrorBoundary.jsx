@@ -11,7 +11,7 @@ export default class AppErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    if (import.meta.env.DEV) console.error('HUKI render error', error, info);
+    if (process.env.NODE_ENV === 'development') console.error('HUKI render error', error, info);
   }
 
   render() {
