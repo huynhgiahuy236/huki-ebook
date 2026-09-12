@@ -80,8 +80,8 @@ export default function RegisterPage() {
       showToast('Vui lòng nhập địa chỉ Email!', 'error');
       return;
     }
-    if (!formData.password || formData.password.length < 6) {
-      showToast('Mật khẩu phải có tối thiểu 6 ký tự!', 'error');
+    if (!formData.password || formData.password.length < 8) {
+      showToast('Mật khẩu phải từ 8 ký tự trở lên (gồm chữ hoa, chữ thường, số & ký tự đặc biệt)!', 'error');
       return;
     }
     if (formData.password !== formData.confirmPassword) {
@@ -104,16 +104,22 @@ export default function RegisterPage() {
     setCurrentStep(3);
   };
 
-  const handleFinalRegister = () => {
+  const handleFinalRegister = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      const res = register(formData);
-      setIsLoading(false);
-      if (res.success) {
-        showToast('Chúc mừng! Đăng ký tài khoản độc giả HUKI thành công!', 'success');
-        navigate('/');
-      }
-    }, 700);
+    const res = await register({
+      email: formData.email.trim(),
+      password: formData.password,
+      fullName: formData.name.trim(),
+      phone: formData.phone,
+    });
+    setIsLoading(false);
+
+    if (res.success) {
+      showToast('Đăng ký tài khoản thành công! Vui lòng xác thực email để kích hoạt.', 'success');
+      navigate('/verify-otp', { state: { email: formData.email } });
+    } else {
+      showToast(res.error || 'Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.', 'error');
+    }
   };
 
   return (

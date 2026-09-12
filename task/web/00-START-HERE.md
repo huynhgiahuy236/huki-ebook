@@ -2,7 +2,7 @@
 
 ## 1. Việc đang tập trung
 
-`Phase 01` đã `✅ DONE`: typed API client, session/auth thật và permission contract. 
+`Phase 01` và `Phase 02` đã `✅ DONE`: typed API client, session/auth thật, permission contract, role routing, RBAC, register/verify OTP, forced password change (`mustChangePassword`), logout/profile.
 
 | Hạng mục | Status | Việc tiếp theo |
 |---|---|---|
@@ -11,7 +11,7 @@
 | Typed API client | ✅ DONE | Response envelope, error mapping, auth headers, correlation ID |
 | Auth browser integration | ✅ DONE | Login → `/auth/me` → refresh → logout |
 | Granular business permission | ✅ DONE | Permission catalog và helper `can()` enforcement |
-| Happy-case screen verified | 🟡 PARTIAL | `AUT-001 Login` đạt DoD kết nối API thật |
+| Phase 02 Identity & RBAC | ✅ DONE | Full identity flow, role routing, forced password change, session state |
 
 ## 2. Happy case duy nhất
 

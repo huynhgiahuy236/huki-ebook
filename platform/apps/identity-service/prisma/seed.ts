@@ -28,6 +28,13 @@ async function main() {
       role: UserRole.PLATFORM_ADMIN,
       status: UserStatus.ACTIVE,
     },
+    {
+      email: 'staff@huki.com',
+      password: 'Staff123!',
+      fullName: 'Trần Văn Nhân (Provisioned Admin Con)',
+      role: UserRole.BUSINESS,
+      status: UserStatus.ACTIVE,
+    },
   ];
 
   for (const userData of users) {

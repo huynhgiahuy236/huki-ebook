@@ -13,7 +13,7 @@ import CheckoutLayout from './components/layout/CheckoutLayout';
 import SellerPortalLayout from './components/layout/SellerPortalLayout';
 import SellerLayout from './components/layout/SellerLayout';
 import AdminLayout from './components/layout/AdminLayout';
-import { RequireAuth, RequireGuest, RequireSeller } from './components/auth/RouteGuards';
+import { RequireAuth, RequireGuest, RequireSeller, RequireAdmin } from './components/auth/RouteGuards';
 
 const page = (loader) => lazy(loader);
 const HomePage = page(() => import('./pages/store/HomePage'));
@@ -29,6 +29,7 @@ const UserAddressesPage = page(() => import('./pages/store/UserAddressesPage'));
 const LoginPage = page(() => import('./pages/auth/LoginPage'));
 const RegisterPage = page(() => import('./pages/auth/RegisterPage'));
 const VerifyOtpPage = page(() => import('./pages/auth/VerifyOtpPage'));
+const ChangePasswordPage = page(() => import('./pages/auth/ChangePasswordPage'));
 const SellerPortalPage = page(() => import('./pages/seller/SellerPortalPage'));
 const SellerRegisterPage = page(() => import('./pages/seller/SellerRegisterPage'));
 const SellerDashboardPage = page(() => import('./pages/seller/SellerDashboardPage'));
@@ -173,26 +174,31 @@ export default function App() {
                 </Route>
 
                 {/* 9. KHU VỰC SUPER ADMIN CRM DASHBOARD (AdminLayout chuẩn Edge-to-Edge Full Screen) */}
-                <Route element={<AdminLayout />}>
-                  <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-                  <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                  <Route path="/admin/publishers" element={<AdminPublishersPage />} />
-                  <Route path="/admin/companies" element={<AdminPublishersPage />} />
-                  <Route path="/admin/leads" element={<AdminPublishersPage />} />
-                  <Route path="/admin/tasks" element={deferred('Hàng đợi kiểm duyệt')} />
-                  <Route path="/admin/moderation" element={deferred('Hàng đợi kiểm duyệt')} />
-                  <Route path="/admin/drm" element={deferred('Quản trị DRM')} />
-                  <Route path="/admin/users" element={deferred('Quản trị người dùng mở rộng')} />
-                  <Route path="/admin/contacts" element={deferred('CRM contacts mở rộng')} />
-                  <Route path="/admin/deals" element={deferred('Đối soát doanh thu mở rộng')} />
-                  <Route path="/admin/finance" element={deferred('Tài chính mở rộng')} />
-                  <Route path="/admin/reports" element={deferred('Báo cáo và moderation')} />
-                  <Route path="/admin/automation" element={deferred('Banner, voucher và flash sale')} />
-                  <Route path="/admin/marketing" element={deferred('Promotion và marketing')} />
-                  <Route path="/admin/calendar" element={deferred('Lịch vận hành mở rộng')} />
-                  <Route path="/admin/integrations" element={deferred('Tích hợp hệ thống mở rộng')} />
-                  <Route path="/admin/settings" element={deferred('Cài đặt hệ thống mở rộng')} />
-                  <Route path="/admin/support" element={deferred('Support operations mở rộng')} />
+                <Route element={<RequireAuth />}>
+                  <Route path="/change-password" element={<ChangePasswordPage />} />
+                  <Route element={<RequireAdmin />}>
+                    <Route element={<AdminLayout />}>
+                      <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                      <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+                      <Route path="/admin/publishers" element={<AdminPublishersPage />} />
+                      <Route path="/admin/companies" element={<AdminPublishersPage />} />
+                      <Route path="/admin/leads" element={<AdminPublishersPage />} />
+                      <Route path="/admin/tasks" element={deferred('Hàng đợi kiểm duyệt')} />
+                      <Route path="/admin/moderation" element={deferred('Hàng đợi kiểm duyệt')} />
+                      <Route path="/admin/drm" element={deferred('Quản trị DRM')} />
+                      <Route path="/admin/users" element={deferred('Quản trị người dùng mở rộng')} />
+                      <Route path="/admin/contacts" element={deferred('CRM contacts mở rộng')} />
+                      <Route path="/admin/deals" element={deferred('Đối soát doanh thu mở rộng')} />
+                      <Route path="/admin/finance" element={deferred('Tài chính mở rộng')} />
+                      <Route path="/admin/reports" element={deferred('Báo cáo và moderation')} />
+                      <Route path="/admin/automation" element={deferred('Banner, voucher và flash sale')} />
+                      <Route path="/admin/marketing" element={deferred('Promotion và marketing')} />
+                      <Route path="/admin/calendar" element={deferred('Lịch vận hành mở rộng')} />
+                      <Route path="/admin/integrations" element={deferred('Tích hợp hệ thống mở rộng')} />
+                      <Route path="/admin/settings" element={deferred('Cài đặt hệ thống mở rộng')} />
+                      <Route path="/admin/support" element={deferred('Support operations mở rộng')} />
+                    </Route>
+                  </Route>
                 </Route>
 
                 {/* 10. ROOT STANDALONE 404 NOT FOUND */}
