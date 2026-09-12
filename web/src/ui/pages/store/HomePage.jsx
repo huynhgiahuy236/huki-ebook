@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { catalogApi, toCatalogBook } from '../../api/catalogApi';
+import { businessApi } from '../../api/businessApi';
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -63,6 +65,29 @@ export default function HomePage() {
 
   // Search State
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [catalogBooks, setCatalogBooks] = useState([]);
+  const [publicStores, setPublicStores] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    const loadStorefront = async () => {
+      setCatalogLoading(true);
+      setCatalogError('');
+      const [bookRes, storeRes] = await Promise.all([
+        catalogApi.getPublicBooks({ page: 1, limit: 12, sortBy: 'publishedAt', order: 'DESC' }),
+        businessApi.getPublicStores({ page: 1, limit: 5 }),
+      ]);
+      if (!active) return;
+      if (bookRes.success) setCatalogBooks((bookRes.data || []).map(toCatalogBook));
+      else setCatalogError(bookRes.error?.message || 'Không thể tải catalog sách.');
+      if (storeRes.success) setPublicStores(storeRes.data || []);
+      setCatalogLoading(false);
+    };
+    loadStorefront();
+    return () => { active = false; };
+  }, []);
 
   // Voucher Saved State
   const [savedVouchers, setSavedVouchers] = useState(['HUKIFREESHIP']);
@@ -222,94 +247,17 @@ export default function HomePage() {
     }
   ], []);
 
-  // 4. BESTSELLER BOOKS (6 Compact Items with Rank 1 to 6)
-  const bestsellerBooks = useMemo(() => [
-    {
-      id: 'nha-gia-kim',
-      rank: 1,
-      title: 'Nhà Giả Kim (The Alchemist)',
-      author: 'Paulo Coelho',
-      shop: 'Nhã Nam',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBwPUmsBfjLGRW-n9hawXV_KRe5uns4e23Sr-vbTT3ZAC6v81LBUJpgdiDD84jx3WG0xBciu-qXcCD6b-wQm2wMDtH5m-mF3MRAUz90G7g51ctEiszyvqJOqF5Dhb0jF_Jd0YzsvrnKnu1vX5P-iRJH2r1kfgjVfuRmyIsTHUCVDw28VR_q6VSejoa2Mb-M_TF2Det6HuKZDVVEBnniYrJ6Sm4m93QoIfQz5pWuP05amWqXMb5JYtCICg',
-      price: 64000,
-      originalPrice: 80000,
-      rating: 5.0,
-      reviews: '9.2k',
-      soldSummary: '38.2k đã bán',
-      category: 'paper'
-    },
-    {
-      id: 'atomic-habits',
-      rank: 2,
-      title: 'Atomic Habits – Thay Đổi Tí Hon',
-      author: 'James Clear',
-      shop: 'Alpha Books Official',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
-      price: 149000,
-      originalPrice: 189000,
-      rating: 4.9,
-      reviews: '4.8k',
-      soldSummary: '15.4k đã bán',
-      category: 'paper'
-    },
-    {
-      id: 'tam-ly-hoc-ve-tien',
-      rank: 3,
-      title: 'Tâm Lý Học Về Tiền',
-      author: 'Morgan Housel',
-      shop: 'NXB Trẻ',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7ouqQ7elIuGRHZ7rj7l5cYrPzWtVWXyk8F3s9fBkQf8lEZFMOCpZ1WNMWOVoN5Uy13M3ZCCtm0Kp6qODtQ3a5mAu81yactomECdD4kLkkrlCvqEPHOgvwES7pkRYwgFiAN7MHH3veqNbCNbdX5MfzYRgsIN5CRugb_eWd0jzg2YPAWJlzYTmoYx-QBxSmQa0tUxtsTK7oDOF1qSFqUnhLUn91MXUytXRomvOwDXqwzBlH_CfbqtBLxg',
-      price: 149000,
-      originalPrice: 189000,
-      rating: 4.9,
-      reviews: '5.4k',
-      soldSummary: '19.8k đã bán',
-      category: 'paper'
-    },
-    {
-      id: 'hoa-vang-co-xanh',
-      rank: 4,
-      title: 'Tôi Thấy Hoa Vàng Trên Cỏ Xanh',
-      author: 'Nguyễn Nhật Ánh',
-      shop: 'NXB Trẻ',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBmk40IHL8nN8QgKmmU5Htwlb2gfZo134PTe-LmHn1e02Dy8D3eLCGlU_U27hCuP3t0jn7R4F3zjTTBBAowvf6PDX6-RbVei2RSTp33PDhYHzIFrWCpK9wHIInJJ5w0ByCX87r2K5VshsFg3ne7rf6i-N_G-_nzhcvWnfSkv7aJHW-9Bx3QzTpbw_67wwMZsthqpn3yoWWuD8LZQ9LpRP-5UTOg8eIetCyfz3Txa9jlqbr0mHuqw_4EHQ',
-      price: 84000,
-      originalPrice: 105000,
-      rating: 4.9,
-      reviews: '4.1k',
-      soldSummary: '12.6k đã bán',
-      category: 'paper'
-    },
-    {
-      id: 'dam-bi-ghet',
-      rank: 5,
-      title: 'Dám Bị Ghét (Bản Quyền Số)',
-      author: 'Kishimi Ichiro',
-      shop: 'Nhã Nam',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDkQMsE3JYx1MiacLW-pCW4R4aI2ID7OUS6jIc0zqammHEZymG_D_EbuJfIQav6ZHfMV71XcrzYulytqxP2CfVs7wfcTM73E5wSBQjS3NhZ3llvxCc_Uk0d1O-5RMuqdXqNEDK1JWbqA17kKcJOx8hyLekAuG3rqu71jN7jLJ19dWkHxNa6Nd7T2O3_VW6XqqRzqUaNgyRvwtAFuHHF7O37aK82eJQN2Tk_NqYVRdUDOPZzVix54noa2g',
-      price: 59000,
-      originalPrice: 89000,
-      rating: 4.8,
-      reviews: '4.1k',
-      soldSummary: '17.5k đã bán',
-      category: 'ebook'
-    },
-    {
-      id: '1984-novel',
-      rank: 6,
-      title: '1984 – George Orwell',
-      author: 'George Orwell',
-      shop: 'Nhã Nam',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCA1xP3paoLAqBU3fKHmRDckUIE8iPzVZoNNBZhxhSwMiSKPx5pxgdTFt5D8C-BIv7ydsAWRxjc6vxLDWdemsBQBMs5XvueBE9BbE636D26rl2dCtf7SYQDTU6SRHgh96uAlcBIZpqzDpVLEa-kpiAPjj9u5y4vngAViz3HHDqV3Hi7Tn8RqAQYH-FMvsuROg6hRJAqb2loxUuR8Sckc93MuOsVDdg0M_2xAiqfdZhaVMwTTRzFUgYQXw',
-      price: 79000,
-      originalPrice: 99000,
-      rating: 4.8,
-      reviews: '3.2k',
-      soldSummary: '9.8k đã bán',
-      category: 'new'
-    }
-  ], []);
-
+  // 4. BESTSELLER BOOKS — dữ liệu thật từ Commerce Service
+  const bestsellerBooks = useMemo(() => catalogBooks.slice(0, 6).map((book, index) => ({
+    ...book,
+    rank: index + 1,
+    shop: book.publisher,
+    originalPrice: book.originalPrice || book.price,
+    rating: book.rating || 0,
+    reviews: '0',
+    soldSummary: 'Đã xuất bản',
+    category: book.formatType === 'ebook' ? 'ebook' : 'paper',
+  })), [catalogBooks]);
   // Filtered Bestsellers
   const filteredBestsellers = useMemo(() => {
     if (bestsellerTab === 'all') return bestsellerBooks;
@@ -318,125 +266,28 @@ export default function HomePage() {
     return bestsellerBooks;
   }, [bestsellerTab, bestsellerBooks]);
 
-  // 5. OFFICIAL STORES / BRAND MALL (5 Stores)
-  const officialStores = useMemo(() => [
-    {
-      id: 'store-tre',
-      name: 'NXB Trẻ',
-      code: 'TRẺ',
-      color: 'bg-emerald-600 text-white',
-      followers: '42.5k người theo dõi',
-      rating: '⭐ 4.9 (12.5k)',
-      verified: true
-    },
-    {
-      id: 'store-nhanam',
-      name: 'Nhã Nam',
-      code: 'NN',
-      color: 'bg-amber-600 text-white',
-      followers: '68.2k người theo dõi',
-      rating: '⭐ 5.0 (28.4k)',
-      verified: true
-    },
-    {
-      id: 'store-kimdong',
-      name: 'NXB Kim Đồng',
-      code: 'KĐ',
-      color: 'bg-rose-600 text-white',
-      followers: '51.9k người theo dõi',
-      rating: '⭐ 4.9 (19.1k)',
-      verified: true
-    },
-    {
-      id: 'store-alphabooks',
-      name: 'Alpha Books Official',
-      code: 'αB',
-      color: 'bg-blue-600 text-white',
-      followers: '39.1k người theo dõi',
-      rating: '⭐ 4.8 (14.2k)',
-      verified: true
-    },
-    {
-      id: 'store-firstnews',
-      name: 'First News Trí Việt',
-      code: 'FN',
-      color: 'bg-teal-700 text-white',
-      followers: '45.8k người theo dõi',
-      rating: '⭐ 4.9 (16.7k)',
-      verified: true
-    }
-  ], []);
-
-  // 6. EBOOK SHELF (6 Items)
-  const ebookShelf = useMemo(() => [
-    {
-      id: 'de-men-phieu-luu-ky',
-      title: 'Dế Mèn Phiêu Lưu Ký',
-      author: 'Tô Hoài',
-      price: 0,
-      priceLabel: 'Miễn phí',
-      originalPrice: 35000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA0XD4epuA9uGzk8p2QUk5ZApI5HZkfb9APvuWW_YiLXwtBnUorKQHz5l_BAZrHkGnLxR7nTHWC9jfV_bvkbZ7mjIgNpANANCqOCf2Mqmk6XrSy00XCsKEO0xfC6VLqplL1CqbDC_A16JVX0R5fiCkUnrD5x3QaLUB35R719wxnEGtK0s5nx0cR3s_CW6-Eug4ivhfIzOi3B3jJnPtEN8GvbjFSpwZ1Kaljjo_bjWRVukiykK8aSp7lOg',
-      rating: 4.9,
-      reviews: '6.2k'
-    },
-    {
-      id: 'tu-duy-tich-cuc',
-      title: 'Tư Duy Tích Cực Tạo Thành Công',
-      author: 'Norman Vincent Peale',
-      price: 35000,
-      priceLabel: '35.000₫',
-      originalPrice: 59000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA8bxDpaWJvlZh36fF2Lcr-Qxq02W5oZUFbxAw8Q9Kl1tjO8SD_fHP1nPUnoN9KIQRJBBMtTF7ogW5RHAfrcBddvLFNyIVeearETdMbuLaaHbTs2ZK7j9KJaaNkoqllUvlSucAUT_K6y6ZS0XDVGnELJxGzPFnEbEdqMfdUlLHO_00ubBnRJo0k-9tGVooaQPzlk1gWbpc7UoQf6wYcas9Fa0R02GE5hQESIskX-RdelR6JnnmoFgLeMA',
-      rating: 4.8,
-      reviews: '1.2k'
-    },
-    {
-      id: 'nha-gia-kim-ebook',
-      title: 'Nhà Giả Kim (Ebook DRM)',
-      author: 'Paulo Coelho',
-      price: 39000,
-      priceLabel: '39.000₫',
-      originalPrice: 65000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBwPUmsBfjLGRW-n9hawXV_KRe5uns4e23Sr-vbTT3ZAC6v81LBUJpgdiDD84jx3WG0xBciu-qXcCD6b-wQm2wMDtH5m-mF3MRAUz90G7g51ctEiszyvqJOqF5Dhb0jF_Jd0YzsvrnKnu1vX5P-iRJH2r1kfgjVfuRmyIsTHUCVDw28VR_q6VSejoa2Mb-M_TF2Det6HuKZDVVEBnniYrJ6Sm4m93QoIfQz5pWuP05amWqXMb5JYtCICg',
-      rating: 5.0,
-      reviews: '8.4k'
-    },
-    {
-      id: 'sapiens-ebook',
-      title: 'Sapiens: Lược Sử Loài Người',
-      author: 'Yuval Noah Harari',
-      price: 75000,
-      priceLabel: '75.000₫',
-      originalPrice: 120000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC2H3l5c7_JP2T-qUtp7DCY42wLc1tMDdyQtRiGNH8LsvYEqbyEo-qNhVf3Y-KZ7Q487upiQuJrXSnZxfwkuBjlnOUhC1ckdcF1tq3pOW3BN48BgA7QIETZbXRTXLru6om1zQx1itIhe8B9R80sk9RnkV5_68mjjA7MX-1fEj0FAiAaHcySuAI3OFkRnGBT7ggCfz9PSVO64-R_x7QgsvkfhnbJvxNjkHVXfNnXcJ0fyKqOB3TYw8ZYHQ',
-      rating: 4.95,
-      reviews: '4.3k'
-    },
-    {
-      id: 'hieu-ve-trai-tim-ebook',
-      title: 'Hiểu Về Trái Tim',
-      author: 'Thích Minh Niệm',
-      price: 49000,
-      priceLabel: '49.000₫',
-      originalPrice: 80000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAIVd9e_xnuEa_DW6YY3L3loH6GzqT5fbdDVDUXUGPYTiwNwtsNRPsq0IDnExW68G2riBcucukM_GYSYHVIumaHSrkG6PaiousV-H7pu3UnxOPIuJWrGBo7V9SPhF9SSq4DcP2sCNM2f5IquMZ9GAjqxLJg1dxRIjLO863oh6Z8IkjciAsYS6H2z39GOVXtRqI6lEmbMpcauoOMktSp2zLuGCZFwKvcUV_nka0vi9jIw5VpguiyBRdUVg',
-      rating: 5.0,
-      reviews: '5.1k'
-    },
-    {
-      id: 'con-duong-phia-truoc',
-      title: 'Con Đường Phía Trước',
-      author: 'Bill Gates',
-      price: 89000,
-      priceLabel: '89.000₫',
-      originalPrice: 159000,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLIUp69uyAUlwfsWjfZSKPiRBAFeEMdzK13KM5bD95N171lBk9uJ0eRwLz3A9YJ9uNEHXt0-Lb361ukl0j6fG1p1wzluyOD8mVZsaexm0l3hxOnUU3WSje_nt4TdMKmzkS8pqYHKR5A4Ta-DT0l4OJc7MJR2ir0kU9tQ22k1pOb9_JjtVe2sBlZCGV5PDAwY_qmlCjTlnWBcN5eq2FJ2a0yXSeuQzpBTkxj1pcep69oBL7K49JzRDGkw',
-      rating: 5.0,
-      reviews: '3.8k'
-    }
-  ], []);
-
+  // 5. OFFICIAL STORES — dữ liệu thật từ Business Service
+  const officialStores = useMemo(() => publicStores.map((store) => ({
+    id: store.id,
+    slug: store.slug,
+    name: store.name,
+    code: store.name.slice(0, 2).toUpperCase(),
+    color: 'bg-emerald-700 text-white',
+    followers: 'Gian hàng đã xác minh',
+    rating: '',
+    verified: true,
+  })), [publicStores]);
+  // 6. EBOOK SHELF — chỉ lấy Ebook đã xuất bản
+  const ebookShelf = useMemo(() => catalogBooks
+    .filter((book) => book.formatType === 'ebook' || book.formatType === 'hybrid')
+    .slice(0, 6)
+    .map((book) => ({
+      ...book,
+      priceLabel: book.price === 0 ? 'Miễn phí' : `${book.price.toLocaleString('vi-VN')}₫`,
+      originalPrice: book.originalPrice || book.price,
+      rating: book.rating || 0,
+      reviews: '0',
+    })), [catalogBooks]);
   // 7. AUTHORS LIST (8 Items)
   const authorsList = useMemo(() => [
     { name: 'Haruki Murakami', books: '18 đầu sách', avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCR-OPOd7e4KsfO0t-0xMw2DyZP6jFtwwwqK09pUgJkDjYa5toolI1E43E6nK-pjKQ6oIWrou0_f2agMmZEgZ5RS2CAqewxN9TTMHgCwG3kskJbOd9X7kp7O9OAoalbSgCbAKmG8cO9bWGgyhXmV7IYpaXvZo22hV3-AQrsi84-ZhwNMBtpp6uHr5U4YKB0kas_ERbqkslBd2P7hY2oeGjp4StJDzkov6Y8h3uarnyuNI2MzhOB6sP7Vw' },
@@ -1018,6 +869,9 @@ export default function HomePage() {
         </div>
 
         {/* 6 BESTSELLER CARDS GRID */}
+        {catalogLoading && <StorefrontNotice icon="progress_activity" message="Đang tải sách từ catalog…" spinning />}
+        {!catalogLoading && catalogError && <StorefrontNotice icon="error" message={catalogError} />}
+        {!catalogLoading && !catalogError && filteredBestsellers.length === 0 && <StorefrontNotice icon="menu_book" message="Chưa có sách được xuất bản." />}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-2.5 sm:gap-3">
           {filteredBestsellers.map((book) => {
             // Rank Badge Color
@@ -1037,7 +891,7 @@ export default function HomePage() {
                 </div>
 
                 {/* Cover Image */}
-                <Link to={`/book/${book.id}`} className="block">
+                <Link to={`/books/${book.slug || book.id}`} className="block">
                   <div className="aspect-[2/3] w-full rounded-lg overflow-hidden mb-2 bg-surface-container spine-crease relative">
                     <img 
                       src={book.cover} 
@@ -1057,7 +911,7 @@ export default function HomePage() {
                   </div>
 
                   <Link 
-                    to={`/book/${book.id}`} 
+                    to={`/books/${book.slug || book.id}`}
                     title={book.title}
                     className="text-[12.5px] font-semibold text-on-surface line-clamp-2 leading-tight hover:text-tertiary transition-colors h-[32px]"
                   >
@@ -1102,7 +956,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <Link to="/books?filter=official-stores" className="text-[12.5px] text-tertiary hover:underline font-semibold flex items-center gap-0.5">
+          <Link to="/stores" className="text-[12.5px] text-tertiary hover:underline font-semibold flex items-center gap-0.5">
             <span>Xem tất cả cửa hàng</span>
             <span className="material-symbols-outlined text-[16px]">chevron_right</span>
           </Link>
@@ -1122,7 +976,7 @@ export default function HomePage() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1">
-                      <h4 className="text-[12.5px] font-bold text-on-surface truncate">{store.name}</h4>
+                      <Link to={`/stores/${store.slug}`} className="text-[12.5px] font-bold text-on-surface truncate hover:text-tertiary">{store.name}</Link>
                       <span className="material-symbols-outlined text-[14px] text-tertiary fill-icon shrink-0">verified</span>
                     </div>
                     <span className="text-[10px] text-on-surface-variant block">{store.followers}</span>
@@ -1207,11 +1061,11 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <Link 
-                  to={`/book/${ebook.id}/preview`}
+                <Link
+                  to={`/books/${ebook.slug || ebook.id}`}
                   className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors shrink-0"
                 >
-                  <span>Đọc ngay</span>
+                  <span>Xem sách</span>
                   <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                 </Link>
               </div>
@@ -1785,6 +1639,15 @@ export default function HomePage() {
         </form>
       </section>
 
+    </div>
+  );
+}
+
+function StorefrontNotice({ icon, message, spinning = false }) {
+  return (
+    <div className="mb-3 flex min-h-20 items-center justify-center gap-2 rounded-xl border border-outline-variant/30 bg-surface-container-lowest px-4 text-xs font-semibold text-on-surface-variant" role="status">
+      <span className={`material-symbols-outlined text-primary ${spinning ? 'animate-spin' : ''}`} aria-hidden="true">{icon}</span>
+      {message}
     </div>
   );
 }

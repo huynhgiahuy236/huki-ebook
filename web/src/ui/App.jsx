@@ -20,6 +20,7 @@ const HomePage = page(() => import('./pages/store/HomePage'));
 const CatalogPage = page(() => import('./pages/store/CatalogPage'));
 const BookDetailPage = page(() => import('./pages/store/BookDetailPage'));
 const ShopPage = page(() => import('./pages/store/ShopPage'));
+const StoresPage = page(() => import('./pages/store/StoresPage'));
 const OrderTrackingPage = page(() => import('./pages/store/OrderTrackingPage'));
 const CartPage = page(() => import('./pages/store/CartPage'));
 const CheckoutPage = page(() => import('./pages/store/CheckoutPage'));
@@ -34,9 +35,8 @@ const SellerPortalPage = page(() => import('./pages/seller/SellerPortalPage'));
 const SellerRegisterPage = page(() => import('./pages/seller/SellerRegisterPage'));
 const SellerDashboardPage = page(() => import('./pages/seller/SellerDashboardPage'));
 const SellerOrdersPage = page(() => import('./pages/seller/SellerOrdersPage'));
+const SellerStoresPage = page(() => import('./pages/seller/SellerStoresPage'));
 const SellerCreateEbook = page(() => import('./pages/seller/SellerCreateEbook'));
-const SellerCreatePhysical = page(() => import('./pages/seller/SellerCreatePhysical'));
-const SellerCreateHybrid = page(() => import('./pages/seller/SellerCreateHybrid'));
 const SellerEditHybrid = page(() => import('./pages/seller/SellerEditHybrid'));
 const AdminDashboardPage = page(() => import('./pages/admin/AdminDashboardPage'));
 const AdminPublishersPage = page(() => import('./pages/admin/AdminPublishersPage'));
@@ -97,6 +97,8 @@ export default function App() {
                   <Route path="/seller" element={<SellerPortalPage />} />
                   <Route element={<RequireAuth />}>
                     <Route path="/seller/register" element={<SellerRegisterPage />} />
+                    <Route path="/seller/business/register" element={<SellerRegisterPage />} />
+                    <Route path="/seller/business/status" element={<SellerRegisterPage />} />
                   </Route>
                 </Route>
 
@@ -117,10 +119,16 @@ export default function App() {
                   <Route path="/challenge" element={deferred('Thử thách đọc sách')} />
                   <Route path="/profile/challenge" element={deferred('Thử thách đọc sách')} />
                   <Route path="/books" element={<CatalogPage />} />
+                  <Route path="/search" element={<CatalogPage />} />
+                  <Route path="/categories" element={<CatalogPage />} />
+                  <Route path="/categories/:slug" element={<CatalogPage />} />
+                  <Route path="/books/:id" element={<BookDetailPage />} />
                   <Route path="/book/:id" element={<BookDetailPage />} />
                   <Route path="/book" element={<Navigate to="/books" replace />} />
                   <Route path="/shop/:id" element={<ShopPage />} />
                   <Route path="/shop" element={<ShopPage />} />
+                  <Route path="/stores" element={<StoresPage />} />
+                  <Route path="/stores/:id" element={<ShopPage />} />
                   <Route path="/publisher/:id" element={deferred('Trang nhà xuất bản riêng')} />
                   <Route path="/publisher" element={deferred('Trang nhà xuất bản riêng')} />
                   <Route path="/author/:id" element={deferred('Trang tác giả riêng')} />
@@ -160,12 +168,14 @@ export default function App() {
                     <Route element={<SellerLayout />}>
                       <Route path="/seller/dashboard" element={<SellerDashboardPage />} />
                       <Route path="/seller/orders" element={<SellerOrdersPage />} />
+                      <Route path="/seller/stores" element={<SellerStoresPage />} />
+                      <Route path="/seller/stores/new" element={<SellerStoresPage />} />
                       <Route path="/seller/chat" element={deferred('Seller chat')} />
                       <Route path="/seller/products" element={<SellerEditHybrid />} />
                       <Route path="/seller/product" element={<Navigate to="/seller/products" replace />} />
                       <Route path="/seller/product/create-ebook" element={<SellerCreateEbook />} />
-                      <Route path="/seller/product/create-physical" element={<SellerCreatePhysical />} />
-                      <Route path="/seller/product/create-hybrid" element={<SellerCreateHybrid />} />
+                      <Route path="/seller/product/create-physical" element={<SellerCreateEbook />} />
+                      <Route path="/seller/product/create-hybrid" element={<SellerCreateEbook />} />
                       <Route path="/seller/product/edit-hybrid" element={<Navigate to="/seller/products" replace />} />
                       <Route path="/seller/product/correction" element={deferred('Quy trình sửa sản phẩm mở rộng')} />
                       <Route path="/seller/edge-cases" element={deferred('Thư viện edge cases')} />
@@ -182,6 +192,8 @@ export default function App() {
                       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
                       <Route path="/admin/publishers" element={<AdminPublishersPage />} />
                       <Route path="/admin/companies" element={<AdminPublishersPage />} />
+                      <Route path="/admin/businesses" element={<AdminPublishersPage />} />
+                      <Route path="/admin/stores" element={<AdminPublishersPage />} />
                       <Route path="/admin/leads" element={<AdminPublishersPage />} />
                       <Route path="/admin/tasks" element={deferred('Hàng đợi kiểm duyệt')} />
                       <Route path="/admin/moderation" element={deferred('Hàng đợi kiểm duyệt')} />

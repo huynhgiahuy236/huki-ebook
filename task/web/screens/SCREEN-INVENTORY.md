@@ -23,14 +23,14 @@
 
 ## Guest Storefront
 
-- [ ] 🟡 `PUB-001` Home — `/` — Happy `YES` — P03 — UI mock
-- [ ] 🟡 `PUB-002` Books — `/books` — Happy `YES` — P03 — UI mock
-- [ ] 🟡 `PUB-003` Book detail — `/books/[slug]` — Happy `YES` — P03 — prototype `/book/:id`
-- [ ] 🔴 `PUB-004` Search — `/search` — Happy `YES` — P03
-- [ ] 🔴 `PUB-005` Categories — `/categories` — Happy `YES` — P03
-- [ ] 🔴 `PUB-006` Category books — `/categories/[slug]` — Happy `YES` — P03
-- [ ] 🔴 `PUB-011` Stores — `/stores` — Happy `YES` — P03
-- [ ] 🟡 `PUB-012` Store detail — `/stores/[slug]` — Happy `YES` — P03 — prototype `/shop/:id`
+- [ ] 🟡 `PUB-001` Home — `/` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-002` Books — `/books` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-003` Book detail — `/books/[slug]` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-004` Search — `/search` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-005` Categories — `/categories` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-006` Category books — `/categories/[slug]` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-011` Stores — `/stores` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `PUB-012` Store detail — `/stores/[slug]` — Happy `YES` — P03 — READY_FOR_REVIEW, Codex 2026-09-12
 - `⚪ DEFERRED` `PUB-007` Authors — `/authors`
 - `⚪ DEFERRED` `PUB-008` Author detail — `/authors/[id]`
 - `⚪ DEFERRED` `PUB-009` Publishers — `/publishers`
@@ -61,17 +61,17 @@
 ## Admin doanh nghiệp và Admin con
 
 - [ ] 🟡 `SEL-001` Business dashboard — `/seller` — Happy `YES` — P07 — prototype `/seller/dashboard`
-- [ ] 🟡 `SEL-002` Business registration — `/seller/business/register` — Happy `YES` — P03/P07
-- [ ] 🔴 `SEL-003` Application status — `/seller/business/status` — Happy `YES` — P03/P07
+- [ ] 🟡 `SEL-002` Business registration — `/seller/business/register` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `SEL-003` Application status — `/seller/business/status` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🔴 `SEL-004` Business settings — `/seller/business/settings` — Happy `YES` — P07
-- [ ] 🔴 `SEL-005` Stores — `/seller/stores` — Happy `YES` — P03/P07
-- [ ] 🔴 `SEL-006` Create store — `/seller/stores/new` — Happy `YES` — P03/P07
+- [ ] 🟡 `SEL-005` Stores — `/seller/stores` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
+- [ ] 🟡 `SEL-006` Create store — `/seller/stores/new` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🔴 `SEL-007` Store settings — `/seller/stores/[id]` — Happy `YES` — P07
 - [ ] 🔴 `SEL-008` Admin con accounts — `/seller/members` — Happy `YES` — P06 — provision trực tiếp
 - [ ] 🔴 `SEL-009` Create Admin con — `/seller/members/new` — Happy `YES` — P06 — không invitation
 - [ ] 🔴 `SEL-010` Admin con permissions — `/seller/members/[id]` — Happy `YES` — P06
 - [ ] 🟡 `SEL-011` Products — `/seller/products` — Happy `YES` — P07
-- [ ] 🟡 `SEL-012` Create product — `/seller/products/new` — Happy `YES` — P03/P07
+- [ ] 🟡 `SEL-012` Create product — `/seller/product/create-ebook` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🟡 `SEL-013` Edit product — `/seller/products/[id]/edit` — Happy `YES` — P07
 - [ ] 🟡 `SEL-014` Product media — `/seller/products/[id]/media` — Happy `YES` — P07
 - [ ] 🟡 `SEL-015` Seller orders — `/seller/orders` — Happy `YES` — P07
@@ -81,9 +81,9 @@
 ## Admin HUKI
 
 - [ ] 🔴 `ADM-001` Admin dashboard — `/admin` — Happy `YES` — P08
-- [ ] 🔴 `ADM-002` Business approvals — `/admin/businesses` — Happy `YES` — P08
+- [ ] 🟡 `ADM-002` Business approvals — `/admin/businesses` — Happy `YES` — P03/P08 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🔴 `ADM-003` Business approval detail — `/admin/businesses/[id]` — Happy `YES` — P08
-- [ ] 🔴 `ADM-004` Store approvals — `/admin/stores` — Happy `YES` — P08
+- [ ] 🟡 `ADM-004` Store approvals — `/admin/stores` — Happy `YES` — P03/P08 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🔴 `ADM-005` Store approval detail — `/admin/stores/[id]` — Happy `YES` — P08
 - [ ] 🔴 `ADM-008` Book administration — `/admin/books` — Happy `YES` — P08
 - [ ] 🔴 `ADM-009` Category administration — `/admin/categories` — Happy `YES` — P08

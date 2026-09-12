@@ -3,6 +3,16 @@ import { PrismaClient } from '../../prisma/generated/client';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  constructor() {
+    super({
+      datasources: {
+        db: {
+          url: process.env.COMMERCE_DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/huki_commerce',
+        },
+      },
+    });
+  }
+
   async onModuleInit() {
     await this.$connect();
   }

@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { catalogApi, toCatalogBook } from '../../api/catalogApi';
+import { businessApi } from '../../api/businessApi';
 
 export default function CatalogPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { slug: categorySlug } = useParams();
   const { addItem } = useCart();
   const { showToast } = useToast();
 
-  const selectedCat = searchParams.get('cat') || 'all';
+  const selectedCat = searchParams.get('cat') || searchParams.get('category') || categorySlug || 'all';
   const selectedFormat = searchParams.get('format') || 'all';
   const selectedSort = searchParams.get('sort') || 'popular';
   const searchQuery = searchParams.get('q') || '';
@@ -16,6 +20,12 @@ export default function CatalogPage() {
   const [searchTerm, setSearchTerm] = useState(searchQuery);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [booksList, setBooksList] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [publicStores, setPublicStores] = useState([]);
+  const [catalogMeta, setCatalogMeta] = useState({ total: 0, page: 1, totalPages: 1 });
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState('');
 
   useEffect(() => {
     setSearchTerm(searchQuery);
@@ -28,162 +38,91 @@ export default function CatalogPage() {
     } else {
       newParams.set(key, value);
     }
+    if (key === 'cat' && (value === 'all' || !value) && categorySlug) {
+      newParams.delete('category');
+      navigate(`/books${newParams.toString() ? `?${newParams.toString()}` : ''}`);
+      return;
+    }
     setSearchParams(newParams);
   };
 
-  const booksList = [
-    {
-      id: 'atomic-habits',
-      title: 'Atomic Habits - Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ',
-      author: 'James Clear',
-      publisher: 'Alpha Books',
-      category: 'selfhelp',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 79000,
-      originalPrice: 119000,
-      discount: '-34%',
-      rating: 4.9,
-      sales: '8.6k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDLJxGEmdyoWHJaML4r0fjhy-pwbtgp7K9qLyLsNNwNW286Ktk5gQ-3VewcqEla5ymD3ZNzwg7t1y-2PsIQb7yPIkcGwQuERA0Itq1qT5O14aEGSG876FleaCfm62Nj1OzUPgxPhlX-QKiAyyYKMfpj0ngsjKpXuJNURlFyrrOkB5mNkkWUW3yBSioWXpa0PnnvHWBhGsbkGPa8eMhu8Bv7eGGni1sRI3qinMFFmeNBDbZQfyyZB0ubsA'
-    },
-    {
-      id: 'nha-gia-kim',
-      title: 'Nhà Giả Kim (The Alchemist)',
-      author: 'Paulo Coelho',
-      publisher: 'Nhã Nam',
-      category: 'literature',
-      format: 'Combo',
-      formatType: 'hybrid',
-      price: 64000,
-      originalPrice: 80000,
-      discount: '-20%',
-      rating: 5.0,
-      sales: '9.2k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDNSJv8WbQTwJya636_FW0mYshlMn8ZpW5DfTmCp3q_pz4q9n5jP3hiiK3mafekUIWZ4se4a15jzeHs71mnK4Mviw5CtTeXeiMfOy_D7OQY08FMOEvWoMRV_yHkKNkWgtp3-9ssDhlPZWDF47EM35t0qWNVVwHzwqTo3ic5EjVPrw5a8l3rlNpdZ4cU3R2LgXrZCzqw-9l1_d2KZaINmahY_3bxKAudtwN7-VybtwPcyEU6QBBbn5z-Fw'
-    },
-    {
-      id: 'tu-duy-nhanh-va-cham',
-      title: 'Tư Duy Nhanh Và Chậm (Thinking, Fast and Slow)',
-      author: 'Daniel Kahneman',
-      publisher: 'Alpha Books',
-      category: 'business',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 139000,
-      originalPrice: 199000,
-      discount: '-30%',
-      rating: 4.8,
-      sales: '3.1k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAs4TOGpw97Vnc6jgkJQMlOiU7qkOiSmZMU8P6YK_c_Xv4yyyh5kcdgWdNcmp_7lzHDU83XTVXrEQfQ_DPSN-Mp9dSA0MQApwu8ZLxoCWnLRzqWiFkVvWX2RVAkwZvps1dOv0-yTu-_yB4018zA1AdeR8PRZO-z44u04brEkbSH_KBxSDPYogcbHMroUxaLZGIV609Be_tEY3scjX_tvWAlaSAs_WqnVoLBT2e7gBWeTaofdU_B8QdTww'
-    },
-    {
-      id: 'tam-ly-hoc-ve-tien',
-      title: 'Tâm Lý Học Về Tiền (The Psychology of Money)',
-      author: 'Morgan Housel',
-      publisher: 'NXB Trẻ',
-      category: 'business',
-      format: 'Sách giấy',
-      formatType: 'physical',
-      price: 92000,
-      originalPrice: 108000,
-      discount: '-15%',
-      rating: 4.9,
-      sales: '5.4k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC7ouqQ7elIuGRHZ7rj7l5cYrPzWtVWXyk8F3s9fBkQf8lEZFMOCpZ1WNMWOVoN5Uy13M3ZCCtm0Kp6qODtQ3a5mAu81yactomECdD4kLkkrlCvqEPHOgvwES7pkRYwgFiAN7MHH3veqNbCNbdX5MfzYRgsIN5CRugb_eWd0jzg2YPAWJlzYTmoYx-QBxSmQa0tUxtsTK7oDOF1qSFqUnhLUn91MXUytXRomvOwDXqwzBlH_CfbqtBLxg'
-    },
-    {
-      id: 'deep-work',
-      title: 'Deep Work - Làm Ra Làm, Chơi Ra Chơi',
-      author: 'Cal Newport',
-      publisher: 'Alpha Books',
-      category: 'selfhelp',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 112000,
-      originalPrice: 140000,
-      discount: '-20%',
-      rating: 4.8,
-      sales: '2.9k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC-Td_fncjsrtfhP7pD1zoyow8X0cbRu6_n_thngTwB6nLhuC7eqp1Pd51OhQUdL5VFM-pFQHaRRHrxlicYEZOTgkzJDiL3_QUDrKQSgoawjEqamxNDNc-uoZAhi3U_D_vCsLO5lkm_oUjQbWeVl0xqSwQuzfubBlRvSLA7o3cEOKFyI7Q_vXNj5PHG1cdctYb2ECJPxHkHvyCQdVC1NQ3PlkWtsGi4eIvk2UDDHzeKGT6zlcIK_leb6A'
-    },
-    {
-      id: 'clean-code',
-      title: 'Clean Code - Mã Sạch Trong Lập Trình Phần Mềm',
-      author: 'Robert C. Martin',
-      publisher: 'Alpha Books',
-      category: 'technology',
-      format: 'Sách giấy',
-      formatType: 'physical',
-      price: 225000,
-      originalPrice: 275000,
-      discount: '-18%',
-      rating: 4.9,
-      sales: '1.6k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDYD__UmCCqKlTM22GbDoPZqtdjw0iEjqWN6T80ZcIMdl-FMIkOxY5vWGs7tcVfInEqG4TCljslu--bVITD9IuFq1v5dawGTDsIGZPWRaPQrMMPb-8S0YiEtKVlkjyvMqezW4xZawW-TEEqMzhxNvfUfSf-YrEvSo-w0DQW-ks8Vlt9o5RyACER1nuaSKnPGpT0tS8AcA1qv2a3ZmvjsRRZVxCZcBxkeUwE-8JGDpb9W71CLFOlv1BIhg'
-    },
-    {
-      id: 'dam-bi-ghet',
-      title: 'Dám Bị Ghét (The Courage to Be Disliked)',
-      author: 'Kishimi Ichiro, Koga Fumitake',
-      publisher: 'Nhã Nam',
-      category: 'selfhelp',
-      format: 'Combo',
-      formatType: 'hybrid',
-      price: 89000,
-      originalPrice: 115000,
-      discount: '-22%',
-      rating: 4.8,
-      sales: '4.1k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBDv1JdME3PJnFHb-TdqnRjNsNPr9SMcBhVNpimC-ikDBPmeI_JCpp77WbxFZ9ryp3D2HSWLKM79oY8gT3wtpuB5fUQxoDZ3PXC7y9iDwvYOw1xkPGGyCWF-6nNwrcgakfFjFPLzIZhRwBW8S4GF4m2a0PxJdsQa5xK1L9MeD3iXNJ5lc7ZIY-r7SzZ1xDbxVb3JYeXfMruiAK9qaUg_v8OzYUgR-HW8j73LGNwq0xUpPs_BGf6sgMSdA'
-    },
-    {
-      id: 'sapiens',
-      title: 'Sapiens: Lược Sử Loài Người',
-      author: 'Yuval Noah Harari',
-      publisher: 'Nhã Nam',
-      category: 'literature',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 145000,
-      originalPrice: 195000,
-      discount: '-25%',
-      rating: 4.9,
-      sales: '6.7k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDVtbO0fbu_8b9geTD9ziXMlIqLZMCpTBEvBf0qOCnOlNDbsbRdunucqKd3rfBkDm7Uzj20MFU8ehNJiY-0vkw2zV8g0q_Wf2PXklSNO1745JwGPynDsJj4YB2ranVzQKLm1m4GZQoPS99U-fPeR1ErYzxThCf9ylQWFuJ4g3018BL9iME7qHokMxZ5g0O8XmJDSxjJIqiAwjzlJg390f3eYwePhtIsM36z2M4P7jk2FUrMfX3oiGPB-Q'
-    },
-    {
-      id: 'ai-era',
-      title: 'Đột Phá Trong Kỷ Nguyên AI & Tự Động Hóa',
-      author: 'Andrew Ng, Huki Lab',
-      publisher: 'First News',
-      category: 'technology',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 168000,
-      originalPrice: 210000,
-      discount: 'MỚI',
-      rating: 5.0,
-      sales: '890',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBh6fssmKqeir8XMFa2wDecClL0CT6Ok_3Inbwa5hxjKiVjBpNff8aH64egIb0kN2JGBz36PxgZw7jfigTroPSFm5W3aePLCq_w_RY5rM0JQXDO3PhCD3QFvFdgfqkOg-40WyfXq9Sym71n9ZVAsvJ0x_4bh5WebqNI17Jf4mxrqYLzXBPMM9H5lU1nbhaw5rkMdS8uLmR-5d8IixitgX2lA3seAi9nGD0Kz8ZRr_ZMYP4zPuGlfdrWnw'
-    },
-    {
-      id: 'the-age-of-ai',
-      title: 'Kỷ Nguyên Trí Tuệ Nhân Tạo (The Age of AI)',
-      author: 'Henry Kissinger, Eric Schmidt',
-      publisher: 'Alpha Books',
-      category: 'technology',
-      format: 'Ebook',
-      formatType: 'ebook',
-      price: 179000,
-      originalPrice: 210000,
-      discount: '-15%',
-      rating: 4.8,
-      sales: '1.4k',
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBlchu25Vxyhq_2bXp42EMZdVw_JCVHGhXC3lheIM7-QsBp8TmVRseFqysaGTtO3ZSY99xs4R3rGId6VPwZG0_jFPfoqvd1ZovH6BeEhXB1ZZjjieqiUi0GFT4nCoSj6yvVpbpX7iaxbBWBqdvWReUI4mUoH6e_lYjht7_uxMWZmpemUF12j9EBEv2ZlfQJEE55pmnL880ghbYpDlmaATB8hevBVUBjy8l6BTUop8HWZ4R2SjpxFvVXQA'
-    }
-  ];
+  const clearFilters = () => {
+    if (categorySlug) navigate('/books');
+    else setSearchParams({});
+  };
 
+  useEffect(() => {
+    if (selectedCat !== 'all' && categories.length === 0) return undefined;
+
+    let active = true;
+
+    Promise.all([catalogApi.getCategories(), businessApi.getPublicStores({ page: 1, limit: 8 })]).then(([categoryResponse, storeResponse]) => {
+      if (!active) return;
+      if (categoryResponse.success) {
+        setCategories(flattenCategories(categoryResponse.data || []));
+      }
+      if (storeResponse.success) setPublicStores(storeResponse.data || []);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setCatalogLoading(true);
+      setCatalogError('');
+
+      const category = categories.find((item) => item.slug === selectedCat || item.id === selectedCat);
+      const formatMap = { ebook: 'DIGITAL', physical: 'PHYSICAL', hybrid: 'BOTH' };
+      const sortMap = {
+        'price-low': { sortBy: 'price', order: 'ASC' },
+        'price-high': { sortBy: 'price', order: 'DESC' },
+        new: { sortBy: 'publishedAt', order: 'DESC' },
+        bestseller: { sortBy: 'publishedAt', order: 'DESC' },
+        popular: { sortBy: 'publishedAt', order: 'DESC' }
+      };
+      const sort = sortMap[selectedSort] || sortMap.popular;
+      const page = Number(searchParams.get('page')) || 1;
+      const normalizedSearch = searchTerm.trim();
+
+      const response = await catalogApi.getPublicBooks({
+        page,
+        limit: 20,
+        search: normalizedSearch.length >= 2 ? normalizedSearch : undefined,
+        category: selectedCat === 'all' ? undefined : (category?.id || selectedCat),
+        format: formatMap[selectedFormat],
+        ...sort
+      });
+
+      if (!active) return;
+
+      if (!response.success) {
+        setBooksList([]);
+        setCatalogError(response.error?.message || 'Không thể tải danh mục sách.');
+      } else {
+        setBooksList((response.data || []).map((book) => ({
+          ...toCatalogBook(book),
+          discount: '',
+          rating: 0,
+          sales: '0'
+        })));
+        setCatalogMeta({
+          total: response.meta?.total || 0,
+          page: response.meta?.page || page,
+          totalPages: response.meta?.totalPages || 1
+        });
+      }
+      setCatalogLoading(false);
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [categories, searchParams, searchTerm, selectedCat, selectedFormat, selectedSort]);
   const filteredBooks = useMemo(() => {
     const matches = booksList.filter(book => {
       if (selectedCat !== 'all' && book.category !== selectedCat) return false;
@@ -204,7 +143,7 @@ export default function CatalogPage() {
       if (selectedSort === 'new') return b.id.localeCompare(a.id);
       return b.rating - a.rating;
     });
-  }, [selectedCat, selectedFormat, selectedSort, searchTerm]);
+  }, [booksList, selectedCat, selectedFormat, selectedSort, searchTerm]);
 
   const handleQuickAdd = (book) => {
     addItem({
@@ -244,7 +183,7 @@ export default function CatalogPage() {
           <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface tracking-tight flex items-baseline gap-3">
             Tất Cả Sách &amp; Ấn Phẩm Số
             <span className="font-sans text-xs font-normal text-on-surface-variant">
-              ({filteredBooks.length} sản phẩm phù hợp)
+              ({catalogMeta.total || filteredBooks.length} sản phẩm phù hợp)
             </span>
           </h1>
           <p className="text-xs sm:text-sm text-on-surface-variant mt-1 max-w-2xl leading-relaxed">
@@ -290,7 +229,7 @@ export default function CatalogPage() {
             </div>
             {(selectedCat !== 'all' || selectedFormat !== 'all' || searchTerm) && (
               <button
-                onClick={() => setSearchParams({})}
+                onClick={clearFilters}
                 className="text-[11px] font-semibold text-primary hover:underline px-2 py-0.5 rounded-md hover:bg-primary/10 transition-colors"
               >
                 Xóa bộ lọc
@@ -354,11 +293,12 @@ export default function CatalogPage() {
             </div>
             <div className="space-y-1 text-xs">
               {[
-                { id: 'all', name: 'Tất cả chủ đề', count: '10' },
-                { id: 'selfhelp', name: 'Phát triển bản thân', count: '4' },
-                { id: 'technology', name: 'Công nghệ & AI', count: '2' },
-                { id: 'business', name: 'Kinh doanh & Đầu tư', count: '2' },
-                { id: 'literature', name: 'Văn học & Nghệ thuật', count: '2' }
+                { id: 'all', name: 'Tất cả chủ đề', count: catalogMeta.total || booksList.length },
+                ...categories.map((category) => ({
+                  id: category.slug || category.id,
+                  name: category.name,
+                  count: ''
+                }))
               ].map((cat) => {
                 const isSelected = selectedCat === cat.id;
                 return (
@@ -377,7 +317,7 @@ export default function CatalogPage() {
                       <span>{cat.name}</span>
                     </span>
                     <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-medium ${isSelected ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'}`}>
-                      {cat.count}
+                      {cat.count || '—'}
                     </span>
                   </button>
                 );
@@ -389,23 +329,19 @@ export default function CatalogPage() {
           <div className="pt-3.5">
             <h3 className="font-bold text-xs uppercase tracking-wider text-on-surface-variant mb-2">Nhà xuất bản</h3>
             <div className="space-y-1 text-xs text-on-surface-variant">
-              {[
-                { slug: 'alpha-books', name: 'Alpha Books', count: '420' },
-                { slug: 'nha-nam', name: 'Nhã Nam', count: '315' },
-                { slug: 'first-news', name: 'First News Trí Việt', count: '280' },
-                { slug: 'nxb-tre', name: 'NXB Trẻ', count: '190' }
-              ].map((pub) => (
+              {publicStores.map((store) => (
                 <Link
-                  key={pub.slug}
-                  to={`/shop/${pub.slug}`}
+                  key={store.id}
+                  to={`/stores/${store.slug}`}
                   className="flex items-center justify-between px-2.5 py-1.5 rounded-xl hover:bg-surface-container-low hover:text-primary transition-all group"
                 >
-                  <span className="group-hover:translate-x-0.5 transition-transform">{pub.name}</span>
+                  <span className="group-hover:translate-x-0.5 transition-transform">{store.name}</span>
                   <span className="text-[10px] font-semibold bg-surface-container group-hover:bg-primary/10 group-hover:text-primary px-1.5 py-0.2 rounded-full text-on-surface-variant transition-colors">
-                    {pub.count}
+                    Official
                   </span>
                 </Link>
               ))}
+              {publicStores.length === 0 && <p className="px-2.5 py-2 text-[11px] text-on-surface-variant">Chưa có gian hàng công khai.</p>}
             </div>
           </div>
         </aside>
@@ -478,12 +414,14 @@ export default function CatalogPage() {
           </div>
 
           {/* Book Cards Grid */}
-          {filteredBooks.length === 0 && (
+          {catalogLoading && <CatalogNotice icon="progress_activity" title="Đang tải danh mục sách" description="Dữ liệu sách đang được đồng bộ từ HUKI Platform." spinning />}
+          {!catalogLoading && catalogError && <CatalogNotice icon="cloud_off" title="Chưa tải được danh mục" description={catalogError} tone="error" />}
+          {!catalogLoading && !catalogError && filteredBooks.length === 0 && (
             <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest px-6 py-14 text-center">
               <span className="material-symbols-outlined text-5xl text-outline" aria-hidden="true">search_off</span>
               <h2 className="mt-3 text-lg font-bold text-on-surface">Không tìm thấy sách phù hợp</h2>
               <p className="mt-1 text-sm text-on-surface-variant">Hãy thử từ khóa khác hoặc xóa bớt bộ lọc đang chọn.</p>
-              <button type="button" onClick={() => setSearchParams({})} className="mt-5 min-h-11 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white">
+              <button type="button" onClick={clearFilters} className="mt-5 min-h-11 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-white">
                 Xóa tất cả bộ lọc
               </button>
             </div>
@@ -499,7 +437,7 @@ export default function CatalogPage() {
               >
                 <div className={viewMode === 'list' ? 'flex items-center gap-4 flex-1' : ''}>
                   <Link
-                    to={`/book/${book.id}`}
+                    to={`/books/${book.slug || book.id}`}
                     className={`block relative aspect-[2/3] ${viewMode === 'list' ? 'w-24' : 'w-full'} rounded-xl overflow-hidden bg-surface-container mb-3 shadow-xs`}
                   >
                     <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={book.title} src={book.cover} />
@@ -513,7 +451,7 @@ export default function CatalogPage() {
 
                   <div>
                     <span className="text-[11px] text-primary block font-medium mb-0.5">{book.publisher}</span>
-                    <Link to={`/book/${book.id}`} title={book.title}>
+                    <Link to={`/books/${book.slug || book.id}`} title={book.title}>
                       <h3 className="font-bold text-sm text-on-surface group-hover:text-primary transition-colors line-clamp-1 truncate leading-snug">
                         {book.title}
                       </h3>
@@ -551,6 +489,28 @@ export default function CatalogPage() {
             ))}
           </div>
 
+          {!catalogLoading && !catalogError && catalogMeta.totalPages > 1 && (
+            <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Phân trang danh mục">
+              <button
+                type="button"
+                disabled={catalogMeta.page <= 1}
+                onClick={() => updateParam('page', String(catalogMeta.page - 1))}
+                className="min-h-11 rounded-xl border border-outline-variant bg-white px-4 text-sm font-semibold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Trang trước
+              </button>
+              <span className="text-sm text-on-surface-variant">Trang {catalogMeta.page}/{catalogMeta.totalPages}</span>
+              <button
+                type="button"
+                disabled={catalogMeta.page >= catalogMeta.totalPages}
+                onClick={() => updateParam('page', String(catalogMeta.page + 1))}
+                className="min-h-11 rounded-xl border border-outline-variant bg-white px-4 text-sm font-semibold text-on-surface disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Trang sau
+              </button>
+            </nav>
+          )}
+
           {/* Editors Choice Promo Banner */}
           <div 
             style={{ background: 'linear-gradient(to right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #006B4F), var(--theme-hero-to, #124E3F))' }}
@@ -567,7 +527,7 @@ export default function CatalogPage() {
               </p>
             </div>
             <Link
-              to="/book/atomic-habits"
+              to={filteredBooks[0] ? `/books/${filteredBooks[0].slug || filteredBooks[0].id}` : '/books'}
               className="px-5 py-2.5 rounded-xl bg-white text-[var(--theme-primary,#003B2B)] font-bold text-xs shadow-xs hover:bg-surface-container transition-colors flex-shrink-0 z-10"
             >
               Xem Chi Tiết Combo
@@ -584,4 +544,22 @@ function parseSales(value) {
   const normalized = String(value).toLowerCase().replace(',', '.');
   const amount = Number.parseFloat(normalized) || 0;
   return normalized.includes('k') ? amount * 1000 : amount;
+}
+
+function flattenCategories(categories) {
+  return categories.flatMap((category) => [category, ...flattenCategories(category.children || [])]);
+}
+
+function CatalogNotice({ icon, title, description, tone = 'neutral', spinning = false }) {
+  const toneClass = tone === 'error'
+    ? 'border-red-200 bg-red-50 text-red-900'
+    : 'border-outline-variant bg-surface-container-lowest text-on-surface';
+
+  return (
+    <div className={`mb-5 rounded-2xl border px-6 py-10 text-center ${toneClass}`} role={tone === 'error' ? 'alert' : 'status'}>
+      <span className={`material-symbols-outlined text-4xl ${spinning ? 'animate-spin' : ''}`} aria-hidden="true">{icon}</span>
+      <h2 className="mt-2 text-base font-bold">{title}</h2>
+      <p className="mt-1 text-sm opacity-75">{description}</p>
+    </div>
+  );
 }

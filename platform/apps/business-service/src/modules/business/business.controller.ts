@@ -76,6 +76,24 @@ export class BusinessController {
     return { data: business };
   }
 
+  @Get('admin/all')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'List businesses for platform administration' })
+  async getAllBusinessesForAdmin(
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.businessService.getAllBusinesses({
+      status: status as any,
+      search,
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+    }, true);
+  }
+
   @Get(':id')
   @Public()
   @ApiOperation({

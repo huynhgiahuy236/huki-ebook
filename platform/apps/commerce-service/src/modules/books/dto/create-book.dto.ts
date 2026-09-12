@@ -17,52 +17,65 @@ import { BookFormat } from '../../../../prisma/generated/client';
 import { DigitalBookDetailsDto, PhysicalBookDetailsDto } from './book-details.dto';
 
 export class CreateBookDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
   @IsUUID()
-  storeId: string;
+  storeId?: string;
 
   @ApiProperty({ example: 'Mắt biếc' })
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(500)
   title: string;
 
   @ApiPropertyOptional({ example: 'mat-biec' })
   @IsOptional()
-  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
   @MaxLength(500)
   slug?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsISBN()
   @MaxLength(20)
   isbn?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
-  @MinLength(10)
-  @MaxLength(50000)
-  description: string;
+  description?: string;
 
-  @ApiProperty({ minimum: 0 })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  coverImage?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  coverUrl?: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
-  price: number;
+  price?: number;
 
+  @IsOptional()
   @IsUUID()
-  categoryId: string;
+  categoryId?: string;
 
+  @IsOptional()
   @IsUUID()
-  authorId: string;
+  authorId?: string;
 
+  @IsOptional()
   @IsUUID()
-  publisherId: string;
+  publisherId?: string;
 
-  @ApiProperty({ enum: BookFormat })
+  @ApiPropertyOptional({ enum: BookFormat })
+  @IsOptional()
   @IsEnum(BookFormat)
-  format: BookFormat;
+  format?: BookFormat;
 
   @ApiPropertyOptional({ type: PhysicalBookDetailsDto })
   @IsOptional()

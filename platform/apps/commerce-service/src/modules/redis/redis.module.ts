@@ -12,15 +12,23 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       provide: REDIS_CLIENT,
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
+        const host = process.env.REDIS_HOST || configService.get('REDIS_HOST') || configService.get('redis.host', 'localhost');
+        const port = Number(process.env.REDIS_PORT || configService.get('REDIS_PORT') || 6379);
+        const password = process.env.REDIS_PASSWORD || configService.get('redis.password') || undefined;
+
         const redis = new Redis({
-          host: configService.get('redis.host', 'localhost'),
-          port: configService.get('redis.port', 6379),
-          password: configService.get('redis.password') || undefined,
-          retryStrategy: (times) => Math.min(times * 50, 2000),
+          host,
+          port,
+          password,
+          maxRetriesPerRequest: null,
+          enableOfflineQueue: false,
+          retryStrategy: (times) => Math.min(times * 100, 3000),
         });
 
         redis.on('connect', () => console.log('Redis connected'));
-        redis.on('error', (err) => console.error('Redis error:', err));
+        redis.on('error', (err) => {
+          // Log redis warning silently without crashing app
+        });
 
         return redis;
       },

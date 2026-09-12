@@ -29,7 +29,7 @@ describe('StoreService', () => {
 
   describe('getStoreById', () => {
     it('should return store when found', async () => {
-      const mockStore = { id: 'store-1', name: 'Test Store', slug: 'test-store' };
+      const mockStore = { id: 'store-1', name: 'Test Store', slug: 'test-store', status: 'APPROVED', isActive: true, deletedAt: null, business: { status: 'APPROVED' } };
       mockPrisma.store.findUnique.mockResolvedValue(mockStore);
 
       const result = await service.getStoreById('store-1');
@@ -46,11 +46,20 @@ describe('StoreService', () => {
 
       await expect(service.getStoreById('non-existent')).rejects.toThrow();
     });
+
+    it('should hide a suspended store from public access', async () => {
+      mockPrisma.store.findUnique.mockResolvedValue({
+        id: 'store-1', status: 'SUSPENDED', isActive: true, deletedAt: null,
+        business: { status: 'APPROVED' },
+      });
+
+      await expect(service.getStoreById('store-1')).rejects.toThrow();
+    });
   });
 
   describe('getStoreBySlug', () => {
     it('should return store by slug', async () => {
-      const mockStore = { id: 'store-1', name: 'Test Store', slug: 'test-store' };
+      const mockStore = { id: 'store-1', name: 'Test Store', slug: 'test-store', status: 'APPROVED', isActive: true, deletedAt: null, business: { status: 'APPROVED' } };
       mockPrisma.store.findUnique.mockResolvedValue(mockStore);
 
       const result = await service.getStoreBySlug('test-store');
@@ -105,11 +114,11 @@ describe('StoreService', () => {
       mockPrisma.store.findMany.mockResolvedValue([]);
       mockPrisma.store.count.mockResolvedValue(0);
 
-      await service.getAllStores({ status: 'APPROVED' as any, page: 1, limit: 20 });
+      await service.getAllStores({ status: 'REJECTED' as any, page: 1, limit: 20 }, true);
 
       expect(mockPrisma.store.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ status: 'APPROVED' }),
+          where: expect.objectContaining({ status: 'REJECTED' }),
         }),
       );
     });

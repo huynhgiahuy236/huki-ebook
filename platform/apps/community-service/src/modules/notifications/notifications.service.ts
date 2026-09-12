@@ -220,7 +220,7 @@ export class NotificationsService {
       "chatMessages",
       "forumActivity",
     ] as const) {
-      if (dto[key] !== undefined) update[key] = dto[key];
+      if (dto[key] !== undefined) update[key] = dto[key] as boolean;
     }
     for (const [key, value] of Object.entries(dto.emailNotifications ?? {})) {
       if (value !== undefined)

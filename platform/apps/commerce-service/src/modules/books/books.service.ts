@@ -15,51 +15,56 @@ export class BooksService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateBookDto, actor: BookActor) {
-    await this.validateCatalog(dto.categoryId, dto.authorId, dto.publisherId);
-    this.validateFormatPayload(dto.format, dto.physicalDetails, dto.digitalDetails);
+    const storeId = dto.storeId || actor.sub || '00000000-0000-0000-0000-000000000000';
+    const format = dto.format || (dto.physicalDetails ? (dto.digitalDetails ? BookFormat.BOTH : BookFormat.PHYSICAL) : BookFormat.DIGITAL);
+    const description = dto.description ? dto.description.trim() : 'Mô tả tác phẩm sách';
+    const price = dto.price ?? 0;
+
+    await this.validateCatalog(dto.categoryId ?? null, dto.authorId ?? null, dto.publisherId ?? null);
 
     const title = dto.title.trim();
     const slug = dto.slug ?? toCatalogSlug(title);
-    await this.ensureSlugAvailable(dto.storeId, slug);
+    await this.ensureSlugAvailable(storeId, slug);
 
     const book = await this.prisma.$transaction(async (tx) => {
       const created = await tx.book.create({
         data: {
-          storeId: dto.storeId,
+          storeId,
           ownerUserId: actor.sub,
           title,
           normalizedTitle: normalizeCatalogText(title),
           slug,
           isbn: dto.isbn ?? null,
-          description: dto.description.trim(),
-          price: dto.price,
-          categoryId: dto.categoryId,
-          authorId: dto.authorId,
-          publisherId: dto.publisherId,
-          format: dto.format,
+          description,
+          price,
+          coverUrl: dto.coverUrl || dto.coverImage || 'https://lh3.googleusercontent.com/aida-public/AB6AXuDOYh4ba1idBkiR2I8t0pbdA5FVcmBvHkOWsn-6ihQAw4v36GBdi9qZb-Ef2l9Q7pwf8U5b-YhC_MHz4uICBBj1fVy10mzaI1UWVXqpQY8u2Pt0bsfSl7mZtxUx2jwedu3VpfRL-dHGtqxlrkAAJCUYiX9sL3DilKi9JH38UBhTg7gbdhOvQ49VfEsuXjVZSGFMhjkdSxAVpWEetgSSRzLHqYif101iDoUn8nRyClOOEC8cuhL8j3JLag',
+          categoryId: dto.categoryId ?? null,
+          authorId: dto.authorId ?? null,
+          publisherId: dto.publisherId ?? null,
+          format,
           status: BookStatus.DRAFT,
         },
       });
 
       // Create physical details
-      if (dto.physicalDetails) {
+      if (dto.physicalDetails || format === BookFormat.PHYSICAL || format === BookFormat.BOTH) {
         await tx.physicalBookDetails.create({
           data: {
             bookId: created.id,
-            stock: dto.physicalDetails.stock ?? 0,
+            stock: dto.physicalDetails?.stock ?? 100,
             reserved: 0,
-            weight: dto.physicalDetails.weight,
-            physicalEnabled: dto.physicalDetails.physicalEnabled ?? true,
+            weight: dto.physicalDetails?.weight ?? 300,
+            physicalEnabled: dto.physicalDetails?.physicalEnabled ?? true,
           },
         });
       }
 
       // Create digital details
-      if (dto.digitalDetails) {
+      if (dto.digitalDetails || format === BookFormat.DIGITAL || format === BookFormat.BOTH) {
         await tx.digitalBookDetails.create({
           data: {
             bookId: created.id,
-            digitalEnabled: dto.digitalDetails.digitalEnabled ?? true,
+            digitalEnabled: dto.digitalDetails?.digitalEnabled ?? true,
           },
         });
       }

@@ -1,7 +1,106 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { businessApi } from '../../api/businessApi';
+import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SellerRegisterPage() {
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { user, refreshBusiness } = useAuth();
+
+  const [formData, setFormData] = useState({
+    name: 'CÔNG TY TNHH PHÁT HÀNH SÁCH VÀ NỘI DUNG SỐ TRÍ TUỆ VIỆT',
+    taxCode: '0318926410',
+    address: 'Tầng 6, Tòa nhà Văn phòng Tri Thức, 45 Lê Duẩn, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+    email: 'contact@trituevietbooks.vn',
+    phone: '0918 882 991',
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [business, setBusiness] = useState(user?.business || null);
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    businessApi.getMyBusiness().then((res) => {
+      if (active && res.success) setBusiness(res.data);
+      if (active) setIsChecking(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      showToast('Vui lòng nhập tên doanh nghiệp!', 'error');
+      return;
+    }
+
+    setIsLoading(true);
+    const res = await businessApi.registerBusiness({
+      name: formData.name.trim(),
+      taxCode: formData.taxCode.trim(),
+      address: formData.address.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone.trim(),
+      businessType: 'CORPORATION',
+    });
+    setIsLoading(false);
+
+    if (res.success) {
+      showToast('Nộp hồ sơ doanh nghiệp thành công! Đang chờ Admin HUKI phê duyệt.', 'success');
+      setBusiness(res.data);
+      await refreshBusiness();
+      navigate('/seller/business/status', { replace: true });
+    } else {
+      showToast(res.error?.message || 'Đăng ký doanh nghiệp thất bại. Vui lòng kiểm tra lại.', 'error');
+    }
+  };
+
+  if (isChecking) {
+    return <BusinessState title="Đang kiểm tra hồ sơ doanh nghiệp…" icon="progress_activity" spinning />;
+  }
+
+  if (business) {
+    const statusContent = {
+      PENDING_APPROVAL: {
+        title: 'Hồ sơ đang chờ phê duyệt',
+        description: 'Admin HUKI đang thẩm định hồ sơ. Bạn có thể tạo cửa hàng sau khi doanh nghiệp được duyệt.',
+        icon: 'hourglass_top',
+        tone: 'amber',
+      },
+      APPROVED: {
+        title: 'Doanh nghiệp đã được phê duyệt',
+        description: 'Hồ sơ hợp lệ. Bạn có thể tiếp tục tạo và quản lý cửa hàng.',
+        icon: 'verified',
+        tone: 'emerald',
+      },
+      REJECTED: {
+        title: 'Hồ sơ chưa được chấp thuận',
+        description: 'Vui lòng liên hệ bộ phận hỗ trợ đối tác để được hướng dẫn cập nhật hồ sơ.',
+        icon: 'cancel',
+        tone: 'red',
+      },
+      SUSPENDED: {
+        title: 'Doanh nghiệp đang bị tạm ngưng',
+        description: 'Các quyền bán hàng tạm thời bị khóa. Vui lòng liên hệ Admin HUKI.',
+        icon: 'pause_circle',
+        tone: 'red',
+      },
+    }[business.status];
+
+    return (
+      <BusinessState
+        {...statusContent}
+        business={business}
+        action={business.status === 'APPROVED' ? () => navigate('/seller/stores') : undefined}
+        actionLabel="Quản lý cửa hàng"
+      />
+    );
+  }
+
   return (
     <div className="w-full bg-[#fbf9f5] text-on-surface font-body-md antialiased min-h-screen py-6">
       <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-4 lg:px-12 max-w-[1680px] mx-auto w-full">
@@ -112,7 +211,7 @@ export default function SellerRegisterPage() {
 <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
 </Link>
 </div>
-<form className="space-y-8" onsubmit="event.preventDefault();">
+<form className="space-y-8" onSubmit={handleSubmit}>
 
 <div className="border-b border-[#e8e5df] pb-8">
 <div className="flex items-center gap-2 mb-1">
@@ -129,7 +228,13 @@ export default function SellerRegisterPage() {
                       Tên doanh nghiệp / Tên pháp lý chính thức <span className="text-error">*</span>
 </label>
 <div className="relative">
-<input className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary transition-all" type="text" value="CÔNG TY TNHH PHÁT HÀNH SÁCH VÀ NỘI DUNG SỐ TRÍ TUỆ VIỆT" />
+<input
+  className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary transition-all"
+  type="text"
+  required
+  value={formData.name}
+  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+/>
 <span className="absolute right-3.5 top-3 text-tertiary material-symbols-outlined text-[20px]">check_circle</span>
 </div>
 <p className="font-body-sm text-[12px] text-[#6b7280] mt-1.5 flex items-center gap-1">
@@ -141,70 +246,38 @@ export default function SellerRegisterPage() {
 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 <div>
 <label className="block font-title-md text-xs text-on-surface mb-2">
-                        Mã số doanh nghiệp (MSDN) <span className="text-error">*</span>
+                        Mã số thuế (MST) <span className="text-error">*</span>
 </label>
-<input className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary" type="text" value="0318926410" />
-</div>
-<div>
-<div className="flex items-center justify-between mb-2">
-<label className="font-title-md text-xs text-on-surface">
-                          Mã số thuế (MST) <span className="text-error">*</span>
-</label>
-<span className="font-label-sm text-[11px] text-tertiary bg-tertiary-container/10 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
-<span className="material-symbols-outlined text-[13px]">done</span> Định dạng hợp lệ
-                        </span>
-</div>
-<input className="w-full h-12 px-4 rounded-xl border border-tertiary bg-[#f2fbf9] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary font-mono" type="text" value="0318926410" />
-</div>
-</div>
-
-<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-<div>
-<label className="block font-title-md text-xs text-on-surface mb-2">
-                        Ngày cấp / Ngày thành lập <span className="text-error">*</span>
-</label>
-<div className="relative">
-<input className="w-full h-12 px-4 pl-11 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary" type="text" value="15/04/2021" />
-<span className="absolute left-3.5 top-3 text-[#6b7280] material-symbols-outlined text-[20px]">calendar_today</span>
-</div>
+<input
+  className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary"
+  type="text"
+  value={formData.taxCode}
+  onChange={(e) => setFormData({ ...formData, taxCode: e.target.value })}
+/>
 </div>
 <div>
 <label className="block font-title-md text-xs text-on-surface mb-2">
-                        Lĩnh vực hoạt động chính <span className="text-error">*</span>
+                        Số điện thoại liên hệ <span className="text-error">*</span>
 </label>
-<div className="relative">
-<select className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary appearance-none pr-10">
-<option>Kinh doanh sách, xuất bản phẩm &amp; nội dung số</option>
-<option>Nhà xuất bản sách giáo dục &amp; đại học</option>
-<option>Đại lý phát hành &amp; phân phối sách nhập khẩu</option>
-<option>Tổ hợp dịch thuật và sáng tác độc lập</option>
-</select>
-<span className="absolute right-3.5 top-3 text-[#6b7280] material-symbols-outlined text-[20px] pointer-events-none">expand_more</span>
-</div>
+<input
+  className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary"
+  type="tel"
+  value={formData.phone}
+  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+/>
 </div>
 </div>
 
 <div>
 <label className="block font-title-md text-xs text-on-surface mb-2">
-                      Website chính thức của doanh nghiệp <span className="text-[#8d706b] font-normal">(Tùy chọn)</span>
+                      Email doanh nghiệp <span className="text-error">*</span>
 </label>
-<div className="relative">
-<input className="w-full h-12 px-4 pl-11 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary" type="url" value="https://trituevietbooks.vn" />
-<span className="absolute left-3.5 top-3 text-[#6b7280] material-symbols-outlined text-[20px]">language</span>
-</div>
-</div>
-
-<div>
-<div className="flex items-center justify-between mb-2">
-<label className="font-title-md text-xs text-on-surface">
-                        Mô tả tóm tắt định hướng sách &amp; xuất bản <span className="text-error">*</span>
-</label>
-<span className="font-label-sm text-[11px] text-[#6b7280]">184 / 500 ký tự</span>
-</div>
-<textarea className="w-full p-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary" rows="3">Chuyên phân phối các dòng sách kinh tế, tư duy, tâm lý ứng dụng và phát triển bản thân có bản quyền quốc tế và dịch thuật tiếng Việt, kết hợp cả sách giấy cao cấp và ebook có DRM.</textarea>
-<p className="font-body-sm text-[12px] text-[#6b7280] mt-1">
-                      Nội dung này giúp Ban Thư ký Xuất bản HUKI xem xét danh mục thể loại và cấp hạn mức băng thông phát hành sách điện tử phù hợp.
-                    </p>
+<input
+  className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary"
+  type="email"
+  value={formData.email}
+  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+/>
 </div>
 </div>
 </div>
@@ -214,79 +287,40 @@ export default function SellerRegisterPage() {
 <span className="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
 <h2 className="font-headline-sm text-headline-sm text-on-surface font-semibold">2. Địa Chỉ Đăng Ký Kinh Doanh (Trụ sở chính)</h2>
 </div>
-<p className="font-body-sm text-xs text-[#6b7280] mb-6 pl-4">
-                  Địa chỉ phục vụ đối soát pháp lý hợp đồng phát hành, xuất hóa đơn VAT điện tử và gửi thông báo hành chính.
-                </p>
 <div className="space-y-5">
-
-<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-<div>
-<label className="block font-title-md text-xs text-on-surface mb-2">Tỉnh / Thành phố <span className="text-error">*</span></label>
-<div className="relative">
-<select className="w-full h-12 px-3 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary appearance-none pr-9">
-<option>TP. Hồ Chí Minh</option>
-<option>TP. Hà Nội</option>
-<option>TP. Đà Nẵng</option>
-<option>TP. Cần Thơ</option>
-</select>
-<span className="absolute right-2.5 top-3 text-[#6b7280] material-symbols-outlined text-[18px] pointer-events-none">expand_more</span>
-</div>
-</div>
-<div>
-<label className="block font-title-md text-xs text-on-surface mb-2">Quận / Huyện <span className="text-error">*</span></label>
-<div className="relative">
-<select className="w-full h-12 px-3 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary appearance-none pr-9">
-<option>Quận 1</option>
-<option>Quận 3</option>
-<option>Quận Bình Thạnh</option>
-<option>TP. Thủ Đức</option>
-</select>
-<span className="absolute right-2.5 top-3 text-[#6b7280] material-symbols-outlined text-[18px] pointer-events-none">expand_more</span>
-</div>
-</div>
-<div>
-<label className="block font-title-md text-xs text-on-surface mb-2">Phường / Xã <span className="text-error">*</span></label>
-<div className="relative">
-<select className="w-full h-12 px-3 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary appearance-none pr-9">
-<option>Phường Bến Nghé</option>
-<option>Phường Đa Kao</option>
-<option>Phường Bến Thành</option>
-</select>
-<span className="absolute right-2.5 top-3 text-[#6b7280] material-symbols-outlined text-[18px] pointer-events-none">expand_more</span>
-</div>
-</div>
-</div>
-
 <div>
 <label className="block font-title-md text-xs text-on-surface mb-2">
-                      Địa chỉ chi tiết (Số nhà, tên đường, tòa nhà) <span className="text-error">*</span>
+                      Địa chỉ chi tiết <span className="text-error">*</span>
 </label>
-<input className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary" type="text" value="Tầng 6, Tòa nhà Văn phòng Tri Thức, 45 Lê Duẩn" />
-</div>
-
-<div className="pt-2">
-<label className="flex items-start gap-3 cursor-pointer select-none">
-<input defaultChecked className="mt-1 w-4 h-4 text-tertiary rounded border-[#8d706b] focus:ring-tertiary" type="checkbox" />
-<span className="font-body-md text-sm text-on-surface">
-                        Tôi cam kết địa chỉ trụ sở chính trên hoàn toàn trùng khớp với thông tin ghi trong Giấy phép đăng ký kinh doanh và sẵn sàng tiếp nhận kiểm tra thực tế nếu được yêu cầu.
-                      </span>
-</label>
+<input
+  className="w-full h-12 px-4 rounded-xl border border-[#e8e5df] bg-[#ffffff] font-body-md text-sm text-on-surface focus:border-tertiary focus:ring-1 focus:ring-tertiary"
+  type="text"
+  value={formData.address}
+  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+/>
 </div>
 </div>
 </div>
 
 <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-<button className="w-full sm:w-auto px-5 py-3 rounded-xl border border-[#e8e5df] bg-surface-container-lowest hover:bg-[#fbf9f5] text-on-surface font-title-md text-xs flex items-center justify-center gap-2 transition-all shadow-sm" type="button">
+<button className="w-full sm:w-auto px-5 py-3 rounded-xl border border-[#e8e5df] bg-surface-container-lowest hover:bg-[#fbf9f5] text-on-surface font-title-md text-xs flex items-center justify-center gap-2 transition-all shadow-sm" type="button" onClick={() => navigate('/seller')}>
 <span className="material-symbols-outlined text-[18px]">arrow_back</span>
-<span>Quay Lại (Bước 1: Loại Đơn Vị)</span>
+<span>Hủy &amp; Quay Lại</span>
 </button>
 <div className="flex items-center gap-3 w-full sm:w-auto">
-<button className="w-full sm:w-auto px-5 py-3 rounded-xl border border-[#e8e5df] bg-[#ffffff] hover:bg-surface-container-low text-on-surface font-title-md text-xs transition-all" type="button">
-                    Lưu Bản Nháp
-                  </button>
-<button className="w-full sm:w-auto px-7 py-3 rounded-xl bg-tertiary hover:bg-[#004D38] text-on-tertiary font-title-md text-xs flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,105,83,0.3)] hover:shadow-lg transition-all" type="button">
-<span>Tiếp Tục: Người Đại Diện</span>
-<span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+<button
+  type="submit"
+  disabled={isLoading}
+  className="w-full sm:w-auto px-7 py-3 rounded-xl bg-tertiary hover:bg-[#004D38] text-on-tertiary font-title-md text-xs flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(0,105,83,0.3)] hover:shadow-lg transition-all cursor-pointer disabled:opacity-70"
+>
+  {isLoading ? (
+    <span>Đang gửi hồ sơ...</span>
+  ) : (
+    <>
+      <span className="material-symbols-outlined text-[18px]">send</span>
+      <span>Nộp Hồ Sơ Đăng Ký Doanh Nghiệp</span>
+    </>
+  )}
 </button>
 </div>
 </div>
@@ -394,5 +428,35 @@ export default function SellerRegisterPage() {
 </div>
       </main>
     </div>
+  );
+}
+
+function BusinessState({ title, description, icon, tone = 'emerald', spinning = false, business, action, actionLabel }) {
+  const toneClass = tone === 'red'
+    ? 'bg-red-50 border-red-200 text-red-900'
+    : tone === 'amber'
+      ? 'bg-amber-50 border-amber-200 text-amber-900'
+      : 'bg-emerald-50 border-emerald-200 text-emerald-900';
+
+  return (
+    <main className="min-h-[70vh] bg-[#fbf9f5] px-4 py-16 flex items-center justify-center">
+      <section className={`w-full max-w-xl rounded-3xl border p-8 text-center shadow-sm ${toneClass}`} aria-live="polite">
+        <span className={`material-symbols-outlined text-5xl ${spinning ? 'animate-spin' : ''}`} aria-hidden="true">{icon}</span>
+        <h1 className="mt-4 font-editorial text-3xl font-bold">{title}</h1>
+        {description && <p className="mt-3 text-sm leading-6 opacity-80">{description}</p>}
+        {business && (
+          <dl className="mt-6 rounded-2xl bg-white/80 p-4 text-left text-sm">
+            <div className="flex justify-between gap-4"><dt>Doanh nghiệp</dt><dd className="font-bold text-right">{business.name}</dd></div>
+            <div className="mt-2 flex justify-between gap-4"><dt>Mã số thuế</dt><dd className="font-semibold">{business.taxCode || 'Chưa cung cấp'}</dd></div>
+            <div className="mt-2 flex justify-between gap-4"><dt>Trạng thái</dt><dd className="font-bold">{business.status}</dd></div>
+          </dl>
+        )}
+        {action && (
+          <button type="button" onClick={action} className="mt-6 min-h-11 rounded-xl bg-[#004d3b] px-6 py-3 text-sm font-bold text-white hover:bg-[#006650]">
+            {actionLabel}
+          </button>
+        )}
+      </section>
+    </main>
   );
 }

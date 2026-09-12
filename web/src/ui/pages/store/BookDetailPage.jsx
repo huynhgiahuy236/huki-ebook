@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
-import { booksData } from '../../data/mockData';
+import { catalogApi, toCatalogBook } from '../../api/catalogApi';
 
 export default function BookDetailPage() {
   const { id } = useParams();
@@ -15,11 +15,52 @@ export default function BookDetailPage() {
   const [activeTab, setActiveTab] = useState('intro'); // 'intro' | 'toc' | 'preview' | 'reviews'
   const [isWishlisted, setIsWishlisted] = useState(false);
   const [isExpandedIntro, setIsExpandedIntro] = useState(false);
+  const [book, setBook] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Tìm thông tin sách từ danh mục dữ liệu
-  const book = useMemo(() => {
-    return booksData.find(b => b.id === id) || booksData[0];
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id || '');
+      const res = isUuid ? await catalogApi.getBookById(id) : await catalogApi.getBookBySlug(id);
+      if (!active) return;
+      if (res.success && res.data) {
+        const normalized = toCatalogBook(res.data);
+        const hasPhysical = res.data.format === 'PHYSICAL' || res.data.format === 'BOTH';
+        const hasDigital = res.data.format === 'DIGITAL' || res.data.format === 'BOTH';
+        setBook({
+          ...normalized,
+          isbn: res.data.isbn,
+          category: normalized.categoryName,
+          priceEbook: hasDigital ? normalized.price : null,
+          originalPriceEbook: hasDigital ? normalized.price : null,
+          pricePaper: hasPhysical ? normalized.price : null,
+          originalPricePaper: hasPhysical ? normalized.price : null,
+          priceCombo: res.data.format === 'BOTH' ? normalized.price : null,
+          originalPriceCombo: res.data.format === 'BOTH' ? normalized.price : null,
+          rating: 0,
+          reviewCount: 0,
+          readCount: 0,
+          stock: res.data.physicalDetails?.stock ?? null,
+          hasPhysical,
+          hasDigital,
+        });
+        setSelectedFormat(res.data.format === 'PHYSICAL' ? 'physical' : res.data.format === 'BOTH' ? 'hybrid' : 'ebook');
+      } else {
+        setError(res.error?.message || 'Không tìm thấy sách hoặc sách chưa được xuất bản.');
+      }
+      setLoading(false);
+    };
+    load();
+    return () => { active = false; };
   }, [id]);
+
+  if (loading) return <DetailState icon="progress_activity" title="Đang tải thông tin sách…" spinning />;
+  if (error || !book) return <DetailState icon="menu_book" title="Không thể mở sách" description={error} />;
 
   // Cấu trúc giá theo 3 hình thức phát hành
   const formatPricing = {
@@ -27,8 +68,8 @@ export default function BookDetailPage() {
       type: 'ebook',
       title: 'Ebook Bản Quyền',
       subtitle: 'Đọc tức thì trên App & Web',
-      price: book.priceEbook || 79000,
-      originalPrice: book.originalPriceEbook || 149000,
+      price: book.priceEbook ?? 0,
+      originalPrice: book.originalPriceEbook ?? 0,
       badge: 'ĐỌC NGAY',
       icon: 'bolt',
       delivery: 'Kích hoạt ngay vào Tủ Sách cá nhân',
@@ -38,8 +79,8 @@ export default function BookDetailPage() {
       type: 'physical',
       title: 'Sách Giấy Bìa Mềm',
       subtitle: 'Giấy xốp ngà chống lóa',
-      price: book.pricePaper || 149000,
-      originalPrice: book.originalPricePaper || 189000,
+      price: book.pricePaper ?? 0,
+      originalPrice: book.originalPricePaper ?? 0,
       badge: 'GIAO TẬN NƠI',
       icon: 'local_shipping',
       delivery: 'Giao trong 2-3 ngày làm việc',
@@ -49,8 +90,8 @@ export default function BookDetailPage() {
       type: 'hybrid',
       title: 'Combo Giấy + Ebook',
       subtitle: 'Tiết kiệm nhất (-45%)',
-      price: book.priceCombo || 199000,
-      originalPrice: book.originalPriceCombo || 338000,
+      price: book.priceCombo ?? 0,
+      originalPrice: book.originalPriceCombo ?? 0,
       badge: 'TIẾT KIỆM 45%',
       icon: 'auto_awesome',
       delivery: 'Đọc Ebook ngay + Giao Sách Giấy',
@@ -59,9 +100,16 @@ export default function BookDetailPage() {
   };
 
   const currentPrice = formatPricing[selectedFormat];
-  const discountPercent = Math.round(((currentPrice.originalPrice - currentPrice.price) / currentPrice.originalPrice) * 100);
+  const discountPercent = currentPrice.originalPrice > 0
+    ? Math.round(((currentPrice.originalPrice - currentPrice.price) / currentPrice.originalPrice) * 100)
+    : 0;
+  const outOfStock = (selectedFormat === 'physical' || selectedFormat === 'hybrid') && book.stock !== null && book.stock <= 0;
 
   const handleAddToCart = () => {
+    if (outOfStock) {
+      showToast('Sản phẩm hiện đã hết hàng.', 'error');
+      return;
+    }
     addItem({
       id: `${book.id}-${selectedFormat}`,
       bookId: book.id,
@@ -173,7 +221,7 @@ export default function BookDetailPage() {
                   {book.category || 'Công nghệ & Đổi mới'}
                 </span>
                 <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-500 font-medium">ISBN: {book.isbn || '978-604-58-9123-4'}</span>
+                <span className="text-xs text-gray-500 font-medium">ISBN: {book.isbn || 'Chưa cập nhật'}</span>
               </div>
 
               <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-[#17201f] leading-snug">
@@ -191,12 +239,12 @@ export default function BookDetailPage() {
             <div className="flex items-center gap-4 py-2 border-y border-[#e8e5df] text-xs">
               <div className="flex items-center gap-1 text-[#fea619]">
                 <span className="material-symbols-outlined text-base fill">star</span>
-                <span className="font-bold text-[#17201f] text-sm">{book.rating || 5.0}</span>
-                <span className="text-gray-400">({(book.reviewCount || 1240).toLocaleString('vi-VN')} đánh giá)</span>
+                <span className="font-bold text-[#17201f] text-sm">{book.rating.toFixed(1)}</span>
+                <span className="text-gray-400">({book.reviewCount.toLocaleString('vi-VN')} đánh giá)</span>
               </div>
               <span className="text-gray-300">|</span>
               <span className="text-gray-600">
-                Đã bán <strong className="text-[#17201f]">{(book.readCount || 8500).toLocaleString('vi-VN')}</strong> bản
+                Đã bán <strong className="text-[#17201f]">{book.readCount.toLocaleString('vi-VN')}</strong> bản
               </span>
             </div>
 
@@ -204,26 +252,26 @@ export default function BookDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-center">
               <div className="bg-white p-2.5 rounded-xl border border-[#e8e5df]">
                 <span className="block text-gray-400 text-[10px]">Số trang</span>
-                <strong className="text-sm text-[#17201f]">{book.pages || 166}</strong>
+                <strong className="text-sm text-[#17201f]">—</strong>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-[#e8e5df]">
                 <span className="block text-gray-400 text-[10px]">Ngôn ngữ</span>
-                <strong className="text-sm text-[#17201f]">Tiếng Việt</strong>
+                <strong className="text-sm text-[#17201f]">—</strong>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-[#e8e5df]">
                 <span className="block text-gray-400 text-[10px]">Định dạng</span>
-                <strong className="text-sm text-[#006953]">PDF / EPUB</strong>
+                <strong className="text-sm text-[#006953]">{book.format}</strong>
               </div>
               <div className="bg-white p-2.5 rounded-xl border border-[#e8e5df]">
-                <span className="block text-gray-400 text-[10px]">Thiết bị</span>
-                <strong className="text-sm text-[#17201f]">5 Máy</strong>
+                <span className="block text-gray-400 text-[10px]">Tồn kho</span>
+                <strong className="text-sm text-[#17201f]">{book.stock === null ? 'Không áp dụng' : book.stock}</strong>
               </div>
             </div>
 
             {/* Concise Teaser Description */}
             <div className="bg-white p-4 rounded-2xl border border-[#e8e5df] text-xs text-gray-600 leading-relaxed">
               <p>
-                {book.description || 'Tác phẩm cung cấp cái nhìn sâu sắc và toàn diện về những chuyển dịch công nghệ và phương pháp tư duy đột phá.'}
+                {book.description || 'Chưa có mô tả cho tác phẩm này.'}
               </p>
             </div>
 
@@ -234,7 +282,11 @@ export default function BookDetailPage() {
               </span>
 
               <div className="grid grid-cols-3 gap-2.5">
-                {Object.values(formatPricing).map((fmt) => {
+                {Object.values(formatPricing).filter((fmt) => (
+                  fmt.type === 'hybrid' ? book.hasPhysical && book.hasDigital
+                    : fmt.type === 'physical' ? book.hasPhysical
+                      : book.hasDigital
+                )).map((fmt) => {
                   const isSelected = selectedFormat === fmt.type;
                   const isHybrid = fmt.type === 'hybrid';
                   return (
@@ -339,15 +391,17 @@ export default function BookDetailPage() {
               <div className="space-y-2 pt-1">
                 <button
                   onClick={handleBuyNow}
-                  className="w-full h-11 bg-[#006953] hover:bg-[#00523c] text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
+                  disabled={outOfStock}
+                  className="w-full h-11 bg-[#006953] hover:bg-[#00523c] disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2"
                 >
                   <span className="material-symbols-outlined text-lg">shopping_cart_checkout</span>
-                  Mua Ngay
+                  {outOfStock ? 'Hết hàng' : 'Mua Ngay'}
                 </button>
 
                 <button
                   onClick={handleAddToCart}
-                  className="w-full h-10 border border-[#006953] text-[#006953] hover:bg-[#006953]/5 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
+                  disabled={outOfStock}
+                  className="w-full h-10 border border-[#006953] text-[#006953] hover:bg-[#006953]/5 disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5"
                 >
                   <span className="material-symbols-outlined text-base">add_shopping_cart</span>
                   Thêm Vào Giỏ Hàng
@@ -393,14 +447,16 @@ export default function BookDetailPage() {
 
             <button
               onClick={() => setActiveTab('toc')}
+              disabled={!book.toc?.length}
+              aria-disabled={!book.toc?.length}
               className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors ${
                 activeTab === 'toc'
                   ? 'border-[#006953] text-[#006953] font-bold'
-                  : 'border-transparent text-gray-500 hover:text-gray-900'
+                  : 'border-transparent text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50'
               }`}
             >
               <span className="material-symbols-outlined text-base">format_list_bulleted</span>
-              Mục Lục ({book.toc?.length || 8} Chương)
+              Mục Lục ({book.toc?.length || 0} Chương)
             </button>
 
             <button
@@ -422,7 +478,7 @@ export default function BookDetailPage() {
               className="py-4 border-b-2 border-transparent flex items-center gap-1.5 whitespace-nowrap text-gray-400 opacity-60 cursor-not-allowed"
             >
               <span className="material-symbols-outlined text-base">star</span>
-              Đánh Giá ({(book.reviewCount || 1240).toLocaleString('vi-VN')})
+              Đánh Giá ({book.reviewCount.toLocaleString('vi-VN')})
             </button>
           </div>
 
@@ -431,10 +487,7 @@ export default function BookDetailPage() {
             <div className="p-6 sm:p-8 space-y-6">
               <div className="prose max-w-none text-sm text-gray-700 leading-relaxed space-y-4">
                 <p className="text-base font-medium text-gray-900">
-                  {book.description || 'Cuốn sách mang đến những góc nhìn mới mẻ và bài học giá trị cho độc giả trong kỷ nguyên số.'}
-                </p>
-                <p>
-                  Thông qua những phân tích thực tế và câu chuyện truyền cảm hứng, tác giả làm sáng tỏ cách các hệ thống vận hành và phương pháp để mỗi cá nhân có thể thích nghi, bứt phá và đạt được những thành tựu vượt bậc.
+                  {book.description || 'Chưa có mô tả cho tác phẩm này.'}
                 </p>
               </div>
 
@@ -442,20 +495,20 @@ export default function BookDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
                 <div className="p-4 rounded-xl bg-[#f8f6f1] border border-[#e8e5df]">
                   <span className="material-symbols-outlined text-2xl text-[#006953] mb-2">lightbulb</span>
-                  <h4 className="font-bold text-xs text-gray-900 mb-1">Tư duy hệ thống</h4>
-                  <p className="text-xs text-gray-600">Xây dựng quy trình bền vững thay vì chỉ phụ thuộc vào cảm hứng nhất thời.</p>
+                  <h4 className="font-bold text-xs text-gray-900 mb-1">Định dạng</h4>
+                  <p className="text-xs text-gray-600">{book.format}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#f8f6f1] border border-[#e8e5df]">
                   <span className="material-symbols-outlined text-2xl text-[#006953] mb-2">trending_up</span>
-                  <h4 className="font-bold text-xs text-gray-900 mb-1">Tích lũy giá trị</h4>
-                  <p className="text-xs text-gray-600">Cải thiện nhỏ mỗi ngày tạo nên kết quả vượt trội theo thời gian.</p>
+                  <h4 className="font-bold text-xs text-gray-900 mb-1">Tồn kho</h4>
+                  <p className="text-xs text-gray-600">{book.stock === null ? 'Không áp dụng' : `${book.stock} sản phẩm`}</p>
                 </div>
 
                 <div className="p-4 rounded-xl bg-[#f8f6f1] border border-[#e8e5df]">
                   <span className="material-symbols-outlined text-2xl text-[#006953] mb-2">verified</span>
-                  <h4 className="font-bold text-xs text-gray-900 mb-1">Ứng dụng thực tiễn</h4>
-                  <p className="text-xs text-gray-600">Các phương pháp đã được kiểm chứng và dễ dàng áp dụng ngay.</p>
+                  <h4 className="font-bold text-xs text-gray-900 mb-1">Nhà xuất bản</h4>
+                  <p className="text-xs text-gray-600">{book.publisher}</p>
                 </div>
               </div>
             </div>
@@ -465,13 +518,7 @@ export default function BookDetailPage() {
           {activeTab === 'toc' && (
             <div className="p-6 sm:p-8 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {(book.toc || [
-                  { id: 1, title: 'Phần I: Khởi đầu và nguyên lý căn bản', page: 1 },
-                  { id: 2, title: 'Phần II: Các quy luật và phương pháp thực thi', page: 24 },
-                  { id: 3, title: 'Phần III: Xây dựng hệ thống hiệu quả', page: 68 },
-                  { id: 4, title: 'Phần IV: Vượt qua rào cản và duy trì kỷ luật', page: 112 },
-                  { id: 5, title: 'Phần V: Kết luận và con đường phía trước', page: 150 }
-                ]).map((chap) => (
+                {(book.toc || []).map((chap) => (
                   <span
                     key={chap.id}
                     className="p-3.5 rounded-xl border border-gray-200 flex items-center justify-between text-xs opacity-50 cursor-not-allowed"
@@ -562,5 +609,18 @@ export default function BookDetailPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function DetailState({ icon, title, description, spinning = false }) {
+  return (
+    <main className="min-h-[70vh] bg-[#f8f6f1] px-4 py-16 flex items-center justify-center" role="status">
+      <section className="w-full max-w-lg rounded-2xl border border-[#dedbd3] bg-white p-8 text-center shadow-sm">
+        <span className={`material-symbols-outlined text-5xl text-[#006953] ${spinning ? 'animate-spin' : ''}`} aria-hidden="true">{icon}</span>
+        <h1 className="mt-4 font-editorial text-2xl font-bold">{title}</h1>
+        {description && <p className="mt-2 text-sm text-gray-600">{description}</p>}
+        {!spinning && <Link to="/books" className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-[#006953] px-5 py-3 text-sm font-bold text-white">Quay lại danh mục</Link>}
+      </section>
+    </main>
   );
 }

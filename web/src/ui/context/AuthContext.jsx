@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/authApi';
+import { businessApi } from '../api/businessApi';
 import { tokenStorage } from '../api/tokenStorage';
 import { can as canPermission } from '../utils/permissions';
 
@@ -12,6 +13,27 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState(null);
 
   const isLoggedIn = Boolean(user);
+
+  const hydrateBusiness = async (userData) => {
+    if (!userData || userData.role === 'PLATFORM_ADMIN') return userData;
+    const bizRes = await businessApi.getMyBusiness();
+    if (!bizRes.success || !bizRes.data) return userData;
+    if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
+    if (bizRes.data.status === 'APPROVED') {
+      const currentRefreshToken = tokenStorage.getRefreshToken();
+      if (currentRefreshToken) {
+        const tokenRes = await authApi.refreshToken(currentRefreshToken);
+        if (tokenRes.success && tokenRes.data?.accessToken && tokenRes.data?.refreshToken) {
+          tokenStorage.setTokens(tokenRes.data);
+        }
+      }
+    }
+    return {
+      ...userData,
+      business: bizRes.data,
+      hasApprovedBusiness: bizRes.data.status === 'APPROVED',
+    };
+  };
 
   // Bootstrap session khi ứng dụng tải
   useEffect(() => {
@@ -27,7 +49,8 @@ export const AuthProvider = ({ children }) => {
         const res = await authApi.getMe();
         if (isMounted) {
           if (res.success && res.data) {
-            const userData = res.data.user || res.data;
+            let userData = res.data.user || res.data;
+            userData = await hydrateBusiness(userData);
             setUser(userData);
             if (Array.isArray(userData?.memberships) && userData.memberships.length > 0) {
               setActiveBusinessId(userData.memberships[0].businessId);
@@ -63,11 +86,13 @@ export const AuthProvider = ({ children }) => {
         const rawData = res.data;
         const accessToken = rawData.accessToken || rawData.tokens?.accessToken;
         const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken;
-        const userData = rawData.user || rawData;
+        let userData = rawData.user || rawData;
 
         if (accessToken && refreshToken) {
           tokenStorage.setTokens({ accessToken, refreshToken });
         }
+
+        userData = await hydrateBusiness(userData);
 
         setUser(userData);
 
@@ -168,12 +193,20 @@ export const AuthProvider = ({ children }) => {
     return authApi.resendVerification(email);
   };
 
+  const refreshBusiness = async () => {
+    if (!user) return null;
+    const nextUser = await hydrateBusiness(user);
+    setUser(nextUser);
+    return nextUser?.business || null;
+  };
+
   // Kiểm tra Global Role (USER, BUSINESS, PLATFORM_ADMIN)
   const hasRole = (allowedRoles) => {
     if (!user) return false;
     const roles = Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles];
-    const mappedRole = user.role === 'PLATFORM_ADMIN' ? 'admin' : user.role === 'BUSINESS' ? 'seller' : 'reader';
-    return roles.includes(user.role) || roles.includes(mappedRole);
+    const isSellerOrBusiness = user.role === 'BUSINESS' || Boolean(user.hasApprovedBusiness);
+    const mappedRole = user.role === 'PLATFORM_ADMIN' ? 'admin' : isSellerOrBusiness ? 'seller' : 'reader';
+    return roles.includes(user.role) || roles.includes(mappedRole) || (isSellerOrBusiness && (roles.includes('BUSINESS') || roles.includes('seller')));
   };
 
   // Kiểm tra Granular Permission
@@ -195,6 +228,7 @@ export const AuthProvider = ({ children }) => {
       changePassword,
       verifyEmail,
       resendVerification,
+      refreshBusiness,
       hasRole,
       hasPermission,
       can: (permission, bizId) => canPermission(permission, bizId || activeBusinessId, user),
