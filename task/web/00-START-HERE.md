@@ -2,16 +2,16 @@
 
 ## 1. Việc đang tập trung
 
-`Phase 01` đang `🟢 IN_PROGRESS`: typed API client, session/auth thật và permission contract. Không mở rộng mock UI trước khi foundation này chạy được.
+`Phase 01` đã `✅ DONE`: typed API client, session/auth thật và permission contract. 
 
 | Hạng mục | Status | Việc tiếp theo |
 |---|---|---|
-| Next.js shell/UI baseline | 🟡 PARTIAL | Giữ parity, tách dần khỏi compatibility layer |
+| Next.js shell/UI baseline | ✅ DONE | Giữ parity, kết nối trực tiếp web/src |
 | Backend runtime | ✅ DONE | Dùng Gateway `http://localhost:3000/api/v1` |
-| Typed API client | 🔴 TODO | Response envelope, error mapping, auth headers/cookie |
-| Auth browser integration | 🔴 TODO | Login → `/auth/me` → refresh → logout |
-| Granular business permission | 🔴 TODO | Chốt permission catalog và enforcement |
-| Happy-case screen verified | 🔴 TODO | Hiện `0` screen đạt DoD |
+| Typed API client | ✅ DONE | Response envelope, error mapping, auth headers, correlation ID |
+| Auth browser integration | ✅ DONE | Login → `/auth/me` → refresh → logout |
+| Granular business permission | ✅ DONE | Permission catalog và helper `can()` enforcement |
+| Happy-case screen verified | 🟡 PARTIAL | `AUT-001 Login` đạt DoD kết nối API thật |
 
 ## 2. Happy case duy nhất
 

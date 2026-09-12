@@ -26,7 +26,7 @@
 | API family | Persona | Phase | Status | Permission/test bắt buộc |
 |---|---|---|---|---|
 | Identity register/verify/resend | Guest | P02 | 🟡 PARTIAL | Auth E2E |
-| Login/me/refresh/logout | All signed-in | P01-P02 | 🔴 TODO | Session E2E |
+| Login/me/refresh/logout | All signed-in | P01-P02 | ✅ DONE | Session E2E |
 | Provision Admin con | Owner | P06 | 🔴 TODO | Owner-only; không invitation |
 | Forced password change | Admin con | P02/P06 | 🔴 TODO | One-time credential test |
 | Member list/detail/suspend/reset | Owner | P06 | 🔴 TODO | Tenant isolation |
