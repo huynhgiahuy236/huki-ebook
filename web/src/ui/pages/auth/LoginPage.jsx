@@ -6,53 +6,66 @@ import { useToast } from '../../context/ToastContext';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, switchDemoAccount, DEMO_ACCOUNTS } = useAuth();
+  const { login, authError } = useAuth();
   const { showToast } = useToast();
 
   const [loginMethod, setLoginMethod] = useState('password'); // 'password' | 'otp' | 'passkey'
-  const [emailOrPhone, setEmailOrPhone] = useState(import.meta.env.DEV ? 'nguyenvanan@huki.vn' : '');
-  const [password, setPassword] = useState(import.meta.env.DEV ? 'demo1234' : '');
+  const [emailOrPhone, setEmailOrPhone] = useState(process.env.NODE_ENV === 'development' ? 'user@huki.com' : '');
+  const [password, setPassword] = useState(process.env.NODE_ENV === 'development' ? 'User123!' : '');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const redirectPath = location.state?.from || '/';
 
-  const handleSubmit = (e) => {
+  const fillCredentials = (email, pass) => {
+    setEmailOrPhone(email);
+    setPassword(pass);
+    setErrorMessage('');
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage('');
+
     if (!emailOrPhone.trim()) {
-      showToast('Vui lòng nhập Email hoặc Số điện thoại!', 'error');
+      const msg = 'Vui lòng nhập Email hợp lệ!';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
       return;
     }
     if (loginMethod === 'password' && !password.trim()) {
-      showToast('Vui lòng nhập mật khẩu tài khoản!', 'error');
+      const msg = 'Vui lòng nhập mật khẩu tài khoản!';
+      setErrorMessage(msg);
+      showToast(msg, 'error');
       return;
     }
 
-    setIsLoading(true);
-    setTimeout(() => {
-      const res = login(emailOrPhone, password);
-      setIsLoading(false);
-      if (res.success) {
-        showToast(`Đăng nhập thành công! Chào mừng trở lại, ${res.user.name}.`, 'success');
+    setIsSubmitting(true);
+    const res = await login(emailOrPhone.trim(), password);
+    setIsSubmitting(false);
+
+    if (res.success && res.user) {
+      showToast(`Đăng nhập thành công! Chào mừng trở lại, ${res.user.fullName || res.user.email}.`, 'success');
+      if (res.user.mustChangePassword) {
+        navigate('/change-password');
+      } else if (res.user.role === 'PLATFORM_ADMIN') {
+        navigate('/admin');
+      } else if (res.user.role === 'BUSINESS') {
+        navigate(location.state?.from || '/seller/dashboard');
+      } else {
         navigate(redirectPath);
       }
-    }, 600);
-  };
-
-  const handleQuickLogin = (roleKey) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      switchDemoAccount(roleKey);
-      setIsLoading(false);
-      const acc = DEMO_ACCOUNTS[roleKey];
-      showToast(`Đăng nhập nhanh với quyền: ${acc.role}`, 'success');
-      navigate(location.state?.from || (roleKey === 'seller' ? '/seller/dashboard' : '/'));
-    }, 400);
+    } else {
+      const errorMsg = res.error || authError || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.';
+      setErrorMessage(errorMsg);
+      showToast(errorMsg, 'error');
+    }
   };
 
   return (
-    <main id="main-content" tabIndex="-1" className="min-h-dvh w-full bg-white outline-none">
+    <main id="main-content" tabIndex={-1} className="min-h-dvh w-full bg-white outline-none">
       <div className="grid min-h-dvh w-full grid-cols-1 overflow-hidden bg-white lg:grid-cols-12">
         
         {/* Left Column: Brand & Editorial Identity */}
@@ -178,41 +191,55 @@ export default function LoginPage() {
               </button>
             </div>
 
-            {/* Quick Demo Accounts 1-Click bar */}
-            {import.meta.env.DEV && <div className="mb-6 p-3 bg-[#f8f6f1] rounded-2xl border border-[#e8e5df]">
-              <div className="flex items-center justify-between text-[11px] font-bold text-[#684000] mb-2">
-                <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm text-[#fea619]">bolt</span>
-                  Đăng nhập nhanh 1-Click (Tài khoản mẫu):
-                </span>
-                <span className="text-[10px] text-[#6b7280] font-normal">Dành cho trải nghiệm</span>
+            {/* Quick Test Credentials bar (Dev mode) */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mb-5 p-3 bg-[#f8f6f1] rounded-2xl border border-[#e8e5df]">
+                <div className="flex items-center justify-between text-[11px] font-bold text-[#684000] mb-2">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm text-[#fea619]">bolt</span>
+                    Chọn tài khoản mẫu Backend để test:
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => fillCredentials('user@huki.com', 'User123!')}
+                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#003b2b] hover:text-white text-[#003b2b] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
+                  >
+                    <span>User/Buyer</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fillCredentials('business@huki.com', 'Business123!')}
+                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#ac2c19] hover:text-white text-[#ac2c19] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
+                  >
+                    <span>Business</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fillCredentials('admin@huki.com', 'Admin123!')}
+                    className="px-2 py-1.5 rounded-xl bg-white hover:bg-[#4338ca] hover:text-white text-[#4338ca] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center justify-center gap-1 shadow-2xs"
+                  >
+                    <span>Admin HUKI</span>
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('reader')}
-                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#003b2b] hover:text-white text-[#003b2b] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs group"
-                >
-                  <span className="w-2 h-2 rounded-full bg-[#006953] group-hover:bg-[#94f5d6]"></span>
-                  <span className="truncate">Độc giả VIP (Gold)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('seller')}
-                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-[#ac2c19] hover:text-white text-[#ac2c19] border border-[#e8e5df] text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs group"
-                >
-                  <span className="w-2 h-2 rounded-full bg-[#ac2c19] group-hover:bg-white"></span>
-                  <span className="truncate">Nhà Xuất Bản / Tác Giả</span>
-                </button>
+            )}
+
+            {/* Error Message Box */}
+            {errorMessage && (
+              <div className="mb-4 p-3.5 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-700 flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg text-red-600">error</span>
+                <span className="flex-1">{errorMessage}</span>
               </div>
-            </div>}
+            )}
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email / Phone Field */}
               <div>
                 <label className="block text-xs font-bold text-[#17201f] mb-1.5">
-                  Email hoặc Số điện thoại
+                  Email tài khoản
                 </label>
                 <div className="relative flex items-center">
                   <span className="material-symbols-outlined absolute left-3.5 text-[#6b7280] text-lg pointer-events-none">
@@ -222,7 +249,7 @@ export default function LoginPage() {
                     type="text"
                     value={emailOrPhone}
                     onChange={(e) => setEmailOrPhone(e.target.value)}
-                    placeholder="nguyenvanan@huki.vn hoặc 0912 345 678"
+                    placeholder="user@huki.com hoặc email đăng ký..."
                     className="w-full bg-[#fbf9f4] border border-[#e8e5df] rounded-2xl pl-10 pr-4 py-2.5 text-sm text-[#17201f] placeholder-[#9ca3af] focus:bg-white focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 outline-none transition-all"
                   />
                 </div>
@@ -268,32 +295,6 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {/* Method is OTP */}
-              {loginMethod === 'otp' && (
-                <div className="p-3.5 bg-[#f2fbf9] rounded-2xl border border-[#94f5d6]/50 text-xs text-[#006953]">
-                  <p className="flex items-center gap-1.5 font-bold mb-1">
-                    <span className="material-symbols-outlined text-base">info</span>
-                    Xác thực một chạm không cần nhớ mật khẩu
-                  </p>
-                  <p className="text-[11px] text-[#17201f]/80 leading-relaxed">
-                    Hệ thống sẽ gửi mã xác thực 6 số qua tin nhắn SMS/Zalo ZNS đến số điện thoại đã đăng ký.
-                  </p>
-                </div>
-              )}
-
-              {/* Method is Passkey */}
-              {loginMethod === 'passkey' && (
-                <div className="p-4 bg-[#f8f6f1] rounded-2xl border border-[#e8e5df] text-center">
-                  <div className="w-12 h-12 rounded-full bg-[#003b2b]/10 text-[#003b2b] flex items-center justify-center mx-auto mb-2">
-                    <span className="material-symbols-outlined text-2xl">fingerprint</span>
-                  </div>
-                  <h4 className="text-xs font-bold text-[#17201f] mb-1">Đăng nhập bằng Sinh trắc học</h4>
-                  <p className="text-[11px] text-[#6b7280] max-w-xs mx-auto mb-3">
-                    Sử dụng TouchID, FaceID hoặc Windows Hello đã liên kết với thiết bị này.
-                  </p>
-                </div>
-              )}
-
               {/* Remember Me & Terms */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-[#17201f]">
@@ -310,18 +311,18 @@ export default function LoginPage() {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="w-full bg-[#003b2b] text-white py-3 rounded-2xl text-sm font-bold hover:bg-[#00523c] active:scale-[0.99] transition-all shadow-md flex items-center justify-center gap-2 disabled:opacity-70 cursor-pointer"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                    <span>Đang xác thực hệ thống...</span>
+                    <span>Đang kết nối Máy chủ API Gateway...</span>
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-lg">login</span>
-                    <span>{loginMethod === 'passkey' ? 'Xác thực Sinh Trắc Học' : 'Đăng Nhập HUKI'}</span>
+                    <span>Đăng Nhập HUKI</span>
                   </>
                 )}
               </button>
