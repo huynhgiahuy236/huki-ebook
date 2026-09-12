@@ -1,7 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 export default function ProfilePage() {
+  const { user } = useAuth();
+  const displayName = user?.name || user?.fullName || 'Nguyễn Minh Anh';
+  const displayEmail = user?.email || 'user@huki.com';
+  const displayUsername = user?.username || displayEmail.split('@')[0];
+  const displayRole = user?.role || (Array.isArray(user?.roles) ? user.roles.join(', ') : 'Độc giả tích cực');
+
   return (
     <div className="w-full min-h-screen flex flex-col font-body-md text-on-surface bg-theme-bg py-4 md:py-6">
       <div className="max-w-[1440px] w-full mx-auto px-4 md:px-6 pt-2 pb-2">
@@ -16,7 +23,7 @@ export default function ProfilePage() {
             <span className="text-outline-variant/80">/</span>
             <span className="hover:text-primary cursor-pointer">Độc giả</span>
             <span className="text-outline-variant/80">/</span>
-            <span className="text-on-surface font-semibold">Nguyễn Minh Anh (@minhanh.reads)</span>
+            <span className="text-on-surface font-semibold">{displayName} (@{displayUsername})</span>
           </nav>
           <div className="text-xs text-on-surface-variant flex items-center gap-1.5 bg-surface-container-lowest px-2.5 py-1 rounded-full border border-outline-variant/60">
             <span className="w-2 h-2 rounded-full bg-tertiary-container"></span>
@@ -67,20 +74,16 @@ export default function ProfilePage() {
 <div className="space-y-1.5 pt-2 sm:pt-3">
 <div className="flex flex-wrap items-center gap-2.5">
 <h1 className="font-headline-lg text-2xl sm:text-3xl font-bold text-on-surface leading-tight">
-                      Nguyễn Minh Anh
+                      {displayName}
                     </h1>
 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 font-label-sm font-semibold text-xs">
 <span className="material-symbols-outlined text-[13px] material-symbols-fill">verified</span>
-                      Độc giả tích cực
-                    </span>
-<span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-300 border border-amber-500/30 font-label-sm font-semibold text-xs">
-<span className="material-symbols-outlined text-[13px]">psychology</span>
-                      Chủ CLB Phát Triển Bản Thân
+                      {displayRole}
                     </span>
 </div>
 
 <div className="flex flex-wrap items-center gap-y-1 gap-x-3 text-xs sm:text-sm text-on-surface-variant">
-<span className="font-medium text-on-surface">@minhanh.reads</span>
+<span className="font-medium text-on-surface">@{displayUsername} ({displayEmail})</span>
 <span>•</span>
 <span className="inline-flex items-center gap-1">
 <span className="material-symbols-outlined text-sm">location_on</span>

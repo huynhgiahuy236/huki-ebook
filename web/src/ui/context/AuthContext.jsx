@@ -109,11 +109,15 @@ export const AuthProvider = ({ children }) => {
         const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken;
         const userData = rawData.user || rawData;
 
-        if (accessToken && refreshToken) {
+        // Chỉ lưu session & setUser khi có token và tài khoản đã ACTIVE (không PENDING)
+        if (accessToken && refreshToken && userData?.status === 'ACTIVE') {
           tokenStorage.setTokens({ accessToken, refreshToken });
+          setUser(userData);
+        } else {
+          tokenStorage.clearTokens();
+          setUser(null);
         }
 
-        setUser(userData);
         setIsLoading(false);
         return { success: true, user: userData };
       } else {
@@ -147,7 +151,21 @@ export const AuthProvider = ({ children }) => {
 
   // Đổi mật khẩu
   const changePassword = async (currentPassword, newPassword) => {
-    return authApi.changePassword({ currentPassword, newPassword });
+    const res = await authApi.changePassword({ currentPassword, newPassword });
+    if (res.success) {
+      setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : null));
+    }
+    return res;
+  };
+
+  // Xác thực Email
+  const verifyEmail = async (token) => {
+    return authApi.verifyEmail(token);
+  };
+
+  // Gửi lại Email xác thực
+  const resendVerification = async (email) => {
+    return authApi.resendVerification(email);
   };
 
   // Kiểm tra Global Role (USER, BUSINESS, PLATFORM_ADMIN)
@@ -175,6 +193,8 @@ export const AuthProvider = ({ children }) => {
       logout,
       register,
       changePassword,
+      verifyEmail,
+      resendVerification,
       hasRole,
       hasPermission,
       can: (permission, bizId) => canPermission(permission, bizId || activeBusinessId, user),

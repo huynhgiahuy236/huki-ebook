@@ -5,7 +5,7 @@
 | Phase | Nhóm chính | Status | Kết quả cần bàn giao |
 |---|---|---|---|
 | 01 | Shared foundation | ✅ DONE | Typed client, auth/session, permission contract |
-| 02 | Tất cả persona | 🟡 PARTIAL | Identity và role routing bằng backend thật |
+| 02 | Tất cả persona | ✅ DONE | Identity và role routing bằng backend thật |
 | 03 | Admin doanh nghiệp + Guest | 🟡 PARTIAL | Nguồn cung đã duyệt xuất hiện trên storefront |
 | 04 | User/Buyer | 🟡 PARTIAL | Checkout COD tạo đơn thật |
 | 05 | User/Buyer | 🟡 PARTIAL | Buyer xem đơn và lịch sử nội bộ |

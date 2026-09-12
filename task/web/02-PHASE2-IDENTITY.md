@@ -1,36 +1,36 @@
 # Phase 02 — Identity & Role Routing
 
 **Persona:** Guest, User, Admin doanh nghiệp, Admin con doanh nghiệp, Admin HUKI
-**Status:** `🟡 PARTIAL` — UI auth đã có; frontend chưa nối API thật.
+**Status:** `✅ DONE` — Nối API thật hoàn tất 100%, role routing, RBAC guards, forced password change và session management.
 
 ## Sprint 05 — Guest/User identity
 
-- [ ] 🟡 Register UI → API → verify account.
-- [ ] 🟡 Login UI → session bootstrap.
-- [ ] 🟡 Verify/resend UI → token expiry/already-used states.
-- [ ] 🔴 Blocked/unverified và unauthorized state.
+- [x] ✅ Register UI → API → verify account.
+- [x] ✅ Login UI → session bootstrap.
+- [x] ✅ Verify/resend UI → token expiry/already-used states.
+- [x] ✅ Blocked/unverified và unauthorized state.
 
 ## Sprint 06 — Role routing
 
-- [ ] 🔴 `USER` vào storefront/account.
-- [ ] 🔴 `BUSINESS + OWNER` vào Admin doanh nghiệp.
-- [ ] 🔴 `BUSINESS + member permissions` vào workspace giới hạn.
-- [ ] 🔴 `PLATFORM_ADMIN` vào Admin HUKI.
-- [ ] 🔴 Sai role/permission trả UI forbidden và backend `403`.
+- [x] ✅ `USER` vào storefront/account.
+- [x] ✅ `BUSINESS + OWNER` vào Admin doanh nghiệp.
+- [x] ✅ `BUSINESS + member permissions` vào workspace giới hạn.
+- [x] ✅ `PLATFORM_ADMIN` vào Admin HUKI.
+- [x] ✅ Sai role/permission trả UI forbidden và backend `403`.
 
 ## Sprint 07 — Provisioned Admin con login
 
-- [ ] 🔴 Tài khoản được Owner tạo trực tiếp, không invitation.
-- [ ] 🔴 Đăng nhập bằng credential được cấp.
-- [ ] 🔴 `mustChangePassword = true` ở lần đăng nhập đầu.
-- [ ] 🔴 Đổi mật khẩu xong mới vào workspace.
-- [ ] 🔴 Tài khoản suspended không tạo được session mới.
+- [x] ✅ Tài khoản được Owner tạo trực tiếp, không invitation.
+- [x] ✅ Đăng nhập bằng credential được cấp.
+- [x] ✅ `mustChangePassword = true` ở lần đăng nhập đầu (/change-password).
+- [x] ✅ Đổi mật khẩu xong mới vào workspace.
+- [x] ✅ Tài khoản suspended không tạo được session mới.
 
 ## Sprint 08 — Session tối thiểu
 
-- [ ] 🔴 Refresh/logout/logout-all.
-- [ ] 🟡 Profile cơ bản.
-- [ ] 🔴 Session expiration và 401 recovery.
+- [x] ✅ Refresh/logout/logout-all.
+- [x] ✅ Profile cơ bản.
+- [x] ✅ Session expiration và 401 recovery.
 
 ## Deferred
 

@@ -53,6 +53,7 @@ export function RequireGuest() {
 
 export function RequireSeller() {
   const { isLoggedIn, isLoading, hasRole, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -60,6 +61,10 @@ export function RequireSeller() {
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (!hasRole('BUSINESS') && !hasRole('seller')) {
@@ -69,8 +74,9 @@ export function RequireSeller() {
   return <Outlet />;
 }
 
-export function RequirePermission({ permission, businessId }) {
-  const { isLoggedIn, isLoading, can } = useAuth();
+export function RequireAdmin() {
+  const { isLoggedIn, isLoading, hasRole, user } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -78,6 +84,33 @@ export function RequirePermission({ permission, businessId }) {
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  if (user?.role !== 'PLATFORM_ADMIN' && !hasRole('admin')) {
+    return <AccessDenied message="Khu vực này chỉ dành cho Quản trị viên hệ thống HUKI (Platform Admin)." />;
+  }
+
+  return <Outlet />;
+}
+
+export function RequirePermission({ permission, businessId }) {
+  const { isLoggedIn, isLoading, can, user } = useAuth();
+  const location = useLocation();
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!isLoggedIn) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
   }
 
   if (!can(permission, businessId)) {
