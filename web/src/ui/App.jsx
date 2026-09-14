@@ -50,7 +50,8 @@ const OrderSuccessPage = page(() => import('./pages/store/OrderSuccessPage'));
 const ProfilePage = page(() => import('./pages/store/ProfilePage'));
 const UserAddressesPage = page(() => import('./pages/store/UserAddressesPage'));
 const UserSecurityPage = page(() => import('./pages/store/UserSecurityPage'));
-const OrderTrackingPage = page(() => import('./pages/store/OrderTrackingPage'));
+const OrdersPage = page(() => import('./pages/store/OrdersPage'));
+const OrderDetailPage = page(() => import('./pages/store/OrderDetailPage'));
 const OrderInvoicePage = page(() => import('./pages/store/OrderInvoicePage'));
 const OrderReviewPage = page(() => import('./pages/store/OrderReviewPage'));
 const OrderReturnPage = page(() => import('./pages/store/OrderReturnPage'));
@@ -78,15 +79,19 @@ const SellerProductsPage = page(() => import('./pages/seller/SellerProductsPage'
 const SellerOrdersPage = page(() => import('./pages/seller/SellerOrdersPage'));
 const SellerStoresPage = page(() => import('./pages/seller/SellerStoresPage'));
 const SellerChatPage = page(() => import('./pages/seller/SellerChatPage'));
-const SellerCreateEbook = page(() => import('./pages/seller/SellerCreateEbook'));
-const SellerCreatePhysical = page(() => import('./pages/seller/SellerCreatePhysical'));
 const SellerCreateHybrid = page(() => import('./pages/seller/SellerCreateHybrid'));
 const SellerEditHybrid = page(() => import('./pages/seller/SellerEditHybrid'));
 const SellerCorrection = page(() => import('./pages/seller/SellerCorrection'));
+const SellerStaffPage = page(() => import('./pages/seller/SellerStaffPage'));
 const EdgeCasesLibrary = page(() => import('./pages/seller/EdgeCasesLibrary'));
 
 // Admin
 const AdminDashboardPage = page(() => import('./pages/admin/AdminDashboardPage'));
+const AdminBusinessesPage = page(() => import('./pages/admin/AdminBusinessesPage'));
+const AdminStoresPage = page(() => import('./pages/admin/AdminStoresPage'));
+const AdminBooksPage = page(() => import('./pages/admin/AdminBooksPage'));
+const AdminCategoriesPage = page(() => import('./pages/admin/AdminCategoriesPage'));
+const AdminHealthPage = page(() => import('./pages/admin/AdminHealthPage'));
 const AdminPublisherLeadsPage = page(() => import('./pages/admin/AdminPublisherLeadsPage'));
 const AdminPublishersPage = page(() => import('./pages/admin/AdminPublishersPage'));
 const AdminBookModerationPage = page(() => import('./pages/admin/AdminBookModerationPage'));
@@ -230,8 +235,8 @@ export default function App() {
                   {/* Authenticated customer profile & orders */}
                   <Route element={<RequireAuth />}>
                     <Route path="/orders/:id/review" element={previewOnly(OrderReviewPage, 'Đánh giá sau mua')} />
-                    <Route path="/orders/:id" element={<OrderTrackingPage />} />
-                    <Route path="/orders" element={<OrderTrackingPage />} />
+                    <Route path="/orders/:id" element={<OrderDetailPage />} />
+                    <Route path="/orders" element={<OrdersPage />} />
                     <Route path="/order" element={<Navigate to="/orders" replace />} />
                     <Route path="/order/:id/review" element={<NavigateOrderAlias suffix="review" />} />
                     <Route path="/order/tracking/:id" element={<NavigateOrderAlias />} />
@@ -257,13 +262,15 @@ export default function App() {
                       <Route path="/seller/business" element={<SellerBusinessProfilePage />} />
                       <Route path="/seller/profile" element={<SellerBusinessProfilePage />} />
                       <Route path="/seller/orders" element={<SellerOrdersPage />} />
+                      <Route path="/seller/staff" element={<SellerStaffPage />} />
+                      <Route path="/seller/members" element={<Navigate to="/seller/staff" replace />} />
                       <Route path="/seller/stores" element={<Navigate to="/seller/business" replace />} />
                       <Route path="/seller/stores/new" element={<Navigate to="/seller/business" replace />} />
                       <Route path="/seller/chat" element={previewOnly(SellerChatPage, 'Chat người bán')} />
                       <Route path="/seller/products" element={<SellerProductsPage />} />
                       <Route path="/seller/product" element={<Navigate to="/seller/products" replace />} />
-                      <Route path="/seller/product/create-ebook" element={<SellerCreateEbook />} />
-                      <Route path="/seller/product/create-physical" element={<SellerCreatePhysical />} />
+                      <Route path="/seller/product/create-ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
+                      <Route path="/seller/product/create-physical" element={<SellerCreateHybrid initialFormat="PHYSICAL" />} />
                       <Route path="/seller/product/create-hybrid" element={<SellerCreateHybrid />} />
                       <Route path="/seller/product/edit-hybrid" element={<SellerEditHybrid />} />
                       <Route path="/seller/product/correction" element={previewOnly(SellerCorrection, 'Sửa lỗi sản phẩm')} />
@@ -278,11 +285,15 @@ export default function App() {
                     <Route element={<AdminLayout />}>
                       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-                      <Route path="/admin/leads" element={<AdminPublisherLeadsPage />} />
-                      <Route path="/admin/publishers" element={<AdminPublishersPage />} />
-                      <Route path="/admin/companies" element={<AdminPublishersPage />} />
-                      <Route path="/admin/businesses" element={<AdminPublishersPage />} />
-                      <Route path="/admin/stores" element={<AdminPublishersPage />} />
+                      <Route path="/admin/businesses" element={<AdminBusinessesPage />} />
+                      <Route path="/admin/leads" element={<AdminBusinessesPage />} />
+                      <Route path="/admin/companies" element={<AdminBusinessesPage />} />
+                      <Route path="/admin/publishers" element={<AdminBusinessesPage />} />
+                      <Route path="/admin/stores" element={<AdminStoresPage />} />
+                      <Route path="/admin/books" element={<AdminBooksPage />} />
+                      <Route path="/admin/categories" element={<AdminCategoriesPage />} />
+                      <Route path="/admin/health" element={<AdminHealthPage />} />
+                      <Route path="/admin/system/health" element={<AdminHealthPage />} />
                       <Route path="/admin/tasks" element={previewOnly(AdminBookModerationPage, 'Hàng chờ kiểm duyệt')} />
                       <Route path="/admin/moderation" element={previewOnly(AdminBookModerationPage, 'Hàng chờ kiểm duyệt')} />
                       <Route path="/admin/drm" element={previewOnly(AdminDrmVaultPage, 'Quản trị DRM')} />

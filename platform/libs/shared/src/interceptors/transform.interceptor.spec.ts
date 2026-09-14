@@ -118,6 +118,15 @@ describe('TransformInterceptor', () => {
     expect(result.message).toBe('OK');
   });
 
+  it('preserves items when it is a domain field without pagination', async () => {
+    const sellerOrder = { id: 'seller-order-1', status: 'CONFIRMED', items: [{ id: 'item-1' }] };
+    const result = await lastValueFrom(
+      interceptor.intercept(context(), { handle: () => of(sellerOrder) }),
+    );
+
+    expect(result.data).toEqual(sellerOrder);
+  });
+
   it('returns null data when only message is present', async () => {
     const result = await lastValueFrom(
       interceptor.intercept(context(), {

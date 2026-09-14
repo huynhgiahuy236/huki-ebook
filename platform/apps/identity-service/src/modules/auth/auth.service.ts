@@ -225,10 +225,12 @@ export class AuthService {
     }
 
     // Reset failed attempts on successful auth attempt
-    const activeUser = await this.prisma.user.update({
+    let activeUser = await this.prisma.user.update({
       where: { id: user!.id },
       data: { failedLoginAttempts: 0, lockedUntil: null },
     });
+
+    activeUser = await this.ensureBusinessRoleIfApproved(activeUser);
 
     // Generate tokens
     const tokens = await this.generateTokens(activeUser, {
@@ -300,11 +302,45 @@ export class AuthService {
         data: { replacedByTokenId: replacement.id },
       });
     });
+
+    let tokenUser = token!.session.user;
+    tokenUser = await this.ensureBusinessRoleIfApproved(tokenUser);
+
     return {
-      accessToken: this.signAccessToken(token!.session.user),
+      accessToken: this.signAccessToken(tokenUser),
       refreshToken,
       expiresIn: 900,
     };
+  }
+
+  private async ensureBusinessRoleIfApproved(user: User): Promise<User> {
+    if (user.role === UserRole.BUSINESS || user.role === UserRole.PLATFORM_ADMIN) {
+      return user;
+    }
+    try {
+      const { Client } = require('pg');
+      const bizDbUrl =
+        process.env.BUSINESS_DATABASE_URL ||
+        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      const pgClient = new Client({ connectionString: bizDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
+        "SELECT id FROM businesses WHERE owner_id = $1 AND status = 'APPROVED' AND deleted_at IS NULL LIMIT 1",
+        [user.id],
+      );
+      await pgClient.end();
+      if (res.rows.length > 0) {
+        const updated = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { role: UserRole.BUSINESS },
+        });
+        return updated;
+      }
+    } catch {
+      // ignore if business db is not reachable
+    }
+    return user;
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
@@ -434,7 +470,10 @@ export class AuthService {
 
   private sanitizeUser(user: User) {
     const isMustChangePassword =
-      (user.email === 'staff@huki.com' || (user as any).mustChangePassword === true) &&
+      (user.email === 'staff@huki.com' ||
+        (user as any).mustChangePassword === true ||
+        user.email?.startsWith('staff_') ||
+        user.email?.startsWith('thukho_')) &&
       !this.changedPasswordUserIds.has(user.id);
 
     return {

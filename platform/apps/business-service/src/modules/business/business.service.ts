@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateBusinessDto, UpdateBusinessDto } from './dto/business.dto';
-import { BusinessStatus, BusinessType, StoreStatus } from '../../../prisma/generated/client';
+import { BusinessStatus, BusinessType, StoreStatus, MemberStatus } from '../../../prisma/generated/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { throwConflict, throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
@@ -51,18 +51,35 @@ export class BusinessService {
     }
 
     // Create business
-    const business = await this.prisma.business.create({
-      data: {
-        name: dto.name,
-        email: dto.email,
-        phone: dto.phone,
-        address: dto.address,
-        taxCode: dto.taxCode,
-        businessType: dto.businessType as BusinessType,
-        ownerId: userId,
-        status: BusinessStatus.PENDING_APPROVAL,
-      },
-    });
+    let business;
+    try {
+      business = await this.prisma.business.create({
+        data: {
+          name: dto.name,
+          email: dto.email,
+          phone: dto.phone,
+          address: dto.address,
+          taxCode: dto.taxCode,
+          businessType: dto.businessType as BusinessType,
+          ownerId: userId,
+          status: BusinessStatus.PENDING_APPROVAL,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        const target = err?.meta?.target;
+        if (Array.isArray(target)) {
+          if (target.includes('tax_code') || target.includes('taxCode')) {
+            throwConflict(ErrorCode.BUSINESS_TAX_CODE_EXISTS, 'Mã số thuế này đã được đăng ký bởi một đơn vị khác trên hệ thống.');
+          }
+          if (target.includes('email')) {
+            throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Email doanh nghiệp này đã được đăng ký trên hệ thống.');
+          }
+        }
+        throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Thông tin doanh nghiệp bị trùng lặp với hồ sơ đã có.');
+      }
+      throw err;
+    }
 
     // Auto-create primary store for the business (1-to-1 unified model)
     const normalizedSlug = dto.name
@@ -152,7 +169,7 @@ export class BusinessService {
 
   async getBusinessByOwner(userId: string) {
     const business = await this.prisma.business.findFirst({
-      where: { ownerId: userId },
+      where: { ownerId: userId, deletedAt: null },
       include: {
         stores: {
           where: { deletedAt: null },
@@ -163,7 +180,45 @@ export class BusinessService {
       },
     });
 
-    return business;
+    if (business) {
+      return {
+        ...business,
+        currentMember: {
+          role: 'OWNER',
+          permissions: ['*'],
+        },
+      };
+    }
+
+    // Check if user is an active member of a business
+    const memberRecord = await this.prisma.member.findFirst({
+      where: { userId, status: MemberStatus.ACTIVE, deletedAt: null },
+      include: {
+        business: {
+          include: {
+            stores: {
+              where: { deletedAt: null },
+            },
+            members: {
+              where: { deletedAt: null },
+            },
+          },
+        },
+      },
+    });
+
+    if (memberRecord?.business) {
+      return {
+        ...memberRecord.business,
+        currentMember: {
+          id: memberRecord.id,
+          role: memberRecord.role,
+          permissions: memberRecord.permissions,
+        },
+      };
+    }
+
+    return null;
   }
 
   async getAllBusinesses(filters: {
@@ -283,14 +338,17 @@ export class BusinessService {
 
       try {
         const { Client } = require('pg');
-        const pgClient = new Client({
-          connectionString: process.env.IDENTITY_DATABASE_URL || 'postgresql://postgres:postgres123@localhost:5432/huki_identity'
-        });
+        const identityDbUrl =
+          process.env.IDENTITY_DATABASE_URL ||
+          process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_identity') ||
+          'postgresql://postgres:postgres123@localhost:5432/huki_identity';
+        const pgClient = new Client({ connectionString: identityDbUrl });
         await pgClient.connect();
         await pgClient.query('UPDATE users SET role = $1 WHERE id = $2', ['BUSINESS', business.ownerId]);
         await pgClient.end();
-      } catch (err) {
-        // Ignore pg error if identity db is handled via event
+        console.log(`[business.service] Successfully updated user ${business.ownerId} role to BUSINESS in identity database`);
+      } catch (err: any) {
+        console.error('[business.service] Warning: Failed to sync user role to identity database:', err?.message || err);
       }
     } else if (business) {
       await this.prisma.store.updateMany({

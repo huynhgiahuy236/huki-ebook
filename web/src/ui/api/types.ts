@@ -39,6 +39,8 @@ export interface UserSession {
   mustChangePassword?: boolean;
   memberships?: BusinessMembership[];
   avatarUrl?: string;
+  business?: any;
+  hasApprovedBusiness?: boolean;
 }
 
 export interface LoginResponseData {

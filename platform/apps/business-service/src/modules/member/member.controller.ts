@@ -12,7 +12,15 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MemberService } from './member.service';
-import { InviteMemberDto, AcceptInvitationDto, UpdateMemberRoleDto } from './dto/member.dto';
+import {
+  InviteMemberDto,
+  AcceptInvitationDto,
+  UpdateMemberRoleDto,
+  ProvisionMemberDto,
+  UpdateMemberPermissionsDto,
+  UpdateMemberStatusDto,
+  ResetMemberPasswordDto,
+} from './dto/member.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '@huki/shared/decorators';
 
@@ -22,6 +30,17 @@ import { CurrentUser } from '@huki/shared/decorators';
 @UseGuards(JwtAuthGuard)
 export class MemberController {
   constructor(private memberService: MemberService) {}
+
+  @Post('businesses/:businessId/members/provision')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Provision a new member directly (Owner only)' })
+  async provisionMember(
+    @Param('businessId') businessId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: ProvisionMemberDto,
+  ) {
+    return this.memberService.provisionMember(businessId, adminId, dto);
+  }
 
   @Post('businesses/:businessId/members/invite')
   @HttpCode(HttpStatus.CREATED)
@@ -61,6 +80,55 @@ export class MemberController {
     @Param('memberId') memberId: string,
   ) {
     return this.memberService.getMember(businessId, memberId);
+  }
+
+  @Patch('businesses/:businessId/members/:memberId/permissions')
+  @ApiOperation({ summary: 'Update member permissions (Owner only)' })
+  async updateMemberPermissions(
+    @Param('businessId') businessId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: UpdateMemberPermissionsDto,
+  ) {
+    return this.memberService.updateMemberPermissions(
+      businessId,
+      memberId,
+      adminId,
+      dto.permissions,
+    );
+  }
+
+  @Patch('businesses/:businessId/members/:memberId/status')
+  @ApiOperation({ summary: 'Update member status (Owner only)' })
+  async updateMemberStatus(
+    @Param('businessId') businessId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: UpdateMemberStatusDto,
+  ) {
+    return this.memberService.updateMemberStatus(
+      businessId,
+      memberId,
+      adminId,
+      dto.status,
+    );
+  }
+
+  @Post('businesses/:businessId/members/:memberId/reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reset member password (Owner only)' })
+  async resetMemberPassword(
+    @Param('businessId') businessId: string,
+    @Param('memberId') memberId: string,
+    @CurrentUser('id') adminId: string,
+    @Body() dto: ResetMemberPasswordDto,
+  ) {
+    return this.memberService.resetMemberPassword(
+      businessId,
+      memberId,
+      adminId,
+      dto.newPassword,
+    );
   }
 
   @Patch('businesses/:businessId/members/:memberId/role')

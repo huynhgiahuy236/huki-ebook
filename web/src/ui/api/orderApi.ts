@@ -27,11 +27,14 @@ export interface OrderItem {
 }
 
 export interface ShippingAddress {
+  recipientName?: string;
   fullName?: string;
   phone?: string;
+  line1?: string;
   address?: string;
   ward?: string;
   district?: string;
+  province?: string;
   city?: string;
   fullAddress?: string;
 }
@@ -69,6 +72,15 @@ export interface SellerOrder {
   updatedAt?: string;
   items: OrderItem[];
   order?: OrderBuyerInfo | null;
+  timeline?: Array<{
+    id?: string;
+    fromStatus?: string | null;
+    toStatus: string;
+    title?: string;
+    description?: string | null;
+    actorType?: string;
+    createdAt: string;
+  }>;
 }
 
 export interface OrderQuery {

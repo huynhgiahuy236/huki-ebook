@@ -4,15 +4,22 @@ import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import { catalogApi, CategoryData } from '../../api/catalogApi';
 import { businessApi } from '../../api/businessApi';
+import { can, PERMISSIONS } from '../../utils/permissions';
 
-export default function SellerCreateHybrid() {
+export default function SellerCreateHybrid({ initialFormat = 'BOTH' }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { user } = useAuth();
+  const { user, activeBusinessId } = useAuth();
+
+  const currentBizId = user?.business?.id || activeBusinessId;
+  const canCreateProduct = can(PERMISSIONS.PRODUCT_CREATE, currentBizId, user);
 
   const [categories, setCategories] = useState([]);
+  const [authors, setAuthors] = useState([]);
+  const [publishers, setPublishers] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSection, setActiveSection] = useState('sec-basic');
+  const [selectedFormat, setSelectedFormat] = useState(initialFormat); // 'BOTH' | 'PHYSICAL' | 'DIGITAL'
 
   // Form State
   const [form, setForm] = useState({
@@ -26,12 +33,15 @@ export default function SellerCreateHybrid() {
     pages: 320,
     sku: 'ALPHA-AH-HYBRID',
     categoryId: '',
+    authorId: '',
+    publisherId: '',
     authorName: 'James Clear',
     publisherName: user?.business?.name || 'Alpha Books Official',
     coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
     physicalPrice: 149000,
     originalPrice: 189000,
     ebookPrice: 79000,
+    comboPrice: 199000,
     stock: 50,
     weight: 450,
     allowOnlineRead: true,
@@ -48,13 +58,25 @@ export default function SellerCreateHybrid() {
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const res = await catalogApi.getCategories();
-        if (res.success && Array.isArray(res.data)) {
-          setCategories(res.data);
-          if (res.data.length > 0 && !form.categoryId) {
-            setForm(prev => ({ ...prev, categoryId: res.data[0].id }));
-          }
-        }
+        const [categoryRes, authorRes, publisherRes] = await Promise.all([
+          catalogApi.getCategories(),
+          catalogApi.getAuthors(),
+          catalogApi.getPublishers(),
+        ]);
+        const categoryData = categoryRes.success && Array.isArray(categoryRes.data) ? categoryRes.data : [];
+        const authorData = authorRes.success && Array.isArray(authorRes.data) ? authorRes.data : [];
+        const publisherData = publisherRes.success && Array.isArray(publisherRes.data) ? publisherRes.data : [];
+        setCategories(categoryData);
+        setAuthors(authorData);
+        setPublishers(publisherData);
+        setForm(prev => ({
+          ...prev,
+          categoryId: prev.categoryId || categoryData[0]?.id || '',
+          authorId: prev.authorId || authorData[0]?.id || '',
+          authorName: authorData.find(item => item.id === (prev.authorId || authorData[0]?.id))?.name || prev.authorName,
+          publisherId: prev.publisherId || publisherData[0]?.id || '',
+          publisherName: publisherData.find(item => item.id === (prev.publisherId || publisherData[0]?.id))?.name || prev.publisherName,
+        }));
       } catch (err) {
         console.warn('Could not load categories', err);
       }
@@ -93,9 +115,17 @@ export default function SellerCreateHybrid() {
       scrollToSection('sec-basic');
       return;
     }
-    if (!form.physicalPrice && !form.ebookPrice) {
-      showToast('Vui lòng nhập giá bán cho sách in hoặc ebook.', 'error');
+    const hasPhysical = selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH';
+    const hasDigital = selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH';
+    const sellingPrice = selectedFormat === 'BOTH' ? form.comboPrice : hasPhysical ? form.physicalPrice : form.ebookPrice;
+    if (!sellingPrice || sellingPrice < 0) {
+      showToast('Vui lòng nhập giá bán hợp lệ cho định dạng đã chọn.', 'error');
       scrollToSection('sec-pricing');
+      return;
+    }
+    if (hasDigital && !isDraft && !form.ebookFile) {
+      showToast('Vui lòng chọn tệp PDF Ebook trước khi xuất bản.', 'error');
+      scrollToSection('sec-drm');
       return;
     }
 
@@ -124,25 +154,27 @@ export default function SellerCreateHybrid() {
         title: form.title,
         isbn: form.isbn || undefined,
         description: form.description || form.teaser,
-        price: Number(form.physicalPrice || form.ebookPrice || 0),
-        format: 'BOTH',
+        price: Number(sellingPrice),
+        format: selectedFormat,
         categoryId: form.categoryId || undefined,
+        authorId: form.authorId || undefined,
+        publisherId: form.publisherId || undefined,
         coverUrl: form.coverUrl || undefined,
         businessId,
-        physicalDetails: {
+        ...(hasPhysical && { physicalDetails: {
           stock: Number(form.stock || 0),
           weight: Number(form.weight || 400),
           length: Number(form.length || 20.5),
           width: Number(form.width || 14.5),
           height: Number(form.height || 2.5),
           physicalEnabled: true,
-        },
-        digitalDetails: {
+        } }),
+        ...(hasDigital && { digitalDetails: {
           digitalEnabled: true,
           allowOnlineRead: form.allowOnlineRead,
           allowDownload: form.allowDownload,
           drmEnabled: form.drmEnabled,
-        },
+        } }),
       };
 
       const res = await catalogApi.createBook(payload);
@@ -150,8 +182,16 @@ export default function SellerCreateHybrid() {
       if (res.success && res.data?.id) {
         const bookId = res.data.id;
 
+        if (hasDigital && form.ebookFile) {
+          const uploadRes = await catalogApi.uploadBookFile(bookId, form.ebookFile);
+          if (!uploadRes.success) {
+            showToast(uploadRes.error?.message || 'Đã tạo bản nháp nhưng không thể tải tệp Ebook lên kho DRM.', 'error');
+            return;
+          }
+        }
+
         // Cập nhật tồn kho
-        if (Number(form.stock) > 0) {
+        if (hasPhysical && Number(form.stock) > 0) {
           try {
             await catalogApi.updateInventory(bookId, Number(form.stock));
           } catch (e) {
@@ -196,6 +236,28 @@ export default function SellerCreateHybrid() {
     { id: 'sec-drm', label: '07 Tệp Ebook DRM', completed: true, drm: true },
     { id: 'sec-publish', label: '08 Xuất Bản', completed: true }
   ];
+
+  if (!canCreateProduct) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/20 shadow-xs">
+          <span className="material-symbols-outlined text-3xl">lock</span>
+        </div>
+        <h2 className="text-xl font-bold font-editorial text-theme-on-surface mb-2">
+          Không Có Quyền Truy Cập (403 Forbidden)
+        </h2>
+        <p className="text-xs sm:text-sm text-theme-on-surface-variant max-w-md mb-6">
+          Tài khoản nhân viên của bạn chưa được cấp quyền đăng bán sản phẩm mới (`PRODUCT_CREATE`).
+        </p>
+        <Link
+          to="/seller/products"
+          className="px-4 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary/90 transition-all shadow-sm"
+        >
+          Quay lại Danh Sách Sản Phẩm
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen pt-6 pb-0 flex flex-col justify-between">
@@ -248,9 +310,10 @@ export default function SellerCreateHybrid() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
             {/* Physical */}
-            <Link
-              to="/seller/product/create-physical"
-              className="relative rounded-2xl border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group"
+            <button
+              type="button"
+              onClick={() => setSelectedFormat('PHYSICAL')}
+              className={`text-left relative rounded-2xl border p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group ${selectedFormat === 'PHYSICAL' ? 'border-primary bg-primary/[0.04] ring-4 ring-primary/10' : 'border-theme-border/80 bg-surface-container-lowest hover:border-primary/50 hover:bg-primary/[0.02]'}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -267,12 +330,13 @@ export default function SellerCreateHybrid() {
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Có tồn kho vật lý và đóng gói giao đến khách hàng qua các đối tác vận chuyển toàn quốc.
               </p>
-            </Link>
+            </button>
 
             {/* Ebook */}
-            <Link
-              to="/seller/product/create-ebook"
-              className="relative rounded-2xl border border-theme-border/80 hover:border-primary/50 bg-surface-container-lowest hover:bg-primary/[0.02] p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group"
+            <button
+              type="button"
+              onClick={() => setSelectedFormat('DIGITAL')}
+              className={`text-left relative rounded-2xl border p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between group ${selectedFormat === 'DIGITAL' ? 'border-primary bg-primary/[0.04] ring-4 ring-primary/10' : 'border-theme-border/80 bg-surface-container-lowest hover:border-primary/50 hover:bg-primary/[0.02]'}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -289,11 +353,13 @@ export default function SellerCreateHybrid() {
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Đọc trực tuyến trên HUKI Reader sau khi được cấp quyền DRM số. Không tốn phí kho bãi.
               </p>
-            </Link>
+            </button>
 
             {/* Hybrid */}
-            <div
-              className="relative rounded-2xl border-2 border-primary bg-primary/[0.04] p-5 shadow-md ring-4 ring-primary/10 flex flex-col justify-between"
+            <button
+              type="button"
+              onClick={() => setSelectedFormat('BOTH')}
+              className={`text-left relative rounded-2xl border p-5 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 flex flex-col justify-between ${selectedFormat === 'BOTH' ? 'border-primary bg-primary/[0.04] ring-4 ring-primary/10' : 'border-theme-border/80 bg-surface-container-lowest hover:border-primary/50 hover:bg-primary/[0.02]'}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
@@ -315,7 +381,7 @@ export default function SellerCreateHybrid() {
               <p className="text-xs text-on-surface-variant mt-3.5 leading-relaxed">
                 Cung cấp đồng thời cả hai định dạng trên cùng một trang sản phẩm với mức giá và quản lý độc lập.
               </p>
-            </div>
+            </button>
           </div>
         </div>
 
@@ -484,13 +550,33 @@ export default function SellerCreateHybrid() {
                 </div>
                 <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Tác giả <span className="text-primary">*</span></label>
-                  <input 
-                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all" 
-                    type="text" 
-                    value={form.authorName}
-                    onChange={(e) => handleChange('authorName', e.target.value)}
-                  />
+                  <select
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-semibold text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
+                    value={form.authorId}
+                    onChange={(e) => {
+                      handleChange('authorId', e.target.value);
+                      handleChange('authorName', authors.find(item => item.id === e.target.value)?.name || '');
+                    }}
+                  >
+                    <option value="">Chưa xác định tác giả</option>
+                    {authors.map(author => <option key={author.id} value={author.id}>{author.name}</option>)}
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Nhà xuất bản</label>
+                <select
+                  className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all"
+                  value={form.publisherId}
+                  onChange={(e) => {
+                    handleChange('publisherId', e.target.value);
+                    handleChange('publisherName', publishers.find(item => item.id === e.target.value)?.name || user?.business?.name || '');
+                  }}
+                >
+                  <option value="">Chưa xác định nhà xuất bản</option>
+                  {publishers.map(publisher => <option key={publisher.id} value={publisher.id}>{publisher.name}</option>)}
+                </select>
               </div>
 
               <div>
@@ -582,7 +668,7 @@ export default function SellerCreateHybrid() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
+                {(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH') && <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá Sách Giấy (VNĐ) *</label>
                   <input 
                     type="number"
@@ -590,8 +676,8 @@ export default function SellerCreateHybrid() {
                     onChange={(e) => handleChange('physicalPrice', Number(e.target.value))}
                     className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:outline-none"
                   />
-                </div>
-                <div>
+                </div>}
+                {(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH') && <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá Gốc Niêm Yết (VNĐ)</label>
                   <input 
                     type="number"
@@ -599,8 +685,8 @@ export default function SellerCreateHybrid() {
                     onChange={(e) => handleChange('originalPrice', Number(e.target.value))}
                     className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-gray-500 focus:border-primary focus:outline-none"
                   />
-                </div>
-                <div>
+                </div>}
+                {(selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH') && <div>
                   <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá Ebook DRM (VNĐ) *</label>
                   <input 
                     type="number"
@@ -608,11 +694,22 @@ export default function SellerCreateHybrid() {
                     onChange={(e) => handleChange('ebookPrice', Number(e.target.value))}
                     className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-emerald-800 focus:border-primary focus:outline-none"
                   />
-                </div>
+                </div>}
+                {selectedFormat === 'BOTH' && <div>
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Giá Combo ưu đãi (VNĐ) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.comboPrice}
+                    onChange={(e) => handleChange('comboPrice', Number(e.target.value))}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm font-bold text-primary focus:border-primary focus:outline-none"
+                  />
+                </div>}
               </div>
             </section>
 
             {/* Section 5: Kho Sách Giấy */}
+            {(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH') && (
             <section className="bg-surface-container-lowest rounded-2xl p-6 sm:p-7 border border-theme-border/70 shadow-xs space-y-5" id="sec-inventory">
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3.5">
                 <div className="flex items-center gap-2.5">
@@ -645,8 +742,10 @@ export default function SellerCreateHybrid() {
                 </div>
               </div>
             </section>
+            )}
 
             {/* Section 7: Tệp Ebook DRM */}
+            {(selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH') && (
             <section className="bg-surface-container-lowest rounded-2xl p-6 sm:p-7 border border-theme-border/70 shadow-xs space-y-5" id="sec-drm">
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3.5">
                 <div className="flex items-center gap-2.5">
@@ -673,7 +772,30 @@ export default function SellerCreateHybrid() {
                   Đã Kích Hoạt
                 </span>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Tệp Ebook (PDF/EPUB)</label>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={(e) => handleChange('ebookFile', e.target.files?.[0] || null)}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2 text-xs text-on-surface focus:border-primary focus:outline-none"
+                  />
+                  <p className="text-[10px] text-on-surface-variant mt-1">PDF riêng tư, tối đa 100 MB; được chuyển vào kho DRM sau khi tạo sách.</p>
+                </div>
+                <div>
+                  <label className="block font-title-md text-xs font-bold text-on-surface mb-1.5">Số trang *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.pages}
+                    onChange={(e) => handleChange('pages', Number(e.target.value))}
+                    className="w-full rounded-xl border border-theme-border bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface focus:border-primary focus:outline-none"
+                  />
+                </div>
+              </div>
             </section>
+            )}
 
             {/* Section 8: Xuất Bản */}
             <section className="bg-surface-container-lowest rounded-2xl p-6 sm:p-7 border border-theme-border/70 shadow-xs space-y-4" id="sec-publish">

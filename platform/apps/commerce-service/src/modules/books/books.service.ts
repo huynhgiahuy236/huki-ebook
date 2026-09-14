@@ -167,6 +167,46 @@ export class BooksService {
     return paginate(books.map(b => this.serializeBook(b, false)), total, query.page, query.limit);
   }
 
+  async findOwned(query: BookListQueryDto, actor: BookActor) {
+    const where: any = actor.role === 'PLATFORM_ADMIN' ? {} : { ownerUserId: actor.sub };
+    if (query.business || query.store) where.storeId = query.business || query.store;
+    if (query.format) where.format = query.format;
+    if (query.category) where.categoryId = query.category;
+    if (query.search) {
+      const search = normalizeCatalogText(query.search);
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { normalizedTitle: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const orderBy: any = {};
+    const direction = query.order.toLowerCase();
+    if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = direction;
+    else if (query.sortBy === BookSortBy.PRICE) orderBy.price = direction;
+    else if (query.sortBy === BookSortBy.TITLE) orderBy.title = direction;
+    else orderBy.createdAt = direction;
+
+    const [books, total] = await this.prisma.$transaction([
+      this.prisma.book.findMany({
+        where,
+        include: {
+          category: true,
+          author: true,
+          publisher: true,
+          physicalDetails: true,
+          digitalDetails: true,
+        },
+        orderBy,
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.book.count({ where }),
+    ]);
+
+    return paginate(books.map(book => this.serializeBook(book, true)), total, query.page, query.limit);
+  }
+
   async findBySlug(slug: string, actor?: BookActor) {
     const book = await this.prisma.book.findFirst({
       where: { slug },

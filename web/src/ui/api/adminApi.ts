@@ -1,0 +1,230 @@
+import { apiClient } from './apiClient';
+import type { ApiResponse } from './types';
+import type { BusinessData, StoreData } from './businessApi';
+
+export interface AdminServiceCheck {
+  service: string;
+  status: 'ok' | 'unhealthy' | 'unavailable';
+  statusCode?: number;
+}
+
+export interface AdminHealthResponse {
+  status: 'ok' | 'unhealthy' | 'unavailable';
+  services: AdminServiceCheck[];
+}
+
+export interface AdminStatsData {
+  pendingBusinesses: number;
+  approvedBusinesses: number;
+  totalBusinesses: number;
+  pendingStores: number;
+  approvedStores: number;
+  totalStores: number;
+  totalBooks: number;
+  activeBooks: number;
+  suspendedBooks: number;
+  healthStatus: 'ok' | 'degraded' | 'down';
+}
+
+export interface AdminBusinessFilter {
+  status?: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminStoreFilter {
+  status?: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' | 'CLOSED';
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface AdminBookFilter {
+  status?: string;
+  search?: string;
+  categoryId?: string;
+  businessId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export const adminApi = {
+  /**
+   * Lấy danh sách doanh nghiệp dành riêng cho Admin HUKI
+   */
+  async getBusinesses(params: AdminBusinessFilter = {}): Promise<ApiResponse<BusinessData[]>> {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.search) query.append('search', params.search);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+
+    const qs = query.toString();
+    return apiClient<BusinessData[]>(`/businesses/admin/all${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Phê duyệt hồ sơ doanh nghiệp
+   */
+  async approveBusiness(id: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Từ chối hồ sơ doanh nghiệp kèm lý do
+   */
+  async rejectBusiness(id: string, reason: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /**
+   * Lấy danh sách cửa hàng (Stores) dành riêng cho Admin HUKI
+   */
+  async getStores(params: AdminStoreFilter = {}): Promise<ApiResponse<StoreData[]>> {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.search) query.append('search', params.search);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+
+    const qs = query.toString();
+    return apiClient<StoreData[]>(`/stores/admin/all${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Phê duyệt cửa hàng
+   */
+  async approveStore(id: string): Promise<ApiResponse<StoreData>> {
+    return apiClient<StoreData>(`/stores/${id}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Từ chối cửa hàng kèm lý do
+   */
+  async rejectStore(id: string, reason?: string): Promise<ApiResponse<StoreData>> {
+    return apiClient<StoreData>(`/stores/${id}/reject`, {
+      method: 'POST',
+      body: reason ? JSON.stringify({ reason }) : undefined,
+    });
+  },
+
+  /**
+   * Lấy danh sách sách toàn sàn dành cho Admin
+   */
+  async getBooks(params: AdminBookFilter = {}): Promise<ApiResponse<any[]>> {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.search) query.append('search', params.search);
+    if (params.categoryId) query.append('categoryId', params.categoryId);
+    if (params.businessId) query.append('business', params.businessId);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit || 50));
+
+    const qs = query.toString();
+    return apiClient<any[]>(`/books${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Khóa / Đình chỉ sách vi phạm chính sách nền tảng (PLATFORM_ADMIN only)
+   */
+  async suspendBook(bookId: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${bookId}/suspend`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Mở khóa / Kích hoạt lại sách
+   */
+  async activateBook(bookId: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${bookId}/publish`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Kiểm tra trạng thái sức khỏe Gateway và 6 Microservices backend
+   */
+  async getServiceHealth(): Promise<ApiResponse<AdminHealthResponse>> {
+    return apiClient<AdminHealthResponse>('/health/services', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Lấy số liệu thống kê tổng quan cho Admin Dashboard
+   */
+  async getAdminStats(): Promise<ApiResponse<AdminStatsData>> {
+    try {
+      const [businessesRes, storesRes, booksRes, healthRes] = await Promise.allSettled([
+        this.getBusinesses({ limit: 100 }),
+        this.getStores({ limit: 100 }),
+        this.getBooks({ limit: 100 }),
+        this.getServiceHealth(),
+      ]);
+
+      const businesses = businessesRes.status === 'fulfilled' && businessesRes.value.success && Array.isArray(businessesRes.value.data)
+        ? businessesRes.value.data
+        : [];
+
+      const stores = storesRes.status === 'fulfilled' && storesRes.value.success && Array.isArray(storesRes.value.data)
+        ? storesRes.value.data
+        : [];
+
+      const books = booksRes.status === 'fulfilled' && booksRes.value.success && Array.isArray(booksRes.value.data)
+        ? booksRes.value.data
+        : [];
+
+      const health = healthRes.status === 'fulfilled' && healthRes.value.success
+        ? healthRes.value.data
+        : null;
+
+      const pendingBusinesses = businesses.filter(b => b.status === 'PENDING_APPROVAL').length;
+      const approvedBusinesses = businesses.filter(b => b.status === 'APPROVED').length;
+      const pendingStores = stores.filter(s => s.status === 'PENDING_APPROVAL').length;
+      const approvedStores = stores.filter(s => s.status === 'APPROVED').length;
+      const suspendedBooks = books.filter(b => b.status === 'SUSPENDED').length;
+      const activeBooks = books.filter(b => b.status === 'ACTIVE' || b.status === 'PUBLISHED').length;
+
+      let healthStatus: 'ok' | 'degraded' | 'down' = 'ok';
+      if (!health || health.status !== 'ok') {
+        healthStatus = health?.services?.some(s => s.status === 'ok') ? 'degraded' : 'down';
+      }
+
+      return {
+        success: true,
+        data: {
+          pendingBusinesses,
+          approvedBusinesses,
+          totalBusinesses: businesses.length,
+          pendingStores,
+          approvedStores,
+          totalStores: stores.length,
+          totalBooks: books.length,
+          activeBooks,
+          suspendedBooks,
+          healthStatus,
+        },
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error?.message || 'Không thể lấy số liệu thống kê quản trị',
+      };
+    }
+  },
+};

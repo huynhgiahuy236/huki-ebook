@@ -60,36 +60,33 @@
 
 ## Admin doanh nghiệp và Admin con
 
-- [ ] 🟡 `SEL-001` Business dashboard — `/seller` — Happy `YES` — P07 — prototype `/seller/dashboard`
+- [x] ✅ `SEL-001` Business dashboard — `/seller` — Happy `YES` — P07 — Dữ liệu thời gian thực từ Backend
 - [ ] 🟡 `SEL-002` Business registration — `/seller/business/register` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🟡 `SEL-003` Application status — `/seller/business/status` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
 - [ ] 🔴 `SEL-004` Business settings — `/seller/business/settings` — Happy `YES` — P07
-- [ ] 🟡 `SEL-005` Stores — `/seller/stores` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
-- [ ] 🟡 `SEL-006` Create store — `/seller/stores/new` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
+- [x] ✅ `SEL-005` Stores — `/seller/stores` — Happy `YES` — P03/P07 — Quản lý danh sách Store thật
+- [x] ✅ `SEL-006` Create store — `/seller/stores/new` — Happy `YES` — P03/P07 — Tạo Store thật
 - [ ] 🔴 `SEL-007` Store settings — `/seller/stores/[id]` — Happy `YES` — P07
-- [ ] 🔴 `SEL-008` Admin con accounts — `/seller/members` — Happy `YES` — P06 — provision trực tiếp
-- [ ] 🔴 `SEL-009` Create Admin con — `/seller/members/new` — Happy `YES` — P06 — không invitation
-- [ ] 🔴 `SEL-010` Admin con permissions — `/seller/members/[id]` — Happy `YES` — P06
-- [ ] 🟡 `SEL-011` Products — `/seller/products` — Happy `YES` — P07
-- [ ] 🟡 `SEL-012` Create product — `/seller/product/create-ebook` — Happy `YES` — P03/P07 — READY_FOR_REVIEW, Codex 2026-09-12
-- [ ] 🟡 `SEL-013` Edit product — `/seller/products/[id]/edit` — Happy `YES` — P07
+- [x] ✅ `SEL-008` Admin con accounts — `/seller/members` — Happy `YES` — P06 — provision trực tiếp
+- [x] ✅ `SEL-009` Create Admin con — `/seller/members/new` — Happy `YES` — P06 — không invitation
+- [x] ✅ `SEL-010` Admin con permissions — `/seller/members/[id]` — Happy `YES` — P06 — cấp quyền chi tiết
+- [x] ✅ `SEL-011` Products — `/seller/products` — Happy `YES` — P07 — Bảng sách thật, cập nhật kho an toàn & ẩn/hiện
+- [x] ✅ `SEL-012` Create product — `/seller/product/create-hybrid` — Happy `YES` — P03/P07 — Form tạo sách đa định dạng (Giấy/Ebook/Hybrid)
+- [x] ✅ `SEL-013` Edit product — `/seller/products/[id]/edit` — Happy `YES` — P07
 - [ ] 🟡 `SEL-014` Product media — `/seller/products/[id]/media` — Happy `YES` — P07
-- [ ] 🟡 `SEL-015` Seller orders — `/seller/orders` — Happy `YES` — P07
-- [ ] 🔴 `SEL-016` Seller order detail — `/seller/orders/[id]` — Happy `YES` — P07
+- [x] ✅ `SEL-015` Seller orders — `/seller/orders` — Happy `YES` — P07 — Lọc trạng thái, chuyển luồng đơn hàng chuẩn
+- [x] ✅ `SEL-016` Seller order detail — `/seller/orders/[id]` — Happy `YES` — P07 — OrderDetailDrawer chi tiết & timeline thật
 - `⚪ DEFERRED` `SEL-017` Campaigns — `/seller/campaigns`
 
 ## Admin HUKI
 
-- [ ] 🔴 `ADM-001` Admin dashboard — `/admin` — Happy `YES` — P08
-- [ ] 🟡 `ADM-002` Business approvals — `/admin/businesses` — Happy `YES` — P03/P08 — READY_FOR_REVIEW, Codex 2026-09-12
-- [ ] 🔴 `ADM-003` Business approval detail — `/admin/businesses/[id]` — Happy `YES` — P08
-- [ ] 🟡 `ADM-004` Store approvals — `/admin/stores` — Happy `YES` — P03/P08 — READY_FOR_REVIEW, Codex 2026-09-12
-- [ ] 🔴 `ADM-005` Store approval detail — `/admin/stores/[id]` — Happy `YES` — P08
-- [ ] 🔴 `ADM-008` Book administration — `/admin/books` — Happy `YES` — P08
-- [ ] 🔴 `ADM-009` Category administration — `/admin/categories` — Happy `YES` — P08
-- [ ] 🔴 `ADM-010` Author administration — `/admin/authors` — Happy `YES` — P08
-- [ ] 🔴 `ADM-011` Publisher administration — `/admin/publishers` — Happy `YES` — P08
-- [ ] 🔴 `ADM-018` System health — `/admin/system/health` — Happy `YES` — P08
+- [x] ✅ `ADM-001` Admin dashboard — `/admin` — Happy `YES` — P08 — Số liệu thời gian thực từ Backend
+- [x] ✅ `ADM-002` Business approvals — `/admin/businesses` — Happy `YES` — P08 — Duyệt/Từ chối Doanh nghiệp kèm lý do
+- [x] ✅ `ADM-003` Business approval detail — `/admin/businesses/[id]` — Happy `YES` — P08 — Side Drawer chi tiết hồ sơ
+- [x] ✅ `ADM-004` Store approvals — `/admin/stores` — Happy `YES` — P08 — Quy về 1 DN = 1 Gian Hàng
+- [x] ✅ `ADM-008` Book administration — `/admin/books` — Happy `YES` — P08 — Quản trị catalog, khóa/mở sách
+- [x] ✅ `ADM-009` Category administration — `/admin/categories` — Happy `YES` — P08 — Quản trị cây danh mục, tác giả, NXB
+- [x] ✅ `ADM-018` System health — `/admin/health` — Happy `YES` — P08 — Giám sát thời gian thực 7 microservices
 - `⚪ DEFERRED` `ADM-006` Moderation queue — `/admin/moderation`
 - `⚪ DEFERRED` `ADM-007` Report detail — `/admin/moderation/[id]`
 - `⚪ DEFERRED` `ADM-012` Voucher administration — `/admin/vouchers`

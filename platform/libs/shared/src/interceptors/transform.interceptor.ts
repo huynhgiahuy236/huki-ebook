@@ -130,14 +130,22 @@ export class TransformInterceptor<T>
 
     const value = data as Record<string, unknown>;
     const hasData = Object.prototype.hasOwnProperty.call(value, 'data');
+    const hasItems = Object.prototype.hasOwnProperty.call(value, 'items');
     const hasMessage = typeof value.message === 'string';
     const pagination = this.isPagination(value.pagination)
       ? value.pagination
       : undefined;
 
+    // `items` is also a normal domain field (for example SellerOrder.items).
+    // Only unwrap it when pagination proves this is a collection envelope.
     if (hasData || pagination) {
+      const extracted = hasData
+        ? value.data
+        : pagination && hasItems
+        ? value.items
+        : value;
       return {
-        data: value.data,
+        data: extracted,
         message: hasMessage ? (value.message as string) : undefined,
         pagination,
       };

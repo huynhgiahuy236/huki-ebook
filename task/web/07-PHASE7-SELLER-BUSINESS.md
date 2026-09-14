@@ -1,35 +1,35 @@
 # Phase 07 — Admin Doanh Nghiệp Operations
 
 **Persona:** Admin doanh nghiệp, Admin con doanh nghiệp
-**Status:** `🟡 PARTIAL` — seller dashboard/product/order có UI mock; backend có nhiều API nhưng permission granular chưa hoàn chỉnh.
+**Status:** `✅ DONE` — hoàn thiện toàn bộ phân hệ vận hành Seller Portal trên dữ liệu thật (Dashboard, Sách & Kho hàng, Xử lý Đơn hàng Side Drawer) có kiểm soát phân quyền (RBAC) và cô lập dữ liệu theo `businessId`.
 
 ## Sprint 25 — Business/store workspace
 
-- [ ] 🟡 Dashboard doanh nghiệp.
-- [ ] 🟡 Business registration/status/settings.
-- [ ] 🔴 Store list/create/settings.
-- [ ] 🔴 Workspace luôn khóa theo `businessId` hiện tại.
+- [x] ✅ Dashboard doanh nghiệp.
+- [x] ✅ Business registration/status/settings.
+- [x] ✅ Store list/create/settings.
+- [x] ✅ Workspace luôn khóa theo `businessId` hiện tại.
 
 ## Sprint 26 — Product operations
 
-- [ ] 🟡 Product list/create/edit/media.
-- [ ] 🔴 Physical/digital/hybrid contract thật.
-- [ ] 🔴 Inventory, publish/hide/archive.
-- [ ] 🔴 `PRODUCT_*` và `INVENTORY_UPDATE` enforcement.
+- [x] ✅ Product list/create/edit/media.
+- [x] ✅ Physical/digital/hybrid contract thật.
+- [x] ✅ Inventory, publish/hide/archive.
+- [x] ✅ `PRODUCT_*` và `INVENTORY_UPDATE` enforcement.
 
 ## Sprint 27 — Seller orders
 
-- [ ] 🟡 Seller order list.
-- [ ] 🔴 Seller order detail.
-- [ ] 🔴 Confirm/prepare/complete/cancel bằng workflow nội bộ.
-- [ ] 🔴 `ORDER_VIEW`, `ORDER_PROCESS`, `ORDER_CANCEL` tách riêng.
-- [ ] 🔴 Không cho xem/xử lý order thuộc business khác.
+- [x] ✅ Seller order list.
+- [x] ✅ Seller order detail (Side Drawer chi tiết).
+- [x] ✅ Confirm/prepare/complete/cancel bằng workflow nội bộ.
+- [x] ✅ `ORDER_VIEW`, `ORDER_PROCESS`, `ORDER_CANCEL` tách riêng.
+- [x] ✅ Không cho xem/xử lý order thuộc business khác.
 
 ## Sprint 28 — Owner/member integration
 
-- [ ] 🔴 Owner xem toàn bộ chức năng.
-- [ ] 🔴 Admin con chỉ thấy menu/action được cấp.
-- [ ] 🔴 Empty/loading/error/403 và audit evidence.
+- [x] ✅ Owner xem toàn bộ chức năng.
+- [x] ✅ Admin con chỉ thấy menu/action được cấp.
+- [x] ✅ Empty/loading/error/403 và audit evidence.
 
 ## Deferred
 

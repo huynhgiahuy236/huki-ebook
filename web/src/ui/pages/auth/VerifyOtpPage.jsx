@@ -75,9 +75,21 @@ export default function VerifyOtpPage() {
     setCanResend(false);
     const res = await resendVerification(targetEmail);
     if (res.success) {
-      showToast(`Đã gửi lại mã OTP tới ${targetEmail}!`, 'success');
+      showToast(
+        {
+          title: 'Đã gửi lại mã OTP',
+          message: `Mã xác thực mới đã được gửi tới ${targetEmail}. Vui lòng kiểm tra hộp thư.`,
+        },
+        'success'
+      );
     } else {
-      showToast(res.error || 'Gửi lại mã không thành công.', 'error');
+      showToast(
+        {
+          title: 'Gửi lại mã thất bại',
+          message: res.error || 'Chưa thể gửi lại mã OTP vào lúc này. Vui lòng thử lại sau giây lát.',
+        },
+        'error'
+      );
     }
   };
 
@@ -85,7 +97,13 @@ export default function VerifyOtpPage() {
     e.preventDefault();
     const otpCode = otp.join('');
     if (otpCode.length < 6) {
-      showToast('Vui lòng nhập đầy đủ 6 chữ số mã OTP!', 'error');
+      showToast(
+        {
+          title: 'Chưa đủ 6 số OTP',
+          message: 'Vui lòng nhập đầy đủ 6 chữ số mã xác thực để tiếp tục.',
+        },
+        'warning'
+      );
       return;
     }
 
@@ -93,10 +111,22 @@ export default function VerifyOtpPage() {
     const res = await verifyEmail(otpCode);
     setIsLoading(false);
     if (res.success) {
-      showToast('Xác thực tài khoản thành công! Bạn có thể đăng nhập ngay bây giờ.', 'success');
+      showToast(
+        {
+          title: 'Xác thực thành công',
+          message: 'Tài khoản của bạn đã được kích hoạt thành công! Đang chuyển đến trang đăng nhập...',
+        },
+        'success'
+      );
       navigate('/login');
     } else {
-      showToast(res.error || 'Mã OTP không hợp lệ hoặc đã hết hạn.', 'error');
+      showToast(
+        {
+          title: 'Xác thực không thành công',
+          message: res.error || 'Mã OTP không chính xác hoặc đã hết hiệu lực.',
+        },
+        'error'
+      );
     }
   };
 

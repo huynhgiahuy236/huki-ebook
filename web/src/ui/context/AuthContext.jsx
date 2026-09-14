@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/authApi';
+import { userApi } from '../api/userApi';
 import { businessApi } from '../api/businessApi';
 import { tokenStorage } from '../api/tokenStorage';
 import { can as canPermission } from '../utils/permissions';
@@ -34,25 +35,37 @@ export const AuthProvider = ({ children }) => {
 
   const hydrateBusiness = async (rawUserData) => {
     if (!rawUserData) return null;
-    const userData = normalizeUserData(rawUserData);
+    let userData = normalizeUserData(rawUserData);
     if (userData.role === 'PLATFORM_ADMIN') return userData;
-    const bizRes = await businessApi.getMyBusiness();
-    if (!bizRes.success || !bizRes.data) return userData;
-    if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
-    if (bizRes.data.status === 'APPROVED') {
-      const currentRefreshToken = tokenStorage.getRefreshToken();
-      if (currentRefreshToken) {
-        const tokenRes = await authApi.refreshToken(currentRefreshToken);
-        if (tokenRes.success && tokenRes.data?.accessToken && tokenRes.data?.refreshToken) {
-          tokenStorage.setTokens(tokenRes.data);
+    try {
+      const bizRes = await businessApi.getMyBusiness();
+      if (!bizRes.success || !bizRes.data) return userData;
+      if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
+      const isApproved = bizRes.data.status === 'APPROVED';
+      if (isApproved) {
+        userData = {
+          ...userData,
+          role: 'BUSINESS',
+          business: bizRes.data,
+          hasApprovedBusiness: true,
+        };
+        const currentRefreshToken = tokenStorage.getRefreshToken();
+        if (currentRefreshToken) {
+          const tokenRes = await authApi.refreshToken(currentRefreshToken);
+          if (tokenRes.success && tokenRes.data?.accessToken && tokenRes.data?.refreshToken) {
+            tokenStorage.setTokens(tokenRes.data);
+          }
         }
+        return userData;
       }
+      return {
+        ...userData,
+        business: bizRes.data,
+        hasApprovedBusiness: false,
+      };
+    } catch {
+      return userData;
     }
-    return {
-      ...userData,
-      business: bizRes.data,
-      hasApprovedBusiness: bizRes.data.status === 'APPROVED',
-    };
   };
 
   // Bootstrap session khi ứng dụng tải
@@ -234,9 +247,25 @@ export const AuthProvider = ({ children }) => {
     return canPermission(permission, targetBusinessId, user);
   };
 
+  // Cập nhật thông tin cá nhân (Họ tên, SĐT, Avatar)
+  const updateUserProfile = async (payload) => {
+    const res = await userApi.updateProfile(payload);
+    if (res.success && res.data) {
+      setUser((prev) => {
+        if (!prev) return null;
+        return normalizeUserData({
+          ...prev,
+          ...res.data,
+        });
+      });
+    }
+    return res;
+  };
+
   const value = useMemo(
     () => ({
       user,
+      setUser,
       isLoggedIn,
       isLoading,
       authError,
@@ -249,6 +278,7 @@ export const AuthProvider = ({ children }) => {
       verifyEmail,
       resendVerification,
       refreshBusiness,
+      updateUserProfile,
       hasRole,
       hasPermission,
       can: (permission, bizId) => canPermission(permission, bizId || activeBusinessId, user),

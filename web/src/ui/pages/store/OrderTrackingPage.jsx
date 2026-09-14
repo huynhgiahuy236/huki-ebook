@@ -1,17 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { orderApi } from '../../api/orderApi';
+import { useAuth } from '../../context/AuthContext';
 
 export default function OrderTrackingPage() {
-  const { id = 'HUKI-8892401' } = useParams();
+  const { id } = useParams();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
+  const [order, setOrder] = useState(null);
+  const [ordersList, setOrdersList] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [orderReceived, setOrderReceived] = useState(false);
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const fetchOrdersData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      if (id) {
+        // Fetch single order detail
+        const res = await orderApi.getBuyerOrderDetail(id);
+        if (res.success && res.data) {
+          setOrder(res.data);
+          const isDelivered =
+            res.data.status === 'DELIVERED' ||
+            res.data.status === 'COMPLETED' ||
+            res.data.sellerOrders?.every(
+              (so) => so.status === 'DELIVERED' || so.status === 'COMPLETED'
+            );
+          setOrderReceived(Boolean(isDelivered));
+        } else {
+          setOrder(null);
+        }
+      } else {
+        // Fetch list of buyer orders
+        const res = await orderApi.getBuyerOrders({ limit: 50 });
+        if (res.success && res.data) {
+          const items = Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res.data?.data)
+            ? res.data.data
+            : Array.isArray(res.data?.items)
+            ? res.data.items
+            : [];
+          setOrdersList(items);
+        } else {
+          setOrdersList([]);
+        }
+      }
+    } catch {
+      if (id) setOrder(null);
+      else setOrdersList([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchOrdersData();
+  }, [fetchOrdersData]);
 
   const handleConfirmReceived = () => {
     setOrderReceived(true);
-    showToast('Xác nhận đã nhận hàng thành công! Bạn nhận được 50 Huki Points tích lũy.', 'success');
+    showToast(
+      {
+        title: 'Xác nhận thành công!',
+        message: 'Đơn hàng đã được cập nhật sang trạng thái Đã nhận hàng.',
+      },
+      'success'
+    );
   };
 
   const handlePrintInvoice = () => {
@@ -19,306 +79,756 @@ export default function OrderTrackingPage() {
   };
 
   const handleDownloadVAT = () => {
-    showToast('Đang tải xuống Hóa đơn điện tử VAT (PDF)...', 'info');
+    showToast(
+      {
+        title: 'Hóa đơn điện tử VAT',
+        message: 'Đang khởi tạo và tải xuống bản thể hiện hóa đơn điện tử (PDF)...',
+      },
+      'info'
+    );
   };
 
-  const trackingSteps = [
-    { id: 1, title: 'Đặt Hàng Thành Công', time: '08/09 09:30', status: 'completed', icon: 'check' },
-    { id: 2, title: 'Ebook DRM Đã Kích Hoạt', time: '08/09 09:30', status: 'completed', icon: 'auto_stories' },
-    { id: 3, title: 'NXB Đã Đóng Gói', time: '08/09 11:20', status: 'completed', icon: 'inventory_2' },
-    { id: 4, title: 'Đang Vận Chuyển', time: '08/09 14:15', status: orderReceived ? 'completed' : 'current', icon: 'local_shipping' },
-    { id: 5, title: 'Giao Thành Công', time: orderReceived ? '08/09 16:30' : 'Dự kiến 09/09', status: orderReceived ? 'completed' : 'upcoming', icon: 'home_pin' }
-  ];
-
-  const deliveryLogs = [
-    { time: '14:15 - 08/09/2026', title: 'Bưu tá đang giao hàng', desc: 'Tài xế Nguyễn Văn Hùng (0982.889.214) đang trên đường giao đến bạn tại Quận 1, TP.HCM.', isCurrent: !orderReceived },
-    { time: '11:20 - 08/09/2026', title: 'Rời kho phân loại Tân Bình', desc: 'Kiện hàng đã rời trung tâm khai thác bưu kiện Huki Express Tân Bình.' },
-    { time: '09:45 - 08/09/2026', title: 'Đã đóng gói và bàn giao vận chuyển', desc: 'Gian hàng Alpha Books Official Store đã niêm phong hộp carton cao cấp kèm tem niêm phong chống rách.' },
-    { time: '09:30 - 08/09/2026', title: 'Xác nhận đơn hàng & Kích hoạt bản quyền số DRM', desc: 'Hệ thống đã cấp chữ ký số DRM cho tài khoản của bạn trên Huki Reader.' }
-  ];
-
-  const orderItems = [
-    {
-      id: 'atomic-habits-hybrid',
-      title: 'Atomic Habits - Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ',
-      format: 'Combo Sách In + Ebook DRM',
-      author: 'James Clear • Alpha Books Official',
-      price: 129000,
-      quantity: 1,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuA53AnKQnh_CvQZkKdgIVlAr69RGZi-Dy_-3urusFYsOguAICJMpGRsU85cbWni4isxviEEkUKqkRCbJ5ueD-G6ys8WaQ2MMUeOfQc35hhCHTyVW6HvA1qu9GgdWj-79QinbXun6KsdNRBGwwFc8KHlTtm9n-RZ3vb6WH6vSR13XZ9-w18ittfip9My_AtHU9afgpWLiOpFBdWm7G8UW0lwQztO50FOnTqdl0m9-V26JGH-brBYGrO7Cw',
-      hasDrm: true
-    },
-    {
-      id: 'deep-work-physical',
-      title: 'Deep Work - Làm Ra Làm Chơi Ra Chơi',
-      format: 'Sách In Bìa Mềm',
-      author: 'Cal Newport • NXB Trẻ',
-      price: 95000,
-      quantity: 1,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBUoGOHjQ2hoZxnNvlZMZ0EaHKTarSa9EdssU1WWQ8_CEqlDjPkxJ-Eo73jLzR07vvMUGL3X62Bi5cAkdtSoNOn5msr3ZD-146e8TCkcN3gc-r1IiY2QTqqFwp5vHvs6ZfeOU9kdYkLQvDNXp9QZMPbIJ36ZmGICQZQ0_pAgRFNWe6OKgOLgcrsHoCORCXMiXdnKUs7a0kVDcUW1OZu89Z_pEK89aKwgsjfagK9eqmf-T5_pS96mX9_sw',
-      hasDrm: false
-    },
-    {
-      id: 'psychology-of-money',
-      title: 'Tâm Lý Học Về Tiền',
-      format: 'Sách In Bìa Cứng Đặc Biệt',
-      author: 'Morgan Housel • 1980 Books',
-      price: 135000,
-      quantity: 1,
-      cover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBPtM4fEF50qiA3LJT6VRKZ4N7fTPN6jOoxh2ryBnzedt5FA5_VTRim9wYpzGX1LBNImhplf6XFrSgwnvdVFanZ2TEFWln9kRUk0j0FDd54xHUJJql6Lw3bHytmH2n_PbDCsDtu9_o0sUCgc9ZNUl--xR6TmfF825RDGooi07RHZ-74OyLPkpqUkrYgxkbp054QNKTO5hp82EqWyeC1yqcp0rOHERKeBFh7vHjCmZu9qxm5Dvs0BJkEaw',
-      hasDrm: false
+  // Helper Vietnamese status translator
+  const getStatusLabel = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'PENDING_PAYMENT':
+        return { text: 'Chờ thanh toán', color: 'bg-amber-100 text-amber-800 border-amber-300' };
+      case 'PENDING_CONFIRMATION':
+        return { text: 'Chờ xác nhận', color: 'bg-blue-100 text-blue-800 border-blue-300' };
+      case 'CONFIRMED':
+        return { text: 'Đã tiếp nhận đơn', color: 'bg-indigo-100 text-indigo-800 border-indigo-300' };
+      case 'PROCESSING':
+      case 'PREPARING':
+        return { text: 'Đang đóng gói', color: 'bg-purple-100 text-purple-800 border-purple-300' };
+      case 'SHIPPED':
+        return { text: 'Đang vận chuyển', color: 'bg-orange-100 text-orange-800 border-orange-300' };
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return { text: 'Giao thành công', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+      case 'CANCELLED':
+        return { text: 'Đã hủy', color: 'bg-red-100 text-red-800 border-red-300' };
+      default:
+        return { text: 'Đang xử lý', color: 'bg-slate-100 text-slate-800 border-slate-300' };
     }
-  ];
+  };
 
-  return (
-    <div className="w-full max-w-[1360px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 font-body-md">
-      {/* Breadcrumbs */}
-      <nav className="flex items-center text-body-sm text-on-surface-variant mb-6 gap-2 flex-wrap">
-        <Link to="/" className="hover:text-primary transition-colors">Trang chủ</Link>
-        <span>/</span>
-        <Link to="/profile" className="hover:text-primary transition-colors">Tài Khoản Độc Giả</Link>
-        <span>/</span>
-        <span className="text-theme-primary font-semibold">Chi Tiết Đơn Hàng #{id}</span>
-      </nav>
+  // Filtered orders list when in list view
+  const filteredOrders = ordersList.filter((o) => {
+    const matchesSearch =
+      !searchQuery ||
+      o.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      o.sellerOrders?.some((so) =>
+        so.items?.some((it) => it.bookTitle?.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
 
-      {/* Order Header & Status Card */}
-      <div className="bg-theme-surface border border-theme-border p-6 sm:p-8 rounded-3xl shadow-sm mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
-              Đơn Hàng #{id}
-            </h1>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-              orderReceived
-                ? 'bg-theme-secondary-subtle text-theme-secondary'
-                : 'bg-[#fea619]/20 text-[#855300] border border-[#fea619]/40'
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${orderReceived ? 'bg-theme-secondary' : 'bg-[#fea619] animate-pulse'}`}></span>
-              {orderReceived ? 'ĐÃ GIAO THÀNH CÔNG' : 'ĐANG VẬN CHUYỂN'}
-            </span>
-          </div>
-          <p className="text-xs sm:text-sm text-on-surface-variant">
-            Thời gian đặt: 08/09/2026 - 09:30:15 | Đơn hàng hỗn hợp: 3 Sách In + 1 Ebook DRM
-          </p>
-        </div>
+    if (!matchesSearch) return false;
 
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={handleDownloadVAT}
-            className="border border-theme-secondary/40 text-theme-secondary hover:bg-theme-secondary-subtle px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">receipt_long</span>
-            Tải Hóa Đơn VAT (PDF)
-          </button>
-          <button
-            onClick={handlePrintInvoice}
-            className="border border-theme-border text-on-surface hover:bg-theme-bg px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-sm">print</span>
-            In Đơn Hàng
-          </button>
-          <Link
-            to="/seller/chat"
-            className="bg-theme-primary text-white hover:opacity-90 px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-all"
-          >
-            <span className="material-symbols-outlined text-sm">support_agent</span>
-            Yêu Cầu Hỗ Trợ
-          </Link>
+    if (activeTab === 'ALL') return true;
+    if (activeTab === 'PROCESSING')
+      return o.status === 'PROCESSING' || o.status === 'CONFIRMED' || o.status === 'PREPARING' || o.status === 'PENDING_CONFIRMATION';
+    if (activeTab === 'SHIPPED') return o.status === 'SHIPPED';
+    if (activeTab === 'COMPLETED') return o.status === 'COMPLETED' || o.status === 'DELIVERED';
+    if (activeTab === 'CANCELLED') return o.status === 'CANCELLED';
+    return true;
+  });
+
+  // Loading Skeleton State
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-pulse font-body-md">
+        <div className="h-4 bg-slate-200 rounded w-48 mb-6"></div>
+        <div className="h-32 bg-white rounded-3xl border border-slate-200 mb-8 p-6"></div>
+        <div className="h-28 bg-white rounded-3xl border border-slate-200 mb-8 p-6"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-7 h-96 bg-white rounded-3xl border border-slate-200"></div>
+          <div className="lg:col-span-5 h-96 bg-white rounded-3xl border border-slate-200"></div>
         </div>
       </div>
+    );
+  }
 
-      {/* Real-time 5-Step Logistics Timeline */}
-      <div className="bg-theme-surface border border-theme-border p-6 sm:p-8 rounded-3xl shadow-sm mb-8">
-        <div className="flex items-center gap-2.5 mb-8">
-          <span className="material-symbols-outlined text-theme-secondary text-2xl">local_shipping</span>
-          <h2 className="font-editorial text-xl font-bold text-on-surface">
-            Hành Trình Giao Hàng & Trạng Thái Bản Quyền Số
-          </h2>
-        </div>
+  // ==========================================
+  // VIEW 1: ORDERS LIST VIEW (When no :id in URL)
+  // ==========================================
+  if (!id) {
+    return (
+      <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 py-8 font-body-md">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Breadcrumbs */}
+          <nav className="flex items-center gap-2 text-xs font-medium text-slate-500 mb-6">
+            <Link to="/" className="hover:text-primary transition-colors">
+              Trang chủ
+            </Link>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <Link to="/profile" className="hover:text-primary transition-colors">
+              Tài khoản
+            </Link>
+            <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+            <span className="text-slate-900 dark:text-white font-semibold">Lịch sử đơn hàng</span>
+          </nav>
 
-        {/* Stepper bar */}
-        <div className="relative flex flex-col md:flex-row items-center justify-between w-full gap-6 md:gap-0 px-2 sm:px-6">
-          <div className="hidden md:block absolute left-12 right-12 top-5 h-1 bg-slate-100 -z-0"></div>
-          <div
-            className="hidden md:block absolute left-12 top-5 h-1 bg-theme-secondary -z-0 transition-all duration-700"
-            style={{ width: orderReceived ? 'calc(100% - 6rem)' : '60%' }}
-          ></div>
-
-          {trackingSteps.map(step => {
-            const isCompleted = step.status === 'completed';
-            const isCurrent = step.status === 'current';
-            return (
-              <div key={step.id} className="relative z-10 flex flex-row md:flex-col items-center text-left md:text-center gap-3 md:gap-1 max-w-[150px] w-full md:w-auto">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-md ${
-                  isCompleted
-                    ? 'bg-theme-secondary text-white'
-                    : isCurrent
-                    ? 'bg-[#fea619] text-[#2a1700] ring-4 ring-[#fea619]/25'
-                    : 'bg-slate-100 text-slate-400'
-                }`}>
-                  <span className={`material-symbols-outlined text-sm ${isCurrent ? 'animate-bounce' : ''}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                    {step.icon}
-                  </span>
-                </div>
-                <div>
-                  <span className={`text-xs font-bold block ${isCurrent ? 'text-[#855300]' : 'text-on-surface'}`}>
-                    {step.title}
-                  </span>
-                  <span className="text-[11px] text-on-surface-variant">{step.time}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2-Column Details Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left (7/12): Shipping Logs + Package Items */}
-        <div className="lg:col-span-7 space-y-8">
-          {/* Real-time Logistics Log */}
-          <div className="bg-theme-surface border border-theme-border p-6 rounded-3xl shadow-sm">
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-theme-border">
-              <div>
-                <h3 className="font-bold text-base text-on-surface">Chi Tiết Vận Chuyển (SPX Express)</h3>
-                <p className="text-xs text-on-surface-variant font-mono">Mã vận đơn: SPX-VN-99201488</p>
-              </div>
-              <span className="bg-theme-secondary-subtle text-theme-secondary text-xs font-bold px-3 py-1 rounded-full">
-                Giao hàng tiêu chuẩn 24h
-              </span>
-            </div>
-
-            <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-              {deliveryLogs.map((log, index) => (
-                <div key={index} className="flex items-start gap-4 relative pl-6">
-                  <span className={`absolute left-1.5 top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                    log.isCurrent ? 'bg-[#ac2c19] ring-4 ring-red-100' : 'bg-theme-secondary'
-                  }`}></span>
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className={`font-bold ${log.isCurrent ? 'text-[#ac2c19]' : 'text-on-surface'}`}>
-                        {log.title}
-                      </span>
-                      <span className="text-on-surface-variant">{log.time}</span>
-                    </div>
-                    <p className="text-xs text-on-surface-variant mt-0.5 leading-relaxed">{log.desc}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Package Content & DRM Activation */}
-          <div className="bg-theme-surface border border-theme-border p-6 rounded-3xl shadow-sm space-y-4">
-            <h3 className="font-bold text-base text-on-surface">Danh Sách Kiện Hàng & Bản Quyền Số (3 sản phẩm)</h3>
-            
-            <div className="divide-y divide-theme-border">
-              {orderItems.map(item => (
-                <div key={item.id} className="py-4 first:pt-0 last:pb-0 flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <img className="w-16 h-22 object-cover rounded-xl shadow-sm shrink-0" src={item.cover} alt={item.title} />
-                    <div className="space-y-1">
-                      <span className="text-[11px] font-bold text-theme-secondary bg-theme-secondary-subtle px-2 py-0.5 rounded-md inline-block">
-                        {item.format}
-                      </span>
-                      <h4 className="font-semibold text-sm text-on-surface leading-snug">{item.title}</h4>
-                      <p className="text-xs text-on-surface-variant">{item.author}</p>
-                      <span className="text-xs text-slate-500 block">Số lượng: x{item.quantity}</span>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0 space-y-2">
-                    <span className="font-bold text-sm text-[#ac2c19] block">{item.price.toLocaleString('vi-VN')}đ</span>
-                    {item.hasDrm && (
-                      <Link
-                        to="/reader"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-theme-primary hover:opacity-90 text-white rounded-lg text-xs font-bold transition-all shadow-xs"
-                      >
-                        <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
-                        Đọc Ngay
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right (5/12): Delivery Address & Order Summary */}
-        <div className="lg:col-span-5 space-y-8">
-          {/* Recipient Address */}
-          <div className="bg-theme-surface border border-theme-border p-6 rounded-3xl shadow-sm space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-theme-border">
-              <h3 className="font-bold text-sm text-on-surface flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-theme-secondary">location_on</span>
-                Địa Chỉ Nhận Hàng
-              </h3>
-              <span className="text-[11px] bg-theme-secondary-subtle text-theme-secondary px-2 py-0.5 rounded font-medium">Nhà riêng</span>
-            </div>
-            <div className="text-xs sm:text-sm text-on-surface-variant space-y-1 leading-relaxed">
-              <p className="font-bold text-on-surface">Nguyễn Minh Trí • 0918.772.339</p>
-              <p>Tòa nhà Bitexco Financial Tower, Số 2 Hải Triều, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh</p>
-            </div>
-          </div>
-
-          {/* Payment Breakdown */}
-          <div className="bg-theme-surface border border-theme-border p-6 rounded-3xl shadow-sm space-y-4">
-            <h3 className="font-bold text-sm text-on-surface">Tóm Tắt Thanh Toán</h3>
-            <div className="space-y-2 text-xs sm:text-sm text-on-surface-variant">
-              <div className="flex justify-between">
-                <span>Tổng tiền hàng (3 món)</span>
-                <span className="font-medium text-on-surface">359.000đ</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Phí vận chuyển hỏa tốc</span>
-                <span className="font-medium text-on-surface">25.000đ</span>
-              </div>
-              <div className="flex justify-between text-theme-secondary">
-                <span>Mã giảm giá NXB Alpha Books (ALPHA20)</span>
-                <span>-20.000đ</span>
-              </div>
-              <div className="flex justify-between text-theme-secondary">
-                <span>Khấu trừ Ví Xu Huki (100.000 Xu)</span>
-                <span>-100.000đ</span>
-              </div>
-              <div className="border-t border-theme-border pt-3 flex justify-between items-baseline">
-                <span className="font-bold text-sm text-on-surface">Tổng Thực Thanh Toán</span>
-                <span className="font-bold text-lg text-[#ac2c19]">264.000đ</span>
-              </div>
-              <p className="text-[11px] text-slate-500 pt-1">
-                Phương thức: <strong>Ví Huki Pay + Thẻ Visa (...8892)</strong> (Đã thanh toán)
+          {/* Header Title */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold font-headline-sm text-slate-900 dark:text-white tracking-tight">
+                Đơn Hàng Của Bạn
+              </h1>
+              <p className="text-sm text-slate-500 mt-1">
+                Theo dõi tiến trình vận chuyển, xem biên lai và quản lý toàn bộ ấn phẩm đã đặt.
               </p>
             </div>
+            <Link
+              to="/books"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white font-bold text-xs hover:bg-primary/90 transition-all shadow-sm w-fit"
+            >
+              <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
+              Mua Thêm Sách Mới
+            </Link>
+          </div>
 
-            {/* Quick action buttons */}
-            <div className="pt-4 space-y-2">
-              {!orderReceived ? (
+          {/* Filter Tabs & Search */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 mb-6 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Status Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+              {[
+                { id: 'ALL', label: 'Tất cả', icon: 'receipt_long' },
+                { id: 'PROCESSING', label: 'Đang xử lý', icon: 'inventory_2' },
+                { id: 'SHIPPED', label: 'Đang giao', icon: 'local_shipping' },
+                { id: 'COMPLETED', label: 'Hoàn tất', icon: 'check_circle' },
+                { id: 'CANCELLED', label: 'Đã hủy', icon: 'cancel' },
+              ].map((tab) => (
                 <button
-                  onClick={handleConfirmReceived}
-                  className="w-full py-3 bg-theme-secondary hover:opacity-90 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'bg-primary text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
                 >
-                  <span className="material-symbols-outlined text-base">check_circle</span>
-                  Đã Nhận Được Hàng
+                  <span className="material-symbols-outlined text-[16px]">{tab.icon}</span>
+                  {tab.label}
                 </button>
-              ) : (
-                <div className="p-3 bg-theme-secondary-subtle text-theme-secondary rounded-xl text-center text-xs font-semibold flex items-center justify-center gap-1.5">
-                  <span className="material-symbols-outlined text-base">verified</span>
-                  Đã xác nhận nhận hàng
-                </div>
-              )}
+              ))}
+            </div>
 
+            {/* Search Input */}
+            <div className="relative min-w-[240px]">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
+                search
+              </span>
+              <input
+                type="text"
+                placeholder="Tìm mã đơn hoặc tên sách..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              />
+            </div>
+          </div>
+
+          {/* Orders List Container */}
+          {filteredOrders.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-12 text-center max-w-xl mx-auto shadow-xs my-8">
+              <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
+                <span className="material-symbols-outlined text-3xl">inbox</span>
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
+                Chưa có đơn hàng nào
+              </h3>
+              <p className="text-xs text-slate-500 mb-6">
+                Bạn chưa thực hiện đơn đặt sách nào hoặc không có đơn hàng nào khớp với bộ lọc hiện tại.
+              </p>
               <Link
-                to={`/order/${id}/return`}
-                className="w-full py-2.5 bg-theme-secondary-subtle hover:bg-theme-border text-on-surface font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+                to="/books"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-white font-bold text-xs hover:bg-primary/90 transition-all shadow-xs"
               >
-                <span className="material-symbols-outlined text-base">assignment_return</span>
-                Yêu Cầu Đổi Trả / Bảo Hành Sách In (7 Ngày)
+                <span className="material-symbols-outlined text-[18px]">auto_stories</span>
+                Khám phá kho sách ngay
               </Link>
             </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredOrders.map((ord) => {
+                const statusInfo = getStatusLabel(ord.status);
+                const items = ord.sellerOrders?.flatMap((so) => so.items || []) || [];
+                const firstItem = items[0];
+                const totalItemsCount = items.reduce((s, it) => s + (it.quantity || 1), 0);
+
+                return (
+                  <div
+                    key={ord.id}
+                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-5 sm:p-6 shadow-xs hover:shadow-md transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-6"
+                  >
+                    {/* Left Info: Code, Date, First Book Thumbnail */}
+                    <div className="flex items-start sm:items-center gap-4">
+                      <div className="w-16 h-20 sm:w-20 sm:h-24 bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden shrink-0 border border-slate-200/60 dark:border-slate-700 flex items-center justify-center">
+                        {firstItem?.bookCoverUrl ? (
+                          <img
+                            src={firstItem.bookCoverUrl}
+                            alt={firstItem.bookTitle}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <span className="material-symbols-outlined text-3xl text-slate-400">menu_book</span>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                            {ord.code}
+                          </span>
+                          <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${statusInfo.color}`}>
+                            {statusInfo.text}
+                          </span>
+                          <span className="text-[11px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded font-medium">
+                            {ord.paymentMethod === 'COD' ? 'COD Khi nhận hàng' : 'Thanh toán trực tuyến'}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-500">
+                          Ngày đặt:{' '}
+                          <span className="text-slate-700 dark:text-slate-300 font-medium">
+                            {ord.createdAt
+                              ? new Date(ord.createdAt).toLocaleString('vi-VN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : 'Vừa xong'}
+                          </span>
+                        </p>
+
+                        <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 line-clamp-1">
+                          {firstItem?.bookTitle || 'Ấn phẩm HUKI'}
+                          {totalItemsCount > 1 && (
+                            <span className="text-slate-500 font-normal"> (và {totalItemsCount - 1} cuốn khác)</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Right Info: Total Price & CTA button */}
+                    <div className="flex sm:items-center justify-between lg:justify-end gap-6 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100 dark:border-slate-800">
+                      <div className="text-left lg:text-right">
+                        <span className="text-xs text-slate-500 block">Tổng thanh toán:</span>
+                        <span className="text-lg sm:text-xl font-black text-rose-600">
+                          {(ord.grandTotal || 0).toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+
+                      <Link
+                        to={`/orders/${ord.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-800 dark:text-slate-200 font-bold text-xs transition-all cursor-pointer shadow-xs"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">visibility</span>
+                        Xem Chi Tiết
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // VIEW 2: SINGLE ORDER DETAIL VIEW (When :id is in URL)
+  // ==========================================
+  // Not Found / Empty Order State
+  if (!order) {
+    return (
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 font-body-md">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-2 text-xs font-medium text-slate-700 dark:text-slate-300 mb-8">
+          <Link to="/" className="hover:text-primary transition-colors">
+            Trang chủ
+          </Link>
+          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+          <Link to="/orders" className="hover:text-primary transition-colors">
+            Lịch sử đơn hàng
+          </Link>
+          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+          <span className="text-slate-900 dark:text-slate-100 font-semibold">Theo dõi đơn hàng</span>
+        </nav>
+
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-8 sm:p-12 text-center max-w-2xl mx-auto shadow-sm">
+          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-400 dark:text-slate-500">
+            <span className="material-symbols-outlined text-4xl">search_off</span>
+          </div>
+          <h1 className="text-2xl font-headline-sm font-bold text-slate-900 dark:text-white mb-3">
+            Không tìm thấy thông tin đơn hàng
+          </h1>
+          <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-8 max-w-md mx-auto">
+            Mã đơn hàng không tồn tại trên hệ thống, đã hoàn tất từ phiên trước hoặc tài khoản bạn đang đăng nhập không có quyền truy cập đơn hàng này.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              to="/orders"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-primary text-white font-medium text-sm hover:bg-primary/90 transition-colors shadow-sm"
+            >
+              <span className="material-symbols-outlined text-lg">receipt_long</span>
+              Xem tất cả đơn hàng
+            </Link>
+            <Link
+              to="/books"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <span className="material-symbols-outlined text-lg">auto_stories</span>
+              Khám phá tủ sách
+            </Link>
           </div>
         </div>
       </div>
+    );
+  }
+
+  // Derived real data
+  const orderCode = order?.code || (id ? `#${id.slice(0, 8)}` : '#HUKI-ORD');
+  const paymentMethod = order?.paymentMethod || 'COD';
+  const isCod = paymentMethod.toUpperCase() === 'COD';
+  const grandTotal = order?.grandTotal ?? 0;
+  const itemSubtotal = order?.itemSubtotal ?? grandTotal;
+  const shippingTotal = order?.shippingTotal ?? order?.shippingFee ?? 0;
+  const discountTotal = order?.discountTotal ?? order?.discountAmount ?? 0;
+
+  const sellerOrders = order?.sellerOrders || [];
+  const allItems = sellerOrders.flatMap((so) => so.items || []) || order?.items || [];
+  const physicalItems = allItems.filter((i) => i.format === 'PHYSICAL' || i.format === 'BOTH' || i.type === 'physical');
+  const digitalItems = allItems.filter((i) => i.format === 'DIGITAL' || i.type === 'ebook');
+
+  const addrObj = order?.shippingAddress;
+  const recipientName = addrObj?.fullName || addrObj?.recipientName || user?.fullName || user?.name || 'Khách Hàng HUKI';
+  const recipientPhone = addrObj?.phone || user?.phone || '0988123456';
+  const fullAddress = addrObj
+    ? [addrObj.line1 || addrObj.address, addrObj.ward, addrObj.district, addrObj.city || addrObj.province].filter(Boolean).join(', ')
+    : '12 Nguyễn Văn Bảo, Phường 5, Quận Gò Vấp, TP. Hồ Chí Minh';
+
+  const formattedDate = order?.createdAt
+    ? new Date(order.createdAt).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : new Date().toLocaleDateString('vi-VN');
+
+  // Primary Seller Order status drives the fulfillment lifecycle
+  const primarySellerOrder = sellerOrders[0];
+  const sellerStatus = (primarySellerOrder?.status || order?.status || 'PENDING_CONFIRMATION').toUpperCase();
+
+  // Unified Status Mapping matching Seller Lifecycle
+  const isPendingConfirmation = sellerStatus === 'PENDING_CONFIRMATION' || sellerStatus === 'PENDING_PAYMENT' || sellerStatus === 'PENDING';
+  const isConfirmed = sellerStatus === 'CONFIRMED';
+  const isPreparing = sellerStatus === 'PREPARING' || sellerStatus === 'PROCESSING';
+  const isShipped = sellerStatus === 'SHIPPED';
+  const isDelivered = sellerStatus === 'DELIVERED' || sellerStatus === 'COMPLETED' || orderReceived;
+
+  // Header status badge
+  const statusInfo = getStatusLabel(sellerStatus);
+
+  // Stepper steps following real seller progression
+  const trackingSteps = [
+    {
+      id: 1,
+      title: 'Đặt Hàng Thành Công',
+      time: formattedDate,
+      status: 'completed',
+      icon: 'check',
+    },
+    {
+      id: 2,
+      title: 'Tiếp Nhận Đơn Hàng',
+      time: isConfirmed || isPreparing || isShipped || isDelivered ? (primarySellerOrder?.confirmedAt ? new Date(primarySellerOrder.confirmedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Đã tiếp nhận') : 'Chờ xác nhận',
+      status: isConfirmed || isPreparing || isShipped || isDelivered ? 'completed' : isPendingConfirmation ? 'upcoming' : 'upcoming',
+      icon: 'receipt_long',
+    },
+    {
+      id: 3,
+      title: 'NXB Đang Chuẩn Bị',
+      time: isPreparing || isShipped || isDelivered ? 'Đang đóng gói' : 'Chưa xử lý',
+      status: isPreparing || isShipped || isDelivered ? 'completed' : 'upcoming',
+      icon: 'inventory_2',
+    },
+    {
+      id: 4,
+      title: 'Đang Vận Chuyển',
+      time: isShipped || isDelivered ? (primarySellerOrder?.carrier || 'Đang giao') : 'Dự kiến 2-3 ngày',
+      status: isDelivered ? 'completed' : isShipped ? 'current' : 'upcoming',
+      icon: 'local_shipping',
+    },
+    {
+      id: 5,
+      title: 'Giao Thành Công',
+      time: isDelivered ? (primarySellerOrder?.completedAt ? new Date(primarySellerOrder.completedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : 'Đã giao') : 'Chưa giao',
+      status: isDelivered ? 'completed' : 'upcoming',
+      icon: 'home_pin',
+    },
+  ];
+
+  // Stepper progress line width
+  const progressLineWidth = isDelivered
+    ? 'calc(100% - 6rem)'
+    : isShipped
+    ? '75%'
+    : isPreparing
+    ? '50%'
+    : isConfirmed
+    ? '25%'
+    : '0%';
+
+  return (
+    <div className="w-full bg-[#f8fafc] text-on-surface font-body-md min-h-screen py-6 pb-20">
+      <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+        {/* Breadcrumbs */}
+        <nav className="flex items-center text-xs text-slate-500 gap-2 flex-wrap">
+          <Link to="/" className="hover:text-emerald-700 transition-colors">
+            Trang chủ
+          </Link>
+          <span>/</span>
+          <Link to="/profile" className="hover:text-emerald-700 transition-colors">
+            Tài khoản độc giả
+          </Link>
+          <span>/</span>
+          <span className="text-emerald-800 font-semibold">
+            Chi tiết đơn hàng {orderCode}
+          </span>
+        </nav>
+
+        {/* Order Header & Status Bar */}
+        <div className="bg-white border border-slate-200/80 p-6 sm:p-8 rounded-3xl shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                Đơn Hàng {orderCode.startsWith('#') ? orderCode : `#${orderCode}`}
+              </h1>
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${statusInfo.color}`}
+              >
+                <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+                {statusInfo.text}
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Thời gian đặt: <strong>{formattedDate}</strong> · Phương thức: <strong>{isCod ? 'COD (Tiền mặt khi nhận)' : 'PayOS (VietQR)'}</strong>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleDownloadVAT}
+              className="border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+              Hóa Đơn VAT
+            </button>
+            <button
+              onClick={handlePrintInvoice}
+              className="border border-slate-200 text-slate-700 hover:bg-slate-50 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">print</span>
+              In Đơn Hàng
+            </button>
+            <Link
+              to="/seller/chat"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all"
+            >
+              <span className="material-symbols-outlined text-[16px]">support_agent</span>
+              Yêu Cầu Hỗ Trợ
+            </Link>
+          </div>
+        </div>
+
+        {/* Real-time Logistics Timeline */}
+        <div className="bg-white border border-slate-200/80 p-6 sm:p-8 rounded-3xl shadow-xs">
+          <div className="flex items-center justify-between mb-8 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-emerald-700 text-2xl">local_shipping</span>
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900">
+                Hành Trình Giao Hàng &amp; Tiến Độ Xử Lý
+              </h2>
+            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              Cập nhật trực tiếp từ hệ thống đối tác
+            </span>
+          </div>
+
+          {/* Stepper bar */}
+          <div className="relative flex flex-col md:flex-row items-center justify-between w-full gap-6 md:gap-0 px-2 sm:px-6">
+            <div className="hidden md:block absolute left-12 right-12 top-5 h-1 bg-slate-100 -z-0"></div>
+            <div
+              className="hidden md:block absolute left-12 top-5 h-1 bg-emerald-600 -z-0 transition-all duration-700"
+              style={{ width: progressLineWidth }}
+            ></div>
+
+            {trackingSteps.map((step) => {
+              const isCompleted = step.status === 'completed';
+              const isCurrent = step.status === 'current';
+              return (
+                <div
+                  key={step.id}
+                  className="relative z-10 flex flex-row md:flex-col items-center text-left md:text-center gap-3 md:gap-1.5 max-w-[150px] w-full md:w-auto"
+                >
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 shadow-xs ring-4 ring-white ${
+                      isCompleted
+                        ? 'bg-emerald-600 text-white'
+                        : isCurrent
+                        ? 'bg-amber-500 text-white ring-4 ring-amber-100'
+                        : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">
+                      {step.icon}
+                    </span>
+                  </div>
+                  <div>
+                    <span
+                      className={`text-xs font-bold block ${
+                        isCurrent
+                          ? 'text-amber-700'
+                          : isCompleted
+                          ? 'text-slate-900'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {step.title}
+                    </span>
+                    <span className="text-[11px] text-slate-500">{step.time}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 2-Column Details Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          {/* Left Column (7/12): Packages & Seller breakdown */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            {/* Real Packages breakdown by Seller */}
+            {sellerOrders.length > 0 ? (
+              sellerOrders.map((so) => {
+                const soStatus = getStatusLabel(so.status);
+                return (
+                  <div
+                    key={so.id}
+                    className="bg-white border border-slate-200/80 rounded-3xl overflow-hidden shadow-xs"
+                  >
+                    {/* Seller Order Header */}
+                    <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-emerald-700 text-[20px]">store</span>
+                        <span className="font-bold text-sm text-slate-800">Nhà Sách Đối Tác HUKI</span>
+                        <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                          Chính Hãng
+                        </span>
+                        <span className="text-slate-400">•</span>
+                        <span className="text-xs text-slate-500 font-mono">Kiện: {so.code}</span>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${soStatus.color}`}>
+                        {soStatus.text}
+                      </span>
+                    </div>
+
+                    {/* Logistics Carrier badge if shipped */}
+                    {so.carrier && (
+                      <div className="bg-emerald-50/60 px-6 py-2.5 border-b border-emerald-100 flex items-center justify-between text-xs">
+                        <span className="text-emerald-800 flex items-center gap-1.5 font-medium">
+                          <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                          Đơn vị vận chuyển: <strong>{so.carrier}</strong>
+                        </span>
+                        {so.trackingCode && (
+                          <span className="font-mono text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-200 text-[11px] font-bold">
+                            Mã vận đơn: {so.trackingCode}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Items List */}
+                    <div className="p-6 divide-y divide-slate-100">
+                      {so.items?.map((item) => {
+                        const itemTitle = item.title || item.bookTitle || item.book?.title || 'Sách HUKI';
+                        const itemCover = item.coverUrl || item.bookCoverUrl || item.book?.coverUrl;
+                        const itemPrice = Number(item.price ?? item.unitPrice ?? 0);
+                        const itemQty = item.quantity || 1;
+
+                        return (
+                          <div
+                            key={item.id || item.bookId}
+                            className="py-4 first:pt-0 last:pb-0 flex items-start justify-between gap-4"
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className="w-16 h-22 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-200 shadow-xs flex items-center justify-center">
+                                {itemCover ? (
+                                  <img
+                                    className="w-full h-full object-cover"
+                                    src={itemCover}
+                                    alt={itemTitle}
+                                  />
+                                ) : (
+                                  <span className="material-symbols-outlined text-slate-400 text-[28px]">
+                                    menu_book
+                                  </span>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-md inline-block">
+                                  {item.format === 'DIGITAL' ? 'Ebook EPUB DRM' : 'Sách Giấy In'}
+                                </span>
+                                <h4 className="font-bold text-sm text-slate-900 leading-snug">
+                                  {itemTitle}
+                                </h4>
+                                <p className="text-xs text-slate-500 font-mono">Mã sản phẩm: {item.bookId}</p>
+                                <span className="text-xs text-slate-600 block">
+                                  Số lượng: <strong>x{itemQty}</strong>
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0 space-y-2">
+                              <span className="font-black text-sm text-[#9e2a2b] block">
+                                {itemPrice > 0 ? `${itemPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                              </span>
+                              {item.format === 'DIGITAL' && (
+                                <Link
+                                  to="/reader"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">auto_stories</span>
+                                  Đọc Ngay
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Package Shipping Fee */}
+                    <div className="bg-slate-50/70 px-6 py-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-slate-500">Phí vận chuyển kiện hàng:</span>
+                      <span className="font-bold text-slate-800">
+                        {(Number(so.shippingFee) || 0).toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              /* Fallback Single Package */
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 shadow-xs space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="font-bold text-base text-slate-900">Chi Tiết Kiện Hàng #{orderCode}</h3>
+                  <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    Đang chuẩn bị tại kho
+                  </span>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 text-xs text-slate-600">
+                  Đơn hàng của bạn đã được ghi nhận vào hệ thống và đang được xử lý chuyển tiếp.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column (5/12): Delivery Address & Payment Summary */}
+          <div className="lg:col-span-5 flex flex-col gap-6">
+            {/* Recipient Address */}
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-xs space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-emerald-700">location_on</span>
+                  Địa Chỉ Nhận Hàng
+                </h3>
+                <span className="text-[11px] bg-emerald-50 text-emerald-800 border border-emerald-200/60 px-2 py-0.5 rounded font-bold">
+                  {physicalItems.length > 0 ? `${physicalItems.reduce((s, i) => s + (i.quantity || 1), 0)} cuốn sách` : 'Giao hàng tiêu chuẩn'}
+                </span>
+              </div>
+              <div className="text-xs sm:text-sm text-slate-600 space-y-1 leading-relaxed">
+                <p className="font-bold text-slate-900">
+                  {recipientName} <span className="text-slate-500 font-normal">({recipientPhone})</span>
+                </p>
+                <p>{fullAddress}</p>
+              </div>
+            </div>
+
+            {/* Payment Summary */}
+            <div className="bg-white border border-slate-200/80 p-6 rounded-3xl shadow-xs space-y-4">
+              <h3 className="font-bold text-sm text-slate-900">Tóm Tắt Thanh Toán</h3>
+              <div className="space-y-2.5 text-xs sm:text-sm text-slate-600">
+                <div className="flex justify-between">
+                  <span>Tổng tiền hàng:</span>
+                  <span className="font-medium text-slate-900">
+                    {itemSubtotal > 0 ? `${itemSubtotal.toLocaleString('vi-VN')}đ` : `${grandTotal.toLocaleString('vi-VN')}đ`}
+                  </span>
+                </div>
+
+                {discountTotal > 0 && (
+                  <div className="flex justify-between text-emerald-700">
+                    <span>Mã giảm giá &amp; Ưu đãi:</span>
+                    <span className="font-medium">-{discountTotal.toLocaleString('vi-VN')}đ</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between">
+                  <span>Phí vận chuyển:</span>
+                  <span className="font-medium text-slate-900">
+                    {shippingTotal > 0 ? `${shippingTotal.toLocaleString('vi-VN')}đ` : 'Miễn phí'}
+                  </span>
+                </div>
+
+                <div className="border-t border-slate-100 pt-3 flex justify-between items-baseline">
+                  <span className="font-bold text-sm text-slate-900">
+                    {isCod ? 'Tổng Cần Thanh Toán (COD):' : 'Tổng Đã Thanh Toán:'}
+                  </span>
+                  <span className="font-black text-xl text-[#9e2a2b]">
+                    {grandTotal > 0 ? `${grandTotal.toLocaleString('vi-VN')}đ` : '0đ'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                  Phương thức: <strong>{isCod ? 'Thanh toán tiền mặt khi nhận sách (COD)' : 'Thanh toán trực tuyến PayOS'}</strong>
+                </p>
+              </div>
+
+              {/* Quick Action Buttons */}
+              <div className="pt-2 space-y-2.5">
+                {!orderReceived ? (
+                  <button
+                    onClick={handleConfirmReceived}
+                    className="w-full py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                    Đã Nhận Được Hàng
+                  </button>
+                ) : (
+                  <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-center text-xs font-bold flex items-center justify-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px]">verified</span>
+                    Đã xác nhận nhận hàng
+                  </div>
+                )}
+
+                <Link
+                  to={`/orders/${id}/return`}
+                  className="w-full py-2.5 bg-slate-50 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 border border-slate-200"
+                >
+                  <span className="material-symbols-outlined text-[16px]">assignment_return</span>
+                  Yêu Cầu Đổi Trả / Bảo Hành (7 Ngày)
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

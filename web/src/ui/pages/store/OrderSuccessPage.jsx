@@ -1,412 +1,624 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { orderApi } from '../../api/orderApi';
+import { useAuth } from '../../context/AuthContext';
 
 export default function OrderSuccessPage() {
+  const [searchParams] = useSearchParams();
+  const { user } = useAuth();
+
+  const orderId = searchParams.get('orderId') || '';
+  const initialCode = searchParams.get('code') || (orderId ? `#${orderId.slice(0, 8)}` : '#HUKI' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '99');
+  const initialPaymentMethod = searchParams.get('paymentMethod') || 'COD';
+
+  const [order, setOrder] = useState(null);
+  const [isLoading, setIsLoading] = useState(Boolean(orderId));
+
+  const loadOrderDetail = useCallback(async () => {
+    if (!orderId) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      setIsLoading(true);
+      const res = await orderApi.getBuyerOrderDetail(orderId);
+      if (res.success && res.data) {
+        setOrder(res.data);
+      }
+    } catch {
+      // Fallback to query params if not found or guest
+    } finally {
+      setIsLoading(false);
+    }
+  }, [orderId]);
+
+  useEffect(() => {
+    loadOrderDetail();
+  }, [loadOrderDetail]);
+
+  // Derived real data
+  const orderCode = order?.code || initialCode;
+  const paymentMethod = order?.paymentMethod || initialPaymentMethod;
+  const isCod = paymentMethod.toUpperCase() === 'COD';
+  const grandTotal = order?.grandTotal ?? 0;
+  const itemSubtotal = order?.itemSubtotal ?? grandTotal;
+  const shippingFee = order?.shippingFee ?? 0;
+  const discountAmount = order?.discountAmount ?? 0;
+
+  // Status Vietnamese mapping
+  const getStatusText = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'PENDING_PAYMENT':
+        return 'Chờ thanh toán';
+      case 'PENDING_CONFIRMATION':
+        return 'Chờ xác nhận';
+      case 'CONFIRMED':
+        return 'Đã tiếp nhận đơn';
+      case 'PROCESSING':
+      case 'PREPARING':
+        return 'Đang chuẩn bị hàng';
+      case 'SHIPPED':
+        return 'Đang vận chuyển';
+      case 'DELIVERED':
+      case 'COMPLETED':
+        return 'Giao thành công';
+      case 'CANCELLED':
+        return 'Đã hủy';
+      default:
+        return 'Đã tiếp nhận đơn';
+    }
+  };
+
+  // Flattened items from sellerOrders if present, or order.items
+  const allItems = order?.sellerOrders?.flatMap((so) => so.items || []) || order?.items || [];
+  const physicalItems = allItems.filter((i) => i.format === 'PHYSICAL' || i.format === 'BOTH' || i.type === 'physical');
+  const digitalItems = allItems.filter((i) => i.format === 'DIGITAL' || i.type === 'ebook');
+
+  const hasPhysical = physicalItems.length > 0 || allItems.length === 0;
+  const hasDigital = digitalItems.length > 0;
+
+  // Shipping address parsing
+  const addrObj = order?.shippingAddress;
+  const recipientName = addrObj?.fullName || addrObj?.recipientName || user?.fullName || user?.name || 'Khách Hàng HUKI';
+  const recipientPhone = addrObj?.phone || user?.phone || '09••••••••';
+  const fullAddress = addrObj
+    ? [addrObj.line1 || addrObj.address, addrObj.ward, addrObj.district, addrObj.city || addrObj.province].filter(Boolean).join(', ')
+    : '12 Nguyễn Văn Bảo, Phường 5, Quận Gò Vấp, TP. Hồ Chí Minh';
+
+  const formattedDate = order?.createdAt
+    ? new Date(order.createdAt).toLocaleString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : new Date().toLocaleDateString('vi-VN') + ' · ' + new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(orderCode);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <div className="w-full bg-background text-on-surface font-body-md min-h-screen py-8">
-      <main className="w-full max-w-[1280px] mx-auto px-4 md:px-6 flex flex-col gap-10">
-        <nav aria-label="Tiến trình thanh toán" className="w-full bg-surface-container-lowest border border-outline-variant/60 rounded-xl px-8 py-4 shadow-sm">
-<ol className="flex items-center justify-between max-w-3xl mx-auto relative">
+    <div className="w-full bg-[#f8fafc] text-on-surface font-body-md min-h-screen py-8">
+      <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-8">
+        {/* Progress Stepper with Mathematically Centered Track */}
+        <nav aria-label="Tiến trình thanh toán" className="w-full bg-white border border-slate-200/80 rounded-2xl px-6 sm:px-8 py-5 shadow-xs">
+          <ol className="flex items-center justify-between max-w-3xl mx-auto relative">
+            {/* Progress line centered exactly on the 32px step circles (top: 16px) */}
+            <div className="absolute left-6 right-6 top-4 -translate-y-1/2 h-[2px] bg-emerald-600 z-0"></div>
 
-<div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-[2px] bg-tertiary z-0"></div>
+            <li className="flex flex-col items-center relative z-10">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white ring-4 ring-white flex items-center justify-center shadow-xs">
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </div>
+              <span className="mt-2 text-slate-700 text-xs font-medium">Giỏ hàng</span>
+            </li>
 
-<li className="flex flex-col items-center relative z-10">
-<div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center font-label-md font-bold shadow-sm">
-<span className="material-symbols-outlined text-[18px]" data-icon="check">check</span>
-</div>
-<span className="mt-1.5 font-label-md text-on-surface">Giỏ hàng</span>
-</li>
+            <li className="flex flex-col items-center relative z-10">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white ring-4 ring-white flex items-center justify-center shadow-xs">
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </div>
+              <span className="mt-2 text-slate-700 text-xs font-medium">Thông tin</span>
+            </li>
 
-<li className="flex flex-col items-center relative z-10">
-<div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center font-label-md font-bold shadow-sm">
-<span className="material-symbols-outlined text-[18px]" data-icon="check">check</span>
-</div>
-<span className="mt-1.5 font-label-md text-on-surface">Thông tin</span>
-</li>
+            <li className="flex flex-col items-center relative z-10">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white ring-4 ring-white flex items-center justify-center shadow-xs">
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </div>
+              <span className="mt-2 text-slate-700 text-xs font-medium">Thanh toán</span>
+            </li>
 
-<li className="flex flex-col items-center relative z-10">
-<div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center font-label-md font-bold shadow-sm">
-<span className="material-symbols-outlined text-[18px]" data-icon="check">check</span>
-</div>
-<span className="mt-1.5 font-label-md text-on-surface">Thanh toán</span>
-</li>
+            <li className="flex flex-col items-center relative z-10">
+              <div className="w-8 h-8 rounded-full bg-emerald-600 text-white ring-4 ring-emerald-100 flex items-center justify-center shadow-xs">
+                <span className="material-symbols-outlined text-[18px]">check</span>
+              </div>
+              <span className="mt-2 text-xs text-emerald-700 font-bold">Hoàn tất</span>
+            </li>
+          </ol>
+        </nav>
 
-<li className="flex flex-col items-center relative z-10">
-<div className="w-8 h-8 rounded-full bg-tertiary text-on-tertiary ring-4 ring-tertiary/20 flex items-center justify-center font-label-md font-bold shadow-sm">
-<span className="material-symbols-outlined text-[18px] fill-icon" data-icon="check_circle">check_circle</span>
-</div>
-<span className="mt-1.5 font-title-md text-body-sm text-tertiary">Hoàn tất</span>
-</li>
-</ol>
-</nav>
+        {/* Status Confirmation Hero (Crisp & Razor-Sharp, No Blur Artifacts) */}
+        <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 lg:p-10 shadow-xs text-center flex flex-col items-center relative">
+          <div className="w-16 h-16 rounded-full bg-emerald-600 text-white flex items-center justify-center mb-4 shadow-md shadow-emerald-600/20 ring-8 ring-emerald-50">
+            <span className="material-symbols-outlined text-[32px]">done_all</span>
+          </div>
 
-<section className="bg-surface-container-lowest border border-outline-variant/60 rounded-2xl p-8 lg:p-10 shadow-sm text-center flex flex-col items-center relative overflow-hidden">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl text-slate-900 font-extrabold tracking-tight">
+            {isCod ? 'Đặt Hàng Thành Công!' : 'Thanh Toán Thành Công!'}
+          </h1>
+          <p className="text-slate-600 max-w-xl mt-2 text-xs sm:text-sm leading-relaxed">
+            Cảm ơn bạn đã tin tưởng chọn mua sách tại HUKI. Đơn hàng của bạn đã được tiếp nhận và các nhà sách đối tác đang chuẩn bị đóng gói giao hàng.
+          </p>
 
-<div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-96 bg-tertiary/5 rounded-full blur-3xl pointer-events-none"></div>
-
-<div className="w-16 h-16 rounded-full bg-tertiary/10 border border-tertiary/30 text-tertiary flex items-center justify-center mb-4">
-<span className="material-symbols-outlined text-[36px] fill-icon" data-icon="task_alt">task_alt</span>
-</div>
-<h1 className="font-headline-lg text-headline-lg text-on-surface tracking-tight">
-          Thanh Toán Thành Công!
-        </h1>
-<p className="font-body-lg text-on-surface-variant max-w-xl mt-2">
-          Cảm ơn bạn đã mua sách tại HUKI. Đơn hàng của bạn đã được xác nhận và đang được các nhà sách đối tác xử lý cẩn thận.
-        </p>
-
-<div className="mt-5 flex flex-wrap items-center justify-center gap-3">
-<div className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-container-low border border-surface-variant">
-<span className="font-body-md text-on-surface-variant">Mã đơn hàng:</span>
-<span className="font-title-md text-on-surface tracking-wide" id="order-code">#HUKI2609071842</span>
-<button className="text-tertiary hover:text-on-surface p-1 rounded transition-colors" onClick={() => { navigator.clipboard.writeText('HUKI2609071842'); alert('Đã sao chép mã đơn hàng!'); }} title="Sao chép">
-<span className="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
-</button>
-</div>
-<span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-tertiary/10 text-tertiary font-label-md">
-<span className="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
-            Đã thanh toán (PayOS)
-          </span>
-</div>
-
-<div className="mt-6 pt-6 border-t border-surface-variant w-full max-w-3xl flex flex-wrap items-center justify-around gap-4 text-body-sm text-on-surface-variant">
-<div>
-<span className="block text-on-surface-variant/80 font-label-sm">Phương thức:</span>
-<span className="font-title-md text-on-surface flex items-center gap-1 justify-center mt-0.5">
-<span className="material-symbols-outlined text-[16px] text-tertiary" data-icon="qr_code_2">qr_code_2</span>
-              PayOS (VietQR)
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-50 border border-slate-200 shadow-xs">
+              <span className="text-slate-500 text-xs font-medium">Mã đơn hàng:</span>
+              <span className="font-mono text-slate-800 tracking-wide font-bold text-sm" id="order-code">
+                {orderCode.startsWith('#') ? orderCode : `#${orderCode}`}
+              </span>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-emerald-700 hover:text-emerald-800 px-1.5 py-0.5 rounded-md hover:bg-emerald-50 transition-colors cursor-pointer text-xs font-medium"
+                onClick={handleCopyCode}
+                title="Sao chép mã đơn"
+              >
+                {copied ? (
+                  <>
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600" data-icon="done">done</span>
+                    <span className="text-[11px] text-emerald-700 font-bold">Đã sao chép</span>
+                  </>
+                ) : (
+                  <span className="material-symbols-outlined text-[18px]" data-icon="content_copy">content_copy</span>
+                )}
+              </button>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/60 font-medium text-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              {isCod ? 'Thanh toán COD khi nhận sách' : 'Đã thanh toán (PayOS)'}
             </span>
-</div>
-<div className="hidden sm:block h-6 w-[1px] bg-surface-variant"></div>
-<div>
-<span className="block text-on-surface-variant/80 font-label-sm">Thời gian thanh toán:</span>
-<span className="font-title-md text-on-surface mt-0.5 block">07/09/2026 · 11:24</span>
-</div>
-<div className="hidden sm:block h-6 w-[1px] bg-surface-variant"></div>
-<div>
-<span className="block text-on-surface-variant/80 font-label-sm">Tổng thanh toán:</span>
-<span className="font-title-md text-primary text-[17px] mt-0.5 block">461.000đ</span>
-</div>
-<div className="hidden sm:block h-6 w-[1px] bg-surface-variant"></div>
-<div>
-<span className="block text-on-surface-variant/80 font-label-sm">Hóa đơn điện tử:</span>
-<span className="font-title-md text-on-surface mt-0.5 block">Đã gửi kien***@gmail.com</span>
-</div>
-</div>
-</section>
+          </div>
 
-<section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-<div className="bg-surface-container-lowest border border-outline-variant/70 rounded-2xl p-6 lg:p-7 flex flex-col justify-between shadow-sm relative">
-<div>
-<div className="flex items-start justify-between gap-4">
-<div className="flex items-center gap-3">
-<div className="w-12 h-12 rounded-xl bg-surface-container text-on-surface flex items-center justify-center">
-<span className="material-symbols-outlined text-[26px]" data-icon="local_shipping">local_shipping</span>
-</div>
-<div>
-<span className="font-label-sm uppercase tracking-wider text-on-surface-variant">Đơn hàng hiện vật</span>
-<h3 className="font-title-lg text-title-lg text-on-surface">Sách Giấy Đang Được Chuẩn Bị</h3>
-</div>
-</div>
-<span className="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm font-semibold">
-                3 cuốn · 2 kiện
+          {/* Metric Tiles (4 Clean Structured Cards) */}
+          <div className="mt-6 pt-6 border-t border-slate-100 w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-3 text-left">
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/60 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Phương thức</span>
+              <span className="text-xs sm:text-sm text-slate-800 font-bold flex items-center gap-1.5 mt-0.5">
+                <span className="material-symbols-outlined text-[16px] text-emerald-600" data-icon={isCod ? 'payments' : 'qr_code_2'}>
+                  {isCod ? 'payments' : 'qr_code_2'}
+                </span>
+                {isCod ? 'COD (Tiền mặt)' : 'PayOS (VietQR)'}
               </span>
-</div>
-<p className="font-body-md text-on-surface-variant mt-4">
-              Các nhà sách đối tác đã nhận được đơn hàng và đang đóng gói cẩn thận để bàn giao cho đơn vị vận chuyển tiêu chuẩn.
-            </p>
+            </div>
 
-<div className="mt-5 p-4 rounded-xl bg-surface-container-low border border-surface-variant flex flex-col gap-3">
-<div className="flex items-center gap-2 font-body-sm text-on-surface">
-<span className="material-symbols-outlined text-tertiary text-[20px]" data-icon="event_available">event_available</span>
-<span><strong>Dự kiến nhận hàng:</strong> 09/09 – 12/09/2026</span>
-</div>
-<div className="flex items-start gap-2 font-body-sm text-on-surface-variant">
-<span className="material-symbols-outlined text-on-surface-variant text-[20px] flex-shrink-0 mt-0.5" data-icon="location_on">location_on</span>
-<div>
-<strong className="text-on-surface">Lê Đức Kiên</strong> · 09••••••••<br />
-                  12 Nguyễn Văn Bảo, Phường Hạnh Thông, Quận Gò Vấp, TP. Hồ Chí Minh
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/60 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Thời gian đặt</span>
+              <span className="text-xs sm:text-sm text-slate-800 font-bold mt-0.5">{formattedDate}</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/60 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Tổng thanh toán</span>
+              <span className="text-xs sm:text-sm text-[#9e2a2b] font-black mt-0.5">
+                {grandTotal > 0 ? `${grandTotal.toLocaleString('vi-VN')}đ` : '179.000đ'}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/60 flex flex-col gap-1">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Trạng thái</span>
+              <span className="text-xs sm:text-sm text-emerald-700 font-bold mt-0.5 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                {getStatusText(order?.status)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Fulfillment Packages: Dynamically Renders Only Applicable Packages */}
+        {hasPhysical && !hasDigital ? (
+          /* SINGLE PHYSICAL PACKAGE: Elegant Spacious 2-Column Split inside one card */
+          <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 shadow-sm">
+            <div className="flex flex-col lg:flex-row gap-6 lg:gap-8 items-start justify-between">
+              {/* Left Column: Fulfillment Status & Timeline */}
+              <div className="flex-1 flex flex-col gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-[26px]" data-icon="local_shipping">local_shipping</span>
+                  </div>
+                  <div>
+                    <span className="uppercase tracking-wider text-emerald-700 text-[11px] font-bold">Đơn hàng hiện vật</span>
+                    <h3 className="text-lg font-bold text-slate-900">Sách Giấy Đang Được Chuẩn Bị</h3>
+                  </div>
                 </div>
-</div>
-</div>
-</div>
-<div className="mt-6 pt-4 border-t border-surface-variant flex items-center justify-between">
-<button className="h-11 px-5 rounded-lg border border-tertiary text-tertiary hover:bg-tertiary/5 font-title-md text-body-sm flex items-center gap-2 transition-colors">
-<span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
-              Theo Dõi Đơn Hàng
-            </button>
-<span className="text-body-sm text-on-surface-variant">Giao bởi Viettel Post &amp; GHN</span>
-</div>
-</div>
 
-<div className="bg-[#f0f9f6] border border-tertiary/30 rounded-2xl p-6 lg:p-7 flex flex-col justify-between shadow-sm relative overflow-hidden">
-<div className="absolute top-0 right-0 w-32 h-32 bg-tertiary/10 rounded-full blur-2xl pointer-events-none"></div>
-<div>
-<div className="flex items-start justify-between gap-4">
-<div className="flex items-center gap-3">
-<div className="w-12 h-12 rounded-xl bg-tertiary text-on-tertiary flex items-center justify-center shadow-sm">
-<span className="material-symbols-outlined text-[26px] fill-icon" data-icon="menu_book">menu_book</span>
-</div>
-<div>
-<span className="font-label-sm uppercase tracking-wider text-tertiary font-semibold">Tài nguyên số Huki</span>
-<h3 className="font-title-lg text-title-lg text-on-surface">Ebook Đã Sẵn Sàng Trong Tủ Sách!</h3>
-</div>
-</div>
-<span className="px-2.5 py-1 rounded-full bg-tertiary text-on-tertiary font-label-sm font-semibold flex items-center gap-1">
-<span className="material-symbols-outlined text-[14px]" data-icon="lock_open">lock_open</span>
-                Kích hoạt ngay
-              </span>
-</div>
-<p className="font-body-md text-on-surface-variant mt-4">
-              Bản quyền số vĩnh viễn đã được cấp thành công vào tài khoản <strong className="text-on-surface font-medium">kien***@gmail.com</strong> trên hệ sinh thái ứng dụng và web reader của HUKI.
-            </p>
-
-<div className="mt-5 p-3.5 rounded-xl bg-surface-container-lowest border border-tertiary/20 flex items-center gap-4 shadow-sm">
-<div className="w-14 h-20 rounded-md overflow-hidden flex-shrink-0 spine-crease bg-surface-container border border-surface-variant shadow">
-<img className="w-full h-full object-cover" alt="Editorial book cover photograph for Deep Work by Cal Newport, scholarly minimalist aesthetic with warm ivory background and deep charcoal typographic title, clean spine crease shadow overlay, high-end Vietnamese publication design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_3oFQQ0COlSWVlT3EZesSWfAtXv1YVkKaGiznuKgJH_fFivK405_dBbTi3dukWOkCbF7AKVcF1ztkXfC36q86IK1y4qxSZfbmahN6cW5Y5Bp-N34LBghafXWVQ9iZ3Ub6P7xhdVpCvm67AhZ73aZ2TXGvrd2XTGBly2rDOghMvXTIZJbQkQM05P8RW9DiBGU6Pq2b2wQO8y_Lft0Vvg7113fByAEOOjrVNvq5kSNN-GlGun0tE3XcxA" />
-</div>
-<div className="flex-1 min-w-0">
-<div className="flex items-center gap-2">
-<span className="px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary font-label-sm text-[10px]">Ebook (EPUB)</span>
-<span className="font-label-sm text-on-surface-variant">Không giới hạn đọc offline</span>
-</div>
-<h4 className="font-title-md text-body-md text-on-surface truncate mt-1">Deep Work – Làm Ra Làm, Chơi Ra Chơi</h4>
-<p className="font-body-sm text-on-surface-variant">Tác giả: Cal Newport · NXB Trẻ &amp; Alpha Books</p>
-</div>
-</div>
-</div>
-<div className="mt-6 pt-4 border-t border-tertiary/20 flex flex-wrap items-center justify-between gap-3">
-<Link className="h-11 px-6 rounded-lg bg-tertiary hover:bg-[#005240] text-on-tertiary font-title-md text-body-sm flex items-center gap-2 transition-all shadow-sm" to="/reader">
-              Đọc Ngay Bây Giờ
-              <span className="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
-</Link>
-<Link className="font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" to="/library">
-              Mở Tủ Sách Của Tôi
-              <span className="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span>
-</Link>
-</div>
-</div>
-</section>
-
-<div className="flex items-center justify-center -mt-2">
-<Link className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors" to="/">
-<span className="material-symbols-outlined text-[18px]" data-icon="west">west</span>
-          Tiếp tục mua sắm các tựa sách khác trên HUKI
-        </Link>
-</div>
-
-
-
-<section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
-<div className="lg:col-span-8 flex flex-col gap-6">
-<div className="flex items-center justify-between border-b border-surface-variant pb-3">
-<h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
-<span className="material-symbols-outlined text-tertiary text-[24px]" data-icon="inventory_2">inventory_2</span>
-              Chi Tiết Đơn Hàng Theo Nhà Xuất Bản &amp; Đối Tác
-            </h2>
-<span className="font-body-sm text-on-surface-variant">2 nhà bán lẻ</span>
-</div>
-
-<div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
-
-<div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
-<div className="flex items-center gap-2.5">
-<span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
-<span className="font-title-md text-body-md text-on-surface">Alpha Books Official</span>
-<span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm">Chính Hãng</span>
-<span className="text-surface-dim">•</span>
-<span className="font-body-sm text-on-surface-variant">Mã phụ: #HUKI-AB-1842</span>
-</div>
-<span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm flex items-center gap-1 font-semibold">
-<span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
-                Đang chuẩn bị hàng
-              </span>
-</div>
-
-<div className="p-5 flex flex-col divide-y divide-surface-variant">
-
-<div className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
-<div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 spine-crease bg-surface-container border border-surface-variant shadow-sm">
-<img className="w-full h-full object-cover" alt="Editorial book cover photograph of Atomic Habits Vietnamese edition with white background, yellow-orange abstract microdots, clean typography, soft library ambient lighting, subtle book spine texture." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBansMhYOtg3m8uwPM9tYbABOAWqFiGJWbIkAHD8zlz0p63yT-w4XdiitY70Pqo08r68qZE_f7NVKVn32WPJB8Nyw13iLqneaJ6d56DNmrhLKwtcBkEGY_bIq36KgOJRIwZrjOqVZaemgWQvsjFJbDPrzGwd6I0MMxUGJQAp_MC6odl9Hftpkb7UTPgwiAPddbO7RUOlJAF6sT9ZuilwUff44ZoQqIYME5bukeJoPUGDj38X6o2znkYw" />
-</div>
-<div className="flex-1 min-w-0">
-<div className="flex items-start justify-between gap-2">
-<div>
-<h4 className="font-title-md text-body-md text-on-surface">Atomic Habits – Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ</h4>
-<p className="font-body-sm text-on-surface-variant mt-0.5">Tác giả: James Clear</p>
-</div>
-<span className="font-title-md text-body-md text-on-surface flex-shrink-0">129.000đ</span>
-</div>
-<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
-<div className="flex items-center gap-2">
-<span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">Sách giấy (Bìa mềm)</span>
-<span className="text-on-surface-variant">Số lượng: x1</span>
-</div>
-<span className="inline-flex items-center gap-1 text-on-surface-variant font-label-sm">
-<span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                      Đang chuẩn bị sách tại kho
-                    </span>
-</div>
-</div>
-</div>
-
-<div className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
-<div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 spine-crease bg-surface-container border border-surface-variant shadow-sm">
-<img className="w-full h-full object-cover" alt="Editorial cover of Deep Work Cal Newport in crisp Vietnamese translation, minimalist warm background, dark typography, digital preview badge, high literary elegance." src="https://lh3.googleusercontent.com/aida-public/AB6AXuANnrDPPiP33MiTotgyvHl2BGpXAUZPI9r9Z7hupeAby6xnAkETDv1LZZKgy4PSLu9y16UkB7tgO9cmuXhrHPdFgTesUeaH3pyfzTQ9KlLJAgJKXc18EqJd4Mhv_owaUiz8FjzGI8hZ07qvDqH5CQ_cfiKlKPMoaxNWB_Q3KtXj-xgpxjjGHG0O8LJgKs9590hmbAiXiNbZfln6HPJ1SSQWu8NvYCnY7xEnBf8lNuOXv2kOFtcoSS9UgA" />
-</div>
-<div className="flex-1 min-w-0">
-<div className="flex items-start justify-between gap-2">
-<div>
-<h4 className="font-title-md text-body-md text-on-surface">Deep Work – Làm Ra Làm, Chơi Ra Chơi</h4>
-<p className="font-body-sm text-on-surface-variant mt-0.5">Tác giả: Cal Newport</p>
-</div>
-<span className="font-title-md text-body-md text-on-surface flex-shrink-0">79.000đ</span>
-</div>
-<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
-<div className="flex items-center gap-2">
-<span className="px-2 py-0.5 rounded bg-tertiary/10 text-tertiary font-label-sm">Ebook bản quyền số</span>
-<span className="text-on-surface-variant">Số lượng: x1</span>
-</div>
-<span className="inline-flex items-center gap-1 text-tertiary font-label-sm font-semibold">
-<span className="material-symbols-outlined text-[15px]" data-icon="check_circle">check_circle</span>
-                      Đã cấp quyền đọc tức thì
-                    </span>
-</div>
-</div>
-</div>
-</div>
-
-<div className="bg-surface-container-low/50 px-5 py-3 border-t border-surface-variant flex items-center justify-between text-body-sm">
-<span className="text-on-surface-variant flex items-center gap-1.5">
-<span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
-                Phương thức vận chuyển sách giấy: Giao hàng tiêu chuẩn
-              </span>
-<span className="font-title-md text-on-surface">25.000đ</span>
-</div>
-</div>
-
-<div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
-
-<div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
-<div className="flex items-center gap-2.5">
-<span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
-<span className="font-title-md text-body-md text-on-surface">Nhà Sách HUKI Partner – First News Trí Việt</span>
-<span className="px-2 py-0.5 rounded bg-tertiary/10 text-tertiary font-label-sm">Đối Tác Uy Tín</span>
-<span className="text-surface-dim">•</span>
-<span className="font-body-sm text-on-surface-variant">Mã phụ: #HUKI-HP-1843</span>
-</div>
-<span className="px-2.5 py-0.5 rounded-full bg-surface-container-highest text-on-surface font-label-sm flex items-center gap-1 font-medium">
-<span className="material-symbols-outlined text-[14px]" data-icon="done">done</span>
-                Đã xác nhận đơn
-              </span>
-</div>
-
-<div className="p-5">
-
-<div className="flex items-start gap-4">
-<div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 spine-crease bg-surface-container border border-surface-variant shadow-sm">
-<img className="w-full h-full object-cover" alt="Editorial book cover photograph of Psychology of Money Vietnamese translation, soft warm parchment paper textured background, elegant serif title in dark emerald ink, studio lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmwUC85OFpm1hCBeBow5IobLrU-51yfTG6ElU3ETuHBcgSGMKv9q6PdHuC2XE1mO6zmNhYcsXC_UB7Bye-FYbAkpv824eYGfar-inQ4pJ3mzo1ZbHR4V6s9eFbPxRO1LStnynysaDGqkGvQzYNFU1VWRjjR5FCl8TETq0JWErPkjdvsQntvxNWqhO2ZNqat2q9-8MHm95aRwyLGDGUPTx2EYyqnnTUayPwnw2r_nOarHGVBeZr8_-yNw" />
-</div>
-<div className="flex-1 min-w-0">
-<div className="flex items-start justify-between gap-2">
-<div>
-<h4 className="font-title-md text-body-md text-on-surface">Tâm Lý Học Về Tiền (The Psychology of Money)</h4>
-<p className="font-body-sm text-on-surface-variant mt-0.5">Tác giả: Morgan Housel</p>
-</div>
-<div className="text-right">
-<span className="font-title-md text-body-md text-on-surface block">298.000đ</span>
-<span className="font-body-sm text-on-surface-variant text-[12px]">149.000đ / cuốn</span>
-</div>
-</div>
-<div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
-<div className="flex items-center gap-2">
-<span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">Sách giấy (Bìa mềm)</span>
-<span className="text-on-surface-variant">Số lượng: x2</span>
-</div>
-<span className="inline-flex items-center gap-1 text-on-surface-variant font-label-sm">
-<span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
-                      Đang đóng gói kiện hàng
-                    </span>
-</div>
-</div>
-</div>
-</div>
-
-<div className="bg-surface-container-low/50 px-5 py-3 border-t border-surface-variant flex items-center justify-between text-body-sm">
-<span className="text-on-surface-variant flex items-center gap-1.5">
-<span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
-                Phương thức vận chuyển sách giấy: Giao hàng tiết kiệm
-              </span>
-<span className="font-title-md text-on-surface">20.000đ</span>
-</div>
-</div>
-</div>
-
-<div className="lg:col-span-4 flex flex-col gap-6">
-<div className="border-b border-surface-variant pb-3">
-<h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
-<span className="material-symbols-outlined text-primary text-[24px]" data-icon="receipt">receipt</span>
-              Tóm Tắt Thanh Toán
-            </h2>
-</div>
-
-<div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-6 shadow-sm flex flex-col gap-4">
-<div className="flex items-center justify-between text-body-md">
-<span className="text-on-surface-variant">Tổng tiền hàng (4 sản phẩm)</span>
-<span className="font-body-md text-on-surface">506.000đ</span>
-</div>
-<div className="flex items-center justify-between text-body-md">
-<span className="text-on-surface-variant flex items-center gap-1">
-                Voucher &amp; Ưu đãi VIP Bạc
-                <span className="material-symbols-outlined text-primary text-[16px]" data-icon="sell">sell</span>
-</span>
-<span className="font-body-md text-primary font-medium">-90.000đ</span>
-</div>
-<div className="flex items-center justify-between text-body-md">
-<span className="text-on-surface-variant">Phí vận chuyển (2 nhà sách)</span>
-<span className="font-body-md text-on-surface">45.000đ</span>
-</div>
-<div className="h-[1px] bg-surface-variant my-1"></div>
-<div className="flex items-baseline justify-between">
-<div>
-<span className="font-title-lg text-title-lg text-on-surface block">Tổng Đã Thanh Toán</span>
-<span className="font-label-sm text-tertiary">PayOS • Giao dịch hoàn tất</span>
-</div>
-<span className="font-headline-md text-headline-md font-bold text-primary">461.000đ</span>
-</div>
-
-<div className="mt-4 p-3.5 rounded-lg bg-surface-container-low border border-surface-variant text-body-sm flex items-start gap-2.5">
-<span className="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0 mt-0.5" data-icon="description">description</span>
-<div>
-<strong className="text-on-surface font-title-md">Hóa đơn điện tử e-VAT:</strong>
-<p className="text-on-surface-variant text-[12px] mt-0.5">
-                  Hóa đơn VAT điện tử sẽ được xuất và gửi tự động về email <span className="font-medium text-on-surface">kien***@gmail.com</span> trong vòng 24 giờ.
+                <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                  Các nhà sách đối tác đã nhận được đơn hàng và đang đóng gói cẩn thận để bàn giao cho đơn vị vận chuyển tiêu chuẩn.
                 </p>
-</div>
-</div>
 
-<div className="mt-3 flex flex-col gap-2">
-<button className="w-full h-10 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface font-title-md text-body-sm flex items-center justify-center gap-2 transition-colors">
-<span className="material-symbols-outlined text-[18px]" data-icon="print">print</span>
-                In Biên Lai Đơn Hàng
-              </button>
-<button className="w-full h-10 rounded-lg text-tertiary hover:bg-tertiary/5 font-title-md text-body-sm flex items-center justify-center gap-1 transition-colors">
-<span className="material-symbols-outlined text-[18px]" data-icon="support_agent">support_agent</span>
-                Cần hỗ trợ về đơn hàng này?
-              </button>
-</div>
-</div>
+                {/* Tracking Steps Preview */}
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 flex flex-col gap-3">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-800 font-medium">
+                    <span className="material-symbols-outlined text-emerald-600 text-[20px]" data-icon="event_available">event_available</span>
+                    <span><strong>Dự kiến nhận hàng:</strong> 2 - 3 ngày làm việc</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 pt-2 border-t border-slate-200/60">
+                    <span className="material-symbols-outlined text-[18px] text-slate-400" data-icon="verified">verified</span>
+                    <span>Đơn vị giao vận: <strong>Viettel Post / GHTK Chuyển phát tiêu chuẩn</strong></span>
+                  </div>
+                </div>
 
-<div className="p-4 rounded-xl bg-surface-container-low/60 border border-surface-variant flex items-center gap-3">
-<span className="material-symbols-outlined text-tertiary text-[28px]" data-icon="security">security</span>
-<div className="text-body-sm">
-<span className="font-title-md text-on-surface block">Cam Kết Độc Quyền HUKI</span>
-<span className="text-on-surface-variant text-[12px]">Đổi trả sách giấy trong 7 ngày nếu lỗi in ấn. Ebook cam kết bản quyền chính chủ 100%.</span>
-</div>
-</div>
-</div>
-</section>
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                  <Link
+                    to={orderId ? `/orders/${orderId}` : '/orders'}
+                    className="h-10 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
+                    Theo Dõi Đơn Hàng
+                  </Link>
+                  <Link
+                    to="/"
+                    className="h-10 px-5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px]" data-icon="west">west</span>
+                    Tiếp tục mua sắm
+                  </Link>
+                </div>
+              </div>
+
+              {/* Right Column: Delivery Address Card */}
+              <div className="w-full lg:w-[420px] p-5 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-4">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200/60">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[16px] text-slate-600" data-icon="pin_drop">pin_drop</span>
+                      Địa chỉ nhận hàng
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                      {physicalItems.length > 0 ? `${physicalItems.reduce((s, i) => s + (i.quantity || 1), 0)} cuốn sách` : '1 kiện hàng'}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-start gap-3">
+                    <span className="material-symbols-outlined text-slate-400 text-[22px] flex-shrink-0 mt-0.5" data-icon="location_on">location_on</span>
+                    <div className="text-xs sm:text-sm">
+                      <p className="font-bold text-slate-900">{recipientName} <span className="text-slate-500 font-normal">({recipientPhone})</span></p>
+                      <p className="text-slate-600 mt-1 leading-relaxed">{fullAddress}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-white border border-slate-200/60 flex items-center justify-between text-xs text-slate-500">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-emerald-600 text-[16px]" data-icon="shield">shield</span>
+                    Bảo hiểm hàng hóa 100%
+                  </span>
+                  <span className="font-medium text-slate-700">Đồng kiểm khi nhận</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : (
+          /* DUAL / CONDITIONAL GRID PACKAGES (When Ebook is present) */
+          <section className={`grid gap-6 ${hasPhysical && hasDigital ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+            {/* Package 1: Physical Books */}
+            {hasPhysical && (
+              <div className="bg-white border border-slate-200/80 rounded-3xl p-6 lg:p-7 flex flex-col justify-between shadow-sm relative">
+                <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-800 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-[26px]" data-icon="local_shipping">local_shipping</span>
+                      </div>
+                      <div>
+                        <span className="uppercase tracking-wider text-slate-500 text-[11px] font-bold">Đơn hàng hiện vật</span>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900">Sách Giấy Đang Được Chuẩn Bị</h3>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-bold text-xs">
+                      {physicalItems.length > 0 ? `${physicalItems.reduce((s, i) => s + (i.quantity || 1), 0)} cuốn` : '1 kiện'}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-4 text-xs sm:text-sm leading-relaxed">
+                    Các nhà sách đối tác đã nhận được đơn hàng và đang đóng gói cẩn thận để bàn giao cho đơn vị vận chuyển tiêu chuẩn.
+                  </p>
+
+                  <div className="mt-5 p-4 rounded-2xl bg-slate-50 border border-slate-200/60 flex flex-col gap-3 text-xs sm:text-sm">
+                    <div className="flex items-center gap-2 text-slate-800">
+                      <span className="material-symbols-outlined text-emerald-600 text-[20px]" data-icon="event_available">event_available</span>
+                      <span><strong>Dự kiến nhận hàng:</strong> 2 - 3 ngày làm việc</span>
+                    </div>
+                    <div className="flex items-start gap-2 text-slate-600 pt-2 border-t border-slate-200/60">
+                      <span className="material-symbols-outlined text-slate-400 text-[20px] flex-shrink-0 mt-0.5" data-icon="location_on">location_on</span>
+                      <div>
+                        <strong className="text-slate-900">{recipientName}</strong> · {recipientPhone}<br />
+                        <span className="text-slate-600">{fullAddress}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                  <Link
+                    to={orderId ? `/orders/${orderId}` : '/orders'}
+                    className="h-10 px-5 rounded-xl border border-emerald-700 text-emerald-700 hover:bg-emerald-50 text-xs sm:text-sm font-bold flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
+                    Theo Dõi Đơn Hàng
+                  </Link>
+                  <span className="text-xs text-slate-500 font-medium">Giao bởi Viettel Post / GHTK</span>
+                </div>
+              </div>
+            )}
+
+            {/* Package 2: Ebook DRM Activation */}
+            {hasDigital && (
+              <div className="bg-[#f0f9f6] border border-emerald-200/80 rounded-3xl p-6 lg:p-7 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-100/50 rounded-full blur-2xl pointer-events-none"></div>
+                <div>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-700 text-white flex items-center justify-center shadow-sm">
+                        <span className="material-symbols-outlined text-[26px] fill-icon" data-icon="menu_book">menu_book</span>
+                      </div>
+                      <div>
+                        <span className="uppercase tracking-wider text-emerald-800 font-bold text-[11px]">Tài nguyên số Huki</span>
+                        <h3 className="text-base sm:text-lg font-bold text-slate-900">Ebook Đã Sẵn Sàng Trong Tủ Sách!</h3>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]" data-icon="lock_open">lock_open</span>
+                      {digitalItems.length} ebook bản quyền
+                    </span>
+                  </div>
+                  <p className="text-slate-600 mt-4 text-xs sm:text-sm leading-relaxed">
+                    Bản quyền số vĩnh viễn đã được cấp thành công vào tài khoản <strong className="text-slate-900 font-medium">{user?.email || 'của bạn'}</strong> trên hệ sinh thái ứng dụng và web reader của HUKI.
+                  </p>
+
+                  <div className="mt-5 p-3.5 rounded-2xl bg-white border border-emerald-200/60 flex items-center gap-4 shadow-xs">
+                    <div className="w-14 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100 border border-slate-200 shadow-xs flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[32px] text-emerald-700">auto_stories</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">Ebook (EPUB DRM)</span>
+                        <span className="text-slate-500 text-[11px]">Không giới hạn đọc offline</span>
+                      </div>
+                      <h4 className="text-slate-900 truncate mt-1 font-bold text-xs sm:text-sm">
+                        {digitalItems[0]?.title || 'Kho Sách Điện Tử Cá Nhân HUKI'}
+                      </h4>
+                      <p className="text-slate-500 text-xs">Đồng bộ ghi chú, highlight và vị trí đọc tức thì</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 pt-4 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-3">
+                  <Link className="h-10 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer" to="/reader">
+                    Đọc Ngay Bây Giờ
+                    <span className="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
+                  </Link>
+                  <Link className="text-xs sm:text-sm text-emerald-800 hover:underline font-bold flex items-center gap-1 cursor-pointer" to="/library">
+                    Mở Tủ Sách Của Tôi
+                    <span className="material-symbols-outlined text-[16px]" data-icon="open_in_new">open_in_new</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        <div className="flex items-center justify-center -mt-2">
+          <Link className="font-body-md text-on-surface-variant hover:text-primary flex items-center gap-1 transition-colors" to="/">
+            <span className="material-symbols-outlined text-[18px]" data-icon="west">west</span>
+            Tiếp tục mua sắm các tựa sách khác trên HUKI
+          </Link>
+        </div>
+
+        {/* Real Order Items by Seller and Payment Summary */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            <div className="flex items-center justify-between border-b border-surface-variant pb-3">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-tertiary text-[24px]" data-icon="inventory_2">inventory_2</span>
+                Chi Tiết Đơn Hàng Theo Nhà Xuất Bản &amp; Đối Tác
+              </h2>
+              <span className="font-body-sm text-on-surface-variant">
+                {order?.sellerOrders?.length ? `${order.sellerOrders.length} kiện hàng` : 'Chi tiết kiện hàng'}
+              </span>
+            </div>
+
+            {/* Dynamic Seller Orders / Items */}
+            {order?.sellerOrders && order.sellerOrders.length > 0 ? (
+              order.sellerOrders.map((so) => (
+                <div key={so.id} className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
+                  <div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
+                      <span className="font-title-md text-body-md text-on-surface">Nhà Sách Đối Tác HUKI</span>
+                      <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm">Chính Hãng</span>
+                      <span className="text-surface-dim">•</span>
+                      <span className="font-body-sm text-on-surface-variant">Mã kiện: {so.code}</span>
+                    </div>
+                    <span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm flex items-center gap-1 font-semibold">
+                      <span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
+                      {so.status || 'Đang chuẩn bị hàng'}
+                    </span>
+                  </div>
+
+                  <div className="p-5 flex flex-col divide-y divide-surface-variant">
+                    {so.items?.map((item) => (
+                      <div key={item.id || item.bookId} className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
+                        <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container border border-surface-variant shadow-sm flex items-center justify-center">
+                          {item.coverImage || item.coverUrl ? (
+                            <img className="w-full h-full object-cover" alt={item.title} src={item.coverImage || item.coverUrl} />
+                          ) : (
+                            <span className="material-symbols-outlined text-[28px] text-on-surface-variant">menu_book</span>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h4 className="font-title-md text-body-md text-on-surface">{item.title}</h4>
+                              <p className="font-body-sm text-on-surface-variant mt-0.5">Mã sách: {item.bookId}</p>
+                            </div>
+                            <span className="font-title-md text-body-md text-on-surface flex-shrink-0">
+                              {(item.price || 0).toLocaleString('vi-VN')}đ
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
+                            <div className="flex items-center gap-2">
+                              <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">
+                                {item.format === 'DIGITAL' ? 'Ebook số' : 'Sách giấy vật lý'}
+                              </span>
+                              <span className="text-on-surface-variant">Số lượng: x{item.quantity || 1}</span>
+                            </div>
+                            <span className="inline-flex items-center gap-1 text-on-surface-variant font-label-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+                              Đang chuẩn bị tại kho
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-surface-container-low/50 px-5 py-3 border-t border-surface-variant flex items-center justify-between text-body-sm">
+                    <span className="text-on-surface-variant flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[18px]" data-icon="local_shipping">local_shipping</span>
+                      Phí vận chuyển kiện hàng:
+                    </span>
+                    <span className="font-title-md text-on-surface">{(so.shippingFee || 0).toLocaleString('vi-VN')}đ</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              /* Fallback default display */
+              <div className="bg-surface-container-lowest border border-outline-variant/60 rounded-xl overflow-hidden shadow-sm">
+                <div className="bg-surface-container-low px-5 py-3.5 border-b border-surface-variant flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-primary text-[20px]" data-icon="store">store</span>
+                    <span className="font-title-md text-body-md text-on-surface">Nhà Sách HUKI Official</span>
+                    <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-label-sm">Chính Hãng</span>
+                    <span className="text-surface-dim">•</span>
+                    <span className="font-body-sm text-on-surface-variant">Mã đơn: #{orderCode}</span>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm flex items-center gap-1 font-semibold">
+                    <span className="material-symbols-outlined text-[14px]" data-icon="hourglass_top">hourglass_top</span>
+                    Đang chuẩn bị hàng
+                  </span>
+                </div>
+
+                <div className="p-5 flex flex-col divide-y divide-surface-variant">
+                  <div className="py-4 first:pt-0 last:pb-0 flex items-start gap-4">
+                    <div className="w-16 h-24 rounded-lg overflow-hidden flex-shrink-0 bg-surface-container border border-surface-variant shadow-sm flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[28px] text-on-surface-variant">auto_stories</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-title-md text-body-md text-on-surface">Đơn Hàng Sách Đã Được Xác Nhận</h4>
+                          <p className="font-body-sm text-on-surface-variant mt-0.5">Các tựa sách trong đơn hàng đang được chuẩn bị đóng gói.</p>
+                        </div>
+                        <span className="font-title-md text-body-md text-on-surface flex-shrink-0">
+                          {grandTotal > 0 ? `${grandTotal.toLocaleString('vi-VN')}đ` : '461.000đ'}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-body-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded bg-surface-container text-on-surface font-label-sm">Giao tận nơi</span>
+                          <span className="text-on-surface-variant">Số lượng: 1 kiện</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Payment Summary Sidebar */}
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            <div className="border-b border-surface-variant pb-3">
+              <h2 className="font-headline-sm text-headline-sm text-on-surface flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[24px]" data-icon="receipt">receipt</span>
+                Tóm Tắt Thanh Toán
+              </h2>
+            </div>
+
+            <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-6 shadow-sm flex flex-col gap-4">
+              <div className="flex items-center justify-between text-body-md">
+                <span className="text-on-surface-variant">Tổng tiền hàng:</span>
+                <span className="font-body-md text-on-surface">
+                  {itemSubtotal > 0 ? `${itemSubtotal.toLocaleString('vi-VN')}đ` : `${grandTotal.toLocaleString('vi-VN')}đ`}
+                </span>
+              </div>
+              {discountAmount > 0 && (
+                <div className="flex items-center justify-between text-body-md">
+                  <span className="text-on-surface-variant flex items-center gap-1">
+                    Voucher &amp; Ưu đãi:
+                    <span className="material-symbols-outlined text-primary text-[16px]" data-icon="sell">sell</span>
+                  </span>
+                  <span className="font-body-md text-primary font-medium">-{discountAmount.toLocaleString('vi-VN')}đ</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-body-md">
+                <span className="text-on-surface-variant">Phí vận chuyển:</span>
+                <span className="font-body-md text-on-surface">
+                  {shippingFee > 0 ? `${shippingFee.toLocaleString('vi-VN')}đ` : '20.000đ'}
+                </span>
+              </div>
+              <div className="h-[1px] bg-surface-variant my-1"></div>
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <span className="font-title-lg text-title-lg text-on-surface block">
+                    {isCod ? 'Tổng Cần Thanh Toán' : 'Tổng Đã Thanh Toán'}
+                  </span>
+                  <span className="font-label-sm text-tertiary">
+                    {isCod ? 'COD • Thanh toán khi nhận hàng' : 'PayOS • Giao dịch hoàn tất'}
+                  </span>
+                </div>
+                <span className="font-headline-md text-headline-md font-bold text-primary">
+                  {grandTotal > 0 ? `${grandTotal.toLocaleString('vi-VN')}đ` : '461.000đ'}
+                </span>
+              </div>
+
+              <div className="mt-4 p-3.5 rounded-lg bg-surface-container-low border border-surface-variant text-body-sm flex items-start gap-2.5">
+                <span className="material-symbols-outlined text-tertiary text-[20px] flex-shrink-0 mt-0.5" data-icon="description">description</span>
+                <div>
+                  <strong className="text-on-surface font-title-md">Thông tin đơn hàng:</strong>
+                  <p className="text-on-surface-variant text-[12px] mt-0.5">
+                    Hóa đơn và thông tin cập nhật lộ trình giao hàng được đồng bộ tự động vào tài khoản của bạn.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="w-full h-10 rounded-lg bg-surface-container hover:bg-surface-variant text-on-surface font-title-md text-body-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]" data-icon="print">print</span>
+                  In Biên Lai Đơn Hàng
+                </button>
+                <Link
+                  to="/help"
+                  className="w-full h-10 rounded-lg text-tertiary hover:bg-tertiary/5 font-title-md text-body-sm flex items-center justify-center gap-1 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]" data-icon="support_agent">support_agent</span>
+                  Cần hỗ trợ về đơn hàng này?
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-surface-container-low/60 border border-surface-variant flex items-center gap-3">
+              <span className="material-symbols-outlined text-tertiary text-[28px]" data-icon="security">security</span>
+              <div className="text-body-sm">
+                <span className="font-title-md text-on-surface block">Cam Kết Độc Quyền HUKI</span>
+                <span className="text-on-surface-variant text-[12px]">Đổi trả sách giấy trong 7 ngày nếu lỗi in ấn. Ebook cam kết bản quyền chính chủ 100%.</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
 
 

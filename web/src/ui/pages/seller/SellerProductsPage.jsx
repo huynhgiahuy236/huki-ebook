@@ -4,6 +4,7 @@ import { catalogApi } from '../../api/catalogApi';
 import { businessApi } from '../../api/businessApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { can, PERMISSIONS } from '../../utils/permissions';
 
 export default function SellerProductsPage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -15,6 +16,12 @@ export default function SellerProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('ALL');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [stockReason, setStockReason] = useState('MANUAL_ADJUSTMENT');
+
+  const currentBizId = user?.business?.id || activeBusinessId;
+  const canViewProduct = can(PERMISSIONS.PRODUCT_VIEW, currentBizId, user);
+  const canUpdateProduct = can(PERMISSIONS.PRODUCT_UPDATE, currentBizId, user);
+  const canUpdateInventory = can(PERMISSIONS.INVENTORY_UPDATE, currentBizId, user);
 
   // Load books from backend
   const loadBooks = useCallback(async () => {
@@ -31,11 +38,11 @@ export default function SellerProductsPage() {
         } catch { /* ignore */ }
       }
 
-      const res = await catalogApi.getPublicBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) });
+      const res = await catalogApi.getSellerBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) });
       if (res.success && Array.isArray(res.data)) {
         const sellerBooks = bizId
-          ? res.data.filter(b => b.businessId === bizId)
-          : [];
+          ? res.data.filter(b => b.businessId === bizId || b.business?.id === bizId)
+          : res.data;
         setBooks(sellerBooks);
       } else {
         setBooks([]);
@@ -74,10 +81,30 @@ export default function SellerProductsPage() {
     }
   };
 
+  const handleVisibility = async (book) => {
+    setActionLoadingId(book.id);
+    try {
+      const res = book.status === 'PUBLISHED'
+        ? await catalogApi.hideBook(book.id)
+        : await catalogApi.publishBook(book.id);
+      if (res.success) {
+        showToast(book.status === 'PUBLISHED' ? `Đã tạm ẩn sách "${book.title}".` : `Đã mở bán sách "${book.title}".`, 'success');
+        await loadBooks();
+      } else {
+        showToast(res.error?.message || 'Không thể thay đổi trạng thái sách.', 'error');
+      }
+    } catch {
+      showToast('Lỗi kết nối khi thay đổi trạng thái sách.', 'error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   // Handle Quick Inventory Update
   const openStockModal = (book) => {
     setEditingStockBook(book);
     setStockInput(book.physicalDetails?.stock ?? 0);
+    setStockReason('MANUAL_ADJUSTMENT');
   };
 
   const handleSaveStock = async (e) => {
@@ -91,7 +118,7 @@ export default function SellerProductsPage() {
 
     setIsUpdatingStock(true);
     try {
-      const res = await catalogApi.updateInventory(editingStockBook.id, newStock);
+      const res = await catalogApi.updateInventory(editingStockBook.id, newStock, stockReason);
       if (res.success || res.data) {
         showToast(`Đã cập nhật tồn kho sách "${editingStockBook.title}" thành ${newStock} cuốn!`, 'success');
         setEditingStockBook(null);
@@ -153,6 +180,28 @@ export default function SellerProductsPage() {
     return Number(val).toLocaleString('vi-VN') + ' ₫';
   };
 
+  if (!canViewProduct) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/20 shadow-xs">
+          <span className="material-symbols-outlined text-3xl">lock</span>
+        </div>
+        <h2 className="text-xl font-bold font-editorial text-theme-on-surface mb-2">
+          Không Có Quyền Truy Cập (403 Forbidden)
+        </h2>
+        <p className="text-xs sm:text-sm text-theme-on-surface-variant max-w-md mb-6">
+          Tài khoản nhân viên của bạn chưa được cấp quyền xem danh mục sản phẩm (`PRODUCT_VIEW`).
+        </p>
+        <Link
+          to="/seller/dashboard"
+          className="px-4 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary/90 transition-all shadow-sm"
+        >
+          Quay lại Bảng Điều Khiển
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full min-h-screen bg-[#F8FAFC] dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6">
       
@@ -187,51 +236,53 @@ export default function SellerProductsPage() {
             <span className="hidden sm:inline">Làm Mới</span>
           </button>
 
-          <div className="relative group">
-            <button
-              type="button"
-              className="px-4 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs sm:text-sm transition-all shadow-sm flex items-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">add_circle</span>
-              <span>+ Thêm Sản Phẩm Mới</span>
-              <span className="material-symbols-outlined text-sm">expand_more</span>
-            </button>
+          {can(PERMISSIONS.PRODUCT_CREATE, user?.business?.id || activeBusinessId, user) && (
+            <div className="relative group">
+              <button
+                type="button"
+                className="px-4 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs sm:text-sm transition-all shadow-sm flex items-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">add_circle</span>
+                <span>+ Thêm Sản Phẩm Mới</span>
+                <span className="material-symbols-outlined text-sm">expand_more</span>
+              </button>
 
-            {/* Dropdown Options */}
-            <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-30 hidden group-hover:block transition-all">
-              <Link
-                to="/seller/product/create-physical"
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
-              >
-                <span className="material-symbols-outlined text-base text-amber-600">inventory_2</span>
-                <div>
-                  <div className="font-bold">Đăng Sách Giấy</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Quản lý kho vật lý &amp; kích thước</div>
-                </div>
-              </Link>
-              <Link
-                to="/seller/product/create-ebook"
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
-              >
-                <span className="material-symbols-outlined text-base text-purple-600">menu_book</span>
-                <div>
-                  <div className="font-bold">Đăng Ebook Kỹ Thuật Số</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Cấp quyền số &amp; bảo vệ DRM</div>
-                </div>
-              </Link>
-              <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
-              <Link
-                to="/seller/product/create-hybrid"
-                className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
-              >
-                <span className="material-symbols-outlined text-base text-emerald-600">auto_stories</span>
-                <div>
-                  <div className="font-bold">Đăng Combo Sách + Ebook</div>
-                  <div className="text-[10px] text-slate-400 font-normal">Gói Hybrid đồng bộ cả 2 ấn phẩm</div>
-                </div>
-              </Link>
+              {/* Dropdown Options */}
+              <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 py-1.5 z-30 hidden group-hover:block transition-all">
+                <Link
+                  to="/seller/product/create-physical"
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base text-amber-600">inventory_2</span>
+                  <div>
+                    <div className="font-bold">Đăng Sách Giấy</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Quản lý kho vật lý &amp; kích thước</div>
+                  </div>
+                </Link>
+                <Link
+                  to="/seller/product/create-ebook"
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base text-purple-600">menu_book</span>
+                  <div>
+                    <div className="font-bold">Đăng Ebook Kỹ Thuật Số</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Cấp quyền số &amp; bảo vệ DRM</div>
+                  </div>
+                </Link>
+                <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                <Link
+                  to="/seller/product/create-hybrid"
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-700 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-base text-emerald-600">auto_stories</span>
+                  <div>
+                    <div className="font-bold">Đăng Combo Sách + Ebook</div>
+                    <div className="text-[10px] text-slate-400 font-normal">Gói Hybrid đồng bộ cả 2 ấn phẩm</div>
+                  </div>
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -550,7 +601,7 @@ export default function SellerProductsPage() {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {book.format !== 'DIGITAL' && (
+                          {book.format !== 'DIGITAL' && canUpdateInventory && (
                             <button
                               type="button"
                               onClick={() => openStockModal(book)}
@@ -559,6 +610,19 @@ export default function SellerProductsPage() {
                             >
                               <span className="material-symbols-outlined text-sm text-amber-600">inventory</span>
                               <span className="hidden sm:inline">Sửa kho</span>
+                            </button>
+                          )}
+
+                          {canUpdateProduct && (book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
+                            <button
+                              type="button"
+                              onClick={() => handleVisibility(book)}
+                              disabled={actionLoadingId === book.id}
+                              className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              title={book.status === 'PUBLISHED' ? 'Tạm ẩn khỏi sàn' : 'Mở bán lại'}
+                            >
+                              <span className="material-symbols-outlined text-sm">{book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}</span>
+                              <span>{book.status === 'PUBLISHED' ? 'Ẩn' : 'Mở bán'}</span>
                             </button>
                           )}
 
@@ -611,6 +675,7 @@ export default function SellerProductsPage() {
                   {editingStockBook.title}
                 </h3>
               </div>
+
               <button
                 type="button"
                 onClick={() => setEditingStockBook(null)}
@@ -641,6 +706,23 @@ export default function SellerProductsPage() {
                 <p className="text-[11px] text-slate-500 mt-1">
                   Tồn kho hiện tại: <strong>{editingStockBook.physicalDetails?.stock ?? 0}</strong> cuốn.
                 </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Lý do điều chỉnh
+                </label>
+                <select
+                  value={stockReason}
+                  onChange={(e) => setStockReason(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                  required
+                >
+                  <option value="MANUAL_ADJUSTMENT">Kiểm kê / điều chỉnh thủ công</option>
+                  <option value="CORRECTION">Sửa sai lệch dữ liệu</option>
+                  <option value="DAMAGED">Sách hư hỏng</option>
+                  <option value="RETURNED">Hàng khách trả lại</option>
+                </select>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">

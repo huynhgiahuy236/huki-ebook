@@ -44,6 +44,10 @@ const nextConfig: NextConfig = {
         destination: 'http://localhost:3003/api/v1/publishers/:path*',
       },
       {
+        source: '/api/v1/seller/:path*',
+        destination: 'http://localhost:3003/api/v1/seller/:path*',
+      },
+      {
         source: '/api/v1/orders/:path*',
         destination: 'http://localhost:3003/api/v1/orders/:path*',
       },

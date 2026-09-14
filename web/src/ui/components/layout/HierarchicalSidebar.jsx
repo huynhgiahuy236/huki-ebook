@@ -249,6 +249,14 @@ export default function HierarchicalSidebar({ isCollapsed, setIsCollapsed, isMob
           badgeColor: 'bg-emerald-600 text-white'
         },
         {
+          id: 'seller-staff',
+          title: 'Quản Lý Nhân Viên',
+          to: '/seller/staff',
+          icon: 'badge',
+          badge: 'Staff',
+          badgeColor: 'bg-blue-600 text-white'
+        },
+        {
           id: 'seller-orders',
           title: 'Quản Lý Đơn Hàng',
           to: '/seller/orders',

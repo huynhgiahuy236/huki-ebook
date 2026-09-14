@@ -2,7 +2,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { businessApi } from '../../api/businessApi';
 import { catalogApi } from '../../api/catalogApi';
+import { orderApi } from '../../api/orderApi';
 import { useAuth } from '../../context/AuthContext';
+import { can, PERMISSIONS } from '../../utils/permissions';
 
 export default function SellerDashboardPage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -22,8 +24,15 @@ export default function SellerDashboardPage() {
     hybridBooks: 0,
     totalStock: 0,
     lowStockCount: 0,
+    totalOrders: 0,
+    pendingOrders: 0,
+    totalRevenue: 0,
+    recentOrders: [],
   });
   const [loadingStats, setLoadingStats] = useState(true);
+
+  const currentBizId = user?.business?.id || activeBusinessId;
+  const canViewDashboard = can(PERMISSIONS.DASHBOARD_VIEW, currentBizId, user);
 
   const fetchDashboardData = useCallback(async () => {
     setLoadingStats(true);
@@ -52,10 +61,14 @@ export default function SellerDashboardPage() {
       hybridBooks: 0,
       totalStock: 0,
       lowStockCount: 0,
+      totalOrders: 0,
+      pendingOrders: 0,
+      totalRevenue: 0,
+      recentOrders: [],
     };
 
-    // Fetch stores
     if (bizId) {
+      // 1. Fetch stores
       try {
         const storesRes = await businessApi.getMyStores(bizId);
         if (storesRes.success && Array.isArray(storesRes.data)) {
@@ -65,11 +78,10 @@ export default function SellerDashboardPage() {
         }
       } catch { /* ignore */ }
 
-      // Fetch books for this business's store
+      // 2. Fetch books
       try {
-        const booksRes = await catalogApi.getPublicBooks({ limit: 200 });
+        const booksRes = await catalogApi.getPublicBooks({ limit: 200, business: bizId });
         if (booksRes.success && Array.isArray(booksRes.data)) {
-          // Filter books belonging to this business (if storeId is available)
           const allBooks = booksRes.data;
           result.totalBooks = allBooks.length;
           result.publishedBooks = allBooks.filter(b => b.status === 'PUBLISHED').length;
@@ -79,6 +91,24 @@ export default function SellerDashboardPage() {
           result.hybridBooks = allBooks.filter(b => b.format === 'BOTH').length;
           result.totalStock = allBooks.reduce((sum, b) => sum + (b.physicalDetails?.stock || 0), 0);
           result.lowStockCount = allBooks.filter(b => b.physicalDetails && b.physicalDetails.stock < 10 && b.physicalDetails.stock > 0).length;
+        }
+      } catch { /* ignore */ }
+
+      // 3. Fetch orders & revenue
+      try {
+        const ordersRes = await orderApi.getSellerOrders(bizId);
+        if (ordersRes.success && ordersRes.data) {
+          const list = Array.isArray(ordersRes.data)
+            ? ordersRes.data
+            : Array.isArray(ordersRes.data.items)
+            ? ordersRes.data.items
+            : [];
+          result.totalOrders = list.length;
+          result.pendingOrders = list.filter(o => o.status === 'PENDING_CONFIRMATION' || o.status === 'PENDING_PAYMENT').length;
+          result.totalRevenue = list
+            .filter(o => o.status !== 'CANCELLED' && o.status !== 'REFUNDED')
+            .reduce((sum, o) => sum + Number(o.grandTotal || o.totalAmount || o.itemSubtotal || 0), 0);
+          result.recentOrders = list.slice(0, 5);
         }
       } catch { /* ignore */ }
     }
@@ -97,6 +127,29 @@ export default function SellerDashboardPage() {
   // Greeting based on time
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Chào buổi sáng' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+
+  // 403 Guard if not authorized
+  if (!canViewDashboard) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/20 shadow-xs">
+          <span className="material-symbols-outlined text-3xl">lock</span>
+        </div>
+        <h2 className="text-xl font-bold font-editorial text-theme-on-surface mb-2">
+          Không Có Quyền Truy Cập (403 Forbidden)
+        </h2>
+        <p className="text-xs sm:text-sm text-theme-on-surface-variant max-w-md mb-6">
+          Tài khoản nhân viên của bạn chưa được cấp quyền xem Bảng Điều Khiển Tổng Quan (`DASHBOARD_VIEW`).
+        </p>
+        <Link
+          to="/seller/orders"
+          className="px-4 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary/90 transition-all shadow-sm"
+        >
+          Đến Trang Quản Lý Đơn Hàng
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-[#F8FAFC] text-[#1E293B] antialiased min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
@@ -151,61 +204,62 @@ export default function SellerDashboardPage() {
         {/* 2. 4 TOP METRIC CARDS — from DB */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           
-          {/* Card 1: Tổng Sản Phẩm */}
+          {/* Card 1: Tổng Doanh Thu */}
           <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
             <div className="flex items-start justify-between">
               <div>
-                <span className="text-xs font-semibold text-gray-500">Tổng Sản Phẩm Trên Sàn</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loadingStats ? '…' : fmt(stats.totalBooks)}</div>
+                <span className="text-xs font-semibold text-gray-500">Doanh Thu Tích Lũy</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-[#00875A] mt-1">
+                  {loadingStats ? '…' : `${fmt(stats.totalRevenue)}đ`}
+                </div>
               </div>
               <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">payments</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#00875A] min-w-0 truncate">
+              <span className="material-symbols-outlined text-[16px] shrink-0">trending_up</span>
+              <span className="shrink-0">{fmt(stats.totalOrders)} đơn hàng</span>
+              <span className="text-gray-400 font-normal truncate">· Đơn thực tế</span>
+            </div>
+          </div>
+
+          {/* Card 2: Đơn Hàng Mới Chờ Xử Lý */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Đơn Hàng Cần Xử Lý</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-amber-600 mt-1">
+                  {loadingStats ? '…' : fmt(stats.pendingOrders)}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">pending_actions</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-amber-600 min-w-0">
+              <span className="material-symbols-outlined text-[16px] shrink-0">notification_important</span>
+              <span className="shrink-0">{stats.pendingOrders > 0 ? `${stats.pendingOrders} đơn chờ duyệt` : 'Đã xử lý xong'}</span>
+            </div>
+          </div>
+
+          {/* Card 3: Sản Phẩm Trên Sàn */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Sản Phẩm Đang Bán</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">
+                  {loadingStats ? '…' : fmt(stats.publishedBooks)}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
                 <span className="material-symbols-outlined text-[20px]">auto_stories</span>
               </div>
             </div>
-            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#00875A] min-w-0 truncate" title={`${fmt(stats.publishedBooks)} đã xuất bản, ${fmt(stats.draftBooks)} bản nháp`}>
-              <span className="material-symbols-outlined text-[16px] shrink-0">inventory_2</span>
-              <span className="shrink-0">{fmt(stats.publishedBooks)} đã xuất bản</span>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#2563EB] min-w-0 truncate" title={`${fmt(stats.totalBooks)} tổng số đầu sách`}>
+              <span className="material-symbols-outlined text-[16px] shrink-0">menu_book</span>
+              <span className="shrink-0">{fmt(stats.totalBooks)} tổng đầu sách</span>
               <span className="text-gray-400 font-normal truncate">· {fmt(stats.draftBooks)} nháp</span>
-            </div>
-          </div>
-
-          {/* Card 2: Số Gian Hàng */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-xs font-semibold text-gray-500">Gian Hàng Đang Hoạt Động</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loadingStats ? '…' : fmt(stats.totalStores)}</div>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[20px]">menu_book</span>
-              </div>
-            </div>
-            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#2563EB] min-w-0" title={stats.businessName ? `Doanh nghiệp: ${stats.businessName}` : 'Doanh nghiệp liên kết'}>
-              <span className="material-symbols-outlined text-[16px] shrink-0">storefront</span>
-              <span className="shrink-0">Doanh nghiệp:</span>
-              <span className="text-gray-600 font-medium truncate cursor-help hover:text-gray-900 transition-colors" title={stats.businessName || 'Doanh nghiệp liên kết'}>
-                {stats.businessName || '—'}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Phân Bổ Định Dạng Sách */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-xs font-semibold text-gray-500">Sách Giấy / Ebook / Combo</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">
-                  {loadingStats ? '…' : `${fmt(stats.physicalBooks)} / ${fmt(stats.digitalBooks)} / ${fmt(stats.hybridBooks)}`}
-                </div>
-              </div>
-              <div className="w-10 h-10 rounded-xl bg-[#FAF5FF] text-[#9333EA] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[20px]">category</span>
-              </div>
-            </div>
-            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#9333EA] min-w-0 truncate" title="Phân bổ định dạng: Sách giấy, Ebook số và Combo">
-              <span className="material-symbols-outlined text-[16px] shrink-0">layers</span>
-              <span className="shrink-0">Định dạng:</span>
-              <span className="text-gray-500 font-normal truncate">Giấy / Ebook / Combo</span>
             </div>
           </div>
 
@@ -227,6 +281,82 @@ export default function SellerDashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* RECENT ORDERS TABLE (Đơn Hàng Gần Đây Cần Xử Lý) */}
+        {stats.recentOrders && stats.recentOrders.length > 0 && (
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#00875A] text-xl">receipt_long</span>
+                <h3 className="font-bold text-sm sm:text-base text-gray-900">Đơn Hàng Mới Nhất</h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-[#00875A] text-[11px] font-bold">
+                  {stats.recentOrders.length} đơn
+                </span>
+              </div>
+              <Link to="/seller/orders" className="text-xs font-bold text-[#00875A] hover:underline flex items-center gap-1">
+                <span>Xem tất cả đơn</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3">Mã đơn</th>
+                    <th className="py-2.5 px-3">Khách hàng</th>
+                    <th className="py-2.5 px-3">Sản phẩm</th>
+                    <th className="py-2.5 px-3">Tổng tiền</th>
+                    <th className="py-2.5 px-3">Trạng thái</th>
+                    <th className="py-2.5 px-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 font-medium">
+                  {stats.recentOrders.map((ord, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="py-3 px-3 font-bold text-gray-900">
+                        #{ord.code || ord.id?.slice(0, 8)}
+                      </td>
+                      <td className="py-3 px-3 text-gray-700">
+                        {ord.order?.shippingAddress?.fullName || ord.shippingAddress?.fullName || 'Khách Hàng'}
+                      </td>
+                      <td className="py-3 px-3 text-gray-600 max-w-[200px] truncate">
+                        {ord.items?.[0]?.title || 'Sách tổng hợp'} {ord.items?.length > 1 ? `(+${ord.items.length - 1})` : ''}
+                      </td>
+                      <td className="py-3 px-3 font-bold text-gray-900">
+                        {fmt(ord.grandTotal || ord.totalAmount || ord.itemSubtotal)}đ
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          ord.status === 'DELIVERED' || ord.status === 'COMPLETED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : ord.status === 'SHIPPED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : ord.status === 'PROCESSING' || ord.status === 'CONFIRMED'
+                            ? 'bg-amber-100 text-amber-800'
+                            : ord.status === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {ord.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <Link
+                          to={`/seller/orders`}
+                          className="px-2.5 py-1 rounded-lg bg-[#EBF7F2] text-[#00875A] hover:bg-[#00875A] hover:text-white font-bold text-[11px] transition-all inline-flex items-center gap-1"
+                        >
+                          <span>Xem</span>
+                          <span className="material-symbols-outlined text-[12px]">visibility</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* QUICK OPERATIONAL STATUS BAR */}
         <div className="bg-[#EBF7F2] rounded-2xl p-4 border border-[#BDE6D7] flex flex-wrap items-center justify-between gap-3 shadow-2xs">

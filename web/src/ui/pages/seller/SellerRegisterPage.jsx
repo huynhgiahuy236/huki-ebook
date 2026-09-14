@@ -143,14 +143,26 @@ export default function SellerRegisterPage() {
       setIsSubmitting(false);
 
       if (res.success || res.data) {
-        showToast('Gửi hồ sơ đăng ký doanh nghiệp thành công! Hồ sơ đã được chuyển sang trạng thái chờ duyệt.', 'success');
+        showToast(
+          {
+            title: 'Gửi hồ sơ thành công',
+            message: 'Hồ sơ đối tác đã được gửi thành công và đang được chuyển tới Ban thẩm định HUKI (xử lý trong 24h - 48h).',
+          },
+          'success'
+        );
         if (refreshBusiness) {
           await refreshBusiness();
         }
         navigate('/account-status');
       } else {
-        const errorMsg = res.error?.message || res.error || 'Có lỗi xảy ra khi gửi hồ sơ.';
-        showToast(String(errorMsg), 'error');
+        const errorMsg = res.error?.message || 'Có lỗi phát sinh khi gửi hồ sơ đối tác. Vui lòng kiểm tra lại thông tin.';
+        showToast(
+          {
+            title: 'Chưa thể gửi hồ sơ',
+            message: errorMsg,
+          },
+          'error'
+        );
         if (res.error?.code === 'BUSINESS_ALREADY_EXISTS') {
           setTimeout(() => {
             navigate('/account-status');
@@ -159,8 +171,13 @@ export default function SellerRegisterPage() {
       }
     } catch (err) {
       setIsSubmitting(false);
-      const errorMsg = err instanceof Error ? err.message : 'Lỗi kết nối API Gateway.';
-      showToast(errorMsg, 'error');
+      showToast(
+        {
+          title: 'Gián đoạn kết nối',
+          message: 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại đường truyền internet.',
+        },
+        'error'
+      );
     }
   };
 

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { businessApi } from '../../api/businessApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { can, PERMISSIONS } from '../../utils/permissions';
 
 export default function SellerBusinessProfilePage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -14,6 +15,10 @@ export default function SellerBusinessProfilePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   
+  const currentBizId = user?.business?.id || activeBusinessId;
+  const canViewStore = can(PERMISSIONS.STORE_VIEW, currentBizId, user);
+  const canEditStore = can(PERMISSIONS.STORE_UPDATE, currentBizId, user);
+
   // Edit Form State
   const [editForm, setEditForm] = useState({
     phone: '',
@@ -71,6 +76,29 @@ export default function SellerBusinessProfilePage() {
     setIsEditModalOpen(false);
     showToast('Đã lưu thông tin liên hệ vận hành.', 'success');
   };
+
+  // 403 Guard if user doesn't have permission to view store profile
+  if (!canViewStore) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/20 shadow-xs">
+          <span className="material-symbols-outlined text-3xl">lock</span>
+        </div>
+        <h2 className="text-xl font-bold font-editorial text-theme-on-surface mb-2">
+          Không Có Quyền Truy Cập (403 Forbidden)
+        </h2>
+        <p className="text-xs sm:text-sm text-theme-on-surface-variant max-w-md mb-6">
+          Tài khoản nhân viên của bạn chưa được cấp quyền xem Hồ Sơ Doanh Nghiệp &amp; Cửa Hàng (`STORE_VIEW`).
+        </p>
+        <Link
+          to="/seller/dashboard"
+          className="px-4 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary/90 transition-all shadow-sm"
+        >
+          Quay lại Bảng Điều Khiển
+        </Link>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

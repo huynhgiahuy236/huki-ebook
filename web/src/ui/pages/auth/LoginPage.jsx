@@ -32,7 +32,13 @@ export default function LoginPage() {
     setIsLoading(false);
 
     if (res.success && res.user) {
-      showToast(`Đăng nhập thành công! Chào mừng trở lại, ${res.user.fullName || res.user.email}.`, 'success');
+      showToast(
+        {
+          title: 'Đăng nhập thành công',
+          message: `Chào mừng trở lại, ${res.user.fullName || res.user.email}!`,
+        },
+        'success'
+      );
       const rawTarget = location.state?.from?.pathname || location.state?.from || '/';
 
       if (res.user.mustChangePassword) {
@@ -47,7 +53,13 @@ export default function LoginPage() {
         navigate(isRestricted ? '/' : rawTarget);
       }
     } else {
-      showToast(res.error || 'Đăng nhập không thành công.', 'error');
+      showToast(
+        {
+          title: 'Đăng nhập không thành công',
+          message: res.error || 'Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
+        },
+        'error'
+      );
     }
   };
 

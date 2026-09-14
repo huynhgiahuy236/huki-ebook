@@ -1,330 +1,543 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { addressApi } from '../../api/addressApi';
+import EmptyState from '../../components/common/EmptyState';
+import CustomLocationSelector from '../../components/common/CustomLocationSelector';
+import AddressMapPreview from '../../components/common/AddressMapPreview';
 
 export default function UserAddressesPage() {
   const { showToast } = useToast();
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [addresses, setAddresses] = useState(() => {
-    try {
-      const saved = window.localStorage.getItem('huki.user.addresses');
-      if (saved) return JSON.parse(saved);
-    } catch {
-      // Fallback
-    }
-    return [];
-  });
+  const { isLoggedIn, user } = useAuth();
+
+  const [activeTab, setActiveTab] = useState('list'); // 'list' | 'form'
+  const [addresses, setAddresses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingAddressId, setEditingAddressId] = useState(null);
 
   const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    type: 'Nhà riêng',
-    city: 'Hà Nội',
-    district: 'Quận Đống Đa',
-    ward: 'Phường Ô Chợ Dừa',
-    street: '',
-    isDefault: false
+    name: user?.fullName || user?.name || '',
+    phone: user?.phone || '',
+    province: 'Hồ Chí Minh',
+    district: 'Quận Gò Vấp',
+    ward: 'Phường 5',
+    address: '',
+    isDefault: false,
   });
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('huki.user.addresses', JSON.stringify(addresses));
-    } catch {
-      // Fallback
+  const loadAddresses = useCallback(async () => {
+    setIsLoading(true);
+    if (isLoggedIn) {
+      try {
+        const res = await addressApi.getAddresses();
+        if (res.success && Array.isArray(res.data)) {
+          setAddresses(res.data);
+          // If no addresses, switch to form tab automatically
+          if (res.data.length === 0) {
+            setActiveTab('form');
+          }
+        }
+      } catch {
+        // Fallback to local
+      }
+    } else {
+      try {
+        const saved = window.localStorage.getItem('huki.user.addresses');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          setAddresses(parsed);
+          if (parsed.length === 0) setActiveTab('form');
+        } else {
+          setActiveTab('form');
+        }
+      } catch {
+        // Fallback
+      }
     }
-  }, [addresses]);
+    setIsLoading(false);
+  }, [isLoggedIn]);
 
-  const handleSetDefault = (id) => {
+  useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  const handleSetDefault = async (addr) => {
+    if (isLoggedIn && addr.id) {
+      try {
+        await addressApi.updateAddress(addr.id, { isDefault: true });
+        await loadAddresses();
+        showToast(
+          {
+            title: 'Đặt địa chỉ mặc định',
+            message: `Đã đặt "${addr.address}" làm địa chỉ giao sách mặc định!`,
+          },
+          'success'
+        );
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+
     setAddresses((prev) =>
-      prev.map((a) => ({ ...a, isDefault: a.id === id }))
+      prev.map((a) => ({ ...a, isDefault: a.id === addr.id }))
     );
-    showToast('Đã đặt làm địa chỉ giao sách mặc định!', 'success');
+    showToast(
+      {
+        title: 'Đặt địa chỉ mặc định',
+        message: 'Đã đặt địa chỉ giao sách mặc định!',
+      },
+      'success'
+    );
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
+    if (isLoggedIn && id) {
+      try {
+        await addressApi.deleteAddress(id);
+        await loadAddresses();
+        showToast(
+          {
+            title: 'Đã xóa địa chỉ',
+            message: 'Địa chỉ đã được xóa khỏi sổ địa chỉ của bạn.',
+          },
+          'info'
+        );
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+
     setAddresses((prev) => prev.filter((a) => a.id !== id));
-    showToast('Đã xóa địa chỉ thành công!', 'info');
+    showToast(
+      {
+        title: 'Đã xóa địa chỉ',
+        message: 'Địa chỉ đã được xóa khỏi sổ địa chỉ của bạn.',
+      },
+      'info'
+    );
   };
 
-  const handleSaveNewAddress = (e) => {
+  const handleSaveAddress = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.street) {
-      showToast('Vui lòng điền đầy đủ thông tin địa chỉ!', 'error');
+    if (!formData.name || !formData.phone || !formData.address) {
+      showToast(
+        {
+          title: 'Thông tin chưa đầy đủ',
+          message: 'Vui lòng điền họ tên, số điện thoại và địa chỉ chi tiết.',
+        },
+        'warning'
+      );
       return;
     }
 
+    if (isLoggedIn) {
+      try {
+        if (editingAddressId) {
+          const res = await addressApi.updateAddress(editingAddressId, {
+            name: formData.name.trim(),
+            phone: formData.phone.trim(),
+            province: formData.province.trim(),
+            district: formData.district.trim(),
+            ward: formData.ward.trim(),
+            address: formData.address.trim(),
+            isDefault: formData.isDefault,
+          });
+          if (res.success) {
+            showToast(
+              {
+                title: 'Cập nhật thành công',
+                message: 'Thông tin địa chỉ nhận sách đã được cập nhật!',
+              },
+              'success'
+            );
+            setEditingAddressId(null);
+            setActiveTab('list');
+            await loadAddresses();
+            return;
+          }
+        } else {
+          const res = await addressApi.createAddress({
+            name: formData.name.trim(),
+            phone: formData.phone.trim(),
+            province: formData.province.trim(),
+            district: formData.district.trim(),
+            ward: formData.ward.trim(),
+            address: formData.address.trim(),
+            isDefault: formData.isDefault || addresses.length === 0,
+          });
+          if (res.success) {
+            showToast(
+              {
+                title: 'Thêm địa chỉ thành công',
+                message: 'Địa chỉ mới đã được lưu vào sổ địa chỉ.',
+              },
+              'success'
+            );
+            setEditingAddressId(null);
+            setActiveTab('list');
+            await loadAddresses();
+            return;
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    // Local Fallback
     const newAddr = {
-      id: Date.now(),
+      id: editingAddressId || `addr-${Date.now()}`,
       name: formData.name,
       phone: formData.phone,
-      type: formData.type,
-      address: `${formData.street}, ${formData.ward}, ${formData.district}, ${formData.city}`,
-      isDefault: formData.isDefault || addresses.length === 0
+      province: formData.province,
+      district: formData.district,
+      ward: formData.ward,
+      address: formData.address,
+      isDefault: formData.isDefault || addresses.length === 0,
     };
 
-    if (newAddr.isDefault) {
-      setAddresses([newAddr, ...addresses.map(a => ({ ...a, isDefault: false }))]);
+    if (editingAddressId) {
+      setAddresses((prev) =>
+        prev.map((a) => (a.id === editingAddressId ? newAddr : a))
+      );
+    } else if (newAddr.isDefault) {
+      setAddresses([newAddr, ...addresses.map((a) => ({ ...a, isDefault: false }))]);
     } else {
       setAddresses([...addresses, newAddr]);
     }
 
+    setEditingAddressId(null);
+    setActiveTab('list');
+    showToast(
+      {
+        title: 'Lưu địa chỉ thành công',
+        message: 'Đã cập nhật danh sách địa chỉ nhận sách!',
+      },
+      'success'
+    );
+  };
+
+  const startEdit = (addr) => {
+    setEditingAddressId(addr.id);
     setFormData({
-      name: '',
-      phone: '',
-      type: 'Nhà riêng',
-      city: 'Hà Nội',
-      district: 'Quận Đống Đa',
-      ward: 'Phường Ô Chợ Dừa',
-      street: '',
-      isDefault: false
+      name: addr.name,
+      phone: addr.phone,
+      province: addr.province || 'Hồ Chí Minh',
+      district: addr.district || 'Quận Gò Vấp',
+      ward: addr.ward || 'Phường 5',
+      address: addr.address || '',
+      isDefault: addr.isDefault || false,
     });
-    setShowAddModal(false);
-    showToast('Đã thêm địa chỉ nhận sách mới!', 'success');
+    setActiveTab('form');
+    window.scrollTo({ top: 120, behavior: 'smooth' });
+  };
+
+  const switchToNewForm = () => {
+    setEditingAddressId(null);
+    setFormData({
+      name: user?.fullName || user?.name || '',
+      phone: user?.phone || '',
+      province: 'Hồ Chí Minh',
+      district: 'Quận Gò Vấp',
+      ward: 'Phường 5',
+      address: '',
+      isDefault: addresses.length === 0,
+    });
+    setActiveTab('form');
   };
 
   return (
-    <div className="w-full min-h-screen bg-theme-bg text-on-surface py-6 md:py-10 pb-20">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+    <div className="w-full min-h-screen bg-[var(--theme-background,#F2FBF9)] text-[var(--theme-text,#1c1b1f)] py-6 md:py-10 pb-20 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Navigation Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-6">
-          <Link to="/profile" className="hover:text-theme-primary font-medium">Tài Khoản</Link>
-          <span>/</span>
-          <Link to="/settings/security" className="hover:text-theme-primary font-medium">Cài Đặt</Link>
-          <span>/</span>
-          <span className="text-on-surface font-semibold">Sổ Địa Chỉ Giao Hàng</span>
+        <div className="flex items-center gap-2 text-xs text-[var(--theme-text-muted,#49454f)] mb-6">
+          <Link to="/" className="hover:text-[var(--theme-primary,#003B2B)] font-medium">
+            Trang Chủ
+          </Link>
+          <span className="opacity-40">/</span>
+          <Link to="/profile" className="hover:text-[var(--theme-primary,#003B2B)] font-medium">
+            Tài Khoản
+          </Link>
+          <span className="opacity-40">/</span>
+          <span className="font-bold text-[var(--theme-text,#1c1b1f)]">Sổ Địa Chỉ Giao Hàng</span>
         </div>
 
         {/* Header Bar */}
-        <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 sm:p-8 shadow-xs mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="bg-[var(--theme-surface,#ffffff)] rounded-3xl border border-[var(--theme-border,#e8e5df)] p-6 sm:p-8 shadow-xs mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface">
-              Sổ Địa Chỉ Nhận Sách In
+            <h1 className="font-editorial text-2xl sm:text-3xl font-black text-[var(--theme-text,#1c1b1f)]">
+              Sổ Địa Chỉ Nhận Hàng
             </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
-              Quản lý các địa chỉ giao nhận cho đơn hàng Sách Giấy và Combo Hybrid
+            <p className="text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] mt-1">
+              Quản lý các địa chỉ nhận sách giấy để việc giao nhận sách diễn ra chuẩn xác và nhanh chóng.
             </p>
           </div>
 
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="bg-theme-primary text-white px-5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm hover:bg-theme-primary-hover transition-all shadow-sm flex items-center gap-1.5 shrink-0 cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-base">add_location_alt</span>
-            <span>Thêm Địa Chỉ Mới</span>
-          </button>
-        </div>
-
-        {/* Address Cards List */}
-        <div className="space-y-4">
-          {addresses.length === 0 ? (
-            <div className="bg-theme-surface rounded-3xl border border-theme-border p-10 sm:p-12 text-center shadow-xs">
-              <div className="w-14 h-14 rounded-2xl bg-theme-primary/10 text-theme-primary flex items-center justify-center mx-auto mb-3.5">
-                <span className="material-symbols-outlined text-3xl">location_off</span>
-              </div>
-              <h3 className="font-editorial text-lg font-bold text-on-surface mb-1">
-                Chưa Có Địa Chỉ Giao Hàng Nào
-              </h3>
-              <p className="text-xs sm:text-sm text-on-surface-variant max-w-md mx-auto mb-6">
-                Thêm địa chỉ nhà riêng hoặc cơ quan của bạn để nhận các ấn phẩm Sách Giấy và Combo Hybrid được giao tận tay nhanh chóng.
-              </p>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="bg-theme-primary text-white px-5 py-2.5 rounded-2xl font-bold text-xs sm:text-sm hover:bg-theme-primary-hover transition-all shadow-sm inline-flex items-center gap-1.5 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-base">add_location_alt</span>
-                <span>Thêm Địa Chỉ Đầu Tiên</span>
-              </button>
-            </div>
-          ) : (
-            addresses.map((addr) => (
-              <div
-                key={addr.id}
-                className={`bg-theme-surface rounded-3xl border p-6 sm:p-8 transition-all relative ${
-                  addr.isDefault
-                    ? 'border-theme-primary ring-2 ring-theme-primary/10 shadow-sm'
-                    : 'border-theme-border hover:border-gray-400'
+          {/* 2-Tab Navigation Switcher */}
+          <div className="flex items-center gap-1.5 p-1.5 bg-[var(--theme-background,#F2FBF9)] rounded-2xl border border-[var(--theme-border,#e8e5df)] shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('list');
+                setEditingAddressId(null);
+              }}
+              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'list'
+                  ? 'bg-[var(--theme-primary,#003B2B)] text-white shadow-sm'
+                  : 'text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">list_alt</span>
+              <span>Địa Chỉ Đã Lưu</span>
+              <span
+                className={`px-2 py-0.2 rounded-full text-[10px] font-bold ${
+                  activeTab === 'list'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-black/10 dark:bg-white/10 text-[var(--theme-text,#1c1b1f)]'
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-bold text-base text-on-surface">{addr.name}</span>
-                      <span className="text-xs text-on-surface-variant">({addr.phone})</span>
-                      <span className="text-[10px] bg-theme-secondary-subtle text-theme-secondary border border-theme-border px-2 py-0.5 rounded-md font-bold">
-                        {addr.type}
-                      </span>
-                      {addr.isDefault && (
-                        <span className="text-[10px] bg-theme-primary text-white px-2 py-0.5 rounded-md font-bold flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-xs">check</span>
-                          Mặc Định
-                        </span>
-                      )}
-                    </div>
+                {addresses.length}
+              </span>
+            </button>
 
-                    <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed flex items-start gap-1.5">
-                      <span className="material-symbols-outlined text-base text-on-surface-variant mt-0.5 shrink-0">
-                        location_on
-                      </span>
-                      <span>{addr.address}</span>
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0 pt-2 sm:pt-0">
-                    {!addr.isDefault && (
-                      <button
-                        onClick={() => handleSetDefault(addr.id)}
-                        className="px-3 py-1.5 rounded-xl bg-theme-bg hover:bg-theme-secondary-subtle text-theme-primary border border-theme-border text-xs font-semibold transition-colors cursor-pointer"
-                      >
-                        Đặt Mặc Định
-                      </button>
-                    )}
-                    <button
-                      onClick={() => handleDelete(addr.id)}
-                      className="p-2 rounded-xl text-theme-accent hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
-                      title="Xóa địa chỉ"
-                    >
-                      <span className="material-symbols-outlined text-lg">delete</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+            <button
+              type="button"
+              onClick={switchToNewForm}
+              className={`px-4 sm:px-5 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+                activeTab === 'form'
+                  ? 'bg-[var(--theme-primary,#003B2B)] text-white shadow-sm'
+                  : 'text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] hover:bg-black/5 dark:hover:bg-white/5'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[18px]">
+                {editingAddressId ? 'edit_location' : 'add_location_alt'}
+              </span>
+              <span>{editingAddressId ? 'Chỉnh Sửa' : '+ Thêm Mới'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* Add Address Modal */}
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-theme-surface rounded-3xl w-full max-w-lg p-6 sm:p-8 shadow-2xl border border-theme-border">
-              <div className="flex items-center justify-between pb-4 border-b border-theme-border mb-4">
-                <h3 className="font-editorial text-xl font-bold text-on-surface">
-                  Thêm Địa Chỉ Giao Hàng Mới
-                </h3>
-                <button onClick={() => setShowAddModal(false)} className="p-1 text-on-surface-variant hover:text-on-surface cursor-pointer">
-                  <span className="material-symbols-outlined">close</span>
-                </button>
+        {/* TAB 1: DANH SÁCH ĐỊA CHỈ ĐANG CÓ */}
+        {activeTab === 'list' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {isLoading ? (
+              <div className="p-16 text-center text-xs text-[var(--theme-text-muted,#49454f)] bg-[var(--theme-surface,#ffffff)] rounded-3xl border border-[var(--theme-border,#e8e5df)] animate-pulse">
+                Đang tải danh sách địa chỉ của bạn...
               </div>
+            ) : addresses.length === 0 ? (
+              <EmptyState
+                icon="location_off"
+                title="Chưa có địa chỉ giao hàng nào"
+                description="Hãy thêm địa chỉ nhận sách của bạn để quá trình đặt sách giấy diễn ra thuận tiện nhất."
+                actionText="+ Thêm Địa Chỉ Đầu Tiên"
+                onAction={switchToNewForm}
+                actionIcon="add_location_alt"
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {addresses.map((addr) => (
+                  <div
+                    key={addr.id}
+                    className={`p-6 rounded-3xl border bg-[var(--theme-surface,#ffffff)] shadow-xs flex flex-col justify-between gap-4 transition-all hover:shadow-md ${
+                      addr.isDefault
+                        ? 'border-2 border-[var(--theme-primary,#003B2B)] ring-4 ring-[var(--theme-primary,#003B2B)]/10'
+                        : 'border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003B2B)]/40'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-2.5">
+                        <div className="flex items-center gap-2">
+                          <strong className="font-bold text-base text-[var(--theme-text,#1c1b1f)]">
+                            {addr.name}
+                          </strong>
+                          <span className="text-xs text-[var(--theme-text-muted,#49454f)] font-medium">
+                            ({addr.phone})
+                          </span>
+                        </div>
+                        {addr.isDefault && (
+                          <span className="px-3 py-1 rounded-full bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[11px] font-bold">
+                            Mặc Định
+                          </span>
+                        )}
+                      </div>
 
-              <form onSubmit={handleSaveNewAddress} className="space-y-4 text-xs sm:text-sm">
+                      <div className="flex items-start gap-2 text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] leading-relaxed">
+                        <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)] shrink-0 mt-0.5">
+                          location_on
+                        </span>
+                        <span>
+                          {addr.address}, {addr.ward}, {addr.district}, {addr.province}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between text-xs sm:text-sm">
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={() => startEdit(addr)}
+                          className="text-[var(--theme-primary,#003B2B)] hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => handleDelete(addr.id)}
+                          className="text-rose-600 dark:text-rose-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                          Xóa
+                        </button>
+                      </div>
+
+                      {!addr.isDefault && (
+                        <button
+                          onClick={() => handleSetDefault(addr)}
+                          className="text-xs text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-primary,#003B2B)] font-medium underline cursor-pointer"
+                        >
+                          Thiết lập mặc định
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: THÊM / CHỈNH SỬA ĐỊA CHỈ VỚI BẢN ĐỒ LIVE */}
+        {activeTab === 'form' && (
+          <div className="bg-[var(--theme-surface,#ffffff)] rounded-3xl border border-[var(--theme-border,#e8e5df)] p-6 sm:p-8 md:p-10 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-[var(--theme-border,#e8e5df)]/60">
+              <h3 className="font-editorial text-xl sm:text-2xl font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-xl bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[22px] text-[var(--theme-primary,#003B2B)]">
+                    {editingAddressId ? 'edit_location' : 'add_location_alt'}
+                  </span>
+                </span>
+                {editingAddressId ? 'Chỉnh Sửa Địa Chỉ Nhận Hàng' : 'Thêm Địa Chỉ Giao Hàng Mới'}
+              </h3>
+
+              {addresses.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('list');
+                    setEditingAddressId(null);
+                  }}
+                  className="text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] flex items-center gap-1 font-medium cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+                  Quay lại danh sách
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              {/* Form Bên Trái (7 Cols): Rộng Rãi, Thoáng Mắt */}
+              <form onSubmit={handleSaveAddress} className="lg:col-span-7 space-y-5">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-semibold text-on-surface mb-1">Họ và tên người nhận *</label>
+                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                      Họ và tên người nhận <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
-                      placeholder="Ví dụ: Nguyễn Văn A"
+                      required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border text-on-surface focus:outline-none focus:border-theme-primary"
-                      required
+                      placeholder="Ví dụ: Nguyễn Văn An"
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
                     />
                   </div>
+
                   <div>
-                    <label className="block font-semibold text-on-surface mb-1">Số điện thoại *</label>
+                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                      Số điện thoại liên hệ <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="tel"
-                      placeholder="0912..."
+                      required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border text-on-surface focus:outline-none focus:border-theme-primary"
-                      required
+                      placeholder="Ví dụ: 0912345678"
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-semibold text-on-surface mb-1">Tỉnh / TP *</label>
-                    <input
-                      type="text"
-                      value={formData.city}
-                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-theme-bg border border-theme-border text-on-surface text-xs"
+                  <div className="sm:col-span-2">
+                    <CustomLocationSelector
+                      province={formData.province}
+                      district={formData.district}
+                      ward={formData.ward}
+                      onChange={({ province, district, ward }) =>
+                        setFormData((prev) => ({ ...prev, province, district, ward }))
+                      }
                       required
                     />
                   </div>
-                  <div>
-                    <label className="block font-semibold text-on-surface mb-1">Quận / Huyện *</label>
-                    <input
-                      type="text"
-                      value={formData.district}
-                      onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-theme-bg border border-theme-border text-on-surface text-xs"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-on-surface mb-1">Phường / Xã *</label>
-                    <input
-                      type="text"
-                      value={formData.ward}
-                      onChange={(e) => setFormData({ ...formData, ward: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-theme-bg border border-theme-border text-on-surface text-xs"
-                      required
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block font-semibold text-on-surface mb-1">Địa chỉ chi tiết (Số nhà, tên đường, tòa nhà) *</label>
-                  <input
-                    type="text"
-                    placeholder="Ví dụ: Số 123 Đường Nguyễn Huệ..."
-                    value={formData.street}
-                    onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-theme-bg border border-theme-border text-on-surface focus:outline-none focus:border-theme-primary"
-                    required
-                  />
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="addrType"
-                        checked={formData.type === 'Nhà riêng'}
-                        onChange={() => setFormData({ ...formData, type: 'Nhà riêng' })}
-                      />
-                      <span>Nhà riêng</span>
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                      Số nhà, tên đường chi tiết <span className="text-rose-500">*</span>
                     </label>
-                    <label className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="addrType"
-                        checked={formData.type === 'Văn phòng'}
-                        onChange={() => setFormData({ ...formData, type: 'Văn phòng' })}
-                      />
-                      <span>Văn phòng</span>
-                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="Ví dụ: 123 Đường Nguyễn Huệ"
+                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
+                    />
                   </div>
+                </div>
 
-                  <label className="flex items-center gap-2 cursor-pointer">
+                <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-[var(--theme-border,#e8e5df)]/80">
+                  <label className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-medium text-[var(--theme-text,#1c1b1f)] select-none">
                     <input
                       type="checkbox"
                       checked={formData.isDefault}
                       onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                      className="rounded text-theme-primary"
+                      className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
                     />
-                    <span className="text-xs text-on-surface-variant font-medium">Đặt làm mặc định</span>
+                    <span>Đặt làm địa chỉ giao sách mặc định</span>
                   </label>
-                </div>
 
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-theme-border">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 rounded-xl bg-theme-bg hover:bg-theme-surface-subtle border border-theme-border text-on-surface font-semibold text-xs transition-colors cursor-pointer"
-                  >
-                    Hủy Bỏ
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-colors shadow-xs cursor-pointer"
-                  >
-                    Lưu Địa Chỉ
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {addresses.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab('list');
+                          setEditingAddressId(null);
+                        }}
+                        className="px-5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs sm:text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
+                      >
+                        Hủy Bỏ
+                      </button>
+                    )}
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs sm:text-sm font-bold hover:opacity-95 shadow-sm transition-all cursor-pointer"
+                    >
+                      {editingAddressId ? 'Cập Nhật Địa Chỉ' : 'Lưu Địa Chỉ Mới'}
+                    </button>
+                  </div>
                 </div>
               </form>
+
+              {/* Bản Đồ Bên Phải (5 Cols): Live GPS Map Preview */}
+              <div className="lg:col-span-5 h-full min-h-[380px]">
+                <AddressMapPreview
+                  province={formData.province}
+                  district={formData.district}
+                  ward={formData.ward}
+                  address={formData.address}
+                />
+              </div>
             </div>
           </div>
         )}

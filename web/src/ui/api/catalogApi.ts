@@ -12,6 +12,7 @@ export interface CategoryData {
 }
 
 export type BookFormat = 'PHYSICAL' | 'DIGITAL' | 'BOTH';
+export type InventoryReason = 'MANUAL_ADJUSTMENT' | 'DAMAGED' | 'RETURNED' | 'CORRECTION';
 
 export interface CatalogEntity {
   id: string;
@@ -167,6 +168,46 @@ export const catalogApi = {
     });
   },
 
+  async getAuthors(): Promise<ApiResponse<CatalogEntity[]>> {
+    return apiClient<CatalogEntity[]>('/authors?limit=100', { method: 'GET', skipAuth: true });
+  },
+
+  async getPublishers(): Promise<ApiResponse<CatalogEntity[]>> {
+    return apiClient<CatalogEntity[]>('/publishers?limit=100', { method: 'GET', skipAuth: true });
+  },
+
+  async getSellerBooks(params?: {
+    page?: number;
+    limit?: number;
+    business?: string;
+    format?: BookFormat;
+  }): Promise<ApiResponse<BookData[]>> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.business) query.set('business', params.business);
+    if (params?.format) query.set('format', params.format);
+    return apiClient<BookData[]>(`/books/owned${query.toString() ? `?${query.toString()}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /** Temporarily remove a published book from the public catalog. */
+  async hideBook(id: string): Promise<ApiResponse<BookData>> {
+    return apiClient<BookData>(`/books/${id}/hide`, {
+      method: 'POST',
+    });
+  },
+
+  async uploadBookFile(id: string, file: File): Promise<ApiResponse<DigitalDetails>> {
+    const body = new FormData();
+    body.append('file', file);
+    return apiClient<DigitalDetails>(`/books/${id}/file`, {
+      method: 'POST',
+      body,
+    });
+  },
+
   /**
    * Cập nhật thông tin sách
    */
@@ -177,10 +218,14 @@ export const catalogApi = {
     });
   },
 
-  async updateInventory(id: string, quantity: number): Promise<ApiResponse<PhysicalDetails>> {
+  async updateInventory(
+    id: string,
+    quantity: number,
+    reason: InventoryReason = 'MANUAL_ADJUSTMENT',
+  ): Promise<ApiResponse<PhysicalDetails>> {
     return apiClient<PhysicalDetails>(`/books/${id}/inventory`, {
       method: 'PATCH',
-      body: JSON.stringify({ operation: 'SET', quantity, reason: 'MANUAL_ADJUSTMENT' }),
+      body: JSON.stringify({ operation: 'SET', quantity, reason }),
     });
   },
 };

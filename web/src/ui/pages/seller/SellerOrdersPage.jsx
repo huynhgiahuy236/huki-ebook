@@ -4,6 +4,8 @@ import { orderApi } from '../../api/orderApi';
 import { businessApi } from '../../api/businessApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { can, PERMISSIONS } from '../../utils/permissions';
+import OrderDetailDrawer from '../../components/seller/OrderDetailDrawer';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -44,6 +46,13 @@ export default function SellerOrdersPage() {
   const [trackingCode, setTrackingCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [drawerOrder, setDrawerOrder] = useState(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+
+  const businessId = user?.business?.id || activeBusinessId;
+  const canViewOrders = can(PERMISSIONS.ORDER_VIEW, businessId, user);
+  const canProcessOrders = can(PERMISSIONS.ORDER_PROCESS, businessId, user);
+  const canCancelOrders = can(PERMISSIONS.ORDER_CANCEL, businessId, user);
 
   // Load Business Name and Orders
   const loadData = useCallback(async () => {
@@ -76,10 +85,22 @@ export default function SellerOrdersPage() {
       // 2. Fetch seller orders
       const orderRes = await orderApi.getSellerOrders({ limit: 100 });
       if (orderRes.success && orderRes.data) {
-        const items = orderRes.data.items || (Array.isArray(orderRes.data) ? orderRes.data : []);
+        const items = Array.isArray(orderRes.data)
+          ? orderRes.data
+          : Array.isArray(orderRes.data?.data)
+          ? orderRes.data.data
+          : Array.isArray(orderRes.data?.items)
+          ? orderRes.data.items
+          : [];
         setOrders(items);
       } else {
         setOrders([]);
+        if (orderRes.error?.code === 'AUTHZ_ROLE_INSUFFICIENT' || orderRes.error?.status === 403) {
+          showToast({
+            title: 'Chưa đồng bộ quyền Người Bán',
+            message: 'Tài khoản của bạn đang cập nhật quyền Doanh Nghiệp. Vui lòng bấm tải lại hoặc đăng nhập lại.',
+          }, 'warning');
+        }
       }
     } catch (err) {
       console.error('Error fetching seller orders:', err);
@@ -87,11 +108,29 @@ export default function SellerOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, activeBusinessId, setActiveBusinessId]);
+  }, [user, activeBusinessId, setActiveBusinessId, showToast]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const openOrderDrawer = async (orderId) => {
+    setDrawerLoading(true);
+    try {
+      const res = await orderApi.getSellerOrderDetail(orderId);
+      if (res.success && res.data) setDrawerOrder(res.data);
+      else showToast?.(res.error?.message || 'Không thể tải chi tiết đơn hàng.', 'error');
+    } catch {
+      showToast?.('Lỗi kết nối khi tải chi tiết đơn hàng.', 'error');
+    } finally {
+      setDrawerLoading(false);
+    }
+  };
+
+  const refreshAfterAction = async (orderId) => {
+    await loadData();
+    if (drawerOrder?.id === orderId) await openOrderDrawer(orderId);
+  };
 
   // Order counts & metrics
   const counts = useMemo(() => {
@@ -147,6 +186,27 @@ export default function SellerOrdersPage() {
     });
   }, [orders, activeTab, searchQuery, formatFilter]);
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Reset pagination on filter change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, formatFilter]);
+
+  // Total pages and paginated items
+  const totalItems = filteredOrders.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validPage = Math.min(currentPage, totalPages);
+
+  const paginatedOrders = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, validPage, pageSize]);
+
+  const startIndex = totalItems === 0 ? 0 : (validPage - 1) * pageSize + 1;
+  const endIndex = Math.min(validPage * pageSize, totalItems);
+
   // Order Handlers
   const handleConfirm = async (orderId) => {
     setActionLoading(true);
@@ -154,7 +214,7 @@ export default function SellerOrdersPage() {
       const res = await orderApi.confirmOrder(orderId);
       if (res.success) {
         showToast?.('Đã xác nhận đơn hàng thành công!', 'success');
-        loadData();
+        await refreshAfterAction(orderId);
       } else {
         showToast?.(res.error?.message || 'Không thể xác nhận đơn hàng', 'error');
       }
@@ -171,7 +231,7 @@ export default function SellerOrdersPage() {
       const res = await orderApi.prepareOrder(orderId);
       if (res.success) {
         showToast?.('Đã chuyển đơn hàng sang trạng thái đóng gói!', 'success');
-        loadData();
+        await refreshAfterAction(orderId);
       } else {
         showToast?.(res.error?.message || 'Không thể chuẩn bị đơn hàng', 'error');
       }
@@ -200,7 +260,7 @@ export default function SellerOrdersPage() {
         showToast?.('Đã bàn giao cho đơn vị vận chuyển thành công!', 'success');
         setModalState(null);
         setTrackingCode('');
-        loadData();
+        await refreshAfterAction(modalState.order.id);
       } else {
         showToast?.(res.error?.message || 'Không thể cập nhật vận chuyển', 'error');
       }
@@ -217,7 +277,7 @@ export default function SellerOrdersPage() {
       const res = await orderApi.deliverOrder(orderId);
       if (res.success) {
         showToast?.('Đã cập nhật giao hàng thành công!', 'success');
-        loadData();
+        await refreshAfterAction(orderId);
       } else {
         showToast?.(res.error?.message || 'Không thể hoàn tất đơn hàng', 'error');
       }
@@ -245,7 +305,7 @@ export default function SellerOrdersPage() {
         showToast?.('Đã hủy đơn hàng thành công', 'success');
         setModalState(null);
         setCancelReason('');
-        loadData();
+        await refreshAfterAction(modalState.order.id);
       } else {
         showToast?.(res.error?.message || 'Không thể hủy đơn hàng', 'error');
       }
@@ -269,6 +329,17 @@ export default function SellerOrdersPage() {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
+
+  if (!canViewOrders) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <span className="material-symbols-outlined text-4xl text-amber-600 mb-3">lock</span>
+        <h2 className="text-xl font-bold text-on-surface">Không Có Quyền Truy Cập</h2>
+        <p className="text-sm text-on-surface-variant mt-2">Tài khoản chưa được cấp quyền xem đơn hàng (`ORDER_VIEW`).</p>
+        <Link to="/seller/dashboard" className="mt-5 px-4 py-2.5 rounded-xl bg-primary text-on-primary font-bold text-sm">Quay lại Bảng Điều Khiển</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen py-6">
@@ -582,7 +653,8 @@ export default function SellerOrdersPage() {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+              <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
@@ -606,7 +678,7 @@ export default function SellerOrdersPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant text-body-sm">
-                  {filteredOrders.map((order) => {
+                  {paginatedOrders.map((order) => {
                     const isSelected = selectedOrderIds.includes(order.id);
                     const statusCfg = STATUS_CONFIG[order.status] || {
                       label: order.status,
@@ -658,31 +730,36 @@ export default function SellerOrdersPage() {
                         <td className="py-4 px-3 align-top">
                           <div className="space-y-2">
                             {order.items && order.items.length > 0 ? (
-                              order.items.map((item, idx) => (
-                                <div key={item.id || idx} className="flex items-start gap-2.5">
-                                  <div className="w-9 h-12 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
-                                    {item.coverImage || item.coverUrl ? (
-                                      <img
-                                        src={item.coverImage || item.coverUrl}
-                                        alt={item.title}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    ) : (
-                                      <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-outline">
-                                        <span className="material-symbols-outlined text-[16px]">menu_book</span>
-                                      </div>
-                                    )}
+                              order.items.map((item, idx) => {
+                                const itTitle = item.title || item.bookTitle || 'Sách HUKI';
+                                const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
+                                const itPrice = Number(item.price ?? item.unitPrice ?? 0);
+                                return (
+                                  <div key={item.id || idx} className="flex items-start gap-2.5">
+                                    <div className="w-9 h-12 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
+                                      {itCover ? (
+                                        <img
+                                          src={itCover}
+                                          alt={itTitle}
+                                          className="w-full h-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-outline">
+                                          <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <p className="font-medium text-on-surface text-[13px] leading-tight truncate max-w-[220px]" title={itTitle}>
+                                        {itTitle}
+                                      </p>
+                                      <p className="text-[11px] text-on-surface-variant mt-0.5">
+                                        SL: <strong className="text-on-surface">{item.quantity || 1}</strong> × {itPrice > 0 ? `${itPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div className="min-w-0">
-                                    <p className="font-medium text-on-surface text-[13px] leading-tight truncate max-w-[220px]" title={item.title}>
-                                      {item.title}
-                                    </p>
-                                    <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                      SL: <strong className="text-on-surface">{item.quantity}</strong> × {item.price ? `${item.price.toLocaleString('vi-VN')}đ` : '0đ'}
-                                    </p>
-                                  </div>
-                                </div>
-                              ))
+                                );
+                              })
                             ) : (
                               <p className="text-outline text-[12px] italic">Chi tiết sản phẩm...</p>
                             )}
@@ -756,61 +833,90 @@ export default function SellerOrdersPage() {
                         {/* Actions */}
                         <td className="py-4 pr-space-md pl-3 align-top text-right">
                           <div className="flex flex-col items-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openOrderDrawer(order.id)}
+                              className="px-3 py-1.5 rounded-lg border border-outline-variant text-primary font-bold text-[12px] hover:bg-primary/5 flex items-center gap-1"
+                            >
+                              <span className="material-symbols-outlined text-[15px]">visibility</span>
+                              Xem chi tiết
+                            </button>
+                            {/* Các thao tác nghiệp vụ được tập trung trong side drawer. */}
+                            {false && (
+                            <>
                             {order.status === 'PENDING_CONFIRMATION' && (
                               <>
-                                <button
-                                  onClick={() => handleConfirm(order.id)}
-                                  disabled={actionLoading}
-                                  className="px-3 py-1 bg-primary text-on-primary rounded text-[12px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">check</span>
-                                  <span>Xác nhận</span>
-                                </button>
-                                <button
-                                  onClick={() => setModalState({ type: 'CANCEL', order })}
-                                  disabled={actionLoading}
-                                  className="px-2 py-0.5 text-error hover:bg-error/10 rounded text-[11px] font-medium transition-colors"
-                                >
-                                  Hủy đơn
-                                </button>
+                                {can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) && (
+                                  <button
+                                    onClick={() => handleConfirm(order.id)}
+                                    disabled={actionLoading}
+                                    className="px-3 py-1 bg-primary text-on-primary rounded text-[12px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">check</span>
+                                    <span>Xác nhận</span>
+                                  </button>
+                                )}
+                                {can(PERMISSIONS.ORDER_CANCEL, user?.business?.id || activeBusinessId, user) && (
+                                  <button
+                                    onClick={() => setModalState({ type: 'CANCEL', order })}
+                                    disabled={actionLoading}
+                                    className="px-2 py-0.5 text-error hover:bg-error/10 rounded text-[11px] font-medium transition-colors"
+                                  >
+                                    Hủy đơn
+                                  </button>
+                                )}
                               </>
                             )}
 
                             {order.status === 'CONFIRMED' && (
-                              <button
-                                onClick={() => handlePrepare(order.id)}
-                                disabled={actionLoading}
-                                className="px-3 py-1 bg-indigo-600 text-white rounded text-[12px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-                                <span>Chuẩn bị kho</span>
-                              </button>
+                              can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) ? (
+                                <button
+                                  onClick={() => handlePrepare(order.id)}
+                                  disabled={actionLoading}
+                                  className="px-3 py-1 bg-indigo-600 text-white rounded text-[12px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                                  <span>Chuẩn bị kho</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-outline italic">Đã xác nhận</span>
+                              )
                             )}
 
                             {order.status === 'PREPARING' && (
-                              <button
-                                onClick={() => setModalState({ type: 'SHIP', order })}
-                                disabled={actionLoading}
-                                className="px-3 py-1 bg-purple-600 text-white rounded text-[12px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">local_shipping</span>
-                                <span>Giao hàng</span>
-                              </button>
+                              can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) ? (
+                                <button
+                                  onClick={() => setModalState({ type: 'SHIP', order })}
+                                  disabled={actionLoading}
+                                  className="px-3 py-1 bg-purple-600 text-white rounded text-[12px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">local_shipping</span>
+                                  <span>Giao hàng</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-outline italic">Đang đóng gói</span>
+                              )
                             )}
 
                             {order.status === 'SHIPPED' && (
-                              <button
-                                onClick={() => handleDeliver(order.id)}
-                                disabled={actionLoading}
-                                className="px-3 py-1 bg-teal-600 text-white rounded text-[12px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">task_alt</span>
-                                <span>Đã giao xong</span>
-                              </button>
+                              can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) ? (
+                                <button
+                                  onClick={() => handleDeliver(order.id)}
+                                  disabled={actionLoading}
+                                  className="px-3 py-1 bg-teal-600 text-white rounded text-[12px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                                  <span>Đã giao xong</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-outline italic">Đang giao</span>
+                              )
                             )}
 
                             {(order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'DELIVERED') && (
                               <span className="text-[11px] text-outline">Hoàn tất quy trình</span>
+                            )}
+                            </>
                             )}
                           </div>
                         </td>
@@ -820,13 +926,93 @@ export default function SellerOrdersPage() {
                 </tbody>
               </table>
             </div>
-          )}
+
+            {/* Pagination Controls */}
+            {totalItems > 0 && (
+              <div className="px-space-md py-3 bg-surface-container-low/40 border-t border-outline-variant flex flex-col sm:flex-row items-center justify-between gap-3 text-body-sm text-on-surface-variant">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>
+                    Hiển thị <strong className="text-on-surface font-semibold">{startIndex} - {endIndex}</strong> trên tổng số <strong className="text-on-surface font-semibold">{totalItems}</strong> đơn hàng
+                  </span>
+                  <span className="text-outline">|</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Mỗi trang:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 bg-surface-container-lowest border border-outline-variant rounded text-on-surface text-body-sm focus:outline-none focus:border-primary"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={validPage <= 1}
+                    className="p-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    title="Trang trước"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                  </button>
+
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => {
+                    const isActive = p === validPage;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`min-w-[32px] h-8 px-2 rounded-lg text-body-sm font-semibold transition-colors ${
+                          isActive
+                            ? 'bg-primary text-on-primary shadow-xs'
+                            : 'bg-surface-container-lowest border border-outline-variant text-on-surface hover:bg-surface-container'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={validPage >= totalPages}
+                    className="p-1.5 rounded-lg border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    title="Trang sau"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
         </div>
       </main>
 
+      <OrderDetailDrawer
+        order={drawerOrder}
+        loading={drawerLoading}
+        onClose={() => { setDrawerOrder(null); setDrawerLoading(false); }}
+        onConfirm={handleConfirm}
+        onPrepare={handlePrepare}
+        onShip={(order) => setModalState({ type: 'SHIP', order })}
+        onDeliver={handleDeliver}
+        onCancel={(order) => { setCancelReason(''); setModalState({ type: 'CANCEL', order }); }}
+        canProcess={canProcessOrders}
+        canCancel={canCancelOrders}
+        actionLoading={actionLoading}
+      />
+
       {/* Ship Order Modal */}
       {modalState?.type === 'SHIP' && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-surface-container-lowest rounded-2xl max-w-md w-full p-6 space-y-5 border border-outline-variant shadow-xl animate-scaleIn">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-purple-600">
@@ -901,7 +1087,7 @@ export default function SellerOrdersPage() {
 
       {/* Cancel Order Modal */}
       {modalState?.type === 'CANCEL' && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
+        <div className="fixed inset-0 z-[70] bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-surface-container-lowest rounded-2xl max-w-md w-full p-6 space-y-5 border border-outline-variant shadow-xl animate-scaleIn">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-error">
@@ -926,6 +1112,18 @@ export default function SellerOrdersPage() {
                 <label className="block text-body-sm font-semibold text-on-surface mb-1">
                   Lý do hủy đơn
                 </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {['Hết hàng', 'Khách yêu cầu', 'Sai địa chỉ'].map((reason) => (
+                    <button
+                      key={reason}
+                      type="button"
+                      onClick={() => setCancelReason(reason)}
+                      className={`px-3 py-1.5 rounded-full border text-xs font-semibold ${cancelReason === reason ? 'border-error bg-error/10 text-error' : 'border-outline-variant text-on-surface-variant hover:bg-surface-container'}`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
                 <textarea
                   required
                   rows={3}

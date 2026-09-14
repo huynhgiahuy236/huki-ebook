@@ -3,37 +3,37 @@
 > Tên file cũ được giữ để không vỡ liên kết. Community không còn thuộc happy case và được chuyển sang `⚪ DEFERRED`.
 
 **Persona:** Admin doanh nghiệp, Admin con doanh nghiệp
-**Status:** `🔴 TODO` — backend hiện có invitation/member roles nhưng chưa đúng flow provision trực tiếp.
+**Status:** `✅ DONE` — Direct Provisioning, Granular Permissions, Dynamic Sidebar & Action Enforcement, E2E Tested (100% Pass).
 
 ## Sprint 21 — Permission catalog
 
-- [ ] 🔴 Chốt danh sách permission độc lập: dashboard, store, product, inventory, order, member và finance.
-- [ ] 🔴 Owner có toàn quyền bất biến trong business.
-- [ ] 🔴 Preset chức danh chỉ chọn sẵn permission; Owner được thêm/bớt từng quyền.
-- [ ] 🔴 Admin con có thể nhận 1, 2, 3 hoặc toàn bộ permission.
+- [x] ✅ Chốt danh sách permission độc lập: dashboard, store, product, inventory, order, member và finance.
+- [x] ✅ Owner có toàn quyền bất biến trong business.
+- [x] ✅ Preset chức danh chỉ chọn sẵn permission; Owner được thêm/bớt từng quyền.
+- [x] ✅ Admin con có thể nhận 1, 2, 3 hoặc toàn bộ permission.
 
 ## Sprint 22 — Owner provision tài khoản
 
-- [ ] 🔴 Owner tạo tài khoản trực tiếp; không gửi invitation.
-- [ ] 🔴 Email/username duy nhất, credential tạm an toàn.
-- [ ] 🔴 Gắn ngay `businessId`, `createdBy`, membership active và permissions.
-- [ ] 🔴 `mustChangePassword = true`; không gửi/log mật khẩu thô sau provisioning.
-- [ ] 🔴 Transaction/compensation giữa Identity và Business service.
+- [x] ✅ Owner tạo tài khoản trực tiếp; không gửi invitation.
+- [x] ✅ Email/username duy nhất, credential tạm an toàn.
+- [x] ✅ Gắn ngay `businessId`, `createdBy`, membership active và permissions.
+- [x] ✅ `mustChangePassword = true`; không gửi/log mật khẩu thô sau provisioning.
+- [x] ✅ Transaction/compensation giữa Identity và Business service.
 
 ## Sprint 23 — Quản lý nhân viên
 
-- [ ] 🔴 List/detail Admin con.
-- [ ] 🔴 Cấp/thu hồi từng permission.
-- [ ] 🔴 Suspend/reactivate và reset credential.
-- [ ] 🔴 Owner không thể bị Admin con sửa, khóa hoặc xóa.
-- [ ] 🔴 Audit log ai cấp quyền gì, lúc nào.
+- [x] ✅ List/detail Admin con.
+- [x] ✅ Cấp/thu hồi từng permission.
+- [x] ✅ Suspend/reactivate và reset credential.
+- [x] ✅ Owner không thể bị Admin con sửa, khóa hoặc xóa.
+- [x] ✅ Audit log ai cấp quyền gì, lúc nào.
 
 ## Sprint 24 — Enforcement
 
-- [ ] 🔴 Sidebar/action chỉ hiện theo permission.
-- [ ] 🔴 API kiểm tra membership active + business scope + permission.
-- [ ] 🔴 Negative test cho từng quyền bị thiếu trả `403`.
-- [ ] 🔴 Thu hồi quyền có hiệu lực với session/cache theo contract.
+- [x] ✅ Sidebar/action chỉ hiện theo permission.
+- [x] ✅ API kiểm tra membership active + business scope + permission.
+- [x] ✅ Negative test cho từng quyền bị thiếu trả `403`.
+- [x] ✅ Thu hồi quyền có hiệu lực với session/cache theo contract.
 
 ## Permission baseline đề xuất
 

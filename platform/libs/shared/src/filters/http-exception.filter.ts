@@ -77,18 +77,30 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code = this.defaultCode(status);
       }
     } else if (exception instanceof Error) {
-      status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
-      code = ErrorCode.SYSTEM_INTERNAL_ERROR;
+      const errAny = exception as any;
+      if (errAny?.code === 'P2002') {
+        status = HttpStatus.CONFLICT;
+        code = ErrorCode.SYSTEM_ERROR;
+        const target = Array.isArray(errAny?.meta?.target) ? errAny.meta.target.join(', ') : 'thông tin';
+        message = `Dữ liệu (${target}) đã tồn tại trên hệ thống. Vui lòng kiểm tra lại.`;
+      } else if (errAny?.code === 'P2025') {
+        status = HttpStatus.NOT_FOUND;
+        code = ErrorCode.SYSTEM_ERROR;
+        message = 'Không tìm thấy dữ liệu yêu cầu hoặc bản ghi đã bị xóa.';
+      } else {
+        status = HttpStatus.INTERNAL_SERVER_ERROR;
+        message = 'Có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau.';
+        code = ErrorCode.SYSTEM_INTERNAL_ERROR;
 
-      // Log internal errors but don't expose details
-      this.logger.error(
-        `Internal error: ${exception.message}`,
-        exception.stack,
-      );
+        // Log internal errors but don't expose details
+        this.logger.error(
+          `Internal error: ${exception.message}`,
+          exception.stack,
+        );
+      }
     } else {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
-      message = 'Có lỗi xảy ra. Vui lòng thử lại sau.';
+      message = 'Có lỗi xảy ra trong quá trình xử lý. Vui lòng thử lại sau.';
       code = ErrorCode.SYSTEM_INTERNAL_ERROR;
     }
 

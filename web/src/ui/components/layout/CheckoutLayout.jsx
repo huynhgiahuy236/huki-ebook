@@ -6,7 +6,7 @@ export default function CheckoutLayout() {
     <div className="min-h-screen flex flex-col bg-theme-bg text-theme-text font-sans antialiased selection:bg-theme-secondary/20">
       {/* Distraction-Free Minimalist Checkout Header */}
       <header className="sticky top-0 z-40 bg-theme-surface/95 backdrop-blur-md border-b border-theme-border shadow-2xs">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           {/* Logo & Security Badge */}
           <div className="flex items-center gap-3">
             <Link to="/" className="flex items-center gap-2.5 group">
@@ -59,7 +59,7 @@ export default function CheckoutLayout() {
 
       {/* Distraction-Free Minimalist Trust Footer */}
       <footer className="bg-theme-surface border-t border-theme-border py-6 px-4 text-xs text-theme-text-muted mt-auto">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-center md:text-left">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-5 font-medium text-theme-text">
             <span className="flex items-center gap-1.5">
               <span className="material-symbols-outlined text-theme-secondary text-[18px]">verified_user</span>

@@ -57,7 +57,13 @@ export default function RegisterPage() {
     });
 
     if (regRes.success) {
-      showToast('Đăng ký tài khoản thành công! Đang tự động đăng nhập...', 'success');
+      showToast(
+        {
+          title: 'Đăng ký thành công',
+          message: 'Tài khoản của bạn đã được tạo thành công! Đang tự động đăng nhập...',
+        },
+        'success'
+      );
       // Auto-login immediately into the session
       const loginRes = await login(formData.email.trim(), formData.password);
       setIsLoading(false);
@@ -69,7 +75,13 @@ export default function RegisterPage() {
       }
     } else {
       setIsLoading(false);
-      showToast(regRes.error || 'Đăng ký không thành công.', 'error');
+      showToast(
+        {
+          title: 'Đăng ký chưa thành công',
+          message: regRes.error || 'Email này có thể đã tồn tại hoặc mật khẩu chưa đạt yêu cầu.',
+        },
+        'error'
+      );
     }
   };
 

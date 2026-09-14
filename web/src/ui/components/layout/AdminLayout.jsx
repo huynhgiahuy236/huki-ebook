@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from '../common/UserAvatar';
-import { businessApi } from '../../api/businessApi';
-import { catalogApi } from '../../api/catalogApi';
+import { adminApi } from '../../api/adminApi';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -13,50 +12,30 @@ export default function AdminLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Số lượng thực tế lấy từ Database Gateway
-  const [dbStats, setDbStats] = useState({
-    publishersCount: 0,
-    pendingPublishersCount: 0,
-    booksCount: 0,
-    drmBooksCount: 0,
+  // Số lượng thực tế lấy từ Gateway Backend
+  const [stats, setStats] = useState({
+    pendingBusinesses: 0,
+    approvedBusinesses: 0,
+    totalBusinesses: 0,
+    pendingStores: 0,
+    approvedStores: 0,
+    totalStores: 0,
+    totalBooks: 0,
+    activeBooks: 0,
+    suspendedBooks: 0,
+    healthStatus: 'ok',
   });
 
   useEffect(() => {
     let isMounted = true;
     const fetchNavStats = async () => {
       try {
-        const [bizRes, booksRes] = await Promise.allSettled([
-          businessApi.getAllBusinesses(),
-          catalogApi.getPublicBooks({ limit: 100 })
-        ]);
-
-        let pubCount = 0;
-        let pendingCount = 0;
-        let bookCount = 0;
-        let drmCount = 0;
-
-        if (bizRes.status === 'fulfilled' && bizRes.value?.success && Array.isArray(bizRes.value.data)) {
-          const list = bizRes.value.data;
-          pubCount = list.length;
-          pendingCount = list.filter(b => b.status === 'PENDING_APPROVAL').length;
-        }
-
-        if (booksRes.status === 'fulfilled' && booksRes.value?.success && Array.isArray(booksRes.value.data)) {
-          const books = booksRes.value.data;
-          bookCount = books.length;
-          drmCount = books.filter(b => b.format === 'DIGITAL' || b.format === 'BOTH' || b.digitalDetails?.drmEnabled).length;
-        }
-
-        if (isMounted) {
-          setDbStats({
-            publishersCount: pubCount,
-            pendingPublishersCount: pendingCount,
-            booksCount: bookCount,
-            drmBooksCount: drmCount,
-          });
+        const res = await adminApi.getAdminStats();
+        if (isMounted && res.success && res.data) {
+          setStats(res.data);
         }
       } catch (err) {
-        console.warn('Failed to load admin nav stats from DB', err);
+        console.warn('Failed to load admin stats in layout', err);
       }
     };
 
@@ -64,109 +43,74 @@ export default function AdminLayout() {
     return () => { isMounted = false; };
   }, [location.pathname]);
 
-  const adminName = user?.fullName || user?.name || (user?.role === 'PLATFORM_ADMIN' ? 'Super Admin' : 'Admin Trưởng Sàn');
+  const adminName = user?.fullName || user?.name || 'HUKI Super Admin';
 
   const routeMap = {
     '/admin': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/dashboard': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
-    '/admin/leads': { parent: 'Đối Tác & NXB', title: 'Duyệt Đăng Ký Mới' },
-    '/admin/publishers': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
-    '/admin/companies': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
-    '/admin/businesses': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
-    '/admin/stores': { parent: 'Đối Tác & NXB', title: 'Quản Lý Nhà Xuất Bản' },
-    '/admin/tasks': { parent: 'Nội Dung & Bản Quyền', title: 'Hàng Chờ Kiểm Duyệt Sách' },
-    '/admin/moderation': { parent: 'Nội Dung & Bản Quyền', title: 'Hàng Chờ Kiểm Duyệt Sách' },
-    '/admin/drm': { parent: 'Nội Dung & Bản Quyền', title: 'Kho Bản Quyền DRM' },
+    '/admin/businesses': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/leads': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/publishers': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/companies': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/stores': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Cửa Hàng' },
+    '/admin/books': { parent: 'Quản Trị Catalog', title: 'Quản Lý Sách Toàn Sàn' },
+    '/admin/categories': { parent: 'Quản Trị Catalog', title: 'Danh Mục & Tác Giả' },
+    '/admin/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
+    '/admin/system/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
     '/admin/users': { parent: 'Độc Giả & Hội Viên', title: 'Danh Sách Bạn Đọc' },
-    '/admin/contacts': { parent: 'Độc Giả & Hội Viên', title: 'Danh Sách Bạn Đọc' },
-    '/admin/deals': { parent: 'Tài Chính & Đơn Hàng', title: 'Đối Soát Doanh Thu 85/15' },
-    '/admin/finance': { parent: 'Tài Chính & Đơn Hàng', title: 'Đối Soát Doanh Thu 85/15' },
-    '/admin/reports': { parent: 'Tài Chính & Đơn Hàng', title: 'Báo Cáo Phân Tích' },
-    '/admin/automation': { parent: 'Marketing & Sự Kiện', title: 'Banner & Flash Deal' },
-    '/admin/marketing': { parent: 'Marketing & Sự Kiện', title: 'Banner & Flash Deal' },
-    '/admin/calendar': { parent: 'Marketing & Sự Kiện', title: 'Lịch Trình Toàn Sàn' },
-    '/admin/integrations': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Cổng Tích Hợp DRM' },
     '/admin/settings': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Cài Đặt Hệ Thống' },
-    '/admin/support': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Hỗ Trợ & Khiếu Nại' }
   };
 
-  const currentRouteInfo = routeMap[location.pathname] || { parent: 'Hệ Thống', title: 'Quản Trị' };
+  const currentRouteInfo = routeMap[location.pathname] || { parent: 'Ban Quản Trị', title: 'Quản Trị Nền Tảng' };
 
   const menuSections = [
     {
       group: 'TỔNG QUAN HỆ THỐNG',
       items: [
-        { label: 'Bảng Điều Hành Sàn', to: '/admin/dashboard', icon: 'dashboard' }
+        { label: 'Bảng Điều Hành', to: '/admin/dashboard', icon: 'dashboard' }
       ]
     },
     {
-      group: 'ĐỐI TÁC & NXB',
+      group: 'XÉT DUYỆT ĐỐI TÁC',
       items: [
         { 
-          label: 'Duyệt Đăng Ký Mới', 
-          to: '/admin/leads', 
-          icon: 'how_to_reg',
-          count: dbStats.pendingPublishersCount > 0 
-            ? String(dbStats.pendingPublishersCount) 
-            : undefined,
-          badgeColor: 'bg-amber-500 text-white'
-        },
-        { 
-          label: 'Quản Lý Nhà Xuất Bản', 
-          to: '/admin/publishers', 
+          label: 'Duyệt Doanh Nghiệp', 
+          to: '/admin/businesses', 
           icon: 'domain',
-          count: dbStats.publishersCount > 0 
-            ? String(dbStats.publishersCount) 
-            : undefined,
-          badgeColor: 'bg-emerald-600 text-white'
+          count: stats.pendingBusinesses > 0 ? String(stats.pendingBusinesses) : undefined,
+          badgeColor: 'bg-amber-500 text-white font-bold'
         }
       ]
     },
     {
-      group: 'NỘI DUNG & BẢN QUYỀN',
+      group: 'QUẢN TRỊ CATALOG',
       items: [
         { 
-          label: 'Hàng Chờ Kiểm Duyệt', 
-          to: '/admin/tasks', 
-          icon: 'verified',
-          count: dbStats.booksCount > 0 ? String(dbStats.booksCount) : undefined,
-          badgeColor: 'bg-indigo-600'
+          label: 'Sách Toàn Sàn', 
+          to: '/admin/books', 
+          icon: 'menu_book',
+          count: stats.totalBooks > 0 ? String(stats.totalBooks) : undefined,
+          badgeColor: 'bg-slate-200 text-slate-700 font-semibold'
         },
         { 
-          label: 'Kho Bản Quyền DRM', 
-          to: '/admin/drm', 
-          icon: 'security',
-          count: dbStats.drmBooksCount > 0 ? String(dbStats.drmBooksCount) : undefined,
-          badgeColor: 'bg-purple-600'
+          label: 'Danh Mục & Tác Giả', 
+          to: '/admin/categories', 
+          icon: 'category' 
         }
-      ]
-    },
-    {
-      group: 'ĐỘC GIẢ & HỘI VIÊN',
-      items: [
-        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' }
-      ]
-    },
-    {
-      group: 'TÀI CHÍNH & ĐƠN HÀNG',
-      items: [
-        { label: 'Đối Soát Doanh Thu', to: '/admin/deals', icon: 'payments' },
-        { label: 'Báo Cáo Phân Tích', to: '/admin/reports', icon: 'monitoring' }
-      ]
-    },
-    {
-      group: 'MARKETING & SỰ KIỆN',
-      items: [
-        { label: 'Banner & Flash Deal', to: '/admin/automation', icon: 'campaign' },
-        { label: 'Lịch Trình Toàn Sàn', to: '/admin/calendar', icon: 'calendar_month' }
       ]
     },
     {
       group: 'HẠ TẦNG KỸ THUẬT',
       items: [
-        { label: 'Cổng Tích Hợp DRM', to: '/admin/integrations', icon: 'hub' },
-        { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings' },
-        { label: 'Hỗ Trợ & Khiếu Nại', to: '/admin/support', icon: 'support_agent' }
+        { 
+          label: 'Sức Khỏe Hệ Thống', 
+          to: '/admin/health', 
+          icon: 'health_and_safety',
+          count: stats.healthStatus === 'ok' ? 'Online' : 'Degraded',
+          badgeColor: stats.healthStatus === 'ok' ? 'bg-emerald-500 text-white font-bold' : 'bg-rose-500 text-white font-bold'
+        },
+        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
+        { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings' }
       ]
     }
   ];
@@ -174,8 +118,13 @@ export default function AdminLayout() {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/admin/tasks?q=${encodeURIComponent(searchQuery)}`);
+      navigate(`/admin/books?search=${encodeURIComponent(searchQuery)}`);
     }
+  };
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
   };
 
   return (
@@ -216,14 +165,14 @@ export default function AdminLayout() {
             <div className="flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="font-editorial text-base font-bold text-gray-900 leading-tight tracking-tight">
-                  HUKI SUPER ADMIN
+                  HUKI ADMIN PORTAL
                 </span>
                 <span className="bg-[#00875A] text-white text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded tracking-wide">
-                  ROOT
+                  PLATFORM
                 </span>
               </div>
               <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase hidden sm:block">
-                Ban Điều Hành Trung Ương Sàn HUKI
+                Ban Quản Trị Trung Ương Nền Tảng HUKI
               </span>
             </div>
           </Link>
@@ -233,7 +182,7 @@ export default function AdminLayout() {
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
             <input
               type="text"
-              placeholder="Tìm kiếm NXB, mã ISBN, bản quyền DRM..."
+              placeholder="Tìm kiếm sách, doanh nghiệp, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-4 py-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
@@ -241,203 +190,195 @@ export default function AdminLayout() {
           </form>
         </div>
 
-        {/* Right: Date, DRM Status, Notification & Profile */}
+        {/* Right: Microservice Health, User info & Logout */}
         <div className="flex items-center gap-2 sm:gap-3.5">
-          {/* Date Filter */}
-          <div className="hidden xl:flex items-center gap-2 px-3.5 py-1.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs font-semibold text-gray-700">
-            <span className="material-symbols-outlined text-[16px] text-[#00875A]">calendar_month</span>
-            <span>Tháng 6/2026</span>
-            <span className="material-symbols-outlined text-[14px] text-gray-400">expand_more</span>
-          </div>
+          {/* Health quick status badge */}
+          <Link
+            to="/admin/health"
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-colors"
+          >
+            <span className={`w-2 h-2 rounded-full ${stats.healthStatus === 'ok' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+            <span className="text-gray-600">Hệ Thống:</span>
+            <span className={stats.healthStatus === 'ok' ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+              {stats.healthStatus === 'ok' ? 'Ổn định' : 'Cảnh báo'}
+            </span>
+          </Link>
 
-          {/* Server Status Indicator */}
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EBF7F2] border border-[#BDE6D7] text-[11px] font-bold text-[#00875A]">
-            <span className="w-2 h-2 rounded-full bg-[#00875A] animate-pulse"></span>
-            <span>DRM Cluster: Hoạt động (99.99%)</span>
-          </div>
-
-          {/* Notification Bell */}
-          <button className="relative w-9 h-9 rounded-xl border border-[#E2E8F0] flex items-center justify-center text-gray-600 hover:bg-gray-50 transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-[20px]">notifications</span>
-            <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#EF4444] ring-2 ring-white"></span>
-          </button>
-
-          {/* Super Admin Profile */}
-          <div className="flex items-center gap-2.5 pl-2 sm:border-l sm:border-gray-200">
-            <UserAvatar src={user?.avatar} name={adminName} size="w-8 h-8" />
-            <div className="hidden lg:flex flex-col text-left">
-              <span className="text-xs font-bold text-gray-900 leading-tight">{adminName}</span>
-              <span className="text-[10px] text-[#00875A] font-bold uppercase">{user?.role || 'Super Admin'}</span>
+          {/* Profile & Avatar */}
+          <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-[#E2E8F0]">
+            <UserAvatar user={user} className="w-8 h-8 rounded-xl border border-[#E2E8F0]" />
+            <div className="hidden sm:flex flex-col text-left">
+              <span className="text-xs font-bold text-gray-900 leading-tight truncate max-w-[130px]">
+                {adminName}
+              </span>
+              <span className="text-[10px] text-emerald-700 font-semibold leading-tight">
+                Super Admin
+              </span>
             </div>
-            <Link
-              to="/"
-              className="ml-2 text-xs font-bold text-[#00875A] hover:bg-[#EBF7F2] px-2.5 py-1.5 rounded-xl border border-[#BDE6D7] transition-colors flex items-center gap-1"
-              title="Về Sàn TMĐT HUKI"
+            
+            <button
+              onClick={handleLogout}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              title="Đăng xuất"
+              aria-label="Đăng xuất"
             >
-              <span className="material-symbols-outlined text-[16px]">storefront</span>
-              <span className="hidden md:inline">Về Sàn</span>
-            </Link>
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* 2. MAIN WORKSPACE (SIDEBAR + CONTENT OUTLET) */}
-      <div className="flex-1 flex overflow-hidden w-full">
+      {/* 2. BODY CONTAINER: SIDEBAR + MAIN CONTENT */}
+      <div className="flex-1 flex overflow-hidden">
         
-        {/* LEFT SIDEBAR NAVIGATION (EXPANDED OR COLLAPSED) */}
-        <aside className={`
-          border-r border-[#E2E8F0] bg-[#FAFBFD] flex flex-col justify-between shrink-0 overflow-y-auto select-none transition-all duration-300
-          ${isSidebarCollapsed ? 'w-20 p-2.5' : 'w-72 p-4'}
-          ${isMobileMenuOpen ? 'fixed inset-y-0 left-0 z-50 bg-white shadow-2xl block w-72 p-4' : 'hidden lg:flex'}
-        `}>
-          <div className="space-y-4">
+        {/* DESKTOP SIDEBAR */}
+        <aside className={`${isSidebarCollapsed ? 'w-20' : 'w-64'} hidden lg:flex flex-col border-r border-[#E2E8F0] bg-[#F8FAFC] shrink-0 transition-all duration-300 select-none`}>
+          <div className="flex-1 overflow-y-auto py-5 px-3 flex flex-col gap-6 custom-scrollbar">
             {menuSections.map((sec, sIdx) => (
-              <div key={sIdx}>
-                {!isSidebarCollapsed ? (
-                  <p className="px-3 text-[9.5px] font-extrabold uppercase tracking-wider text-gray-400 mb-1.5 transition-opacity">
+              <div key={sIdx} className="flex flex-col gap-1">
+                {!isSidebarCollapsed && (
+                  <div className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
                     {sec.group}
-                  </p>
-                ) : (
-                  <div className="w-6 h-px bg-gray-200 mx-auto my-2"></div>
+                  </div>
                 )}
-                
-                <div className="space-y-0.5">
-                  {sec.items.map((item, iIdx) => {
-                    const isHappyRoute = ['/admin/dashboard', '/admin/publishers', '/admin/leads'].includes(item.to);
-                    const isActive = location.pathname === item.to || 
-                      (item.to === '/admin/dashboard' && location.pathname === '/admin') ||
-                      (item.to === '/admin/publishers' && (location.pathname === '/admin/companies' || location.pathname === '/admin/businesses' || location.pathname === '/admin/stores'));
-
-                    if (!isHappyRoute) {
-                      return (
-                        <div
-                          key={iIdx}
-                          title={isSidebarCollapsed ? `${item.label} (Sắp ra mắt)` : undefined}
-                          className={`
-                            flex items-center rounded-xl text-xs font-semibold relative opacity-35 cursor-not-allowed pointer-events-none select-none bg-black/[0.02]
-                            ${isSidebarCollapsed ? 'justify-center p-3 text-gray-400' : 'justify-between px-3.5 py-2.5 text-gray-400'}
-                          `}
-                        >
-                          <div className={`flex items-center gap-2.5 ${isSidebarCollapsed ? 'justify-center' : 'min-w-0'}`}>
-                            <span className="material-symbols-outlined text-[20px] shrink-0 text-gray-400">
-                              {item.icon}
-                            </span>
-                            {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
-                          </div>
-
-                          {!isSidebarCollapsed && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded font-bold bg-gray-200/80 text-gray-500 shrink-0">
-                              Sắp ra mắt
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <Link
-                        key={iIdx}
-                        to={item.to}
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        title={isSidebarCollapsed ? item.label : undefined}
-                        className={`
-                          flex items-center rounded-xl text-xs font-semibold transition-all group cursor-pointer relative
-                          ${isSidebarCollapsed ? 'justify-center p-3' : 'justify-between px-3.5 py-2.5'}
-                          ${isActive 
-                            ? 'bg-[#EBF7F2] text-[#00875A] font-bold shadow-2xs' 
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100/80'}
-                        `}
-                      >
-                        <div className={`flex items-center gap-2.5 ${isSidebarCollapsed ? 'justify-center' : 'min-w-0'}`}>
-                          <span className={`material-symbols-outlined text-[20px] shrink-0 ${isActive ? 'text-[#00875A]' : 'text-gray-400 group-hover:text-gray-700'} transition-colors`}>
-                            {item.icon}
-                          </span>
-                          {!isSidebarCollapsed && <span className="truncate">{item.label}</span>}
-                        </div>
-
-                        {item.count !== undefined && !isSidebarCollapsed && (
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold shrink-0 min-w-[20px] text-center shadow-2xs ${
-                            isActive 
-                              ? 'bg-[#00875A] text-white' 
-                              : `${item.badgeColor ? `${item.badgeColor} text-white` : 'bg-gray-200 text-gray-700'}`
-                          }`}>
-                            {item.count}
-                          </span>
+                {sec.items.map((item, iIdx) => {
+                  const isActive = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+                  return (
+                    <Link
+                      key={iIdx}
+                      to={item.to}
+                      title={isSidebarCollapsed ? item.label : undefined}
+                      className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0 py-2.5' : 'justify-between px-3.5 py-2.5'} rounded-xl text-xs font-semibold transition-all group ${
+                        isActive
+                          ? 'bg-[#00875A] text-white shadow-xs font-bold'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`material-symbols-outlined text-[20px] shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}`}>
+                          {item.icon}
+                        </span>
+                        {!isSidebarCollapsed && (
+                          <span className="truncate">{item.label}</span>
                         )}
-
-                        {/* Collapsed dot badge indicator */}
-                        {item.count !== undefined && isSidebarCollapsed && (
-                          <span className={`absolute top-2 right-2 w-2 h-2 rounded-full ${item.badgeColor ? item.badgeColor : 'bg-[#00875A]'}`}></span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
+                      </div>
+                      {!isSidebarCollapsed && item.count && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700')}`}>
+                          {item.count}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
               </div>
             ))}
           </div>
 
-          {/* Bottom Switcher Links */}
-          <div className={`pt-4 mt-4 border-t border-gray-200/80 space-y-1.5 ${isSidebarCollapsed ? 'flex flex-col items-center' : ''}`}>
-            <Link
-              to="/seller/dashboard"
-              title={isSidebarCollapsed ? "Kênh Người Bán NXB" : undefined}
-              className={`flex items-center rounded-xl text-xs font-semibold text-gray-600 hover:text-[#003B2B] hover:bg-emerald-50/70 transition-colors ${
-                isSidebarCollapsed ? 'p-2.5 justify-center' : 'justify-between px-3.5 py-2'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px] text-gray-400">store</span>
-                {!isSidebarCollapsed && <span>Kênh Người Bán NXB</span>}
+          {/* Sidebar Footer */}
+          <div className="p-3 border-t border-[#E2E8F0] bg-[#F1F5F9]/70 flex flex-col gap-2 shrink-0">
+            {!isSidebarCollapsed ? (
+              <div className="flex items-center justify-between text-[11px] text-gray-500 px-2 py-1">
+                <span className="font-semibold text-gray-700">HUKI v2.0 Platform</span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[9px] font-bold">PROD</span>
               </div>
-              {!isSidebarCollapsed && <span className="material-symbols-outlined text-[14px]">arrow_forward</span>}
-            </Link>
-
-            <Link
-              to="/"
-              title={isSidebarCollapsed ? "Về Sàn HUKI Store" : undefined}
-              className={`flex items-center rounded-xl text-xs font-semibold text-emerald-800 hover:bg-emerald-50 transition-colors ${
-                isSidebarCollapsed ? 'p-2.5 justify-center' : 'justify-between px-3.5 py-2'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[18px]">storefront</span>
-                {!isSidebarCollapsed && <span>Về Sàn HUKI Store</span>}
+            ) : (
+              <div className="flex justify-center text-[10px] text-emerald-700 font-bold">
+                PROD
               </div>
-              {!isSidebarCollapsed && <span className="material-symbols-outlined text-[14px]">arrow_forward</span>}
-            </Link>
+            )}
           </div>
         </aside>
 
-        {/* MAIN CONTENT OUTLET WITH DYNAMIC BREADCRUMBS ("BÁNH MÌ") */}
-        <main className="flex-1 bg-[#F8FAFC] overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col">
-          
-          {/* BREADCRUMB BAR ("BÁNH MÌ" ĐIỀU HƯỚNG TRANG) */}
-          <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs font-semibold text-gray-500 mb-5 bg-white px-4 py-2.5 rounded-2xl border border-[#E2E8F0] shadow-2xs shrink-0">
-            <Link to="/" className="text-gray-400 hover:text-[#00875A] flex items-center gap-1 transition-colors">
-              <span className="material-symbols-outlined text-[16px]">home</span>
-              <span className="hidden sm:inline">Sàn HUKI</span>
-            </Link>
-            <span className="material-symbols-outlined text-[14px] text-gray-300">chevron_right</span>
-            <Link to="/admin/dashboard" className="text-gray-500 hover:text-[#00875A] transition-colors">
-              Super Admin
-            </Link>
-            {currentRouteInfo.parent && (
-              <>
-                <span className="material-symbols-outlined text-[14px] text-gray-300">chevron_right</span>
-                <span className="text-gray-400 hidden sm:inline">{currentRouteInfo.parent}</span>
-              </>
-            )}
-            <span className="material-symbols-outlined text-[14px] text-gray-300">chevron_right</span>
-            <span className="text-[#00875A] font-bold">{currentRouteInfo.title}</span>
-          </nav>
+        {/* MOBILE DRAWER SIDEBAR */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            <div 
+              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" 
+              onClick={() => setIsMobileMenuOpen(false)} 
+            />
+            <div className="relative w-72 max-w-[80vw] bg-white h-full flex flex-col shadow-2xl z-10 animate-slide-right">
+              <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-[#00875A] flex items-center justify-center text-white font-black text-sm">
+                    H
+                  </div>
+                  <span className="font-bold text-sm text-gray-900 font-editorial">HUKI ADMIN</span>
+                </div>
+                <button 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1 rounded-lg text-gray-400 hover:bg-gray-100"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
 
-          <div className="flex-1">
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-6">
+                {menuSections.map((sec, sIdx) => (
+                  <div key={sIdx} className="flex flex-col gap-1">
+                    <div className="px-3 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                      {sec.group}
+                    </div>
+                    {sec.items.map((item, iIdx) => {
+                      const isActive = location.pathname === item.to;
+                      return (
+                        <Link
+                          key={iIdx}
+                          to={item.to}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold ${
+                            isActive
+                              ? 'bg-[#00875A] text-white font-bold'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="material-symbols-outlined text-[18px]">
+                              {item.icon}
+                            </span>
+                            <span>{item.label}</span>
+                          </div>
+                          {item.count && (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                              {item.count}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 3. MAIN WORKSPACE / OUTLET */}
+        <main className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC] overflow-y-auto">
+          
+          {/* Breadcrumbs Navigation Bar */}
+          <div className="h-11 px-4 sm:px-6 lg:px-8 border-b border-[#E2E8F0] bg-white flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2 text-xs text-gray-500">
+              <Link to="/admin/dashboard" className="hover:text-gray-900 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[16px] text-gray-400">home</span>
+                <span>Admin</span>
+              </Link>
+              <span className="text-gray-300">/</span>
+              <span className="text-gray-500">{currentRouteInfo.parent}</span>
+              <span className="text-gray-300">/</span>
+              <span className="font-bold text-gray-900">{currentRouteInfo.title}</span>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="hidden sm:inline">Role: <strong className="text-emerald-700 font-bold">PLATFORM_ADMIN</strong></span>
+            </div>
+          </div>
+
+          {/* Page Content */}
+          <div className="flex-1 p-4 sm:p-6 lg:p-8">
             <Outlet />
           </div>
         </main>
       </div>
-
     </div>
   );
 }

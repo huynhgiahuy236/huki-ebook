@@ -7,11 +7,11 @@
 | 01 | Shared foundation | ✅ DONE | Typed client, auth/session, permission contract |
 | 02 | Tất cả persona | ✅ DONE | Identity và role routing bằng backend thật |
 | 03 | Admin doanh nghiệp + Guest | ✅ DONE | E2E xuyên vai trò trên backend thật đạt chuẩn |
-| 04 | User/Buyer | 🟡 PARTIAL | Checkout COD tạo đơn thật |
-| 05 | User/Buyer | 🟡 PARTIAL | Buyer xem đơn và lịch sử nội bộ |
-| 06 | Admin con doanh nghiệp | 🔴 TODO | Owner tạo tài khoản và cấp permission tùy chọn |
-| 07 | Admin doanh nghiệp/Admin con | 🟡 PARTIAL | Quản lý sản phẩm và xử lý đơn theo permission |
-| 08 | Admin HUKI | 🔴 TODO | Approval, catalog admin và health UI |
+| 04 | User/Buyer | ✅ DONE | Checkout COD tạo đơn thật & fulfillment E2E |
+| 05 | User/Buyer | ✅ DONE | Buyer xem đơn, timeline, profile & RBAC E2E |
+| 06 | Admin con doanh nghiệp | ✅ DONE | Owner tạo tài khoản và cấp permission tùy chọn |
+| 07 | Admin doanh nghiệp/Admin con | ✅ DONE | Quản lý sản phẩm và xử lý đơn theo permission |
+| 08 | Admin HUKI | ✅ DONE | Approval, catalog admin và health UI |
 | 09 | Tất cả persona | 🔴 TODO | E2E xuyên vai trò và release gate happy case |
 
 `PARTIAL` chủ yếu phản ánh UI mock hoặc backend riêng lẻ; không phase nào ngoài backend runtime được coi là hoàn tất.

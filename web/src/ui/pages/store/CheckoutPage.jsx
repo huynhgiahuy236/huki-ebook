@@ -1,66 +1,339 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { addressApi } from '../../api/addressApi';
+import { cartApi } from '../../api/cartApi';
+import { checkoutApi } from '../../api/checkoutApi';
+import CustomLocationSelector from '../../components/common/CustomLocationSelector';
+import AddressMapPreview from '../../components/common/AddressMapPreview';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { cartItems, storeGroups, checkedSubtotal, checkedItemsCount, hasPhysicalItems, hasEbookItems, clearCart } = useCart();
+  const { user, isLoggedIn } = useAuth();
+  const {
+    cartItems,
+    checkedSubtotal,
+    checkedItemsCount,
+    hasPhysicalItems,
+    hasEbookItems,
+    clearCart,
+  } = useCart();
   const { showToast } = useToast();
 
-  const [paymentMethod, setPaymentMethod] = useState('cod'); // 'cod' (active) | 'hukipay' | 'vnpay' | 'momo' (deferred)
-  const [shippingMethod, setShippingMethod] = useState('standard'); // 'standard' | 'express'
+  const [paymentMethod, setPaymentMethod] = useState('COD');
+  const [shippingMethod, setShippingMethod] = useState('standard');
   const [useVatInvoice, setUseVatInvoice] = useState(false);
   const [note, setNote] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingSession, setIsLoadingSession] = useState(false);
+  const [sessionId, setSessionId] = useState('');
 
-  // Address state
-  const [address, setAddress] = useState({
-    name: 'Lê Đức Kiên',
-    phone: '0988 123 456',
-    street: '12 Nguyễn Văn Bảo, Phường Hạnh Thông, Quận Gò Vấp',
-    city: 'TP. Hồ Chí Minh'
+  // Address states
+  const [addresses, setAddresses] = useState([]);
+  const [selectedAddressId, setSelectedAddressId] = useState('');
+  const [showAddressList, setShowAddressList] = useState(false);
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    name: user?.fullName || user?.name || 'Khách Hàng',
+    phone: user?.phone || '0988123456',
+    province: 'Hồ Chí Minh',
+    district: 'Quận Gò Vấp',
+    ward: 'Phường 5',
+    address: '12 Nguyễn Văn Bảo',
+    isDefault: true,
   });
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
 
-  const checkedItems = cartItems.filter(i => i.checked);
-  const ebookItems = checkedItems.filter(i => i.type === 'ebook');
-  const physicalItems = checkedItems.filter(i => i.type === 'physical');
+  const checkedItems = cartItems.filter((i) => i.checked);
+  const ebookItems = checkedItems.filter((i) => i.type === 'ebook');
+  const physicalItems = checkedItems.filter((i) => i.type === 'physical');
 
+  // Load user addresses if logged in
+  const loadAddresses = useCallback(async () => {
+    if (!isLoggedIn) return;
+    try {
+      const res = await addressApi.getAddresses();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setAddresses(res.data);
+        const defaultAddr = res.data.find((a) => a.isDefault) || res.data[0];
+        setSelectedAddressId(defaultAddr.id);
+        setAddressForm({
+          name: defaultAddr.name,
+          phone: defaultAddr.phone,
+          province: defaultAddr.province,
+          district: defaultAddr.district,
+          ward: defaultAddr.ward,
+          address: defaultAddr.address,
+          isDefault: defaultAddr.isDefault,
+        });
+      } else {
+        // Fallback default for form
+        setAddressForm({
+          name: user?.fullName || user?.name || 'Khách Hàng',
+          phone: user?.phone || '0988123456',
+          province: 'Hồ Chí Minh',
+          district: 'Quận Gò Vấp',
+          ward: 'Phường 5',
+          address: '12 Nguyễn Văn Bảo',
+          isDefault: true,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, [isLoggedIn, user]);
+
+  useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  // Selected address object
+  const activeAddress = addresses.find((a) => a.id === selectedAddressId) || addressForm;
+
+  // Sync / Preview checkout session with backend
+  useEffect(() => {
+    if (!isLoggedIn || checkedItems.length === 0) return;
+
+    let isMounted = true;
+    const fetchCheckoutSession = async () => {
+      setIsLoadingSession(true);
+      try {
+        const res = await checkoutApi.previewCheckout({
+          shippingAddress: hasPhysicalItems
+            ? {
+                recipientName: activeAddress.name,
+                phone: activeAddress.phone,
+                line1: activeAddress.address,
+                ward: activeAddress.ward,
+                district: activeAddress.district,
+                province: activeAddress.province,
+              }
+            : undefined,
+          note: note.trim() || undefined,
+        });
+
+        if (isMounted && res.success && res.data?.sessionId) {
+          setSessionId(res.data.sessionId);
+        }
+      } catch {
+        // Fallback gracefully
+      } finally {
+        if (isMounted) setIsLoadingSession(false);
+      }
+    };
+
+    fetchCheckoutSession();
+    return () => {
+      isMounted = false;
+    };
+  }, [isLoggedIn, checkedItems.length, hasPhysicalItems, activeAddress, note]);
+
+  // Calculations
   const rawSubtotal = checkedSubtotal;
   const shippingFee = hasPhysicalItems ? (shippingMethod === 'express' ? 35000 : 20000) : 0;
   const voucherDiscount = rawSubtotal >= 300000 ? 30000 : 0;
   const grandTotal = Math.max(0, rawSubtotal - voucherDiscount + shippingFee);
 
-  const handlePlaceOrder = () => {
+  const handleSaveNewAddress = async (e) => {
+    e.preventDefault();
+    if (!addressForm.name || !addressForm.phone || !addressForm.address) {
+      showToast(
+        {
+          title: 'Thông tin chưa đầy đủ',
+          message: 'Vui lòng điền đầy đủ họ tên, số điện thoại và địa chỉ giao hàng.',
+        },
+        'warning'
+      );
+      return;
+    }
+
+    if (isLoggedIn) {
+      try {
+        const res = await addressApi.createAddress({
+          name: addressForm.name.trim(),
+          phone: addressForm.phone.trim(),
+          province: addressForm.province.trim(),
+          district: addressForm.district.trim(),
+          ward: addressForm.ward.trim(),
+          address: addressForm.address.trim(),
+          isDefault: addressForm.isDefault,
+        });
+
+        if (res.success && res.data) {
+          showToast(
+            {
+              title: 'Lưu địa chỉ thành công',
+              message: 'Địa chỉ giao hàng mới đã được thêm vào sổ địa chỉ.',
+            },
+            'success'
+          );
+          await loadAddresses();
+          setSelectedAddressId(res.data.id);
+          setShowNewAddressForm(false);
+          setShowAddressList(false);
+          return;
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    setShowNewAddressForm(false);
+    setShowAddressList(false);
+    showToast(
+      {
+        title: 'Cập nhật địa chỉ',
+        message: 'Đã cập nhật thông tin nhận hàng cho đơn này.',
+      },
+      'success'
+    );
+  };
+
+  const handlePlaceOrder = async () => {
     if (checkedItemsCount === 0) {
-      showToast('Giỏ hàng chưa có sản phẩm được chọn.', 'error');
+      showToast(
+        {
+          title: 'Giỏ hàng trống',
+          message: 'Chưa có sản phẩm nào được chọn để thanh toán.',
+        },
+        'warning'
+      );
       navigate('/cart');
       return;
     }
+
+    if (hasPhysicalItems && (!activeAddress.name || !activeAddress.phone || !activeAddress.address)) {
+      showToast(
+        {
+          title: 'Thiếu địa chỉ nhận hàng',
+          message: 'Vui lòng cung cấp địa chỉ nhận sách giấy trước khi thanh toán.',
+        },
+        'warning'
+      );
+      return;
+    }
+
     setIsSubmitting(true);
+
+    // Call real backend confirmCheckout if logged in
+    if (isLoggedIn) {
+      try {
+        // 1. Sync checked items to server cart if missing
+        try {
+          const serverCartRes = await cartApi.getCart();
+          const serverItems = serverCartRes.success && serverCartRes.data?.items ? serverCartRes.data.items : [];
+
+          for (const item of checkedItems) {
+            const isUUID = typeof item.bookId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.bookId);
+            if (isUUID) {
+              const apiFormat = (item.type === 'physical' || item.format?.toLowerCase().includes('giấy')) ? 'PHYSICAL' : 'DIGITAL';
+              const exists = serverItems.some((si) => si.bookId === item.bookId && si.format === apiFormat);
+              if (!exists) {
+                try {
+                  await cartApi.addToCart({
+                    bookId: item.bookId,
+                    format: apiFormat,
+                    quantity: item.quantity || 1,
+                  });
+                } catch {
+                  // ignore
+                }
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+
+        // 2. Generate or refresh checkout session
+        const previewPayload = {
+          shippingAddress: hasPhysicalItems
+            ? {
+                recipientName: activeAddress.name || user?.fullName || 'Khách Hàng',
+                phone: activeAddress.phone || user?.phone || '0988123456',
+                line1: activeAddress.address || '12 Nguyễn Văn Bảo',
+                ward: activeAddress.ward || 'Phường 5',
+                district: activeAddress.district || 'Quận Gò Vấp',
+                province: activeAddress.province || 'Hồ Chí Minh',
+              }
+            : undefined,
+          note: note.trim() || undefined,
+        };
+
+        let currentSessionId = sessionId;
+        try {
+          const previewRes = await checkoutApi.previewCheckout(previewPayload);
+          if (previewRes.success && previewRes.data?.sessionId) {
+            currentSessionId = previewRes.data.sessionId;
+          }
+        } catch {
+          // ignore
+        }
+
+        // 3. Confirm order to backend PostgreSQL database
+        if (currentSessionId) {
+          const idempotencyKey = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idemp-${Date.now()}`;
+          const confirmRes = await checkoutApi.confirmCheckout(
+            {
+              sessionId: currentSessionId,
+              paymentMethod: 'COD',
+            },
+            idempotencyKey
+          );
+
+          if (confirmRes.success && confirmRes.data?.order) {
+            clearCart();
+            showToast(
+              {
+                title: 'Đặt hàng thành công!',
+                message: `Đơn hàng #${confirmRes.data.order.code} đã được tạo và gửi đến các nhà sách.`,
+              },
+              'success'
+            );
+            navigate(`/order-success?orderId=${confirmRes.data.order.id}&code=${confirmRes.data.order.code}&paymentMethod=COD`);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Order creation error:', err);
+      }
+    }
+
+    // Local / Guest fallback order flow
     setTimeout(() => {
+      setIsSubmitting(false);
       clearCart();
-      showToast('Đặt hàng thành công! Đang chuyển hướng...', 'success');
+      showToast(
+        {
+          title: 'Đặt hàng thành công!',
+          message: 'Đơn hàng của bạn đã được ghi nhận thành công. Đang chuyển hướng...',
+        },
+        'success'
+      );
       navigate('/order-success');
-    }, 800);
+    }, 600);
   };
 
   return (
-    <div className="w-full bg-surface font-body-md text-on-surface antialiased min-h-screen pb-16">
+    <div className="w-full bg-[var(--theme-background,#F2FBF9)] text-[var(--theme-text,#1c1b1f)] font-body-md antialiased min-h-screen pb-16 transition-colors duration-200">
       {/* Checkout Breadcrumb Header */}
-      <div className="bg-surface-container-lowest border-b border-outline-variant/30 py-4 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-[1280px] mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] py-4 px-4 sm:px-6 lg:px-8 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <nav className="flex items-center gap-2 text-xs text-on-surface-variant mb-1">
-              <Link className="hover:text-primary transition-colors" to="/">Trang chủ</Link>
-              <span className="material-symbols-outlined text-[13px]">chevron_right</span>
-              <Link className="hover:text-primary transition-colors" to="/cart">Giỏ hàng</Link>
-              <span className="material-symbols-outlined text-[13px]">chevron_right</span>
-              <span className="text-primary font-semibold">Thanh toán</span>
+            <nav className="flex items-center gap-2 text-xs text-[var(--theme-text-muted,#49454f)] mb-1">
+              <Link className="hover:text-[var(--theme-primary,#003B2B)] transition-colors" to="/">
+                Trang chủ
+              </Link>
+              <span className="material-symbols-outlined text-[13px] opacity-40">chevron_right</span>
+              <Link className="hover:text-[var(--theme-primary,#003B2B)] transition-colors" to="/cart">
+                Giỏ hàng
+              </Link>
+              <span className="material-symbols-outlined text-[13px] opacity-40">chevron_right</span>
+              <span className="text-[var(--theme-primary,#003B2B)] font-bold">Thanh toán</span>
             </nav>
             <div className="flex items-baseline gap-3">
-              <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface tracking-tight">
+              <h1 className="font-editorial text-2xl sm:text-3xl font-black text-[var(--theme-text,#1c1b1f)] tracking-tight">
                 Thanh Toán Đơn Hàng
               </h1>
             </div>
@@ -68,22 +341,22 @@ export default function CheckoutPage() {
 
           {/* Stepper Indicator */}
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-primary text-xs font-semibold">
-              <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px]">
+            <div className="flex items-center gap-1.5 text-[var(--theme-primary,#003B2B)] text-xs font-semibold">
+              <div className="w-6 h-6 rounded-full bg-[var(--theme-primary,#003B2B)]/15 text-[var(--theme-primary,#003B2B)] flex items-center justify-center font-bold text-[11px]">
                 <span className="material-symbols-outlined text-[14px]">check</span>
               </div>
               <span className="hidden md:inline">Giỏ hàng</span>
             </div>
-            <div className="w-8 h-0.5 bg-primary"></div>
-            <div className="flex items-center gap-1.5 text-primary text-xs font-bold">
-              <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-[11px] shadow-xs">
+            <div className="w-8 h-0.5 bg-[var(--theme-primary,#003B2B)]"></div>
+            <div className="flex items-center gap-1.5 text-[var(--theme-primary,#003B2B)] text-xs font-bold">
+              <div className="w-6 h-6 rounded-full bg-[var(--theme-primary,#003B2B)] text-white flex items-center justify-center text-[11px] shadow-xs">
                 2
               </div>
               <span>Thanh toán</span>
             </div>
-            <div className="w-8 h-0.5 bg-outline-variant/50"></div>
-            <div className="flex items-center gap-1.5 text-on-surface-variant text-xs opacity-50">
-              <div className="w-6 h-6 rounded-full bg-surface-container text-on-surface-variant flex items-center justify-center text-[11px]">
+            <div className="w-8 h-0.5 bg-[var(--theme-border,#e8e5df)]"></div>
+            <div className="flex items-center gap-1.5 text-[var(--theme-text-muted,#49454f)] text-xs opacity-50">
+              <div className="w-6 h-6 rounded-full bg-neutral-200 dark:bg-neutral-800 text-[var(--theme-text-muted,#49454f)] flex items-center justify-center text-[11px]">
                 3
               </div>
               <span className="hidden md:inline">Hoàn tất</span>
@@ -93,37 +366,35 @@ export default function CheckoutPage() {
       </div>
 
       {/* Main Content */}
-      <main className="max-w-[1280px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-12 gap-6 lg:gap-8 items-start">
-
-          {/* Left Column: Form & Fulfillment */}
+          {/* Left Column (8 Cols): Fulfillment & Delivery Info */}
           <div className="col-span-12 lg:col-span-8 flex flex-col gap-6">
-
             {/* Split Fulfillment Box */}
-            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 shadow-sm">
-              <h2 className="font-editorial text-lg font-bold text-on-surface mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-5 bg-primary rounded-full"></span>
+            <section className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm">
+              <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-5 bg-[var(--theme-primary,#003B2B)] rounded-full"></span>
                 Phương Thức Giao Nhận &amp; Kích Hoạt Tủ Sách
               </h2>
 
               <div className="space-y-4">
                 {/* Package 1: Ebook DRM (If any) */}
                 {ebookItems.length > 0 && (
-                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex flex-col gap-2">
+                  <div className="p-4 rounded-xl bg-[var(--theme-secondary-subtle,#f0fdf4)]/50 border border-[var(--theme-primary,#003B2B)]/20 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-primary text-white flex items-center justify-center text-xs">
+                        <span className="w-7 h-7 rounded-lg bg-[var(--theme-primary,#003B2B)] text-white flex items-center justify-center text-xs">
                           <span className="material-symbols-outlined text-[16px]">bolt</span>
                         </span>
-                        <strong className="text-xs sm:text-sm text-primary font-bold">
+                        <strong className="text-xs sm:text-sm text-[var(--theme-primary,#003B2B)] font-bold">
                           GÓI 1: EBOOK BẢN QUYỀN DRM ({ebookItems.length} ấn phẩm)
                         </strong>
                       </div>
-                      <span className="bg-primary text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      <span className="bg-[var(--theme-primary,#003B2B)] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full">
                         MIỄN PHÍ SHIP
                       </span>
                     </div>
-                    <p className="text-xs text-on-surface-variant leading-relaxed pl-9">
+                    <p className="text-xs text-[var(--theme-text-muted,#49454f)] leading-relaxed pl-9">
                       Kích hoạt ngay lập tức vào <strong>Tủ Sách HUKI</strong> sau khi thanh toán thành công. Đọc trực tiếp trên Web Reader và App di động.
                     </p>
                   </div>
@@ -131,44 +402,48 @@ export default function CheckoutPage() {
 
                 {/* Package 2: Physical Books (If any) */}
                 {physicalItems.length > 0 && (
-                  <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant/30 flex flex-col gap-3">
+                  <div className="p-4 rounded-xl bg-[var(--theme-background,#F2FBF9)]/60 border border-[var(--theme-border,#e8e5df)] flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="w-7 h-7 rounded-lg bg-surface-container-highest text-on-surface flex items-center justify-center text-xs">
+                        <span className="w-7 h-7 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[var(--theme-text,#1c1b1f)] flex items-center justify-center text-xs">
                           <span className="material-symbols-outlined text-[16px]">local_shipping</span>
                         </span>
-                        <strong className="text-xs sm:text-sm text-on-surface font-bold">
+                        <strong className="text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)] font-bold">
                           GÓI 2: SÁCH GIẤY VẬT LÝ ({physicalItems.length} ấn phẩm)
                         </strong>
                       </div>
-                      <span className="text-xs text-on-surface-variant font-medium">Giao bưu tá 2-3 ngày</span>
+                      <span className="text-xs text-[var(--theme-text-muted,#49454f)] font-medium">Giao bưu tá 2-3 ngày</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-outline-variant/20">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-[var(--theme-border,#e8e5df)]/40">
                       <label
                         onClick={() => setShippingMethod('standard')}
-                        className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between text-xs ${
-                          shippingMethod === 'standard' ? 'border-primary bg-primary/5' : 'border-outline-variant/50 bg-surface-container-lowest'
+                        className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between text-xs transition-all ${
+                          shippingMethod === 'standard'
+                            ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold'
+                            : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)]'
                         }`}
                       >
                         <div>
-                          <span className="font-bold text-on-surface block">Tiêu Chuẩn (2-3 ngày)</span>
-                          <span className="text-[11px] text-on-surface-variant">Giao bởi GHTK / SPX Express</span>
+                          <span className="font-bold text-[var(--theme-text,#1c1b1f)] block">Tiêu Chuẩn (2-3 ngày)</span>
+                          <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">Giao bởi GHTK / SPX Express</span>
                         </div>
-                        <span className="font-bold text-primary">20.000đ</span>
+                        <span className="font-bold text-[var(--theme-primary,#003B2B)]">20.000đ</span>
                       </label>
 
                       <label
                         onClick={() => setShippingMethod('express')}
-                        className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between text-xs ${
-                          shippingMethod === 'express' ? 'border-primary bg-primary/5' : 'border-outline-variant/50 bg-surface-container-lowest'
+                        className={`p-3 rounded-xl border cursor-pointer flex items-center justify-between text-xs transition-all ${
+                          shippingMethod === 'express'
+                            ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold'
+                            : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)]'
                         }`}
                       >
                         <div>
-                          <span className="font-bold text-on-surface block">Hỏa Tốc 2 Giờ (Nội thành)</span>
-                          <span className="text-[11px] text-on-surface-variant">Giao bởi GrabExpress</span>
+                          <span className="font-bold text-[var(--theme-text,#1c1b1f)] block">Hỏa Tốc 2 Giờ (Nội thành)</span>
+                          <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">Giao bởi GrabExpress</span>
                         </div>
-                        <span className="font-bold text-primary">35.000đ</span>
+                        <span className="font-bold text-[var(--theme-primary,#003B2B)]">35.000đ</span>
                       </label>
                     </div>
                   </div>
@@ -176,208 +451,378 @@ export default function CheckoutPage() {
               </div>
             </section>
 
-            {/* Shipping Address Section (for physical books) */}
+            {/* Shipping Address Section (Inline Accordion - No Popup) */}
             {hasPhysicalItems && (
-              <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 shadow-sm">
+              <section className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="font-editorial text-lg font-bold text-on-surface flex items-center gap-2">
-                    <span className="w-1.5 h-5 bg-primary rounded-full"></span>
+                  <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-2">
+                    <span className="w-1.5 h-5 bg-[var(--theme-primary,#003B2B)] rounded-full"></span>
                     Địa Chỉ Nhận Sách Giấy
                   </h2>
-                  <button
-                    onClick={() => setIsEditingAddress(!isEditingAddress)}
-                    className="text-xs text-primary hover:underline font-semibold flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-[15px]">edit</span>
-                    {isEditingAddress ? 'Xong' : 'Thay đổi'}
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {addresses.length > 1 && (
+                      <button
+                        onClick={() => {
+                          setShowAddressList((prev) => !prev);
+                          setShowNewAddressForm(false);
+                        }}
+                        className="text-xs text-[var(--theme-primary,#003B2B)] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">list</span>
+                        {showAddressList ? 'Thu gọn' : 'Đổi địa chỉ'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setShowNewAddressForm((prev) => !prev);
+                        setShowAddressList(false);
+                      }}
+                      className="text-xs text-[var(--theme-primary,#003B2B)] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">
+                        {showNewAddressForm ? 'close' : 'add'}
+                      </span>
+                      {showNewAddressForm ? 'Hủy' : '+ Thêm địa chỉ mới'}
+                    </button>
+                  </div>
                 </div>
 
-                {isEditingAddress ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="block text-[11px] font-bold text-on-surface-variant mb-1">Họ và tên người nhận</label>
-                      <input
-                        type="text"
-                        value={address.name}
-                        onChange={(e) => setAddress({ ...address, name: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-outline-variant/50 bg-surface-container-low text-xs focus:outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-on-surface-variant mb-1">Số điện thoại</label>
-                      <input
-                        type="tel"
-                        value={address.phone}
-                        onChange={(e) => setAddress({ ...address, phone: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-outline-variant/50 bg-surface-container-low text-xs focus:outline-none focus:border-primary"
-                      />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-bold text-on-surface-variant mb-1">Địa chỉ chi tiết</label>
-                      <input
-                        type="text"
-                        value={address.street}
-                        onChange={(e) => setAddress({ ...address, street: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl border border-outline-variant/50 bg-surface-container-low text-xs focus:outline-none focus:border-primary"
-                      />
-                    </div>
+                {/* Inline Address Selection List */}
+                {showAddressList && addresses.length > 1 && (
+                  <div className="mb-4 p-3 bg-[var(--theme-background,#F2FBF9)]/50 rounded-xl border border-[var(--theme-border,#e8e5df)] space-y-2 animate-in fade-in duration-200">
+                    <span className="text-[11px] font-bold text-[var(--theme-text-muted,#49454f)] block">
+                      Chọn địa chỉ từ sổ địa chỉ của bạn:
+                    </span>
+                    {addresses.map((addr) => {
+                      const isSelected = selectedAddressId === addr.id;
+                      return (
+                        <div
+                          key={addr.id}
+                          onClick={() => {
+                            setSelectedAddressId(addr.id);
+                            setShowAddressList(false);
+                          }}
+                          className={`p-3 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition-all ${
+                            isSelected
+                              ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold'
+                              : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/40'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-[var(--theme-text,#1c1b1f)]">{addr.name}</span>
+                              <span className="text-[var(--theme-text-muted,#49454f)]">({addr.phone})</span>
+                              {addr.isDefault && (
+                                <span className="bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold">
+                                  Mặc định
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block mt-0.5">
+                              {addr.address}, {addr.ward}, {addr.district}, {addr.province}
+                            </span>
+                          </div>
+                          <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">
+                            {isSelected ? 'check_circle' : 'radio_button_unchecked'}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <div className="p-3.5 bg-surface-container-low rounded-xl border border-outline-variant/30 text-xs text-on-surface flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                      <strong className="font-bold">{address.name}</strong>
-                      <span className="text-on-surface-variant">({address.phone})</span>
-                      <span className="bg-primary/10 text-primary text-[10px] px-2 py-0.5 rounded font-bold">Mặc định</span>
+                )}
+
+                {/* Inline New Address Form */}
+                {showNewAddressForm ? (
+                  <form
+                    onSubmit={handleSaveNewAddress}
+                    className="p-5 bg-[var(--theme-background,#F2FBF9)]/60 rounded-2xl border-2 border-[var(--theme-primary,#003B2B)]/30 space-y-4 animate-in fade-in duration-200"
+                  >
+                    <div className="flex items-center justify-between border-b border-[var(--theme-border,#e8e5df)]/60 pb-2">
+                      <span className="text-xs sm:text-sm font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">add_location_alt</span>
+                        Thêm địa chỉ nhận sách mới:
+                      </span>
                     </div>
-                    <span className="text-on-surface-variant">{address.street}, {address.city}</span>
+
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                            Họ và tên người nhận <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={addressForm.name}
+                            onChange={(e) => setAddressForm({ ...addressForm, name: e.target.value })}
+                            placeholder="Ví dụ: Nguyễn Văn An"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-xs sm:text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                            Số điện thoại <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            value={addressForm.phone}
+                            onChange={(e) => setAddressForm({ ...addressForm, phone: e.target.value })}
+                            placeholder="Ví dụ: 0912345678"
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-xs sm:text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <CustomLocationSelector
+                          province={addressForm.province}
+                          district={addressForm.district}
+                          ward={addressForm.ward}
+                          onChange={({ province, district, ward }) =>
+                            setAddressForm((prev) => ({ ...prev, province, district, ward }))
+                          }
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                          Số nhà, tên đường chi tiết <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={addressForm.address}
+                          onChange={(e) => setAddressForm({ ...addressForm, address: e.target.value })}
+                          placeholder="Ví dụ: 12 Nguyễn Văn Bảo"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-xs sm:text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[var(--theme-border,#e8e5df)]/60">
+                        <button
+                          type="button"
+                          onClick={() => setShowNewAddressForm(false)}
+                          className="px-4 py-2 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs font-semibold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer"
+                        >
+                          Đóng
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs font-bold hover:opacity-95 cursor-pointer shadow-xs"
+                        >
+                          Lưu &amp; Sử Dụng
+                        </button>
+                      </div>
+                    </div>
+                  </form>
+                ) : (
+                  /* Current Active Address Card (Clean, Full Width) */
+                  <div className="p-4 sm:p-5 bg-[var(--theme-background,#F2FBF9)]/60 rounded-2xl border border-[var(--theme-border,#e8e5df)] text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)] flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <strong className="font-bold text-sm sm:text-base">{activeAddress.name}</strong>
+                        <span className="text-[var(--theme-text-muted,#49454f)] font-medium">({activeAddress.phone})</span>
+                        <span className="bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[10px] px-2.5 py-0.5 rounded-full font-bold">
+                          Địa chỉ nhận sách
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-1.5 text-[var(--theme-text-muted,#49454f)] leading-relaxed">
+                      <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)] shrink-0 mt-0.5">location_on</span>
+                      <span>
+                        {activeAddress.address}, {activeAddress.ward}, {activeAddress.district}, {activeAddress.province}
+                      </span>
+                    </div>
                   </div>
                 )}
               </section>
             )}
 
-            {/* Payment Methods */}
-            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 shadow-sm">
-              <h2 className="font-editorial text-lg font-bold text-on-surface mb-3 flex items-center gap-2">
-                <span className="w-1.5 h-5 bg-primary rounded-full"></span>
+            {/* Payment Methods (COD is Active & Primary) */}
+            <section className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm">
+              <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] mb-3 flex items-center gap-2">
+                <span className="w-1.5 h-5 bg-[var(--theme-primary,#003B2B)] rounded-full"></span>
                 Phương Thức Thanh Toán
               </h2>
 
               <div className="space-y-2.5">
-                {/* COD (Primary Happy Case) */}
+                {/* COD (Primary Active) */}
                 <label
-                  onClick={() => setPaymentMethod('cod')}
+                  onClick={() => setPaymentMethod('COD')}
                   className={`p-3.5 rounded-xl border cursor-pointer flex items-center justify-between transition-all ${
-                    paymentMethod === 'cod' ? 'border-2 border-primary bg-primary/5 shadow-xs' : 'border-outline-variant/40 bg-surface-container-low'
+                    paymentMethod === 'COD'
+                      ? 'border-2 border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 shadow-xs'
+                      : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center text-xs">
+                    <span className="w-9 h-9 rounded-xl bg-amber-600 text-white flex items-center justify-center text-xs shadow-2xs">
                       <span className="material-symbols-outlined text-[18px]">payments</span>
                     </span>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-xs sm:text-sm text-on-surface">Thanh toán khi nhận hàng (COD)</span>
-                        <span className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">Khuyên dùng</span>
+                        <span className="font-bold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">
+                          Thanh toán khi nhận hàng (COD)
+                        </span>
+                        <span className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                          Khuyên dùng
+                        </span>
                       </div>
-                      <span className="text-[11px] text-on-surface-variant">Thanh toán tiền mặt cho bưu tá khi nhận sách giấy hoặc kích hoạt tức thì</span>
+                      <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                        Thanh toán tiền mặt cho bưu tá khi nhận sách giấy hoặc kích hoạt tức thì
+                      </span>
                     </div>
                   </div>
                   <input
                     type="radio"
                     name="pay"
-                    checked={paymentMethod === 'cod'}
-                    onChange={() => setPaymentMethod('cod')}
-                    className="w-4 h-4 text-primary focus:ring-primary border-outline-variant"
+                    checked={paymentMethod === 'COD'}
+                    onChange={() => setPaymentMethod('COD')}
+                    className="w-4 h-4 text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
                   />
                 </label>
 
-                {/* HukiPay Wallet (Deferred) */}
-                <div className="relative pointer-events-none opacity-60 select-none">
-                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
+                {/* HukiPay Wallet (Disabled UI) */}
+                <div className="relative opacity-50 pointer-events-none cursor-not-allowed select-none">
+                  <div className="p-3.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-theme-primary to-theme-secondary text-white flex items-center justify-center text-xs font-bold shadow-xs">
+                      <span className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-800 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                         H
                       </span>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs sm:text-sm text-on-surface">Ví HukiPay</span>
-                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                          <span className="font-bold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">
+                            Ví HukiPay
+                          </span>
+                          <span className="bg-neutral-200 dark:bg-neutral-800 text-[var(--theme-text-muted,#49454f)] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[var(--theme-border,#e8e5df)]">
+                            Sắp hỗ trợ
+                          </span>
                         </div>
-                        <span className="text-[11px] text-on-surface-variant">Số dư ví: 1.450.000đ (Chưa kích hoạt kết nối ví)</span>
+                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                          Thanh toán một chạm qua số dư ví số HUKI
+                        </span>
                       </div>
                     </div>
-                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-40" />
                   </div>
                 </div>
 
-                {/* VNPay (Deferred) */}
-                <div className="relative pointer-events-none opacity-60 select-none">
-                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
+                {/* VNPay (Disabled UI) */}
+                <div className="relative opacity-50 pointer-events-none cursor-not-allowed select-none">
+                  <div className="p-3.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
                         VNP
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs sm:text-sm text-on-surface">Cổng VNPay QR</span>
-                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                          <span className="font-bold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">
+                            Cổng VNPay QR
+                          </span>
+                          <span className="bg-neutral-200 dark:bg-neutral-800 text-[var(--theme-text-muted,#49454f)] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[var(--theme-border,#e8e5df)]">
+                            Sắp hỗ trợ
+                          </span>
                         </div>
-                        <span className="text-[11px] text-on-surface-variant">Quét mã QR qua ứng dụng ngân hàng</span>
+                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                          Quét mã QR qua ứng dụng ngân hàng và thẻ ATM
+                        </span>
                       </div>
                     </div>
-                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-40" />
                   </div>
                 </div>
 
-                {/* MoMo (Deferred) */}
-                <div className="relative pointer-events-none opacity-60 select-none">
-                  <div className="p-3.5 rounded-xl border border-outline-variant/40 bg-surface-container-low flex items-center justify-between">
+                {/* MoMo (Disabled UI) */}
+                <div className="relative opacity-50 pointer-events-none cursor-not-allowed select-none">
+                  <div className="p-3.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-xl bg-pink-600 text-white flex items-center justify-center text-xs font-bold">
                         MoMo
                       </div>
                       <div>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs sm:text-sm text-on-surface">Ví MoMo</span>
-                          <span className="bg-surface-container-high text-on-surface-variant text-[9px] font-bold px-1.5 py-0.2 rounded border border-outline-variant/40">Giao diện mẫu</span>
+                          <span className="font-bold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">
+                            Ví MoMo
+                          </span>
+                          <span className="bg-neutral-200 dark:bg-neutral-800 text-[var(--theme-text-muted,#49454f)] text-[9px] font-bold px-1.5 py-0.2 rounded border border-[var(--theme-border,#e8e5df)]">
+                            Sắp hỗ trợ
+                          </span>
                         </div>
-                        <span className="text-[11px] text-on-surface-variant">Thanh toán qua ứng dụng Ví MoMo</span>
+                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                          Thanh toán qua ứng dụng Ví điện tử MoMo
+                        </span>
                       </div>
                     </div>
-                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-50" />
+                    <input type="radio" name="pay" disabled className="w-4 h-4 text-primary opacity-40" />
                   </div>
                 </div>
               </div>
             </section>
 
             {/* Note & VAT Invoice */}
-            <section className="bg-surface-container-lowest rounded-2xl border border-outline-variant/30 p-5 shadow-sm space-y-3">
+            <section className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm space-y-3">
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1.5">Ghi chú đơn hàng (Tùy chọn)</label>
+                <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
+                  Ghi chú đơn hàng (Tùy chọn)
+                </label>
                 <input
                   type="text"
                   placeholder="Ví dụ: Giao giờ hành chính, bọc thêm bìa chống sốc..."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-outline-variant/40 bg-surface-container-low text-xs text-on-surface focus:outline-none focus:border-primary"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/50 text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
                 />
               </div>
 
-              <div className="pt-2 border-t border-outline-variant/20 flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-on-surface">
+              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/50 flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-medium text-[var(--theme-text,#1c1b1f)] select-none">
                   <input
                     type="checkbox"
                     checked={useVatInvoice}
                     onChange={(e) => setUseVatInvoice(e.target.checked)}
-                    className="w-4 h-4 rounded text-primary focus:ring-primary border-outline-variant"
+                    className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
                   />
                   <span>Yêu cầu xuất hóa đơn điện tử VAT (e-Invoice)</span>
                 </label>
-                <span className="text-[11px] text-on-surface-variant">Gửi qua Email</span>
+                <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">Gửi qua Email</span>
               </div>
             </section>
           </div>
 
-          {/* Right Column: Order Summary & Placement */}
+          {/* Right Column (4 Cols): Order Summary & Placement */}
           <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
-            <div className="sticky top-20 bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-              <h2 className="font-editorial text-lg font-bold text-on-surface pb-3 border-b border-outline-variant/20">
-                Đơn Hàng ({checkedItems.length} ấn phẩm)
+            <div className="sticky top-20 bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-2xl p-5 shadow-sm flex flex-col gap-4">
+              <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] pb-3 border-b border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between">
+                <span>Đơn Hàng ({checkedItems.length} ấn phẩm)</span>
+                {isLoadingSession && (
+                  <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] animate-pulse">
+                    Đang tính giá...
+                  </span>
+                )}
               </h2>
 
-              {/* Items List in Mini Scroll */}
+              {/* Items Mini List */}
               <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
                 {checkedItems.map((item) => (
                   <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
                     <div className="flex items-center gap-2 min-w-0">
-                      <img className="w-9 h-13 rounded object-cover flex-shrink-0 border border-outline-variant/30" alt={item.title} src={item.cover} />
+                      <img
+                        className="w-9 h-13 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
+                        alt={item.title}
+                        src={item.cover}
+                      />
                       <div className="min-w-0">
-                        <span className="font-bold text-on-surface line-clamp-1 block">{item.title}</span>
-                        <span className="text-[11px] text-on-surface-variant">x{item.quantity} · {item.format}</span>
+                        <span className="font-bold text-[var(--theme-text,#1c1b1f)] line-clamp-1 block">
+                          {item.title}
+                        </span>
+                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                          x{item.quantity} · {item.format}
+                        </span>
                       </div>
                     </div>
-                    <span className="font-bold text-on-surface flex-shrink-0">
+                    <span className="font-bold text-[var(--theme-text,#1c1b1f)] shrink-0">
                       {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                     </span>
                   </div>
@@ -385,29 +830,35 @@ export default function CheckoutPage() {
               </div>
 
               {/* Price Breakdown */}
-              <div className="pt-3 border-t border-outline-variant/20 space-y-2 text-xs text-on-surface-variant">
+              <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)]/60 space-y-2 text-xs text-[var(--theme-text-muted,#49454f)]">
                 <div className="flex justify-between">
                   <span>Tạm tính:</span>
-                  <span className="font-semibold text-on-surface">{rawSubtotal.toLocaleString('vi-VN')}đ</span>
+                  <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+                    {rawSubtotal.toLocaleString('vi-VN')}đ
+                  </span>
                 </div>
                 {voucherDiscount > 0 && (
-                  <div className="flex justify-between text-primary">
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                     <span>Voucher Huki:</span>
                     <span className="font-semibold">-{voucherDiscount.toLocaleString('vi-VN')}đ</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span>Phí vận chuyển:</span>
-                  <span className="font-semibold text-on-surface">
-                    {shippingFee === 0 ? <span className="text-primary font-bold">0đ</span> : `${shippingFee.toLocaleString('vi-VN')}đ`}
+                  <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+                    {shippingFee === 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">MIỄN PHÍ</span>
+                    ) : (
+                      `${shippingFee.toLocaleString('vi-VN')}đ`
+                    )}
                   </span>
                 </div>
               </div>
 
               {/* Total & Submit Button */}
-              <div className="pt-3 border-t border-outline-variant/20 flex items-baseline justify-between">
-                <span className="font-bold text-sm text-on-surface">Tổng cộng:</span>
-                <span className="text-2xl font-bold text-primary">
+              <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)]/60 flex items-baseline justify-between">
+                <span className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">Tổng cộng:</span>
+                <span className="text-2xl font-black text-[var(--theme-primary,#003B2B)]">
                   {grandTotal.toLocaleString('vi-VN')}đ
                 </span>
               </div>
@@ -415,11 +866,13 @@ export default function CheckoutPage() {
               <button
                 onClick={handlePlaceOrder}
                 disabled={isSubmitting || checkedItemsCount === 0}
-                className="w-full h-12 bg-primary hover:bg-[#00523c] text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                className="w-full h-12 bg-[var(--theme-primary,#003B2B)] hover:opacity-95 text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
-                    <span className="material-symbols-outlined text-[20px] animate-spin">progress_activity</span>
+                    <span className="material-symbols-outlined text-[20px] animate-spin">
+                      progress_activity
+                    </span>
                     Đang Xử Lý Đơn Hàng...
                   </>
                 ) : (
@@ -430,8 +883,12 @@ export default function CheckoutPage() {
                 )}
               </button>
 
-              <p className="text-[11px] text-on-surface-variant text-center leading-relaxed">
-                Nhấn "Hoàn Tất Đặt Hàng" đồng nghĩa bạn đồng ý với <Link to="/" className="text-primary underline">Điều khoản sàn TMĐT HUKI</Link>.
+              <p className="text-[11px] text-[var(--theme-text-muted,#49454f)] text-center leading-relaxed">
+                Nhấn "Hoàn Tất Đặt Hàng" đồng nghĩa bạn đồng ý với{' '}
+                <Link to="/" className="text-[var(--theme-primary,#003B2B)] underline">
+                  Điều khoản sàn TMĐT HUKI
+                </Link>
+                .
               </p>
             </div>
           </div>

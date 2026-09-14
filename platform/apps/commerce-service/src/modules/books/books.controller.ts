@@ -15,6 +15,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   BookActor,
+  AuthenticatedGuard,
   BookWriteGuard,
   OptionalBookAuthGuard,
 } from '../../common/book-auth.guard';
@@ -33,6 +34,17 @@ export class BooksController {
   @ApiOperation({ summary: 'List published books with filters and pagination' })
   findAll(@Query() query: BookListQueryDto) {
     return this.booksService.findAll(query);
+  }
+
+  @Get('owned')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'List books manageable by the signed-in seller, including private inventory' })
+  findOwned(
+    @Query() query: BookListQueryDto,
+    @CurrentBookActor() actor: BookActor,
+  ) {
+    return this.booksService.findOwned(query, actor);
   }
 
   @Get('slug/:slug')

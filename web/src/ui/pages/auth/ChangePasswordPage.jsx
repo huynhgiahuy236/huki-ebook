@@ -60,7 +60,13 @@ export default function ChangePasswordPage() {
     setIsLoading(false);
 
     if (res.success) {
-      showToast('Đổi mật khẩu thành công! Bạn có thể bắt đầu làm việc.', 'success');
+      showToast(
+        {
+          title: 'Đổi mật khẩu thành công',
+          message: 'Mật khẩu mới của bạn đã được cập nhật thành công và sẵn sàng sử dụng.',
+        },
+        'success'
+      );
       if (user?.role === 'BUSINESS') {
         navigate('/seller/dashboard');
       } else if (user?.role === 'PLATFORM_ADMIN') {
@@ -69,8 +75,15 @@ export default function ChangePasswordPage() {
         navigate('/');
       }
     } else {
-      setServerError(res.error?.message || 'Đổi mật khẩu không thành công.');
-      showToast(res.error?.message || 'Lỗi đổi mật khẩu', 'error');
+      const errorMsg = res.error?.message || 'Mật khẩu hiện tại không chính xác hoặc mật khẩu mới chưa đạt chuẩn.';
+      setServerError(errorMsg);
+      showToast(
+        {
+          title: 'Đổi mật khẩu không thành công',
+          message: errorMsg,
+        },
+        'error'
+      );
     }
   };
 

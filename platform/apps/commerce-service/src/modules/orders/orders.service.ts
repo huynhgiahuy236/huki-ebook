@@ -44,8 +44,10 @@ export class OrdersService {
       this.prisma.order.count({ where }),
     ]);
 
+    const mapped = items.map((item) => this.buyerView(item));
     return {
-      items: items.map((item) => this.buyerView(item)),
+      data: mapped,
+      items: mapped,
       pagination: this.pagination(query.page, query.limit, total),
     };
   }
@@ -77,8 +79,10 @@ export class OrdersService {
       this.prisma.sellerOrder.count({ where }),
     ]);
 
+    const mapped = items.map((item) => this.sellerView(item));
     return {
-      items: items.map((item) => this.sellerView(item)),
+      data: mapped,
+      items: mapped,
       pagination: this.pagination(query.page, query.limit, total),
     };
   }
@@ -89,7 +93,14 @@ export class OrdersService {
       include: { items: true, order: true },
     });
     this.assertSeller(sellerOrder, actor);
-    return this.sellerView(sellerOrder!);
+    const timeline = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        orderId: sellerOrder!.orderId,
+        OR: [{ sellerOrderId: id }, { sellerOrderId: null }],
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    return { ...this.sellerView(sellerOrder!), timeline };
   }
 
   async confirm(actor: BookActor, id: string) {
