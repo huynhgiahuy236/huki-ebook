@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { catalogApi } from '../../api/catalogApi';
 import { businessApi } from '../../api/businessApi';
@@ -59,9 +60,47 @@ export default function SellerProductsPage() {
     loadBooks();
   }, [loadBooks]);
 
-  const [editingStockBook, setEditingStockBook] = useState(null);
-  const [stockInput, setStockInput] = useState(0);
-  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [editingBook, setEditingBook] = useState(null);
+  const [mounted, setMounted] = useState(false);
+  const [bookFormData, setBookFormData] = useState({
+    title: '',
+    authorName: '',
+    publisherName: '',
+    categoryId: '',
+    price: 0,
+    originalPrice: 0,
+    format: 'PHYSICAL',
+    stock: 0,
+    coverUrl: '',
+    description: '',
+    status: 'PUBLISHED',
+  });
+  const [isSavingBook, setIsSavingBook] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (editingBook && typeof document !== 'undefined') {
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow;
+      };
+    }
+  }, [editingBook]);
+
+  // Load categories for selector
+  useEffect(() => {
+    catalogApi.getCategories().then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        setCategories(res.data);
+      }
+    }).catch(() => {});
+  }, []);
 
   // Handle Publish Book
   const handlePublish = async (bookId, title) => {
@@ -100,36 +139,76 @@ export default function SellerProductsPage() {
     }
   };
 
-  // Handle Quick Inventory Update
-  const openStockModal = (book) => {
-    setEditingStockBook(book);
-    setStockInput(book.physicalDetails?.stock ?? 0);
-    setStockReason('MANUAL_ADJUSTMENT');
+  // Open Full Book Edit Modal
+  const openEditModal = (book) => {
+    setEditingBook(book);
+    setBookFormData({
+      title: book.title || '',
+      authorName: book.author?.name || (typeof book.author === 'string' ? book.author : ''),
+      publisherName: book.publisher?.name || (typeof book.publisher === 'string' ? book.publisher : 'HUKI EBOOK'),
+      categoryId: book.category?.id || book.categoryId || '',
+      price: book.price != null ? Number(book.price) : 0,
+      originalPrice: book.originalPrice != null ? Number(book.originalPrice) : (book.price != null ? Number(book.price) : 0),
+      format: book.format || 'PHYSICAL',
+      stock: book.physicalDetails?.stock ?? 0,
+      coverUrl: book.coverUrl || book.coverImage || book.cover || '',
+      description: book.description || '',
+      status: book.status || 'PUBLISHED',
+    });
   };
 
-  const handleSaveStock = async (e) => {
+  const handleSaveBook = async (e) => {
     if (e) e.preventDefault();
-    if (!editingStockBook) return;
-    const newStock = Number(stockInput);
-    if (isNaN(newStock) || newStock < 0) {
-      showToast('Số lượng tồn kho không hợp lệ!', 'error');
+    if (!editingBook) return;
+    if (!bookFormData.title.trim()) {
+      showToast('Vui lòng nhập tựa sách!', 'warning');
+      return;
+    }
+    const priceNum = Number(bookFormData.price);
+    if (isNaN(priceNum) || priceNum < 0) {
+      showToast('Giá bán không hợp lệ!', 'warning');
       return;
     }
 
-    setIsUpdatingStock(true);
+    setIsSavingBook(true);
     try {
-      const res = await catalogApi.updateInventory(editingStockBook.id, newStock, stockReason);
+      const updatePayload = {
+        title: bookFormData.title.trim(),
+        price: priceNum,
+        format: bookFormData.format,
+        description: bookFormData.description.trim() || undefined,
+        coverUrl: bookFormData.coverUrl.trim() || undefined,
+        categoryId: bookFormData.categoryId || undefined,
+        physicalDetails: (bookFormData.format === 'PHYSICAL' || bookFormData.format === 'BOTH') ? {
+          stock: Math.max(0, Number(bookFormData.stock) || 0),
+          physicalEnabled: true,
+        } : undefined,
+        digitalDetails: (bookFormData.format === 'DIGITAL' || bookFormData.format === 'BOTH') ? {
+          digitalEnabled: true,
+          drmEnabled: true,
+        } : undefined,
+      };
+
+      const res = await catalogApi.updateBook(editingBook.id, updatePayload);
       if (res.success || res.data) {
-        showToast(`Đã cập nhật tồn kho sách "${editingStockBook.title}" thành ${newStock} cuốn!`, 'success');
-        setEditingStockBook(null);
+        if (bookFormData.format === 'PHYSICAL' || bookFormData.format === 'BOTH') {
+          try {
+            await catalogApi.updateInventory(editingBook.id, Math.max(0, Number(bookFormData.stock) || 0), 'MANUAL_ADJUSTMENT');
+          } catch {
+            // ignore
+          }
+        }
+        showToast(`Đã cập nhật thông tin sách "${bookFormData.title}" thành công!`, 'success');
+        setEditingBook(null);
         await loadBooks();
       } else {
-        showToast(res.error?.message || 'Không thể cập nhật tồn kho.', 'error');
+        showToast(res.error?.message || 'Không thể cập nhật sách.', 'error');
       }
-    } catch {
-      showToast('Lỗi kết nối khi cập nhật tồn kho.', 'error');
+    } catch (err) {
+      console.error('Error updating book:', err);
+      showToast('Lỗi kết nối khi cập nhật thông tin sách.', 'error');
     } finally {
-      setIsUpdatingStock(false);
+      setIsSavingBook(false);
     }
   };
 
@@ -601,15 +680,15 @@ export default function SellerProductsPage() {
                       {/* Actions */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {book.format !== 'DIGITAL' && canUpdateInventory && (
+                          {canUpdateProduct && (
                             <button
                               type="button"
-                              onClick={() => openStockModal(book)}
+                              onClick={() => openEditModal(book)}
                               className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
-                              title="Cập nhật số lượng tồn kho"
+                              title="Chỉnh sửa toàn bộ thông tin sách"
                             >
-                              <span className="material-symbols-outlined text-sm text-amber-600">inventory</span>
-                              <span className="hidden sm:inline">Sửa kho</span>
+                              <span className="material-symbols-outlined text-sm text-amber-600">edit</span>
+                              <span>Sửa</span>
                             </button>
                           )}
 
@@ -662,98 +741,253 @@ export default function SellerProductsPage() {
         )}
       </div>
 
-      {/* 5. QUICK INVENTORY ADJUSTMENT MODAL */}
-      {editingStockBook && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 max-w-md w-full shadow-2xl space-y-4 animate-scale-in">
-            <div className="flex items-start justify-between">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded">
-                  Điều chỉnh kho vật lý
+      {/* 5. FULL BOOK EDIT MODAL (Mounted directly to document.body via Portal) */}
+      {editingBook && mounted && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] w-screen h-screen bg-slate-900/65 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col animate-scale-in">
+            {/* Modal Header */}
+            <div className="px-5 sm:px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/70 dark:bg-slate-800/40 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center font-bold">
+                  <span className="material-symbols-outlined text-[20px]">edit_note</span>
                 </span>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white mt-1.5 line-clamp-1">
-                  {editingStockBook.title}
-                </h3>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    Chỉnh Sửa Thông Tin Sách
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Mã sách: #{editingBook.id.substring(0, 8).toUpperCase()}
+                  </p>
+                </div>
               </div>
 
               <button
                 type="button"
-                onClick={() => setEditingStockBook(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                onClick={() => setEditingBook(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Đóng"
               >
-                <span className="material-symbols-outlined text-lg">close</span>
+                <span className="material-symbols-outlined text-xl">close</span>
               </button>
             </div>
 
-            <form onSubmit={handleSaveStock} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Số lượng tồn kho thực tế (cuốn)
-                </label>
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-base">inventory_2</span>
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveBook} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5">
+              {/* Row 1: Title & Author */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Tên Sách / Tựa Tác Phẩm <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={bookFormData.title}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, title: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="Ví dụ: Chiến Binh Cầu Vồng"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Tác Giả
+                  </label>
+                  <input
+                    type="text"
+                    value={bookFormData.authorName}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, authorName: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="Tên tác giả..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Nhà Xuất Bản
+                  </label>
+                  <input
+                    type="text"
+                    value={bookFormData.publisherName}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, publisherName: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="Ví dụ: NXB Hội Nhà Văn"
+                  />
+                </div>
+              </div>
+
+              {/* Row 2: Category & Format */}
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Danh Mục / Thể Loại
+                  </label>
+                  <select
+                    value={bookFormData.categoryId}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, categoryId: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden cursor-pointer"
+                  >
+                    <option value="">-- Chọn danh mục --</option>
+                    {categories.length > 0 ? (
+                      categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="van-hoc">Văn Học - Tiểu Thuyết</option>
+                        <option value="kinh-te">Kinh Tế - Kinh Doanh</option>
+                        <option value="tam-ly">Tâm Lý - Kỹ Năng Sống</option>
+                        <option value="khoa-hoc">Khoa Học - Công Nghệ</option>
+                        <option value="thieu-nhi">Sách Thiếu Nhi</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Định Dạng Sách
+                  </label>
+                  <select
+                    value={bookFormData.format}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, format: e.target.value }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden cursor-pointer"
+                  >
+                    <option value="PHYSICAL">Sách Giấy Vật Lý</option>
+                    <option value="DIGITAL">Ebook DRM Kỹ Thuật Số</option>
+                    <option value="BOTH">Combo Hybrid (Sách Giấy + Ebook)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Pricing & Stock */}
+              <div className="grid sm:grid-cols-3 gap-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/60">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Giá Bán Sàn (₫) <span className="text-rose-500">*</span>
+                  </label>
                   <input
                     type="number"
                     min="0"
-                    max="99999"
-                    value={stockInput}
-                    onChange={(e) => setStockInput(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
-                    placeholder="Nhập số lượng tồn kho..."
+                    step="1000"
                     required
+                    value={bookFormData.price}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, price: Number(e.target.value) }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm font-bold text-emerald-700 dark:text-emerald-400 focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="0"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Tồn kho hiện tại: <strong>{editingStockBook.physicalDetails?.stock ?? 0}</strong> cuốn.
-                </p>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Giá Bìa Gốc (₫)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={bookFormData.originalPrice}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, originalPrice: Number(e.target.value) }))}
+                    className="w-full px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                    Tồn Kho (Cuốn)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    disabled={bookFormData.format === 'DIGITAL'}
+                    value={bookFormData.format === 'DIGITAL' ? 0 : bookFormData.stock}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, stock: Number(e.target.value) }))}
+                    className={`w-full px-3.5 py-2 rounded-xl border text-sm font-bold outline-hidden ${
+                      bookFormData.format === 'DIGITAL'
+                        ? 'bg-slate-200 dark:bg-slate-800/80 text-slate-400 border-slate-300 dark:border-slate-700 cursor-not-allowed'
+                        : 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-emerald-500'
+                    }`}
+                    placeholder="0"
+                  />
+                </div>
               </div>
 
+              {/* Row 4: Cover Image Link & Thumbnail Preview */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Lý do điều chỉnh
+                  Đường Dẫn Ảnh Bìa (Cover Image URL)
                 </label>
-                <select
-                  value={stockReason}
-                  onChange={(e) => setStockReason(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
-                  required
-                >
-                  <option value="MANUAL_ADJUSTMENT">Kiểm kê / điều chỉnh thủ công</option>
-                  <option value="CORRECTION">Sửa sai lệch dữ liệu</option>
-                  <option value="DAMAGED">Sách hư hỏng</option>
-                  <option value="RETURNED">Hàng khách trả lại</option>
-                </select>
+                <div className="flex gap-3 items-center">
+                  <input
+                    type="text"
+                    value={bookFormData.coverUrl}
+                    onChange={(e) => setBookFormData((prev) => ({ ...prev, coverUrl: e.target.value }))}
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                    placeholder="https://... hoặc /banners/..."
+                  />
+                  <div className="w-11 h-14 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
+                    {bookFormData.coverUrl ? (
+                      <img
+                        src={bookFormData.coverUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="material-symbols-outlined text-slate-400 text-sm">image</span>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              {/* Row 5: Description */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Mô Tả &amp; Giới Thiệu Tác Phẩm
+                </label>
+                <textarea
+                  rows={3}
+                  value={bookFormData.description}
+                  onChange={(e) => setBookFormData((prev) => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 outline-hidden"
+                  placeholder="Nhập tóm tắt nội dung cốt truyện, thông điệp cuốn sách..."
+                />
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setEditingStockBook(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold transition-all cursor-pointer"
+                  onClick={() => setEditingBook(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs sm:text-sm font-semibold transition-colors cursor-pointer"
                 >
-                  Hủy bỏ
+                  Hủy Bỏ
                 </button>
                 <button
                   type="submit"
-                  disabled={isUpdatingStock}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  disabled={isSavingBook}
+                  className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  {isUpdatingStock ? (
+                  {isSavingBook ? (
                     <>
-                      <span className="material-symbols-outlined text-xs animate-spin">refresh</span>
+                      <span className="material-symbols-outlined text-sm animate-spin">refresh</span>
                       <span>Đang lưu...</span>
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-xs">check</span>
-                      <span>Lưu tồn kho</span>
+                      <span className="material-symbols-outlined text-sm">check</span>
+                      <span>Lưu Thay Đổi</span>
                     </>
                   )}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

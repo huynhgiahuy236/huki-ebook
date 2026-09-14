@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
+import { getSellerScope } from '../../common/seller-scope.util';
 import { CancelOrderDto, ShipOrderDto } from './dto/checkout.dto';
 import { OrderQueryDto, SellerOrderQueryDto } from './dto/order-query.dto';
 import { InventoryReservationService } from './inventory-reservation.service';
@@ -62,10 +63,38 @@ export class OrdersService {
   }
 
   async sellerList(actor: BookActor, query: SellerOrderQueryDto) {
+    const scope = await getSellerScope(actor);
     const where: any = {};
-    if (actor.role !== 'PLATFORM_ADMIN') {
-      where.ownerUserId = actor.sub;
+
+    if (!scope.isPlatformAdmin) {
+      if (scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+        return {
+          data: [],
+          items: [],
+          pagination: this.pagination(query.page, query.limit, 0),
+        };
+      }
+
+      const targetStore = query.store || (query as any).business;
+      if (targetStore) {
+        if (!scope.storeIds.includes(targetStore) && !scope.businessIds.includes(targetStore)) {
+          return {
+            data: [],
+            items: [],
+            pagination: this.pagination(query.page, query.limit, 0),
+          };
+        }
+        where.storeId = targetStore;
+      } else {
+        where.OR = [
+          { storeId: { in: scope.storeIds } },
+          { ownerUserId: { in: scope.ownerUserIds } },
+        ];
+      }
+    } else if (query.store || (query as any).business) {
+      where.storeId = query.store || (query as any).business;
     }
+
     if (query.status) where.status = query.status;
 
     const [items, total] = await this.prisma.$transaction([
@@ -92,7 +121,7 @@ export class OrdersService {
       where: { id },
       include: { items: true, order: true },
     });
-    this.assertSeller(sellerOrder, actor);
+    await this.assertSeller(sellerOrder, actor);
     const timeline = await this.prisma.orderStatusHistory.findMany({
       where: {
         orderId: sellerOrder!.orderId,
@@ -259,13 +288,13 @@ export class OrdersService {
   }
 
   async cancelSeller(actor: BookActor, id: string, dto: CancelOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
-      const sellerOrder = await tx.sellerOrder.findUnique({
-        where: { id },
-        include: { items: true, order: true },
-      });
-      this.assertSeller(sellerOrder, actor);
+    const sellerOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    await this.assertSeller(sellerOrder, actor);
 
+    return this.prisma.$transaction(async (tx) => {
       if (
         SHIPPED.has(sellerOrder!.status) ||
         IMMUTABLE.has(sellerOrder!.status)
@@ -363,20 +392,27 @@ export class OrdersService {
     title: string,
     metadata?: Record<string, unknown>,
   ) {
+    const initialOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    await this.assertSeller(initialOrder, actor);
+
     return this.prisma.$transaction(async (tx) => {
       const sellerOrder = await tx.sellerOrder.findUnique({
         where: { id },
         include: { items: true, order: true },
       });
 
-      this.assertSeller(sellerOrder, actor);
+      if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+      const sOrder = sellerOrder!;
 
-      if (!allowed.includes(sellerOrder!.status)) {
+      if (!allowed.includes(sOrder.status)) {
         throwConflict(ErrorCode.ORDER_STATUS_TRANSITION_INVALID);
       }
 
-      const fromStatus = sellerOrder!.status;
-      const newStatus = await change(tx, sellerOrder);
+      const fromStatus = sOrder.status;
+      const newStatus = await change(tx, sOrder);
 
       await tx.sellerOrder.update({
         where: { id },
@@ -389,8 +425,8 @@ export class OrdersService {
 
       await tx.orderStatusHistory.create({
         data: {
-          orderId: sellerOrder!.orderId,
-          sellerOrderId: sellerOrder!.id,
+          orderId: sOrder.orderId,
+          sellerOrderId: sOrder.id,
           fromStatus,
           toStatus: newStatus,
           title,
@@ -401,7 +437,7 @@ export class OrdersService {
       });
 
       if (newStatus === SellerOrderStatus.COMPLETED) {
-        await this.completion.completeIfReady(tx, sellerOrder!.orderId);
+        await this.completion.completeIfReady(tx, sOrder.orderId);
       }
 
       await tx.outboxEvent.create({
@@ -414,14 +450,14 @@ export class OrdersService {
               : newStatus === SellerOrderStatus.SHIPPED
                 ? ORDER_EVENTS.SELLER_SHIPPED
                 : 'SELLER_ORDER_STATUS_CHANGED',
-          aggregateId: sellerOrder!.orderId,
+          aggregateId: sOrder.orderId,
           payload: {
-            orderId: sellerOrder!.orderId,
-            orderCode: sellerOrder!.order.code,
-            userId: sellerOrder!.order.userId,
-            sellerOrderId: sellerOrder!.id,
-            ownerUserId: sellerOrder!.ownerUserId,
-            storeId: sellerOrder!.storeId,
+            orderId: sOrder.orderId,
+            orderCode: sOrder.order.code,
+            userId: sOrder.order.userId,
+            sellerOrderId: sOrder.id,
+            ownerUserId: sOrder.ownerUserId,
+            storeId: sOrder.storeId,
             from: fromStatus,
             to: newStatus,
           },
@@ -429,13 +465,22 @@ export class OrdersService {
         },
       });
 
-      return sellerOrder;
+      return sOrder;
     });
   }
 
-  private assertSeller(order: any, actor: BookActor): asserts order {
+  private async assertSeller(order: any, actor: BookActor): Promise<void> {
     if (!order) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
-    if (actor.role !== 'PLATFORM_ADMIN' && order.ownerUserId !== actor.sub) {
+    if (actor.role === 'PLATFORM_ADMIN') return;
+    if (order.ownerUserId === actor.sub) return;
+
+    const scope = await getSellerScope(actor);
+    const hasAccess =
+      scope.ownerUserIds.includes(order.ownerUserId) ||
+      scope.storeIds.includes(order.storeId) ||
+      scope.businessIds.includes(order.storeId);
+
+    if (!hasAccess) {
       throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
     }
   }

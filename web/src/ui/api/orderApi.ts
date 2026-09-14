@@ -88,6 +88,8 @@ export interface OrderQuery {
   limit?: number;
   status?: string;
   search?: string;
+  business?: string;
+  store?: string;
 }
 
 export interface ShipOrderPayload {
@@ -137,11 +139,17 @@ export interface OrderTrackingInfo {
 }
 
 export const orderApi = {
-  getSellerOrders: async (params?: OrderQuery): Promise<ApiResponse<{ items: SellerOrder[]; pagination?: OrderPagination }>> => {
+  getSellerOrders: async (params?: OrderQuery | string): Promise<ApiResponse<{ items: SellerOrder[]; pagination?: OrderPagination }>> => {
     const query = new URLSearchParams();
-    if (params?.page) query.append('page', String(params.page));
-    if (params?.limit) query.append('limit', String(params.limit));
-    if (params?.status && params.status !== 'ALL') query.append('status', params.status);
+    if (typeof params === 'string') {
+      query.append('business', params);
+    } else if (params) {
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      if (params.status && params.status !== 'ALL') query.append('status', params.status);
+      if (params.business) query.append('business', params.business);
+      if (params.store) query.append('store', params.store);
+    }
 
     const queryString = query.toString();
     const endpoint = `/seller/orders${queryString ? `?${queryString}` : ''}`;

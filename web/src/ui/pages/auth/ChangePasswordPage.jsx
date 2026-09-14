@@ -11,6 +11,10 @@ export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const [isLoading, setIsLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [touched, setTouched] = useState({
@@ -20,19 +24,19 @@ export default function ChangePasswordPage() {
   });
 
   const validateCurrent = (val) => {
-    if (!val) return 'Vui lòng nhập mật khẩu hiện tại.';
+    if (!val || !val.trim()) return 'Vui lòng nhập mật khẩu hiện tại.';
     return '';
   };
 
   const validateNew = (val) => {
-    if (!val) return 'Vui lòng nhập mật khẩu mới.';
-    if (val.length < 8) return 'Mật khẩu mới phải từ 8 ký tự trở lên.';
+    if (!val || !val.trim()) return 'Vui lòng nhập mật khẩu mới.';
+    if (val.trim().length < 8) return 'Mật khẩu mới phải từ 8 ký tự trở lên.';
     return '';
   };
 
   const validateConfirm = (conf, pwd) => {
-    if (!conf) return 'Vui lòng xác nhận lại mật khẩu mới.';
-    if (conf !== pwd) return 'Mật khẩu xác nhận không khớp.';
+    if (!conf || !conf.trim()) return 'Vui lòng xác nhận lại mật khẩu mới.';
+    if (conf !== pwd) return 'Mật khẩu xác nhận không khớp với mật khẩu mới.';
     return '';
   };
 
@@ -56,7 +60,7 @@ export default function ChangePasswordPage() {
     }
 
     setIsLoading(true);
-    const res = await changePassword(currentPassword, newPassword);
+    const res = await changePassword(currentPassword.trim(), newPassword.trim());
     setIsLoading(false);
 
     if (res.success) {
@@ -67,7 +71,7 @@ export default function ChangePasswordPage() {
         },
         'success'
       );
-      if (user?.role === 'BUSINESS') {
+      if (user?.role === 'BUSINESS' || user?.hasApprovedBusiness || (Array.isArray(user?.memberships) && user.memberships.length > 0)) {
         navigate('/seller/dashboard');
       } else if (user?.role === 'PLATFORM_ADMIN') {
         navigate('/admin');
@@ -75,7 +79,7 @@ export default function ChangePasswordPage() {
         navigate('/');
       }
     } else {
-      const errorMsg = res.error?.message || 'Mật khẩu hiện tại không chính xác hoặc mật khẩu mới chưa đạt chuẩn.';
+      const errorMsg = res.error?.message || res.error || 'Mật khẩu hiện tại không chính xác hoặc mật khẩu mới chưa đạt chuẩn.';
       setServerError(errorMsg);
       showToast(
         {
@@ -99,7 +103,7 @@ export default function ChangePasswordPage() {
           </h1>
           <p className="text-xs text-[#6b7280] mt-1">
             {user?.mustChangePassword
-              ? 'Tài khoản của bạn vừa được cấp mới. Vui lòng đổi mật khẩu để tiếp tục.'
+              ? 'Tài khoản của bạn vừa được cấp mới. Vui lòng thiết lập mật khẩu riêng để tiếp tục.'
               : 'Nhập mật khẩu hiện tại và mật khẩu mới của bạn.'}
           </p>
         </div>
@@ -114,23 +118,32 @@ export default function ChangePasswordPage() {
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-[#17201f] mb-1">
-              Mật khẩu hiện tại <span className="text-[#ac2c19]">*</span>
+              Mật khẩu hiện tại (hoặc mật khẩu tạm thời) <span className="text-[#ac2c19]">*</span>
             </label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => {
-                setCurrentPassword(e.target.value);
-                setTouched((prev) => ({ ...prev, currentPassword: true }));
-              }}
-              onBlur={() => handleBlur('currentPassword')}
-              placeholder="Nhập mật khẩu hiện tại..."
-              className={`w-full bg-[#fbf9f4] border ${
-                touched.currentPassword && errors.currentPassword
-                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
-                  : 'border-[#e8e5df]'
-              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
-            />
+            <div className="relative">
+              <input
+                type={showCurrent ? 'text' : 'password'}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                onBlur={() => handleBlur('currentPassword')}
+                placeholder="Nhập mật khẩu hiện tại..."
+                className={`w-full bg-[#fbf9f4] border ${
+                  touched.currentPassword && errors.currentPassword
+                    ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                    : 'border-[#e8e5df]'
+                } rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrent(!showCurrent)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
+                title={showCurrent ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                <span className="material-symbols-outlined text-lg">
+                  {showCurrent ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
             {touched.currentPassword && errors.currentPassword && (
               <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
                 <span className="material-symbols-outlined text-[13px]">error</span>
@@ -143,21 +156,30 @@ export default function ChangePasswordPage() {
             <label className="block text-xs font-bold text-[#17201f] mb-1">
               Mật khẩu mới <span className="text-[#ac2c19]">*</span>
             </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
-                setTouched((prev) => ({ ...prev, newPassword: true }));
-              }}
-              onBlur={() => handleBlur('newPassword')}
-              placeholder="Tối thiểu 8 ký tự (hoa, thường, số, đặc biệt)..."
-              className={`w-full bg-[#fbf9f4] border ${
-                touched.newPassword && errors.newPassword
-                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
-                  : 'border-[#e8e5df]'
-              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
-            />
+            <div className="relative">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                onBlur={() => handleBlur('newPassword')}
+                placeholder="Tối thiểu 8 ký tự..."
+                className={`w-full bg-[#fbf9f4] border ${
+                  touched.newPassword && errors.newPassword
+                    ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                    : 'border-[#e8e5df]'
+                } rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowNew(!showNew)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
+                title={showNew ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                <span className="material-symbols-outlined text-lg">
+                  {showNew ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
             {touched.newPassword && errors.newPassword && (
               <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
                 <span className="material-symbols-outlined text-[13px]">error</span>
@@ -170,21 +192,30 @@ export default function ChangePasswordPage() {
             <label className="block text-xs font-bold text-[#17201f] mb-1">
               Xác nhận mật khẩu mới <span className="text-[#ac2c19]">*</span>
             </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                setTouched((prev) => ({ ...prev, confirmPassword: true }));
-              }}
-              onBlur={() => handleBlur('confirmPassword')}
-              placeholder="Nhập lại mật khẩu mới..."
-              className={`w-full bg-[#fbf9f4] border ${
-                touched.confirmPassword && errors.confirmPassword
-                  ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
-                  : 'border-[#e8e5df]'
-              } rounded-xl px-3.5 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
-            />
+            <div className="relative">
+              <input
+                type={showConfirm ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onBlur={() => handleBlur('confirmPassword')}
+                placeholder="Nhập lại mật khẩu mới..."
+                className={`w-full bg-[#fbf9f4] border ${
+                  touched.confirmPassword && errors.confirmPassword
+                    ? 'border-[#ac2c19] ring-2 ring-[#ac2c19]/15 bg-red-50/20'
+                    : 'border-[#e8e5df]'
+                } rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-[#17201f] focus:outline-none focus:border-[#003b2b]`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(!showConfirm)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 cursor-pointer"
+                title={showConfirm ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+              >
+                <span className="material-symbols-outlined text-lg">
+                  {showConfirm ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
             {touched.confirmPassword && errors.confirmPassword && (
               <p className="text-[11px] text-[#ac2c19] font-medium mt-1 flex items-center gap-1 animate-fade-in-up">
                 <span className="material-symbols-outlined text-[13px]">error</span>
@@ -196,7 +227,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-[#003b2b] text-white py-3 rounded-xl text-sm font-bold hover:bg-[#00523c] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70"
+            className="w-full bg-[#003b2b] text-white py-3 rounded-xl text-sm font-bold hover:bg-[#00523c] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-70 mt-6 shadow-xs"
           >
             {isLoading ? (
               <span>Đang cập nhật...</span>

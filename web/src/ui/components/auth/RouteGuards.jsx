@@ -4,8 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 
 import ForbiddenPage from '../../pages/system/ForbiddenPage';
 
-export function RequireAuth() {
-  const { isLoggedIn, isLoading } = useAuth();
+export function RequireAuth({ children }) {
+  const { isLoggedIn, user, isLoading } = useAuth();
   const location = useLocation();
 
   if (isLoading) {
@@ -16,10 +16,14 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  return <Outlet />;
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  return children || <Outlet />;
 }
 
-export function RequireGuest() {
+export function RequireGuest({ children }) {
   const { isLoggedIn, user, isLoading } = useAuth();
 
   if (isLoading) {
@@ -27,6 +31,9 @@ export function RequireGuest() {
   }
 
   if (isLoggedIn) {
+    if (user?.mustChangePassword) {
+      return <Navigate to="/change-password" replace />;
+    }
     if (user?.role === 'PLATFORM_ADMIN') {
       return <Navigate to="/admin" replace />;
     }
@@ -36,10 +43,10 @@ export function RequireGuest() {
     return <Navigate to="/" replace />;
   }
 
-  return <Outlet />;
+  return children || <Outlet />;
 }
 
-export function RequireSeller() {
+export function RequireSeller({ children }) {
   const { isLoggedIn, user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -49,6 +56,10 @@ export function RequireSeller() {
 
   if (!isLoggedIn) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
   }
 
   const isSeller = user?.role === 'BUSINESS' || user?.roleKey === 'seller' || user?.hasApprovedBusiness;
@@ -56,10 +67,10 @@ export function RequireSeller() {
     return <ForbiddenPage title="Bạn chưa có quyền Người Bán" desc="Khu vực này chỉ dành cho tài khoản NXB / Tác giả đã được HUKI phê duyệt." backLink="/seller/register" backText="Đăng ký người bán ngay" />;
   }
 
-  return <Outlet />;
+  return children || <Outlet />;
 }
 
-export function RequireAdmin() {
+export function RequireAdmin({ children }) {
   const { isLoggedIn, user, isLoading } = useAuth();
   const location = useLocation();
 
@@ -71,11 +82,15 @@ export function RequireAdmin() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  if (user?.mustChangePassword && location.pathname !== '/change-password') {
+    return <Navigate to="/change-password" replace />;
+  }
+
   const isAdmin = user?.role === 'PLATFORM_ADMIN' || user?.roleKey === 'admin';
   if (!isAdmin) {
     return <ForbiddenPage title="Yêu cầu quyền Platform Admin" desc="Khu vực này chỉ dành riêng cho Quản trị viên sàn HUKI." backLink="/" backText="Về trang chủ" />;
   }
 
-  return <Outlet />;
+  return children || <Outlet />;
 }
 

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { memberApi } from '../../api/memberApi';
 import { businessApi } from '../../api/businessApi';
 import { useAuth } from '../../context/AuthContext';
@@ -18,6 +18,7 @@ const initialForm = {
 export default function SellerStaffPage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
+  const [searchParams] = useSearchParams();
   const businessId = user?.business?.id || activeBusinessId;
 
   const [members, setMembers] = useState([]);
@@ -26,6 +27,13 @@ export default function SellerStaffPage() {
 
   // Form State (Direct Provisioning)
   const [showAddForm, setShowAddForm] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('action') === 'provision' || searchParams.get('action') === 'new') {
+      setShowAddForm(true);
+    }
+  }, [searchParams]);
+
   const [formData, setFormData] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

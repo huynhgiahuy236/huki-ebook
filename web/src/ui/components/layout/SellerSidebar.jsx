@@ -26,7 +26,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       }
       if (!bizId || cancelled) return;
 
-      const counts = { stores: 0, products: 0, orders: 0 };
+      const counts = { stores: 0, products: 0, orders: 0, pendingOrders: 0 };
       try {
         const storesRes = await businessApi.getMyStores(bizId);
         if (storesRes.success && Array.isArray(storesRes.data)) counts.stores = storesRes.data.length;
@@ -49,7 +49,9 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
             ? ordersRes.data.items
             : [];
           const pending = list.filter((o) => o.status === 'PENDING_CONFIRMATION' || o.status === 'PENDING_PAYMENT').length;
+          const preparing = list.filter((o) => o.status === 'PREPARING' || o.status === 'CONFIRMED').length;
           counts.orders = pending;
+          counts.pendingOrders = preparing || pending;
         }
       } catch { /* ignore */ }
 
@@ -68,10 +70,24 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/orders', 
           icon: 'receipt_long', 
-          label: 'Quản Lý Đơn Hàng', 
+          label: 'Tất Cả Đơn Hàng', 
           badge: badges.orders || null, 
           badgeColor: 'bg-amber-600', 
           permission: PERMISSIONS.ORDER_VIEW 
+        },
+        { 
+          to: '/seller/orders?tab=PENDING_CONFIRMATION', 
+          icon: 'local_shipping', 
+          label: 'Xử Lý & Giao Hàng', 
+          badge: badges.pendingOrders || null, 
+          badgeColor: 'bg-blue-600', 
+          permission: PERMISSIONS.ORDER_PROCESS 
+        },
+        { 
+          to: '/seller/orders?tab=CANCELLED', 
+          icon: 'cancel', 
+          label: 'Đơn Hủy & Khiếu Nại', 
+          permission: PERMISSIONS.ORDER_CANCEL 
         },
         { 
           to: '/seller/chat', 
@@ -89,7 +105,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           icon: 'menu_book', 
           label: 'Danh Mục Sản Phẩm', 
           badge: badges.products || null, 
-          badgeColor: 'bg-blue-600', 
+          badgeColor: 'bg-emerald-600', 
           permission: PERMISSIONS.PRODUCT_VIEW 
         },
         { 
@@ -99,17 +115,17 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           permission: PERMISSIONS.PRODUCT_CREATE 
         },
         { 
-          to: '/seller/product/create-physical', 
-          icon: 'inventory_2', 
-          label: 'Cập Nhật Tồn Kho', 
-          permission: PERMISSIONS.INVENTORY_UPDATE 
-        },
-        { 
           to: '/seller/product/correction', 
           icon: 'edit_note', 
           label: 'Chỉnh Sửa Thông Tin Sách', 
           permission: PERMISSIONS.PRODUCT_UPDATE,
           isDeferred: true 
+        },
+        { 
+          to: '/seller/product/create-physical', 
+          icon: 'inventory_2', 
+          label: 'Cập Nhật Tồn Kho', 
+          permission: PERMISSIONS.INVENTORY_UPDATE 
         }
       ]
     },
@@ -141,17 +157,23 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           permission: PERMISSIONS.STORE_VIEW 
         },
         { 
-          to: '/seller/staff', 
-          icon: 'badge', 
-          label: 'Quản Lý Nhân Viên & Phân Quyền', 
-          permission: PERMISSIONS.MEMBER_VIEW 
-        },
-        { 
           to: '/seller/business/settings', 
           icon: 'storefront', 
           label: 'Cập Nhật Hồ Sơ Cửa Hàng', 
           permission: PERMISSIONS.STORE_UPDATE,
           isDeferred: true 
+        },
+        { 
+          to: '/seller/staff', 
+          icon: 'badge', 
+          label: 'Danh Sách Nhân Viên', 
+          permission: PERMISSIONS.MEMBER_VIEW 
+        },
+        { 
+          to: '/seller/staff?action=provision', 
+          icon: 'admin_panel_settings', 
+          label: 'Quản Trị Phân Quyền', 
+          permission: PERMISSIONS.MEMBER_MANAGE 
         }
       ]
     }
@@ -234,8 +256,11 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                   );
                 }
 
-                // Check exact active route
-                const isItemActive = location.pathname === item.to || (item.to !== '/seller/dashboard' && location.pathname.startsWith(item.to + '/'));
+                // Check exact active route (handles query params)
+                const currentFullUrl = location.pathname + (location.search || '');
+                const isItemActive = item.to.includes('?')
+                  ? currentFullUrl === item.to
+                  : (location.pathname === item.to && !location.search) || (item.to !== '/seller/dashboard' && location.pathname.startsWith(item.to + '/') && !location.search);
 
                 return (
                   <NavLink

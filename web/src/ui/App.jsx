@@ -77,6 +77,7 @@ const SellerDashboardPage = page(() => import('./pages/seller/SellerDashboardPag
 const SellerBusinessProfilePage = page(() => import('./pages/seller/SellerBusinessProfilePage'));
 const SellerProductsPage = page(() => import('./pages/seller/SellerProductsPage'));
 const SellerOrdersPage = page(() => import('./pages/seller/SellerOrdersPage'));
+const SellerOrderDetailPage = page(() => import('./pages/seller/SellerOrderDetailPage'));
 const SellerStoresPage = page(() => import('./pages/seller/SellerStoresPage'));
 const SellerChatPage = page(() => import('./pages/seller/SellerChatPage'));
 const SellerCreateHybrid = page(() => import('./pages/seller/SellerCreateHybrid'));
@@ -262,6 +263,8 @@ export default function App() {
                       <Route path="/seller/business" element={<SellerBusinessProfilePage />} />
                       <Route path="/seller/profile" element={<SellerBusinessProfilePage />} />
                       <Route path="/seller/orders" element={<SellerOrdersPage />} />
+                      <Route path="/seller/orders/:id" element={<SellerOrderDetailPage />} />
+                      <Route path="/seller/order/:id" element={<Navigate to="/seller/orders/:id" replace />} />
                       <Route path="/seller/staff" element={<SellerStaffPage />} />
                       <Route path="/seller/members" element={<Navigate to="/seller/staff" replace />} />
                       <Route path="/seller/stores" element={<Navigate to="/seller/business" replace />} />

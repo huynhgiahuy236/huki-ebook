@@ -42,11 +42,21 @@ export const AuthProvider = ({ children }) => {
       if (!bizRes.success || !bizRes.data) return userData;
       if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
       const isApproved = bizRes.data.status === 'APPROVED';
+      const existingMemberships = Array.isArray(userData.memberships) ? [...userData.memberships] : [];
+      if (bizRes.data.currentMember && !existingMemberships.some(m => m.businessId === bizRes.data.id)) {
+        existingMemberships.push({
+          businessId: bizRes.data.id,
+          role: bizRes.data.currentMember.role || 'STAFF',
+          status: 'ACTIVE',
+          permissions: bizRes.data.currentMember.permissions || [],
+        });
+      }
       if (isApproved) {
         userData = {
           ...userData,
           role: 'BUSINESS',
           business: bizRes.data,
+          memberships: existingMemberships,
           hasApprovedBusiness: true,
         };
         const currentRefreshToken = tokenStorage.getRefreshToken();
@@ -61,6 +71,7 @@ export const AuthProvider = ({ children }) => {
       return {
         ...userData,
         business: bizRes.data,
+        memberships: existingMemberships,
         hasApprovedBusiness: false,
       };
     } catch {

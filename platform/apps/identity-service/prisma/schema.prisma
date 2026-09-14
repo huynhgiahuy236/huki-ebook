@@ -35,6 +35,7 @@ model User {
   // Security
   failedLoginAttempts Int       @default(0) @map("failed_login_attempts")
   lockedUntil         DateTime? @map("locked_until")
+  mustChangePassword  Boolean   @default(false) @map("must_change_password")
 
   // Relations
   sessions AuthSession[]

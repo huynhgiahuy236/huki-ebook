@@ -404,7 +404,10 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: userId },
-        data: { passwordHash: await bcrypt.hash(dto.newPassword, 12) },
+        data: {
+          passwordHash: await bcrypt.hash(dto.newPassword, 12),
+          mustChangePassword: false,
+        },
       }),
       this.prisma.authSession.updateMany({
         where: { userId, revokedAt: null },
@@ -431,44 +434,35 @@ export class AuthService {
       data: {
         userId: user.id,
         refreshTokenHash: tokenHash,
-        userAgent: deviceInfo?.userAgent,
         ipAddress: deviceInfo?.ipAddress,
+        userAgent: deviceInfo?.userAgent,
         expiresAt,
-        refreshTokens: {
-          create: { tokenFamily: randomUUID(), tokenHash, expiresAt },
-        },
       },
     });
-    return {
-      tokens: {
-        accessToken: this.signAccessToken(user),
-        refreshToken,
-        expiresIn: 900,
-      },
-    };
+
+    const accessToken = this.signAccessToken(user);
+    return { accessToken, refreshToken };
   }
 
   private signAccessToken(user: User): string {
-    return this.jwtService.sign(
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-        fullName: user.fullName,
-        avatar: user.avatar,
-      },
-      {
-        secret:
-          this.configService.get('jwt.secret') ||
-          this.configService.get('JWT_SECRET') ||
-          process.env.JWT_SECRET ||
-          'your-super-secret-jwt-key',
-        expiresIn:
-          this.configService.get('jwt.accessTokenExpiresIn') ||
-          this.configService.get('JWT_ACCESS_EXPIRES_IN') ||
-          '15m',
-      },
-    );
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+    const options = {
+      secret:
+        this.configService.get('jwt.secret') ||
+        this.configService.get('JWT_SECRET') ||
+        process.env.JWT_SECRET ||
+        'your-super-secret-jwt-key',
+      expiresIn:
+        this.configService.get('jwt.accessTokenExpiresIn') ||
+        this.configService.get('JWT_ACCESS_EXPIRES_IN') ||
+        '15m',
+    };
+
+    return this.jwtService.sign(payload, options);
   }
 
   private hashToken(token: string): string {
@@ -476,12 +470,10 @@ export class AuthService {
   }
 
   private sanitizeUser(user: User) {
-    const isMustChangePassword =
-      (user.email === 'staff@huki.com' ||
-        (user as any).mustChangePassword === true ||
-        user.email?.startsWith('staff_') ||
-        user.email?.startsWith('thukho_')) &&
-      !this.changedPasswordUserIds.has(user.id);
+    const isMustChangePassword = Boolean(
+      (user as any).mustChangePassword === true ||
+      (user as any).must_change_password === true
+    );
 
     return {
       id: user.id,

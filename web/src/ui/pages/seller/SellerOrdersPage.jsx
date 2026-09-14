@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { orderApi } from '../../api/orderApi';
 import { businessApi } from '../../api/businessApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { can, PERMISSIONS } from '../../utils/permissions';
-import OrderDetailDrawer from '../../components/seller/OrderDetailDrawer';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -31,14 +30,33 @@ const STATUS_CONFIG = {
 export default function SellerOrdersPage() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [orders, setOrders] = useState([]);
   const [businessName, setBusinessName] = useState('');
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('ALL');
+  const tabFromUrl = searchParams.get('tab') || 'ALL';
+  const [activeTab, setActiveTab] = useState(tabFromUrl);
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('ALL');
   const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+
+  // Sync activeTab when URL searchParams change
+  useEffect(() => {
+    const currentParam = searchParams.get('tab') || 'ALL';
+    if (currentParam !== activeTab) {
+      setActiveTab(currentParam);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    if (newTab === 'ALL') {
+      setSearchParams({});
+    } else {
+      setSearchParams({ tab: newTab });
+    }
+  };
 
   // Modal states
   const [modalState, setModalState] = useState(null); // { type: 'SHIP' | 'CANCEL', order }
@@ -83,7 +101,7 @@ export default function SellerOrdersPage() {
       }
 
       // 2. Fetch seller orders
-      const orderRes = await orderApi.getSellerOrders({ limit: 100 });
+      const orderRes = await orderApi.getSellerOrders({ limit: 100, ...(bizId ? { business: bizId } : {}) });
       if (orderRes.success && orderRes.data) {
         const items = Array.isArray(orderRes.data)
           ? orderRes.data
@@ -167,8 +185,23 @@ export default function SellerOrdersPage() {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
         const codeMatch = order.code?.toLowerCase().includes(query) || order.id?.toLowerCase().includes(query);
-        const buyerName = order.order?.shippingAddress?.fullName?.toLowerCase() || '';
-        const buyerPhone = order.order?.shippingAddress?.phone?.toLowerCase() || '';
+        const address = order.order?.shippingAddress || order.shippingAddress || {};
+        const buyerName = (
+          address.recipientName ||
+          address.fullName ||
+          address.name ||
+          order.order?.buyer?.fullName ||
+          order.order?.user?.fullName ||
+          order.buyerName ||
+          ''
+        ).toLowerCase();
+        const buyerPhone = (
+          address.phone ||
+          address.phoneNumber ||
+          order.order?.buyer?.phone ||
+          order.order?.user?.phone ||
+          ''
+        ).toLowerCase();
         const itemMatch = order.items?.some((it) => it.title?.toLowerCase().includes(query));
 
         if (!codeMatch && !buyerName.includes(query) && !buyerPhone.includes(query) && !itemMatch) {
@@ -383,7 +416,7 @@ export default function SellerOrdersPage() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-space-sm">
           {/* Card 1: Chờ xác nhận */}
           <div
-            onClick={() => setActiveTab('PENDING_CONFIRMATION')}
+            onClick={() => handleTabChange('PENDING_CONFIRMATION')}
             className={`bg-surface-container-lowest border rounded-xl p-space-md flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${
               activeTab === 'PENDING_CONFIRMATION' ? 'border-secondary ring-2 ring-secondary/20' : 'border-outline-variant'
             }`}
@@ -405,7 +438,7 @@ export default function SellerOrdersPage() {
 
           {/* Card 2: Đang chuẩn bị */}
           <div
-            onClick={() => setActiveTab('PREPARING')}
+            onClick={() => handleTabChange('PREPARING')}
             className={`bg-surface-container-lowest border rounded-xl p-space-md flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${
               activeTab === 'PREPARING' ? 'border-primary ring-2 ring-primary/20' : 'border-outline-variant'
             }`}
@@ -427,7 +460,7 @@ export default function SellerOrdersPage() {
 
           {/* Card 3: Đang giao */}
           <div
-            onClick={() => setActiveTab('SHIPPED')}
+            onClick={() => handleTabChange('SHIPPED')}
             className={`bg-surface-container-lowest border rounded-xl p-space-md flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${
               activeTab === 'SHIPPED' ? 'border-purple-500 ring-2 ring-purple-500/20' : 'border-outline-variant'
             }`}
@@ -449,7 +482,7 @@ export default function SellerOrdersPage() {
 
           {/* Card 4: Hoàn tất */}
           <div
-            onClick={() => setActiveTab('COMPLETED')}
+            onClick={() => handleTabChange('COMPLETED')}
             className={`bg-surface-container-lowest border rounded-xl p-space-md flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${
               activeTab === 'COMPLETED' ? 'border-teal-500 ring-2 ring-teal-500/20' : 'border-outline-variant'
             }`}
@@ -471,7 +504,7 @@ export default function SellerOrdersPage() {
 
           {/* Card 5: Hủy / Hoàn tiền */}
           <div
-            onClick={() => setActiveTab('CANCELLED')}
+            onClick={() => handleTabChange('CANCELLED')}
             className={`bg-surface-container-lowest border rounded-xl p-space-md flex flex-col justify-between shadow-xs hover:shadow-md transition-all cursor-pointer relative overflow-hidden ${
               activeTab === 'CANCELLED' ? 'border-error ring-2 ring-error/20' : 'border-outline-variant'
             }`}
@@ -508,7 +541,7 @@ export default function SellerOrdersPage() {
               return (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
+                  onClick={() => handleTabChange(tab.key)}
                   className={`px-space-md py-3 font-title-md text-body-sm font-semibold border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors ${
                     isActive
                       ? 'border-primary text-primary'
@@ -667,8 +700,9 @@ export default function SellerOrdersPage() {
                       />
                     </th>
                     <th className="py-3.5 px-3">Mã Đơn Hàng</th>
-                    <th className="py-3.5 px-3 min-w-[160px]">Khách Hàng</th>
-                    <th className="py-3.5 px-3 min-w-[280px]">Sản Phẩm</th>
+                    <th className="py-3.5 px-3 min-w-[140px]">Khách Hàng</th>
+                    <th className="py-3.5 px-3 min-w-[130px]">Số Điện Thoại</th>
+                    <th className="py-3.5 px-3 min-w-[260px]">Sản Phẩm</th>
                     <th className="py-3.5 px-3">Định Dạng</th>
                     <th className="py-3.5 px-3 text-right">Tổng Tiền</th>
                     <th className="py-3.5 px-3">Thanh Toán</th>
@@ -685,9 +719,34 @@ export default function SellerOrdersPage() {
                       bg: 'bg-surface-container text-on-surface-variant',
                       icon: 'info',
                     };
-                    const buyerName = order.order?.shippingAddress?.fullName || 'Khách Hàng';
-                    const buyerPhone = order.order?.shippingAddress?.phone || 'Chưa cập nhật SĐT';
-                    const buyerAddress = order.order?.shippingAddress?.fullAddress || order.order?.shippingAddress?.address || order.order?.shippingAddress?.city || 'Địa chỉ tiêu chuẩn';
+                    const address = order.order?.shippingAddress || order.shippingAddress || {};
+                    const buyerName =
+                      address.recipientName ||
+                      address.fullName ||
+                      address.name ||
+                      order.order?.buyer?.fullName ||
+                      order.order?.buyer?.name ||
+                      order.order?.user?.fullName ||
+                      order.order?.user?.name ||
+                      order.order?.user?.displayName ||
+                      order.buyerName ||
+                      order.recipientName ||
+                      order.user?.fullName ||
+                      order.user?.displayName ||
+                      'Khách Hàng';
+                    const buyerPhone =
+                      address.phone ||
+                      address.phoneNumber ||
+                      order.order?.buyer?.phone ||
+                      order.order?.user?.phone ||
+                      'Chưa cập nhật SĐT';
+                    const buyerAddress =
+                      address.fullAddress ||
+                      [address.line1 || address.address, address.ward, address.district, address.province || address.city]
+                        .filter(Boolean)
+                        .join(', ') ||
+                      address.address ||
+                      'Địa chỉ tiêu chuẩn';
                     const isDigitalOnly = order.items?.every((it) => it.format === 'DIGITAL') || !order.requiresShipping;
 
                     return (
@@ -709,9 +768,13 @@ export default function SellerOrdersPage() {
 
                         {/* Order Code & Date */}
                         <td className="py-4 px-3 align-top">
-                          <span className="font-title-md text-primary font-bold block">
+                          <Link
+                            to={`/seller/orders/${order.id}`}
+                            className="font-title-md text-primary font-bold block hover:underline"
+                            title="Xem chi tiết đơn hàng"
+                          >
                             #{order.code || order.id.slice(0, 8).toUpperCase()}
-                          </span>
+                          </Link>
                           <span className="text-[11px] text-outline block mt-0.5">
                             {order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}
                           </span>
@@ -719,11 +782,22 @@ export default function SellerOrdersPage() {
 
                         {/* Customer Info */}
                         <td className="py-4 px-3 align-top">
-                          <div className="font-semibold text-on-surface">{buyerName}</div>
-                          <div className="text-[12px] text-on-surface-variant">{buyerPhone}</div>
-                          <div className="text-[11px] text-outline truncate max-w-[180px]" title={buyerAddress}>
+                          <div
+                            className="font-semibold text-on-surface cursor-help"
+                            title={buyerName}
+                          >
+                            {buyerName.length > 10 ? `${buyerName.slice(0, 10)}...` : buyerName}
+                          </div>
+                          <div className="text-[11px] text-outline truncate max-w-[160px] mt-0.5" title={buyerAddress}>
                             {buyerAddress}
                           </div>
+                        </td>
+
+                        {/* Phone Number Column */}
+                        <td className="py-4 px-3 align-top whitespace-nowrap">
+                          <span className="font-mono text-[13px] font-medium text-on-surface">
+                            {buyerPhone}
+                          </span>
                         </td>
 
                         {/* Products List */}
@@ -734,6 +808,7 @@ export default function SellerOrdersPage() {
                                 const itTitle = item.title || item.bookTitle || 'Sách HUKI';
                                 const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
                                 const itPrice = Number(item.price ?? item.unitPrice ?? 0);
+                                const displayTitle = itTitle.length > 10 ? `${itTitle.slice(0, 10)}...` : itTitle;
                                 return (
                                   <div key={item.id || idx} className="flex items-start gap-2.5">
                                     <div className="w-9 h-12 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
@@ -750,8 +825,11 @@ export default function SellerOrdersPage() {
                                       )}
                                     </div>
                                     <div className="min-w-0">
-                                      <p className="font-medium text-on-surface text-[13px] leading-tight truncate max-w-[220px]" title={itTitle}>
-                                        {itTitle}
+                                      <p
+                                        className="font-medium text-on-surface text-[13px] leading-tight cursor-help"
+                                        title={itTitle}
+                                      >
+                                        {displayTitle}
                                       </p>
                                       <p className="text-[11px] text-on-surface-variant mt-0.5">
                                         SL: <strong className="text-on-surface">{item.quantity || 1}</strong> × {itPrice > 0 ? `${itPrice.toLocaleString('vi-VN')}đ` : '0đ'}
@@ -769,11 +847,11 @@ export default function SellerOrdersPage() {
                         {/* Format */}
                         <td className="py-4 px-3 align-top">
                           {isDigitalOnly ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-100 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border border-cyan-300">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-100 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border border-cyan-300 whitespace-nowrap">
                               EBOOK DRM
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant whitespace-nowrap">
                               SÁCH GIẤY
                             </span>
                           )}
@@ -781,11 +859,11 @@ export default function SellerOrdersPage() {
 
                         {/* Grand Total */}
                         <td className="py-4 px-3 align-top text-right">
-                          <span className="font-title-md text-body-md font-bold text-primary block">
+                          <span className="font-title-md text-body-md font-bold text-primary block whitespace-nowrap">
                             {order.grandTotal ? `${order.grandTotal.toLocaleString('vi-VN')}đ` : '0đ'}
                           </span>
                           {order.shippingFee > 0 && (
-                            <span className="text-[11px] text-outline block">
+                            <span className="text-[11px] text-outline block whitespace-nowrap">
                               Ship: {order.shippingFee.toLocaleString('vi-VN')}đ
                             </span>
                           )}
@@ -793,7 +871,7 @@ export default function SellerOrdersPage() {
 
                         {/* Payment */}
                         <td className="py-4 px-3 align-top">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-fixed text-on-tertiary-fixed-variant">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-fixed text-on-tertiary-fixed-variant whitespace-nowrap">
                             <span className="material-symbols-outlined text-[14px]">
                               {order.order?.paymentMethod === 'COD' ? 'payments' : 'check_circle'}
                             </span>
@@ -804,26 +882,26 @@ export default function SellerOrdersPage() {
                         {/* Shipping */}
                         <td className="py-4 px-3 align-top">
                           {isDigitalOnly ? (
-                            <div className="text-[12px] text-on-surface-variant flex items-center gap-1">
+                            <div className="text-[12px] text-on-surface-variant flex items-center gap-1 whitespace-nowrap">
                               <span className="material-symbols-outlined text-[16px] text-cyan-600">lock_open</span>
                               <span>Cấp quyền số (DRM)</span>
                             </div>
                           ) : order.carrier ? (
                             <div>
-                              <p className="font-semibold text-on-surface text-[12px]">{order.carrier}</p>
+                              <p className="font-semibold text-on-surface text-[12px] whitespace-nowrap">{order.carrier}</p>
                               {order.trackingCode && (
-                                <p className="text-[11px] font-mono text-outline">{order.trackingCode}</p>
+                                <p className="text-[11px] font-mono text-outline whitespace-nowrap">{order.trackingCode}</p>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[12px] text-outline italic">Chưa bàn giao ship</span>
+                            <span className="text-[12px] text-outline italic whitespace-nowrap">Chưa bàn giao ship</span>
                           )}
                         </td>
 
                         {/* Operational Status */}
                         <td className="py-4 px-3 align-top">
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${statusCfg.bg}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${statusCfg.bg}`}
                           >
                             <span className="material-symbols-outlined text-[14px]">{statusCfg.icon}</span>
                             {statusCfg.label}
@@ -831,16 +909,15 @@ export default function SellerOrdersPage() {
                         </td>
 
                         {/* Actions */}
-                        <td className="py-4 pr-space-md pl-3 align-top text-right">
+                        <td className="py-4 pr-space-md pl-3 align-top text-right whitespace-nowrap min-w-[130px]">
                           <div className="flex flex-col items-end gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => openOrderDrawer(order.id)}
-                              className="px-3 py-1.5 rounded-lg border border-outline-variant text-primary font-bold text-[12px] hover:bg-primary/5 flex items-center gap-1"
+                            <Link
+                              to={`/seller/orders/${order.id}`}
+                              className="px-3 py-1.5 rounded-lg border border-outline-variant text-primary font-bold text-[12px] hover:bg-primary/5 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
                             >
-                              <span className="material-symbols-outlined text-[15px]">visibility</span>
-                              Xem chi tiết
-                            </button>
+                              <span className="material-symbols-outlined text-[16px]">visibility</span>
+                              <span>Xem chi tiết</span>
+                            </Link>
                             {/* Các thao tác nghiệp vụ được tập trung trong side drawer. */}
                             {false && (
                             <>
@@ -995,20 +1072,6 @@ export default function SellerOrdersPage() {
         )}
         </div>
       </main>
-
-      <OrderDetailDrawer
-        order={drawerOrder}
-        loading={drawerLoading}
-        onClose={() => { setDrawerOrder(null); setDrawerLoading(false); }}
-        onConfirm={handleConfirm}
-        onPrepare={handlePrepare}
-        onShip={(order) => setModalState({ type: 'SHIP', order })}
-        onDeliver={handleDeliver}
-        onCancel={(order) => { setCancelReason(''); setModalState({ type: 'CANCEL', order }); }}
-        canProcess={canProcessOrders}
-        canCancel={canCancelOrders}
-        actionLoading={actionLoading}
-      />
 
       {/* Ship Order Modal */}
       {modalState?.type === 'SHIP' && (

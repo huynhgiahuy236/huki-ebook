@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
+import { getSellerScope } from '../../common/seller-scope.util';
 import { normalizeCatalogText, toCatalogSlug } from '../../common/catalog-text.util';
 import { paginate } from '../../common/pagination.util';
 import { CreateBookDto } from './dto/create-book.dto';
@@ -15,9 +16,10 @@ export class BooksService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateBookDto, actor: BookActor) {
+    const scope = await getSellerScope(actor);
     // Business is the storefront. The physical column is still named store_id
     // for database compatibility while the Store domain is being retired.
-    const storeId = dto.businessId || dto.storeId || actor.sub || '00000000-0000-0000-0000-000000000000';
+    const storeId = dto.businessId || dto.storeId || (scope.storeIds.length > 0 ? scope.storeIds[0] : actor.sub) || '00000000-0000-0000-0000-000000000000';
     const format = dto.format || (dto.physicalDetails ? (dto.digitalDetails ? BookFormat.BOTH : BookFormat.PHYSICAL) : BookFormat.DIGITAL);
     const description = dto.description ? dto.description.trim() : 'Mô tả tác phẩm sách';
     const price = dto.price ?? 0;
@@ -91,7 +93,7 @@ export class BooksService {
 
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
-    const canAccess = this.canManage(book, actor);
+    const canAccess = await this.canManage(book, actor);
     if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
@@ -106,33 +108,25 @@ export class BooksService {
 
     const where: any = { status: BookStatus.PUBLISHED };
 
-    if (query.search) {
-      const search = normalizeCatalogText(query.search);
-      if (search.length < 2) {
-        throwBadRequest(ErrorCode.VALIDATION_MIN_LENGTH);
-      }
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { normalizedTitle: { contains: search, mode: 'insensitive' } },
-        { author: { name: { contains: search, mode: 'insensitive' } } },
-        { publisher: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
-
+    if (query.business || query.store) where.storeId = query.business || query.store;
+    if (query.format) where.format = query.format;
     if (query.category) where.categoryId = query.category;
     if (query.author) where.authorId = query.author;
     if (query.publisher) where.publisherId = query.publisher;
-    if (query.business || query.store) where.storeId = query.business || query.store;
-    if (query.format) where.format = query.format;
-    if (query.minPrice !== undefined) where.price = { ...where.price, gte: query.minPrice };
-    if (query.maxPrice !== undefined) where.price = { ...where.price, lte: query.maxPrice };
+    if (query.search) {
+      const search = normalizeCatalogText(query.search);
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { normalizedTitle: { contains: search, mode: 'insensitive' } },
+      ];
+    }
 
     const orderBy: any = {};
     const direction = query.order.toLowerCase();
-    if (query.sortBy === BookSortBy.CREATED_AT) orderBy.createdAt = direction;
-    else if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = direction;
+    if (query.sortBy === BookSortBy.PUBLISHED_AT) orderBy.publishedAt = direction;
     else if (query.sortBy === BookSortBy.PRICE) orderBy.price = direction;
-    else orderBy.title = direction;
+    else if (query.sortBy === BookSortBy.TITLE) orderBy.title = direction;
+    else orderBy.createdAt = direction;
 
     // Select only needed fields for public list view (exclude inventory details)
     const listSelect = {
@@ -168,8 +162,30 @@ export class BooksService {
   }
 
   async findOwned(query: BookListQueryDto, actor: BookActor) {
-    const where: any = actor.role === 'PLATFORM_ADMIN' ? {} : { ownerUserId: actor.sub };
-    if (query.business || query.store) where.storeId = query.business || query.store;
+    const scope = await getSellerScope(actor);
+    const where: any = {};
+
+    if (!scope.isPlatformAdmin) {
+      if (scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+        return paginate([], 0, query.page, query.limit);
+      }
+
+      const targetStore: string | undefined = query.business || query.store;
+      if (targetStore) {
+        if (!scope.storeIds.includes(targetStore) && !scope.businessIds.includes(targetStore)) {
+          return paginate([], 0, query.page, query.limit);
+        }
+        where.storeId = targetStore;
+      } else {
+        where.OR = [
+          { storeId: { in: scope.storeIds } },
+          { ownerUserId: { in: scope.ownerUserIds } },
+        ];
+      }
+    } else if (query.business || query.store) {
+      where.storeId = query.business || query.store;
+    }
+
     if (query.format) where.format = query.format;
     if (query.category) where.categoryId = query.category;
     if (query.search) {
@@ -221,7 +237,7 @@ export class BooksService {
 
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
 
-    const canAccess = this.canManage(book, actor);
+    const canAccess = await this.canManage(book, actor);
     if (book!.status !== BookStatus.PUBLISHED && !canAccess) {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
@@ -232,7 +248,8 @@ export class BooksService {
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
     const existing = await this.prisma.book.findUnique({ where: { id } });
     if (!existing) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
-    if (!this.canManage(existing, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
+    const canManage = await this.canManage(existing, actor);
+    if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
     if (existing!.status === BookStatus.PUBLISHED) {
       throwConflict(ErrorCode.BOOK_ARCHIVED);
@@ -275,14 +292,16 @@ export class BooksService {
   async findForWrite(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
-    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
+    const canManage = await this.canManage(book, actor);
+    if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
     return book;
   }
 
   async publish(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
-    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
+    const canManage = await this.canManage(book, actor);
+    if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
     return this.prisma.book.update({
       where: { id },
@@ -296,13 +315,23 @@ export class BooksService {
   async remove(id: string, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id } });
     if (!book) throwNotFound(ErrorCode.BOOK_NOT_FOUND);
-    if (!this.canManage(book, actor)) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
+    const canManage = await this.canManage(book, actor);
+    if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
     await this.prisma.book.delete({ where: { id } });
   }
 
-  private canManage(book: any, actor?: BookActor): boolean {
-    return !!actor && (actor.role === 'PLATFORM_ADMIN' || book.ownerUserId === actor.sub);
+  private async canManage(book: any, actor?: BookActor): Promise<boolean> {
+    if (!actor) return false;
+    if (actor.role === 'PLATFORM_ADMIN') return true;
+    if (book.ownerUserId === actor.sub) return true;
+
+    const scope = await getSellerScope(actor);
+    return (
+      scope.ownerUserIds.includes(book.ownerUserId) ||
+      scope.storeIds.includes(book.storeId) ||
+      scope.businessIds.includes(book.storeId)
+    );
   }
 
   private async validateCatalog(categoryId: string | null, authorId: string | null, publisherId: string | null) {

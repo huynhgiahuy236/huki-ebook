@@ -7,6 +7,7 @@ import {
   ShipmentStatus,
 } from '../../../prisma/generated/client';
 import { ShippingActor } from '../../common/shipping-auth.guard';
+import { getSellerScope } from '../../common/seller-scope.util';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   CARRIER_PROVIDER,
@@ -87,7 +88,8 @@ export class ShipmentsService {
   }
 
   async list(actor: ShippingActor, query: ShipmentQueryDto) {
-    const where: Prisma.ShipmentWhereInput = this.actorScope(actor);
+    const scopeWhere = await this.actorScope(actor);
+    const where: Prisma.ShipmentWhereInput = { ...scopeWhere };
     if (query.status) where.status = query.status;
     const [items, total] = await this.prisma.$transaction([
       this.prisma.shipment.findMany({
@@ -111,8 +113,9 @@ export class ShipmentsService {
   }
 
   async detail(actor: ShippingActor, id: string) {
+    const scopeWhere = await this.actorScope(actor);
     const shipment = await this.prisma.shipment.findFirst({
-      where: { id, ...this.actorScope(actor) },
+      where: { id, ...scopeWhere },
       include: {
         assignedStaff: true,
         logs: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
@@ -123,8 +126,9 @@ export class ShipmentsService {
   }
 
   async tracking(actor: ShippingActor, trackingNumber: string) {
+    const scopeWhere = await this.actorScope(actor);
     const shipment = await this.prisma.shipment.findFirst({
-      where: { trackingNumber, ...this.actorScope(actor) },
+      where: { trackingNumber, ...scopeWhere },
       include: {
         assignedStaff: true,
         logs: { include: { staff: true }, orderBy: { createdAt: 'asc' } },
@@ -335,11 +339,21 @@ export class ShipmentsService {
     }
   }
 
-  private actorScope(actor: ShippingActor): Prisma.ShipmentWhereInput {
+  private async actorScope(actor: ShippingActor): Promise<Prisma.ShipmentWhereInput> {
     if (actor.role === 'PLATFORM_ADMIN') return {};
-    return actor.role === 'BUSINESS'
-      ? { ownerUserId: actor.sub }
-      : { userId: actor.sub };
+    if (actor.role !== 'BUSINESS') return { userId: actor.sub };
+
+    const scope = await getSellerScope(actor);
+    if (scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+      return { ownerUserId: actor.sub };
+    }
+
+    return {
+      OR: [
+        { storeId: { in: scope.storeIds } },
+        { ownerUserId: { in: scope.ownerUserIds } },
+      ],
+    };
   }
 
   private async transition(

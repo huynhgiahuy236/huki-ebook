@@ -70,8 +70,13 @@ export class MemberService {
 
         if (userRes.rows[0].role === "USER") {
           await pgClient.query(
-            "UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2",
+            "UPDATE users SET role = $1, must_change_password = TRUE, updated_at = NOW() WHERE id = $2",
             ["BUSINESS", targetUserId],
+          );
+        } else {
+          await pgClient.query(
+            "UPDATE users SET must_change_password = TRUE, updated_at = NOW() WHERE id = $1",
+            [targetUserId],
           );
         }
       } else {
@@ -80,8 +85,8 @@ export class MemberService {
         const newUserId = randomUUID();
 
         await pgClient.query(
-          `INSERT INTO users (id, email, password_hash, full_name, phone, role, status, email_verified_at, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, 'BUSINESS', 'ACTIVE', NOW(), NOW(), NOW())`,
+          `INSERT INTO users (id, email, password_hash, full_name, phone, role, status, email_verified_at, must_change_password, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, 'BUSINESS', 'ACTIVE', NOW(), TRUE, NOW(), NOW())`,
           [
             newUserId,
             email,
@@ -429,7 +434,7 @@ export class MemberService {
     await pgClient.connect();
     try {
       await pgClient.query(
-        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+        "UPDATE users SET password_hash = $1, must_change_password = TRUE, updated_at = NOW() WHERE id = $2",
         [passwordHash, member!.userId],
       );
     } finally {

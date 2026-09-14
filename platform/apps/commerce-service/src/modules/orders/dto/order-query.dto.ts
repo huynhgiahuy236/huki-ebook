@@ -13,5 +13,8 @@ export class SellerOrderQueryDto {
   @ApiPropertyOptional({ default: 1 }) @Type(() => Number) @IsOptional() @IsInt() @Min(1) page = 1;
   @ApiPropertyOptional({ default: 20 }) @Type(() => Number) @IsOptional() @IsInt() @Min(1) @Max(100) limit = 20;
   @ApiPropertyOptional({ enum: SellerOrderStatus }) @IsOptional() @IsEnum(SellerOrderStatus) status?: SellerOrderStatus;
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() business?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() store?: string;
 }
+
 

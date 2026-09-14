@@ -129,10 +129,50 @@ export default function CheckoutPage() {
     };
   }, [isLoggedIn, checkedItems.length, hasPhysicalItems, activeAddress, note]);
 
+  // Voucher states (Shopee style)
+  const [voucherCodeInput, setVoucherCodeInput] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState(null); // { code, discount, label }
+  const [showVoucherDrawer, setShowVoucherDrawer] = useState(false);
+  const [voucherError, setVoucherError] = useState('');
+
+  const AVAILABLE_VOUCHERS = [
+    { code: 'HUKI30K', discount: 30000, minSpend: 150000, label: 'Giảm 30.000đ cho đơn từ 150k' },
+    { code: 'FREESHIP', discount: 20000, minSpend: 100000, label: 'Giảm 20.000đ phí vận chuyển' },
+    { code: 'BANMOI15K', discount: 15000, minSpend: 50000, label: 'Giảm 15.000đ cho bạn mới' },
+  ];
+
+  const handleApplyVoucher = (v) => {
+    let target = v;
+    if (typeof v === 'string') {
+      target = AVAILABLE_VOUCHERS.find((item) => item.code.toUpperCase() === v.trim().toUpperCase());
+      if (!target) {
+        setVoucherError('Mã voucher không hợp lệ hoặc đã hết hạn.');
+        return;
+      }
+    }
+    if (rawSubtotal < target.minSpend) {
+      setVoucherError(`Đơn hàng cần tối thiểu ${target.minSpend.toLocaleString('vi-VN')}đ để dùng mã này.`);
+      return;
+    }
+    setAppliedVoucher(target);
+    setVoucherError('');
+    setShowVoucherDrawer(false);
+    showToast({
+      title: 'Đã áp dụng Voucher thành công!',
+      message: `Mã ${target.code} đã giảm ${target.discount.toLocaleString('vi-VN')}đ cho đơn hàng.`,
+    }, 'success');
+  };
+
+  const handleRemoveVoucher = () => {
+    setAppliedVoucher(null);
+    setVoucherCodeInput('');
+    setVoucherError('');
+  };
+
   // Calculations
   const rawSubtotal = checkedSubtotal;
   const shippingFee = hasPhysicalItems ? (shippingMethod === 'express' ? 35000 : 20000) : 0;
-  const voucherDiscount = rawSubtotal >= 300000 ? 30000 : 0;
+  const voucherDiscount = appliedVoucher ? appliedVoucher.discount : (rawSubtotal >= 300000 ? 30000 : 0);
   const grandTotal = Math.max(0, rawSubtotal - voucherDiscount + shippingFee);
 
   const handleSaveNewAddress = async (e) => {
@@ -247,6 +287,10 @@ export default function CheckoutPage() {
         }
 
         // 2. Generate or refresh checkout session
+        const finalNote = useVatInvoice
+          ? (note.trim() ? `${note.trim()} [VAT: Yêu cầu xuất hóa đơn điện tử]` : '[VAT: Yêu cầu xuất hóa đơn điện tử]')
+          : (note.trim() || undefined);
+
         const previewPayload = {
           shippingAddress: hasPhysicalItems
             ? {
@@ -258,7 +302,7 @@ export default function CheckoutPage() {
                 province: activeAddress.province || 'Hồ Chí Minh',
               }
             : undefined,
-          note: note.trim() || undefined,
+          note: finalNote,
         };
 
         let currentSessionId = sessionId;
@@ -283,6 +327,20 @@ export default function CheckoutPage() {
           );
 
           if (confirmRes.success && confirmRes.data?.order) {
+            if (useVatInvoice && typeof window !== 'undefined') {
+              try {
+                if (confirmRes.data.order.id) localStorage.setItem(`huki_order_vat_${confirmRes.data.order.id}`, 'true');
+                if (confirmRes.data.order.code) localStorage.setItem(`huki_order_vat_${confirmRes.data.order.code}`, 'true');
+                if (confirmRes.data.sellerOrders && Array.isArray(confirmRes.data.sellerOrders)) {
+                  confirmRes.data.sellerOrders.forEach((so) => {
+                    if (so.id) localStorage.setItem(`huki_order_vat_${so.id}`, 'true');
+                    if (so.code) localStorage.setItem(`huki_order_vat_${so.code}`, 'true');
+                  });
+                }
+              } catch {
+                // ignore
+              }
+            }
             clearCart();
             showToast(
               {
@@ -451,38 +509,40 @@ export default function CheckoutPage() {
               </div>
             </section>
 
-            {/* Shipping Address Section (Inline Accordion - No Popup) */}
+            {/* Customer & Shipping Address Section */}
             {hasPhysicalItems && (
               <section className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm">
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-2">
                     <span className="w-1.5 h-5 bg-[var(--theme-primary,#003B2B)] rounded-full"></span>
-                    Địa Chỉ Nhận Sách Giấy
+                    Thông Tin Khách Hàng
                   </h2>
                   <div className="flex items-center gap-2">
                     {addresses.length > 1 && (
                       <button
+                        type="button"
                         onClick={() => {
                           setShowAddressList((prev) => !prev);
                           setShowNewAddressForm(false);
                         }}
                         className="text-xs text-[var(--theme-primary,#003B2B)] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
                       >
-                        <span className="material-symbols-outlined text-[15px]">list</span>
+                        <span className="material-symbols-outlined text-[15px]">swap_horiz</span>
                         {showAddressList ? 'Thu gọn' : 'Đổi địa chỉ'}
                       </button>
                     )}
                     <button
+                      type="button"
                       onClick={() => {
                         setShowNewAddressForm((prev) => !prev);
                         setShowAddressList(false);
                       }}
-                      className="text-xs text-[var(--theme-primary,#003B2B)] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      className="text-xs text-[var(--theme-primary,#003B2B)] hover:bg-[var(--theme-primary,#003B2B)]/15 font-bold flex items-center gap-1 cursor-pointer bg-[var(--theme-primary,#003B2B)]/10 px-3 py-1.5 rounded-lg transition-colors"
                     >
                       <span className="material-symbols-outlined text-[15px]">
                         {showNewAddressForm ? 'close' : 'add'}
                       </span>
-                      {showNewAddressForm ? 'Hủy' : '+ Thêm địa chỉ mới'}
+                      {showNewAddressForm ? 'Hủy' : 'Thêm địa chỉ mới'}
                     </button>
                   </div>
                 </div>
@@ -508,19 +568,23 @@ export default function CheckoutPage() {
                               : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/40'
                           }`}
                         >
-                          <div>
+                          <div className="space-y-1">
                             <div className="flex items-center gap-2">
+                              <span className="text-[var(--theme-text-muted,#49454f)] font-medium">Tên khách hàng:</span>
                               <span className="font-bold text-[var(--theme-text,#1c1b1f)]">{addr.name}</span>
-                              <span className="text-[var(--theme-text-muted,#49454f)]">({addr.phone})</span>
                               {addr.isDefault && (
-                                <span className="bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold">
+                                <span className="bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold ml-1">
                                   Mặc định
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block mt-0.5">
-                              {addr.address}, {addr.ward}, {addr.district}, {addr.province}
-                            </span>
+                            <div>
+                              <span className="text-[var(--theme-text-muted,#49454f)] font-medium">Số điện thoại:</span>{' '}
+                              <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">{addr.phone}</span>
+                            </div>
+                            <div className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                              <span className="font-medium text-[var(--theme-text,#1c1b1f)]">Địa chỉ:</span> {addr.address}, {addr.ward}, {addr.district}, {addr.province}
+                            </div>
                           </div>
                           <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">
                             {isSelected ? 'check_circle' : 'radio_button_unchecked'}
@@ -618,20 +682,24 @@ export default function CheckoutPage() {
                     </div>
                   </form>
                 ) : (
-                  /* Current Active Address Card (Clean, Full Width) */
-                  <div className="p-4 sm:p-5 bg-[var(--theme-background,#F2FBF9)]/60 rounded-2xl border border-[var(--theme-border,#e8e5df)] text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)] flex flex-col gap-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <strong className="font-bold text-sm sm:text-base">{activeAddress.name}</strong>
-                        <span className="text-[var(--theme-text-muted,#49454f)] font-medium">({activeAddress.phone})</span>
-                        <span className="bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                          Địa chỉ nhận sách
-                        </span>
-                      </div>
+                  /* Current Active Address Card (Vertical Layout, Clean, Spacious, Explicit Labels) */
+                  <div className="p-5 sm:p-6 bg-[var(--theme-background,#F2FBF9)]/60 rounded-2xl border border-[var(--theme-border,#e8e5df)] text-sm text-[var(--theme-text,#1c1b1f)] flex flex-col gap-3.5 sm:gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-[var(--theme-text-muted,#49454f)] text-xs sm:text-sm font-medium min-w-[115px]">Tên khách hàng:</span>
+                      <strong className="font-bold text-sm sm:text-base text-[var(--theme-text,#1c1b1f)]">{activeAddress.name}</strong>
                     </div>
-                    <div className="flex items-start gap-1.5 text-[var(--theme-text-muted,#49454f)] leading-relaxed">
-                      <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)] shrink-0 mt-0.5">location_on</span>
-                      <span>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-[var(--theme-text-muted,#49454f)] text-xs sm:text-sm font-medium min-w-[115px]">Số điện thoại:</span>
+                      <span className="font-semibold text-xs sm:text-sm text-[var(--theme-text,#1c1b1f)]">({activeAddress.phone})</span>
+                    </div>
+
+                    <div className="flex items-start gap-3 pt-3 border-t border-[var(--theme-border,#e8e5df)]/60">
+                      <span className="text-[var(--theme-text-muted,#49454f)] text-xs sm:text-sm font-medium min-w-[115px] flex items-center gap-1.5 shrink-0 pt-0.5">
+                        <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">location_on</span>
+                        Địa chỉ:
+                      </span>
+                      <span className="text-[var(--theme-text,#1c1b1f)] text-xs sm:text-sm leading-relaxed font-medium">
                         {activeAddress.address}, {activeAddress.ward}, {activeAddress.district}, {activeAddress.province}
                       </span>
                     </div>
@@ -804,29 +872,129 @@ export default function CheckoutPage() {
               </h2>
 
               {/* Items Mini List */}
-              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
                 {checkedItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 min-w-0">
+                  <Link
+                    key={item.id}
+                    to={`/book/${item.bookId || item.id}`}
+                    className="flex items-center justify-between gap-3 text-xs p-2.5 rounded-xl border border-transparent hover:border-[var(--theme-border,#e8e5df)]/70 hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all duration-150 group cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
                       <img
-                        className="w-9 h-13 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
+                        className="w-10 h-14 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
                         alt={item.title}
                         src={item.cover}
                       />
                       <div className="min-w-0">
-                        <span className="font-bold text-[var(--theme-text,#1c1b1f)] line-clamp-1 block">
+                        <span className="font-bold text-[var(--theme-text,#1c1b1f)] line-clamp-1 block group-hover:text-[var(--theme-primary,#003B2B)] transition-colors">
                           {item.title}
                         </span>
                         <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-                          x{item.quantity} · {item.format}
+                          x{item.quantity} · {item.format === 'ebook' ? 'Sách điện tử DRM' : 'Sách giấy'}
                         </span>
                       </div>
                     </div>
                     <span className="font-bold text-[var(--theme-text,#1c1b1f)] shrink-0">
                       {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                     </span>
-                  </div>
+                  </Link>
                 ))}
+              </div>
+
+              {/* Shopee-style Voucher Section */}
+              <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)]/60">
+                <div
+                  onClick={() => setShowVoucherDrawer((prev) => !prev)}
+                  className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-600 text-[20px]">confirmation_number</span>
+                    <span className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                      HUKI Voucher
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs">
+                    {appliedVoucher ? (
+                      <span className="font-bold text-emerald-600 bg-emerald-100 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full text-[11px]">
+                        -{appliedVoucher.discount.toLocaleString('vi-VN')}đ
+                      </span>
+                    ) : (
+                      <span className="text-[var(--theme-text-muted,#49454f)] text-[11px] font-medium flex items-center gap-0.5">
+                        Chọn hoặc nhập mã <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Inline Voucher Selector Accordion */}
+                {showVoucherDrawer && (
+                  <div className="mt-2.5 p-3 rounded-xl bg-[var(--theme-background,#F2FBF9)]/70 border border-[var(--theme-border,#e8e5df)] space-y-3 animate-in fade-in duration-200 text-xs">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Nhập mã voucher..."
+                        value={voucherCodeInput}
+                        onChange={(e) => {
+                          setVoucherCodeInput(e.target.value.toUpperCase());
+                          setVoucherError('');
+                        }}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-xs uppercase font-bold focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleApplyVoucher(voucherCodeInput)}
+                        className="px-3 py-1.5 rounded-lg bg-[var(--theme-primary,#003B2B)] text-white text-xs font-bold hover:opacity-90 cursor-pointer"
+                      >
+                        Áp Dụng
+                      </button>
+                    </div>
+
+                    {voucherError && (
+                      <p className="text-red-500 text-[11px] font-medium">{voucherError}</p>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <span className="text-[11px] font-bold text-[var(--theme-text-muted,#49454f)] block">Mã khuyến mãi có sẵn:</span>
+                      {AVAILABLE_VOUCHERS.map((v) => {
+                        const isSelected = appliedVoucher?.code === v.code;
+                        const isEligible = rawSubtotal >= v.minSpend;
+                        return (
+                          <div
+                            key={v.code}
+                            onClick={() => isEligible && handleApplyVoucher(v)}
+                            className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold'
+                                : isEligible
+                                ? 'border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003B2B)]/50 bg-[var(--theme-surface,#ffffff)]'
+                                : 'opacity-40 cursor-not-allowed bg-black/5'
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-xs text-[var(--theme-primary,#003B2B)]">{v.code}</span>
+                                <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">({v.label})</span>
+                              </div>
+                            </div>
+                            <span className="text-[11px] font-bold text-emerald-600">
+                              {isSelected ? 'Đang dùng' : 'Dùng ngay'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {appliedVoucher && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveVoucher}
+                        className="w-full text-center text-red-500 text-[11px] font-semibold hover:underline cursor-pointer pt-1"
+                      >
+                        Hủy áp dụng mã giảm giá
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Price Breakdown */}
@@ -839,7 +1007,14 @@ export default function CheckoutPage() {
                 </div>
                 {voucherDiscount > 0 && (
                   <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                    <span>Voucher Huki:</span>
+                    <span className="flex items-center gap-1">
+                      <span>Voucher giảm giá:</span>
+                      {appliedVoucher && (
+                        <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950 px-1 rounded font-bold">
+                          {appliedVoucher.code}
+                        </span>
+                      )}
+                    </span>
                     <span className="font-semibold">-{voucherDiscount.toLocaleString('vi-VN')}đ</span>
                   </div>
                 )}

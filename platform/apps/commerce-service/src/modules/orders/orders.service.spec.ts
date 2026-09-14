@@ -12,6 +12,7 @@ describe('OrdersService (Prisma)', () => {
   });
 
   it('rejects an invalid seller state transition in a Prisma transaction', async () => {
+    prisma.sellerOrder.findUnique.mockResolvedValue({ id: 'seller-id', ownerUserId: 'seller-id', status: 'SHIPPED', items: [], orderId: 'order-id' });
     prisma.$transaction.mockImplementation(async (callback: any) => callback({ sellerOrder: { findUnique: jest.fn().mockResolvedValue({ id: 'seller-id', ownerUserId: 'seller-id', status: 'SHIPPED', items: [], orderId: 'order-id' }) } }));
     await expect(service.confirm({ sub: 'seller-id', role: 'BUSINESS' } as any, 'seller-id')).rejects.toBeInstanceOf(ConflictException);
   });
