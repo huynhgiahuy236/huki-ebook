@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,8 @@ import { cartApi } from '../../api/cartApi';
 import { checkoutApi } from '../../api/checkoutApi';
 import CustomLocationSelector from '../../components/common/CustomLocationSelector';
 import AddressMapPreview from '../../components/common/AddressMapPreview';
+import OrderItemBadge from '../../components/common/OrderItemBadge';
+import { calculateShippingFee, getLocationByName } from '../../data/vietnamLocations';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -170,9 +172,13 @@ export default function CheckoutPage() {
   };
 
   // Calculations
+  const buyerLocation = getLocationByName(activeAddress.province || 'Hồ Chí Minh');
+  const buyerZone = buyerLocation?.zone || 'SOUTH';
+  const shippingResult = calculateShippingFee('SOUTH', buyerZone);
+  const baseCalculatedFee = shippingResult?.fee || 28000;
   const rawSubtotal = checkedSubtotal;
   const shippingFee = hasPhysicalItems ? (shippingMethod === 'express' ? 35000 : 20000) : 0;
-  const voucherDiscount = appliedVoucher ? appliedVoucher.discount : (rawSubtotal >= 300000 ? 30000 : 0);
+  const voucherDiscount = rawSubtotal >= 300000 ? 30000 : 0;
   const grandTotal = Math.max(0, rawSubtotal - voucherDiscount + shippingFee);
 
   const handleSaveNewAddress = async (e) => {
@@ -890,7 +896,7 @@ export default function CheckoutPage() {
                           {item.title}
                         </span>
                         <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-                          x{item.quantity} · {item.format === 'ebook' ? 'Sách điện tử DRM' : 'Sách giấy'}
+                          x{item.quantity} · {item.format}
                         </span>
                       </div>
                     </div>

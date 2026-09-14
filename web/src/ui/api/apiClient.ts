@@ -1,5 +1,5 @@
 import { tokenStorage } from './tokenStorage';
-import type { ApiResponse, ApiError, AuthTokens } from './types';
+import type { ApiResponse, AuthTokens } from './types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
 
@@ -46,31 +46,31 @@ export async function apiClient<T = unknown>(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-correlation-id': correlationId,
-              },
-              body: JSON.stringify({ refreshToken }),
-            });
+              const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-correlation-id': correlationId,
+                },
+                body: JSON.stringify({ refreshToken }),
+              });
 
-            if (refreshRes.ok) {
-              const refreshBody = await refreshRes.json();
-              const refreshData = refreshBody.data || refreshBody;
-              const newTokens: AuthTokens = refreshData.tokens || refreshData;
-              const newAccessToken = newTokens?.accessToken || refreshData?.accessToken;
-              const newRefreshToken = newTokens?.refreshToken || refreshData?.refreshToken;
+              if (refreshRes.ok) {
+                const refreshBody = await refreshRes.json();
+                const refreshData = refreshBody.data || refreshBody;
+                const newTokens: AuthTokens = refreshData.tokens || refreshData;
+                const newAccessToken = newTokens?.accessToken || refreshData?.accessToken;
+                const newRefreshToken = newTokens?.refreshToken || refreshData?.refreshToken;
 
-              if (newAccessToken && newRefreshToken) {
-                tokenStorage.setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
-                return newAccessToken;
+                if (newAccessToken && newRefreshToken) {
+                  tokenStorage.setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+                  return newAccessToken;
+                } else {
+                  throw new Error('Invalid refresh response');
+                }
               } else {
-                throw new Error('Invalid refresh response');
+                throw new Error('Refresh failed');
               }
-            } else {
-              throw new Error('Refresh failed');
-            }
             } catch {
               tokenStorage.clearTokens();
               return null;
@@ -291,6 +291,27 @@ const BUSINESS_ERROR_TRANSLATIONS: Record<string, { title: string; message: stri
   },
 };
 
+function translateValidationRule(msg: string): string {
+  if (!msg || typeof msg !== 'string') return '';
+  const trimmed = msg.trim();
+  
+  if (/categoryId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Thể loại sách hợp lệ trong danh mục';
+  if (/authorId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Tác giả hợp lệ';
+  if (/publisherId.*UUID/i.test(trimmed)) return 'Vui lòng chọn Nhà xuất bản hợp lệ';
+  if (/businessId.*UUID/i.test(trimmed)) return 'Doanh nghiệp chưa được cấp phép hoặc không hợp lệ';
+  if (/storeId.*UUID/i.test(trimmed)) return 'Cửa hàng không hợp lệ';
+  if (/title.*(empty|string|length)/i.test(trimmed)) return 'Tên tác phẩm không được để trống';
+  if (/price.*(number|min|less than)/i.test(trimmed)) return 'Giá bán phải là số hợp lệ (tối thiểu 0đ)';
+  if (/isbn.*(string|length)/i.test(trimmed)) return 'Mã ISBN không đúng định dạng';
+  if (/stock.*(int|number|min)/i.test(trimmed)) return 'Số lượng tồn kho phải là số nguyên lớn hơn hoặc bằng 0';
+  if (/weight.*(number|min)/i.test(trimmed)) return 'Trọng lượng sách phải là số hợp lệ';
+  if (/email.*email/i.test(trimmed)) return 'Email không đúng định dạng';
+  if (/phone/i.test(trimmed)) return 'Số điện thoại không hợp lệ';
+  if (/tax.*code/i.test(trimmed)) return 'Mã số thuế không hợp lệ';
+  
+  return trimmed;
+}
+
 function extractHumanErrorMessage(body: unknown, status: number): { title?: string; message: string; code: string } {
   const defaultHttp = HTTP_STATUS_TRANSLATIONS[status] || {
     title: 'Thông báo',
@@ -302,8 +323,15 @@ function extractHumanErrorMessage(body: unknown, status: number): { title?: stri
     return defaultHttp;
   }
 
-  const obj = body as Record<string, any>;
-  const rawCode = obj.code || obj.error?.code || defaultHttp.code;
+  const obj = body as Record<string, unknown>;
+  const nestedError = obj.error && typeof obj.error === 'object'
+    ? obj.error as Record<string, unknown>
+    : null;
+  const rawCode = typeof obj.code === 'string'
+    ? obj.code
+    : typeof nestedError?.code === 'string'
+      ? nestedError.code
+      : defaultHttp.code;
 
   // 1. Kiểm tra từ điển mã lỗi nghiệp vụ
   if (rawCode && BUSINESS_ERROR_TRANSLATIONS[rawCode]) {
@@ -316,9 +344,15 @@ function extractHumanErrorMessage(body: unknown, status: number): { title?: stri
 
   // 2. Xử lý mảng validation errors từ NestJS (Class Validator)
   if (Array.isArray(obj.message) && obj.message.length > 0) {
-    const cleanItems = obj.message.map((m: any) => {
-      if (typeof m === 'string') return m;
-      return m?.message || JSON.stringify(m);
+    const cleanItems = obj.message.map((m: unknown) => {
+      let raw = '';
+      if (typeof m === 'string') raw = m;
+      else if (m && typeof m === 'object' && 'message' in m && typeof m.message === 'string') {
+        raw = m.message;
+      } else {
+        raw = JSON.stringify(m);
+      }
+      return translateValidationRule(raw);
     });
     return {
       title: 'Thông tin chưa hợp lệ',
@@ -329,22 +363,34 @@ function extractHumanErrorMessage(body: unknown, status: number): { title?: stri
 
   // 3. Xử lý chi tiết lỗi validation P3 (details: [{ field, message }])
   if (Array.isArray(obj.details) && obj.details.length > 0) {
-    const detailList = obj.details.map((d: any) => d.message || d.field).filter(Boolean);
+    const detailList = obj.details
+      .map((detail: unknown) => {
+        if (!detail || typeof detail !== 'object') return null;
+        const item = detail as Record<string, unknown>;
+        const raw = typeof item.message === 'string'
+          ? item.message
+          : typeof item.field === 'string'
+            ? item.field
+            : null;
+        return raw ? translateValidationRule(raw) : null;
+      })
+      .filter((detail): detail is string => Boolean(detail));
     if (detailList.length > 0) {
       return {
         title: 'Thông tin chưa hợp lệ',
-        message: `Vui lòng kiểm tra lại: ${detailList.join(', ')}`,
+        message: detailList.join('. '),
         code: rawCode || 'VALIDATION_ERROR',
       };
     }
   }
 
   // 4. Lấy chuỗi message thô nếu có và làm sạch
-  const rawMessage = obj.message || obj.error?.message || (typeof obj.error === 'string' ? obj.error : null);
+  const rawMessage = obj.message
+    || nestedError?.message
+    || (typeof obj.error === 'string' ? obj.error : null);
   if (typeof rawMessage === 'string' && rawMessage.trim()) {
     const trimmed = rawMessage.trim();
 
-    // Nếu message thực chất là một error code
     if (BUSINESS_ERROR_TRANSLATIONS[trimmed]) {
       return {
         title: BUSINESS_ERROR_TRANSLATIONS[trimmed].title,
@@ -353,15 +399,14 @@ function extractHumanErrorMessage(body: unknown, status: number): { title?: stri
       };
     }
 
-    // Nếu message là tiếng Anh thô từ server ("Internal server error", "Bad request")
     if (trimmed.toLowerCase() === 'internal server error' || trimmed.toLowerCase() === 'bad request') {
       return defaultHttp;
     }
 
     return {
       title: defaultHttp.title,
-      message: trimmed,
-      code: rawCode,
+      message: translateValidationRule(trimmed),
+      code: rawCode || defaultHttp.code,
     };
   }
 
@@ -369,27 +414,22 @@ function extractHumanErrorMessage(body: unknown, status: number): { title?: stri
 }
 
 async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
-  let body: unknown;
+  let body: unknown = null;
   try {
-    body = await response.json();
+    const text = await response.text();
+    body = text ? JSON.parse(text) : null;
   } catch {
     body = null;
   }
 
   if (response.ok) {
-    if (body && typeof body === 'object') {
-      const obj = body as Record<string, unknown>;
-      // NestJS TransformInterceptor wraps in { status: "success", data: ... }
-      const isSuccess = obj.status === 'success' || obj.success === true;
-      const extractedData = obj.data !== undefined ? obj.data : body;
-
-      if (isSuccess || response.ok) {
-        return {
-          success: true,
-          data: extractedData as T,
-          meta: (obj.meta || obj.pagination) as ApiResponse<T>['meta'],
-        };
-      }
+    if (body && typeof body === 'object' && 'data' in body) {
+      const respObj = body as { success?: boolean; data: T; meta?: Record<string, unknown> };
+      return {
+        success: respObj.success !== undefined ? respObj.success : true,
+        data: respObj.data,
+        meta: respObj.meta,
+      };
     }
 
     return {
@@ -398,16 +438,14 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
     };
   }
 
-  const errorInfo = extractHumanErrorMessage(body, response.status);
+  const human = extractHumanErrorMessage(body, response.status);
 
   return {
     success: false,
     error: {
-      code: errorInfo.code,
-      message: errorInfo.message,
+      code: human.code,
+      message: human.message,
       statusCode: response.status,
-      details: (body as any)?.details,
     },
   };
 }
-

@@ -4,7 +4,7 @@ describe("MemberService", () => {
   const mockPrisma = {
     business: {
       findFirst: jest.fn().mockImplementation(({ where }: any) =>
-        where?.ownerId === "owner-1" || where?.id === "business-1" && !where?.ownerId
+        where?.ownerId === "owner-1" || (where?.id === "business-1" && !where?.ownerId)
           ? { id: "business-1", ownerId: "owner-1" }
           : where?.ownerId && where?.ownerId !== "owner-1"
           ? null
@@ -30,7 +30,17 @@ describe("MemberService", () => {
   const email = { sendInvitationEmail: jest.fn() };
   const service = new MemberService(mockPrisma as any, email as any);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockPrisma.business.findFirst.mockImplementation(({ where }: any) =>
+      where?.ownerId === "owner-1" || (where?.id === "business-1" && !where?.ownerId)
+        ? { id: "business-1", ownerId: "owner-1" }
+        : where?.ownerId && where?.ownerId !== "owner-1"
+        ? null
+        : { id: "business-1", ownerId: "owner-1" }
+    );
+    mockPrisma.business.findUnique.mockResolvedValue({ id: "business-1", ownerId: "owner-1" });
+  });
 
   describe("inviteMember", () => {
     it("normalizes the email and sends an invitation link", async () => {

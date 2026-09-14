@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import OrderItemBadge from '../common/OrderItemBadge';
 
 const STATUS_LABELS = {
   PENDING_PAYMENT: 'Chờ thanh toán',
@@ -87,8 +88,11 @@ export default function OrderDetailDrawer({
                   <div key={item.id} className="p-4 flex gap-3 items-center">
                     <img src={item.coverUrl || item.coverImage || '/banners/hero-library.jpg'} alt="" className="w-11 h-14 rounded-lg object-cover bg-slate-100" />
                     <div className="min-w-0 flex-1">
-                      <p className="font-bold text-sm text-slate-900 dark:text-white line-clamp-2">{item.title}</p>
-                      <p className="text-xs text-slate-500 mt-1">{item.format} · SL {item.quantity}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-sm text-slate-900 dark:text-white line-clamp-2">{item.title}</p>
+                        <OrderItemBadge format={item.format} />
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">SL: {item.quantity} · Đơn giá: {money(item.price)}</p>
                     </div>
                     <p className="font-bold text-sm whitespace-nowrap">{money(item.subtotal ?? item.price * item.quantity)}</p>
                   </div>

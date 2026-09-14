@@ -53,13 +53,24 @@ export const CartProvider = ({ children }) => {
     const isPhysical = serverItem.format === 'PHYSICAL';
     const isEbook = serverItem.format === 'DIGITAL';
 
+    // Resolve publisher/store dynamically from server book metadata
+    const resolvedPublisher = serverItem.book?.business?.displayName
+      || serverItem.book?.business?.name
+      || serverItem.book?.publisher
+      || existing?.publisher
+      || 'Gian Hàng HUKI';
+    const resolvedStoreId = serverItem.book?.businessId
+      || serverItem.book?.storeId
+      || existing?.storeId
+      || serverItem.bookId; // use bookId as last-resort grouping key
+
     return {
       id: serverItem.id,
       bookId: serverItem.bookId,
       title: serverItem.book?.title || existing?.title || 'Ấn phẩm HUKI',
       author: existing?.author || 'Đang cập nhật',
-      publisher: existing?.publisher || 'Alpha Books Official',
-      storeId: serverItem.book?.storeId || existing?.storeId || 'store-alpha',
+      publisher: resolvedPublisher,
+      storeId: resolvedStoreId,
       format: isPhysical ? 'Sách giấy' : isEbook ? 'Ebook Số' : (existing?.format || 'Sách giấy'),
       apiFormat: serverItem.format,
       formatTag: isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền',
@@ -253,8 +264,8 @@ export const CartProvider = ({ children }) => {
           bookId: bookId,
           title: itemOrBook.title,
           author: itemOrBook.author || 'Đang cập nhật',
-          publisher: itemOrBook.publisher || 'Alpha Books Official',
-          storeId: itemOrBook.storeId || (itemOrBook.publisher?.includes('First News') ? 'store-firstnews' : 'store-alpha'),
+          publisher: itemOrBook.publisher || itemOrBook.business?.displayName || itemOrBook.business?.name || 'Gian Hàng HUKI',
+          storeId: itemOrBook.storeId || itemOrBook.businessId || bookId,
           format: itemOrBook.format || (isPhysical ? 'Sách giấy' : 'Ebook Số'),
           apiFormat,
           formatTag: itemOrBook.formatTag || (isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền'),
@@ -282,8 +293,8 @@ export const CartProvider = ({ children }) => {
           bookId: book.id,
           title: book.title,
           author: book.author || 'Tác giả',
-          publisher: book.publisher || 'Alpha Books Official',
-          storeId: book.publisher?.includes('First News') ? 'store-firstnews' : 'store-alpha',
+          publisher: book.publisher || book.business?.displayName || book.business?.name || 'Gian Hàng HUKI',
+          storeId: book.storeId || book.businessId || book.id,
           format: formatName,
           apiFormat,
           formatTag: isEbook ? 'Ebook DRM Bản quyền' : (isCombo ? 'Sách Giấy + Ebook trọn đời' : 'Bìa mềm cao cấp'),
@@ -484,15 +495,15 @@ export const CartProvider = ({ children }) => {
   const storeGroups = useMemo(() => {
     const groups = {};
     cartItems.forEach((item) => {
-      const sId = item.storeId || (item.publisher?.includes('First News') ? 'store-firstnews' : 'store-alpha');
+      const sId = item.storeId || item.bookId || 'store-default';
       if (!groups[sId]) {
         groups[sId] = {
           id: sId,
-          name: item.publisher || (sId === 'store-alpha' ? 'Alpha Books Official' : 'HUKI Partner Store'),
-          badge: sId === 'store-alpha' ? 'Chính Hãng' : 'HUKI Partner',
-          tag: sId === 'store-alpha' ? 'αB' : 'FN',
-          tagBg: sId === 'store-alpha' ? 'bg-theme-primary' : 'bg-theme-secondary',
-          vouchersCount: sId === 'store-alpha' ? 2 : 1,
+          name: item.publisher || 'Gian Hàng HUKI',
+          badge: 'HUKI Partner',
+          tag: (item.publisher || 'HK').substring(0, 2).toUpperCase(),
+          tagBg: 'bg-theme-primary',
+          vouchersCount: 1,
           freeShipThreshold: 200000,
           items: [],
         };

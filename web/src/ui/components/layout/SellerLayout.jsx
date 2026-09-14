@@ -27,7 +27,7 @@ export default function SellerLayout() {
                              location.pathname.includes('/seller/product/correction');
 
   return (
-    <div className={`bg-background text-on-surface flex flex-col ${isChatPage ? 'h-screen max-h-screen overflow-hidden' : 'min-h-dvh'}`}>
+    <div className={`seller-portal bg-background text-on-surface flex flex-col ${isChatPage ? 'h-screen max-h-screen overflow-hidden' : 'min-h-dvh'}`}>
       <SellerHeader 
         isSidebarCollapsed={isSidebarCollapsed} 
         toggleSidebar={toggleSidebar} 

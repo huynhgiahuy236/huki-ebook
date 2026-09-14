@@ -19,10 +19,11 @@ export default function UserAddressesPage() {
   const [formData, setFormData] = useState({
     name: user?.fullName || user?.name || '',
     phone: user?.phone || '',
-    province: 'Hồ Chí Minh',
+    province: 'Thành phố Hồ Chí Minh',
     district: 'Quận Gò Vấp',
     ward: 'Phường 5',
     address: '',
+    addressType: 'HOME', // 'HOME' | 'OFFICE'
     isDefault: false,
   });
 
@@ -143,6 +144,7 @@ export default function UserAddressesPage() {
             district: formData.district.trim(),
             ward: formData.ward.trim(),
             address: formData.address.trim(),
+            addressType: formData.addressType || 'HOME',
             isDefault: formData.isDefault,
           });
           if (res.success) {
@@ -166,6 +168,7 @@ export default function UserAddressesPage() {
             district: formData.district.trim(),
             ward: formData.ward.trim(),
             address: formData.address.trim(),
+            addressType: formData.addressType || 'HOME',
             isDefault: formData.isDefault || addresses.length === 0,
           });
           if (res.success) {
@@ -196,6 +199,7 @@ export default function UserAddressesPage() {
       district: formData.district,
       ward: formData.ward,
       address: formData.address,
+      addressType: formData.addressType || 'HOME',
       isDefault: formData.isDefault || addresses.length === 0,
     };
 
@@ -225,10 +229,11 @@ export default function UserAddressesPage() {
     setFormData({
       name: addr.name,
       phone: addr.phone,
-      province: addr.province || 'Hồ Chí Minh',
+      province: addr.province || 'Thành phố Hồ Chí Minh',
       district: addr.district || 'Quận Gò Vấp',
       ward: addr.ward || 'Phường 5',
       address: addr.address || '',
+      addressType: addr.addressType || 'HOME',
       isDefault: addr.isDefault || false,
     });
     setActiveTab('form');
@@ -240,10 +245,11 @@ export default function UserAddressesPage() {
     setFormData({
       name: user?.fullName || user?.name || '',
       phone: user?.phone || '',
-      province: 'Hồ Chí Minh',
+      province: 'Thành phố Hồ Chí Minh',
       district: 'Quận Gò Vấp',
       ward: 'Phường 5',
       address: '',
+      addressType: 'HOME',
       isDefault: addresses.length === 0,
     });
     setActiveTab('form');
@@ -349,12 +355,22 @@ export default function UserAddressesPage() {
                   >
                     <div>
                       <div className="flex items-center justify-between gap-2 mb-2.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <strong className="font-bold text-base text-[var(--theme-text,#1c1b1f)]">
                             {addr.name}
                           </strong>
                           <span className="text-xs text-[var(--theme-text-muted,#49454f)] font-medium">
                             ({addr.phone})
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold flex items-center gap-1 ${
+                            addr.addressType === 'OFFICE'
+                              ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+                              : 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                          }`}>
+                            <span className="material-symbols-outlined text-[12px]">
+                              {addr.addressType === 'OFFICE' ? 'domain' : 'home'}
+                            </span>
+                            {addr.addressType === 'OFFICE' ? 'Văn Phòng' : 'Nhà Riêng'}
                           </span>
                         </div>
                         {addr.isDefault && (
@@ -492,6 +508,43 @@ export default function UserAddressesPage() {
                       placeholder="Ví dụ: 123 Đường Nguyễn Huệ"
                       className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
                     />
+                  </div>
+
+                  {/* Loại Địa Chỉ: Nhà Riêng vs Văn Phòng */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                      Loại địa chỉ nhận hàng
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, addressType: 'HOME' })}
+                        className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          formData.addressType === 'HOME'
+                            ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
+                            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">home</span>
+                        <span>Nhà Riêng / Nhà Trọ</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, addressType: 'OFFICE' })}
+                        className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                          formData.addressType === 'OFFICE'
+                            ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
+                            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-[18px]">domain</span>
+                        <span>Văn Phòng / Công Ty</span>
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-[var(--theme-text-muted,#49454f)]/70 italic mt-1 block">
+                      {formData.addressType === 'HOME' ? '• Giao hàng tất cả các ngày trong tuần (kể cả Thứ 7 & CN)' : '• Chỉ giao hàng trong giờ hành chính từ Thứ 2 đến Thứ 6'}
+                    </span>
                   </div>
                 </div>
 

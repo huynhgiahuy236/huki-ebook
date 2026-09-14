@@ -213,15 +213,6 @@ export class CheckoutService {
         ) {
           throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
         }
-        if (
-          dto.paymentMethod === PaymentMethod.COD &&
-          snapshot.groups.some((group: CheckoutSnapshotGroup) =>
-            group.items.some((item) => item.format !== CartItemFormat.PHYSICAL),
-          )
-        ) {
-          throwBadRequest(ErrorCode.COD_NOT_AVAILABLE);
-        }
-
         // Create order
         const order = await tx.order.create({
           data: {

@@ -98,7 +98,7 @@ export const authApi = {
   },
 
   /**
-   * Xác thực Email tài khoản
+   * Xác thực Email / OTP tài khoản
    */
   async verifyEmail(token: string): Promise<ApiResponse<{ message: string; user?: UserSession }>> {
     return apiClient<{ message: string; user?: UserSession }>('/auth/verify-email', {
@@ -109,7 +109,7 @@ export const authApi = {
   },
 
   /**
-   * Gửi lại email xác thực
+   * Gửi lại mã OTP / email xác thực
    */
   async resendVerification(email: string): Promise<ApiResponse<{ message: string }>> {
     return apiClient<{ message: string }>('/auth/resend-verification', {
@@ -117,5 +117,69 @@ export const authApi = {
       body: JSON.stringify({ email }),
       skipAuth: true,
     });
-  }
+  },
+
+  /**
+   * Quên mật khẩu: Yêu cầu gửi mã OTP đặt lại mật khẩu qua email
+   */
+  async forgotPassword(email: string): Promise<ApiResponse<{ message: string }>> {
+    return apiClient<{ message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+      skipAuth: true,
+    });
+  },
+
+  /**
+   * Đặt lại mật khẩu mới với mã OTP xác thực
+   */
+  async resetPassword(token: string, newPassword: string): Promise<ApiResponse<{ message: string }>> {
+    return apiClient<{ message: string }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+      skipAuth: true,
+    });
+  },
 };
+
+/**
+ * Chuyển đổi mã lỗi hệ thống và phản hồi Backend thành thông điệp thuần 100% Tiếng Việt
+ */
+export function formatAuthError(error: unknown): string {
+  if (!error) return 'Đã có lỗi xảy ra. Vui lòng thử lại sau.';
+  const errorObject = typeof error === 'object' ? error as Record<string, unknown> : null;
+  const errorMessage = typeof errorObject?.message === 'string'
+    ? errorObject.message
+    : typeof errorObject?.error === 'string'
+      ? errorObject.error
+      : JSON.stringify(error);
+  const raw = (typeof error === 'string' ? error : errorMessage).toLowerCase();
+
+  if (raw.includes('email_exists') || raw.includes('email already exists') || raw.includes('email đã tồn tại')) {
+    return 'Email này đã được sử dụng trên hệ thống. Vui lòng đăng nhập hoặc dùng email khác.';
+  }
+  if (raw.includes('phone_exists') || raw.includes('phone number already exists')) {
+    return 'Số điện thoại này đã được đăng ký bởi tài khoản khác.';
+  }
+  if (raw.includes('invalid credentials') || raw.includes('invalid_credentials') || raw.includes('sai email hoặc mật khẩu')) {
+    return 'Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.';
+  }
+  if (raw.includes('unverified') || raw.includes('not verified') || raw.includes('chưa kích hoạt')) {
+    return 'Tài khoản chưa được kích hoạt. Vui lòng xác thực mã OTP qua email.';
+  }
+  if (raw.includes('locked') || raw.includes('blocked') || raw.includes('tạm khóa')) {
+    return 'Tài khoản tạm thời bị khóa do nhập sai nhiều lần. Vui lòng thử lại sau.';
+  }
+  if (raw.includes('expired') || raw.includes('invalid token') || raw.includes('mã không hợp lệ')) {
+    return 'Mã xác thực OTP không chính xác hoặc đã hết hạn. Vui lòng yêu cầu mã mới.';
+  }
+  if (raw.includes('network') || raw.includes('failed to fetch') || raw.includes('kết nối')) {
+    return 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
+  }
+
+  return typeof error === 'string'
+    ? error
+    : typeof errorObject?.message === 'string'
+      ? errorObject.message
+      : 'Đã có lỗi xảy ra. Vui lòng thử lại.';
+}

@@ -559,3 +559,53 @@
   }
 }
 
+/* ========================================================= */
+/* TIERED DENSITY & COMPACT DASHBOARD SCALING               */
+/* ========================================================= */
+
+.admin-portal,
+.seller-portal {
+  font-size: 0.875rem; /* 14px base for clean high density */
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.admin-portal h1,
+.seller-portal h1 {
+  letter-spacing: -0.025em;
+}
+
+/* Compact Table Utility */
+.compact-table th {
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.6875rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.compact-table td {
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.8125rem !important;
+}
+
+/* Compact Form Utility */
+.compact-form label {
+  font-size: 0.75rem !important;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.compact-form input,
+.compact-form select,
+.compact-form textarea {
+  font-size: 0.8125rem !important;
+  padding: 0.45rem 0.75rem !important;
+  border-radius: 0.625rem !important;
+}
+
+/* Storefront Optimized Density */
+.storefront-portal {
+  font-size: 0.9375rem; /* 15px base */
+  line-height: 1.5;
+}
+

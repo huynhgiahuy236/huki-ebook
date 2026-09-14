@@ -80,6 +80,7 @@ const SellerOrdersPage = page(() => import('./pages/seller/SellerOrdersPage'));
 const SellerOrderDetailPage = page(() => import('./pages/seller/SellerOrderDetailPage'));
 const SellerStoresPage = page(() => import('./pages/seller/SellerStoresPage'));
 const SellerChatPage = page(() => import('./pages/seller/SellerChatPage'));
+const SellerFinancePage = page(() => import('./pages/seller/SellerFinancePage'));
 const SellerCreateHybrid = page(() => import('./pages/seller/SellerCreateHybrid'));
 const SellerEditHybrid = page(() => import('./pages/seller/SellerEditHybrid'));
 const SellerCorrection = page(() => import('./pages/seller/SellerCorrection'));
@@ -143,9 +144,10 @@ export default function App() {
                   <Route element={<RequireGuest />}>
                     <Route path="/login" element={<LoginPage />} />
                     <Route path="/register" element={<RegisterPage />} />
-                    <Route path="/forgot-password" element={previewOnly(ForgotPasswordPage, 'Khôi phục mật khẩu')} />
+                    <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                     <Route path="/verify-otp" element={<VerifyOtpPage />} />
-                    <Route path="/reset-password" element={previewOnly(ResetPasswordPage, 'Đặt lại mật khẩu')} />
+                    <Route path="/verify-email" element={<VerifyOtpPage />} />
+                    <Route path="/reset-password" element={<ResetPasswordPage />} />
                   </Route>
                   <Route path="/change-password" element={<RequireAuth><ChangePasswordPage /></RequireAuth>} />
                   <Route path="/onboarding/preferences" element={<RequireAuth><OnboardingPreferencesPage /></RequireAuth>} />
@@ -270,11 +272,29 @@ export default function App() {
                       <Route path="/seller/stores" element={<Navigate to="/seller/business" replace />} />
                       <Route path="/seller/stores/new" element={<Navigate to="/seller/business" replace />} />
                       <Route path="/seller/chat" element={previewOnly(SellerChatPage, 'Chat người bán')} />
+                      <Route path="/seller/finance" element={<SellerFinancePage />} />
+                      <Route path="/seller/wallet" element={<SellerFinancePage />} />
+                      <Route path="/seller/revenue" element={<SellerFinancePage />} />
                       <Route path="/seller/products" element={<SellerProductsPage />} />
                       <Route path="/seller/product" element={<Navigate to="/seller/products" replace />} />
+                      {/* Create product routes with all dash, underscore and plural aliases */}
                       <Route path="/seller/product/create-ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
+                      <Route path="/seller/product/create_ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
+                      <Route path="/seller/products/create-ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
+                      <Route path="/seller/products/create_ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
+
                       <Route path="/seller/product/create-physical" element={<SellerCreateHybrid initialFormat="PHYSICAL" />} />
-                      <Route path="/seller/product/create-hybrid" element={<SellerCreateHybrid />} />
+                      <Route path="/seller/product/create_physical" element={<SellerCreateHybrid initialFormat="PHYSICAL" />} />
+                      <Route path="/seller/products/create-physical" element={<SellerCreateHybrid initialFormat="PHYSICAL" />} />
+                      <Route path="/seller/products/create_physical" element={<SellerCreateHybrid initialFormat="PHYSICAL" />} />
+
+                      <Route path="/seller/product/create-hybrid" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+                      <Route path="/seller/product/create_hybrid" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+                      <Route path="/seller/products/create-hybrid" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+                      <Route path="/seller/products/create_hybrid" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+                      <Route path="/seller/product/create" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+                      <Route path="/seller/products/create" element={<SellerCreateHybrid initialFormat="BOTH" />} />
+
                       <Route path="/seller/product/edit-hybrid" element={<SellerEditHybrid />} />
                       <Route path="/seller/product/correction" element={previewOnly(SellerCorrection, 'Sửa lỗi sản phẩm')} />
                       <Route path="/seller/edge-cases" element={previewOnly(EdgeCasesLibrary, 'Edge cases')} />

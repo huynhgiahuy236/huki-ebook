@@ -22,7 +22,11 @@ function SearchableSelect({
   const filteredOptions = useMemo(() => {
     if (!search.trim()) return options;
     const q = search.toLowerCase().trim();
-    return options.filter((opt) => opt.name.toLowerCase().includes(q));
+    return options.filter((opt) => {
+      const matchName = opt.name.toLowerCase().includes(q);
+      const matchAliases = opt.legacyAliases && opt.legacyAliases.some((alias) => alias.toLowerCase().includes(q));
+      return matchName || matchAliases;
+    });
   }, [options, search]);
 
   useEffect(() => {
@@ -138,11 +142,23 @@ function SearchableSelect({
                         : 'text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]/80'
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="truncate">{opt.name}</span>
-                      {opt.isPopular && (
-                        <span className="bg-[var(--theme-primary,#003B2B)]/15 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold shrink-0">
-                          Phổ biến
+                    <div className="flex flex-col gap-0.5 min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="truncate font-medium">{opt.name}</span>
+                        {opt.isPopular && (
+                          <span className="bg-[var(--theme-primary,#003B2B)]/15 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold shrink-0">
+                            Phổ biến
+                          </span>
+                        )}
+                        {opt.zone && (
+                          <span className="text-[9px] text-[var(--theme-text-muted,#49454f)]/80 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.2 rounded shrink-0">
+                            {opt.zone === 'NORTH' ? 'Miền Bắc' : opt.zone === 'CENTRAL' ? 'Miền Trung' : 'Miền Nam'}
+                          </span>
+                        )}
+                      </div>
+                      {opt.legacyAliases && opt.legacyAliases.length > 0 && (
+                        <span className="text-[10px] text-[var(--theme-text-muted,#49454f)]/70 truncate">
+                          Gồm: {opt.legacyAliases.join(', ')}
                         </span>
                       )}
                     </div>

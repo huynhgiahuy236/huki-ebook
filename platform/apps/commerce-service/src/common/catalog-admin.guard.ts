@@ -44,8 +44,8 @@ export class CatalogAdminGuard implements CanActivate {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_INVALID, 'Invalid or expired access token');
       return false; // unreachable but satisfies TS
     }
-    if (payload && payload.role !== 'PLATFORM_ADMIN') {
-      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Platform administrator role is required');
+    if (payload && payload.role !== 'PLATFORM_ADMIN' && payload.role !== 'BUSINESS') {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Platform administrator or Business role is required');
     }
     if (payload) {
       (request as Request & { user?: AccessTokenPayload }).user = payload;

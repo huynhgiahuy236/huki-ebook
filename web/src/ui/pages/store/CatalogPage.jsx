@@ -598,11 +598,10 @@ export default function CatalogPage() {
                     key={fmt.id}
                     type="button"
                     onClick={() => updateParam('format', fmt.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                      isSelected
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${isSelected
                         ? 'bg-primary/10 text-primary font-bold border border-primary/25 shadow-2xs'
                         : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface border border-transparent'
-                    }`}
+                      }`}
                   >
                     <span className="flex items-center gap-2">
                       <span className={`material-symbols-outlined text-[17px] ${isSelected ? 'text-primary' : 'text-on-surface-variant'}`}>
@@ -643,11 +642,10 @@ export default function CatalogPage() {
                     key={cat.id}
                     type="button"
                     onClick={() => updateParam('cat', cat.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${
-                      isSelected
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${isSelected
                         ? 'bg-primary/10 text-primary font-bold border border-primary/25 shadow-2xs'
                         : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface border border-transparent'
-                    }`}
+                      }`}
                   >
                     <span className="flex items-center gap-2">
                       <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-primary scale-125' : 'bg-outline-variant'}`}></span>
@@ -803,11 +801,10 @@ export default function CatalogPage() {
                           key={p}
                           type="button"
                           onClick={() => handlePageChange(p)}
-                          className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${
-                            isActive
+                          className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${isActive
                               ? 'bg-primary text-white shadow-xs scale-105'
                               : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'
-                          }`}
+                            }`}
                         >
                           {p}
                         </button>
@@ -831,7 +828,7 @@ export default function CatalogPage() {
           )}
 
           {/* Editors Choice Promo Banner */}
-          <div 
+          <div
             style={{ background: 'linear-gradient(to right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #006B4F), var(--theme-hero-to, #124E3F))' }}
             className="my-8 rounded-2xl p-6 text-white relative overflow-hidden shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="relative z-10 max-w-xl">

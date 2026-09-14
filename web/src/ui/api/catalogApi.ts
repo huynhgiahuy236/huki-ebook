@@ -78,6 +78,20 @@ export interface CreateBookPayload {
   digitalDetails?: DigitalDetails;
 }
 
+function isUuid(val: unknown): boolean {
+  return typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+}
+
+function sanitizeBookPayload<T extends Partial<CreateBookPayload>>(payload: T): T {
+  const clean: any = { ...payload };
+  if ('categoryId' in clean && !isUuid(clean.categoryId)) delete clean.categoryId;
+  if ('authorId' in clean && !isUuid(clean.authorId)) delete clean.authorId;
+  if ('publisherId' in clean && !isUuid(clean.publisherId)) delete clean.publisherId;
+  if ('businessId' in clean && !isUuid(clean.businessId)) delete clean.businessId;
+  if ('storeId' in clean && !isUuid(clean.storeId)) delete clean.storeId;
+  return clean;
+}
+
 export const catalogApi = {
   /**
    * Lấy danh sách sách Public (cho Guest/Storefront)
@@ -150,12 +164,33 @@ export const catalogApi = {
   },
 
   /**
+   * Tạo danh mục sách mới
+   */
+  async createCategory(payload: { name: string; description?: string; parentId?: string | null }): Promise<ApiResponse<CategoryData>> {
+    return apiClient<CategoryData>('/categories', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Tạo tác giả mới
+   */
+  async createAuthor(payload: { name: string; bio?: string; avatarUrl?: string }): Promise<ApiResponse<CatalogEntity>> {
+    return apiClient<CatalogEntity>('/authors', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Tạo tác phẩm mới (Dành cho Owner)
    */
   async createBook(payload: CreateBookPayload): Promise<ApiResponse<BookData>> {
+    const cleanPayload = sanitizeBookPayload(payload);
     return apiClient<BookData>('/books', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(cleanPayload),
     });
   },
 
@@ -212,9 +247,10 @@ export const catalogApi = {
    * Cập nhật thông tin sách
    */
   async updateBook(id: string, payload: Partial<CreateBookPayload>): Promise<ApiResponse<BookData>> {
+    const cleanPayload = sanitizeBookPayload(payload);
     return apiClient<BookData>(`/books/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(cleanPayload),
     });
   },
 
