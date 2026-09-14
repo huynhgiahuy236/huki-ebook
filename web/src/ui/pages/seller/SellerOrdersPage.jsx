@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { can, PERMISSIONS } from '../../utils/permissions';
 import OrderDetailDrawer from '../../components/seller/OrderDetailDrawer';
+import OrderItemBadge from '../../components/common/OrderItemBadge';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -769,13 +770,9 @@ export default function SellerOrdersPage() {
                         {/* Format */}
                         <td className="py-4 px-3 align-top">
                           {isDigitalOnly ? (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-cyan-100 dark:bg-cyan-950/50 text-cyan-700 dark:text-cyan-300 border border-cyan-300">
-                              EBOOK DRM
-                            </span>
+                            <OrderItemBadge format="DIGITAL" />
                           ) : (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-surface-container-high text-on-surface-variant border border-outline-variant">
-                              SÁCH GIẤY
-                            </span>
+                            <OrderItemBadge format="PHYSICAL" />
                           )}
                         </td>
 
@@ -841,18 +838,15 @@ export default function SellerOrdersPage() {
                               <span className="material-symbols-outlined text-[15px]">visibility</span>
                               Xem chi tiết
                             </button>
-                            {/* Các thao tác nghiệp vụ được tập trung trong side drawer. */}
-                            {false && (
-                            <>
                             {order.status === 'PENDING_CONFIRMATION' && (
-                              <>
+                              <div className="flex items-center gap-1.5 mt-1">
                                 {can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) && (
                                   <button
                                     onClick={() => handleConfirm(order.id)}
                                     disabled={actionLoading}
-                                    className="px-3 py-1 bg-primary text-on-primary rounded text-[12px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs"
+                                    className="px-2.5 py-1 bg-primary text-on-primary rounded-lg text-[11px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                                   >
-                                    <span className="material-symbols-outlined text-[14px]">check</span>
+                                    <span className="material-symbols-outlined text-[13px]">check</span>
                                     <span>Xác nhận</span>
                                   </button>
                                 )}
@@ -860,12 +854,12 @@ export default function SellerOrdersPage() {
                                   <button
                                     onClick={() => setModalState({ type: 'CANCEL', order })}
                                     disabled={actionLoading}
-                                    className="px-2 py-0.5 text-error hover:bg-error/10 rounded text-[11px] font-medium transition-colors"
+                                    className="px-2 py-1 text-error hover:bg-error/10 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
                                   >
-                                    Hủy đơn
+                                    Hủy
                                   </button>
                                 )}
-                              </>
+                              </div>
                             )}
 
                             {order.status === 'CONFIRMED' && (
@@ -873,14 +867,12 @@ export default function SellerOrdersPage() {
                                 <button
                                   onClick={() => handlePrepare(order.id)}
                                   disabled={actionLoading}
-                                  className="px-3 py-1 bg-indigo-600 text-white rounded text-[12px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs"
+                                  className="mt-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                                 >
-                                  <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-                                  <span>Chuẩn bị kho</span>
+                                  <span className="material-symbols-outlined text-[13px]">inventory_2</span>
+                                  <span>Đóng gói</span>
                                 </button>
-                              ) : (
-                                <span className="text-[11px] text-outline italic">Đã xác nhận</span>
-                              )
+                              ) : null
                             )}
 
                             {order.status === 'PREPARING' && (
@@ -888,35 +880,35 @@ export default function SellerOrdersPage() {
                                 <button
                                   onClick={() => setModalState({ type: 'SHIP', order })}
                                   disabled={actionLoading}
-                                  className="px-3 py-1 bg-purple-600 text-white rounded text-[12px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs"
+                                  className="mt-1 px-2.5 py-1 bg-purple-600 text-white rounded-lg text-[11px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
                                 >
-                                  <span className="material-symbols-outlined text-[14px]">local_shipping</span>
-                                  <span>Giao hàng</span>
+                                  <span className="material-symbols-outlined text-[13px]">local_shipping</span>
+                                  <span>Giao bưu tá</span>
                                 </button>
-                              ) : (
-                                <span className="text-[11px] text-outline italic">Đang đóng gói</span>
-                              )
+                              ) : null
                             )}
 
                             {order.status === 'SHIPPED' && (
                               can(PERMISSIONS.ORDER_PROCESS, user?.business?.id || activeBusinessId, user) ? (
-                                <button
-                                  onClick={() => handleDeliver(order.id)}
-                                  disabled={actionLoading}
-                                  className="px-3 py-1 bg-teal-600 text-white rounded text-[12px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">task_alt</span>
-                                  <span>Đã giao xong</span>
-                                </button>
-                              ) : (
-                                <span className="text-[11px] text-outline italic">Đang giao</span>
-                              )
-                            )}
-
-                            {(order.status === 'COMPLETED' || order.status === 'CANCELLED' || order.status === 'DELIVERED') && (
-                              <span className="text-[11px] text-outline">Hoàn tất quy trình</span>
-                            )}
-                            </>
+                                <div className="flex items-center gap-1 mt-1">
+                                  <button
+                                    onClick={() => handleDeliver(order.id)}
+                                    disabled={actionLoading}
+                                    className="px-2.5 py-1 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[13px]">task_alt</span>
+                                    <span>Đã giao</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setModalState({ type: 'CANCEL', order })}
+                                    disabled={actionLoading}
+                                    className="px-2 py-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
+                                    title="Giao thất bại 3 lần - Hoàn hàng về kho"
+                                  >
+                                    Boom hàng
+                                  </button>
+                                </div>
+                              ) : null
                             )}
                           </div>
                         </td>

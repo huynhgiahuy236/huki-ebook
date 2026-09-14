@@ -117,6 +117,62 @@
         ],
         "type": "object"
       },
+      "business_ProvisionMemberDto": {
+        "properties": {
+          "email": {
+            "example": "staff@example.com",
+            "type": "string"
+          },
+          "fullName": {
+            "example": "Nguyễn Văn Nhân Viên",
+            "type": "string"
+          },
+          "initialPassword": {
+            "example": "Staff123!",
+            "type": "string"
+          },
+          "permissions": {
+            "example": [
+              "ORDER_VIEW",
+              "ORDER_PROCESS"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "phone": {
+            "example": "0987654321",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "OWNER",
+              "MANAGER",
+              "ORDER_STAFF",
+              "CONTENT_STAFF",
+              "FINANCE_STAFF"
+            ],
+            "example": "ORDER_STAFF",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "fullName",
+          "permissions"
+        ],
+        "type": "object"
+      },
+      "business_ResetMemberPasswordDto": {
+        "properties": {
+          "newPassword": {
+            "example": "Staff123!",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "business_UpdateBusinessDto": {
         "properties": {
           "address": {
@@ -129,6 +185,24 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "business_UpdateMemberPermissionsDto": {
+        "properties": {
+          "permissions": {
+            "example": [
+              "ORDER_VIEW",
+              "ORDER_PROCESS"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "permissions"
+        ],
         "type": "object"
       },
       "business_UpdateMemberRoleDto": {
@@ -146,6 +220,24 @@
         },
         "required": [
           "role"
+        ],
+        "type": "object"
+      },
+      "business_UpdateMemberStatusDto": {
+        "properties": {
+          "status": {
+            "enum": [
+              "PENDING_INVITATION",
+              "INVITATION_EXPIRED",
+              "ACTIVE",
+              "SUSPENDED"
+            ],
+            "example": "ACTIVE",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
         ],
         "type": "object"
       },
@@ -269,6 +361,17 @@
       },
       "commerce_CreateBookDto": {
         "properties": {
+          "businessId": {
+            "description": "Business that owns this book/storefront",
+            "format": "uuid",
+            "type": "string"
+          },
+          "coverImage": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
@@ -307,11 +410,7 @@
           }
         },
         "required": [
-          "storeId",
-          "title",
-          "description",
-          "price",
-          "format"
+          "title"
         ],
         "type": "object"
       },
@@ -406,6 +505,10 @@
           },
           "digitalEnabled": {
             "default": false,
+            "type": "boolean"
+          },
+          "drmEnabled": {
+            "default": true,
             "type": "boolean"
           }
         },
@@ -539,6 +642,17 @@
       },
       "commerce_UpdateBookDto": {
         "properties": {
+          "businessId": {
+            "description": "Business that owns this book/storefront",
+            "format": "uuid",
+            "type": "string"
+          },
+          "coverImage": {
+            "type": "string"
+          },
+          "coverUrl": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
@@ -619,6 +733,10 @@
           },
           "digitalEnabled": {
             "default": false,
+            "type": "boolean"
+          },
+          "drmEnabled": {
+            "default": true,
             "type": "boolean"
           }
         },
@@ -2785,6 +2903,16 @@
             }
           },
           {
+            "description": "Business storefront owner",
+            "in": "query",
+            "name": "business",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
             "in": "query",
             "name": "format",
             "required": false,
@@ -3436,6 +3564,142 @@
         ]
       }
     },
+    "/api/v1/books/owned": {
+      "get": {
+        "operationId": "BooksController_findOwned",
+        "parameters": [
+          {
+            "description": "Title, ISBN, author or publisher",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Category UUID or slug",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Author UUID or slug",
+            "in": "query",
+            "name": "author",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Publisher UUID or slug",
+            "in": "query",
+            "name": "publisher",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "store",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Business storefront owner",
+            "in": "query",
+            "name": "business",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "enum": [
+                "PHYSICAL",
+                "DIGITAL",
+                "BOTH"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minPrice",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maxPrice",
+            "required": false,
+            "schema": {
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sortBy",
+            "required": false,
+            "schema": {
+              "default": "createdAt",
+              "enum": [
+                "createdAt",
+                "publishedAt",
+                "price",
+                "title"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "DESC",
+              "enum": [
+                "ASC",
+                "DESC"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List books manageable by the signed-in seller, including private inventory",
+        "tags": [
+          "Books"
+        ]
+      }
+    },
     "/api/v1/books/slug/{slug}": {
       "get": {
         "operationId": "BooksController_findBySlug",
@@ -3686,6 +3950,100 @@
         ]
       }
     },
+    "/api/v1/businesses/{businessId}/members/{memberId}/permissions": {
+      "patch": {
+        "operationId": "MemberController_updateMemberPermissions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/business_UpdateMemberPermissionsDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update member permissions (Owner only)",
+        "tags": [
+          "Members"
+        ]
+      }
+    },
+    "/api/v1/businesses/{businessId}/members/{memberId}/reset-password": {
+      "post": {
+        "operationId": "MemberController_resetMemberPassword",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/business_ResetMemberPasswordDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reset member password (Owner only)",
+        "tags": [
+          "Members"
+        ]
+      }
+    },
     "/api/v1/businesses/{businessId}/members/{memberId}/role": {
       "patch": {
         "operationId": "MemberController_updateMemberRole",
@@ -3733,6 +4091,53 @@
         ]
       }
     },
+    "/api/v1/businesses/{businessId}/members/{memberId}/status": {
+      "patch": {
+        "operationId": "MemberController_updateMemberStatus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/business_UpdateMemberStatusDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Update member status (Owner only)",
+        "tags": [
+          "Members"
+        ]
+      }
+    },
     "/api/v1/businesses/{businessId}/members/invite": {
       "post": {
         "operationId": "MemberController_inviteMember",
@@ -3767,6 +4172,45 @@
           }
         ],
         "summary": "Invite a new member",
+        "tags": [
+          "Members"
+        ]
+      }
+    },
+    "/api/v1/businesses/{businessId}/members/provision": {
+      "post": {
+        "operationId": "MemberController_provisionMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "businessId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/business_ProvisionMemberDto"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Provision a new member directly (Owner only)",
         "tags": [
           "Members"
         ]
@@ -3894,6 +4338,66 @@
         ]
       }
     },
+    "/api/v1/businesses/{id}/follow": {
+      "delete": {
+        "description": "Removes the business from the user's followed list.",
+        "operationId": "BusinessController_unfollowBusiness",
+        "parameters": [
+          {
+            "description": "Business ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unfollow a business/publisher",
+        "tags": [
+          "Business"
+        ]
+      },
+      "post": {
+        "description": "Adds the business to the user's followed list.",
+        "operationId": "BusinessController_followBusiness",
+        "parameters": [
+          {
+            "description": "Business ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Follow a business/publisher",
+        "tags": [
+          "Business"
+        ]
+      }
+    },
     "/api/v1/businesses/{id}/reject": {
       "post": {
         "description": "Admin endpoint: Rejects a pending business. Requires PLATFORM_ADMIN role.",
@@ -3932,6 +4436,80 @@
           }
         ],
         "summary": "Reject business",
+        "tags": [
+          "Business"
+        ]
+      }
+    },
+    "/api/v1/businesses/admin/all": {
+      "get": {
+        "operationId": "BusinessController_getAllBusinessesForAdmin",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List businesses for platform administration",
+        "tags": [
+          "Business"
+        ]
+      }
+    },
+    "/api/v1/businesses/following/my": {
+      "get": {
+        "description": "Returns a list of business IDs followed by the logged-in user.",
+        "operationId": "BusinessController_getMyFollowedBusinesses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "List of followed business IDs"
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get IDs of businesses followed by current user",
         "tags": [
           "Business"
         ]
@@ -8209,6 +8787,59 @@
         "summary": "Create a store review",
         "tags": [
           "Reviews"
+        ]
+      }
+    },
+    "/api/v1/stores/admin/all": {
+      "get": {
+        "operationId": "StoreController_getAllStoresForAdmin",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List stores for platform administration",
+        "tags": [
+          "Stores"
         ]
       }
     },

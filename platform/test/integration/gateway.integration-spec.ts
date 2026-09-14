@@ -1,3 +1,5 @@
+export {};
+
 const gateway = process.env.GATEWAY_URL ?? 'http://localhost:3000/api/v1';
 
 interface ApiResponse {

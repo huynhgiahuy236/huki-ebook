@@ -2,6 +2,9 @@ import { MemberService } from "./member.service";
 
 describe("MemberService", () => {
   const mockPrisma = {
+    business: {
+      findFirst: jest.fn(),
+    },
     invitation: {
       findFirst: jest.fn(),
       findUnique: jest.fn(),
@@ -20,7 +23,10 @@ describe("MemberService", () => {
   const email = { sendInvitationEmail: jest.fn() };
   const service = new MemberService(mockPrisma as any, email as any);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.resetAllMocks();
+    mockPrisma.business.findFirst.mockResolvedValue(null);
+  });
 
   describe("inviteMember", () => {
     it("normalizes the email and sends an invitation link", async () => {
@@ -66,7 +72,15 @@ describe("MemberService", () => {
 
       const result = await service.getMembers("business-1", "user-1");
 
-      expect(result.data).toEqual(mockMembers);
+      expect(result.data).toEqual(
+        mockMembers.map((member) => ({
+          ...member,
+          user: expect.objectContaining({
+            fullName: expect.any(String),
+            email: expect.any(String),
+          }),
+        })),
+      );
     });
   });
 
@@ -77,7 +91,7 @@ describe("MemberService", () => {
 
       const result = await service.getMember("business-1", "member-1");
 
-      expect(result).toEqual(mockMember);
+      expect(result).toEqual({ ...mockMember, user: null });
     });
 
     it("should throw NotFound when member not found", async () => {

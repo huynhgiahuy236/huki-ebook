@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 import type { BusinessData, StoreData } from './businessApi';
+import type { BookData } from './catalogApi';
 
 export interface AdminServiceCheck {
   service: string;
@@ -123,7 +124,7 @@ export const adminApi = {
   /**
    * Lấy danh sách sách toàn sàn dành cho Admin
    */
-  async getBooks(params: AdminBookFilter = {}): Promise<ApiResponse<any[]>> {
+  async getBooks(params: AdminBookFilter = {}): Promise<ApiResponse<BookData[]>> {
     const query = new URLSearchParams();
     if (params.status) query.append('status', params.status);
     if (params.search) query.append('search', params.search);
@@ -133,7 +134,7 @@ export const adminApi = {
     if (params.limit) query.append('limit', String(params.limit || 50));
 
     const qs = query.toString();
-    return apiClient<any[]>(`/books${qs ? `?${qs}` : ''}`, {
+    return apiClient<BookData[]>(`/books${qs ? `?${qs}` : ''}`, {
       method: 'GET',
     });
   },
@@ -141,8 +142,8 @@ export const adminApi = {
   /**
    * Khóa / Đình chỉ sách vi phạm chính sách nền tảng (PLATFORM_ADMIN only)
    */
-  async suspendBook(bookId: string): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/books/${bookId}/suspend`, {
+  async suspendBook(bookId: string): Promise<ApiResponse<BookData>> {
+    return apiClient<BookData>(`/books/${bookId}/suspend`, {
       method: 'POST',
     });
   },
@@ -150,8 +151,8 @@ export const adminApi = {
   /**
    * Mở khóa / Kích hoạt lại sách
    */
-  async activateBook(bookId: string): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/books/${bookId}/publish`, {
+  async activateBook(bookId: string): Promise<ApiResponse<BookData>> {
+    return apiClient<BookData>(`/books/${bookId}/publish`, {
       method: 'POST',
     });
   },
@@ -198,7 +199,7 @@ export const adminApi = {
       const pendingStores = stores.filter(s => s.status === 'PENDING_APPROVAL').length;
       const approvedStores = stores.filter(s => s.status === 'APPROVED').length;
       const suspendedBooks = books.filter(b => b.status === 'SUSPENDED').length;
-      const activeBooks = books.filter(b => b.status === 'ACTIVE' || b.status === 'PUBLISHED').length;
+      const activeBooks = books.filter(b => b.status === 'PUBLISHED').length;
 
       let healthStatus: 'ok' | 'degraded' | 'down' = 'ok';
       if (!health || health.status !== 'ok') {
@@ -220,10 +221,15 @@ export const adminApi = {
           healthStatus,
         },
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         success: false,
-        error: error?.message || 'Không thể lấy số liệu thống kê quản trị',
+        error: {
+          code: 'ADMIN_STATS_FAILED',
+          message: error instanceof Error
+            ? error.message
+            : 'Không thể lấy số liệu thống kê quản trị',
+        },
       };
     }
   },

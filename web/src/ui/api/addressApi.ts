@@ -25,7 +25,7 @@ export interface CreateAddressPayload {
   isDefault?: boolean;
 }
 
-export interface UpdateAddressPayload extends Partial<CreateAddressPayload> {}
+export type UpdateAddressPayload = Partial<CreateAddressPayload>;
 
 export const addressApi = {
   getAddresses: async (): Promise<ApiResponse<UserAddress[]>> => {

@@ -29,9 +29,10 @@ export default function BookCard({
   const discountLabel = book.discount ?? (book.discountPercent ? `-${book.discountPercent}%` : null);
   const rating = book.rating ?? 5.0;
   const reviewCount = book.reviewCount ?? book.reviews ?? book.sales ?? '0';
-  const publisher = book.publisher ?? book.shop ?? 'HUKI Publisher';
-  const format = book.format ?? (book.hasEbook && book.hasPaper ? 'Combo' : book.hasEbook ? 'Ebook' : 'Sách giấy');
+  const publisher = (typeof book.publisher === 'object' && book.publisher !== null) ? (book.publisher.displayName || book.publisher.name) : (book.publisher ?? book.shop ?? 'HUKI Publisher');
+  const format = (typeof book.format === 'object' && book.format !== null) ? book.format.name : (book.format ?? (book.hasEbook && book.hasPaper ? 'Combo' : book.hasEbook ? 'Ebook' : 'Sách giấy'));
   const formatType = book.formatType ?? (book.hasEbook && !book.hasPaper ? 'ebook' : book.hasPaper && !book.hasEbook ? 'physical' : 'hybrid');
+  const authorName = (typeof book.author === 'object' && book.author !== null) ? book.author.name : (book.author || book.authorName || 'Tác giả');
 
   const handleCardClick = (e) => {
     if (isMock) return;
@@ -67,8 +68,8 @@ export default function BookCard({
     );
   };
 
-  const mockClasses = isMock 
-    ? 'opacity-40 pointer-events-none select-none relative cursor-not-allowed' 
+  const mockClasses = isMock
+    ? 'opacity-40 pointer-events-none select-none relative cursor-not-allowed'
     : 'cursor-pointer';
 
   // 1. LIST VARIANT (Catalog List Mode)
@@ -89,7 +90,7 @@ export default function BookCard({
             <BookCover
               src={book.cover || book.coverUrl}
               title={book.title}
-              author={book.author || book.authorName}
+              author={authorName}
               className="group-hover:scale-105 transition-transform duration-300"
             />
             {format && (
@@ -111,7 +112,7 @@ export default function BookCard({
             <h3 className="font-bold text-sm text-theme-text group-hover:text-theme-secondary transition-colors line-clamp-1 truncate leading-snug">
               {book.title}
             </h3>
-            <p className="text-xs text-theme-text-muted mt-0.5 truncate">{book.author || book.authorName}</p>
+            <p className="text-xs text-theme-text-muted mt-0.5 truncate">{authorName}</p>
 
             <div className="flex items-center gap-1.5 mt-1.5 text-xs text-theme-text">
               <span className="material-symbols-outlined text-amber-500 text-[15px] fill-current">star</span>
@@ -178,7 +179,7 @@ export default function BookCard({
             <BookCover
               src={book.cover || book.coverUrl}
               title={book.title}
-              author={book.author || book.authorName}
+              author={authorName}
               className="group-hover:scale-105 transition-transform duration-300"
             />
             {format && (
@@ -205,7 +206,7 @@ export default function BookCard({
           >
             {book.title}
           </h4>
-          <span className="text-[11px] text-theme-text-muted truncate mt-0.5 block">{book.author || book.authorName}</span>
+          <span className="text-[11px] text-theme-text-muted truncate mt-0.5 block">{authorName}</span>
         </div>
 
         <div className="mt-2 pt-1.5 border-t border-theme-border/40 flex items-center justify-between gap-1">
@@ -265,7 +266,7 @@ export default function BookCard({
           <BookCover
             src={book.cover || book.coverUrl}
             title={book.title}
-            author={book.author || book.authorName}
+            author={authorName}
             className="group-hover:scale-105 transition-transform duration-500"
           />
 
@@ -301,7 +302,7 @@ export default function BookCard({
 
         {/* Author */}
         <p className="text-xs text-theme-text-muted truncate mb-2">
-          {book.author || book.authorName}
+          {authorName}
         </p>
 
         {/* Rating & Review Count */}

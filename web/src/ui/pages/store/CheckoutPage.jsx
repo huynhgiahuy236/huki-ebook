@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -8,6 +8,8 @@ import { cartApi } from '../../api/cartApi';
 import { checkoutApi } from '../../api/checkoutApi';
 import CustomLocationSelector from '../../components/common/CustomLocationSelector';
 import AddressMapPreview from '../../components/common/AddressMapPreview';
+import OrderItemBadge from '../../components/common/OrderItemBadge';
+import { calculateShippingFee, getLocationByName } from '../../data/vietnamLocations';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
@@ -130,8 +132,14 @@ export default function CheckoutPage() {
   }, [isLoggedIn, checkedItems.length, hasPhysicalItems, activeAddress, note]);
 
   // Calculations
+  const buyerLocation = getLocationByName(activeAddress.province || 'Hồ Chí Minh');
+  const buyerZone = buyerLocation?.zone || 'SOUTH';
+  const shippingResult = calculateShippingFee('SOUTH', buyerZone);
+  const baseCalculatedFee = shippingResult?.fee || 28000;
   const rawSubtotal = checkedSubtotal;
-  const shippingFee = hasPhysicalItems ? (shippingMethod === 'express' ? 35000 : 20000) : 0;
+  const shippingFee = hasPhysicalItems
+    ? (shippingMethod === 'express' ? Math.max(35000, baseCalculatedFee + 15000) : baseCalculatedFee)
+    : 0;
   const voucherDiscount = rawSubtotal >= 300000 ? 30000 : 0;
   const grandTotal = Math.max(0, rawSubtotal - voucherDiscount + shippingFee);
 
@@ -817,9 +825,12 @@ export default function CheckoutPage() {
                         <span className="font-bold text-[var(--theme-text,#1c1b1f)] line-clamp-1 block">
                           {item.title}
                         </span>
-                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-                          x{item.quantity} · {item.format}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                            x{item.quantity}
+                          </span>
+                          <OrderItemBadge format={item.format || item.type} className="scale-90 origin-left" />
+                        </div>
                       </div>
                     </div>
                     <span className="font-bold text-[var(--theme-text,#1c1b1f)] shrink-0">

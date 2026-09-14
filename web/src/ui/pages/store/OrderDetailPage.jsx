@@ -3,6 +3,8 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { orderApi } from '../../api/orderApi';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import OrderItemBadge from '../../components/common/OrderItemBadge';
+import EscrowCountdown from '../../components/order/EscrowCountdown';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -15,6 +17,8 @@ export default function OrderDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showCodQrModal, setShowCodQrModal] = useState(false);
+  const [settledEscrowStores, setSettledEscrowStores] = useState({});
 
   const fetchOrderDetail = useCallback(async () => {
     if (!id) return;
@@ -33,10 +37,60 @@ export default function OrderDetailPage() {
           setTrackingInfo(trackRes.data);
         }
       } else {
-        setNotFound(true);
+        // Fallback: fetch all buyer orders and find by id or code
+        try {
+          const listRes = await orderApi.getBuyerOrders({ page: 1, limit: 50 });
+          if (listRes.success && listRes.data) {
+            const rawData = listRes.data;
+            const items = Array.isArray(rawData)
+              ? rawData
+              : Array.isArray(rawData.data)
+              ? rawData.data
+              : Array.isArray(rawData.items)
+              ? rawData.items
+              : [];
+            const matched = items.find(
+              (o) => o.id === id || o.code === id || o.code?.toLowerCase() === id?.toLowerCase()
+            );
+            if (matched) {
+              setOrder(matched);
+            } else {
+              setNotFound(true);
+            }
+          } else {
+            setNotFound(true);
+          }
+        } catch {
+          setNotFound(true);
+        }
       }
     } catch {
-      setNotFound(true);
+      // Fallback: try listing orders when direct fetch fails entirely
+      try {
+        const listRes = await orderApi.getBuyerOrders({ page: 1, limit: 50 });
+        if (listRes.success && listRes.data) {
+          const rawData = listRes.data;
+          const items = Array.isArray(rawData)
+            ? rawData
+            : Array.isArray(rawData.data)
+            ? rawData.data
+            : Array.isArray(rawData.items)
+            ? rawData.items
+            : [];
+          const matched = items.find(
+            (o) => o.id === id || o.code === id || o.code?.toLowerCase() === id?.toLowerCase()
+          );
+          if (matched) {
+            setOrder(matched);
+          } else {
+            setNotFound(true);
+          }
+        } else {
+          setNotFound(true);
+        }
+      } catch {
+        setNotFound(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -481,13 +535,13 @@ export default function OrderDetailPage() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-editorial text-sm sm:text-base font-bold text-on-surface leading-snug">
-                          {item.bookTitle}
-                        </h4>
-                        <div className="flex flex-wrap items-center gap-2 mt-2">
-                          <span className="inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-theme-surface-subtle text-on-surface-variant border border-theme-border">
-                            {item.format === 'DIGITAL' ? 'Sách Điện Tử (Ebook DRM)' : 'Sách In Bìa Cứng'}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <h4 className="font-editorial text-sm sm:text-base font-bold text-on-surface leading-snug">
+                            {item.bookTitle}
+                          </h4>
+                          <OrderItemBadge format={item.format} />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
                           {item.bookIsbn && (
                             <span className="text-[11px] text-on-surface-variant font-mono">
                               ISBN: {item.bookIsbn}
@@ -512,6 +566,28 @@ export default function OrderDetailPage() {
                     </div>
                   ))}
                 </div>
+
+                {/* 2-Minute Escrow Holding Countdown if Delivered */}
+                {(so.status === 'DELIVERED' || order.status === 'DELIVERED' || isDelivered) && (
+                  <div className="mt-5 pt-5 border-t border-theme-border">
+                    <EscrowCountdown
+                      orderId={order.id}
+                      subOrderId={so.id}
+                      storeName={so.business?.displayName || so.business?.name || `Gian Hàng #${sIdx + 1}`}
+                      amount={so.grandTotal || order.grandTotal}
+                      onReleaseEscrow={({ subOrderId, auto }) => {
+                        setSettledEscrowStores((prev) => ({ ...prev, [subOrderId || so.id]: true }));
+                        showToast(
+                          {
+                            title: auto ? 'Hết hạn ký quỹ 2 phút' : 'Xác nhận thành công!',
+                            message: `Đã hoàn tất giải ngân cho gian hàng #${so.code}.`,
+                          },
+                          'success'
+                        );
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             ))}
 
@@ -643,15 +719,88 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
 
-                <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base shrink-0">payments</span>
-                  <span>Phương thức: <b>COD (Thanh toán tiền mặt khi nhận hàng)</b></span>
+                <div className="mt-4 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base shrink-0">payments</span>
+                    <span>Phương thức: <b>COD (Thanh toán khi nhận hàng)</b></span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCodQrModal(true)}
+                    className="px-2 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[12px]">qr_code_2</span>
+                    <span>Quét QR</span>
+                  </button>
                 </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* PayOS COD Simulated QR Modal */}
+      {showCodQrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-[var(--theme-surface,#ffffff)] rounded-3xl border border-[var(--theme-border,#e8e5df)] p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--theme-border,#e8e5df)]">
+              <div className="flex items-center gap-2">
+                <span className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">
+                  <span className="material-symbols-outlined text-[16px]">qr_code_scanner</span>
+                </span>
+                <h3 className="font-editorial text-base font-bold text-on-surface">
+                  Thanh Toán COD Qua PayOS QR
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCodQrModal(false)}
+                className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-on-surface-variant cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="text-center py-2 space-y-3">
+              <p className="text-xs text-on-surface-variant">
+                Quét mã VietQR dưới đây để thanh toán trực tiếp cho bưu tá khi nhận kiện hàng.
+              </p>
+
+              {/* QR Code Container */}
+              <div className="w-48 h-48 mx-auto bg-white p-3 rounded-2xl border-2 border-emerald-600/30 shadow-inner flex flex-col items-center justify-center">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=PAYOS_COD_${order.code}_${order.grandTotal}`}
+                  alt="PayOS COD QR"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+
+              <div className="bg-[var(--theme-surface-subtle,#f4f3ef)] p-3 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Số tiền thanh toán:</span>
+                  <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                    {Number(order.grandTotal).toLocaleString('vi-VN')}₫
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">Nội dung chuyển:</span>
+                  <span className="font-mono font-bold text-on-surface">HUKI {order.code}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCodQrModal(false)}
+                className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs"
+              >
+                Đã Thanh Toán Xong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -38,7 +38,7 @@ export default function AppLayout() {
         toggleSidebar
       }}
     >
-      <div className="bg-background text-on-surface flex flex-col antialiased selection:bg-tertiary-fixed selection:text-on-tertiary-fixed font-sans min-h-screen pb-14 lg:pb-0">
+      <div className="storefront-portal bg-background text-on-surface flex flex-col antialiased selection:bg-tertiary-fixed selection:text-on-tertiary-fixed font-sans min-h-screen pb-14 lg:pb-0">
         {/* Unified E-Commerce Header */}
         <StoreHeader
           onToggleSidebar={toggleSidebar}

@@ -3,6 +3,8 @@
  * T20.4-T20.8: Core API Flow Tests
  */
 
+export {};
+
 const GATEWAY = process.env.GATEWAY_URL ?? 'http://localhost:3000/api/v1';
 
 interface ApiResponse {
@@ -145,14 +147,14 @@ describe('Error Scenarios', () => {
     const { response, body } = await apiCall('/cart');
     expect(response.status).toBe(401);
     expect(body.status).toBe('error');
-    expect(body.code).toBe('AUTH_TOKEN_INVALID');
+    expect(body.code).toBe('AUTH_TOKEN_MISSING');
   });
 
   it('returns 401 for protected orders endpoint without auth', async () => {
     const { response, body } = await apiCall('/orders');
     expect(response.status).toBe(401);
     expect(body.status).toBe('error');
-    expect(body.code).toBe('AUTH_TOKEN_INVALID');
+    expect(body.code).toBe('AUTH_TOKEN_MISSING');
   });
 
   it('returns error for protected addresses endpoint without auth', async () => {

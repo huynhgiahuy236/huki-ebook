@@ -124,12 +124,12 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
         </div>
       </div>
 
-      {/* Main Header Bar (h-[62px]) */}
-      <div className="h-[62px] w-full pr-4 md:pr-6 pl-0 flex items-center justify-between gap-3 lg:gap-6 shrink-0">
+      {/* Main Header Bar (h-[54px]) */}
+      <div className="h-[54px] w-full pr-4 md:pr-6 pl-0 flex items-center justify-between gap-3 lg:gap-5 shrink-0">
         {/* Left: Sidebar Toggle & Brand Logo */}
         <div className="flex items-center">
-          {/* Hamburger / Sidebar Toggle Button Box (68px width matches mini-rail center alignment) */}
-          <div className="w-[56px] lg:w-[68px] flex items-center justify-center shrink-0">
+          {/* Hamburger / Sidebar Toggle Button Box (56px/60px width matches mini-rail center alignment) */}
+          <div className="w-[52px] lg:w-[60px] flex items-center justify-center shrink-0">
             <button
               onClick={() => {
                 if (window.innerWidth < 1024) {
@@ -138,25 +138,25 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
                   if (onToggleSidebar) onToggleSidebar();
                 }
               }}
-              className="w-10 h-10 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-primary hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-primary hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer"
               title={isSidebarCollapsed ? 'Mở rộng menu điều hướng' : 'Thu gọn menu điều hướng'}
               aria-label="Toggle Sidebar Navigation"
             >
-              <span className="material-symbols-outlined text-[22px] transition-transform duration-200">
+              <span className="material-symbols-outlined text-[18px] transition-transform duration-200">
                 {isSidebarCollapsed ? 'menu' : 'menu_open'}
               </span>
             </button>
           </div>
 
-          <Link to="/" className="flex items-center gap-2.5 group pr-2">
-            <div className="w-10 h-10 rounded-xl bg-[var(--theme-primary,#003b2b)] flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform shrink-0">
-              <span className="material-symbols-outlined text-xl">menu_book</span>
+          <Link to="/" className="flex items-center gap-2 group pr-2">
+            <div className="w-8 h-8 rounded-xl bg-[var(--theme-primary,#003b2b)] flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform shrink-0">
+              <span className="material-symbols-outlined text-lg">menu_book</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-editorial text-xl md:text-2xl font-bold tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
+              <span className="font-editorial text-lg md:text-xl font-bold tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
                 HUKI EBOOK
               </span>
-              <span className="text-[9px] md:text-[10px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+              <span className="text-[8px] md:text-[9px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
                 Sách Số &amp; Sách In
               </span>
             </div>
@@ -166,22 +166,22 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
         {/* Global Semantic Search Bar (Lengthened & Centered) */}
         <div ref={searchContainerRef} className="flex-1 max-w-2xl mx-2 lg:mx-4 relative hidden md:block">
           <form onSubmit={handleSearch}>
-            <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-xl px-4 py-2 focus-within:border-[var(--theme-primary,#003b2b)] focus-within:bg-[var(--theme-surface,#ffffff)] focus-within:ring-2 focus-within:ring-[var(--theme-primary,#003b2b)]/15 transition-all shadow-2xs">
-              <span className="material-symbols-outlined text-[var(--theme-text-muted,#6b7280)] text-lg mr-2.5 shrink-0">search</span>
+            <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-xl px-3 py-1.5 focus-within:border-[var(--theme-primary,#003b2b)] focus-within:bg-[var(--theme-surface,#ffffff)] focus-within:ring-2 focus-within:ring-[var(--theme-primary,#003b2b)]/15 transition-all shadow-2xs">
+              <span className="material-symbols-outlined text-[var(--theme-text-muted,#6b7280)] text-base mr-2 shrink-0">search</span>
               <input
                 type="text"
-                placeholder="Tìm kiếm tác phẩm, tác giả, ISBN, bài review hoặc chủ đề..."
+                placeholder="Tìm tác phẩm, tác giả, ISBN, chủ đề..."
                 value={searchQuery}
                 onFocus={() => setShowSearchSuggestions(true)}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
                   setShowSearchSuggestions(true);
                 }}
-                className="w-full bg-transparent border-none outline-none text-xs md:text-sm text-[var(--theme-text,#17201f)] placeholder-[var(--theme-text-muted,#6b7280)]"
+                className="w-full bg-transparent border-none outline-none text-xs text-[var(--theme-text,#17201f)] placeholder-[var(--theme-text-muted,#6b7280)]"
               />
               <button
                 type="submit"
-                className="bg-[var(--theme-accent,#ac2c19)] text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-[var(--theme-accent-hover,#8e1404)] transition-colors ml-2 shrink-0 cursor-pointer shadow-xs"
+                className="bg-[var(--theme-accent,#ac2c19)] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[var(--theme-accent-hover,#8e1404)] transition-colors ml-1.5 shrink-0 cursor-pointer shadow-xs"
               >
                 Tìm
               </button>
@@ -190,8 +190,8 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
 
           {/* Live Search Autocomplete Popover */}
           {showSearchSuggestions && searchQuery.trim().length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-[var(--theme-surface,#ffffff)] rounded-2xl shadow-2xl border border-[var(--theme-border,#e8e5df)] p-3 z-50 animate-fade-in-up text-xs overflow-hidden">
-              <div className="text-[11px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider px-2 py-1 flex items-center justify-between">
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-[var(--theme-surface,#ffffff)] rounded-xl shadow-xl border border-[var(--theme-border,#e8e5df)] p-2.5 z-50 animate-fade-in-up text-xs overflow-hidden">
+              <div className="text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider px-2 py-0.5 flex items-center justify-between">
                 <span>Gợi ý tác phẩm</span>
                 <span>{searchResults.length} kết quả</span>
               </div>

@@ -61,7 +61,7 @@ export default function BookDetailPage() {
   const book = useMemo(() => {
     if (realBook) {
       const authorName = typeof realBook.author === 'object' ? realBook.author?.name : (realBook.author || 'Tác giả HUKI');
-      const publisherName = typeof realBook.publisher === 'object' ? realBook.publisher?.name : (realBook.publisher || storeInfo?.name || 'Alpha Books Official');
+      const publisherName = typeof realBook.publisher === 'object' ? realBook.publisher?.name : (realBook.publisher || realBook.business?.displayName || realBook.business?.name || storeInfo?.name || 'Gian Hàng HUKI');
       const categoryName = typeof realBook.category === 'object' ? realBook.category?.name : (realBook.category || 'Công nghệ & Đổi mới');
       const priceVal = typeof realBook.price === 'number' ? realBook.price : 150000;
       const originalPriceVal = typeof realBook.originalPrice === 'number' ? realBook.originalPrice : Math.round(priceVal * 1.25);
@@ -70,7 +70,7 @@ export default function BookDetailPage() {
         id: realBook.id,
         title: realBook.title || 'Sách Tuyển Chọn',
         author: authorName || 'Tác giả HUKI',
-        publisher: publisherName || 'Alpha Books Official',
+        publisher: publisherName || 'Gian Hàng HUKI',
         category: categoryName || 'Công nghệ & Đổi mới',
         isbn: realBook.isbn || '978-604-58-9123-4',
         cover: realBook.coverUrl || realBook.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600',
@@ -94,14 +94,14 @@ export default function BookDetailPage() {
     return {
       ...baseBook,
       author: typeof baseBook.author === 'object' ? baseBook.author?.name : (baseBook.author || 'Tác giả HUKI'),
-      publisher: typeof baseBook.publisher === 'object' ? baseBook.publisher?.name : (baseBook.publisher || 'Alpha Books Official'),
+      publisher: typeof baseBook.publisher === 'object' ? baseBook.publisher?.name : (baseBook.publisher || 'Gian Hàng HUKI'),
       category: typeof baseBook.category === 'object' ? baseBook.category?.name : (baseBook.category || 'Công nghệ & Đổi mới')
     };
   }, [id, realBook, storeInfo]);
 
   // Hồ sơ đối tác Nhà xuất bản / Gian hàng
   const publisherProfile = useMemo(() => {
-    const defaultName = book.publisher || 'Alpha Books Official';
+    const defaultName = book.publisher || 'Gian Hàng HUKI';
     if (storeInfo) {
       return {
         id: storeInfo.id,
@@ -184,6 +184,8 @@ export default function BookDetailPage() {
       bookId: book.id,
       title: book.title,
       author: book.author,
+      publisher: book.publisher || storeInfo?.name || publisherProfile?.name,
+      storeId: realBook?.businessId || realBook?.storeId || storeInfo?.id || publisherProfile?.id,
       price: currentPrice.price,
       originalPrice: currentPrice.originalPrice,
       format: currentPrice.title,

@@ -39,7 +39,14 @@ export interface UserSession {
   mustChangePassword?: boolean;
   memberships?: BusinessMembership[];
   avatarUrl?: string;
-  business?: any;
+  business?: {
+    id: string;
+    name?: string;
+    currentMember?: {
+      role: string;
+      permissions?: string[];
+    };
+  };
   hasApprovedBusiness?: boolean;
 }
 

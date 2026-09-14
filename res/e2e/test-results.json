@@ -1,0 +1,361 @@
+{
+  "timestamp": "2026-09-14T07:42:08.512Z",
+  "summary": {
+    "totalPass": 41,
+    "totalFail": 0,
+    "totalSkip": 0,
+    "totalInfo": 2,
+    "passRate": "100.0"
+  },
+  "results": {
+    "auth": {
+      "pass": 10,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-AUTH-001",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Login sai password"
+        },
+        {
+          "name": "TC-AUTH-002",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Login email không tồn tại"
+        },
+        {
+          "name": "TC-AUTH-003",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Token không hợp lệ"
+        },
+        {
+          "name": "TC-AUTH-004",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Không có token"
+        },
+        {
+          "name": "TC-AUTH-005",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Email không hợp lệ"
+        },
+        {
+          "name": "TC-AUTH-006",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 409,
+          "detail": "Email trùng"
+        },
+        {
+          "name": "TC-AUTH-007",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Password yếu bị từ chối"
+        },
+        {
+          "name": "TC-AUTH-008",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Thiếu fullName/phone"
+        },
+        {
+          "name": "TC-AUTH-009",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Logout với invalid token"
+        },
+        {
+          "name": "TC-AUTH-010",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 401,
+          "detail": "Refresh với token không hợp lệ"
+        }
+      ]
+    },
+    "business": {
+      "pass": 7,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-BIZ-001",
+          "status": "PASS",
+          "expected": "201",
+          "actual": 201,
+          "detail": "USER được nộp hồ sơ; quyền approve được kiểm tra riêng"
+        },
+        {
+          "name": "TC-BIZ-001B",
+          "status": "PASS",
+          "expected": "403/409",
+          "actual": 409,
+          "detail": "Một user không được tạo business thứ hai"
+        },
+        {
+          "name": "TC-BIZ-002",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 409,
+          "detail": "Tax code trùng"
+        },
+        {
+          "name": "TC-BIZ-003",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Thiếu fields bắt buộc"
+        },
+        {
+          "name": "TC-BIZ-004",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Owner tự approve"
+        },
+        {
+          "name": "TC-BIZ-005",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Non-admin approve business"
+        },
+        {
+          "name": "TC-BIZ-006",
+          "status": "PASS",
+          "expected": "2xx",
+          "actual": 200,
+          "detail": "Admin reject business"
+        }
+      ]
+    },
+    "catalog": {
+      "pass": 6,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-CAT-001",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Guest tạo book"
+        },
+        {
+          "name": "TC-CAT-002",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 403,
+          "detail": "Thiếu title"
+        },
+        {
+          "name": "TC-CAT-003",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 403,
+          "detail": "Format không hợp lệ"
+        },
+        {
+          "name": "TC-CAT-004",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 403,
+          "detail": "Price = 0 bị từ chối"
+        },
+        {
+          "name": "TC-CAT-005",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 409,
+          "detail": "Publish đã publish"
+        },
+        {
+          "name": "TC-CAT-006",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Guest publish book người khác"
+        }
+      ]
+    },
+    "cart": {
+      "pass": 4,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-CART-001",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Checkout cart rỗng"
+        },
+        {
+          "name": "TC-CART-002",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Session không tồn tại"
+        },
+        {
+          "name": "TC-CART-003",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Address thiếu fields"
+        },
+        {
+          "name": "TC-CART-004",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 400,
+          "detail": "Payment method không hợp lệ"
+        }
+      ]
+    },
+    "order": {
+      "pass": 4,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-ORD-001",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Buyer confirm order"
+        },
+        {
+          "name": "TC-ORD-002",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 409,
+          "detail": "Ship chưa confirm"
+        },
+        {
+          "name": "TC-ORD-003",
+          "status": "PASS",
+          "expected": "4xx",
+          "actual": 409,
+          "detail": "Cancel đã deliver"
+        },
+        {
+          "name": "TC-ORD-004",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Staff ORDER_VIEW confirm"
+        }
+      ]
+    },
+    "rbac": {
+      "pass": 4,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-RBAC-001",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "User seller API"
+        },
+        {
+          "name": "TC-RBAC-002",
+          "status": "INFO",
+          "expected": "403 or 200",
+          "actual": 200,
+          "detail": "Health endpoint public"
+        },
+        {
+          "name": "TC-RBAC-003",
+          "status": "PASS",
+          "expected": "401",
+          "actual": 401,
+          "detail": "Guest protected API"
+        },
+        {
+          "name": "TC-RBAC-004",
+          "status": "PASS",
+          "expected": "403/404",
+          "actual": 403,
+          "detail": "Provision business khác"
+        },
+        {
+          "name": "TC-RBAC-005",
+          "status": "PASS",
+          "expected": "403",
+          "actual": 403,
+          "detail": "Buyer seller orders"
+        }
+      ]
+    },
+    "inventory": {
+      "pass": 2,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-INV-001",
+          "status": "PASS",
+          "expected": ">= 0",
+          "actual": 1,
+          "detail": "Stock sau cancel"
+        },
+        {
+          "name": "TC-INV-002",
+          "status": "PASS",
+          "expected": "3/3",
+          "actual": "3/3",
+          "detail": "Digital book mua nhiều lần"
+        }
+      ]
+    },
+    "uiux": {
+      "pass": 4,
+      "fail": 0,
+      "cases": [
+        {
+          "name": "TC-UX-001",
+          "status": "INFO",
+          "expected": "envelope",
+          "actual": "No",
+          "detail": "Response envelope consistency"
+        },
+        {
+          "name": "TC-UX-002",
+          "status": "PASS",
+          "expected": "message field",
+          "actual": "Yes",
+          "detail": "Error có message"
+        },
+        {
+          "name": "TC-UX-003",
+          "status": "PASS",
+          "expected": "400",
+          "actual": "400",
+          "detail": "POST /auth/login"
+        },
+        {
+          "name": "TC-UX-003",
+          "status": "PASS",
+          "expected": "401",
+          "actual": "401",
+          "detail": "GET /auth/me"
+        },
+        {
+          "name": "TC-UX-003",
+          "status": "PASS",
+          "expected": "401",
+          "actual": "401",
+          "detail": "GET /seller/orders"
+        }
+      ]
+    }
+  }
+}
