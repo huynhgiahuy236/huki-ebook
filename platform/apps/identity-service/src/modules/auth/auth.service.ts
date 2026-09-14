@@ -458,8 +458,15 @@ export class AuthService {
         avatar: user.avatar,
       },
       {
-        secret: this.configService.get("JWT_SECRET"),
-        expiresIn: this.configService.get("JWT_ACCESS_EXPIRES_IN"),
+        secret:
+          this.configService.get('jwt.secret') ||
+          this.configService.get('JWT_SECRET') ||
+          process.env.JWT_SECRET ||
+          'your-super-secret-jwt-key',
+        expiresIn:
+          this.configService.get('jwt.accessTokenExpiresIn') ||
+          this.configService.get('JWT_ACCESS_EXPIRES_IN') ||
+          '15m',
       },
     );
   }

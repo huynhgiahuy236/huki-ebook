@@ -8,7 +8,7 @@ async function main() {
   });
   await client.connect();
   const res = await client.query(
-    'UPDATE users SET password_hash = $1, status = $2, email_verified_at = NOW() RETURNING id, email, role, status',
+    'UPDATE users SET password_hash = $1, status = $2, email_verified_at = NOW(), failed_login_attempts = 0, locked_until = NULL RETURNING id, email, role, status',
     [hash, 'ACTIVE']
   );
   console.log('✅ Đã cập nhật mật khẩu "Password123!" cho tất cả tài khoản:');

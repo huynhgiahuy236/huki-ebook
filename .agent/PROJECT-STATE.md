@@ -56,11 +56,11 @@
 | 2 | Commerce & Catalog | ✅ DONE | 5-8 | Books, Cart, Orders |
 | 3 | Payment & Shipping | ✅ DONE | 9-11 | PayOS, GHTK |
 | 4 | Community | ✅ DONE | 12-16 | Forum, Chat, Reviews |
-| 5 | Backend Integration | 🔄 IN PROGRESS | 17-21 | Gateway, docs, tests |
-| 6 | Backend Quality | 📋 PLANNED | 22-26 | Unit tests, logging |
-| 7 | Production Readiness | ⏸️ DEFERRED | 27-30 | PayOS production, CI/CD |
-| 8 | Web Frontend | ⏸️ DEFERRED | 31-36 | Next.js app |
-| 9 | Mobile | ⏸️ DEFERRED | 37-42 | Flutter app |
+| 5 | Backend Integration | ✅ DONE | 17-21 | Gateway, docs, tests |
+| 6 | Web Admin Con & Granular RBAC | ✅ DONE | 21-24 | Direct Provisioning, RBAC (1506) |
+| 7 | Web Seller Operations | ✅ DONE | 25-28 | Catalog, Inventory, Order Drawer (1507) |
+| 8 | Web Admin HUKI Operations | ✅ DONE | 29-33 | Approvals, Platform Books, Health (1508) |
+| 9 | Web Happy-Case Release Gate | ✅ DONE | 33-36 | Cross-Persona E2E 5 Vai Trò (1509) |
 
 ---
 

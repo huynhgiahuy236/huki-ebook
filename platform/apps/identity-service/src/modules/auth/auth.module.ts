@@ -21,9 +21,16 @@ import { EmailModule } from "@huki/shared";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get("JWT_SECRET"),
+        secret:
+          configService.get('jwt.secret') ||
+          configService.get('JWT_SECRET') ||
+          process.env.JWT_SECRET ||
+          'your-super-secret-jwt-key',
         signOptions: {
-          expiresIn: configService.get("JWT_ACCESS_EXPIRES_IN"),
+          expiresIn:
+            configService.get('jwt.accessTokenExpiresIn') ||
+            configService.get('JWT_ACCESS_EXPIRES_IN') ||
+            '15m',
         },
       }),
     }),

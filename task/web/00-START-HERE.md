@@ -1,9 +1,9 @@
 # Web Control Center — Đọc trước khi làm
 
 ## 1. Việc đang tập trung
-
-`Phase 01`, `Phase 02` và `Phase 03` đã `✅ DONE`. Đang chuyển tiếp sang `Phase 04` (Checkout & COD Fulfillment).
-
+ 
+Toàn bộ `Phase 01` đến `Phase 09` đã `✅ DONE` — Đạt chuẩn Release Gate toàn sàn xuyên 5 Persona.
+ 
 | Hạng mục | Status | Việc tiếp theo |
 |---|---|---|
 | Next.js shell/UI baseline | ✅ DONE | Giữ parity, kết nối trực tiếp web/src |
@@ -13,6 +13,12 @@
 | Granular business permission | ✅ DONE | Permission catalog và helper `can()` enforcement |
 | Phase 02 Identity & RBAC | ✅ DONE | Full identity flow, role routing, forced password change, session state |
 | Phase 03 Storefront & Catalog | ✅ DONE | E2E xuyên vai trò trên backend thật đạt chuẩn |
+| Phase 04 Checkout COD | ✅ DONE | Checkout COD tạo đơn thật & fulfillment E2E |
+| Phase 05 Buyer Account | ✅ DONE | Buyer xem đơn, timeline, profile & RBAC E2E |
+| Phase 06 Admin Con & Permissions | ✅ DONE | Direct Provisioning, Granular Permissions (1506) |
+| Phase 07 Seller Operations | ✅ DONE | Form tạo sách 3 định dạng, Order Detail Drawer (1507) |
+| Phase 08 Admin HUKI Operations | ✅ DONE | Approval, Platform Books, Microservices Health (1508) |
+| Phase 09 Release Gate | ✅ DONE | E2E xuyên 5 Persona, Quality Gate đạt chuẩn (1509) |
 
 ## 2. Happy case duy nhất
 

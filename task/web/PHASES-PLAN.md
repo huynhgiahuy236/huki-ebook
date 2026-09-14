@@ -12,7 +12,7 @@
 | 06 | Admin con doanh nghiệp | ✅ DONE | Owner tạo tài khoản và cấp permission tùy chọn |
 | 07 | Admin doanh nghiệp/Admin con | ✅ DONE | Quản lý sản phẩm và xử lý đơn theo permission |
 | 08 | Admin HUKI | ✅ DONE | Approval, catalog admin và health UI |
-| 09 | Tất cả persona | 🔴 TODO | E2E xuyên vai trò và release gate happy case |
+| 09 | Tất cả persona | ✅ DONE | E2E xuyên vai trò và release gate happy case |
 
 `PARTIAL` chủ yếu phản ánh UI mock hoặc backend riêng lẻ; không phase nào ngoài backend runtime được coi là hoàn tất.
 
