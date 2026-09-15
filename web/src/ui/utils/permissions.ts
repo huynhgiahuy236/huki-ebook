@@ -194,18 +194,21 @@ export function can(
 ): boolean {
   if (!user) return false;
 
-  // Platform Admin có toàn quyền hệ thống
+  // 1. Platform Admin có toàn quyền hệ thống
   if (user.role === 'PLATFORM_ADMIN') return true;
 
-  // Nếu user là chủ sở hữu (OWNER) có hasApprovedBusiness
-  if (user.role === 'BUSINESS' && (!user.memberships || user.memberships.length === 0)) {
-    // Nếu user có business gắn trực tiếp và là owner
-    if (user.business && (!user.business.currentMember || user.business.currentMember.role === 'OWNER')) {
-      return true;
-    }
+  // 2. Chủ doanh nghiệp / Đối tác (Owner) luôn có toàn quyền trong gian hàng của mình
+  if (
+    user.role === 'BUSINESS' ||
+    user.hasApprovedBusiness ||
+    user.business?.ownerId === user.id ||
+    user.business?.currentMember?.role === 'OWNER' ||
+    user.memberships?.some((m) => m.role === 'OWNER' && m.status === 'ACTIVE')
+  ) {
+    return true;
   }
 
-  // Nếu không chỉ định businessId, kiểm tra xem user có bất kỳ membership nào chứa quyền đó không
+  // 3. Nếu không chỉ định businessId, kiểm tra xem user có bất kỳ membership nào chứa quyền đó không
   if (!businessId) {
     return (
       user.memberships?.some(
@@ -216,13 +219,12 @@ export function can(
     );
   }
 
-  // Tìm membership trong business cụ thể
+  // 4. Tìm membership trong business cụ thể đối với Nhân viên (Staff)
   const membership = user.memberships?.find(
     (m) => m.businessId === businessId && m.status === 'ACTIVE'
   );
 
   if (!membership) {
-    // Fallback nếu user.business khớp với businessId và là owner
     if (user.business?.id === businessId) {
       if (!user.business.currentMember || user.business.currentMember.role === 'OWNER') {
         return true;
@@ -233,10 +235,10 @@ export function can(
     return false;
   }
 
-  // Owner luôn có toàn quyền trong business của mình
+  // Owner luôn có toàn quyền
   if (membership.role === 'OWNER') return true;
 
-  // Admin con (Member) kiểm tra danh sách permissions
+  // Nhân viên (Staff) kiểm tra danh sách permissions
   return (
     Array.isArray(membership.permissions) &&
     (membership.permissions.includes('*') || membership.permissions.includes(permission))

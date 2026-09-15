@@ -9,11 +9,11 @@ import { can, PERMISSIONS } from '../../utils/permissions';
 export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, onClose }) {
   const location = useLocation();
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
-  const [badges, setBadges] = useState({ stores: 0, products: 0, orders: 0 });
+  const [badges, setBadges] = useState({ stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0 });
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const fetchBadges = async () => {
       let bizId = user?.business?.id || activeBusinessId;
       if (!bizId) {
         try {
@@ -26,10 +26,22 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       }
       if (!bizId || cancelled) return;
 
-      const counts = { stores: 0, products: 0, orders: 0, pendingOrders: 0 };
+      const counts = { stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0 };
       try {
         const storesRes = await businessApi.getMyStores(bizId);
         if (storesRes.success && Array.isArray(storesRes.data)) counts.stores = storesRes.data.length;
+      } catch { /* ignore */ }
+      try {
+        const reqRes = await businessApi.getMyUpdateRequests();
+        if (reqRes.success && reqRes.data) {
+          const list = Array.isArray(reqRes.data) ? reqRes.data : reqRes.data.data || [];
+          const unreadKey = `huki_read_req_noti_${bizId}`;
+          const deletedKey = `huki_deleted_req_noti_${bizId}`;
+          const readMap = JSON.parse(localStorage.getItem(unreadKey) || '{}');
+          const deletedMap = JSON.parse(localStorage.getItem(deletedKey) || '{}');
+          const unread = list.filter((r) => !deletedMap[r.id] && !readMap[r.id]).length;
+          counts.businessUpdates = unread;
+        }
       } catch { /* ignore */ }
       try {
         const booksRes = await catalogApi.getPublicBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) });
@@ -56,8 +68,36 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       } catch { /* ignore */ }
 
       if (!cancelled) setBadges(counts);
-    })();
-    return () => { cancelled = true; };
+    };
+
+    fetchBadges();
+
+    const handleSync = () => {
+      let bizId = user?.business?.id || activeBusinessId;
+      if (!bizId) return;
+      try {
+        const unreadKey = `huki_read_req_noti_${bizId}`;
+        const deletedKey = `huki_deleted_req_noti_${bizId}`;
+        const readMap = JSON.parse(localStorage.getItem(unreadKey) || '{}');
+        const deletedMap = JSON.parse(localStorage.getItem(deletedKey) || '{}');
+        businessApi.getMyUpdateRequests().then((reqRes) => {
+          if (reqRes.success && reqRes.data) {
+            const list = Array.isArray(reqRes.data) ? reqRes.data : reqRes.data.data || [];
+            const unread = list.filter((r) => !deletedMap[r.id] && !readMap[r.id]).length;
+            setBadges((prev) => ({ ...prev, businessUpdates: unread }));
+          }
+        }).catch(() => {});
+      } catch { /* ignore */ }
+    };
+
+    window.addEventListener('huki_noti_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('huki_noti_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, [user, activeBusinessId, setActiveBusinessId]);
 
   const currentBizId = user?.business?.id || activeBusinessId;
@@ -153,6 +193,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/business', 
           icon: 'domain', 
           label: 'Hồ Sơ Cửa Hàng & Doanh Nghiệp', 
+          badge: badges.businessUpdates || null,
+          badgeColor: 'bg-rose-600',
           permission: PERMISSIONS.STORE_VIEW 
         },
         { 

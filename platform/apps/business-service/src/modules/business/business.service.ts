@@ -508,4 +508,248 @@ export class BusinessService {
 
     return allowedRoles.includes(member.role);
   }
+
+  // ==================== BUSINESS PROFILE UPDATE REQUESTS ====================
+  async createUpdateRequest(userId: string, requestedData: any) {
+    const business = await this.prisma.business.findFirst({
+      where: { ownerId: userId, deletedAt: null },
+      include: { stores: { where: { deletedAt: null } } },
+    });
+
+    if (!business) {
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Bạn chưa có doanh nghiệp nào trên hệ thống.');
+      return;
+    }
+
+    // Rate Limit: 1 request every 2 minutes (120 seconds)
+    const latestRequest = await (this.prisma as any).businessUpdateRequest.findFirst({
+      where: { businessId: business.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (latestRequest) {
+      const now = Date.now();
+      const lastCreatedTime = new Date(latestRequest.createdAt).getTime();
+      const diffSeconds = Math.floor((now - lastCreatedTime) / 1000);
+      const COOLDOWN_SECONDS = 120;
+
+      if (diffSeconds < COOLDOWN_SECONDS) {
+        const remaining = COOLDOWN_SECONDS - diffSeconds;
+        throwBadRequest(
+          ErrorCode.BUSINESS_NOT_APPROVED,
+          `Mỗi doanh nghiệp chỉ có thể gửi yêu cầu cập nhật sau mỗi 2 phút. Vui lòng chờ ${remaining} giây nữa.`,
+        );
+      }
+    }
+
+    const updateRequest = await (this.prisma as any).businessUpdateRequest.create({
+      data: {
+        businessId: business.id,
+        requestedBy: userId,
+        requestedData: requestedData || {},
+        status: 'PENDING',
+      },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            taxCode: true,
+          },
+        },
+      },
+    });
+
+    return updateRequest;
+  }
+
+  async getMyUpdateRequests(userId: string) {
+    const business = await this.prisma.business.findFirst({
+      where: { ownerId: userId, deletedAt: null },
+    });
+
+    if (!business) {
+      return { data: [], latest: null, cooldownRemaining: 0 };
+    }
+
+    const requests = await (this.prisma as any).businessUpdateRequest.findMany({
+      where: { businessId: business.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    let cooldownRemaining = 0;
+    if (requests.length > 0) {
+      const lastCreatedTime = new Date(requests[0].createdAt).getTime();
+      const diffSeconds = Math.floor((Date.now() - lastCreatedTime) / 1000);
+      if (diffSeconds < 120) {
+        cooldownRemaining = 120 - diffSeconds;
+      }
+    }
+
+    return {
+      data: requests,
+      latest: requests[0] || null,
+      cooldownRemaining,
+    };
+  }
+
+  async getAllUpdateRequestsForAdmin(status?: string, page = 1, limit = 50) {
+    const where: any = {};
+    if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status)) {
+      where.status = status;
+    }
+
+    const [requests, total] = await Promise.all([
+      (this.prisma as any).businessUpdateRequest.findMany({
+        where,
+        include: {
+          business: {
+            include: {
+              stores: {
+                where: { deletedAt: null },
+              },
+            },
+          },
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      (this.prisma as any).businessUpdateRequest.count({ where }),
+    ]);
+
+    return {
+      data: requests,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getUpdateRequestById(id: string) {
+    const request = await (this.prisma as any).businessUpdateRequest.findUnique({
+      where: { id },
+      include: {
+        business: {
+          include: {
+            stores: {
+              where: { deletedAt: null },
+            },
+          },
+        },
+      },
+    });
+
+    if (!request) {
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy yêu cầu cập nhật.');
+    }
+
+    return request;
+  }
+
+  async approveUpdateRequest(id: string, adminId: string) {
+    const request = await (this.prisma as any).businessUpdateRequest.findUnique({
+      where: { id },
+      include: { business: { include: { stores: true } } },
+    });
+
+    if (!request) {
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy yêu cầu cập nhật.');
+      return;
+    }
+
+    if (request.status !== 'PENDING') {
+      throwBadRequest(ErrorCode.BUSINESS_NOT_APPROVED, 'Yêu cầu này đã được xử lý trước đó.');
+    }
+
+    const data = request.requestedData || {};
+
+    // 1. Cập nhật bảng Business
+    const businessUpdateData: any = {};
+    if (data.name) businessUpdateData.name = data.name;
+    if (data.phone) businessUpdateData.phone = data.phone;
+    if (data.email) businessUpdateData.email = data.email;
+    if (data.taxCode) businessUpdateData.taxCode = data.taxCode;
+    if (data.businessType) businessUpdateData.businessType = data.businessType;
+
+    // Address / Headquarters: lưu mảng các trụ sở dưới dạng JSON hoặc string
+    if (data.headquarters && Array.isArray(data.headquarters)) {
+      businessUpdateData.address = JSON.stringify(data.headquarters);
+    } else if (data.address) {
+      businessUpdateData.address = data.address;
+    }
+
+    await this.prisma.business.update({
+      where: { id: request.businessId },
+      data: businessUpdateData,
+    });
+
+    // 2. Cập nhật Store (nếu có store tương ứng)
+    const primaryStore = request.business?.stores?.[0];
+    if (primaryStore) {
+      const storeUpdateData: any = {};
+      if (data.storeName || data.name) storeUpdateData.name = data.storeName || data.name;
+      if (data.description || data.storeDescription) storeUpdateData.description = data.description || data.storeDescription;
+      if (data.logo || data.storeLogo) storeUpdateData.logo = data.logo || data.storeLogo;
+      if (data.banner || data.storeBanner) storeUpdateData.banner = data.banner || data.storeBanner;
+      if (data.email || data.storeEmail) storeUpdateData.email = data.email || data.storeEmail;
+      if (data.phone || data.storePhone) storeUpdateData.phone = data.phone || data.storePhone;
+      if (data.storeAddress || data.address) storeUpdateData.address = data.storeAddress || data.address;
+
+      await this.prisma.store.update({
+        where: { id: primaryStore.id },
+        data: storeUpdateData,
+      });
+    }
+
+    // 3. Đổi trạng thái request sang APPROVED
+    const updatedRequest = await (this.prisma as any).businessUpdateRequest.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Đã phê duyệt và cập nhật thông tin doanh nghiệp thành công',
+      data: updatedRequest,
+    };
+  }
+
+  async rejectUpdateRequest(id: string, adminId: string, reason: string) {
+    const request = await (this.prisma as any).businessUpdateRequest.findUnique({
+      where: { id },
+    });
+
+    if (!request) {
+      throwNotFound(ErrorCode.BUSINESS_NOT_FOUND, 'Không tìm thấy yêu cầu cập nhật.');
+      return;
+    }
+
+    if (request.status !== 'PENDING') {
+      throwBadRequest(ErrorCode.BUSINESS_NOT_APPROVED, 'Yêu cầu này đã được xử lý trước đó.');
+    }
+
+    const updatedRequest = await (this.prisma as any).businessUpdateRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: reason || 'Thông tin chưa đạt yêu cầu của ban quản trị sàn.',
+        reviewedBy: adminId,
+        reviewedAt: new Date(),
+      },
+    });
+
+    return {
+      message: 'Đã từ chối yêu cầu cập nhật thông tin',
+      data: updatedRequest,
+    };
+  }
 }

@@ -311,4 +311,63 @@ export const businessApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Gửi yêu cầu cập nhật hồ sơ doanh nghiệp & cửa hàng (Seller)
+   */
+  async submitUpdateRequest(payload: any): Promise<ApiResponse<any>> {
+    return apiClient<any>('/businesses/my/update-request', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Lấy lịch sử yêu cầu cập nhật & thời gian cooldown còn lại (Seller)
+   */
+  async getMyUpdateRequests(): Promise<ApiResponse<{ data: any[]; latest: any; cooldownRemaining: number }>> {
+    return apiClient<{ data: any[]; latest: any; cooldownRemaining: number }>('/businesses/my/update-requests', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Lấy tất cả yêu cầu cập nhật hồ sơ (Admin Sàn)
+   */
+  async getAllUpdateRequests(params?: { status?: string; page?: number; limit?: number }): Promise<ApiResponse<{ data: any[]; pagination: any }>> {
+    const query = new URLSearchParams();
+    if (params?.status) query.set('status', params.status);
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    const url = `/businesses/admin/update-requests${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient<{ data: any[]; pagination: any }>(url, { method: 'GET' });
+  },
+
+  /**
+   * Lấy chi tiết yêu cầu cập nhật (Admin Sàn)
+   */
+  async getUpdateRequestDetail(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/businesses/admin/update-requests/${id}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Phê duyệt yêu cầu cập nhật (Admin Sàn)
+   */
+  async approveUpdateRequest(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/businesses/admin/update-requests/${id}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Từ chối yêu cầu cập nhật (Admin Sàn)
+   */
+  async rejectUpdateRequest(id: string, reason: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/businesses/admin/update-requests/${id}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
 };

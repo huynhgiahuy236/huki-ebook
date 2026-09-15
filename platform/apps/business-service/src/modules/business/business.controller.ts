@@ -258,4 +258,95 @@ export class BusinessController {
       data: business,
     };
   }
+
+  // ==================== BUSINESS PROFILE UPDATE REQUESTS ENDPOINTS ====================
+
+  @Post('my/update-request')
+  @ApiOperation({ summary: 'Submit a business profile update request (Seller)' })
+  async submitUpdateRequest(
+    @CurrentUser('id') userId: string,
+    @Body() body: any,
+  ) {
+    const request = await this.businessService.createUpdateRequest(userId, body);
+    return {
+      success: true,
+      message: 'Đã gửi yêu cầu cập nhật thông tin thành công. Ban quản trị sàn sẽ xem xét và phản hồi sớm.',
+      data: request,
+    };
+  }
+
+  @Get('my/update-requests')
+  @ApiOperation({ summary: 'Get business update requests history and cooldown status (Seller)' })
+  async getMyUpdateRequests(@CurrentUser('id') userId: string) {
+    const result = await this.businessService.getMyUpdateRequests(userId);
+    return {
+      success: true,
+      data: result.data,
+      latest: result.latest,
+      cooldownRemaining: result.cooldownRemaining,
+    };
+  }
+
+  @Get('admin/update-requests')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'List all business update requests (Admin)' })
+  async getAllUpdateRequestsForAdmin(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const result = await this.businessService.getAllUpdateRequestsForAdmin(
+      status,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 50,
+    );
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Get('admin/update-requests/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Get update request detail (Admin)' })
+  async getUpdateRequestDetail(@Param('id') id: string) {
+    const data = await this.businessService.getUpdateRequestById(id);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Post('admin/update-requests/:id/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Approve business update request (Admin)' })
+  async approveUpdateRequest(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+  ) {
+    const result = await this.businessService.approveUpdateRequest(id, adminId);
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Post('admin/update-requests/:id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Reject business update request (Admin)' })
+  async rejectUpdateRequest(
+    @Param('id') id: string,
+    @CurrentUser('id') adminId: string,
+    @Body('reason') reason: string,
+  ) {
+    const result = await this.businessService.rejectUpdateRequest(id, adminId, reason);
+    return {
+      success: true,
+      ...result,
+    };
+  }
 }

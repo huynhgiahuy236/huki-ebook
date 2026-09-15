@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { taxRegistryService } from '../../services/taxRegistryService';
@@ -905,16 +906,26 @@ export default function AdminBusinessesPage() {
           </p>
         </div>
 
-        <button
-          onClick={fetchBusinesses}
-          disabled={loading}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto disabled:opacity-60"
-        >
-          <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
-            refresh
-          </span>
-          <span>Làm mới danh sách</span>
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+          <Link
+            to="/admin/business-update-requests"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary hover:text-white border border-theme-primary/30 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">edit_note</span>
+            <span>Yêu Cầu Chỉnh Sửa</span>
+          </Link>
+
+          <button
+            onClick={fetchBusinesses}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+          >
+            <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
+              refresh
+            </span>
+            <span>Làm mới danh sách</span>
+          </button>
+        </div>
       </div>
 
       {/* 2. TABS & SEARCH BAR */}

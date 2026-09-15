@@ -43,12 +43,14 @@ export const AuthProvider = ({ children }) => {
       if (bizRes.data.id) setActiveBusinessId(bizRes.data.id);
       const isApproved = bizRes.data.status === 'APPROVED';
       const existingMemberships = Array.isArray(userData.memberships) ? [...userData.memberships] : [];
+      const isOwner = bizRes.data.ownerId === userData.id || bizRes.data.currentMember?.role === 'OWNER' || userData.role === 'BUSINESS';
+      
       if (bizRes.data.currentMember && !existingMemberships.some(m => m.businessId === bizRes.data.id)) {
         existingMemberships.push({
           businessId: bizRes.data.id,
-          role: bizRes.data.currentMember.role || 'STAFF',
+          role: isOwner ? 'OWNER' : (bizRes.data.currentMember.role || 'STAFF'),
           status: 'ACTIVE',
-          permissions: bizRes.data.currentMember.permissions || [],
+          permissions: isOwner ? ['*'] : (bizRes.data.currentMember.permissions || []),
         });
       }
       if (isApproved) {

@@ -36,9 +36,10 @@ model Business {
   ownerId String @map("owner_id")
 
   // Relations
-  stores    Store[]
-  members   Member[]
-  followers BusinessFollower[]
+  stores         Store[]
+  members        Member[]
+  followers      BusinessFollower[]
+  updateRequests BusinessUpdateRequest[]
 
   // Timestamps
   createdAt DateTime  @default(now()) @map("created_at")
@@ -203,4 +204,32 @@ model OutboxEvent {
 
   @@index([status, createdAt])
   @@map("outbox_events")
+}
+
+// ============================================
+// BUSINESS PROFILE UPDATE REQUESTS
+// ============================================
+
+model BusinessUpdateRequest {
+  id              String               @id @default(uuid())
+  businessId      String               @map("business_id")
+  business        Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  requestedBy     String               @map("requested_by")
+  requestedData   Json                 @map("requested_data")
+  status          UpdateRequestStatus  @default(PENDING)
+  rejectionReason String?              @map("rejection_reason")
+  reviewedBy      String?              @map("reviewed_by")
+  reviewedAt      DateTime?            @map("reviewed_at")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  @@index([businessId])
+  @@index([status])
+  @@map("business_update_requests")
+}
+
+enum UpdateRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

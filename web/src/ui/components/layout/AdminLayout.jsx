@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from '../common/UserAvatar';
 import { adminApi } from '../../api/adminApi';
+import { businessApi } from '../../api/businessApi';
 
 export default function AdminLayout() {
   const location = useLocation();
@@ -15,6 +16,7 @@ export default function AdminLayout() {
   // Số lượng thực tế lấy từ Gateway Backend
   const [stats, setStats] = useState({
     pendingBusinesses: 0,
+    pendingUpdates: 0,
     approvedBusinesses: 0,
     totalBusinesses: 0,
     pendingStores: 0,
@@ -26,22 +28,52 @@ export default function AdminLayout() {
     healthStatus: 'ok',
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    const fetchNavStats = async () => {
-      try {
-        const res = await adminApi.getAdminStats();
-        if (isMounted && res.success && res.data) {
-          setStats(res.data);
-        }
-      } catch (err) {
-        console.warn('Failed to load admin stats in layout', err);
-      }
-    };
+  const fetchNavStats = useCallback(async () => {
+    try {
+      const [res, reqRes] = await Promise.all([
+        adminApi.getAdminStats().catch(() => null),
+        businessApi.getAllUpdateRequests({ limit: 100 }).catch(() => null),
+      ]);
 
+      const readMap = JSON.parse(localStorage.getItem('huki_admin_read_update_requests') || '{}');
+      let pendingUpdatesCount = 0;
+      if (reqRes && reqRes.success && reqRes.data) {
+        const list = Array.isArray(reqRes.data) ? reqRes.data : reqRes.data.data || [];
+        pendingUpdatesCount = list.filter((r) => r.status === 'PENDING' && !readMap[r.id]).length;
+      }
+
+      if (res && res.success && res.data) {
+        setStats({
+          ...res.data,
+          pendingUpdates: pendingUpdatesCount,
+        });
+      } else {
+        setStats((prev) => ({
+          ...prev,
+          pendingUpdates: pendingUpdatesCount,
+        }));
+      }
+    } catch (err) {
+      console.warn('Failed to load admin stats in layout', err);
+    }
+  }, []);
+
+  useEffect(() => {
     fetchNavStats();
-    return () => { isMounted = false; };
-  }, [location.pathname]);
+  }, [fetchNavStats, location.pathname]);
+
+  // Lắng nghe sự kiện đồng bộ chấm đỏ Admin khi xem / duyệt / từ chối yêu cầu
+  useEffect(() => {
+    const handleAdminSync = () => {
+      fetchNavStats();
+    };
+    window.addEventListener('huki_admin_noti_updated', handleAdminSync);
+    window.addEventListener('storage', handleAdminSync);
+    return () => {
+      window.removeEventListener('huki_admin_noti_updated', handleAdminSync);
+      window.removeEventListener('storage', handleAdminSync);
+    };
+  }, [fetchNavStats]);
 
   const adminName = user?.fullName || user?.name || 'HUKI Super Admin';
 
@@ -49,6 +81,9 @@ export default function AdminLayout() {
     '/admin': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/dashboard': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/businesses': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/business-update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
+    '/admin/businesses/update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
+    '/admin/update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
     '/admin/leads': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
     '/admin/publishers': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
     '/admin/companies': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
@@ -82,6 +117,13 @@ export default function AdminLayout() {
           icon: 'domain',
           count: stats.pendingBusinesses > 0 ? String(stats.pendingBusinesses) : undefined,
           badgeColor: 'bg-amber-500 text-white font-bold'
+        },
+        { 
+          label: 'Yêu Cầu Chỉnh Sửa', 
+          to: '/admin/business-update-requests', 
+          icon: 'edit_note',
+          count: stats.pendingUpdates > 0 ? String(stats.pendingUpdates) : undefined,
+          badgeColor: 'bg-rose-500 text-white font-bold animate-pulse'
         }
       ]
     },
@@ -250,8 +292,8 @@ export default function AdminLayout() {
                     <Link
                       key={iIdx}
                       to={item.to}
-                      title={isSidebarCollapsed ? item.label : undefined}
-                      className={`flex items-center ${isSidebarCollapsed ? 'justify-center px-0 py-2' : 'justify-between px-2.5 py-1.5'} rounded-xl text-xs font-semibold transition-all group ${
+                      title={isSidebarCollapsed ? `${item.label} (${item.count || 0})` : undefined}
+                      className={`flex items-center relative ${isSidebarCollapsed ? 'justify-center px-0 py-2' : 'justify-between px-2.5 py-1.5'} rounded-xl text-xs font-semibold transition-all group ${
                         isActive
                           ? 'bg-[#00875A] text-white shadow-xs font-bold'
                           : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
@@ -269,6 +311,9 @@ export default function AdminLayout() {
                         <span className={`text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shrink-0 ml-1.5 ${item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700')}`}>
                           {item.count}
                         </span>
+                      )}
+                      {isSidebarCollapsed && item.count && (
+                        <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>
                       )}
                     </Link>
                   );

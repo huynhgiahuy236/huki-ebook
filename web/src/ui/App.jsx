@@ -75,6 +75,7 @@ const SellerPortalPage = page(() => import('./pages/seller/SellerPortalPage'));
 const SellerRegisterPage = page(() => import('./pages/seller/SellerRegisterPage'));
 const SellerDashboardPage = page(() => import('./pages/seller/SellerDashboardPage'));
 const SellerBusinessProfilePage = page(() => import('./pages/seller/SellerBusinessProfilePage'));
+const SellerBusinessNotificationsPage = page(() => import('./pages/seller/SellerBusinessNotificationsPage'));
 const SellerProductsPage = page(() => import('./pages/seller/SellerProductsPage'));
 const SellerOrdersPage = page(() => import('./pages/seller/SellerOrdersPage'));
 const SellerOrderDetailPage = page(() => import('./pages/seller/SellerOrderDetailPage'));
@@ -90,6 +91,7 @@ const EdgeCasesLibrary = page(() => import('./pages/seller/EdgeCasesLibrary'));
 // Admin
 const AdminDashboardPage = page(() => import('./pages/admin/AdminDashboardPage'));
 const AdminBusinessesPage = page(() => import('./pages/admin/AdminBusinessesPage'));
+const AdminBusinessUpdateRequestsPage = page(() => import('./pages/admin/AdminBusinessUpdateRequestsPage'));
 const AdminStoresPage = page(() => import('./pages/admin/AdminStoresPage'));
 const AdminBooksPage = page(() => import('./pages/admin/AdminBooksPage'));
 const AdminCategoriesPage = page(() => import('./pages/admin/AdminCategoriesPage'));
@@ -264,6 +266,8 @@ export default function App() {
                     <Route element={<SellerLayout />}>
                       <Route path="/seller/dashboard" element={<SellerDashboardPage />} />
                       <Route path="/seller/business" element={<SellerBusinessProfilePage />} />
+                      <Route path="/seller/business/notifications" element={<SellerBusinessNotificationsPage />} />
+                      <Route path="/seller/notifications" element={<SellerBusinessNotificationsPage />} />
                       <Route path="/seller/profile" element={<SellerBusinessProfilePage />} />
                       <Route path="/seller/orders" element={<SellerOrdersPage />} />
                       <Route path="/seller/orders/:id" element={<SellerOrderDetailPage />} />
@@ -310,6 +314,9 @@ export default function App() {
                       <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
                       <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
                       <Route path="/admin/businesses" element={<AdminBusinessesPage />} />
+                      <Route path="/admin/business-update-requests" element={<AdminBusinessUpdateRequestsPage />} />
+                      <Route path="/admin/businesses/update-requests" element={<AdminBusinessUpdateRequestsPage />} />
+                      <Route path="/admin/update-requests" element={<AdminBusinessUpdateRequestsPage />} />
                       <Route path="/admin/leads" element={<AdminBusinessesPage />} />
                       <Route path="/admin/companies" element={<AdminBusinessesPage />} />
                       <Route path="/admin/publishers" element={<AdminBusinessesPage />} />
