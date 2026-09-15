@@ -98,6 +98,7 @@ const AdminPublisherLeadsPage = page(() => import('./pages/admin/AdminPublisherL
 const AdminPublishersPage = page(() => import('./pages/admin/AdminPublishersPage'));
 const AdminBookModerationPage = page(() => import('./pages/admin/AdminBookModerationPage'));
 const AdminUsersPage = page(() => import('./pages/admin/AdminUsersPage'));
+const AdminAccountsPage = page(() => import('./pages/admin/AdminAccountsPage'));
 const AdminDrmVaultPage = page(() => import('./pages/admin/AdminDrmVaultPage'));
 const AdminFinancePage = page(() => import('./pages/admin/AdminFinancePage'));
 const AdminReportsPage = page(() => import('./pages/admin/AdminReportsPage'));
@@ -320,6 +321,8 @@ export default function App() {
                       <Route path="/admin/tasks" element={previewOnly(AdminBookModerationPage, 'Hàng chờ kiểm duyệt')} />
                       <Route path="/admin/moderation" element={previewOnly(AdminBookModerationPage, 'Hàng chờ kiểm duyệt')} />
                       <Route path="/admin/drm" element={previewOnly(AdminDrmVaultPage, 'Quản trị DRM')} />
+                      <Route path="/admin/accounts" element={<AdminAccountsPage />} />
+                      <Route path="/admin/users-management" element={<AdminAccountsPage />} />
                       <Route path="/admin/users" element={previewOnly(AdminUsersPage, 'Quản lý bạn đọc')} />
                       <Route path="/admin/contacts" element={previewOnly(AdminUsersPage, 'Quản lý bạn đọc')} />
                       <Route path="/admin/deals" element={previewOnly(AdminFinancePage, 'Đối soát tài chính 85/15')} />

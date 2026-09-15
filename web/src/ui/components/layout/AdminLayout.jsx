@@ -58,6 +58,8 @@ export default function AdminLayout() {
     '/admin/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
     '/admin/system/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
     '/admin/users': { parent: 'Độc Giả & Hội Viên', title: 'Danh Sách Bạn Đọc' },
+    '/admin/accounts': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
+    '/admin/users-management': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/settings': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Cài Đặt Hệ Thống' },
   };
 
@@ -67,7 +69,8 @@ export default function AdminLayout() {
     {
       group: 'TỔNG QUAN HỆ THỐNG',
       items: [
-        { label: 'Bảng Điều Hành', to: '/admin/dashboard', icon: 'dashboard' }
+        { label: 'Bảng Điều Hành', to: '/admin/dashboard', icon: 'dashboard' },
+        { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
       ]
     },
     {
