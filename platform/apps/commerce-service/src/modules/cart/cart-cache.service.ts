@@ -40,9 +40,9 @@ export class CartCacheService {
 
   async get(userId: string): Promise<CachedCart | null> {
     try {
-      const cached = await this.redis.get(this.getKey(userId));
+      const cached = await this.redis.get<CachedCart | string>(this.getKey(userId));
       if (cached) {
-        return JSON.parse(cached) as CachedCart;
+        return typeof cached === 'string' ? (JSON.parse(cached) as CachedCart) : cached;
       }
     } catch (error) {
       this.logger.warn(`Failed to get cart cache for ${userId}`, error);
@@ -54,7 +54,7 @@ export class CartCacheService {
     try {
       await this.redis.set(
         this.getKey(userId),
-        JSON.stringify(cart),
+        cart,
         CART_CACHE_TTL,
       );
     } catch (error) {
@@ -73,11 +73,11 @@ export class CartCacheService {
   async touch(userId: string): Promise<void> {
     try {
       const key = this.getKey(userId);
-      const cached = await this.redis.get(key);
+      const cached = await this.redis.get<CachedCart | string>(key);
       if (cached) {
-        const cart = JSON.parse(cached) as CachedCart;
+        const cart = typeof cached === 'string' ? (JSON.parse(cached) as CachedCart) : cached;
         cart.updatedAt = new Date().toISOString();
-        await this.redis.set(key, JSON.stringify(cart), CART_CACHE_TTL);
+        await this.redis.set(key, cart, CART_CACHE_TTL);
       }
     } catch (error) {
       this.logger.warn(`Failed to touch cart cache for ${userId}`, error);
