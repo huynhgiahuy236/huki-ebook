@@ -27,7 +27,10 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           rel="stylesheet"
         />
       </head>
-      <body className="h-full bg-[#f2fbf9] text-[#141d1c] font-sans antialiased selection:bg-[#ac2c19] selection:text-white">
+      <body
+        className="h-full bg-[#f2fbf9] text-[#141d1c] font-sans antialiased selection:bg-[#ac2c19] selection:text-white"
+        suppressHydrationWarning
+      >
         {children}
       </body>
     </html>
