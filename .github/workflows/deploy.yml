@@ -42,6 +42,14 @@ jobs:
           command_timeout: 25m
           script: |
             set -eu
+            export NVM_DIR="$HOME/.nvm"
+            if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+              echo "NVM is not installed for $USER at $NVM_DIR" >&2
+              exit 1
+            fi
+            . "$NVM_DIR/nvm.sh"
+            nvm use 20
+
             cd "/home/${{ secrets.EC2_USER }}/huki/platform"
 
             npm ci
