@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsOptional, IsString, IsUrl, MaxLength, Min } from 'class-validator';
+import { Allow, IsBoolean, IsInt, IsOptional, IsString, IsUrl, MaxLength, Min } from 'class-validator';
 
 export class InitiatePaymentDto {
   @ApiProperty({ example: 'https://huki-ebook.com/payment/success' })
@@ -43,28 +43,68 @@ export class SettleRefundDto {
 }
 
 export class PayOSWebhookDataDto {
+  @Allow()
   orderCode: number;
+
+  @Allow()
   amount: number;
+
+  @Allow()
   description?: string;
+
+  @Allow()
   accountNumber?: string;
+
+  @Allow()
   reference?: string;
+
+  @Allow()
   transactionDateTime?: string;
+
+  @Allow()
   currency?: string;
+
+  @Allow()
   paymentLinkId?: string;
+
+  @Allow()
   code?: string;
+
+  @Allow()
   desc?: string;
+
+  @Allow()
   counterAccountBankId?: string;
+
+  @Allow()
   counterAccountBankName?: string;
+
+  @Allow()
   counterAccountName?: string;
+
+  @Allow()
   counterAccountNumber?: string;
+
+  @Allow()
   virtualAccountName?: string;
+
+  @Allow()
   virtualAccountNumber?: string;
 }
 
 export class PayOSWebhookDto {
+  @Allow()
   code: string;
+
+  @Allow()
   desc: string;
+
+  @Allow()
   success: boolean;
+
+  @Allow()
   data: PayOSWebhookDataDto;
+
+  @Allow()
   signature: string;
 }

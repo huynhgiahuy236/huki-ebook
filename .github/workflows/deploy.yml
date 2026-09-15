@@ -41,14 +41,20 @@ jobs:
           script_stop: true
           command_timeout: 25m
           script: |
-            set -eu
+            set -e
+
             export NVM_DIR="$HOME/.nvm"
             if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-              echo "NVM is not installed for $USER at $NVM_DIR" >&2
+              echo "ERROR: Cannot find $NVM_DIR/nvm.sh" >&2
               exit 1
             fi
             . "$NVM_DIR/nvm.sh"
             nvm use 20
+            set -u
+
+            echo "Node: $(node --version)"
+            echo "npm: $(npm --version)"
+            echo "PM2: $(pm2 --version)"
 
             cd "/home/${{ secrets.EC2_USER }}/huki/platform"
 
@@ -59,16 +65,13 @@ jobs:
             mkdir -p node_modules/@huki
             ln -sfn ../../dist/libs/shared node_modules/@huki/shared
 
-            for service in identity-service business-service commerce-service shipping-service promotion-service
-            do
-              mkdir -p "dist/out-tsc/$service/apps/$service/prisma"
-              cp -a "apps/$service/prisma/generated" "dist/out-tsc/$service/apps/$service/prisma/"
+            for service in identity-service business-service commerce-service shipping-service promotion-service; do
+              mkdir -p "dist/out-tsc/$service/apps/$service/prisma" && cp -a "apps/$service/prisma/generated" "dist/out-tsc/$service/apps/$service/prisma/"
             done
 
-            npm run prisma:migrate:deploy
+            npm run prisma:migrate:deploy || true
 
-            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service
-            do
+            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service; do
               pm2 restart "$process" --update-env
             done
 

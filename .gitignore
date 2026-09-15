@@ -6,6 +6,7 @@ node_modules/
 .pnp.js
 package-lock.json
 !web/package-lock.json
+!platform/package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
@@ -154,6 +155,7 @@ tmp/
 temp/
 *.tmp
 *.temp
+huki-deploy.tar.gz
 .cache/
 __pycache__/
 *.pyc

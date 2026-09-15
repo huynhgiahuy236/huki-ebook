@@ -8,6 +8,7 @@ import {
   ParseUUIDPipe,
   Post,
   UseGuards,
+  ValidationPipe,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
@@ -70,7 +71,10 @@ export class PaymentsController {
   @Post('webhooks/payos')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Receive a signed PayOS webhook' })
-  webhook(@Body() payload: PayOSWebhookDto) {
+  webhook(
+    @Body(new ValidationPipe({ transform: false, whitelist: false, forbidNonWhitelisted: false }))
+    payload: PayOSWebhookDto,
+  ) {
     return this.payments.handlePayOSWebhook(payload);
   }
 }
