@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { EventsModule } from '../../../../../libs/shared/src';
+import { EventsModule } from '@huki/shared';
 import {
   AuthenticatedCommunityGuard,
   PlatformAdminCommunityGuard,
