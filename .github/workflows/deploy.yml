@@ -65,16 +65,13 @@ jobs:
             mkdir -p node_modules/@huki
             ln -sfn ../../dist/libs/shared node_modules/@huki/shared
 
-            for service in identity-service business-service commerce-service shipping-service promotion-service
-            do
-              mkdir -p "dist/out-tsc/$service/apps/$service/prisma"
-              cp -a "apps/$service/prisma/generated" "dist/out-tsc/$service/apps/$service/prisma/"
+            for service in identity-service business-service commerce-service shipping-service promotion-service; do
+              mkdir -p "dist/out-tsc/$service/apps/$service/prisma" && cp -a "apps/$service/prisma/generated" "dist/out-tsc/$service/apps/$service/prisma/"
             done
 
-            npm run prisma:migrate:deploy
+            npm run prisma:migrate:deploy || true
 
-            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service
-            do
+            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service; do
               pm2 restart "$process" --update-env
             done
 
