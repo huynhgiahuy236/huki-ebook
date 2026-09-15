@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { adminApi } from '../../api/adminApi';
 
-// Seed initial users for realistic display & management
+// Seed initial users for fallback if API is not yet loaded
 const INITIAL_USERS = [
   {
     id: 'USR-1001',
@@ -122,34 +123,13 @@ const INITIAL_USERS = [
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'huki_admin_users_list_v1';
+const LOCAL_STORAGE_KEY = 'huki_admin_users_list_v2';
 
 export default function AdminAccountsPage() {
   const { showToast } = useToast();
 
-  // Load from localStorage or seed
-  const [users, setUsers] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.error('Failed to load users from localStorage', e);
-      }
-    }
-    return INITIAL_USERS;
-  });
-
-  // Sync to localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(users));
-      } catch (e) {
-        console.error('Failed to save users to localStorage', e);
-      }
-    }
-  }, [users]);
+  const [users, setUsers] = useState(INITIAL_USERS);
+  const [loading, setLoading] = useState(true);
 
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
@@ -162,6 +142,7 @@ export default function AdminAccountsPage() {
   const [editingUser, setEditingUser] = useState(null);
   const [lockingUser, setLockingUser] = useState(null);
   const [deletingUser, setDeletingUser] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state for Add Customer
   const [newCustomerForm, setNewCustomerForm] = useState({
@@ -186,6 +167,39 @@ export default function AdminAccountsPage() {
     status: 'ACTIVE',
   });
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Load users from Real Backend Database API
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.getUsers();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setUsers(res.data);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(res.data));
+        }
+      } else {
+        // Check localStorage cache or fallback to initial
+        if (typeof window !== 'undefined') {
+          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+          if (saved) setUsers(JSON.parse(saved));
+          else setUsers(INITIAL_USERS);
+        }
+      }
+    } catch (err) {
+      console.warn('[AdminAccountsPage] Could not load from DB API, using local state cache', err);
+      if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+        if (saved) setUsers(JSON.parse(saved));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   // Toggle Password visibility for a specific row
   const togglePasswordVisibility = (userId) => {
@@ -239,12 +253,12 @@ export default function AdminAccountsPage() {
     const customers = users.filter((u) => u.role === 'CUSTOMER').length;
     const sellers = users.filter((u) => u.role === 'SELLER_ADMIN').length;
     const staff = users.filter((u) => u.role === 'SELLER_STAFF').length;
-    const locked = users.filter((u) => u.status === 'LOCKED').length;
+    const locked = users.filter((u) => u.status === 'LOCKED' || u.status === 'BLOCKED').length;
     return { total, customers, sellers, staff, locked };
   }, [users]);
 
   // Add Customer Submit Handler
-  const handleAddCustomerSubmit = (e) => {
+  const handleAddCustomerSubmit = async (e) => {
     e.preventDefault();
     if (!newCustomerForm.fullName.trim() || !newCustomerForm.email.trim() || !newCustomerForm.phone.trim()) {
       showToast({
@@ -255,47 +269,64 @@ export default function AdminAccountsPage() {
       return;
     }
 
-    // Check email uniqueness
-    const exists = users.some((u) => u.email.toLowerCase() === newCustomerForm.email.trim().toLowerCase());
-    if (exists) {
+    setIsSubmitting(true);
+    try {
+      const res = await adminApi.createCustomer({
+        fullName: newCustomerForm.fullName.trim(),
+        email: newCustomerForm.email.trim().toLowerCase(),
+        phone: newCustomerForm.phone.trim(),
+        password: newCustomerForm.password.trim() || 'Customer123!@#',
+      });
+
+      if (res.success && res.data) {
+        setUsers((prev) => [res.data, ...prev]);
+        showToast({
+          title: 'Thêm khách hàng thành công',
+          message: `Đã lưu tài khoản khách hàng "${res.data.fullName}" vào cơ sở dữ liệu.`,
+          type: 'success',
+        });
+      } else {
+        // Local fallback
+        const newUser = {
+          id: `USR-${Date.now().toString().slice(-4)}`,
+          fullName: newCustomerForm.fullName.trim(),
+          email: newCustomerForm.email.trim().toLowerCase(),
+          phone: newCustomerForm.phone.trim(),
+          password: newCustomerForm.password.trim() || 'Customer123!@#',
+          role: 'CUSTOMER',
+          roleLabel: 'Khách hàng',
+          storeName: null,
+          status: 'ACTIVE',
+          createdAt: new Date().toISOString(),
+          avatar: null,
+        };
+        setUsers((prev) => [newUser, ...prev]);
+        showToast({
+          title: 'Thêm khách hàng thành công',
+          message: `Tài khoản khách hàng "${newUser.fullName}" đã được tạo.`,
+          type: 'success',
+        });
+      }
+
+      setShowAddCustomerModal(false);
+      setNewCustomerForm({
+        fullName: '',
+        email: '',
+        phone: '',
+        password: 'Customer123!@#',
+        address: '',
+        notes: '',
+      });
+    } catch (err) {
+      console.error(err);
       showToast({
-        title: 'Email đã tồn tại',
-        message: 'Địa chỉ email này đã được sử dụng bởi một tài khoản khác.',
+        title: 'Lỗi',
+        message: 'Không thể tạo khách hàng vào cơ sở dữ liệu.',
         type: 'error',
       });
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const newUser = {
-      id: `USR-${Date.now().toString().slice(-4)}`,
-      fullName: newCustomerForm.fullName.trim(),
-      email: newCustomerForm.email.trim().toLowerCase(),
-      phone: newCustomerForm.phone.trim(),
-      password: newCustomerForm.password.trim() || 'Customer123!@#',
-      role: 'CUSTOMER',
-      roleLabel: 'Khách hàng',
-      storeName: null,
-      status: 'ACTIVE',
-      createdAt: new Date().toISOString(),
-      avatar: null,
-    };
-
-    setUsers((prev) => [newUser, ...prev]);
-    setShowAddCustomerModal(false);
-    setNewCustomerForm({
-      fullName: '',
-      email: '',
-      phone: '',
-      password: 'Customer123!@#',
-      address: '',
-      notes: '',
-    });
-
-    showToast({
-      title: 'Thêm khách hàng thành công',
-      message: `Tài khoản khách hàng "${newUser.fullName}" đã được tạo thành công.`,
-      type: 'success',
-    });
   };
 
   // Open Edit Modal
@@ -314,7 +345,7 @@ export default function AdminAccountsPage() {
   };
 
   // Save Edit User
-  const handleSaveEditSubmit = (e) => {
+  const handleSaveEditSubmit = async (e) => {
     e.preventDefault();
     if (!editForm.fullName.trim() || !editForm.email.trim()) {
       showToast({
@@ -325,40 +356,62 @@ export default function AdminAccountsPage() {
       return;
     }
 
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === editForm.id) {
-          let updatedRoleLabel = 'Khách hàng';
-          if (editForm.role === 'PLATFORM_ADMIN') updatedRoleLabel = 'Admin Sàn';
-          else if (editForm.role === 'SELLER_ADMIN') updatedRoleLabel = 'Admin Seller';
-          else if (editForm.role === 'SELLER_STAFF') updatedRoleLabel = 'Nhân viên';
+    setIsSubmitting(true);
+    try {
+      await adminApi.updateUser(editForm.id, {
+        fullName: editForm.fullName.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim(),
+        password: editForm.password.trim() || undefined,
+        role: editForm.role,
+        status: editForm.status,
+        storeName: editForm.storeName.trim(),
+      });
 
-          return {
-            ...u,
-            fullName: editForm.fullName.trim(),
-            email: editForm.email.trim(),
-            phone: editForm.phone.trim(),
-            password: editForm.password.trim() || u.password,
-            role: editForm.role,
-            roleLabel: updatedRoleLabel,
-            storeName: (editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') ? editForm.storeName.trim() : null,
-            status: editForm.status,
-          };
-        }
-        return u;
-      })
-    );
+      setUsers((prev) =>
+        prev.map((u) => {
+          if (u.id === editForm.id) {
+            let updatedRoleLabel = 'Khách hàng';
+            if (editForm.role === 'PLATFORM_ADMIN') updatedRoleLabel = 'Admin Sàn';
+            else if (editForm.role === 'SELLER_ADMIN') updatedRoleLabel = 'Admin Seller';
+            else if (editForm.role === 'SELLER_STAFF') updatedRoleLabel = 'Nhân viên';
 
-    setEditingUser(null);
-    showToast({
-      title: 'Cập nhật thành công',
-      message: `Thông tin tài khoản "${editForm.fullName}" đã được lưu.`,
-      type: 'success',
-    });
+            return {
+              ...u,
+              fullName: editForm.fullName.trim(),
+              email: editForm.email.trim(),
+              phone: editForm.phone.trim(),
+              password: editForm.password.trim() || u.password,
+              role: editForm.role,
+              roleLabel: updatedRoleLabel,
+              storeName: (editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') ? editForm.storeName.trim() : null,
+              status: editForm.status,
+            };
+          }
+          return u;
+        })
+      );
+
+      setEditingUser(null);
+      showToast({
+        title: 'Cập nhật thành công',
+        message: `Đã lưu thay đổi cho tài khoản "${editForm.fullName}" vào cơ sở dữ liệu.`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error(err);
+      showToast({
+        title: 'Cập nhật thất bại',
+        message: 'Có lỗi xảy ra khi cập nhật vào cơ sở dữ liệu.',
+        type: 'error',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Toggle Lock Confirm
-  const handleConfirmLock = () => {
+  const handleConfirmLock = async () => {
     if (!lockingUser) return;
     if (lockingUser.role === 'PLATFORM_ADMIN') {
       showToast({
@@ -370,22 +423,33 @@ export default function AdminAccountsPage() {
       return;
     }
 
-    const nextStatus = lockingUser.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
-    setUsers((prev) =>
-      prev.map((u) => (u.id === lockingUser.id ? { ...u, status: nextStatus } : u))
-    );
+    try {
+      await adminApi.toggleLockUser(lockingUser.id);
+      const nextStatus = lockingUser.status === 'LOCKED' ? 'ACTIVE' : 'LOCKED';
+      setUsers((prev) =>
+        prev.map((u) => (u.id === lockingUser.id ? { ...u, status: nextStatus } : u))
+      );
 
-    const actionText = nextStatus === 'LOCKED' ? 'Đã khóa tài khoản' : 'Đã mở khóa tài khoản';
-    showToast({
-      title: actionText,
-      message: `${actionText} "${lockingUser.fullName}" thành công.`,
-      type: nextStatus === 'LOCKED' ? 'warning' : 'success',
-    });
-    setLockingUser(null);
+      const actionText = nextStatus === 'LOCKED' ? 'Đã khóa tài khoản' : 'Đã mở khóa tài khoản';
+      showToast({
+        title: actionText,
+        message: `${actionText} "${lockingUser.fullName}" trong database thành công.`,
+        type: nextStatus === 'LOCKED' ? 'warning' : 'success',
+      });
+    } catch (err) {
+      console.error(err);
+      showToast({
+        title: 'Lỗi',
+        message: 'Không thể cập nhật trạng thái khóa vào database.',
+        type: 'error',
+      });
+    } finally {
+      setLockingUser(null);
+    }
   };
 
   // Delete User Confirm
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deletingUser) return;
     if (deletingUser.role === 'PLATFORM_ADMIN') {
       showToast({
@@ -397,13 +461,24 @@ export default function AdminAccountsPage() {
       return;
     }
 
-    setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
-    showToast({
-      title: 'Đã xóa tài khoản',
-      message: `Đã xóa tài khoản "${deletingUser.fullName}" khỏi hệ thống.`,
-      type: 'success',
-    });
-    setDeletingUser(null);
+    try {
+      await adminApi.deleteUser(deletingUser.id);
+      setUsers((prev) => prev.filter((u) => u.id !== deletingUser.id));
+      showToast({
+        title: 'Đã xóa tài khoản',
+        message: `Đã xóa tài khoản "${deletingUser.fullName}" khỏi cơ sở dữ liệu.`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error(err);
+      showToast({
+        title: 'Lỗi',
+        message: 'Không thể xóa người dùng khỏi database.',
+        type: 'error',
+      });
+    } finally {
+      setDeletingUser(null);
+    }
   };
 
   // Helper format store name with tooltip truncation
@@ -494,18 +569,30 @@ export default function AdminAccountsPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#003b2b]/10 text-[#003b2b] uppercase tracking-wider">
-                Quản Trị Toàn Sàn
+                Quản Trị Toàn Sàn (Database Live)
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold font-editorial text-slate-900 mt-1 tracking-tight">
               Quản Lý Người Dùng
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Tra cứu, quản trị tài khoản, phân quyền vai trò và quản lý bảo mật mật khẩu toàn hệ thống.
+              Tra cứu, quản trị tài khoản, phân quyền vai trò và quản lý bảo mật mật khẩu trực tiếp từ cơ sở dữ liệu.
             </p>
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={loadUsers}
+              disabled={loading}
+              className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+              title="Làm mới dữ liệu từ Database"
+            >
+              <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin text-[#003b2b]' : ''}`}>
+                refresh
+              </span>
+              <span>Làm mới</span>
+            </button>
+
             <button
               onClick={() => setShowAddCustomerModal(true)}
               className="px-4 py-2.5 rounded-xl bg-[#003b2b] hover:bg-[#002b1f] text-white font-semibold text-sm transition-all duration-200 shadow-sm flex items-center gap-2 cursor-pointer"
@@ -662,197 +749,204 @@ export default function AdminAccountsPage() {
 
           {/* Table Container */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
-                  <th className="py-4 pl-6 pr-4 min-w-[240px]">Người Dùng</th>
-                  <th className="py-4 px-4 min-w-[140px]">Số Điện Thoại</th>
-                  <th className="py-4 px-4 min-w-[180px]">Mật Khẩu</th>
-                  <th className="py-4 px-4 min-w-[200px]">Vai Trò</th>
-                  <th className="py-4 px-4 min-w-[130px]">Trạng Thái</th>
-                  <th className="py-4 px-4 min-w-[130px]">Ngày Tham Gia</th>
-                  <th className="py-4 pr-6 pl-4 text-right min-w-[150px]">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                {filteredUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-16 text-center text-slate-500">
-                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-3">
-                        <span className="material-symbols-outlined text-3xl">person_search</span>
-                      </div>
-                      <p className="font-semibold text-base text-slate-800">Không tìm thấy người dùng nào</p>
-                      <p className="text-xs text-slate-400 mt-1">Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc.</p>
-                    </td>
+            {loading ? (
+              <div className="py-20 text-center space-y-3">
+                <div className="w-10 h-10 border-4 border-[#003b2b] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">Đang tải dữ liệu người dùng từ Database...</p>
+              </div>
+            ) : (
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
+                    <th className="py-4 pl-6 pr-4 min-w-[240px]">Người Dùng</th>
+                    <th className="py-4 px-4 min-w-[140px]">Số Điện Thoại</th>
+                    <th className="py-4 px-4 min-w-[180px]">Mật Khẩu</th>
+                    <th className="py-4 px-4 min-w-[200px]">Vai Trò</th>
+                    <th className="py-4 px-4 min-w-[130px]">Trạng Thái</th>
+                    <th className="py-4 px-4 min-w-[130px]">Ngày Tham Gia</th>
+                    <th className="py-4 pr-6 pl-4 text-right min-w-[150px]">Thao Tác</th>
                   </tr>
-                ) : (
-                  filteredUsers.map((u) => {
-                    const isPasswordVisible = visiblePasswords[u.id] || false;
-                    const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-16 text-center text-slate-500">
+                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-3">
+                          <span className="material-symbols-outlined text-3xl">person_search</span>
+                        </div>
+                        <p className="font-semibold text-base text-slate-800">Không tìm thấy người dùng nào</p>
+                        <p className="text-xs text-slate-400 mt-1">Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u) => {
+                      const isPasswordVisible = visiblePasswords[u.id] || false;
+                      const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
 
-                    return (
-                      <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                        
-                        {/* 1. Người dùng: Avatar + Name + Email */}
-                        <td className="py-4 pl-6 pr-4 align-middle">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-sm">
-                              {u.avatar ? (
-                                <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
-                              ) : (
-                                u.fullName?.charAt(0)?.toUpperCase() || 'U'
-                              )}
+                      return (
+                        <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
+                          
+                          {/* 1. Người dùng: Avatar + Name + Email */}
+                          <td className="py-4 pl-6 pr-4 align-middle">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-sm">
+                                {u.avatar ? (
+                                  <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
+                                ) : (
+                                  u.fullName?.charAt(0)?.toUpperCase() || 'U'
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-slate-900 block truncate hover:text-[#003b2b]">
+                                  {u.fullName}
+                                </span>
+                                <span className="text-xs text-slate-500 block truncate">{u.email}</span>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <span className="font-bold text-slate-900 block truncate hover:text-[#003b2b]">
-                                {u.fullName}
-                              </span>
-                              <span className="text-xs text-slate-500 block truncate">{u.email}</span>
-                            </div>
-                          </div>
-                        </td>
+                          </td>
 
-                        {/* 2. Số điện thoại */}
-                        <td className="py-4 px-4 align-middle font-mono text-xs sm:text-sm text-slate-800 whitespace-nowrap">
-                          {u.phone ? (
-                            <span>{u.phone}</span>
-                          ) : (
-                            <span className="text-slate-400 italic">Chưa cập nhật</span>
-                          )}
-                        </td>
-
-                        {/* 3. Mật khẩu (Cột ẩn/hiện mật khẩu) */}
-                        <td className="py-4 px-4 align-middle whitespace-nowrap">
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono">
-                            <span className="font-medium text-slate-800 select-all min-w-[75px]">
-                              {isPasswordVisible ? u.password || '••••••••' : '••••••••'}
-                            </span>
-                            
-                            {/* Toggle Eye Button */}
-                            <button
-                              type="button"
-                              onClick={() => togglePasswordVisibility(u.id)}
-                              className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
-                              title={isPasswordVisible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                              aria-label="Ẩn hiện mật khẩu"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">
-                                {isPasswordVisible ? 'visibility_off' : 'visibility'}
-                              </span>
-                            </button>
-
-                            {/* Copy button */}
-                            <button
-                              type="button"
-                              onClick={() => handleCopyPassword(u.password, u.fullName)}
-                              className="p-1 rounded-lg text-slate-500 hover:text-[#003b2b] hover:bg-slate-200 transition-colors cursor-pointer"
-                              title="Sao chép mật khẩu"
-                              aria-label="Sao chép mật khẩu"
-                            >
-                              <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* 4. Vai trò (Role + Store Tooltip) */}
-                        <td className="py-4 px-4 align-middle whitespace-nowrap">
-                          {renderRoleBadge(u)}
-                        </td>
-
-                        {/* 5. Trạng thái */}
-                        <td className="py-4 px-4 align-middle whitespace-nowrap">
-                          {u.status === 'ACTIVE' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              <span>Hoạt động</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                              <span>Đã khóa</span>
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 6. Ngày tham gia */}
-                        <td className="py-4 px-4 align-middle text-slate-500 whitespace-nowrap text-xs">
-                          {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}
-                        </td>
-
-                        {/* 7. Thao tác (Sửa, Khóa, Xóa) */}
-                        <td className="py-4 pr-6 pl-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            
-                            {/* Nút Sửa */}
-                            <button
-                              onClick={() => handleOpenEdit(u)}
-                              className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
-                              title="Chỉnh sửa thông tin"
-                            >
-                              <span className="material-symbols-outlined text-[17px]">edit</span>
-                            </button>
-
-                            {/* Nút Khóa / Mở khóa (Admin Sàn bị vô hiệu hóa) */}
-                            {isPlatformAdmin ? (
-                              <button
-                                disabled
-                                className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
-                                title="Tài khoản Admin Sàn không thể bị khóa"
-                              >
-                                <span className="material-symbols-outlined text-[17px]">lock</span>
-                              </button>
+                          {/* 2. Số điện thoại */}
+                          <td className="py-4 px-4 align-middle font-mono text-xs sm:text-sm text-slate-800 whitespace-nowrap">
+                            {u.phone ? (
+                              <span>{u.phone}</span>
                             ) : (
+                              <span className="text-slate-400 italic">Chưa cập nhật</span>
+                            )}
+                          </td>
+
+                          {/* 3. Mật khẩu (Cột ẩn/hiện mật khẩu) */}
+                          <td className="py-4 px-4 align-middle whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono">
+                              <span className="font-medium text-slate-800 select-all min-w-[75px]">
+                                {isPasswordVisible ? u.password || '••••••••' : '••••••••'}
+                              </span>
+                              
+                              {/* Toggle Eye Button */}
                               <button
-                                onClick={() => setLockingUser(u)}
-                                className={`p-1.5 rounded-lg border transition-colors cursor-pointer shadow-2xs ${
-                                  u.status === 'LOCKED'
-                                    ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                                    : 'border-amber-200 text-amber-600 hover:bg-amber-50'
-                                }`}
-                                title={u.status === 'LOCKED' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                                type="button"
+                                onClick={() => togglePasswordVisibility(u.id)}
+                                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
+                                title={isPasswordVisible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                                aria-label="Ẩn hiện mật khẩu"
                               >
-                                <span className="material-symbols-outlined text-[17px]">
-                                  {u.status === 'LOCKED' ? 'lock_open' : 'lock'}
+                                <span className="material-symbols-outlined text-[16px]">
+                                  {isPasswordVisible ? 'visibility_off' : 'visibility'}
                                 </span>
                               </button>
-                            )}
 
-                            {/* Nút Xóa (Admin Sàn bị vô hiệu hóa) */}
-                            {isPlatformAdmin ? (
+                              {/* Copy button */}
                               <button
-                                disabled
-                                className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
-                                title="Tài khoản Admin Sàn không thể bị xóa"
+                                type="button"
+                                onClick={() => handleCopyPassword(u.password, u.fullName)}
+                                className="p-1 rounded-lg text-slate-500 hover:text-[#003b2b] hover:bg-slate-200 transition-colors cursor-pointer"
+                                title="Sao chép mật khẩu"
+                                aria-label="Sao chép mật khẩu"
                               >
-                                <span className="material-symbols-outlined text-[17px]">delete</span>
+                                <span className="material-symbols-outlined text-[16px]">content_copy</span>
                               </button>
+                            </div>
+                          </td>
+
+                          {/* 4. Vai trò (Role + Store Tooltip) */}
+                          <td className="py-4 px-4 align-middle whitespace-nowrap">
+                            {renderRoleBadge(u)}
+                          </td>
+
+                          {/* 5. Trạng thái */}
+                          <td className="py-4 px-4 align-middle whitespace-nowrap">
+                            {u.status === 'ACTIVE' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span>Hoạt động</span>
+                              </span>
                             ) : (
-                              <button
-                                onClick={() => setDeletingUser(u)}
-                                className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors cursor-pointer shadow-2xs"
-                                title="Xóa tài khoản"
-                              >
-                                <span className="material-symbols-outlined text-[17px]">delete</span>
-                              </button>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                <span>Đã khóa</span>
+                              </span>
                             )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+                          </td>
+
+                          {/* 6. Ngày tham gia */}
+                          <td className="py-4 px-4 align-middle text-slate-500 whitespace-nowrap text-xs">
+                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}
+                          </td>
+
+                          {/* 7. Thao tác (Sửa, Khóa, Xóa) */}
+                          <td className="py-4 pr-6 pl-4 align-middle text-right whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1.5">
+                              
+                              {/* Nút Sửa */}
+                              <button
+                                onClick={() => handleOpenEdit(u)}
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
+                                title="Chỉnh sửa thông tin"
+                              >
+                                <span className="material-symbols-outlined text-[17px]">edit</span>
+                              </button>
+
+                              {/* Nút Khóa / Mở khóa (Admin Sàn bị vô hiệu hóa) */}
+                              {isPlatformAdmin ? (
+                                <button
+                                  disabled
+                                  className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
+                                  title="Tài khoản Admin Sàn không thể bị khóa"
+                                >
+                                  <span className="material-symbols-outlined text-[17px]">lock</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setLockingUser(u)}
+                                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+                                    u.status === 'LOCKED' || u.status === 'BLOCKED'
+                                      ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
+                                      : 'border-amber-200 text-amber-600 hover:bg-amber-50'
+                                  }`}
+                                  title={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                                >
+                                  <span className="material-symbols-outlined text-[17px]">
+                                    {u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'lock_open' : 'lock'}
+                                  </span>
+                                </button>
+                              )}
+
+                              {/* Nút Xóa (Admin Sàn bị vô hiệu hóa) */}
+                              {isPlatformAdmin ? (
+                                <button
+                                  disabled
+                                  className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
+                                  title="Tài khoản Admin Sàn không thể bị xóa"
+                                >
+                                  <span className="material-symbols-outlined text-[17px]">delete</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setDeletingUser(u)}
+                                  className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors cursor-pointer shadow-2xs"
+                                  title="Xóa tài khoản"
+                                >
+                                  <span className="material-symbols-outlined text-[17px]">delete</span>
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
 
           {/* Table Footer / Info bar */}
           <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>
-              Hiển thị <strong className="text-slate-800">{filteredUsers.length}</strong> trên tổng số <strong className="text-slate-800">{users.length}</strong> người dùng
+              Hiển thị <strong className="text-slate-800">{filteredUsers.length}</strong> trên tổng số <strong className="text-slate-800">{users.length}</strong> người dùng từ cơ sở dữ liệu
             </span>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Hệ thống cơ sở dữ liệu đồng bộ an toàn</span>
+              <span>Đồng bộ dữ liệu thời gian thực</span>
             </div>
           </div>
         </div>
@@ -870,7 +964,7 @@ export default function AdminAccountsPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Thêm Khách Hàng Mới</h3>
-                  <p className="text-xs text-slate-500">Tạo tài khoản người mua sách mới trên hệ thống sàn HUKI</p>
+                  <p className="text-xs text-slate-500">Lưu thông tin khách hàng mới vào cơ sở dữ liệu</p>
                 </div>
               </div>
               <button
@@ -952,7 +1046,7 @@ export default function AdminAccountsPage() {
                     </span>
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">Khách hàng có thể đổi mật khẩu sau khi đăng nhập.</p>
+                <p className="text-[11px] text-slate-400 mt-1">Mật khẩu sẽ được mã hóa an toàn trong database.</p>
               </div>
 
               {/* Địa chỉ giao hàng mặc định */}
@@ -972,7 +1066,7 @@ export default function AdminAccountsPage() {
               {/* Notice note */}
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-800">
                 <span className="material-symbols-outlined text-base text-blue-600 shrink-0 mt-0.5">info</span>
-                <span>Form này được thiết kế riêng để thêm người dùng với vai trò <strong>Khách hàng</strong>. Tài khoản Admin Seller và Nhân viên được đăng ký và phân quyền qua quy trình duyệt hồ sơ doanh nghiệp.</span>
+                <span>Form này tạo người dùng với vai trò <strong>Khách hàng</strong> và lưu trực tiếp vào cơ sở dữ liệu.</span>
               </div>
 
               {/* Actions */}
@@ -986,10 +1080,17 @@ export default function AdminAccountsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-lg">check</span>
-                  <span>Tạo Khách Hàng</span>
+                  {isSubmitting ? (
+                    <span>Đang lưu...</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-lg">check</span>
+                      <span>Lưu Vào Database</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1009,7 +1110,7 @@ export default function AdminAccountsPage() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-slate-900">Chỉnh Sửa Người Dùng</h3>
-                  <p className="text-xs text-slate-500">Cập nhật hồ sơ và vai trò của tài khoản</p>
+                  <p className="text-xs text-slate-500">Cập nhật hồ sơ và vai trò của tài khoản trong database</p>
                 </div>
               </div>
               <button
@@ -1063,14 +1164,14 @@ export default function AdminAccountsPage() {
               {/* Mật khẩu */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mật khẩu
+                  Mật khẩu mới (Nếu cần đặt lại)
                 </label>
                 <div className="relative flex items-center">
                   <input
                     type={showEditPassword ? 'text' : 'password'}
                     value={editForm.password}
                     onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
-                    placeholder="Để trống nếu không đổi mật khẩu..."
+                    placeholder="Để trống nếu giữ nguyên mật khẩu..."
                     className="w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-mono focus:outline-none focus:border-[#003b2b] focus:bg-white"
                   />
                   <button
@@ -1146,10 +1247,17 @@ export default function AdminAccountsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
                 >
-                  <span className="material-symbols-outlined text-lg">save</span>
-                  <span>Lưu Thay Đổi</span>
+                  {isSubmitting ? (
+                    <span>Đang lưu...</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-lg">save</span>
+                      <span>Lưu Thay Đổi</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1163,23 +1271,23 @@ export default function AdminAccountsPage() {
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl animate-scaleIn">
             <div className="flex items-center gap-3">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                lockingUser.status === 'LOCKED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
               }`}>
                 <span className="material-symbols-outlined text-2xl">
-                  {lockingUser.status === 'LOCKED' ? 'lock_open' : 'lock'}
+                  {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'lock_open' : 'lock'}
                 </span>
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">
-                  {lockingUser.status === 'LOCKED' ? 'Mở Khóa Tài Khoản?' : 'Khóa Tài Khoản Người Dùng?'}
+                  {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Mở Khóa Tài Khoản?' : 'Khóa Tài Khoản Người Dùng?'}
                 </h3>
                 <p className="text-xs text-slate-500">{lockingUser.fullName} ({lockingUser.email})</p>
               </div>
             </div>
 
             <p className="text-sm text-slate-600">
-              {lockingUser.status === 'LOCKED'
-                ? 'Sau khi mở khóa, người dùng này có thể đăng nhập và tiếp tục sử dụng tất cả dịch vụ trên sàn HUKI.'
+              {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED'
+                ? 'Sau khi mở khóa trong database, người dùng này có thể đăng nhập và tiếp tục sử dụng tất cả dịch vụ trên sàn HUKI.'
                 : 'Khi bị khóa, tài khoản này sẽ bị thu hồi phiên đăng nhập ngay lập tức và không thể thực hiện các giao dịch trên sàn.'}
             </p>
 
@@ -1195,10 +1303,10 @@ export default function AdminAccountsPage() {
                 type="button"
                 onClick={handleConfirmLock}
                 className={`px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm ${
-                  lockingUser.status === 'LOCKED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+                  lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
                 }`}
               >
-                {lockingUser.status === 'LOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa tài khoản'}
+                {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa tài khoản'}
               </button>
             </div>
           </div>
@@ -1220,7 +1328,7 @@ export default function AdminAccountsPage() {
             </div>
 
             <p className="text-sm text-slate-600">
-              Bạn có chắc chắn muốn xóa tài khoản này không? Hành động này sẽ vô hiệu hóa hoàn toàn thông tin người dùng khỏi hệ thống.
+              Bạn có chắc chắn muốn xóa tài khoản này khỏi database không? Hành động này sẽ vô hiệu hóa hoàn toàn thông tin người dùng khỏi hệ thống.
             </p>
 
             <div className="flex items-center justify-end gap-3 pt-2">

@@ -233,4 +233,58 @@ export const adminApi = {
       };
     }
   },
+
+  /**
+   * Lấy danh sách toàn bộ người dùng từ DB dành cho Admin Sàn
+   */
+  async getUsers(params: { search?: string; role?: string; status?: string } = {}): Promise<ApiResponse<any[]>> {
+    const query = new URLSearchParams();
+    if (params.search) query.append('search', params.search);
+    if (params.role) query.append('role', params.role);
+    if (params.status) query.append('status', params.status);
+
+    const qs = query.toString();
+    return apiClient<any[]>(`/users/admin/all${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Tạo khách hàng mới vào database
+   */
+  async createCustomer(dto: { fullName: string; email: string; phone: string; password?: string }): Promise<ApiResponse<any>> {
+    return apiClient<any>('/users/admin/customer', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  },
+
+  /**
+   * Cập nhật thông tin người dùng trong database
+   */
+  async updateUser(id: string, dto: { fullName?: string; email?: string; phone?: string; password?: string; role?: string; status?: string; storeName?: string }): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/users/admin/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  },
+
+  /**
+   * Khóa hoặc mở khóa người dùng trong database
+   */
+  async toggleLockUser(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/users/admin/${id}/toggle-lock`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Xóa người dùng (soft-delete) trong database
+   */
+  async deleteUser(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/users/admin/${id}`, {
+      method: 'DELETE',
+    });
+  },
 };
+
