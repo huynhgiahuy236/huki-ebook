@@ -49,6 +49,14 @@ export default function HierarchicalSidebar({ isCollapsed, setIsCollapsed, isMob
           end: true
         },
         {
+          id: 'store-flash-sale',
+          title: 'Flash Sale Giờ Vàng',
+          to: '/flash-sale',
+          icon: 'bolt',
+          badge: 'HOT',
+          badgeColor: 'bg-rose-500 text-white animate-pulse'
+        },
+        {
           id: 'store-shop',
           title: 'Gian Hàng Mall (Alpha Books)',
           to: '/shop/alpha-books',
@@ -271,6 +279,7 @@ export default function HierarchicalSidebar({ isCollapsed, setIsCollapsed, isMob
           icon: 'inventory',
           hasSubmenu: true,
           subItems: [
+            { title: 'Quản Lý Tồn Kho (3 Tầng)', to: '/seller/inventory', icon: 'warehouse', badge: '3-Tier', badgeColor: 'bg-emerald-600 text-white' },
             { title: 'Thêm Sách Hybrid (Giấy+Ebook)', to: '/seller/product/create-hybrid', icon: 'add_circle' },
             { title: 'Thêm Ebook Kỹ Thuật Số', to: '/seller/product/create-ebook', icon: 'note_add' },
             { title: 'Thêm Sách Giấy & Kho', to: '/seller/product/create-physical', icon: 'library_add' },

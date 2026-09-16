@@ -108,6 +108,14 @@ export default function StoreHeader({ onToggleSidebar, onToggleMobileSidebar, is
         </div>
         <div className="flex items-center gap-3">
           <Link
+            to="/flash-sale"
+            className="hover:text-amber-300 transition-colors flex items-center gap-1 font-extrabold text-amber-300 animate-pulse"
+          >
+            <span className="material-symbols-outlined text-[14px]">bolt</span>
+            <span>⚡ Flash Sale</span>
+          </Link>
+          <span className="opacity-40">|</span>
+          <Link
             to={hasRole('seller') ? '/seller/dashboard' : '/seller'}
             className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold"
           >

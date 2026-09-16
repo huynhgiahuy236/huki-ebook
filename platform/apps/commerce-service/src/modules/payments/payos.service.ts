@@ -25,6 +25,11 @@ export interface PayOSPaymentLink {
   qrCode: string;
   status: string;
   amount: number;
+  accountNumber?: string;
+  accountName?: string;
+  bin?: string;
+  description?: string;
+  [key: string]: any;
 }
 
 @Injectable()
@@ -60,6 +65,26 @@ export class PayOSService {
       throw new ServiceUnavailableException(`PayOS rejected payment link: ${payload.desc ?? response.status}`);
     }
     return payload.data;
+  }
+
+  async getPaymentLinkInformation(orderCode: number | string): Promise<any> {
+    try {
+      const credentials = this.credentials();
+      const response = await fetch(`${this.baseUrl}/v2/payment-requests/${orderCode}`, {
+        method: 'GET',
+        headers: {
+          'x-client-id': credentials.clientId,
+          'x-api-key': credentials.apiKey,
+        },
+      });
+      const payload = (await response.json()) as PayOSResponse<any>;
+      if (!response.ok || payload.code !== '00' || !payload.data) {
+        return null;
+      }
+      return payload.data;
+    } catch {
+      return null;
+    }
   }
 
   verifyWebhook(payload: PayOSWebhookDto): boolean {

@@ -66,13 +66,12 @@ export async function apiClient<T = unknown>(
                   tokenStorage.setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
                   return newAccessToken;
                 } else {
-                  throw new Error('Invalid refresh response');
+                  return null;
                 }
               } else {
-                throw new Error('Refresh failed');
+                return null;
               }
             } catch {
-              tokenStorage.clearTokens();
               return null;
             }
           })().finally(() => {
@@ -180,6 +179,14 @@ const BUSINESS_ERROR_TRANSLATIONS: Record<string, { title: string; message: stri
   AUTH_INVALID_CREDENTIALS: {
     title: 'Đăng nhập không thành công',
     message: 'Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại.',
+  },
+  AUTH_TOKEN_MISSING: {
+    title: 'Chưa đăng nhập',
+    message: 'Vui lòng đăng nhập tài khoản để thực hiện chức năng này.',
+  },
+  AUTH_TOKEN_INVALID: {
+    title: 'Phiên làm việc hết hạn',
+    message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
   },
   AUTH_USER_NOT_FOUND: {
     title: 'Không tìm thấy tài khoản',

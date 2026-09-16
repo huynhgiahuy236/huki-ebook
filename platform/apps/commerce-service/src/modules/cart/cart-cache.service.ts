@@ -8,7 +8,22 @@ export interface CachedCart {
   id: string;
   userId: string;
   items: CachedCartItem[];
+  availableItems: CachedCartItem[];
+  unavailableItems: CachedCartItem[];
+  storeGroups: CachedStoreGroup[];
+  totalItems: number;
+  subtotal: number;
   updatedAt: string;
+}
+
+export interface CachedStoreGroup {
+  id: string;
+  name: string;
+  tag: string;
+  tagBg: string;
+  badge: string;
+  items: CachedCartItem[];
+  subtotal: number;
 }
 
 export interface CachedCartItem {
@@ -17,14 +32,26 @@ export interface CachedCartItem {
   format: string;
   quantity: number;
   unitPrice: number;
+  addedPrice: number;
+  currentPrice: number;
   subtotal: number;
+  isAvailable: boolean;
+  status: 'AVAILABLE' | 'OUT_OF_STOCK' | 'PARTIAL_STOCK';
+  availableStock: number;
+  priceChange?: 'INCREASED' | 'DECREASED' | null;
+  priceChangeMessage?: string | null;
+  stockWarning?: string | null;
   book: {
     id: string;
     storeId: string;
+    businessId?: string;
+    storeName?: string;
     title: string;
     slug: string;
     coverUrl: string | null;
     status: string;
+    author?: string;
+    publisher?: string;
   };
 }
 

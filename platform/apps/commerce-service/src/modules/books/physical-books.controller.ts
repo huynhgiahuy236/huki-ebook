@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BookActor, BookWriteGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
@@ -16,6 +16,15 @@ export class PhysicalBooksController {
   @Get('physical')
   @ApiOperation({ summary: 'Get private physical details for an owned book' })
   async get(
+    @Param('bookId', ParseUUIDPipe) bookId: string,
+    @CurrentBookActor() actor: BookActor,
+  ) {
+    return { data: await this.physicalBooksService.get(bookId, actor) };
+  }
+
+  @Get('inventory')
+  @ApiOperation({ summary: 'Get 3-tier inventory levels for an owned book' })
+  async getInventory(
     @Param('bookId', ParseUUIDPipe) bookId: string,
     @CurrentBookActor() actor: BookActor,
   ) {
@@ -41,4 +50,16 @@ export class PhysicalBooksController {
   ) {
     return { message: 'Inventory updated', data: await this.physicalBooksService.updateInventory(bookId, dto, actor) };
   }
+
+  @Get('inventory-logs')
+  @ApiOperation({ summary: 'Get inventory mutation audit logs' })
+  async getInventoryLogs(
+    @Param('bookId', ParseUUIDPipe) bookId: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @CurrentBookActor() actor: BookActor = {} as any,
+  ) {
+    return await this.physicalBooksService.getInventoryLogs(bookId, actor, { page, limit });
+  }
 }
+

@@ -203,4 +203,18 @@ export const orderApi = {
   getOrderTracking: async (id: string): Promise<ApiResponse<OrderTrackingInfo>> => {
     return apiClient<OrderTrackingInfo>(`/orders/${id}/tracking`, { method: 'GET' });
   },
+
+  cancelBuyerOrder: async (id: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {
+    return apiClient<BuyerOrder>(`/orders/${id}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  cancelBuyerSubOrder: async (orderId: string, sellerOrderId: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {
+    return apiClient<BuyerOrder>(`/orders/${orderId}/seller-orders/${sellerOrderId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
 };

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Min } from 'class-validator';
 
 export enum InventoryOperation {
   SET = 'SET',
@@ -9,6 +9,7 @@ export enum InventoryOperation {
 }
 
 export enum InventoryReason {
+  RESTOCK = 'RESTOCK',
   MANUAL_ADJUSTMENT = 'MANUAL_ADJUSTMENT',
   DAMAGED = 'DAMAGED',
   RETURNED = 'RETURNED',
@@ -35,4 +36,10 @@ export class UpdateInventoryDto {
   @IsOptional()
   @IsUUID()
   orderId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
 }
+

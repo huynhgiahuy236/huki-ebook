@@ -162,9 +162,15 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           isDeferred: true 
         },
         { 
+          to: '/seller/inventory', 
+          icon: 'inventory', 
+          label: 'Quản Lý Tồn Kho (3 Tầng)', 
+          permission: PERMISSIONS.INVENTORY_UPDATE 
+        },
+        { 
           to: '/seller/product/create-physical', 
           icon: 'inventory_2', 
-          label: 'Cập Nhật Tồn Kho', 
+          label: 'Cập Nhật Tồn Kho Sách Cũ', 
           permission: PERMISSIONS.INVENTORY_UPDATE 
         }
       ]

@@ -1,16 +1,21 @@
-import { Injectable } from '@nestjs/common';
-import { randomBytes } from 'crypto';
-import { PrismaService } from '../../prisma/prisma.service';
-import { BookActor } from '../../common/book-auth.guard';
-import { getSellerScope } from '../../common/seller-scope.util';
-import { CancelOrderDto, ShipOrderDto } from './dto/checkout.dto';
-import { OrderQueryDto, SellerOrderQueryDto } from './dto/order-query.dto';
-import { InventoryReservationService } from './inventory-reservation.service';
-import { SellerOrderStatus, Prisma } from '../../../prisma/generated/client';
-import { ORDER_EVENTS } from '../../../../../libs/shared/src';
-import { OrderCompletionService } from './order-completion.service';
-import { throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
-import { ErrorCode } from '@huki/shared/errors';
+import { Injectable } from "@nestjs/common";
+import { randomBytes } from "crypto";
+import { PrismaService } from "../../prisma/prisma.service";
+import { BookActor } from "../../common/book-auth.guard";
+import { getSellerScope } from "../../common/seller-scope.util";
+import { CancelOrderDto, ShipOrderDto } from "./dto/checkout.dto";
+import { OrderQueryDto, SellerOrderQueryDto } from "./dto/order-query.dto";
+import { InventoryReservationService } from "./inventory-reservation.service";
+import { SellerOrderStatus, Prisma } from "../../../prisma/generated/client";
+import { ORDER_EVENTS } from "../../../../../libs/shared/src";
+import { OrderCompletionService } from "./order-completion.service";
+import {
+  throwConflict,
+  throwNotFound,
+  throwForbidden,
+} from "@huki/shared/errors";
+import { ErrorCode } from "@huki/shared/errors";
+import { FlashSaleClientService } from "./flash-sale-client.service";
 
 const IMMUTABLE = new Set<SellerOrderStatus>([
   SellerOrderStatus.COMPLETED,
@@ -28,6 +33,7 @@ export class OrdersService {
     private readonly prisma: PrismaService,
     private readonly reservations: InventoryReservationService,
     private readonly completion: OrderCompletionService,
+    private readonly flashSales: FlashSaleClientService,
   ) {}
 
   async buyerList(userId: string, query: OrderQueryDto) {
@@ -38,14 +44,14 @@ export class OrdersService {
       this.prisma.order.findMany({
         where,
         include: { sellerOrders: { include: { items: true } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
       this.prisma.order.count({ where }),
     ]);
 
-    const mapped = items.map((item) => this.buyerView(item));
+    const mapped = await Promise.all(items.map((item) => this.buyerView(item)));
     return {
       data: mapped,
       items: mapped,
@@ -59,7 +65,7 @@ export class OrdersService {
       include: { sellerOrders: { include: { items: true } } },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
-    return this.buyerView(order);
+    return await this.buyerView(order);
   }
 
   async sellerList(actor: BookActor, query: SellerOrderQueryDto) {
@@ -77,7 +83,10 @@ export class OrdersService {
 
       const targetStore = query.store || (query as any).business;
       if (targetStore) {
-        if (!scope.storeIds.includes(targetStore) && !scope.businessIds.includes(targetStore)) {
+        if (
+          !scope.storeIds.includes(targetStore) &&
+          !scope.businessIds.includes(targetStore)
+        ) {
           return {
             data: [],
             items: [],
@@ -101,7 +110,7 @@ export class OrdersService {
       this.prisma.sellerOrder.findMany({
         where,
         include: { items: true, order: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         skip: (query.page - 1) * query.limit,
         take: query.limit,
       }),
@@ -127,7 +136,7 @@ export class OrdersService {
         orderId: sellerOrder!.orderId,
         OR: [{ sellerOrderId: id }, { sellerOrderId: null }],
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
     return { ...this.sellerView(sellerOrder!), timeline };
   }
@@ -146,7 +155,7 @@ export class OrdersService {
           ? SellerOrderStatus.CONFIRMED
           : SellerOrderStatus.COMPLETED;
       },
-      'Seller confirmed order',
+      "Seller confirmed order",
     );
   }
 
@@ -158,7 +167,7 @@ export class OrdersService {
       async () => {
         return SellerOrderStatus.PREPARING;
       },
-      'Seller is preparing order',
+      "Seller is preparing order",
     );
   }
 
@@ -182,7 +191,7 @@ export class OrdersService {
         });
         return SellerOrderStatus.SHIPPED;
       },
-      'Order handed to carrier',
+      "Order handed to carrier",
       { carrier: dto.carrier, trackingCode: dto.trackingCode },
     );
   }
@@ -199,12 +208,13 @@ export class OrdersService {
         });
         return SellerOrderStatus.COMPLETED;
       },
-      'Order delivered',
+      "Order delivered",
     );
   }
 
   async cancelBuyer(userId: string, id: string, dto: CancelOrderDto) {
-    return this.prisma.$transaction(async (tx) => {
+    const flashSaleBookIds: string[] = [];
+    const result = await this.prisma.$transaction(async (tx) => {
       const order = await tx.order.findFirst({
         where: { id, userId },
         include: { sellerOrders: { include: { items: true } } },
@@ -230,12 +240,15 @@ export class OrdersService {
             },
           });
           itemIds.push(...sellerOrder.items.map((item) => item.id));
+          flashSaleBookIds.push(
+            ...sellerOrder.items.map((item) => item.bookId),
+          );
         }
       }
 
       await this.reservations.release(tx as any, o.id, itemIds);
 
-      const newStatus = 'CANCELLED';
+      const newStatus = "CANCELLED";
 
       await tx.order.update({
         where: { id },
@@ -244,8 +257,8 @@ export class OrdersService {
           cancelReason: dto.reason,
           cancelledAt: now,
           paymentStatus:
-            o.paymentStatus === 'SUCCEEDED'
-              ? 'REFUND_PENDING'
+            o.paymentStatus === "SUCCEEDED"
+              ? "REFUND_PENDING"
               : o.paymentStatus,
         },
       });
@@ -255,15 +268,15 @@ export class OrdersService {
           orderId: o.id,
           fromStatus: o.status,
           toStatus: newStatus,
-          title: 'Buyer cancelled order',
-          actorType: 'USER',
+          title: "Buyer cancelled order",
+          actorType: "USER",
           actorId: userId,
         },
       });
 
       await tx.outboxEvent.create({
         data: {
-          eventId: randomBytes(16).toString('hex'),
+          eventId: randomBytes(16).toString("hex"),
           type: ORDER_EVENTS.CANCELLED,
           aggregateId: o.id,
           payload: {
@@ -279,12 +292,123 @@ export class OrdersService {
               }),
             ),
           },
-          status: 'PENDING',
+          status: "PENDING",
         },
       });
 
       return o;
     });
+    await this.flashSales
+      .releaseOrder(id, flashSaleBookIds)
+      .catch(() => undefined);
+    return result;
+  }
+
+  async cancelBuyerSubOrder(
+    userId: string,
+    orderId: string,
+    sellerOrderId: string,
+    dto: CancelOrderDto,
+  ) {
+    const flashSaleBookIds: string[] = [];
+    await this.prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId, userId },
+        include: { sellerOrders: { include: { items: true } } },
+      });
+      if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+      const o = order!;
+
+      const targetSubOrder = o.sellerOrders.find(
+        (so) => so.id === sellerOrderId,
+      );
+      if (!targetSubOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+      const sOrder = targetSubOrder!;
+
+      if (
+        SHIPPED.has(sOrder.status) ||
+        IMMUTABLE.has(sOrder.status)
+      ) {
+        throwConflict(ErrorCode.ORDER_CANNOT_CANCEL);
+      }
+
+      const now = new Date();
+      const itemIds = sOrder.items.map((item) => item.id);
+      flashSaleBookIds.push(...sOrder.items.map((item) => item.bookId));
+
+      await tx.sellerOrder.update({
+        where: { id: sOrder.id },
+        data: {
+          status: SellerOrderStatus.CANCELLED,
+          cancelledAt: now,
+          cancelReason: dto.reason,
+        },
+      });
+
+      await this.reservations.release(tx as any, o.id, itemIds);
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: o.id,
+          sellerOrderId: sOrder.id,
+          fromStatus: sOrder.status,
+          toStatus: SellerOrderStatus.CANCELLED,
+          title: "Buyer cancelled sub-order",
+          actorType: "USER",
+          actorId: userId,
+        },
+      });
+
+      const remainingSubOrders = o.sellerOrders.filter(
+        (so) => so.id !== sellerOrderId,
+      );
+      const allCancelled = remainingSubOrders.every(
+        (so) => so.status === SellerOrderStatus.CANCELLED,
+      );
+
+      const updatedMasterStatus = allCancelled
+        ? "CANCELLED"
+        : "PARTIALLY_CANCELLED";
+
+      await tx.order.update({
+        where: { id: o.id },
+        data: {
+          status: updatedMasterStatus,
+          cancelReason: allCancelled ? dto.reason : undefined,
+          cancelledAt: allCancelled ? now : undefined,
+        },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString("hex"),
+          type: ORDER_EVENTS.SELLER_CANCELLED,
+          aggregateId: o.id,
+          payload: {
+            orderId: o.id,
+            orderCode: o.code,
+            userId: o.userId,
+            sellerOrderId: sOrder.id,
+            requiresShipping: sOrder.requiresShipping,
+            sellerOrders: [
+              {
+                sellerOrderId: sOrder.id,
+                ownerUserId: sOrder.ownerUserId,
+                storeId: sOrder.storeId,
+              },
+            ],
+            reason: dto.reason,
+          },
+          status: "PENDING",
+        },
+      });
+    });
+
+    await this.flashSales
+      .releaseOrder(orderId, flashSaleBookIds)
+      .catch(() => undefined);
+
+    return this.buyerDetail(userId, orderId);
   }
 
   async cancelSeller(actor: BookActor, id: string, dto: CancelOrderDto) {
@@ -294,7 +418,7 @@ export class OrdersService {
     });
     await this.assertSeller(sellerOrder, actor);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (
         SHIPPED.has(sellerOrder!.status) ||
         IMMUTABLE.has(sellerOrder!.status)
@@ -320,8 +444,8 @@ export class OrdersService {
           sellerOrderId: sellerOrder!.id,
           fromStatus: sellerOrder!.status,
           toStatus: SellerOrderStatus.CANCELLED,
-          title: 'Seller cancelled order',
-          actorType: 'SELLER',
+          title: "Seller cancelled order",
+          actorType: "SELLER",
           actorId: actor.sub,
         },
       });
@@ -330,7 +454,7 @@ export class OrdersService {
 
       await tx.outboxEvent.create({
         data: {
-          eventId: randomBytes(16).toString('hex'),
+          eventId: randomBytes(16).toString("hex"),
           type: ORDER_EVENTS.SELLER_CANCELLED,
           aggregateId: sellerOrder!.orderId,
           payload: {
@@ -348,12 +472,19 @@ export class OrdersService {
             ],
             reason: dto.reason,
           },
-          status: 'PENDING',
+          status: "PENDING",
         },
       });
 
       return sellerOrder;
     });
+    await this.flashSales
+      .releaseOrder(
+        sellerOrder!.orderId,
+        sellerOrder!.items.map((item) => item.bookId),
+      )
+      .catch(() => undefined);
+    return result;
   }
 
   async tracking(userId: string, id: string) {
@@ -365,7 +496,7 @@ export class OrdersService {
 
     const timeline = await this.prisma.orderStatusHistory.findMany({
       where: { orderId: id },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { createdAt: "asc" },
     });
 
     return {
@@ -430,7 +561,7 @@ export class OrdersService {
           fromStatus,
           toStatus: newStatus,
           title,
-          actorType: 'SELLER',
+          actorType: "SELLER",
           actorId: actor.sub,
           metadata: metadata as Prisma.InputJsonValue | undefined,
         },
@@ -442,14 +573,14 @@ export class OrdersService {
 
       await tx.outboxEvent.create({
         data: {
-          eventId: randomBytes(16).toString('hex'),
+          eventId: randomBytes(16).toString("hex"),
           type:
             newStatus === SellerOrderStatus.CONFIRMED ||
             newStatus === SellerOrderStatus.COMPLETED
               ? ORDER_EVENTS.SELLER_CONFIRMED
               : newStatus === SellerOrderStatus.SHIPPED
                 ? ORDER_EVENTS.SELLER_SHIPPED
-                : 'SELLER_ORDER_STATUS_CHANGED',
+                : "SELLER_ORDER_STATUS_CHANGED",
           aggregateId: sOrder.orderId,
           payload: {
             orderId: sOrder.orderId,
@@ -461,7 +592,7 @@ export class OrdersService {
             from: fromStatus,
             to: newStatus,
           },
-          status: 'PENDING',
+          status: "PENDING",
         },
       });
 
@@ -471,7 +602,7 @@ export class OrdersService {
 
   private async assertSeller(order: any, actor: BookActor): Promise<void> {
     if (!order) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
-    if (actor.role === 'PLATFORM_ADMIN') return;
+    if (actor.role === "PLATFORM_ADMIN") return;
     if (order.ownerUserId === actor.sub) return;
 
     const scope = await getSellerScope(actor);
@@ -489,7 +620,98 @@ export class OrdersService {
     return { page, limit, total, totalPages: Math.ceil(total / limit) };
   }
 
-  private buyerView(order: any) {
+  private readonly storeNameCache = new Map<string, { name: string; expiry: number }>();
+
+  private async resolveStoreName(storeId: string): Promise<string> {
+    if (!storeId || storeId === 'huki-official' || storeId === 'default-store') {
+      return 'Gian Hàng HUKI';
+    }
+
+    const cached = this.storeNameCache.get(storeId);
+    if (cached && cached.expiry > Date.now()) {
+      return cached.name;
+    }
+
+    const businessPort = process.env.BUSINESS_SERVICE_PORT || 3002;
+
+    try {
+      // 1. Try store by ID
+      const resStore = await fetch(`http://localhost:${businessPort}/api/v1/stores/${storeId}`);
+      if (resStore.ok) {
+        const json = await resStore.json() as any;
+        const data = json.data || json;
+        if (data?.name) {
+          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
+          return data.name;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    try {
+      // 2. Try business by ID
+      const resBiz = await fetch(`http://localhost:${businessPort}/api/v1/businesses/${storeId}`);
+      if (resBiz.ok) {
+        const json = await resBiz.json() as any;
+        const data = json.data || json;
+        if (data?.stores && data.stores.length > 0 && data.stores[0]?.name) {
+          const storeName = data.stores[0].name;
+          this.storeNameCache.set(storeId, { name: storeName, expiry: Date.now() + 60000 });
+          return storeName;
+        }
+        if (data?.name) {
+          this.storeNameCache.set(storeId, { name: data.name, expiry: Date.now() + 60000 });
+          return data.name;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+
+    return 'Gian Hàng HUKI';
+  }
+
+  private async buyerView(order: any) {
+    const sellerOrders = await Promise.all(
+      (order.sellerOrders || []).map(async (so: any) => {
+        const storeName = await this.resolveStoreName(so.storeId);
+        return {
+          id: so.id,
+          orderId: so.orderId,
+          code: so.code,
+          storeId: so.storeId,
+          storeName,
+          ownerUserId: so.ownerUserId,
+          requiresShipping: so.requiresShipping,
+          itemSubtotal: Number(so.itemSubtotal),
+          shippingFee: Number(so.shippingFee),
+          grandTotal: Number(so.grandTotal),
+          status: so.status,
+          carrier: so.carrier,
+          trackingCode: so.trackingCode,
+          confirmedAt: so.confirmedAt,
+          shippedAt: so.shippedAt,
+          completedAt: so.completedAt,
+          cancelledAt: so.cancelledAt,
+          cancelReason: so.cancelReason,
+          createdAt: so.createdAt,
+          updatedAt: so.updatedAt,
+          items: (so.items || []).map((i: any) => ({
+            id: i.id,
+            bookId: i.bookId,
+            bookTitle: i.bookTitle,
+            bookCoverUrl: i.bookCoverUrl,
+            bookIsbn: i.bookIsbn,
+            format: i.format,
+            quantity: i.quantity,
+            unitPrice: Number(i.unitPrice),
+            subtotal: Number(i.subtotal),
+          })),
+        };
+      })
+    );
+
     return {
       id: order.id,
       code: order.code,
@@ -508,7 +730,7 @@ export class OrdersService {
       cancelReason: order.cancelReason,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
-      sellerOrders: order.sellerOrders,
+      sellerOrders,
     };
   }
 

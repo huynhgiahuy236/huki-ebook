@@ -53,7 +53,7 @@ export interface CheckoutPreviewResponse {
 
 export interface CheckoutConfirmPayload {
   sessionId: string;
-  paymentMethod: 'COD' | 'VNPAY' | 'MOMO' | 'CARD' | 'WALLET';
+  paymentMethod: 'COD' | 'ONLINE_PAYMENT' | 'VNPAY' | 'MOMO' | 'CARD' | 'WALLET';
   paymentProvider?: string;
 }
 

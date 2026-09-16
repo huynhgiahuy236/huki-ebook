@@ -32,6 +32,7 @@ import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CartService } from './cart.service';
 import { AddCartItemDto } from './dto/add-cart-item.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
+import { MergeCartDto } from './dto/merge-cart.dto';
 
 @ApiTags('Cart')
 @ApiBearerAuth()
@@ -49,6 +50,18 @@ export class CartController {
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   get(@CurrentBookActor() actor: BookActor) {
     return this.cartService.getCart(actor.sub);
+  }
+
+  @Post('merge')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Merge guest cart into user account',
+    description: 'Merges items stored in local storage during guest session into the authenticated user cart.',
+  })
+  @ApiResponse({ status: 200, description: 'Cart merged successfully' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  merge(@CurrentBookActor() actor: BookActor, @Body() dto: MergeCartDto) {
+    return this.cartService.mergeGuestCart(actor.sub, dto.items || []);
   }
 
   @Post('items')

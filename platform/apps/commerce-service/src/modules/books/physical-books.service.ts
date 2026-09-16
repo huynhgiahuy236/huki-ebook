@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { BooksService } from './books.service';
 import { UpdateInventoryDto, InventoryOperation } from './dto/update-inventory.dto';
@@ -21,13 +22,15 @@ export class PhysicalBooksService {
     private readonly prisma: PrismaService,
     private readonly booksService: BooksService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly redisService: RedisService,
   ) {}
 
   async get(bookId: string, actor: BookActor) {
     await this.booksService.findForWrite(bookId, actor);
     const details = await this.prisma.physicalBookDetails.findUnique({ where: { bookId } });
     if (!details) throw new NotFoundException('Physical book details not found');
-    return details;
+    const available = Math.max(0, details.stock - details.reserved);
+    return { ...details, available };
   }
 
   async update(bookId: string, dto: UpdatePhysicalDetailsDto, actor: BookActor) {
@@ -79,19 +82,31 @@ export class PhysicalBooksService {
         data: { stock: stockAfter },
       });
 
+      const changeQty =
+        dto.operation === InventoryOperation.SET
+          ? stockAfter - stockBefore
+          : dto.operation === InventoryOperation.ADD
+            ? dto.quantity
+            : -dto.quantity;
+
       // Create inventory log
       await tx.inventoryLog.create({
         data: {
           bookId: details.id,
-          change: dto.operation === InventoryOperation.ADD ? dto.quantity : -dto.quantity,
+          change: changeQty,
           balance: stockAfter,
-          reason: dto.reason ?? '',
+          reason: dto.reason ?? 'MANUAL_ADJUSTMENT',
+          note: dto.note ?? null,
           orderId: dto.orderId ?? null,
         },
       });
 
-      return { details: updated, available: stockAfter - details.reserved };
+      const available = stockAfter - details.reserved;
+      return { details: updated, available };
     });
+
+    // Synchronize available stock to Redis atomic counter
+    await this.redisService.syncStock(bookId, result.available);
 
     if (result.available <= (result.details as any).lowStockThreshold) {
       this.eventEmitter.emit('stock.low', {
@@ -105,6 +120,41 @@ export class PhysicalBooksService {
 
     return { ...result.details, available: result.available };
   }
+
+  async getInventoryLogs(bookId: string, actor: BookActor, query?: { page?: number; limit?: number }) {
+    await this.booksService.findForWrite(bookId, actor);
+    const details = await this.prisma.physicalBookDetails.findUnique({ where: { bookId } });
+    if (!details) throw new NotFoundException('Physical book details not found');
+
+    const page = Math.max(1, Number(query?.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query?.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const logWhere = {
+      OR: [{ bookId: details.id }, { bookId: bookId }],
+    };
+
+    const [total, logs] = await Promise.all([
+      this.prisma.inventoryLog.count({ where: logWhere }),
+      this.prisma.inventoryLog.findMany({
+        where: logWhere,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      data: logs,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    };
+  }
+
 
   private calculateStock(current: number, dto: UpdateInventoryDto): number {
     const value =
@@ -123,3 +173,4 @@ export class PhysicalBooksService {
     }
   }
 }
+

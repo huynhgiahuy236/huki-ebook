@@ -1,7 +1,7 @@
 import type { AuthTokens } from './types';
 
-const ACCESS_TOKEN_COOKIE = 'huki_access_token';
-const REFRESH_TOKEN_COOKIE = 'huki_refresh_token';
+const ACCESS_TOKEN_KEY = 'huki_access_token';
+const REFRESH_TOKEN_KEY = 'huki_refresh_token';
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -24,26 +24,54 @@ function deleteCookie(name: string): void {
 
 export const tokenStorage = {
   getTokens(): AuthTokens | null {
-    const accessToken = getCookie(ACCESS_TOKEN_COOKIE);
-    const refreshToken = getCookie(REFRESH_TOKEN_COOKIE);
+    let accessToken: string | null = null;
+    let refreshToken: string | null = null;
+
+    if (typeof window !== 'undefined' && window.localStorage) {
+      accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+      refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+    }
+
+    if (!accessToken || !refreshToken) {
+      accessToken = accessToken || getCookie(ACCESS_TOKEN_KEY);
+      refreshToken = refreshToken || getCookie(REFRESH_TOKEN_KEY);
+    }
+
     return accessToken && refreshToken ? { accessToken, refreshToken } : null;
   },
 
   setTokens(tokens: AuthTokens): void {
-    setCookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, 7);
-    setCookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, 30);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (tokens.accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
+      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+    }
+    if (tokens.accessToken) setCookie(ACCESS_TOKEN_KEY, tokens.accessToken, 7);
+    if (tokens.refreshToken) setCookie(REFRESH_TOKEN_KEY, tokens.refreshToken, 30);
   },
 
   clearTokens(): void {
-    deleteCookie(ACCESS_TOKEN_COOKIE);
-    deleteCookie(REFRESH_TOKEN_COOKIE);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
+    deleteCookie(ACCESS_TOKEN_KEY);
+    deleteCookie(REFRESH_TOKEN_KEY);
   },
 
   getAccessToken(): string | null {
-    return getCookie(ACCESS_TOKEN_COOKIE);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (token) return token;
+    }
+    return getCookie(ACCESS_TOKEN_KEY);
   },
 
   getRefreshToken(): string | null {
-    return getCookie(REFRESH_TOKEN_COOKIE);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const token = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (token) return token;
+    }
+    return getCookie(REFRESH_TOKEN_KEY);
   },
 };
+

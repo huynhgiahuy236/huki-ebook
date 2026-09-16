@@ -254,14 +254,49 @@ export const catalogApi = {
     });
   },
 
+  async getInventory(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/books/${id}/inventory`, {
+      method: 'GET',
+    });
+  },
+
   async updateInventory(
     id: string,
-    quantity: number,
+    payload:
+      | number
+      | {
+          operation: 'SET' | 'ADD' | 'SUBTRACT';
+          quantity: number;
+          reason?: string;
+          note?: string;
+        },
     reason: InventoryReason = 'MANUAL_ADJUSTMENT',
   ): Promise<ApiResponse<PhysicalDetails>> {
+    const body =
+      typeof payload === 'number'
+        ? { operation: 'SET', quantity: payload, reason }
+        : {
+            operation: payload.operation,
+            quantity: payload.quantity,
+            reason: payload.reason || reason,
+            note: payload.note,
+          };
     return apiClient<PhysicalDetails>(`/books/${id}/inventory`, {
       method: 'PATCH',
-      body: JSON.stringify({ operation: 'SET', quantity, reason }),
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getInventoryLogs(
+    id: string,
+    params?: { page?: number; limit?: number },
+  ): Promise<ApiResponse<any>> {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.limit) query.append('limit', params.limit.toString());
+    const qs = query.toString();
+    return apiClient<any>(`/books/${id}/inventory-logs${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
     });
   },
 };
@@ -270,12 +305,35 @@ export function toCatalogBook(book: BookData) {
   const format = book.format || 'DIGITAL';
   const physical = format === 'PHYSICAL' || format === 'BOTH';
   const digital = format === 'DIGITAL' || format === 'BOTH';
+  const stock = (book as any).stock ?? book.physicalDetails?.stock ?? 0;
+  const reserved = (book as any).reserved ?? book.physicalDetails?.reserved ?? 0;
+  const available =
+    (book as any).available !== undefined
+      ? (book as any).available
+      : Math.max(0, stock - reserved);
+
+  const publisherName =
+    book.publisher?.name ||
+    (typeof (book as any).publisher === 'string' ? (book as any).publisher : null) ||
+    (book as any).business?.name ||
+    (book as any).business?.displayName ||
+    (book as any).store?.name ||
+    'Gian Hàng HUKI';
+
+  const storeId =
+    book.storeId ||
+    (book as any).businessId ||
+    (book as any).store?.id ||
+    'huki-official';
+
   return {
     id: book.id,
     slug: book.slug || book.id,
     title: book.title,
-    author: book.author?.name || 'Chưa cập nhật tác giả',
-    publisher: book.publisher?.name || 'HUKI EBOOK',
+    author: book.author?.name || (typeof (book as any).author === 'string' ? (book as any).author : 'Chưa cập nhật tác giả'),
+    publisher: publisherName,
+    storeId,
+    businessId: storeId,
     category: book.category?.slug || book.category?.id || 'khac',
     categoryName: book.category?.name || 'Khác',
     format: format === 'DIGITAL' ? 'Ebook' : format === 'PHYSICAL' ? 'Sách giấy' : 'Combo',
@@ -284,10 +342,12 @@ export function toCatalogBook(book: BookData) {
     originalPrice: Number(book.price || 0),
     rating: 0,
     sales: '0',
-    cover: book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg',
-    stock: book.physicalDetails?.stock ?? null,
+    cover: book.coverUrl || (book as any).coverImage || (book as any).cover || '/banners/hero-library.jpg',
+    stock,
+    reserved,
+    available,
     status: book.status,
     description: book.description || '',
-    storeId: book.storeId,
   };
 }
+

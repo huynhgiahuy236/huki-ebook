@@ -37,6 +37,7 @@ const OnboardingPreferencesPage = page(() => import('./pages/auth/OnboardingPref
 
 // Store / Buyer
 const HomePage = page(() => import('./pages/store/HomePage'));
+const FlashSalePage = page(() => import('./pages/store/FlashSalePage'));
 const CatalogPage = page(() => import('./pages/store/CatalogPage'));
 const BookDetailPage = page(() => import('./pages/store/BookDetailPage'));
 const BookPreviewPage = page(() => import('./pages/store/BookPreviewPage'));
@@ -86,7 +87,9 @@ const SellerCreateHybrid = page(() => import('./pages/seller/SellerCreateHybrid'
 const SellerEditHybrid = page(() => import('./pages/seller/SellerEditHybrid'));
 const SellerCorrection = page(() => import('./pages/seller/SellerCorrection'));
 const SellerStaffPage = page(() => import('./pages/seller/SellerStaffPage'));
+const SellerInventoryPage = page(() => import('./pages/seller/SellerInventoryPage'));
 const EdgeCasesLibrary = page(() => import('./pages/seller/EdgeCasesLibrary'));
+
 
 // Admin
 const AdminDashboardPage = page(() => import('./pages/admin/AdminDashboardPage'));
@@ -201,6 +204,9 @@ export default function App() {
                 {/* 7. KHU VỰC SÀN TMĐT, CỘNG ĐỒNG & KHÁCH HÀNG (AppLayout chuẩn có Header, Sidebar, Footer) */}
                 <Route element={<AppLayout />}>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/flash-sale" element={<FlashSalePage />} />
+                  <Route path="/flash-sales" element={<Navigate to="/flash-sale" replace />} />
+                  <Route path="/flashsale" element={<Navigate to="/flash-sale" replace />} />
                   <Route path="/community" element={previewOnly(CommunityPage, 'Cộng đồng & Diễn đàn')} />
                   <Route path="/community/reviews" element={previewOnly(BookReviewsFeedPage, 'Đánh giá độc giả')} />
                   <Route path="/community/quotes" element={previewOnly(BookQuotesPage, 'Trích dẫn sách')} />
@@ -282,6 +288,9 @@ export default function App() {
                       <Route path="/seller/revenue" element={<SellerFinancePage />} />
                       <Route path="/seller/products" element={<SellerProductsPage />} />
                       <Route path="/seller/product" element={<Navigate to="/seller/products" replace />} />
+                      <Route path="/seller/inventory" element={<SellerInventoryPage />} />
+                      <Route path="/seller/inventories" element={<Navigate to="/seller/inventory" replace />} />
+
                       {/* Create product routes with all dash, underscore and plural aliases */}
                       <Route path="/seller/product/create-ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />
                       <Route path="/seller/product/create_ebook" element={<SellerCreateHybrid initialFormat="DIGITAL" />} />

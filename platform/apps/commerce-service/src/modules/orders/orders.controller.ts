@@ -121,4 +121,25 @@ export class OrdersController {
   ) {
     return this.orders.cancelBuyer(actor.sub, id, dto);
   }
+
+  @Post(':id/seller-orders/:sellerOrderId/cancel')
+  @ApiOperation({
+    summary: 'Cancel a single seller sub-order',
+    description: 'Cancels a specific package/seller order without cancelling the entire order.',
+  })
+  @ApiParam({ name: 'id', description: 'Master Order ID' })
+  @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
+  @ApiResponse({ status: 200, description: 'Seller order cancelled successfully' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
+  @ApiBadRequestResponse({ description: 'Seller order cannot be cancelled (already shipped)' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  cancelSubOrder(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sellerOrderId', ParseUUIDPipe) sellerOrderId: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.orders.cancelBuyerSubOrder(actor.sub, id, sellerOrderId, dto);
+  }
 }

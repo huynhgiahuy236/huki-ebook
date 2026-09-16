@@ -5,71 +5,83 @@
 
 ## I. MỤC TIÊU & PHẠM VI NGHIỆP VỤ
 
-* **Mục tiêu**: Xây dựng hệ thống khuyến mãi Flash Sale theo khung giờ vàng (Time-slot Campaigns), hỗ trợ giá bán giảm sốc trong thời gian giới hạn, thanh tiến trình "Đã bán X%", đồng hồ đếm ngược thời gian thực (Realtime Countdown) và cơ chế kiểm soát hạn mức mua trên mỗi khách hàng (Purchase Quota Limiter) nhằm ngăn chặn tình trạng đầu cơ, gom hàng bằng tài khoản ảo hoặc bot tự động.
+* **Mục tiêu**: Xây dựng hệ thống khuyến mãi Flash Sale linh hoạt, hỗ trợ cả **các khung giờ vàng định kỳ** lẫn **các chiến dịch Flash Sale tùy chỉnh do Quản trị viên (Admin) tự đặt tên và tự chọn khung giờ** (Custom Campaign Names & Flexible Time-Slots). Tích hợp đồng hồ đếm ngược thời gian thực (Realtime Countdown), thanh tiến trình bán chạy ("Đã bán X%"), và cơ chế kiểm soát hạn mức mua trên mỗi khách hàng (Purchase Quota Limiter) nhằm ngăn chặn tình trạng đầu cơ, gom hàng bằng tài khoản ảo hoặc bot tự động.
 * **Các bên tham gia (Actors)**:
-  1. **Quản Trị Viên Sàn / Seller (Admin / Campaign Manager)**: Lập lịch khung giờ Flash Sale, duyệt sản phẩm đăng ký tham gia, phân bổ số lượng tồn kho khuyến mãi (`flash_stock`) và cấu hình hạn mức mua tối đa trên mỗi người dùng (`max_qty_per_user`).
-  2. **Khách Hàng / Độc Giả (Buyer / Reader)**: Săn sách giá sốc trong khung giờ vàng, theo dõi tiến độ bán chạy và số lượng còn lại.
-  3. **Promotion & Inventory Microservices**:
-     * `promotion-service`: Quản lý chiến dịch, tính toán giá khuyến mãi, kiểm tra tính hợp lệ của khung giờ.
-     * `Redis Cluster`: Lưu trữ danh sách sản phẩm Flash Sale đang hoạt động, bộ đếm số lượng đã bán (`flash_sold_counter`) và bộ kiểm soát hạn mức người dùng (`user_quota_limiter`).
-     * `order-service`: Áp dụng giá Flash Sale khi tạo đơn và ghi nhận số lượng đã mua của user.
+  1. **Quản Trị Viên Sàn (Admin / Campaign Manager)**: 
+     * Tự do tạo mới khung giờ Flash Sale với **Tên chiến dịch tùy biến** (VD: *"Flash Sale 9.9 - Đại Tiệc Tri Thức"*, *"Flash Sale Trưa Rực Rỡ 12H - 14H"*, *"Flash Sale Nửa Đêm Cú Đêm"*...).
+     * Tự chọn **Thời điểm bắt đầu (`startsAt`)** và **Thời điểm kết thúc (`endsAt`)** linh hoạt.
+     * Duyệt danh sách sách tham gia, phân bổ số lượng tồn kho khuyến mãi (`flash_stock`), cấu hình giá giảm sốc (`flash_price`) và hạn mức mua tối đa trên mỗi người dùng (`max_per_user`).
+     * Quản lý bật/tắt hoặc xóa chiến dịch.
+  2. **Người Bán (Seller)**: Đăng ký sách trong kho tham gia vào các phiên Flash Sale mở bán.
+  3. **Khách Hàng / Độc Giả (Buyer / Reader)**: Săn sách giá sốc theo các mốc thời gian trên Timeline Tabs, theo dõi tiến độ bán chạy và số lượng còn lại.
+  4. **Promotion, Inventory & Order Microservices**:
+     * `promotion-service`: Quản lý chiến dịch, tính toán giá khuyến mãi, kiểm tra tính hợp lệ của khung giờ và bộ kiểm soát Quota Limiter.
+     * `Redis Cluster`: Lưu trữ danh sách sản phẩm Flash Sale đang hoạt động, bộ đếm số lượng đã bán (`flash_sold_counter`) và bộ kiểm soát hạn mức người dùng (`quota:user:{userId}:{campId}:{bookId}`).
+     * `order-service` / `commerce-service`: Áp dụng giá Flash Sale khi tạo đơn, kiểm tra hạn mức mua và hoàn trả quota khi đơn bị hủy hoặc quá hạn thanh toán.
 
 ---
 
 ## II. CÁC QUY TẮC & CƠ CHẾ CỐT LÕI CỦA FLASH SALE
 
 ```
-                             HỆ THỐNG FLASH SALE KHUNG GIỜ VÀNG
-                                              │
-         ┌────────────────────────────────────┼────────────────────────────────────┐
-         ▼                                    ▼                                    ▼
-1. KHUNG GIỜ VÀNG CỐ ĐỊNH             2. QUẢN LÝ TỒN KHO FLASH             3. GIỚI HẠN MUA (QUOTA)
- • 4 khung giờ vàng mỗi ngày:          • Số lượng tách biệt:                • Mỗi tài khoản chỉ được mua
-   - 00:00 - 02:00 (Cú đêm)              flash_stock <= available             tối đa N cuốn (VD: 1 - 2 cuốn)
-   - 09:00 - 12:00 (Sáng rực rỡ)       • Khi hết flash_stock:               • Quá hạn mức: tự động tính
-   - 15:00 - 18:00 (Chiều hoàng kim)     tự động chuyển về giá gốc            theo giá bán thông thường
-   - 20:00 - 23:59 (Tối săn sale)        hoặc báo hết hàng Flash.             hoặc chặn thêm vào giỏ.
+                             HỆ THỐNG FLASH SALE KHUNG GIỜ VÀNG & TÙY CHỈNH
+                                                  │
+         ┌────────────────────────────────────────┼────────────────────────────────────────┐
+         ▼                                        ▼                                        ▼
+1. KHUNG GIỜ LINH HOẠT & TỰ ĐẶT TÊN      2. QUẢN LÝ TỒN KHO FLASH                 3. GIỚI HẠN MUA (QUOTA LIMITER)
+ • Khung giờ mặc định & Custom Slots:     • Số lượng tách biệt:                    • Mỗi tài khoản chỉ được mua
+   - Admin tự đặt tên chiến dịch            flash_stock <= available                 tối đa N cuốn (VD: 1 - 2 cuốn)
+   - Tự chọn giờ bắt đầu & kết thúc       • Khi hết flash_stock:                   • Vượt hạn mức: báo lỗi hoặc
+ • Tự động chuyển trạng thái:               tự động chuyển về giá gốc                tự động tính theo giá gốc
+   - UPCOMING -> ACTIVE -> ENDED            hoặc hiển thị "ĐÃ BÁN HẾT 100%".         cho các cuốn vượt mức.
 ```
 
-### 1. Quy tắc Phân Bổ Tồn Kho Flash Sale
-* Số lượng sách phân bổ cho Flash Sale (`flash_sale_stock`) được trích từ tồn kho khả dụng (`available_stock`) của Seller.
-* Trong suốt thời gian diễn ra Flash Sale:
-  * Số lượng bán với giá giảm sốc **không bao giờ vượt quá `flash_sale_stock`**.
-  * Khi `flash_sale_sold == flash_sale_stock`: Thanh tiến trình đạt **100% (ĐÃ BÁN HẾT)**. Khách hàng tiếp theo sẽ phải mua với giá gốc thông thường nếu Seller vẫn còn tồn kho thông thường.
+### 1. Quy tắc Thiết Lập Khung Giờ & Tên Chiến Dịch (Flexible Campaign Management)
+* **Khung giờ mặc định**: 00:00 - 02:00 (Cú đêm), 09:00 - 12:00 (Sáng rực rỡ), 15:00 - 18:00 (Chiều hoàng kim), 20:00 - 23:59 (Tối săn sale).
+* **Khung giờ tùy chỉnh (Custom Campaigns)**: Admin có thể tạo bất kỳ phiên đặc biệt nào trong ngày (VD: Phiên 13:00 - 15:00 "Flash Sale Độc Quyền", Phiên 19:00 - 21:00 "Giờ Vàng Sách Thiếu Nhi").
+* Trên Storefront Timeline Tabs, toàn bộ các phiên được sắp xếp theo trình tự thời gian và tự động gắn nhãn: `Đã kết thúc`, `Đang diễn ra 🔥`, `Sắp mở bán`.
 
-### 2. Cơ chế Giới Hạn Hạn Mức Mua (Purchase Quota Limiter)
+### 2. Quy tắc Phân Bổ Tồn Kho Flash Sale
+* Số lượng sách phân bổ cho Flash Sale (`allocated_quantity`) được trích từ tồn kho khả dụng (`available_stock`) của Seller.
+* Trong suốt thời gian diễn ra Flash Sale:
+  * Số lượng bán với giá giảm sốc **không bao giờ vượt quá `allocated_quantity`**.
+  * Khi `sold_quantity == allocated_quantity`: Thanh tiến trình đạt **100% (ĐÃ BÁN HẾT)**. Khách hàng tiếp theo sẽ mua với giá gốc thông thường nếu còn tồn kho.
+
+### 3. Cơ chế Giới Hạn Hạn Mức Mua (Purchase Quota Limiter)
 * **Mục đích**: Đảm bảo ưu đãi đến tay nhiều độc giả nhất, chống tình trạng 1 tài khoản mua hết toàn bộ kho sale để bán lại kiếm lời.
-* **Quy tắc**: Mỗi khách hàng (dựa trên `user_id`, địa chỉ IP và số điện thoại) chỉ được phép mua tối đa $M$ cuốn sách trong suốt 1 khung giờ Flash Sale (mặc định $M = 1$ hoặc $M = 2$ cuốn/tựa sách).
+* **Quy tắc**: Mỗi khách hàng (dựa trên `user_id`) chỉ được phép mua tối đa $M$ cuốn sách trong suốt 1 phiên Flash Sale (mặc định $M = 1$ hoặc $M = 2$ cuốn/tựa sách).
 * **Xử lý vi phạm**: Nếu người dùng cố tình thêm số lượng $> M$, hệ thống tự động:
-  * Hoặc báo lỗi: *"Mỗi khách hàng chỉ được mua tối đa M cuốn với giá Flash Sale"*.
+  * Hoặc báo lỗi: *"Mỗi khách hàng chỉ được mua tối đa M cuốn với giá Flash Sale cho tựa sách này!"*.
   * Hoặc áp dụng giá Flash Sale cho $M$ cuốn đầu tiên, các cuốn vượt mức được tính theo giá bán lẻ thông thường.
 
 ---
 
 ## III. BẢNG TRƯỜNG DỮ LIỆU & SCHEMA FLASH SALE
 
-### 1. Bảng Chiến Dịch Flash Sale `flash_sale_campaigns`
+### 1. Bảng Chiến Dịch Flash Sale `flash_sales`
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mô Tả |
 |---|---|---|---|
 | `id` | UUID | Primary Key | Mã chiến dịch Flash Sale |
-| `title` | String | Bắt buộc | Tên chiến dịch (VD: *"Đại Tiệc Sách Trưa 12H"*) |
-| `start_time` | Timestamp | Bắt buộc | Thời điểm bắt đầu khung giờ |
-| `end_time` | Timestamp | Bắt buộc | Thời điểm kết thúc khung giờ |
-| `status` | Enum | `UPCOMING`, `ACTIVE`, `ENDED` | Trạng thái chiến dịch |
-| `banner_url` | String | URL hình ảnh | Banner hiển thị đầu trang Flash Sale |
+| `name` | String | Bắt buộc | Tên chiến dịch do Admin tự đặt (VD: *"Đại Tiệc Sách Trưa 12H"*) |
+| `description` | String | Nullable | Mô tả chi tiết chiến dịch |
+| `starts_at` | Timestamp | Bắt buộc | Thời điểm bắt đầu khung giờ do Admin chọn |
+| `ends_at` | Timestamp | Bắt buộc | Thời điểm kết thúc khung giờ do Admin chọn |
+| `status` | Enum | `SCHEDULED`, `ACTIVE`, `ENDED` | Trạng thái chiến dịch |
+| `created_at` | Timestamp | Default NOW() | Thời gian tạo |
+| `updated_at` | Timestamp | Default NOW() | Thời gian cập nhật |
 
 ### 2. Bảng Sản Phẩm Trong Flash Sale `flash_sale_items`
 | Tên Cột | Kiểu Dữ Liệu | Ràng Buộc | Mô Tả |
 |---|---|---|---|
-| `id` | UUID | Primary Key | Mã bản ghi |
-| `campaign_id` | UUID | FK `flash_sale_campaigns` | Liên kết chiến dịch |
+| `id` | UUID | Primary Key | Mã bản ghi sản phẩm Flash Sale |
+| `flash_sale_id` | UUID | FK `flash_sales` | Liên kết chiến dịch |
 | `book_id` | UUID | FK `books` | Tựa sách tham gia |
-| `business_id` | UUID | FK `businesses` | Gian hàng sở hữu sách |
-| `original_price` | Decimal | Bắt buộc | Giá niêm yết ban đầu |
-| `flash_price` | Decimal | Bắt buộc, $< original\_price$ | Giá bán giảm sốc trong Flash Sale |
-| `allocated_quantity` | Integer | Bắt buộc, $> 0$ | Số lượng sách dành riêng cho Flash Sale |
-| `sold_quantity` | Integer | Mặc định: `0` | Số lượng đã bán thành công |
+| `original_price` | Float | Bắt buộc | Giá niêm yết ban đầu |
+| `sale_price` | Float | Bắt buộc, $< original\_price$ | Giá bán giảm sốc trong Flash Sale |
+| `stock` | Integer | Bắt buộc, $> 0$ | Số lượng sách phân bổ cho Flash Sale |
+| `sold` | Integer | Mặc định: `0` | Số lượng đã bán thành công |
 | `max_per_user` | Integer | Mặc định: `1` | Số lượng tối đa 1 người được mua giá Sale |
+| `created_at` | Timestamp | Default NOW() | Thời gian thêm sản phẩm |
 
 ---
 
@@ -78,43 +90,47 @@
 ```mermaid
 sequenceDiagram
     autonumber
+    actor Admin as Quản Trị Viên (Admin)
     actor Buyer as Khách Hàng (Buyer)
     participant Web as Giao diện Web Client
-    participant Gateway as API Gateway
-    participant OrderSvc as Order Service
-    participant PromoSvc as Promotion & Quota Service
+    participant PromoSvc as Promotion Service
+    participant OrderSvc as Order / Commerce Service
     participant Redis as Redis Cache (Flash Stock & Quota)
     participant DB as PostgreSQL Database
 
-    Note over Buyer,Web: BƯỚC 1: XEM DANH MỤC FLASH SALE & ĐẾM NGƯỢC
-    Buyer->>Web: Truy cập trang /flash-sale
-    Web->>PromoSvc: GET /api/v1/promotions/flash-sale/active
-    PromoSvc->>Redis: Lấy cache danh sách sách Flash Sale + Thời gian còn lại
-    Redis-->>Web: Dữ liệu sách + Thời gian kết thúc (end_time)
-    Web-->>Buyer: Hiển thị Đồng hồ đếm ngược + Thanh tiến trình "Đã bán 75%"
+    Note over Admin,PromoSvc: GIAI ĐOẠN 1: ADMIN TẠO KHUNG GIỜ & TÊN TÙY CHỈNH
+    Admin->>Web: Nhập Tên chiến dịch, Giờ bắt đầu, Giờ kết thúc, Chọn sách, Giá Sale, Quota
+    Web->>PromoSvc: POST /api/v1/flash-sales (Tạo chiến dịch) + POST /api/v1/flash-sales/items
+    PromoSvc->>DB: Lưu vào bảng flash_sales & flash_sale_items
+    PromoSvc-->>Web: Tạo thành công!
 
-    Note over Buyer,OrderSvc: BƯỚC 2: ĐẶT MUA SÁCH FLASH SALE
+    Note over Buyer,Web: GIAI ĐOẠN 2: XEM TIMELINE TABS & ĐẾM NGƯỢC THỜI GIAN THỰC
+    Buyer->>Web: Truy cập trang /flash-sale hoặc Xem khối Flash Sale trang chủ
+    Web->>PromoSvc: GET /api/v1/flash-sales/active & GET /api/v1/flash-sales/slots
+    PromoSvc-->>Web: Danh sách các phiên (Tên tùy chỉnh, Giờ, Sách, % đã bán)
+    Web-->>Buyer: Hiển thị Timeline Tabs + Đồng hồ đếm ngược + Thanh tiến trình "Đã bán X%"
+
+    Note over Buyer,OrderSvc: GIAI ĐOẠN 3: ĐẶT MUA SÁCH FLASH SALE & KIỂM TRA QUOTA
     Buyer->>Web: Bấm "Mua Ngay" (BookId: 123, Qty: 1)
-    Web->>Gateway: POST /api/v1/orders (BookId, Qty: 1, isFlashSale: true)
-    Gateway->>OrderSvc: Xử lý tạo đơn hàng
-
-    Note over OrderSvc,Redis: BƯỚC 3: KIỂM TRA HẠN MỨC MUA (QUOTA LIMITER)
-    OrderSvc->>PromoSvc: validateFlashSaleQuota(userId, bookId, campaignId, qty: 1)
-    PromoSvc->>Redis: GET quota:user:{userId}:camp:{campId}:book:{bookId}
+    Web->>OrderSvc: POST /cart/checkout/preview hoặc confirm
+    OrderSvc->>PromoSvc: validateFlashSaleQuota(userId, bookId, qty: 1)
+    PromoSvc->>Redis: Kiểm tra quota:user:{userId}:{campId}:{bookId}
     
-    alt ĐÃ VƯỢT HẠN MỨC (User đã mua trước đó >= max_per_user)
-        Redis-->>PromoSvc: User đã mua 1 cuốn (max: 1)
+    alt ĐÃ VƯỢT HẠN MỨC (User đã mua >= max_per_user)
+        Redis-->>PromoSvc: User đã mua hết hạn mức
         PromoSvc-->>OrderSvc: Lỗi: ERR_FLASH_SALE_QUOTA_EXCEEDED
         OrderSvc-->>Buyer: 400 Bad Request ("Bạn đã mua hết hạn mức 1 cuốn giá Flash Sale!")
     else TRONG HẠN MỨC CHO PHÉP
-        PromoSvc->>Redis: EVAL check_and_reserve_flash_stock.lua
-        Redis-->>PromoSvc: Khóa kho Flash thành công (Allocated còn > 0)
-        PromoSvc->>Redis: INCRBY quota:user:{userId}:camp:{campId}:book:{bookId} 1
-        PromoSvc-->>OrderSvc: Hợp lệ -> Áp dụng giá Flash Price (99k -> 29k)
-        
-        OrderSvc->>DB: Tạo đơn hàng với đơn giá Flash Price
-        DB-->>OrderSvc: Đơn hàng tạo thành công
-        OrderSvc-->>Buyer: 201 Created -> Chuyển sang thanh toán PayOS QR!
+        PromoSvc->>Redis: Khóa kho Flash & Tăng bộ đếm Quota của User
+        PromoSvc-->>OrderSvc: Hợp lệ -> Áp dụng đơn giá Flash Price
+        OrderSvc->>DB: Tạo đơn hàng với đơn giá Flash Price (TTL giữ hàng: 1 phút)
+        OrderSvc-->>Buyer: Chuyển sang thanh toán PayOS VietQR
+    end
+
+    Note over Buyer,OrderSvc: GIAI ĐOẠN 4: HỦY ĐƠN HOÀN TRẢ QUOTA
+    alt NẾU ĐƠN HÀNG HẾT HẠN 1 PHÚT HOẶC KHÁCH HỦY ĐƠN
+        OrderSvc->>PromoSvc: releaseQuotaAndStock(userId, bookId, campaignId, qty: 1)
+        PromoSvc->>Redis: Giảm bộ đếm Quota của User, Khôi phục kho Flash
     end
 ```
 
@@ -124,79 +140,70 @@ sequenceDiagram
 
 ---
 
-### BƯỚC 1: THIẾT LẬP VÀ DUYỆT CHIẾN DỊCH FLASH SALE
+### BƯỚC 1: QUẢN TRỊ ADMIN - TẠO KHUNG GIỜ VÀ TÊN CHIẾN DỊCH TÙY CHỈNH
 
-* **Bước 1.1: Quản trị viên khởi tạo khung giờ vàng**:
-  * Admin tạo các phiên Flash Sale trong ngày (VD: Phiên 12:00 - 14:00).
-  * Thiết lập trạng thái ban đầu: `UPCOMING` (Sắp diễn ra).
-* **Bước 1.2: Seller đăng ký tham gia sản phẩm**:
-  * Seller chọn tựa sách trong kho &rarr; Đăng ký số lượng `allocated_quantity = 50` cuốn.
-  * Thiết lập giá Flash Sale giảm sốc: `flash_price = 29.000đ` (Giá gốc `110.000đ`, Giảm 74%).
-  * Thiết lập hạn mức mua: `max_per_user = 1` cuốn/khách hàng.
-* **Bước 1.3: Duyệt và Nạp trước Dữ liệu vào Redis (Warm-up Cache)**:
-  * Trước khi diễn ra 15 phút, hệ thống tự động đồng bộ toàn bộ danh sách sản phẩm và số lượng kho vào Redis:
-    * `SET flash:stock:{campId}:{bookId} 50`.
-    * `SET flash:price:{campId}:{bookId} 29000`.
-
----
-
-### BƯỚC 2: KÍCH HOẠT TỰ ĐỘNG KHUNG GIỜ VÀNG (CAMPAIGN ACTIVATION)
-
-* **Bước 2.1: Chuyển trạng thái khi đúng giờ**:
-  * Đúng 12:00:00, Cron Scheduler kích hoạt chuyển trạng thái chiến dịch từ `UPCOMING` &rarr; `ACTIVE`.
-  * Bắn sự kiện WebSocket thông báo mở cổng Flash Sale toàn sàn.
-* **Bước 2.2: Banner & Huy hiệu Flash Sale nổi bật**:
-  * Tại trang chủ và trang chi tiết sách:
-  * Xuất hiện huy hiệu rực rỡ: ⚡ **FLASH SALE GIỜ VÀNG**.
-  * Hiển thị mức giảm giá nổi bật `-74%` và giá sốc màu đỏ `29.000đ`.
+* **Bước 1.1: Quản trị viên khởi tạo chiến dịch Flash Sale**:
+  * Tại trang `AdminMarketingPage.jsx` (Tab Flash Sale):
+  * Admin bấm **"Tạo Khung Giờ Flash Sale Mới"**.
+  * Nhập các thông tin:
+    * **Tên chiến dịch**: Tùy biến (VD: *"Flash Sale Khai Giảng 9.9"*, *"Flash Sale Trưa 12H - 14H"*).
+    * **Thời gian bắt đầu (`startsAt`)**: Chọn ngày & giờ cụ thể.
+    * **Thời gian kết thúc (`endsAt`)**: Chọn ngày & giờ cụ thể.
+    * **Mô tả & Banner tiếp thị**.
+* **Bước 1.2: Thêm sản phẩm tham gia phiên**:
+  * Chọn tựa sách trong hệ thống.
+  * Nhập giá gốc (`originalPrice`), giá Flash Sale giảm sốc (`salePrice`).
+  * Nhập số lượng phân bổ (`stock = 10` cuốn).
+  * Nhập hạn mức mua trên mỗi khách hàng (`maxPerUser = 1` cuốn).
+* **Bước 1.3: Quản lý danh sách phiên**:
+  * Bảng điều khiển Admin hiển thị danh sách các phiên Flash Sale: Tên phiên, Khung giờ, Số lượng sách, Trạng thái (`SCHEDULED / ACTIVE / ENDED`), các nút Bật/Tắt trạng thái hoặc Xóa phiên.
 
 ---
 
-### BƯỚC 3: TRẢI NGHIỆM ĐẾM NGƯỢC & THANH TIẾN TRÌNH TRÊN GIAO DIỆN
+### BƯỚC 2: TRẢI NGHIỆM TIMELINE TABS & ĐẾM NGƯỢC TRÊN STOREFRONT
 
-* **Bước 3.1: Đồng hồ đếm ngược thời gian thực (Countdown Timer)**:
-  * Hiển thị tại đầu trang `/flash-sale` và ngay trên thẻ sản phẩm:
-    * Mẫu hiển thị: `KẾT THÚC TRONG 01:45:22` (Giờ : Phút : Giây).
-    * Khi còn dưới 10 phút: Đồng hồ chuyển sang hiệu ứng nhấp nháy khẩn cấp.
-* **Bước 3.2: Thanh tiến trình bán chạy (Progress Bar)**:
+* **Bước 2.1: Thanh điều hướng khung giờ động (Timeline Tabs)**:
+  * Tại trang sự kiện `/flash-sale`:
+  * Tự động hiển thị toàn bộ các phiên Flash Sale trong ngày (cả mặc định và custom):
+    * Tab 1: `00:00 - 02:00: Flash Sale Đêm Khuya (Đã kết thúc)`.
+    * Tab 2: `12:00 - 14:00: Flash Sale Trưa Rực Rỡ (Đang diễn ra 🔥)`.
+    * Tab 3: `15:00 - 18:00: Flash Sale Chiều Vàng (Sắp mở bán)`.
+  * Khách hàng có thể bấm chuyển giữa các Tab để xem trước sản phẩm sắp mở bán hoặc mua ngay sản phẩm đang sale.
+* **Bước 2.2: Đồng hồ đếm ngược thời gian thực (Countdown Timer)**:
+  * Hiển thị số lớn: `KẾT THÚC TRONG 01:24:35` (Giờ : Phút : Giây).
+  * Tự động đếm lùi theo từng giây. Khi còn dưới 10 phút, đồng hồ chuyển sang màu đỏ nhấp nháy khẩn cấp.
+* **Bước 2.3: Thanh tiến trình bán chạy (Progress Bar)**:
   * Công thức tính % đã bán:
-    $$\% \text{ Đã bán} = \min\left(100, \text{round}\left(\frac{\text{sold\_quantity}}{\text{allocated\_quantity}} \times 100\right)\right)$$
-  * Hiển thị theo 3 mức độ kích thích tâm lý người mua:
-    * $\text{Đã bán} < 50\%$: Thanh màu cam kèm chữ *"Đã bán X cuốn"*.
-    * $50\% \le \text{Đã bán} < 90\%$: Thanh màu đỏ kèm biểu tượng ngọn lửa 🔥 *"Đang bán rất chạy"*.
+    $$\% \text{ Đã bán} = \min\left(100, \text{round}\left(\frac{\text{sold}}{\text{stock}} \times 100\right)\right)$$
+  * Hiển thị theo 3 cấp độ:
+    * $\text{Đã bán} < 50\%$: Thanh cam *"Đã bán X cuốn"*.
+    * $50\% \le \text{Đã bán} < 90\%$: Thanh đỏ rực kèm biểu tượng ngọn lửa 🔥 *"Đang bán rất chạy"*.
     * $\text{Đã bán} \ge 90\%$: Nhãn *"Sắp hết hàng - Còn lại Y cuốn"*.
     * $\text{Đã bán} = 100\%$: Thanh xám *"ĐÃ BÁN HẾT 100%"*.
 
 ---
 
-### BƯỚC 4: KIỂM SOÁT HẠN MỨC MUA & KHÓA KHO KHUYẾN MÃI (QUOTA & ATOMIC LOCK)
+### BƯỚC 3: KIỂM SOÁT HẠN MỨC MUA & ÁP DỤNG GIÁ FLASH SALE
 
-* **Bước 4.1: Kiểm tra Hạn Mức Mua Của Người Dùng (Quota Limiter Check)**:
-  * Khi nhận request mua hàng từ `userId`:
-  * Hệ thống đọc Redis Key `quota:user:{userId}:camp:{campId}:book:{bookId}`:
-  * Nếu tổng số lượng hiện tại $+ \text{requested\_qty} > \text{max\_per\_user}$:
-    * Trả về thông báo lỗi: *"Bạn đã sử dụng hết quyền mua 1 cuốn giá Flash Sale cho tựa sách này. Hãy nhường cơ hội cho các độc giả khác!"*.
-* **Bước 4.2: Khóa Tồn Kho Flash Sale Bằng Lua Script**:
-  * Thực thi Atomic Lua Script kiểm tra `flash:stock` $> 0$.
-  * Nếu thành công:
-    * Giảm `flash:stock` trên Redis.
-    * Tăng bộ đếm quota của User `INCRBY quota:user:... 1` (Thiết lập TTL bằng thời gian còn lại của chiến dịch).
-    * Áp dụng `flash_price` vào đơn hàng.
-* **Bước 4.3: Xử lý khi Đơn Hàng Bị Hủy**:
-  * Nếu khách hàng tạo đơn Flash Sale nhưng không thanh toán (bị Timeout 15m):
-  * Hệ thống tự động hoàn trả hạn mức: `DECRBY quota:user:... 1`.
-  * Hoàn trả tồn kho Flash Sale: `INCRBY flash:stock:... 1` để người khác có thể săn tiếp.
+* **Bước 3.1: Kiểm tra Hạn Mức Mua Của Người Dùng (Quota Limiter Check)**:
+  * Khi User gửi yêu cầu mua sách:
+  * Hệ thống kiểm tra: User đã mua bao nhiêu cuốn sách này trong phiên hiện tại.
+  * Nếu tổng số lượng hiện tại $+ \text{requestedQty} > \text{maxPerUser}$:
+    * Trả về thông báo lỗi: *"Mỗi khách hàng chỉ được mua tối đa 1 cuốn với giá Flash Sale cho tựa sách này!"*.
+* **Bước 3.2: Áp dụng giá Flash Sale vào Đơn Hàng**:
+  * Đơn vị tính giá áp dụng `salePrice` thay cho giá gốc.
+  * Gắn cờ đơn hàng Flash Sale $\rightarrow$ Thời gian giữ hàng đếm ngược thanh toán của Luồng 6 được thiết lập **1 phút (60 giây)** để tối ưu quay vòng sản phẩm giờ vàng.
+* **Bước 3.3: Tự động hoàn trả Quota khi Đơn Hàng Bị Hủy**:
+  * Nếu đơn hàng Flash Sale bị hủy hoặc hết hạn thanh toán 1 phút $\rightarrow$ Hệ thống tự động giảm bộ đếm Quota của User và khôi phục lại kho Flash Sale.
 
 ---
 
-### BƯỚC 5: KẾT THÚC KHUNG GIỜ VÀ TỰ ĐỘNG KHÔI PHỤC GIÁ GỐC
+### BƯỚC 4: KẾT THÚC KHUNG GIỜ VÀ TỰ ĐỘNG KHÔI PHỤC GIÁ GỐC
 
-* **Bước 5.1: Chuyển trạng thái khi hết giờ (14:00:00)**:
-  * Chiến dịch chuyển sang trạng thái `ENDED`.
-  * Tự động vô hiệu hóa giá Flash Sale trên toàn bộ hệ thống.
-* **Bước 5.2: Khôi phục hiển thị sản phẩm**:
-  * Tất cả các tựa sách tự động quay về mức giá bán lẻ thông thường (`regular_price`).
-  * Gỡ bỏ nhãn Flash Sale, chuyển đồng hồ đếm ngược sang thông báo *"Khung giờ Flash Sale tiếp theo sẽ bắt đầu lúc 15:00"*.
+* Khi đồng hồ đếm ngược chạm mốc `00:00:00`:
+  * Phiên Flash Sale tự động chuyển sang trạng thái `ENDED`.
+  * Các tựa sách tự động quay về mức giá bán lẻ thông thường.
+  * Timeline Tabs tự động chuyển tiêu điểm sang khung giờ Flash Sale kế tiếp.
 
 ---
 
@@ -204,19 +211,20 @@ sequenceDiagram
 
 | Mã Test Case | Kịch Bản Kiểm Thử | Điều Kiện & Dữ Liệu Đầu Vào | Kết Quả Kỳ Vọng (Expected Result) | Đánh Giá |
 |:---:|---|---|---|:---:|
-| **TC_FS_01** | Hiển thị chính xác giá Flash Sale khi đang trong khung giờ | Sách giá gốc 100k, Flash Sale 30k. Khung giờ 12h-14h. Truy cập lúc 12h30. | Hiển thị giá 30k (-70%), có huy hiệu Flash Sale và đếm ngược còn 1h30p. | **PASS** |
-| **TC_FS_02** | Mua trong hạn mức cho phép (`Quota = 1`) | Khách hàng A chưa mua lần nào, đặt mua 1 cuốn | Đặt hàng thành công với giá 30k. Quota của User A ghi nhận = 1. | **PASS** |
-| **TC_FS_03** | **Chặn mua vượt hạn mức Quota (`Quota > 1`)** | Khách hàng A cố tình đặt thêm 1 cuốn nữa trong cùng phiên | Hệ thống chặn và báo lỗi: *"Bạn đã mua hết hạn mức 1 cuốn giá Flash Sale!"* | **PASS** |
-| **TC_FS_04** | Tự động chuyển giá gốc khi hết số lượng Flash Sale | Phân bổ 10 cuốn, đã bán đủ 10 cuốn. Khách thứ 11 bấm mua. | Hiển thị thanh tiến trình "Đã bán hết 100%", giá tự động quay về giá thường 100k. | **PASS** |
-| **TC_FS_05** | Hủy đơn hoàn lại hạn mức Quota cho User | Khách hàng A hủy đơn chưa thanh toán | Hạn mức của User A được hoàn về 0, kho Flash Sale tăng lại +1. | **PASS** |
-| **TC_FS_06** | Tự động kết thúc khi hết khung giờ | Lúc 14:00:01 truy cập lại | Giá quay về 100k, biến mất đồng hồ đếm ngược, hiện thông báo phiên kế tiếp. | **PASS** |
+| **TC_FS_01** | Admin tạo phiên Flash Sale tùy chỉnh với Tên & Giờ tự đặt | Admin tạo phiên "Flash Sale 9.9 Siêu Rực Rỡ" từ 13h - 17h | Phiên được lưu thành công, xuất hiện trên Timeline Tabs của Storefront với đúng Tên & Giờ. | **PASS** |
+| **TC_FS_02** | Hiển thị chính xác giá Flash Sale khi đang trong khung giờ | Sách giá gốc 249k, Flash Sale 79k. Truy cập đúng giờ diễn ra. | Hiển thị giá 79k (-68%), có huy hiệu Flash Sale, đồng hồ đếm ngược thời gian thực. | **PASS** |
+| **TC_FS_03** | Mua trong hạn mức cho phép (`Quota = 1`) | Khách hàng A chưa mua, đặt mua 1 cuốn | Đặt hàng thành công với giá Flash Sale 79k. Quota của User A ghi nhận = 1. | **PASS** |
+| **TC_FS_04** | **Chặn mua vượt hạn mức Quota (`Quota > 1`)** | Khách hàng A cố tình đặt thêm 1 cuốn nữa trong cùng phiên | Hệ thống chặn và báo lỗi: *"Bạn đã mua hết hạn mức 1 cuốn giá Flash Sale!"* | **PASS** |
+| **TC_FS_05** | Tự động chuyển giá gốc khi hết số lượng Flash Sale | Phân bổ 5 cuốn, đã bán đủ 5 cuốn. Khách thứ 6 bấm mua. | Hiển thị thanh tiến trình "Đã bán hết 100%", giá tự động quay về giá gốc 249k. | **PASS** |
+| **TC_FS_06** | Hủy đơn hoàn lại hạn mức Quota cho User | Khách hàng A hủy đơn Flash Sale chưa thanh toán | Hạn mức của User A được hoàn về 0, kho Flash Sale tăng lại +1. | **PASS** |
+| **TC_FS_07** | Tự động kết thúc khi hết khung giờ | Hết giờ của phiên Flash Sale | Giá quay về giá gốc, đồng hồ chuyển sang thông báo phiên kế tiếp. | **PASS** |
 
 ---
 
 ## VII. ĐIỀU KIỆN NGHIỆM THU HOÀN TẤT (DEFINITION OF DONE)
 
-1. ✅ Triển khai các khung giờ Flash Sale tự động kích hoạt và kết thúc chính xác theo từng giây.
-2. ✅ Cơ chế Giới hạn Hạn Mức Mua (Quota Limiter) hoạt động chính xác 100%, ngăn chặn triệt để hành vi gom hàng.
-3. ✅ Phân bổ và quản lý tồn kho Flash Sale riêng biệt, tự động khôi phục giá gốc khi hết hàng sale hoặc hết giờ.
-4. ✅ Giao diện người dùng hiển thị sinh động đồng hồ đếm ngược, thanh tiến trình bán chạy và huy hiệu giảm giá.
-5. ✅ Hệ thống hoàn trả hạn mức và tồn kho tức thì khi khách hàng hủy đơn hoặc quá hạn thanh toán.
+1. ✅ Admin có thể tự do đặt tên và tự chọn khung giờ bắt đầu/kết thúc cho các phiên Flash Sale.
+2. ✅ Cơ chế Giới hạn Hạn Mức Mua (Quota Limiter) hoạt động chính xác 100%, chặn gom hàng.
+3. ✅ Phân bổ và quản lý tồn kho Flash Sale riêng biệt, tự động khôi phục giá gốc khi hết hàng hoặc hết giờ.
+4. ✅ Giao diện Storefront hiển thị sinh động Timeline Tabs các khung giờ, đồng hồ đếm ngược số lớn và thanh tiến trình bán chạy.
+5. ✅ Tích hợp quy trình Checkout áp dụng giá Flash Sale và tự động hoàn trả quota khi hủy đơn.

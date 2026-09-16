@@ -165,6 +165,7 @@ model FlashSale {
   id          String  @id @default(uuid())
   name        String
   description String?
+  bannerUrl   String? @map("banner_url")
 
   startsAt DateTime        @map("starts_at")
   endsAt   DateTime        @map("ends_at")

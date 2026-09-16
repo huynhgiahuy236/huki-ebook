@@ -128,7 +128,7 @@ export class BooksService {
     else if (query.sortBy === BookSortBy.TITLE) orderBy.title = direction;
     else orderBy.createdAt = direction;
 
-    // Select only needed fields for public list view (exclude inventory details)
+    // Select needed fields for public list view (including real inventory metrics)
     const listSelect = {
       id: true,
       storeId: true,
@@ -145,7 +145,16 @@ export class BooksService {
       category: true,
       author: true,
       publisher: true,
+      physicalDetails: {
+        select: {
+          stock: true,
+          reserved: true,
+          physicalEnabled: true,
+          weight: true,
+        },
+      },
     };
+
 
     const [books, total] = await this.prisma.$transaction([
       this.prisma.book.findMany({
@@ -366,6 +375,11 @@ export class BooksService {
   }
 
   private serializeBook(book: any, isPrivate: boolean) {
+    const physical = book.physicalDetails;
+    const stock = physical?.stock ?? 0;
+    const reserved = physical?.reserved ?? 0;
+    const available = Math.max(0, stock - reserved);
+
     return {
       id: book.id,
       storeId: book.storeId,
@@ -383,6 +397,11 @@ export class BooksService {
       category: book.category,
       author: book.author,
       publisher: book.publisher,
+      stock,
+      reserved,
+      available,
+      weight: physical?.weight ?? null,
+      physicalEnabled: physical?.physicalEnabled ?? true,
       ...(isPrivate && {
         physicalDetails: book.physicalDetails,
         digitalDetails: book.digitalDetails,
@@ -390,3 +409,4 @@ export class BooksService {
     };
   }
 }
+

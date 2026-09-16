@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
   const hydrateBusiness = async (rawUserData) => {
     if (!rawUserData) return null;
     let userData = normalizeUserData(rawUserData);
-    if (userData.role === 'PLATFORM_ADMIN') return userData;
+    if (userData.role === 'PLATFORM_ADMIN' || userData.role === 'USER') return userData;
     try {
       const bizRes = await businessApi.getMyBusiness();
       if (!bizRes.success || !bizRes.data) return userData;

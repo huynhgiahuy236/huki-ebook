@@ -35,6 +35,8 @@ export default function CartPage() {
   const navigate = useNavigate();
   const {
     cartItems,
+    availableItems,
+    unavailableItems,
     storeGroups,
     toggleCheckItem,
     toggleStoreCheck,
@@ -42,6 +44,7 @@ export default function CartPage() {
     updateQuantity,
     removeFromCart,
     addItem,
+    clearUnavailableItems,
     checkedSubtotal,
     checkedItemsCount,
     allChecked,
@@ -78,12 +81,12 @@ export default function CartPage() {
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Calculations
-  const checkedItems = cartItems.filter((i) => i.checked);
+  const checkedItems = availableItems.filter((i) => i.checked);
   const rawOriginalSubtotal = checkedItems.reduce(
     (acc, item) => acc + (item.originalPrice || item.price * 1.3) * item.quantity,
     0
   );
-  const directDiscount = rawOriginalSubtotal - checkedSubtotal;
+  const directDiscount = Math.max(0, rawOriginalSubtotal - checkedSubtotal);
 
   // Shop vouchers discount calculation
   const shopDiscount = checkedSubtotal >= 200000 ? 20000 : 0;
@@ -92,7 +95,7 @@ export default function CartPage() {
       ? selectedVoucher.discount
       : 0;
 
-  // Shipping fee: 25.000đ if any physical book is selected, free if physical items >= 250k
+  // Shipping fee
   const physicalSubtotal = checkedItems
     .filter((i) => i.type === 'physical')
     .reduce((acc, i) => acc + i.price * i.quantity, 0);
@@ -110,13 +113,17 @@ export default function CartPage() {
     setSavedItems((prev) => prev.filter((i) => i.id !== item.id));
     addItem({
       id: `saved-${item.id}-${Date.now()}`,
+      bookId: item.bookId,
       title: item.title,
+      slug: item.slug,
       author: item.author,
+      publisher: item.publisher,
+      storeId: item.storeId,
       format: item.format,
       price: item.price,
       quantity: 1,
       cover: item.cover,
-      type: item.format.toLowerCase().includes('ebook') ? 'ebook' : 'physical',
+      type: item.format?.toLowerCase().includes('ebook') ? 'ebook' : 'physical',
     });
     showToast(
       {
@@ -133,8 +140,12 @@ export default function CartPage() {
       ...prev,
       {
         id: `saved-${Date.now()}`,
+        bookId: item.bookId,
         title: item.title,
+        slug: item.slug,
         author: item.author || 'Tác giả',
+        publisher: item.publisher,
+        storeId: item.storeId,
         format: item.format,
         price: item.price,
         cover: item.cover,
@@ -166,7 +177,7 @@ export default function CartPage() {
       showToast(
         {
           title: 'Chưa chọn ấn phẩm',
-          message: 'Vui lòng tích chọn ít nhất 1 ấn phẩm để tiến hành đặt hàng.',
+          message: 'Vui lòng tích chọn ít nhất 1 ấn phẩm khả dụng để tiến hành đặt hàng.',
         },
         'warning'
       );
@@ -207,7 +218,7 @@ export default function CartPage() {
               Giỏ Hàng
             </h1>
             <span className="text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] font-medium">
-              ({cartItems.length} ấn phẩm · {checkedItemsCount} đã chọn)
+              ({availableItems.length} ấn phẩm khả dụng · {checkedItemsCount} đã chọn)
             </span>
           </div>
           <Link
@@ -245,7 +256,7 @@ export default function CartPage() {
             </div>
             <button
               onClick={() => setBannerDismissed(true)}
-              className="text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              className="text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-text,#1c1b1f)] p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
               title="Đóng thông báo"
               aria-label="Đóng thông báo"
             >
@@ -277,7 +288,7 @@ export default function CartPage() {
                     onChange={(e) => toggleAll(e.target.checked)}
                     className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
                   />
-                  <span>Chọn tất cả ({cartItems.length} ấn phẩm)</span>
+                  <span>Chọn tất cả ({availableItems.length} ấn phẩm khả dụng)</span>
                 </label>
                 <div className="hidden sm:grid grid-cols-12 gap-4 flex-1 max-w-[380px] text-right text-[var(--theme-text-muted,#49454f)] pr-4">
                   <span className="col-span-4">Đơn giá</span>
@@ -320,15 +331,24 @@ export default function CartPage() {
                       </span>
                     </div>
 
-                    <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] font-medium">
-                      {store.items.length} món
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                        {store.items.length} món
+                      </span>
+                      <Link
+                        to={`/shop/${store.id}`}
+                        className="text-[11px] font-bold text-[var(--theme-primary,#003B2B)] hover:underline flex items-center gap-0.5"
+                      >
+                        <span>Xem Shop</span>
+                        <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                      </Link>
+                    </div>
                   </div>
 
                   {/* Items in Store */}
                   <div className="divide-y divide-[var(--theme-border,#e8e5df)]/40 p-2 sm:p-4">
                     {store.items.map((item) => {
-                      const bookPath = `/book/${item.book?.slug || item.slug || item.bookId || item.id}`;
+                      const bookPath = `/book/${item.slug || item.bookId || item.id}`;
 
                       return (
                         <div
@@ -372,6 +392,30 @@ export default function CartPage() {
                               <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]/80">
                                 {item.formatTag}
                               </span>
+
+                              {/* Price Mutation Alert Banner */}
+                              {item.priceChangeMessage && (
+                                <div
+                                  className={`mt-1 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 border ${
+                                    item.priceChange === 'DECREASED'
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : 'bg-amber-50 text-amber-900 border-amber-200'
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">
+                                    {item.priceChange === 'DECREASED' ? 'trending_down' : 'info'}
+                                  </span>
+                                  <span>{item.priceChangeMessage}</span>
+                                </div>
+                              )}
+
+                              {/* Stock Reduction Warning */}
+                              {item.stockWarning && (
+                                <div className="mt-1 px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200">
+                                  <span className="material-symbols-outlined text-[14px]">warning</span>
+                                  <span>{item.stockWarning}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -394,7 +438,7 @@ export default function CartPage() {
                               <button
                                 onClick={() => updateQuantity(item.id, -1)}
                                 disabled={item.quantity <= 1}
-                                className="w-7 h-7 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="w-7 h-7 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                                 aria-label="Giảm số lượng"
                               >
                                 <span className="material-symbols-outlined text-[14px]">
@@ -406,8 +450,8 @@ export default function CartPage() {
                               </span>
                               <button
                                 onClick={() => updateQuantity(item.id, 1)}
-                                disabled={item.quantity >= 99}
-                                className="w-7 h-7 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                disabled={item.quantity >= (item.availableStock || 99)}
+                                className="w-7 h-7 flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                                 aria-label="Tăng số lượng"
                               >
                                 <span className="material-symbols-outlined text-[14px]">
@@ -427,7 +471,7 @@ export default function CartPage() {
                             <div className="flex items-center gap-1">
                               <button
                                 onClick={() => handleSaveForLater(item)}
-                                className="p-1.5 rounded-lg text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-primary,#003B2B)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+                                className="p-1.5 rounded-lg text-[var(--theme-text-muted,#49454f)] hover:text-[var(--theme-primary,#003B2B)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
                                 title="Lưu lại mua sau"
                                 aria-label="Lưu lại mua sau"
                               >
@@ -437,7 +481,7 @@ export default function CartPage() {
                               </button>
                               <button
                                 onClick={() => removeFromCart(item.id)}
-                                className="p-1.5 rounded-lg text-[var(--theme-text-muted,#49454f)] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                                className="p-1.5 rounded-lg text-[var(--theme-text-muted,#49454f)] hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors cursor-pointer"
                                 title="Xóa ấn phẩm"
                                 aria-label="Xóa ấn phẩm khỏi giỏ hàng"
                               >
@@ -454,47 +498,130 @@ export default function CartPage() {
                 </div>
               ))}
 
-              {/* Saved For Later Section */}
-              {savedItems.length > 0 && (
-                <div className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-xs">
-                  <h3 className="font-editorial text-base font-bold text-[var(--theme-text,#1c1b1f)] mb-3 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">
-                      bookmark
-                    </span>
-                    Ấn Phẩm Lưu Lại Mua Sau ({savedItems.length})
-                  </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {savedItems.map((sItem) => (
+              {/* UNAVAILABLE / OUT-OF-STOCK ITEMS SECTION */}
+              {unavailableItems.length > 0 && (
+                <div className="bg-slate-100/80 dark:bg-slate-900/40 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-slate-500 text-lg">
+                        remove_shopping_cart
+                      </span>
+                      <h3 className="font-extrabold text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                        Sản phẩm tạm thời không khả dụng ({unavailableItems.length} ấn phẩm)
+                      </h3>
+                    </div>
+                    <button
+                      onClick={clearUnavailableItems}
+                      className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                    >
+                      Xóa tất cả
+                    </button>
+                  </div>
+
+                  <div className="divide-y divide-slate-200/60 dark:divide-slate-800">
+                    {unavailableItems.map((item) => (
                       <div
-                        key={sItem.id}
-                        className="p-3 rounded-xl bg-[var(--theme-background,#F2FBF9)]/60 border border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between gap-3"
+                        key={item.id}
+                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4 opacity-60 hover:opacity-80 transition-opacity"
                       >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            className="w-11 h-16 rounded object-cover border border-[var(--theme-border,#e8e5df)] shrink-0"
-                            alt={sItem.title}
-                            src={sItem.cover}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          {/* Disabled Checkbox */}
+                          <input
+                            type="checkbox"
+                            disabled
+                            checked={false}
+                            className="w-4 h-4 rounded border-slate-300 bg-slate-200 mt-1 cursor-not-allowed opacity-50"
                           />
-                          <div className="min-w-0">
-                            <h4 className="font-bold text-xs text-[var(--theme-text,#1c1b1f)] line-clamp-1">
-                              {sItem.title}
-                            </h4>
-                            <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block truncate">
-                              {sItem.author}
+                          <div className="w-16 h-22 aspect-[2/3] rounded-lg overflow-hidden shrink-0 bg-neutral-200 border border-slate-300 grayscale">
+                            <img
+                              className="w-full h-full object-cover"
+                              alt={item.title}
+                              src={item.cover}
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1 min-w-0">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 w-fit">
+                              TẠM HẾT HÀNG
                             </span>
-                            <span className="text-xs font-bold text-[var(--theme-primary,#003B2B)]">
-                              {sItem.price.toLocaleString('vi-VN')}đ
+                            <span className="font-bold text-xs sm:text-sm text-slate-700 line-clamp-2">
+                              {item.title}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              Tác giả: {item.author} • {item.publisher}
+                            </span>
+                            <span className="text-[11px] text-rose-600 font-semibold">
+                              Ấn phẩm này hiện đang tạm hết hàng hoặc ngừng mở bán từ người bán.
                             </span>
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleMoveToCart(sItem)}
-                          className="px-3 py-1.5 rounded-lg bg-[var(--theme-primary,#003B2B)] text-white text-xs font-semibold hover:opacity-95 transition-all flex items-center gap-1 shrink-0 shadow-2xs"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">
-                            add_shopping_cart
+
+                        {/* Actions for unavailable item */}
+                        <div className="flex items-center gap-2 pl-7 sm:pl-0 shrink-0">
+                          <Link
+                            to={`/books?q=${encodeURIComponent(item.author || item.title)}`}
+                            className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 transition-colors flex items-center gap-1"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">search</span>
+                            <span>Tìm sách tương tự</span>
+                          </Link>
+                          <button
+                            onClick={() => removeFromCart(item.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Xóa ấn phẩm"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Saved For Later Section */}
+              {savedItems.length > 0 && (
+                <div className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-[var(--theme-border,#e8e5df)]">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[var(--theme-primary,#003B2B)] text-lg">
+                        bookmark
+                      </span>
+                      <h3 className="font-editorial font-bold text-sm sm:text-base text-[var(--theme-text,#1c1b1f)]">
+                        Danh Sách Mua Sau ({savedItems.length} ấn phẩm)
+                      </h3>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {savedItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-3 rounded-xl border border-[var(--theme-border,#e8e5df)] flex items-center gap-3 bg-[var(--theme-background,#F2FBF9)]/40"
+                      >
+                        <div className="w-12 h-16 rounded-md overflow-hidden shrink-0 bg-neutral-100 border border-[var(--theme-border,#e8e5df)]">
+                          <img
+                            src={item.cover}
+                            alt={item.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)] line-clamp-1">
+                            {item.title}
                           </span>
-                          Thêm Lại
+                          <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] line-clamp-1">
+                            {item.author}
+                          </span>
+                          <span className="text-xs font-bold text-[var(--theme-primary,#003B2B)] mt-0.5">
+                            {item.price.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => handleMoveToCart(item)}
+                          className="px-2.5 py-1.5 rounded-lg bg-[var(--theme-primary,#003B2B)] text-white text-[11px] font-bold shrink-0 hover:bg-[var(--theme-primary-hover,#002a1e)] transition-colors cursor-pointer"
+                        >
+                          Chuyển vào giỏ
                         </button>
                       </div>
                     ))}
@@ -503,126 +630,110 @@ export default function CartPage() {
               )}
             </div>
 
-            {/* Right Column (4 Cols): Sticky Summary & Checkout Action */}
-            <div className="col-span-12 lg:col-span-4 flex flex-col gap-4">
-              <div className="sticky top-20 bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-2xl p-5 shadow-sm flex flex-col gap-4">
-                <h2 className="font-editorial text-lg font-bold text-[var(--theme-text,#1c1b1f)] pb-3 border-b border-[var(--theme-border,#e8e5df)]/60 flex items-center justify-between">
-                  <span>Tóm Tắt Đơn Hàng</span>
-                  <span className="text-xs font-normal text-[var(--theme-text-muted,#49454f)]">
-                    {checkedItemsCount} ấn phẩm
-                  </span>
-                </h2>
+            {/* Right Column (4 Cols): Order Summary & Sticky Checkout */}
+            <div className="col-span-12 lg:col-span-4 flex flex-col gap-6">
+              <div className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 shadow-sm space-y-5 sticky top-24">
+                <h3 className="font-editorial font-extrabold text-base sm:text-lg text-[var(--theme-text,#1c1b1f)] border-b border-[var(--theme-border,#e8e5df)] pb-3">
+                  Tóm Tắt Đơn Hàng
+                </h3>
 
-                {/* Inline Accordion Voucher Box (No Popup Policy) */}
-                <div className="rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/50 overflow-hidden transition-all">
-                  <div
-                    onClick={() => setShowVoucherAccordion((prev) => !prev)}
-                    className="p-3 flex items-center justify-between gap-2 cursor-pointer hover:bg-black/5 dark:hover:bg-white/5 transition-colors select-none"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)] shrink-0">
-                        confirmation_number
+                {/* Vouchers Accordion */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-[var(--theme-text,#1c1b1f)]">
+                    <span className="flex items-center gap-1 text-[var(--theme-primary,#003B2B)]">
+                      <span className="material-symbols-outlined text-[16px]">
+                        local_activity
                       </span>
-                      <div className="min-w-0">
-                        <span className="text-xs font-bold text-[var(--theme-text,#1c1b1f)] block truncate">
-                          {selectedVoucher ? selectedVoucher.name : 'Chọn mã giảm giá HUKI'}
-                        </span>
-                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block truncate">
-                          {selectedVoucher ? selectedVoucher.desc : 'Tiết kiệm thêm cho đơn hàng'}
-                        </span>
-                      </div>
-                    </div>
-                    <span
-                      className={`material-symbols-outlined text-[18px] text-[var(--theme-text-muted,#49454f)] transition-transform duration-200 ${
-                        showVoucherAccordion ? 'rotate-180' : ''
-                      }`}
-                    >
-                      expand_more
+                      Mã Ưu Đãi HUKI
                     </span>
+                    <button
+                      onClick={() => setShowVoucherAccordion(!showVoucherAccordion)}
+                      className="text-[var(--theme-primary,#003B2B)] hover:underline cursor-pointer"
+                    >
+                      {showVoucherAccordion ? 'Thu gọn' : 'Chọn mã'}
+                    </button>
                   </div>
 
-                  {/* Accordion Content */}
-                  {showVoucherAccordion && (
-                    <div className="p-3 pt-0 border-t border-[var(--theme-border,#e8e5df)]/60 flex flex-col gap-2 animate-in fade-in duration-200">
-                      <span className="text-[11px] font-semibold text-[var(--theme-text-muted,#49454f)] mt-2">
-                        Mã khuyến mãi khả dụng:
+                  {selectedVoucher && (
+                    <div className="p-2.5 rounded-xl bg-[var(--theme-secondary-subtle,#f0fdf4)] border border-[var(--theme-primary,#003B2B)]/30 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-bold text-[var(--theme-primary,#003B2B)] block">
+                          {selectedVoucher.code} ({selectedVoucher.name})
+                        </span>
+                        <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                          {selectedVoucher.desc}
+                        </span>
+                      </div>
+                      <span className="font-extrabold text-[var(--theme-primary,#003B2B)]">
+                        -{selectedVoucher.discount.toLocaleString('vi-VN')}đ
                       </span>
-                      {AVAILABLE_VOUCHERS.map((v) => {
-                        const isSelected = selectedVoucher?.code === v.code;
-                        const isEligible = checkedSubtotal >= v.minSpend;
+                    </div>
+                  )}
 
-                        return (
-                          <div
-                            key={v.code}
-                            onClick={() => handleSelectVoucher(v)}
-                            className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-center justify-between ${
-                              isSelected
-                                ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold'
-                                : 'border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/50'
-                            }`}
-                          >
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs font-bold text-[var(--theme-primary,#003B2B)]">
-                                  {v.code}
-                                </span>
-                                <span className="text-[10px] bg-[var(--theme-primary,#003B2B)]/15 text-[var(--theme-primary,#003B2B)] px-1.5 py-0.2 rounded font-semibold">
-                                  {v.badge}
-                                </span>
-                              </div>
-                              <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block">
-                                {v.desc}
-                              </span>
-                            </div>
-                            <span className="material-symbols-outlined text-[18px] text-[var(--theme-primary,#003B2B)]">
-                              {isSelected ? 'check_circle' : 'radio_button_unchecked'}
+                  {showVoucherAccordion && (
+                    <div className="space-y-2 pt-2 border-t border-[var(--theme-border,#e8e5df)]">
+                      {AVAILABLE_VOUCHERS.map((v) => (
+                        <div
+                          key={v.code}
+                          onClick={() => handleSelectVoucher(v)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all ${
+                            selectedVoucher?.code === v.code
+                              ? 'border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/5'
+                              : 'border-[var(--theme-border,#e8e5df)] hover:bg-black/5 dark:hover:bg-white/5'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-[var(--theme-text,#1c1b1f)]">
+                              {v.code}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--theme-primary,#003B2B)] text-white">
+                              {v.badge}
                             </span>
                           </div>
-                        );
-                      })}
+                          <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block mt-0.5">
+                            {v.desc}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
 
-                {/* Calculations Breakdown */}
-                <div className="space-y-2.5 text-xs text-[var(--theme-text-muted,#49454f)]">
-                  <div className="flex justify-between">
-                    <span>Tạm tính ({checkedItemsCount} ấn phẩm):</span>
-                    <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+                {/* Subtotal lines */}
+                <div className="space-y-2.5 text-xs text-[var(--theme-text-muted,#49454f)] border-t border-[var(--theme-border,#e8e5df)] pt-4">
+                  <div className="flex items-center justify-between">
+                    <span>Tạm tính ({checkedItemsCount} ấn phẩm đã chọn):</span>
+                    <span className="font-bold text-[var(--theme-text,#1c1b1f)]">
                       {checkedSubtotal.toLocaleString('vi-VN')}đ
                     </span>
                   </div>
+
                   {directDiscount > 0 && (
-                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                      <span>Tiết kiệm trực tiếp:</span>
-                      <span className="font-semibold">
-                        -{directDiscount.toLocaleString('vi-VN')}đ
-                      </span>
+                    <div className="flex items-center justify-between text-emerald-600 font-semibold">
+                      <span>Giảm giá trực tiếp &amp; Flash Sale:</span>
+                      <span>-{directDiscount.toLocaleString('vi-VN')}đ</span>
                     </div>
                   )}
+
                   {shopDiscount > 0 && (
-                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                      <span>Voucher Gian hàng:</span>
-                      <span className="font-semibold">
-                        -{shopDiscount.toLocaleString('vi-VN')}đ
-                      </span>
+                    <div className="flex items-center justify-between text-emerald-600 font-semibold">
+                      <span>Ưu đãi gian hàng:</span>
+                      <span>-{shopDiscount.toLocaleString('vi-VN')}đ</span>
                     </div>
                   )}
+
                   {hukiDiscount > 0 && (
-                    <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                    <div className="flex items-center justify-between text-emerald-600 font-semibold">
                       <span>Voucher HUKI ({selectedVoucher?.code}):</span>
-                      <span className="font-semibold">
-                        -{hukiDiscount.toLocaleString('vi-VN')}đ
-                      </span>
+                      <span>-{hukiDiscount.toLocaleString('vi-VN')}đ</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span>Phí vận chuyển sách giấy:</span>
-                    <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
+
+                  <div className="flex items-center justify-between">
+                    <span>Phí vận chuyển dự tính:</span>
+                    <span>
                       {shippingFee === 0 ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                          MIỄN PHÍ
-                        </span>
+                        <strong className="text-emerald-600">MIỄN PHÍ</strong>
                       ) : (
                         `${shippingFee.toLocaleString('vi-VN')}đ`
                       )}
@@ -631,53 +742,35 @@ export default function CartPage() {
                 </div>
 
                 {/* Grand Total */}
-                <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)]/60 flex items-baseline justify-between">
-                  <span className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">
-                    Tổng thanh toán:
-                  </span>
-                  <div className="text-right">
-                    <span className="text-2xl font-black text-[var(--theme-primary,#003B2B)] block">
+                <div className="border-t border-[var(--theme-border,#e8e5df)] pt-4 space-y-1">
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">
+                      Tổng Thanh Toán:
+                    </span>
+                    <span className="font-black text-xl text-[var(--theme-primary,#003B2B)]">
                       {grandTotal.toLocaleString('vi-VN')}đ
                     </span>
-                    <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-                      (Đã bao gồm VAT &amp; phí DRM)
-                    </span>
                   </div>
+                  <span className="text-[11px] text-[var(--theme-text-muted,#49454f)] block text-right">
+                    (Đã bao gồm thuế VAT &amp; phí bản quyền số)
+                  </span>
                 </div>
 
                 {/* Checkout CTA */}
                 <button
                   onClick={handleCheckout}
                   disabled={checkedItemsCount === 0}
-                  className="w-full h-12 bg-[var(--theme-primary,#003B2B)] hover:opacity-90 text-white rounded-xl font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer ${
+                    checkedItemsCount === 0
+                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-[var(--theme-primary,#003B2B)] to-[var(--theme-primary-hover,#002a1e)] hover:opacity-95 text-white shadow-md'
+                  }`}
                 >
-                  <span className="material-symbols-outlined text-[20px]">
-                    shopping_cart_checkout
+                  <span className="material-symbols-outlined text-[18px]">
+                    shopping_bag
                   </span>
-                  Tiến Hành Đặt Hàng ({checkedItemsCount})
+                  <span>Mua Hàng ({checkedItemsCount})</span>
                 </button>
-
-                {/* Trust Badges */}
-                <div className="grid grid-cols-3 gap-2 text-center text-[10px] text-[var(--theme-text-muted,#49454f)] pt-2 border-t border-[var(--theme-border,#e8e5df)]/60">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="material-symbols-outlined text-[16px] text-[var(--theme-primary,#003B2B)]">
-                      verified_user
-                    </span>
-                    <span>100% Sách Thật</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="material-symbols-outlined text-[16px] text-[var(--theme-primary,#003B2B)]">
-                      bolt
-                    </span>
-                    <span>Ebook Đọc Ngay</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="material-symbols-outlined text-[16px] text-[var(--theme-primary,#003B2B)]">
-                      published_with_changes
-                    </span>
-                    <span>Đổi Trả 7 Ngày</span>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

@@ -1,13 +1,10 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-} from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { throwForbidden } from '@huki/shared/errors';
-import { ErrorCode } from '@huki/shared/errors';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import * as jwt from "jsonwebtoken";
+import { throwForbidden } from "@huki/shared/errors";
+import { ErrorCode } from "@huki/shared/errors";
 
-export const ROLES_KEY = 'roles';
+export const ROLES_KEY = "roles";
 
 export function Roles(...roles: string[]) {
   return (
@@ -38,16 +35,40 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    let user = request.user;
 
     if (!user) {
-      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, 'User not authenticated');
+      const authorization = request.headers?.authorization;
+      const [type, token] = String(authorization || "").split(" ");
+      if (type === "Bearer" && token) {
+        try {
+          const payload = jwt.verify(
+            token,
+            process.env.JWT_SECRET || "your-super-secret-jwt-key",
+          ) as any;
+          user = {
+            id: payload.sub,
+            email: payload.email,
+            role: payload.role,
+          };
+          request.user = user;
+        } catch {
+          user = undefined;
+        }
+      }
+    }
+
+    if (!user) {
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, "User not authenticated");
       return false;
     }
 
     const hasRole = requiredRoles.some((role) => user.role === role);
     if (!hasRole) {
-      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Insufficient permissions');
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        "Insufficient permissions",
+      );
       return false;
     }
 

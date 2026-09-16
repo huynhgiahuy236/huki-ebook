@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { randomBytes } from 'crypto';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CartService } from '../cart/cart.service';
-import { CheckoutConfirmDto, CheckoutPreviewDto } from './dto/checkout.dto';
-import { InventoryReservationService } from './inventory-reservation.service';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { randomBytes } from "crypto";
+import { PrismaService } from "../../prisma/prisma.service";
+import { CartService } from "../cart/cart.service";
+import { CheckoutConfirmDto, CheckoutPreviewDto } from "./dto/checkout.dto";
+import { InventoryReservationService } from "./inventory-reservation.service";
 import {
   BookFormat,
   BookStatus,
@@ -13,10 +13,15 @@ import {
   PaymentStatus,
   SellerOrderStatus,
   Prisma,
-} from '../../../prisma/generated/client';
-import { ORDER_EVENTS } from '../../../../../libs/shared/src';
-import { throwBadRequest, throwNotFound, throwConflict } from '@huki/shared/errors';
-import { ErrorCode } from '@huki/shared/errors';
+} from "../../../prisma/generated/client";
+import { ORDER_EVENTS } from "../../../../../libs/shared/src";
+import {
+  throwBadRequest,
+  throwNotFound,
+  throwConflict,
+} from "@huki/shared/errors";
+import { ErrorCode } from "@huki/shared/errors";
+import { FlashSaleClientService } from "./flash-sale-client.service";
 
 export interface CheckoutSnapshotItem {
   cartItemId: string;
@@ -31,6 +36,10 @@ export interface CheckoutSnapshotItem {
   unitPrice: number;
   subtotal: number;
   weight: number;
+  isFlashSale: boolean;
+  flashSaleId?: string;
+  flashSaleName?: string;
+  maxPerUser?: number;
 }
 
 export interface CheckoutSnapshotGroup {
@@ -50,59 +59,75 @@ export class CheckoutService {
     private readonly cartService: CartService,
     private readonly config: ConfigService,
     private readonly reservations: InventoryReservationService,
+    private readonly flashSales: FlashSaleClientService,
   ) {}
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
     if (!cart!.items.length) throwBadRequest(ErrorCode.CART_EMPTY);
 
-    const items: CheckoutSnapshotItem[] = cart!.items.map((item) => {
-      const book = item.book as any;
-      if (book.status !== BookStatus.PUBLISHED) {
-        throwConflict(ErrorCode.BOOK_NOT_FOUND);
-      }
+    const items: CheckoutSnapshotItem[] = await Promise.all(
+      cart!.items.map(async (item) => {
+        const book = item.book as any;
+        if (book.status !== BookStatus.PUBLISHED) {
+          throwConflict(ErrorCode.BOOK_NOT_FOUND);
+        }
 
-      if (item.format === CartItemFormat.PHYSICAL) {
-        if (
-          ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
-          !book.physicalDetails?.physicalEnabled
-        ) {
-          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+        if (item.format === CartItemFormat.PHYSICAL) {
+          if (
+            ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
+            !book.physicalDetails?.physicalEnabled
+          ) {
+            throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+          }
+          if (
+            book.physicalDetails.stock - book.physicalDetails.reserved <
+            item.quantity
+          ) {
+            throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
+          }
+        } else {
+          if (
+            ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
+            !book.digitalDetails?.digitalEnabled
+          ) {
+            throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+          }
         }
-        if (
-          book.physicalDetails.stock - book.physicalDetails.reserved <
-          item.quantity
-        ) {
-          throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
-        }
-      } else {
-        if (
-          ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
-          !book.digitalDetails?.digitalEnabled
-        ) {
-          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
-        }
-      }
 
-      const unitPrice = Number(book.price);
-      return {
-        cartItemId: item.id,
-        bookId: book.id,
-        storeId: book.storeId,
-        ownerUserId: book.ownerUserId,
-        title: book.title,
-        coverUrl: book.coverUrl,
-        isbn: book.isbn,
-        format: item.format,
-        quantity: item.quantity,
-        unitPrice,
-        subtotal: unitPrice * item.quantity,
-        weight:
-          item.format === CartItemFormat.PHYSICAL && book.physicalDetails
-            ? book.physicalDetails.weight * item.quantity
-            : 0,
-      };
-    });
+        const basePrice = Number(book.price);
+        const flashSale = await this.flashSales.quote(
+          userId,
+          book.id,
+          item.quantity,
+        );
+        const unitPrice =
+          flashSale.isFlashSale && flashSale.salePrice
+            ? Number(flashSale.salePrice)
+            : basePrice;
+        return {
+          cartItemId: item.id,
+          bookId: book.id,
+          storeId: book.storeId,
+          ownerUserId: book.ownerUserId,
+          title: book.title,
+          coverUrl: book.coverUrl,
+          isbn: book.isbn,
+          format: item.format,
+          quantity: item.quantity,
+          unitPrice,
+          subtotal: unitPrice * item.quantity,
+          weight:
+            item.format === CartItemFormat.PHYSICAL && book.physicalDetails
+              ? book.physicalDetails.weight * item.quantity
+              : 0,
+          isFlashSale: flashSale.isFlashSale,
+          flashSaleId: flashSale.flashSaleId,
+          flashSaleName: flashSale.flashSaleName,
+          maxPerUser: flashSale.maxPerUser,
+        };
+      }),
+    );
 
     const requiresShipping = items.some(
       (item) => item.format === CartItemFormat.PHYSICAL,
@@ -112,7 +137,7 @@ export class CheckoutService {
     }
 
     const baseFee = Number(
-      this.config.get('checkout.shippingBaseFee') ??
+      this.config.get("checkout.shippingBaseFee") ??
         process.env.CHECKOUT_SHIPPING_BASE_FEE ??
         30000,
     );
@@ -153,11 +178,14 @@ export class CheckoutService {
       note: dto.note ?? null,
     };
 
-    const ttlMinutes = Number(
-      this.config.get('checkout.sessionTtlMinutes') ??
-        process.env.CHECKOUT_SESSION_TTL_MINUTES ??
-        15,
-    );
+    const hasFlashSale = items.some((item) => item.isFlashSale);
+    const ttlMinutes = hasFlashSale
+      ? 1
+      : Number(
+          this.config.get("checkout.sessionTtlMinutes") ??
+            process.env.CHECKOUT_SESSION_TTL_MINUTES ??
+            15,
+        );
     const session = await this.prisma.checkoutSession.create({
       data: {
         userId,
@@ -187,6 +215,7 @@ export class CheckoutService {
     });
     if (existing) return this.confirmResponse(existing, true);
 
+    let flashSaleReservationOrderId: string | undefined;
     try {
       const order = await this.prisma.$transaction(async (tx) => {
         const rawSession = await tx.checkoutSession.findUnique({
@@ -209,14 +238,14 @@ export class CheckoutService {
         if (
           dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT &&
           dto.paymentProvider &&
-          dto.paymentProvider.toUpperCase() !== 'PAYOS'
+          dto.paymentProvider.toUpperCase() !== "PAYOS"
         ) {
           throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
         }
         // Create order
         const order = await tx.order.create({
           data: {
-            code: this.code('ORD'),
+            code: this.code("ORD"),
             userId,
             idempotencyKey,
             itemSubtotal: snapshot.itemSubtotal,
@@ -226,17 +255,25 @@ export class CheckoutService {
             paymentMethod: dto.paymentMethod,
             paymentProvider:
               dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
-                ? 'PAYOS'
-                : 'COD',
+                ? "PAYOS"
+                : "COD",
             paymentStatus: PaymentStatus.PENDING,
             status:
               dto.paymentMethod === PaymentMethod.COD
-                ? 'PROCESSING'
-                : 'PENDING_PAYMENT',
+                ? "PROCESSING"
+                : "PENDING_PAYMENT",
             shippingAddress: snapshot.shippingAddress,
             note: snapshot.note,
           },
         });
+
+        const flashSaleItems = snapshot.groups
+          .flatMap((group: CheckoutSnapshotGroup) => group.items)
+          .filter((item: CheckoutSnapshotItem) => item.isFlashSale);
+        if (flashSaleItems.length) {
+          await this.flashSales.reserveOrder(order.id, userId, flashSaleItems);
+          flashSaleReservationOrderId = order.id;
+        }
 
         if (dto.paymentMethod === PaymentMethod.COD) {
           await tx.payment.create({
@@ -245,7 +282,7 @@ export class CheckoutService {
               amount: order.grandTotal,
               method: PaymentMethod.COD,
               status: PaymentStatus.PENDING,
-              provider: 'COD',
+              provider: "COD",
             },
           });
         }
@@ -253,7 +290,8 @@ export class CheckoutService {
         // Grant digital book access immediately for all orders (COD and online)
         const allItems = snapshot.groups.flatMap((group: any) => group.items);
         const digitalItems = allItems.filter(
-          (item: CheckoutSnapshotItem) => item.format === CartItemFormat.DIGITAL,
+          (item: CheckoutSnapshotItem) =>
+            item.format === CartItemFormat.DIGITAL,
         );
         for (const item of digitalItems) {
           const sellerOrder = snapshot.groups.find((g: any) =>
@@ -270,7 +308,7 @@ export class CheckoutService {
               sellerOrderId: sellerOrder?.sellerOrderId,
             },
             update: {
-              status: 'ACTIVE',
+              status: "ACTIVE",
               orderId: order.id,
               sellerOrderId: sellerOrder?.sellerOrderId,
             },
@@ -348,8 +386,8 @@ export class CheckoutService {
             orderId: order.id,
             fromStatus: null,
             toStatus: order.status,
-            title: 'Order created',
-            actorType: 'USER',
+            title: "Order created",
+            actorType: "USER",
             actorId: userId,
           },
         });
@@ -357,7 +395,7 @@ export class CheckoutService {
         // Create outbox event
         await tx.outboxEvent.create({
           data: {
-            eventId: randomBytes(16).toString('hex'),
+            eventId: randomBytes(16).toString("hex"),
             type: ORDER_EVENTS.CREATED,
             aggregateId: order.id,
             payload: {
@@ -379,7 +417,7 @@ export class CheckoutService {
                 : null,
               sellerOrders: shipmentSellerOrders,
             },
-            status: 'PENDING',
+            status: "PENDING",
           },
         });
 
@@ -397,7 +435,12 @@ export class CheckoutService {
 
       return this.confirmResponse(order, false);
     } catch (error) {
-      if ((error as any).code === 'P2002') {
+      if (flashSaleReservationOrderId) {
+        await this.flashSales
+          .releaseOrder(flashSaleReservationOrderId)
+          .catch(() => undefined);
+      }
+      if ((error as any).code === "P2002") {
         const duplicate = await this.prisma.order.findFirst({
           where: { userId, idempotencyKey },
           include: { sellerOrders: { include: { items: true } } },
@@ -410,7 +453,7 @@ export class CheckoutService {
 
   private code(prefix: string) {
     const timestamp = Date.now().toString(36).toUpperCase();
-    const random = randomBytes(4).toString('hex').toUpperCase();
+    const random = randomBytes(4).toString("hex").toUpperCase();
     return `${prefix}-${timestamp}-${random}`;
   }
 

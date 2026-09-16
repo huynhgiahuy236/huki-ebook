@@ -10,6 +10,8 @@ export interface CartBook {
   slug: string;
   coverUrl?: string;
   status: string;
+  author?: string;
+  publisher?: string;
 }
 
 export interface CartItem {
@@ -18,20 +20,47 @@ export interface CartItem {
   format: CartItemFormat;
   quantity: number;
   unitPrice: number;
+  addedPrice?: number;
+  currentPrice?: number;
   subtotal: number;
+  isAvailable?: boolean;
+  status?: 'AVAILABLE' | 'OUT_OF_STOCK' | 'PARTIAL_STOCK';
+  availableStock?: number;
+  priceChange?: 'INCREASED' | 'DECREASED' | null;
+  priceChangeMessage?: string | null;
+  stockWarning?: string | null;
   book: CartBook;
+}
+
+export interface StoreGroup {
+  id: string;
+  name: string;
+  tag: string;
+  tagBg: string;
+  badge: string;
+  items: CartItem[];
+  subtotal: number;
 }
 
 export interface CartResponse {
   id: string;
   userId: string;
   items: CartItem[];
+  availableItems?: CartItem[];
+  unavailableItems?: CartItem[];
+  storeGroups?: StoreGroup[];
   totalItems: number;
   subtotal: number;
   updatedAt: string;
 }
 
 export interface AddCartItemPayload {
+  bookId: string;
+  format: CartItemFormat;
+  quantity: number;
+}
+
+export interface MergeCartItemPayload {
   bookId: string;
   format: CartItemFormat;
   quantity: number;
@@ -50,6 +79,13 @@ export const cartApi = {
     return apiClient<CartResponse>('/cart/items', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  mergeCart: async (items: MergeCartItemPayload[]): Promise<ApiResponse<CartResponse>> => {
+    return apiClient<CartResponse>('/cart/merge', {
+      method: 'POST',
+      body: JSON.stringify({ items }),
     });
   },
 

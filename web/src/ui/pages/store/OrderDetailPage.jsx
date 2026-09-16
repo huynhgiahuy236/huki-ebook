@@ -5,6 +5,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import OrderItemBadge from '../../components/common/OrderItemBadge';
 import EscrowCountdown from '../../components/order/EscrowCountdown';
+import PaymentCountdownModal from '../../components/checkout/PaymentCountdownModal';
+import { paymentApi } from '../../api/paymentApi';
 
 export default function OrderDetailPage() {
   const { id } = useParams();
@@ -18,7 +20,90 @@ export default function OrderDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showCodQrModal, setShowCodQrModal] = useState(false);
+  const [showPayOsModal, setShowPayOsModal] = useState(false);
+  const [payOsData, setPayOsData] = useState(null);
   const [settledEscrowStores, setSettledEscrowStores] = useState({});
+  const [cancelSubOrderModal, setCancelSubOrderModal] = useState({ open: false, subOrder: null, reason: '' });
+  const [cancelOrderModal, setCancelOrderModal] = useState({ open: false, reason: '' });
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
+
+  const handleCancelSubOrder = async () => {
+    if (!cancelSubOrderModal.subOrder || !order) return;
+    try {
+      setIsSubmittingCancel(true);
+      const res = await orderApi.cancelBuyerSubOrder(order.id, cancelSubOrderModal.subOrder.id, {
+        reason: cancelSubOrderModal.reason || 'Người mua yêu cầu hủy kiện hàng này',
+      });
+      if (res.success) {
+        showToast(
+          {
+            title: 'Hủy kiện hàng thành công',
+            message: `Kiện hàng #${cancelSubOrderModal.subOrder.code} đã được hủy.`,
+          },
+          'success'
+        );
+        setCancelSubOrderModal({ open: false, subOrder: null, reason: '' });
+        fetchOrderDetail();
+      } else {
+        showToast(
+          {
+            title: 'Hủy thất bại',
+            message: res.message || 'Không thể hủy kiện hàng này.',
+          },
+          'error'
+        );
+      }
+    } catch (err) {
+      showToast(
+        {
+          title: 'Lỗi',
+          message: err.message || 'Có lỗi xảy ra khi hủy kiện hàng.',
+        },
+        'error'
+      );
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
+
+  const handleCancelMasterOrder = async () => {
+    if (!order) return;
+    try {
+      setIsSubmittingCancel(true);
+      const res = await orderApi.cancelBuyerOrder(order.id, {
+        reason: cancelOrderModal.reason || 'Người mua yêu cầu hủy toàn bộ đơn hàng',
+      });
+      if (res.success) {
+        showToast(
+          {
+            title: 'Hủy đơn hàng thành công',
+            message: `Đơn hàng #${order.code} đã được hủy hoàn tất.`,
+          },
+          'success'
+        );
+        setCancelOrderModal({ open: false, reason: '' });
+        fetchOrderDetail();
+      } else {
+        showToast(
+          {
+            title: 'Hủy thất bại',
+            message: res.message || 'Không thể hủy đơn hàng này.',
+          },
+          'error'
+        );
+      }
+    } catch (err) {
+      showToast(
+        {
+          title: 'Lỗi',
+          message: err.message || 'Có lỗi xảy ra khi hủy đơn hàng.',
+        },
+        'error'
+      );
+    } finally {
+      setIsSubmittingCancel(false);
+    }
+  };
 
   const fetchOrderDetail = useCallback(async () => {
     if (!id) return;
@@ -216,6 +301,7 @@ export default function OrderDetailPage() {
   }
 
   const isCancelled = order.status === 'CANCELLED';
+  const isPartiallyCancelled = order.status === 'PARTIALLY_CANCELLED';
   const totalItemsCount =
     order.sellerOrders?.reduce((sum, so) => sum + (so.items?.length || 0), 0) || 0;
 
@@ -376,7 +462,9 @@ export default function OrderDetailPage() {
                 <span className="inline-flex items-center gap-1">
                   <span className="material-symbols-outlined text-sm text-theme-primary">payments</span>
                   <span>
-                    Phương thức: <b className="text-on-surface">Thanh toán khi nhận hàng (COD)</b>
+                    Phương thức: <b className="text-on-surface">
+                      {order.paymentMethod === 'ONLINE_PAYMENT' ? 'Thanh toán trực tuyến PayOS (VietQR)' : 'Thanh toán khi nhận hàng (COD)'}
+                    </b>
                   </span>
                 </span>
               </div>
@@ -384,6 +472,27 @@ export default function OrderDetailPage() {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3 self-start md:self-center print:hidden">
+              {(order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') && order.paymentMethod === 'ONLINE_PAYMENT' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      const res = await paymentApi.initiatePayment(order.id);
+                      if (res.success && res.data) {
+                        setPayOsData(res.data);
+                      }
+                    } catch {
+                      // ignore
+                    }
+                    setShowPayOsModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer animate-pulse"
+                >
+                  <span className="material-symbols-outlined text-base">qr_code_2</span>
+                  <span>Thanh Toán VietQR</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={handlePrint}
@@ -392,6 +501,17 @@ export default function OrderDetailPage() {
                 <span className="material-symbols-outlined text-base">print</span>
                 <span>In Biên Lai</span>
               </button>
+
+              {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'SHIPPED' && (
+                <button
+                  type="button"
+                  onClick={() => setCancelOrderModal({ open: true, reason: '' })}
+                  className="px-4 py-2 rounded-xl bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-300 border border-red-200 dark:border-red-900 text-xs font-bold hover:bg-red-100 transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">cancel</span>
+                  <span>Hủy Toàn Bộ Đơn</span>
+                </button>
+              )}
 
               <Link
                 to="/books"
@@ -408,9 +528,13 @@ export default function OrderDetailPage() {
             <div className="mt-6 p-4 rounded-2xl bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 flex items-center gap-3 text-red-700 dark:text-red-300">
               <span className="material-symbols-outlined text-2xl shrink-0 text-red-500">cancel</span>
               <div className="text-xs">
-                <p className="font-bold text-sm">Đơn hàng này đã bị hủy</p>
+                <p className="font-bold text-sm">
+                  {order.cancelReason?.includes('2 phút') || order.paymentStatus === 'EXPIRED'
+                    ? 'Đơn hàng đã tự động bị hủy do hết hạn thanh toán (2 phút)'
+                    : 'Đơn hàng này đã bị hủy'}
+                </p>
                 <p className="mt-0.5 text-red-600 dark:text-red-400">
-                  Lý do: {order.cancelReason || 'Người mua hoặc người bán đã yêu cầu hủy đơn.'}
+                  Lý do: {order.cancelReason || 'Quá hạn thanh toán 2m hoặc người mua/bán đã yêu cầu hủy.'} {order.cancelReason?.includes('2 phút') ? '(Số lượng sách đã được tự động hoàn trả về kho)' : ''}
                 </p>
               </div>
             </div>
@@ -483,113 +607,211 @@ export default function OrderDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           {/* LEFT COLUMN: ORDER ITEMS & PACKAGE DETAILS */}
           <div className="lg:col-span-8 space-y-6">
-            {order.sellerOrders?.map((so, sIdx) => (
-              <div
-                key={so.id}
-                className="bg-theme-surface rounded-3xl border border-theme-border p-6 sm:p-8 shadow-xs overflow-hidden"
-              >
-                {/* Package Header */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-theme-border mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-theme-primary/10 text-theme-primary flex items-center justify-center">
-                      <span className="material-symbols-outlined text-xl">storefront</span>
+            {order.sellerOrders?.map((so, sIdx) => {
+              const isDigitalPackage = !so.requiresShipping || so.items?.every((item) => item.format?.toUpperCase().includes('DIGITAL') || item.format?.toLowerCase().includes('ebook'));
+              const isSubOrderCancelled = so.status === 'CANCELLED';
+              const isSubOrderShipped = so.status === 'SHIPPED';
+              const isSubOrderDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED';
+              const isSubOrderConfirmed = so.status === 'CONFIRMED' || so.status === 'PREPARING';
+              const isSubOrderPending = so.status === 'PENDING_PAYMENT' || so.status === 'PENDING_CONFIRMATION';
+              const canCancelThisPackage = !isSubOrderCancelled && !isSubOrderShipped && !isSubOrderDelivered && order.status !== 'CANCELLED';
+
+              const storeDisplayName = so.storeName || so.business?.displayName || so.business?.name || `Gian Hàng #${sIdx + 1}`;
+
+              return (
+                <div
+                  key={so.id}
+                  className={`bg-theme-surface rounded-3xl border ${isSubOrderCancelled ? 'border-red-200 dark:border-red-900/40 opacity-75' : 'border-theme-border'} p-6 sm:p-8 shadow-xs overflow-hidden transition-all`}
+                >
+                  {/* Package Header */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pb-5 border-b border-theme-border mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-2xl ${isDigitalPackage ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600' : 'bg-theme-primary/10 text-theme-primary'} flex items-center justify-center shrink-0`}>
+                        <span className="material-symbols-outlined text-xl">
+                          {isDigitalPackage ? 'menu_book' : 'storefront'}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-editorial text-base font-bold text-on-surface">
+                            {isDigitalPackage ? 'Kiện Hàng Số' : `Kiện Hàng ${sIdx + 1}`} · #{so.code}
+                          </h3>
+                          {/* Status Badge */}
+                          <span
+                            className={`text-[10.5px] font-bold px-2.5 py-0.5 rounded-full border inline-flex items-center gap-1 ${
+                              isSubOrderCancelled
+                                ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900'
+                                : isSubOrderDelivered
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900'
+                                : isSubOrderShipped
+                                ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900'
+                                : isSubOrderConfirmed
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900'
+                                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900'
+                            }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                            <span>
+                              {isSubOrderCancelled
+                                ? 'Đã hủy kiện này'
+                                : isSubOrderDelivered
+                                ? 'Đã hoàn tất'
+                                : isSubOrderShipped
+                                ? 'Đang vận chuyển'
+                                : isSubOrderConfirmed
+                                ? 'Đang chuẩn bị hàng'
+                                : 'Chờ xác nhận'}
+                            </span>
+                          </span>
+                        </div>
+                        <p className="text-[12px] font-medium text-on-surface-variant flex items-center gap-1 mt-0.5">
+                          <span>Gian hàng:</span>
+                          <b className="text-on-surface font-semibold">{storeDisplayName}</b>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-editorial text-base font-bold text-on-surface">
-                        Kiện hàng {sIdx + 1} · #{so.code}
-                      </h3>
-                      <p className="text-[11px] text-on-surface-variant">
-                        Đóng gói và vận chuyển bởi Người bán HUKI
-                      </p>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {so.carrier && so.trackingCode && (
+                        <div className="text-right text-xs bg-theme-surface-subtle px-3 py-1.5 rounded-xl border border-theme-border">
+                          <span className="text-on-surface-variant">Vận chuyển: </span>
+                          <b className="text-on-surface">{so.carrier}</b>
+                          <span className="mx-1 text-on-surface-variant">•</span>
+                          <span className="font-mono font-bold text-theme-primary">{so.trackingCode}</span>
+                        </div>
+                      )}
+
+                      {canCancelThisPackage && !isDigitalPackage && (
+                        <button
+                          type="button"
+                          onClick={() => setCancelSubOrderModal({ open: true, subOrder: so, reason: '' })}
+                          className="px-3 py-1.5 rounded-xl text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 border border-red-200 dark:border-red-900 text-xs font-semibold inline-flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">cancel</span>
+                          <span>Hủy Kiện Này</span>
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {so.carrier && so.trackingCode && (
-                    <div className="text-right text-xs bg-theme-surface-subtle px-3 py-1.5 rounded-xl border border-theme-border">
-                      <span className="text-on-surface-variant">Vận chuyển: </span>
-                      <b className="text-on-surface">{so.carrier}</b>
-                      <span className="mx-1 text-on-surface-variant">•</span>
-                      <span className="font-mono font-bold text-theme-primary">{so.trackingCode}</span>
+                  {/* Pure Digital Banner */}
+                  {isDigitalPackage && (
+                    <div className="mb-4 p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/40 flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5 text-indigo-900 dark:text-indigo-200 text-xs">
+                        <span className="material-symbols-outlined text-lg text-indigo-600">verified</span>
+                        <span>Ấn phẩm Ebook số bản quyền DRM đã được kích hoạt trực tiếp vào Tủ sách của bạn.</span>
+                      </div>
+                      <Link
+                        to="/library"
+                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-1 shadow-2xs transition-all"
+                      >
+                        <span className="material-symbols-outlined text-sm">auto_stories</span>
+                        <span>Mở Tủ Sách</span>
+                      </Link>
+                    </div>
+                  )}
+
+                  {/* Items in Package */}
+                  <div className="divide-y divide-theme-border/60">
+                    {so.items?.map((item) => (
+                      <div key={item.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                          {/* Book Cover */}
+                          <div className="w-16 h-22 sm:w-20 sm:h-26 rounded-xl bg-theme-surface-subtle border border-theme-border overflow-hidden shrink-0 flex items-center justify-center">
+                            {item.bookCoverUrl || item.coverUrl ? (
+                              <img
+                                src={item.bookCoverUrl || item.coverUrl}
+                                alt={item.bookTitle}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <span className="material-symbols-outlined text-3xl text-theme-primary/40">
+                                auto_stories
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <h4 className="font-editorial text-sm sm:text-base font-bold text-on-surface leading-snug">
+                                {item.bookTitle}
+                              </h4>
+                              <OrderItemBadge format={item.format} />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              {item.bookIsbn && (
+                                <span className="text-[11px] text-on-surface-variant font-mono">
+                                  ISBN: {item.bookIsbn}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-on-surface-variant mt-1.5">
+                              Số lượng: <b className="text-on-surface">{item.quantity}</b> ×{' '}
+                              {Number(item.unitPrice).toLocaleString('vi-VN')}đ
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Subtotal & Action */}
+                        <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
+                          <div className="font-bold text-sm sm:text-base text-theme-primary">
+                            {Number(item.subtotal || item.unitPrice * item.quantity).toLocaleString(
+                              'vi-VN'
+                            )}
+                            đ
+                          </div>
+
+                          {(item.format?.toUpperCase().includes('DIGITAL') || item.format?.toLowerCase().includes('ebook')) && (
+                            <Link
+                              to={`/reader/${item.bookId}`}
+                              className="px-2.5 py-1 rounded-lg bg-theme-primary/10 hover:bg-theme-primary/20 text-theme-primary text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
+                              <span>Đọc Ngay</span>
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Sub-order Summary Footer */}
+                  <div className="mt-4 pt-4 border-t border-theme-border/60 flex items-center justify-between text-xs text-on-surface-variant flex-wrap gap-2">
+                    <div className="flex items-center gap-3">
+                      <span>Tiền hàng: <b className="text-on-surface">{Number(so.itemSubtotal).toLocaleString('vi-VN')}đ</b></span>
+                      <span>•</span>
+                      <span>Phí ship: <b className="text-on-surface">{Number(so.shippingFee).toLocaleString('vi-VN')}đ</b></span>
+                    </div>
+                    <div>
+                      Tổng kiện: <b className="text-sm font-bold text-theme-primary">{Number(so.grandTotal).toLocaleString('vi-VN')}đ</b>
+                    </div>
+                  </div>
+
+                  {/* 2-Minute Escrow Holding Countdown if Delivered */}
+                  {(so.status === 'DELIVERED' || order.status === 'DELIVERED' || isDelivered) && (
+                    <div className="mt-5 pt-5 border-t border-theme-border">
+                      <EscrowCountdown
+                        orderId={order.id}
+                        subOrderId={so.id}
+                        storeName={storeDisplayName}
+                        amount={so.grandTotal || order.grandTotal}
+                        onReleaseEscrow={({ subOrderId, auto }) => {
+                          setSettledEscrowStores((prev) => ({ ...prev, [subOrderId || so.id]: true }));
+                          showToast(
+                            {
+                              title: auto ? 'Hết hạn ký quỹ 2 phút' : 'Xác nhận thành công!',
+                              message: `Đã hoàn tất giải ngân cho gian hàng #${so.code}.`,
+                            },
+                            'success'
+                          );
+                        }}
+                      />
                     </div>
                   )}
                 </div>
-
-                {/* Items in Package */}
-                <div className="divide-y divide-theme-border/60">
-                  {so.items?.map((item) => (
-                    <div key={item.id} className="py-4 first:pt-0 last:pb-0 flex items-center gap-4">
-                      {/* Book Cover */}
-                      <div className="w-16 h-22 sm:w-20 sm:h-26 rounded-xl bg-theme-surface-subtle border border-theme-border overflow-hidden shrink-0 flex items-center justify-center">
-                        {item.bookCoverUrl || item.coverUrl ? (
-                          <img
-                            src={item.bookCoverUrl || item.coverUrl}
-                            alt={item.bookTitle}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <span className="material-symbols-outlined text-3xl text-theme-primary/40">
-                            auto_stories
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <h4 className="font-editorial text-sm sm:text-base font-bold text-on-surface leading-snug">
-                            {item.bookTitle}
-                          </h4>
-                          <OrderItemBadge format={item.format} />
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                          {item.bookIsbn && (
-                            <span className="text-[11px] text-on-surface-variant font-mono">
-                              ISBN: {item.bookIsbn}
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-on-surface-variant mt-1.5">
-                          Số lượng: <b className="text-on-surface">{item.quantity}</b> ×{' '}
-                          {Number(item.unitPrice).toLocaleString('vi-VN')}đ
-                        </div>
-                      </div>
-
-                      {/* Subtotal */}
-                      <div className="text-right shrink-0">
-                        <div className="font-bold text-sm sm:text-base text-theme-primary">
-                          {Number(item.subtotal || item.unitPrice * item.quantity).toLocaleString(
-                            'vi-VN'
-                          )}
-                          đ
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* 2-Minute Escrow Holding Countdown if Delivered */}
-                {(so.status === 'DELIVERED' || order.status === 'DELIVERED' || isDelivered) && (
-                  <div className="mt-5 pt-5 border-t border-theme-border">
-                    <EscrowCountdown
-                      orderId={order.id}
-                      subOrderId={so.id}
-                      storeName={so.business?.displayName || so.business?.name || `Gian Hàng #${sIdx + 1}`}
-                      amount={so.grandTotal || order.grandTotal}
-                      onReleaseEscrow={({ subOrderId, auto }) => {
-                        setSettledEscrowStores((prev) => ({ ...prev, [subOrderId || so.id]: true }));
-                        showToast(
-                          {
-                            title: auto ? 'Hết hạn ký quỹ 2 phút' : 'Xác nhận thành công!',
-                            message: `Đã hoàn tất giải ngân cho gian hàng #${so.code}.`,
-                          },
-                          'success'
-                        );
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
 
             {/* TIMELINE AUDIT TRAIL LOG */}
             {trackingInfo?.timeline && trackingInfo.timeline.length > 0 && (
@@ -796,6 +1018,152 @@ export default function OrderDetailPage() {
                 className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-all shadow-xs"
               >
                 Đã Thanh Toán Xong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PayOS Online Payment Live Countdown Modal */}
+      {showPayOsModal && (
+        <PaymentCountdownModal
+          isOpen={showPayOsModal}
+          onClose={() => setShowPayOsModal(false)}
+          orderId={order.id}
+          orderCode={order.code}
+          grandTotal={Number(order.grandTotal) || 0}
+          paymentData={payOsData}
+          onSuccess={() => {
+            setShowPayOsModal(false);
+            fetchOrderDetail();
+          }}
+        />
+      )}
+
+      {/* Cancel Sub-Order Modal */}
+      {cancelSubOrderModal.open && cancelSubOrderModal.subOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-theme-border">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600 flex items-center justify-center text-sm font-bold">
+                  <span className="material-symbols-outlined text-[18px]">remove_shopping_cart</span>
+                </span>
+                <h3 className="font-editorial text-base font-bold text-on-surface">
+                  Hủy Kiện Hàng #{cancelSubOrderModal.subOrder.code}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelSubOrderModal({ open: false, subOrder: null, reason: '' })}
+                className="p-1 rounded-lg hover:bg-theme-surface-subtle text-on-surface-variant cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Bạn có chắc chắn muốn hủy kiện hàng từ gian hàng{' '}
+              <b className="text-on-surface">
+                {cancelSubOrderModal.subOrder.storeName || cancelSubOrderModal.subOrder.business?.displayName || 'này'}
+              </b>
+              ? Các kiện hàng từ gian hàng khác trong đơn vẫn sẽ được tiếp tục xử lý bình thường.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                Lý do hủy kiện hàng:
+              </label>
+              <textarea
+                value={cancelSubOrderModal.reason}
+                onChange={(e) =>
+                  setCancelSubOrderModal((prev) => ({ ...prev, reason: e.target.value }))
+                }
+                rows={3}
+                placeholder="Nhập lý do hủy (ví dụ: Đổi ý, muốn thay đổi số lượng, ...)"
+                className="w-full px-3 py-2 rounded-xl border border-theme-border bg-theme-bg text-xs text-on-surface focus:outline-none focus:border-theme-primary resize-none"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isSubmittingCancel}
+                onClick={() => setCancelSubOrderModal({ open: false, subOrder: null, reason: '' })}
+                className="px-4 py-2.5 rounded-xl border border-theme-border text-on-surface font-semibold text-xs hover:bg-theme-surface-subtle transition-all cursor-pointer"
+              >
+                Giữ Lại
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingCancel}
+                onClick={handleCancelSubOrder}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Kiện'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Master Order Modal */}
+      {cancelOrderModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-theme-border">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950/50 text-red-600 flex items-center justify-center text-sm font-bold">
+                  <span className="material-symbols-outlined text-[18px]">cancel</span>
+                </span>
+                <h3 className="font-editorial text-base font-bold text-on-surface">
+                  Hủy Toàn Bộ Đơn Hàng #{order.code}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelOrderModal({ open: false, reason: '' })}
+                className="p-1 rounded-lg hover:bg-theme-surface-subtle text-on-surface-variant cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Thao tác này sẽ hủy toàn bộ các kiện hàng và sản phẩm thuộc đơn hàng #{order.code}. Số lượng tồn kho sẽ được tự động hoàn trả.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-on-surface mb-1.5">
+                Lý do hủy đơn hàng:
+              </label>
+              <textarea
+                value={cancelOrderModal.reason}
+                onChange={(e) =>
+                  setCancelOrderModal((prev) => ({ ...prev, reason: e.target.value }))
+                }
+                rows={3}
+                placeholder="Nhập lý do hủy (ví dụ: Không còn nhu cầu, đặt nhầm sản phẩm, ...)"
+                className="w-full px-3 py-2 rounded-xl border border-theme-border bg-theme-bg text-xs text-on-surface focus:outline-none focus:border-theme-primary resize-none"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                disabled={isSubmittingCancel}
+                onClick={() => setCancelOrderModal({ open: false, reason: '' })}
+                className="px-4 py-2.5 rounded-xl border border-theme-border text-on-surface font-semibold text-xs hover:bg-theme-surface-subtle transition-all cursor-pointer"
+              >
+                Giữ Lại
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingCancel}
+                onClick={handleCancelMasterOrder}
+                className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer inline-flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isSubmittingCancel ? 'Đang xử lý...' : 'Xác Nhận Hủy Toàn Bộ'}
               </button>
             </div>
           </div>
