@@ -11,8 +11,12 @@ export interface CheckoutShippingAddress {
 }
 
 export interface CheckoutPreviewPayload {
-  shippingAddress?: CheckoutShippingAddress;
+  addressId?: string; // NEW: Preferred - validates ownership
+  shippingAddress?: CheckoutShippingAddress; // Deprecated - use addressId
   note?: string;
+  platformVoucherCode?: string; // NEW
+  storeVoucherCodes?: Record<string, string>; // NEW: storeId -> code
+  shippingVoucherCode?: string; // NEW
 }
 
 export interface CheckoutSnapshotItem {
@@ -25,15 +29,25 @@ export interface CheckoutSnapshotItem {
   unitPrice: number;
   subtotal: number;
   storeId: string;
+  weight?: number;
+  isFlashSale?: boolean;
 }
 
 export interface CheckoutSnapshotGroup {
   storeId: string;
   storeName?: string;
+  requiresShipping: boolean;
   items: CheckoutSnapshotItem[];
-  subtotal: number;
+  itemSubtotal: number;
   shippingFee: number;
-  total: number;
+  storeVoucherDiscount: number;
+  storeVoucherCode?: string;
+  grandTotal: number;
+}
+
+export interface VoucherDetails {
+  code: string;
+  discount: number;
 }
 
 export interface CheckoutPreviewResponse {
@@ -42,10 +56,18 @@ export interface CheckoutPreviewResponse {
   userId: string;
   items: CheckoutSnapshotItem[];
   groups: CheckoutSnapshotGroup[];
-  subtotal: number;
-  shippingFee: number;
-  discountAmount?: number;
-  totalAmount: number;
+  itemSubtotal: number;
+  shippingTotal: number;
+  storeDiscountTotal: number;
+  platformDiscountTotal: number;
+  shippingDiscountTotal: number;
+  discountTotal: number;
+  grandTotal: number;
+  vouchers: {
+    platform?: VoucherDetails;
+    stores: Array<{ storeId: string; code: string; discount: number }>;
+    shipping?: VoucherDetails;
+  };
   requiresShipping: boolean;
   shippingAddress?: CheckoutShippingAddress;
   note?: string;
@@ -53,8 +75,12 @@ export interface CheckoutPreviewResponse {
 
 export interface CheckoutConfirmPayload {
   sessionId: string;
+  addressId?: string; // NEW
   paymentMethod: 'COD' | 'ONLINE_PAYMENT' | 'VNPAY' | 'MOMO' | 'CARD' | 'WALLET';
   paymentProvider?: string;
+  platformVoucherCode?: string; // NEW
+  storeVoucherCodes?: Record<string, string>; // NEW
+  shippingVoucherCode?: string; // NEW
 }
 
 export interface CheckoutConfirmResponse {
@@ -66,7 +92,8 @@ export interface CheckoutConfirmResponse {
     paymentMethod: string;
     paymentStatus: string;
     itemSubtotal: number;
-    shippingFee: number;
+    shippingTotal: number;
+    discountTotal: number;
     grandTotal: number;
     createdAt: string;
   };
@@ -74,6 +101,8 @@ export interface CheckoutConfirmResponse {
     id: string;
     code: string;
     storeId: string;
+    itemSubtotal: number;
+    shippingFee: number;
     grandTotal: number;
     status: string;
   }>;
@@ -84,6 +113,8 @@ export interface CheckoutConfirmResponse {
     amount: number;
     checkoutUrl?: string;
   };
+  idempotentReplay?: boolean;
+  paymentRequired?: boolean;
 }
 
 export const checkoutApi = {

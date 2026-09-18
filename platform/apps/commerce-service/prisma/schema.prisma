@@ -207,6 +207,9 @@ model Book {
   cartItems       CartItem[]
   orderItems      OrderItem[]
   bookAccesses    BookAccess[]
+  readerBookmarks ReaderBookmark[]
+  readingProgresses ReadingProgress[]
+  forensicEvidences ForensicEvidence[]
 
   @@unique([storeId, slug])
   @@index([storeId, status])
@@ -625,3 +628,343 @@ model InboxEvent {
   @@index([type, processedAt])
   @@map("inbox_events")
 }
+
+// ============================================
+// READER BOOKMARKS & PROGRESS (Task 53)
+// ============================================
+
+model ReaderBookmark {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  bookId     String   @map("book_id")
+  pageNumber Int      @map("page_number")
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId, pageNumber])
+  @@index([userId, bookId])
+  @@map("reader_bookmarks")
+}
+
+model ReadingProgress {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  bookId      String   @map("book_id")
+  currentPage Int      @default(1) @map("current_page")
+  percentage  Decimal  @default(0.0) @db.Decimal(5, 2)
+  lastReadAt  DateTime @default(now()) @map("last_read_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
+  @@map("reading_progress")
+}
+
+// ============================================
+// FORENSIC WATERMARK TRACKING & EVIDENCE (Task 57)
+// ============================================
+
+enum ForensicStatus {
+  INVESTIGATING
+  CONFIRMED_PIRACY
+  DISMISSED
+  SANCTIONED
+}
+
+model ForensicEvidence {
+  id              String         @id @default(uuid())
+  watermarkText   String         @map("watermark_text")
+  matchedUserId   String?        @map("matched_user_id")
+  matchedBookId   String?        @map("matched_book_id")
+  pageNumber      Int?           @map("page_number")
+  reportedUrl     String?        @map("reported_url")
+  imageUrl        String?        @map("image_url")
+  status          ForensicStatus @default(INVESTIGATING)
+  confidenceScore Decimal        @default(1.0) @map("confidence_score") @db.Decimal(3, 2)
+  notes           String?
+  investigatorId  String?        @map("investigator_id")
+  metadata        Json?
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  book Book? @relation(fields: [matchedBookId], references: [id], onDelete: SetNull)
+
+  @@index([matchedUserId])
+  @@index([matchedBookId])
+  @@index([status])
+  @@map("forensic_evidences")
+}
+
+// ============================================
+// SELLER WALLET (Task 70 / POL-15 WAL-001)
+// ============================================
+
+enum WalletTransactionType {
+  CREDIT_AVAILABLE
+  CREDIT_PENDING
+  CREDIT_FROZEN
+  DEBIT_AVAILABLE
+  DEBIT_FROZEN
+  MOVE_PENDING_TO_AVAILABLE
+  MOVE_AVAILABLE_TO_FROZEN
+  MOVE_FROZEN_TO_AVAILABLE
+  MOVE_FROZEN_TO_PENDING
+}
+
+model Wallet {
+  id               String              @id @default(uuid())
+  storeId          String              @unique @map("store_id")
+  ownerUserId      String              @map("owner_user_id")
+  availableBalance Decimal             @default(0) @map("available_balance") @db.Decimal(15, 2)
+  pendingBalance   Decimal             @default(0) @map("pending_balance") @db.Decimal(15, 2)
+  frozenBalance    Decimal             @default(0) @map("frozen_balance") @db.Decimal(15, 2)
+  currency         String              @default("VND")
+  version          Int                 @default(1)
+  createdAt        DateTime            @default(now()) @map("created_at")
+  updatedAt        DateTime            @updatedAt @map("updated_at")
+
+  transactions     WalletTransaction[]
+  security         WalletSecurity?
+  payoutRequests   PayoutRequest[]
+
+  @@index([ownerUserId])
+  @@map("wallets")
+}
+
+// ============================================
+// PAYOUT REQUEST (Task 76 & Task 77 / POL-15 PO-001)
+// ============================================
+
+enum PayoutRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model PayoutRequest {
+  id              String              @id @default(uuid())
+  storeId         String              @map("store_id")
+  walletId        String              @map("wallet_id")
+  amount          Decimal             @db.Decimal(15, 2)
+  currency        String              @default("VND")
+  status          PayoutRequestStatus @default(PENDING)
+  bankSnapshot    Json                @map("bank_snapshot")
+  requestedBy     String              @map("requested_by")
+  reviewedBy      String?             @map("reviewed_by")
+  requestedAt     DateTime            @default(now()) @map("requested_at")
+  reviewedAt      DateTime?           @map("reviewed_at")
+  disbursedAt     DateTime?           @map("disbursed_at")
+  rejectionReason String?             @map("rejection_reason")
+  failureReason   String?             @map("failure_reason")
+  provider        String?
+  providerRef     String?             @map("provider_ref")
+  idempotencyKey  String              @map("idempotency_key")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  wallet          Wallet              @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, idempotencyKey])
+  @@index([storeId, status])
+  @@index([status, createdAt])
+  @@map("payout_requests")
+}
+
+// ============================================
+// WALLET SECURITY & AUDIT (Task 75 / POL-15 SEC-002)
+// ============================================
+
+model WalletSecurity {
+  id             String    @id @default(uuid())
+  walletId       String    @unique @map("wallet_id")
+  storeId        String    @unique @map("store_id")
+  pinHash        String?   @map("pin_hash")
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime? @map("locked_until")
+  pinSetAt       DateTime? @map("pin_set_at")
+  pinUpdatedAt   DateTime? @map("pin_updated_at")
+  lastVerifiedAt DateTime? @map("last_verified_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  wallet         Wallet    @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("wallet_securities")
+}
+
+model WalletSecurityAuditLog {
+  id        String   @id @default(uuid())
+  storeId   String   @map("store_id")
+  walletId  String   @map("wallet_id")
+  eventType String   @map("event_type")
+  actorId   String   @map("actor_id")
+  actorRole String   @map("actor_role")
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([storeId, createdAt])
+  @@index([walletId, eventType])
+  @@map("wallet_security_audit_logs")
+}
+
+model WalletTransaction {
+  id              String                @id @default(uuid())
+  walletId        String                @map("wallet_id")
+  type            WalletTransactionType
+  amount          Decimal               @db.Decimal(15, 2)
+  availableBefore Decimal               @map("available_before") @db.Decimal(15, 2)
+  availableAfter  Decimal               @map("available_after") @db.Decimal(15, 2)
+  pendingBefore   Decimal               @map("pending_before") @db.Decimal(15, 2)
+  pendingAfter    Decimal               @map("pending_after") @db.Decimal(15, 2)
+  frozenBefore    Decimal               @map("frozen_before") @db.Decimal(15, 2)
+  frozenAfter     Decimal               @map("frozen_after") @db.Decimal(15, 2)
+  referenceType   String?               @map("reference_type")
+  referenceId     String?               @map("reference_id")
+  description     String?
+  metadata        Json?
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  wallet          Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+// ============================================
+// DOUBLE-ENTRY LEDGER (Task 71 / POL-15 WAL-002)
+// ============================================
+
+enum LedgerAccountType {
+  ESCROW_HOLDING
+  SELLER_PENDING
+  SELLER_AVAILABLE
+  SELLER_FROZEN
+  PLATFORM_REVENUE
+  PLATFORM_MARKETING_EXPENSE
+  REFUND_CLEARING
+  PAYOUT_CLEARING
+}
+
+enum LedgerEntryDirection {
+  DEBIT
+  CREDIT
+}
+
+model LedgerTransaction {
+  id                      String        @id @default(uuid())
+  transactionNumber       String        @unique @map("transaction_number")
+  idempotencyKey          String        @unique @map("idempotency_key")
+  description             String
+  referenceType           String        @map("reference_type")
+  referenceId             String        @map("reference_id")
+  storeId                 String?       @map("store_id")
+  currency                String        @default("VND")
+  totalAmount             Decimal       @map("total_amount") @db.Decimal(15, 2)
+  isReversal              Boolean       @default(false) @map("is_reversal")
+  reversalOfTransactionId String?       @unique @map("reversal_of_transaction_id")
+  reversedByTransactionId String?       @map("reversed_by_transaction_id")
+  reversalReason          String?       @map("reversal_reason")
+  metadata                Json?
+  postedAt                DateTime      @default(now()) @map("posted_at")
+  createdAt               DateTime      @default(now()) @map("created_at")
+
+  entries                 LedgerEntry[]
+
+  @@index([referenceType, referenceId])
+  @@index([storeId, postedAt])
+  @@index([postedAt])
+  @@map("ledger_transactions")
+}
+
+model LedgerEntry {
+  id                  String               @id @default(uuid())
+  ledgerTransactionId String               @map("ledger_transaction_id")
+  accountType         LedgerAccountType    @map("account_type")
+  direction           LedgerEntryDirection
+  amount              Decimal              @db.Decimal(15, 2)
+  currency            String               @default("VND")
+  storeId             String?              @map("store_id")
+  description         String?
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  ledgerTransaction   LedgerTransaction    @relation(fields: [ledgerTransactionId], references: [id], onDelete: Restrict)
+
+  @@index([ledgerTransactionId])
+  @@index([accountType, createdAt])
+  @@index([storeId, createdAt])
+  @@map("ledger_entries")
+}
+
+model LedgerAccountSummary {
+  id           String            @id @default(uuid())
+  accountType  LedgerAccountType @map("account_type")
+  storeId      String            @default("") @map("store_id")
+  totalDebits  Decimal           @default(0) @map("total_debits") @db.Decimal(15, 2)
+  totalCredits Decimal           @default(0) @map("total_credits") @db.Decimal(15, 2)
+  netBalance   Decimal           @default(0) @map("net_balance") @db.Decimal(15, 2)
+  currency     String            @default("VND")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+
+  @@unique([accountType, storeId, currency])
+  @@map("ledger_account_summaries")
+}
+
+// ============================================
+// EOD FINANCE RECONCILIATION RUNS (Task 78)
+// ============================================
+
+enum ReconciliationRunStatus {
+  RUNNING
+  COMPLETED_PASS
+  COMPLETED_WARNING
+  COMPLETED_FAIL
+  FAILED
+}
+
+enum ReconciliationTriggerType {
+  MANUAL
+  SCHEDULED
+  ON_DEMAND
+  API
+}
+
+model FinanceReconciliationRun {
+  id            String                    @id @default(uuid())
+  runNumber     String                    @unique @map("run_number")
+  businessDate  String                    @map("business_date") // YYYY-MM-DD
+  timezone      String                    @default("Asia/Ho_Chi_Minh")
+  status        ReconciliationRunStatus   @default(RUNNING)
+  triggerType   ReconciliationTriggerType @default(MANUAL) @map("trigger_type")
+  triggeredBy   String                    @map("triggered_by")
+  storeId       String?                   @map("store_id")
+  startedAt     DateTime                  @default(now()) @map("started_at")
+  completedAt   DateTime?                 @map("completed_at")
+  durationMs    Int?                      @map("duration_ms")
+  summary       Json?
+  counts        Json?
+  discrepancies Json?
+  metadata      Json?
+  createdAt     DateTime                  @default(now()) @map("created_at")
+  updatedAt     DateTime                  @updatedAt @map("updated_at")
+
+  @@index([businessDate])
+  @@index([status])
+  @@index([storeId])
+  @@index([createdAt])
+  @@map("finance_reconciliation_runs")
+}
+

@@ -10,26 +10,35 @@ import {
 
 export class PhysicalBookDetailsDto {
   @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  stock: number;
+  stock?: number;
 
+  @ApiPropertyOptional({ default: 300 })
+  @IsOptional()
   @Type(() => Number)
   @IsPositive()
-  weight: number;
+  weight?: number;
 
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
   @Type(() => Number)
   @IsPositive()
-  length: number;
+  length?: number;
 
+  @ApiPropertyOptional({ default: 13 })
+  @IsOptional()
   @Type(() => Number)
   @IsPositive()
-  width: number;
+  width?: number;
 
+  @ApiPropertyOptional({ default: 2 })
+  @IsOptional()
   @Type(() => Number)
   @IsPositive()
-  height: number;
+  height?: number;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

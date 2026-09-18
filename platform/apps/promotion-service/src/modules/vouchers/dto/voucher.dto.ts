@@ -152,6 +152,16 @@ export class UpdateVoucherDto {
   @IsEnum(VoucherStatus)
   @IsOptional()
   status?: VoucherStatus;
+
+  @ApiPropertyOptional({ example: '2026-08-01T00:00:00Z' })
+  @IsDateString()
+  @IsOptional()
+  startsAt?: string;
+
+  @ApiPropertyOptional({ example: '2026-08-31T23:59:59Z' })
+  @IsDateString()
+  @IsOptional()
+  expiresAt?: string;
 }
 
 export class VoucherQueryDto {

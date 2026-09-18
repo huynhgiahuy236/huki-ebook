@@ -19,6 +19,9 @@ export const ORDER_EVENTS = {
   SELLER_CONFIRMED: 'SELLER_ORDER_CONFIRMED',
   SELLER_SHIPPED: 'SELLER_ORDER_SHIPPED',
   SELLER_CANCELLED: 'SELLER_ORDER_CANCELLED',
+  CANCEL_REQUESTED: 'ORDER_CANCEL_REQUESTED',
+  CANCEL_APPROVED: 'ORDER_CANCEL_APPROVED',
+  CANCEL_REJECTED: 'ORDER_CANCEL_REJECTED',
 } as const;
 
 // ============================================
@@ -27,6 +30,21 @@ export const ORDER_EVENTS = {
 export const PAYMENT_EVENTS = {
   SUCCEEDED: 'PAYMENT_SUCCEEDED',
   FAILED: 'PAYMENT_FAILED',
+} as const;
+
+// ============================================
+// DISPUTE & ESCROW EVENTS (POL-12 / POL-14)
+// ============================================
+export const DISPUTE_EVENTS = {
+  CREATED: 'DISPUTE_CREATED',
+  RESOLVED: 'DISPUTE_RESOLVED',
+} as const;
+
+export const ESCROW_EVENTS = {
+  HOLDING: 'ESCROW_HOLDING',
+  FROZEN: 'ESCROW_FROZEN',
+  UNFROZEN: 'ESCROW_UNFROZEN',
+  RELEASED: 'ESCROW_RELEASED',
 } as const;
 
 // ============================================

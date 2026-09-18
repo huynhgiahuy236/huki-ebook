@@ -1,0 +1,76 @@
+# Loki Configuration for HUKI EBOOK
+# https://grafana.com/docs/loki/latest/configuration/
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+memberlist:
+  join_members:
+    - loki:7946
+
+schema_config:
+  configs:
+    - from: 2023-01-01
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  boltdb_shipper:
+    active_index_directory: /loki/active
+    cache_location: /loki/cache
+    cache_ttl: 24h
+  filesystem:
+    directory: /loki/chunks
+
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_work_count: 150000
+  delete_request_cancel_period: 24h
+
+limits_config:
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  ingestion_rate_mb: 50
+  ingestion_burst_size_mb: 100
+  max_streams_per_user: 10000
+  max_global_streams_per_user: 50000
+
+chunk_store_config:
+  max_look_back_period: 72h
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_periods:
+    - priority: 1
+      period: 30d
+
+# Override retention for different streams
+overrides:
+  tenant_a:
+    retention_period: 30d
+  default:
+    retention_period: 30d
+
+# Frontend settings
+frontend:
+  compress_responses: true
+  max_encoded_length: 4194304
+
+# Querier settings
+querier:
+  max_concurrent: 20
+  query_timeout: 300s
+  tail_max_duration: 1h
+
+# Compactor settings for retention
+compactor:
+  retention_enabled: true

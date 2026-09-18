@@ -76,4 +76,12 @@ export class SessionService {
   async getSession(sessionId: string) {
     return this.prisma.authSession.findUnique({ where: { id: sessionId } });
   }
+
+  async updateSessionExpiry(sessionId: string, expiresAt: Date) {
+    return this.prisma.authSession.update({
+      where: { id: sessionId },
+      data: { expiresAt },
+    });
+  }
 }
+

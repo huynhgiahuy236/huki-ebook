@@ -12,10 +12,14 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiTags,
   ApiParam,
@@ -28,6 +32,11 @@ import {
 import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CancelOrderDto } from './dto/checkout.dto';
+import {
+  CreateDisputeDto,
+  ArbitrateDisputeDto,
+  AdminDisputeQueryDto,
+} from './dto/dispute.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { OrdersService } from './orders.service';
 
@@ -37,6 +46,81 @@ import { OrdersService } from './orders.service';
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
+
+  @Get('admin/disputes')
+  @ApiOperation({
+    summary: 'List all disputes for Platform Admin (Task 64)',
+    description:
+      'Platform Admin reviews submitted buyer/seller disputes across all orders.',
+  })
+  @ApiResponse({ status: 200, description: 'List of disputes' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can access dispute arbitration list',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminListDisputes(
+    @CurrentBookActor() actor: BookActor,
+    @Query() query: AdminDisputeQueryDto,
+  ) {
+    return this.orders.adminListDisputes(actor, query);
+  }
+
+  @Get('admin/disputes/:disputeId')
+  @ApiOperation({
+    summary: 'Get dispute details for Platform Admin (Task 64)',
+    description:
+      'Platform Admin retrieves full dispute context, claims, order info, and evidence gallery.',
+  })
+  @ApiParam({ name: 'disputeId', description: 'Dispute ID' })
+  @ApiResponse({ status: 200, description: 'Dispute detail' })
+  @ApiNotFoundResponse({ description: 'Dispute not found' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can access dispute details',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminGetDisputeDetail(
+    @CurrentBookActor() actor: BookActor,
+    @Param('disputeId') disputeId: string,
+  ) {
+    return this.orders.adminGetDisputeDetail(actor, disputeId);
+  }
+
+  @Post('admin/disputes/:disputeId/arbitrate')
+  @ApiOperation({
+    summary: 'Record Platform Admin Arbitration Ruling (Task 64 / POL-12)',
+    description:
+      'Platform Admin executes binding arbitration ruling (BUYER_WINS, SELLER_WINS, PARTIAL_SETTLEMENT, CARRIER_AT_FAULT, REQUEST_MORE_INFO).',
+  })
+  @ApiParam({ name: 'disputeId', description: 'Dispute ID' })
+  @ApiResponse({ status: 200, description: 'Arbitration ruling recorded' })
+  @ApiNotFoundResponse({ description: 'Dispute not found' })
+  @ApiBadRequestResponse({ description: 'Invalid ruling parameters' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can execute arbitration rulings',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminArbitrateDispute(
+    @CurrentBookActor() actor: BookActor,
+    @Param('disputeId') disputeId: string,
+    @Body() dto: ArbitrateDisputeDto,
+  ) {
+    return this.orders.adminArbitrateDispute(actor, disputeId, dto);
+  }
+
+  @Get('admin/escrow/frozen')
+  @ApiOperation({
+    summary: 'List all frozen escrow holdings (Task 65 / POL-14)',
+    description:
+      'Platform Admin audits all active escrow holding funds currently frozen due to disputes.',
+  })
+  @ApiResponse({ status: 200, description: 'List of frozen escrow pools' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can audit frozen escrow pools',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminListFrozenEscrows(@CurrentBookActor() actor: BookActor) {
+    return this.orders.listFrozenEscrows(actor);
+  }
 
   @Get()
   @ApiOperation({
@@ -142,4 +226,126 @@ export class OrdersController {
   ) {
     return this.orders.cancelBuyerSubOrder(actor.sub, id, sellerOrderId, dto);
   }
+
+  @Post(':id/seller-orders/:sellerOrderId/cancel-request')
+  @ApiOperation({
+    summary: 'Request cancellation during packing phase',
+    description: 'Buyer submits a cancellation request during packing phase requiring seller approval (Task 59).',
+  })
+  @ApiParam({ name: 'id', description: 'Master Order ID' })
+  @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
+  @ApiResponse({ status: 200, description: 'Cancellation request submitted' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
+  @ApiBadRequestResponse({ description: 'Order cannot be cancelled in current state' })
+  requestCancelSubOrder(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sellerOrderId', ParseUUIDPipe) sellerOrderId: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.orders.requestCancellation(actor.sub, id, sellerOrderId, dto);
+  }
+
+  @Post(':id/disputes')
+  @ApiOperation({
+    summary: 'Submit a dispute / complaint',
+    description: 'Buyer submits a dispute or complaint for an order or specific package (Task 62 / POL-12).',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiResponse({ status: 201, description: 'Dispute submitted successfully' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
+  @ApiBadRequestResponse({ description: 'Order not eligible for dispute or invalid input' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  dispute(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CreateDisputeDto,
+  ) {
+    return this.orders.createDispute(actor.sub, id, dto);
+  }
+
+  @Post(':id/disputes/evidence')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  @ApiOperation({
+    summary: 'Upload dispute / RMA evidence file',
+    description: 'Upload an image or document as evidence for an order dispute (Task 63 / POL-12).',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiResponse({ status: 201, description: 'Evidence uploaded successfully' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Order does not belong to user' })
+  @ApiBadRequestResponse({ description: 'Invalid file or file too large' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  uploadEvidence(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    return this.orders.uploadDisputeEvidence(actor.sub, id, file);
+  }
+
+  @Get(':id/disputes/evidence')
+  @ApiOperation({
+    summary: 'Get authorized dispute evidence access',
+    description: 'Returns secure access URL for authorized dispute evidence (Task 63).',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiResponse({ status: 200, description: 'Authorized evidence access' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'User not authorized to access evidence' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  getEvidenceAccess(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('key') key: string,
+  ) {
+    return this.orders.getDisputeEvidenceAccess(actor, id, key);
+  }
+
+  @Get(':id/escrow')
+  @ApiOperation({
+    summary: 'Get order Escrow holding and freeze status (Task 65 / POL-14)',
+    description:
+      'Returns runtime escrow holding status, 85/15 revenue split, and frozen dispute status.',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiResponse({ status: 200, description: 'Escrow holding status' })
+  @ApiNotFoundResponse({ description: 'Order not found' })
+  @ApiForbiddenResponse({ description: 'Actor not authorized to view order escrow' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  getOrderEscrow(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.orders.getEscrowStatus(actor, id);
+  }
+
+  @Get(':id/seller-orders/:sellerOrderId/escrow')
+  @ApiOperation({
+    summary: 'Get SellerOrder Escrow status (Task 65 / POL-14)',
+    description:
+      'Returns sub-order specific escrow holding and freeze status.',
+  })
+  @ApiParam({ name: 'id', description: 'Master Order ID' })
+  @ApiParam({ name: 'sellerOrderId', description: 'Seller Order ID' })
+  @ApiResponse({ status: 200, description: 'Sub-order escrow status' })
+  @ApiNotFoundResponse({ description: 'Order or Sub-order not found' })
+  @ApiForbiddenResponse({ description: 'Actor not authorized to view sub-order escrow' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  getSubOrderEscrow(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('sellerOrderId', ParseUUIDPipe) sellerOrderId: string,
+  ) {
+    return this.orders.getEscrowStatus(actor, id, sellerOrderId);
+  }
 }
+
+

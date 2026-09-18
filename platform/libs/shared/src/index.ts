@@ -27,3 +27,13 @@ export * from "./email";
 
 // Swagger DTOs
 export * from "./swagger";
+
+// Monitoring & Metrics (Prometheus)
+export * from "./monitoring";
+
+// Distributed Tracing (OpenTelemetry/Tempo)
+export * from "./tracing";
+
+// Policy & Decision-dependent Configuration
+export * from "./config";
+

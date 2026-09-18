@@ -22,6 +22,9 @@ import {
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "./flash-sale-client.service";
+import { ShippingClientService } from "../shipping/shipping-client.service";
+import { VoucherClientService } from "../voucher/voucher-client.service";
+import { PricingCalculatorService, PricingItem, VoucherSelection } from "../voucher/pricing-calculator.service";
 
 export interface CheckoutSnapshotItem {
   cartItemId: string;
@@ -48,8 +51,40 @@ export interface CheckoutSnapshotGroup {
   requiresShipping: boolean;
   itemSubtotal: number;
   shippingFee: number;
+  storeVoucherDiscount: number;
+  storeVoucherCode?: string;
   grandTotal: number;
   items: CheckoutSnapshotItem[];
+}
+
+export interface CheckoutSnapshot {
+  groups: CheckoutSnapshotGroup[];
+  itemSubtotal: number;
+  shippingTotal: number;
+  storeDiscountTotal: number;
+  platformDiscountTotal: number;
+  shippingDiscountTotal: number;
+  discountTotal: number;
+  grandTotal: number;
+  vouchers: {
+    platform?: { code: string; discount: number };
+    stores: Array<{ storeId: string; code: string; discount: number }>;
+    shipping?: { code: string; discount: number };
+  };
+  shippingAddress: {
+    id?: string;
+    recipientName: string;
+    phone: string;
+    line1: string;
+    ward: string;
+    district: string;
+    province: string;
+    provinceCode?: string;
+    districtCode?: string;
+    wardCode?: string;
+    communeType?: string;
+  } | null;
+  note: string | null;
 }
 
 @Injectable()
@@ -60,12 +95,16 @@ export class CheckoutService {
     private readonly config: ConfigService,
     private readonly reservations: InventoryReservationService,
     private readonly flashSales: FlashSaleClientService,
+    private readonly shippingClient: ShippingClientService,
+    private readonly voucherClient: VoucherClientService,
+    private readonly pricingCalculator: PricingCalculatorService,
   ) {}
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
     if (!cart!.items.length) throwBadRequest(ErrorCode.CART_EMPTY);
 
+    // Step 1: Build items from cart
     const items: CheckoutSnapshotItem[] = await Promise.all(
       cart!.items.map(async (item) => {
         const book = item.book as any;
@@ -129,55 +168,135 @@ export class CheckoutService {
       }),
     );
 
-    const requiresShipping = items.some(
+    const hasPhysicalItems = items.some(
       (item) => item.format === CartItemFormat.PHYSICAL,
     );
-    if (requiresShipping && !dto.shippingAddress) {
-      throwBadRequest(ErrorCode.SHIPPING_ADDRESS_REQUIRED);
+
+    // Step 2: Resolve address
+    let resolvedAddress: CheckoutSnapshot['shippingAddress'] = null;
+    if (hasPhysicalItems) {
+      if (dto.addressId) {
+        // Validate address ownership via Shipping Service
+        const addr = await this.shippingClient.getAddress(dto.addressId, userId);
+        resolvedAddress = {
+          id: addr.id,
+          recipientName: addr.name,
+          phone: addr.phone,
+          line1: addr.address,
+          ward: addr.ward,
+          district: addr.district,
+          province: addr.province,
+          provinceCode: addr.provinceCode,
+          districtCode: addr.districtCode,
+          wardCode: addr.wardCode,
+          communeType: addr.communeType,
+        };
+      } else if (dto.shippingAddress) {
+        // Fallback: use embedded address (deprecated but still supported)
+        resolvedAddress = {
+          recipientName: dto.shippingAddress.recipientName,
+          phone: dto.shippingAddress.phone,
+          line1: dto.shippingAddress.line1,
+          ward: dto.shippingAddress.ward,
+          district: dto.shippingAddress.district,
+          province: dto.shippingAddress.province,
+        };
+      } else {
+        throwBadRequest(ErrorCode.SHIPPING_ADDRESS_REQUIRED);
+      }
     }
 
-    const baseFee = Number(
-      this.config.get("checkout.shippingBaseFee") ??
-        process.env.CHECKOUT_SHIPPING_BASE_FEE ??
-        30000,
+    // Step 3: Build voucher selection
+    const voucherSelection: VoucherSelection = {
+      platformVoucherCode: dto.platformVoucherCode,
+      storeVoucherCodes: dto.storeVoucherCodes,
+      shippingVoucherCode: dto.shippingVoucherCode,
+    };
+
+    // Step 4: Convert to pricing items
+    const pricingItems: PricingItem[] = items.map((item) => ({
+      cartItemId: item.cartItemId,
+      bookId: item.bookId,
+      storeId: item.storeId,
+      ownerUserId: item.ownerUserId,
+      title: item.title,
+      format: item.format as 'PHYSICAL' | 'DIGITAL',
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+      weight: item.weight,
+    }));
+
+    // Step 5: Calculate pricing with vouchers and shipping
+    const pricingResult = await this.pricingCalculator.calculate(
+      userId,
+      pricingItems,
+      voucherSelection,
+      resolvedAddress
+        ? {
+            province: resolvedAddress.province,
+            district: resolvedAddress.district,
+            ward: resolvedAddress.ward,
+            address: resolvedAddress.line1,
+          }
+        : undefined,
     );
 
-    const grouped = new Map<string, CheckoutSnapshotGroup>();
-    for (const item of items) {
-      let group = grouped.get(item.storeId);
-      if (!group) {
-        group = {
-          storeId: item.storeId,
-          ownerUserId: item.ownerUserId,
-          requiresShipping: false,
-          itemSubtotal: 0,
-          shippingFee: 0,
-          grandTotal: 0,
-          items: [],
-        };
-        grouped.set(item.storeId, group);
-      }
-      group.items.push(item);
-      group.itemSubtotal += item.subtotal;
-      group.requiresShipping ||= item.format === CartItemFormat.PHYSICAL;
+    // Step 6: Build snapshot groups
+    const groups: CheckoutSnapshotGroup[] = pricingResult.groups.map((group) => ({
+      storeId: group.storeId,
+      ownerUserId: group.ownerUserId,
+      requiresShipping: group.requiresShipping,
+      itemSubtotal: group.itemSubtotal,
+      shippingFee: group.shippingFee,
+      storeVoucherDiscount: group.storeVoucherDiscount,
+      storeVoucherCode: group.storeVoucherCode,
+      grandTotal: group.grandTotal,
+      items: items.filter((item) => item.storeId === group.storeId),
+    }));
+
+    // Step 7: Build voucher snapshot
+    const voucherSnapshot: CheckoutSnapshot['vouchers'] = {
+      stores: [],
+    };
+
+    if (pricingResult.vouchers.platform) {
+      voucherSnapshot.platform = {
+        code: pricingResult.vouchers.platform.code,
+        discount: pricingResult.vouchers.platform.discount,
+      };
     }
 
-    for (const group of grouped.values()) {
-      group.shippingFee = group.requiresShipping ? baseFee : 0;
-      group.grandTotal = group.itemSubtotal + group.shippingFee;
+    for (const storeV of pricingResult.vouchers.stores) {
+      voucherSnapshot.stores.push({
+        storeId: storeV.storeId,
+        code: storeV.code,
+        discount: storeV.discount,
+      });
     }
 
-    const groups = [...grouped.values()];
-    const snapshot = {
+    if (pricingResult.vouchers.shipping) {
+      voucherSnapshot.shipping = {
+        code: pricingResult.vouchers.shipping.code,
+        discount: pricingResult.vouchers.shipping.discount,
+      };
+    }
+
+    const snapshot: CheckoutSnapshot = {
       groups,
-      itemSubtotal: groups.reduce((sum, g) => sum + g.itemSubtotal, 0),
-      shippingTotal: groups.reduce((sum, g) => sum + g.shippingFee, 0),
-      discountTotal: 0,
-      grandTotal: groups.reduce((sum, g) => sum + g.grandTotal, 0),
-      shippingAddress: dto.shippingAddress ?? null,
+      itemSubtotal: pricingResult.itemSubtotal,
+      shippingTotal: pricingResult.shippingTotal,
+      storeDiscountTotal: pricingResult.storeDiscountTotal,
+      platformDiscountTotal: pricingResult.platformDiscountTotal,
+      shippingDiscountTotal: pricingResult.shippingDiscountTotal,
+      discountTotal: pricingResult.discountTotal,
+      grandTotal: pricingResult.grandTotal,
+      vouchers: voucherSnapshot,
+      shippingAddress: resolvedAddress,
       note: dto.note ?? null,
     };
 
+    // Step 8: Create session
     const hasFlashSale = items.some((item) => item.isFlashSale);
     const ttlMinutes = hasFlashSale
       ? 1
@@ -186,6 +305,7 @@ export class CheckoutService {
             process.env.CHECKOUT_SESSION_TTL_MINUTES ??
             15,
         );
+
     const session = await this.prisma.checkoutSession.create({
       data: {
         userId,
@@ -196,7 +316,12 @@ export class CheckoutService {
       },
     });
 
-    return { sessionId: session.id, expiresAt: session.expiresAt, ...snapshot };
+    return {
+      sessionId: session.id,
+      expiresAt: session.expiresAt,
+      ...snapshot,
+      requiresShipping: hasPhysicalItems,
+    };
   }
 
   async confirm(
@@ -208,7 +333,7 @@ export class CheckoutService {
       throwBadRequest(ErrorCode.IDEMPOTENCY_KEY_REQUIRED);
     }
 
-    // Check for existing order
+    // Check for existing order (idempotency)
     const existing = await this.prisma.order.findFirst({
       where: { userId, idempotencyKey },
       include: { sellerOrders: { include: { items: true } } },
@@ -233,7 +358,87 @@ export class CheckoutService {
           throwConflict(ErrorCode.CHECKOUT_SESSION_EXPIRED);
         }
 
-        const snapshot = session.snapshot as any;
+        const snapshot = session.snapshot as unknown as CheckoutSnapshot;
+
+        // Re-validate address if addressId provided
+        let shippingAddress = snapshot.shippingAddress;
+        if (dto.addressId) {
+          const addr = await this.shippingClient.getAddress(dto.addressId, userId);
+          shippingAddress = {
+            id: addr.id,
+            recipientName: addr.name,
+            phone: addr.phone,
+            line1: addr.address,
+            ward: addr.ward,
+            district: addr.district,
+            province: addr.province,
+            provinceCode: addr.provinceCode,
+            districtCode: addr.districtCode,
+            wardCode: addr.wardCode,
+            communeType: addr.communeType,
+          };
+        }
+
+        // Re-validate vouchers if provided in confirm (CRITICAL: don't trust frontend)
+        const voucherSelection: VoucherSelection = {
+          platformVoucherCode: dto.platformVoucherCode,
+          storeVoucherCodes: dto.storeVoucherCodes,
+          shippingVoucherCode: dto.shippingVoucherCode,
+        };
+
+        // If vouchers provided in confirm, re-validate and recalculate
+        let finalSnapshot = snapshot;
+        if (voucherSelection.platformVoucherCode || voucherSelection.storeVoucherCodes || voucherSelection.shippingVoucherCode) {
+          const pricingItems: PricingItem[] = snapshot.groups.flatMap((group) =>
+            group.items.map((item) => ({
+              cartItemId: item.cartItemId,
+              bookId: item.bookId,
+              storeId: item.storeId,
+              ownerUserId: item.ownerUserId,
+              title: item.title,
+              format: item.format as 'PHYSICAL' | 'DIGITAL',
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              subtotal: item.subtotal,
+              weight: item.weight,
+            })),
+          );
+
+          // Recalculate with new voucher selection
+          const recalculated = await this.pricingCalculator.calculate(
+            userId,
+            pricingItems,
+            voucherSelection,
+            shippingAddress
+              ? {
+                  province: shippingAddress.province,
+                  district: shippingAddress.district,
+                  ward: shippingAddress.ward,
+                  address: shippingAddress.line1,
+                }
+              : undefined,
+          );
+
+          // Update snapshot with new pricing
+          finalSnapshot = {
+            ...snapshot,
+            shippingAddress,
+            platformDiscountTotal: recalculated.platformDiscountTotal,
+            shippingDiscountTotal: recalculated.shippingDiscountTotal,
+            discountTotal: recalculated.discountTotal,
+            grandTotal: recalculated.grandTotal,
+            vouchers: recalculated.vouchers as any,
+            groups: recalculated.groups.map((g) => ({
+              ...g,
+              items: snapshot.groups.find((sg) => sg.storeId === g.storeId)?.items || [],
+            })) as CheckoutSnapshotGroup[],
+          };
+        } else if (dto.addressId) {
+          finalSnapshot = {
+            ...snapshot,
+            shippingAddress,
+          };
+        }
 
         if (
           dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT &&
@@ -242,16 +447,17 @@ export class CheckoutService {
         ) {
           throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
         }
+
         // Create order
         const order = await tx.order.create({
           data: {
             code: this.code("ORD"),
             userId,
             idempotencyKey,
-            itemSubtotal: snapshot.itemSubtotal,
-            shippingTotal: snapshot.shippingTotal,
-            discountTotal: snapshot.discountTotal,
-            grandTotal: snapshot.grandTotal,
+            itemSubtotal: finalSnapshot.itemSubtotal,
+            shippingTotal: finalSnapshot.shippingTotal,
+            discountTotal: finalSnapshot.discountTotal,
+            grandTotal: finalSnapshot.grandTotal,
             paymentMethod: dto.paymentMethod,
             paymentProvider:
               dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
@@ -262,14 +468,14 @@ export class CheckoutService {
               dto.paymentMethod === PaymentMethod.COD
                 ? "PROCESSING"
                 : "PENDING_PAYMENT",
-            shippingAddress: snapshot.shippingAddress,
-            note: snapshot.note,
+            shippingAddress: finalSnapshot.shippingAddress as any,
+            note: finalSnapshot.note,
           },
         });
 
-        const flashSaleItems = snapshot.groups
-          .flatMap((group: CheckoutSnapshotGroup) => group.items)
-          .filter((item: CheckoutSnapshotItem) => item.isFlashSale);
+        const flashSaleItems = finalSnapshot.groups
+          .flatMap((group) => group.items)
+          .filter((item) => item.isFlashSale);
         if (flashSaleItems.length) {
           await this.flashSales.reserveOrder(order.id, userId, flashSaleItems);
           flashSaleReservationOrderId = order.id;
@@ -287,34 +493,6 @@ export class CheckoutService {
           });
         }
 
-        // Grant digital book access immediately for all orders (COD and online)
-        const allItems = snapshot.groups.flatMap((group: any) => group.items);
-        const digitalItems = allItems.filter(
-          (item: CheckoutSnapshotItem) =>
-            item.format === CartItemFormat.DIGITAL,
-        );
-        for (const item of digitalItems) {
-          const sellerOrder = snapshot.groups.find((g: any) =>
-            g.items.some((i: any) => i.cartItemId === item.cartItemId),
-          );
-          await tx.bookAccess.upsert({
-            where: {
-              userId_bookId: { userId, bookId: item.bookId },
-            },
-            create: {
-              userId,
-              bookId: item.bookId,
-              orderId: order.id,
-              sellerOrderId: sellerOrder?.sellerOrderId,
-            },
-            update: {
-              status: "ACTIVE",
-              orderId: order.id,
-              sellerOrderId: sellerOrder?.sellerOrderId,
-            },
-          });
-        }
-
         const shipmentSellerOrders: Array<{
           sellerOrderId: string;
           storeId: string;
@@ -325,8 +503,8 @@ export class CheckoutService {
         }> = [];
 
         // Create seller orders and items
-        for (let i = 0; i < snapshot.groups.length; i++) {
-          const group = snapshot.groups[i];
+        for (let i = 0; i < finalSnapshot.groups.length; i++) {
+          const group = finalSnapshot.groups[i];
           const sellerOrder = await tx.sellerOrder.create({
             data: {
               orderId: order.id,
@@ -344,8 +522,31 @@ export class CheckoutService {
             },
           });
 
+          // Grant digital book access for items in this group
+          const digitalItems = group.items.filter(
+            (item) => item.format === CartItemFormat.DIGITAL,
+          );
+          for (const item of digitalItems) {
+            await tx.bookAccess.upsert({
+              where: {
+                userId_bookId: { userId, bookId: item.bookId },
+              },
+              create: {
+                userId,
+                bookId: item.bookId,
+                orderId: order.id,
+                sellerOrderId: sellerOrder.id,
+              },
+              update: {
+                status: "ACTIVE",
+                orderId: order.id,
+                sellerOrderId: sellerOrder.id,
+              },
+            });
+          }
+
           const orderItems = await Promise.all(
-            group.items.map((item: any) =>
+            group.items.map((item) =>
               tx.orderItem.create({
                 data: {
                   sellerOrderId: sellerOrder.id,
@@ -368,8 +569,7 @@ export class CheckoutService {
             ownerUserId: group.ownerUserId,
             requiresShipping: group.requiresShipping,
             weight: group.items.reduce(
-              (total: number, item: CheckoutSnapshotItem) =>
-                total + item.weight,
+              (total: number, item) => total + item.weight,
               0,
             ),
             codAmount:
@@ -405,14 +605,14 @@ export class CheckoutService {
               total: order.grandTotal,
               paymentMethod: order.paymentMethod,
               paymentStatus: order.paymentStatus,
-              shippingAddress: snapshot.shippingAddress
+              shippingAddress: shippingAddress
                 ? {
-                    receiverName: snapshot.shippingAddress.recipientName,
-                    receiverPhone: snapshot.shippingAddress.phone,
-                    address: snapshot.shippingAddress.line1,
-                    province: snapshot.shippingAddress.province,
-                    district: snapshot.shippingAddress.district,
-                    ward: snapshot.shippingAddress.ward,
+                    receiverName: shippingAddress.recipientName,
+                    receiverPhone: shippingAddress.phone,
+                    address: shippingAddress.line1,
+                    province: shippingAddress.province,
+                    district: shippingAddress.district,
+                    ward: shippingAddress.ward,
                   }
                 : null,
               sellerOrders: shipmentSellerOrders,
@@ -423,12 +623,12 @@ export class CheckoutService {
 
         // Mark session as consumed
         await tx.checkoutSession.update({
-          where: { id: session!.id },
+          where: { id: session.id },
           data: { consumedAt: new Date() },
         });
 
         // Clear cart items
-        await tx.cartItem.deleteMany({ where: { cartId: session!.cartId } });
+        await tx.cartItem.deleteMany({ where: { cartId: session.cartId } });
 
         return order;
       });
@@ -449,6 +649,46 @@ export class CheckoutService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Consume voucher usage within the order transaction
+   */
+  private async consumeVouchers(
+    tx: any,
+    userId: string,
+    orderId: string,
+    snapshot: CheckoutSnapshot,
+  ): Promise<void> {
+    // Consume platform voucher
+    if (snapshot.vouchers.platform) {
+      try {
+        await this.voucherClient.apply(userId, {
+          voucherId: '', // Will be resolved by voucher service
+          orderId,
+          discountAmount: snapshot.platformDiscountTotal,
+        });
+      } catch (error) {
+        // Log but don't fail - voucher may already be consumed or invalid
+        console.error('Failed to consume platform voucher:', error);
+      }
+    }
+
+    // Consume store vouchers
+    for (const storeVoucher of snapshot.vouchers.stores) {
+      try {
+        await this.voucherClient.apply(userId, {
+          voucherId: '', // Will be resolved by voucher service
+          orderId,
+          discountAmount: storeVoucher.discount,
+        });
+      } catch (error) {
+        console.error('Failed to consume store voucher:', error);
+      }
+    }
+
+    // Note: Shipping voucher is consumed differently - it reduces the shipping fee
+    // No separate voucher usage record needed
   }
 
   private code(prefix: string) {

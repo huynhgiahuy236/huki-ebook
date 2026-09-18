@@ -1,0 +1,730 @@
+"use client";
+
+import React, { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { businessApi } from '@/ui/api/businessApi';
+import { catalogApi } from '@/ui/api/catalogApi';
+import { orderApi } from '@/ui/api/orderApi';
+import { useAuth } from '@/ui/context/AuthContext';
+import { can, PERMISSIONS } from '@/ui/utils/permissions';
+
+interface OrderItem {
+  id?: string;
+  code?: string;
+  order?: { shippingAddress?: { fullName?: string } };
+  shippingAddress?: { fullName?: string };
+  items?: Array<{ title?: string }>;
+  grandTotal?: number;
+  totalAmount?: number;
+  itemSubtotal?: number;
+  status?: string;
+}
+
+export default function SellerDashboardPage() {
+  const { user, activeBusinessId, setActiveBusinessId } = useAuth();
+  const [pipelinePeriod] = useState('Tháng này');
+  const [acqPeriod] = useState('Tháng này');
+
+  // -- Real data state --
+  const [stats, setStats] = useState<{
+    storeName: string;
+    businessName: string;
+    totalStores: number;
+    totalBooks: number;
+    publishedBooks: number;
+    draftBooks: number;
+    physicalBooks: number;
+    digitalBooks: number;
+    hybridBooks: number;
+    totalStock: number;
+    lowStockCount: number;
+    totalOrders: number;
+    pendingOrders: number;
+    totalRevenue: number;
+    recentOrders: OrderItem[];
+  }>({
+    storeName: '',
+    businessName: '',
+    totalStores: 0,
+    totalBooks: 0,
+    publishedBooks: 0,
+    draftBooks: 0,
+    physicalBooks: 0,
+    digitalBooks: 0,
+    hybridBooks: 0,
+    totalStock: 0,
+    lowStockCount: 0,
+    totalOrders: 0,
+    pendingOrders: 0,
+    totalRevenue: 0,
+    recentOrders: [],
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const currentBizId = user?.business?.id || activeBusinessId;
+  const canViewDashboard = can(PERMISSIONS.DASHBOARD_VIEW, currentBizId || undefined, user);
+
+  const fetchDashboardData = useCallback(async () => {
+    setLoadingStats(true);
+    let bizId = user?.business?.id || activeBusinessId;
+
+    // Auto-resolve businessId
+    if (!bizId) {
+      try {
+        const myBiz = await businessApi.getMyBusiness();
+        if (myBiz.success && myBiz.data?.id) {
+          bizId = myBiz.data.id;
+          setActiveBusinessId(bizId);
+        }
+      } catch { /* ignore */ }
+    }
+
+    const result = {
+      storeName: '',
+      businessName: user?.business?.name || user?.name || '',
+      totalStores: 0,
+      totalBooks: 0,
+      publishedBooks: 0,
+      draftBooks: 0,
+      physicalBooks: 0,
+      digitalBooks: 0,
+      hybridBooks: 0,
+      totalStock: 0,
+      lowStockCount: 0,
+      totalOrders: 0,
+      pendingOrders: 0,
+      totalRevenue: 0,
+      recentOrders: [] as OrderItem[],
+    };
+
+    if (bizId) {
+      // 1. Fetch stores
+      try {
+        const storesRes = await businessApi.getMyStores(bizId);
+        if (storesRes.success && Array.isArray(storesRes.data)) {
+          result.totalStores = storesRes.data.length;
+          const approved = storesRes.data.find(s => s.status === 'APPROVED');
+          result.storeName = approved?.name || storesRes.data[0]?.name || '';
+        }
+      } catch { /* ignore */ }
+
+      // 2. Fetch books
+      try {
+        const booksRes = await catalogApi.getPublicBooks({ limit: 200, business: bizId });
+        if (booksRes.success && Array.isArray(booksRes.data)) {
+          const allBooks = booksRes.data;
+          result.totalBooks = allBooks.length;
+          result.publishedBooks = allBooks.filter(b => b.status === 'PUBLISHED').length;
+          result.draftBooks = allBooks.filter(b => b.status === 'DRAFT').length;
+          result.physicalBooks = allBooks.filter(b => b.format === 'PHYSICAL').length;
+          result.digitalBooks = allBooks.filter(b => b.format === 'DIGITAL').length;
+          result.hybridBooks = allBooks.filter(b => b.format === 'BOTH').length;
+          result.totalStock = allBooks.reduce((sum, b) => sum + (b.physicalDetails?.stock || 0), 0);
+          result.lowStockCount = allBooks.filter(b => b.physicalDetails && (b.physicalDetails.stock ?? 0) < 10 && (b.physicalDetails.stock ?? 0) > 0).length;
+        }
+      } catch { /* ignore */ }
+
+      // 3. Fetch orders & revenue
+      try {
+        const ordersRes = await orderApi.getSellerOrders(bizId);
+        if (ordersRes.success && ordersRes.data) {
+          const list: OrderItem[] = Array.isArray(ordersRes.data)
+            ? ordersRes.data
+            : Array.isArray((ordersRes.data as { items?: OrderItem[] }).items)
+            ? (ordersRes.data as { items: OrderItem[] }).items
+            : [];
+          result.totalOrders = list.length;
+          result.pendingOrders = list.filter(o => o.status === 'PENDING_CONFIRMATION' || o.status === 'PENDING_PAYMENT').length;
+          result.totalRevenue = list
+            .filter(o => o.status !== 'CANCELLED' && o.status !== 'REFUNDED')
+            .reduce((sum, o) => sum + Number(o.grandTotal || o.totalAmount || o.itemSubtotal || 0), 0);
+          result.recentOrders = list.slice(0, 5);
+        }
+      } catch { /* ignore */ }
+    }
+
+    setStats(result);
+    setLoadingStats(false);
+  }, [user, activeBusinessId, setActiveBusinessId]);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, [fetchDashboardData]);
+
+  const fmt = (n?: number) => (n || 0).toLocaleString('vi-VN');
+
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Chào buổi sáng' : hour < 18 ? 'Chào buổi chiều' : 'Chào buổi tối';
+
+  // 403 Guard if not authorized
+  if (!canViewDashboard) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-4 border border-amber-500/20 shadow-xs">
+          <span className="material-symbols-outlined text-3xl">lock</span>
+        </div>
+        <h2 className="text-xl font-bold font-editorial text-theme-on-surface mb-2">
+          Không Có Quyền Truy Cập (403 Forbidden)
+        </h2>
+        <p className="text-xs sm:text-sm text-theme-on-surface-variant max-w-md mb-6">
+          Tài khoản nhân viên của bạn chưa được cấp quyền xem Bảng Điều Khiển Tổng Quan (`DASHBOARD_VIEW`).
+        </p>
+        <Link
+          href="/seller/orders"
+          className="px-4 py-2.5 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary/90 transition-all shadow-sm"
+        >
+          Đến Trang Quản Lý Đơn Hàng
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-[#F8FAFC] text-[#1E293B] antialiased min-h-screen p-4 sm:p-6 lg:p-8 font-sans">
+      <div className="max-w-[1560px] mx-auto space-y-6">
+
+        {/* 1. TOP GREETING & STORE CONTROLS */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm font-semibold text-gray-500">{greeting},</span>
+              {stats.storeName ? (
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                  {stats.storeName}
+                </span>
+              ) : stats.businessName ? (
+                <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
+                  {stats.businessName}
+                </span>
+              ) : null}
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
+              Tổng Quan Vận Hành Gian Hàng
+            </h1>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              Quản lý độc giả tiềm năng, theo dõi đơn hàng phát hành sách in &amp; kiểm soát cấp quyền Ebook DRM bản quyền.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {/* Date Range Selector */}
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E2E8F0] bg-white text-xs font-semibold text-gray-700 shadow-2xs">
+              <span className="material-symbols-outlined text-[16px] text-emerald-700">calendar_month</span>
+              <span>{new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}</span>
+              <span className="material-symbols-outlined text-[14px] text-gray-400">expand_more</span>
+            </div>
+
+            <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors shadow-2xs cursor-pointer">
+              <span className="material-symbols-outlined text-[16px]">file_download</span>
+              <span>Xuất Báo Cáo</span>
+            </button>
+
+            <Link 
+              href="/seller/product/create-hybrid"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              <span>Đăng Sách Mới</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* 2. 4 TOP METRIC CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          
+          {/* Card 1: Tổng Doanh Thu */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Doanh Thu Tích Lũy</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-[#00875A] mt-1">
+                  {loadingStats ? '…' : `${fmt(stats.totalRevenue)}đ`}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EBF7F2] text-[#00875A] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">payments</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#00875A] min-w-0 truncate">
+              <span className="material-symbols-outlined text-[16px] shrink-0">trending_up</span>
+              <span className="shrink-0">{fmt(stats.totalOrders)} đơn hàng</span>
+              <span className="text-gray-400 font-normal truncate">· Đơn thực tế</span>
+            </div>
+          </div>
+
+          {/* Card 2: Đơn Hàng Mới Chờ Xử Lý */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Đơn Hàng Cần Xử Lý</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-amber-600 mt-1">
+                  {loadingStats ? '…' : fmt(stats.pendingOrders)}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">pending_actions</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-amber-600 min-w-0">
+              <span className="material-symbols-outlined text-[16px] shrink-0">notification_important</span>
+              <span className="shrink-0">{stats.pendingOrders > 0 ? `${stats.pendingOrders} đơn chờ duyệt` : 'Đã xử lý xong'}</span>
+            </div>
+          </div>
+
+          {/* Card 3: Sản Phẩm Trên Sàn */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Sản Phẩm Đang Bán</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">
+                  {loadingStats ? '…' : fmt(stats.publishedBooks)}
+                </div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">auto_stories</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#2563EB] min-w-0 truncate" title={`${fmt(stats.totalBooks)} tổng số đầu sách`}>
+              <span className="material-symbols-outlined text-[16px] shrink-0">menu_book</span>
+              <span className="shrink-0">{fmt(stats.totalBooks)} tổng đầu sách</span>
+              <span className="text-gray-400 font-normal truncate">· {fmt(stats.draftBooks)} nháp</span>
+            </div>
+          </div>
+
+          {/* Card 4: Tồn Kho Sách Giấy */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+            <div className="flex items-start justify-between">
+              <div>
+                <span className="text-xs font-semibold text-gray-500">Tổng Tồn Kho Sách Giấy</span>
+                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">{loadingStats ? '…' : fmt(stats.totalStock)}</div>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-[#F0FDF4] text-[#16A34A] flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[20px]">warehouse</span>
+              </div>
+            </div>
+            <div className="mt-3.5 flex items-center gap-1.5 text-xs font-bold text-[#16A34A] min-w-0 truncate" title={stats.lowStockCount > 0 ? `${stats.lowStockCount} tựa sách sắp hết hàng` : 'Kho ổn định'}>
+              <span className="material-symbols-outlined text-[16px] shrink-0">{stats.lowStockCount > 0 ? 'warning' : 'check_circle'}</span>
+              <span className="shrink-0">{stats.lowStockCount > 0 ? `${stats.lowStockCount} tựa sắp hết` : 'Kho đủ hàng'}</span>
+              <span className="text-gray-400 font-normal truncate">· Từ DB</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RECENT ORDERS TABLE */}
+        {stats.recentOrders && stats.recentOrders.length > 0 && (
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#00875A] text-xl">receipt_long</span>
+                <h3 className="font-bold text-sm sm:text-base text-gray-900">Đơn Hàng Mới Nhất</h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-[#00875A] text-[11px] font-bold">
+                  {stats.recentOrders.length} đơn
+                </span>
+              </div>
+              <Link href="/seller/orders" className="text-xs font-bold text-[#00875A] hover:underline flex items-center gap-1">
+                <span>Xem tất cả đơn</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </Link>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                    <th className="py-2.5 px-3">Mã đơn</th>
+                    <th className="py-2.5 px-3">Khách hàng</th>
+                    <th className="py-2.5 px-3">Sản phẩm</th>
+                    <th className="py-2.5 px-3">Tổng tiền</th>
+                    <th className="py-2.5 px-3">Trạng thái</th>
+                    <th className="py-2.5 px-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50 font-medium">
+                  {stats.recentOrders.map((ord, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/80 transition-colors">
+                      <td className="py-3 px-3 font-bold text-gray-900">
+                        #{ord.code || ord.id?.slice(0, 8)}
+                      </td>
+                      <td className="py-3 px-3 text-gray-700">
+                        {ord.order?.shippingAddress?.fullName || ord.shippingAddress?.fullName || 'Khách Hàng'}
+                      </td>
+                      <td className="py-3 px-3 text-gray-600 max-w-[200px] truncate">
+                        {ord.items?.[0]?.title || 'Sách tổng hợp'} {ord.items && ord.items.length > 1 ? `(+${ord.items.length - 1})` : ''}
+                      </td>
+                      <td className="py-3 px-3 font-bold text-gray-900">
+                        {fmt(ord.grandTotal || ord.totalAmount || ord.itemSubtotal)}đ
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          ord.status === 'DELIVERED' || ord.status === 'COMPLETED'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : ord.status === 'SHIPPED'
+                            ? 'bg-blue-100 text-blue-800'
+                            : ord.status === 'PROCESSING' || ord.status === 'CONFIRMED'
+                            ? 'bg-amber-100 text-amber-800'
+                            : ord.status === 'CANCELLED'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {ord.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-right">
+                        <Link
+                          href="/seller/orders"
+                          className="px-2.5 py-1 rounded-lg bg-[#EBF7F2] text-[#00875A] hover:bg-[#00875A] hover:text-white font-bold text-[11px] transition-all inline-flex items-center gap-1"
+                        >
+                          <span>Xem</span>
+                          <span className="material-symbols-outlined text-[12px]">visibility</span>
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* QUICK OPERATIONAL STATUS BAR */}
+        <div className="bg-[#EBF7F2] rounded-2xl p-4 border border-[#BDE6D7] flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#00875A] animate-ping"></span>
+            <span className="text-xs font-bold text-[#003B2B] uppercase tracking-wider">Tổng quan nhanh:</span>
+            <span className="text-xs font-semibold text-gray-700">
+              {fmt(stats.totalBooks)} sản phẩm · {fmt(stats.publishedBooks)} đã xuất bản · {stats.lowStockCount > 0 ? `${stats.lowStockCount} tựa sắp hết kho` : 'Kho ổn định'} · {fmt(stats.totalStores)} gian hàng
+            </span>
+          </div>
+          <Link href="/seller/orders" className="text-xs font-bold text-[#00875A] hover:underline flex items-center gap-1">
+            <span>Xem đơn hàng</span>
+            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+          </Link>
+        </div>
+
+        {/* 3. ROW 1 CHARTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          {/* 3.1 SALES PIPELINE */}
+          <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-gray-900">Tiến Trình Phát Hành &amp; Đơn Hàng (Sales Pipeline)</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Theo dõi luồng chuyển đổi từ độc giả xem sách đến kích hoạt hoàn tất</p>
+              </div>
+              <div className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg">
+                <span>{pipelinePeriod}</span>
+                <span className="material-symbols-outlined text-[14px]">expand_more</span>
+              </div>
+            </div>
+
+            <div className="space-y-3.5 py-2">
+              {[
+                { stage: 'Tổng sản phẩm', value: stats.totalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#4ADE80]' },
+                { stage: 'Đã xuất bản', value: stats.publishedBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#6EE7B7]' },
+                { stage: 'Sách giấy (Physical)', value: stats.physicalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#A7F3D0]' },
+                { stage: 'Ebook (Digital)', value: stats.digitalBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#86EFAC]' },
+                { stage: 'Combo Hybrid', value: stats.hybridBooks, max: Math.max(stats.totalBooks, 1), color: 'bg-[#15803D]' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center text-xs font-medium text-gray-700">
+                  <span className="w-36 sm:w-40 shrink-0 font-semibold truncate">{item.stage}</span>
+                  <div className="flex-1 bg-gray-100 rounded-full h-4.5 overflow-hidden mx-2 relative">
+                    <div 
+                      className={`h-full ${item.color} rounded-full transition-all duration-500`}
+                      style={{ width: `${(item.value / item.max) * 100}%` }}
+                    ></div>
+                  </div>
+                  <span className="w-14 text-right font-bold text-gray-900">{item.value.toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3.2 DEAL STAGES */}
+          <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bổ Định Dạng Sách</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Tỷ trọng theo loại ấn phẩm (từ DB)</p>
+              </div>
+              <Link href="/seller/products" className="text-xs font-bold text-[#00875A] hover:underline">
+                Xem tất cả
+              </Link>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-around gap-4 py-2">
+              {(() => {
+                const total = stats.totalBooks || 1;
+                const circumference = 2 * Math.PI * 38;
+                const segments = [
+                  { name: 'Sách Giấy', count: stats.physicalBooks, color: '#00875A', bgColor: 'bg-[#00875A]' },
+                  { name: 'Ebook DRM', count: stats.digitalBooks, color: '#06B6D4', bgColor: 'bg-[#06B6D4]' },
+                  { name: 'Combo Hybrid', count: stats.hybridBooks, color: '#3B82F6', bgColor: 'bg-[#3B82F6]' },
+                ];
+                let offset = 0;
+                const arcs = segments.map(seg => {
+                  const pct = seg.count / total;
+                  const dash = circumference * pct;
+                  const arc = { ...seg, pct: Math.round(pct * 100), dasharray: `${dash} ${circumference - dash}`, dashoffset: -offset };
+                  offset += dash;
+                  return arc;
+                });
+                return (
+                  <>
+                    <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
+                      <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                        <circle cx="50" cy="50" r="38" stroke="#F1F5F9" strokeWidth="14" fill="none" />
+                        {arcs.map((arc, idx) => (
+                          <circle key={idx} cx="50" cy="50" r="38" stroke={arc.color} strokeWidth="14" fill="none"
+                            strokeDasharray={arc.dasharray} strokeDashoffset={arc.dashoffset} className="transition-all duration-700" />
+                        ))}
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+                        <span className="text-xl font-extrabold text-gray-900 leading-tight">{fmt(stats.totalBooks)}</span>
+                        <span className="text-[9.5px] text-gray-500 font-semibold uppercase">Tổng Sản Phẩm</span>
+                      </div>
+                    </div>
+
+                    {/* Legend List */}
+                    <div className="space-y-1.5 text-xs w-full sm:w-auto">
+                      {arcs.map((item, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${item.bgColor}`}></span>
+                            <span className="text-gray-600 font-medium">{item.name}</span>
+                          </div>
+                          <span className="font-bold text-gray-900">{item.count} ({item.pct}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. ROW 2 CHARTS */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          
+          {/* 4.1 CUSTOMER ACQUISITION */}
+          <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-gray-900">Tăng Trưởng Độc Giả Mới (Customer Acquisition)</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Số lượng bạn đọc mới đăng ký và theo dõi gian hàng trong 6 tháng qua</p>
+              </div>
+              <div className="flex items-center gap-1 text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200 px-2.5 py-1 rounded-lg">
+                <span>{acqPeriod}</span>
+                <span className="material-symbols-outlined text-[14px]">expand_more</span>
+              </div>
+            </div>
+
+            <div className="relative pt-6 pb-2">
+              <div className="h-44 w-full relative">
+                {/* Y Axis Grid Lines */}
+                <div className="absolute inset-0 flex flex-col justify-between text-[10px] text-gray-400 pointer-events-none">
+                  <div className="border-b border-gray-100 w-full flex justify-between"><span>1k bạn đọc</span></div>
+                  <div className="border-b border-gray-100 w-full flex justify-between"><span>750</span></div>
+                  <div className="border-b border-gray-100 w-full flex justify-between"><span>500</span></div>
+                  <div className="border-b border-gray-100 w-full flex justify-between"><span>250</span></div>
+                  <div className="border-b border-gray-100 w-full flex justify-between"><span>0</span></div>
+                </div>
+
+                {/* Area & Line */}
+                <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 500 150">
+                  <defs>
+                    <linearGradient id="sellerAcqGradient2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22C55E" stopOpacity="0.35" />
+                      <stop offset="100%" stopColor="#22C55E" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    d="M 20 120 Q 70 140 120 100 T 220 90 T 320 60 T 420 30 T 480 20 L 480 150 L 20 150 Z"
+                    fill="url(#sellerAcqGradient2)"
+                  />
+                  <path
+                    d="M 20 120 Q 70 140 120 100 T 220 90 T 320 60 T 420 30 T 480 20"
+                    fill="none"
+                    stroke="#16A34A"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
+                  <circle cx="420" cy="30" r="5" fill="#16A34A" stroke="#FFFFFF" strokeWidth="2" />
+                </svg>
+
+                <div className="absolute top-2 right-14 bg-[#1E293B] text-white text-[11px] font-bold px-2.5 py-1.5 rounded-lg shadow-lg flex flex-col items-center">
+                  <span>720 bạn đọc</span>
+                  <span className="text-[9px] text-gray-400 font-normal">Tháng 6/2026</span>
+                </div>
+              </div>
+
+              {/* X Axis Months */}
+              <div className="flex items-center justify-between text-[11px] font-semibold text-gray-500 mt-3 px-3">
+                <span>Tháng 1</span>
+                <span>Tháng 2</span>
+                <span>Tháng 3</span>
+                <span>Tháng 4</span>
+                <span>Tháng 5</span>
+                <span>Tháng 6</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4.2 PRODUCT BREAKDOWN FUNNEL */}
+          <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bổ Sản Phẩm</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Từ tổng sản phẩm → đã xuất bản → theo format</p>
+              </div>
+              <Link href="/seller/products" className="text-xs font-bold text-[#00875A] hover:underline">
+                Chi tiết
+              </Link>
+            </div>
+
+            <div className="space-y-2 py-1 flex flex-col items-center">
+              <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-[#22C55E] text-white text-xs font-bold shadow-xs">
+                <span>Tổng sản phẩm</span>
+                <div className="flex items-center gap-3">
+                  <span>{fmt(stats.totalBooks)}</span>
+                  <span className="text-[10px] text-emerald-100 font-normal">100%</span>
+                </div>
+              </div>
+
+              <div className="w-[82%] flex items-center justify-between px-3 py-2 rounded-xl bg-[#4ADE80] text-gray-900 text-xs font-bold shadow-xs">
+                <span>Đã xuất bản</span>
+                <div className="flex items-center gap-3">
+                  <span>{fmt(stats.publishedBooks)}</span>
+                  <span className="text-[10px] text-gray-700 font-semibold">{stats.totalBooks ? Math.round((stats.publishedBooks / stats.totalBooks) * 100) : 0}%</span>
+                </div>
+              </div>
+
+              <div className="w-[66%] flex items-center justify-between px-3 py-2 rounded-xl bg-[#86EFAC] text-gray-900 text-xs font-bold shadow-xs">
+                <span>Sách Giấy</span>
+                <div className="flex items-center gap-3">
+                  <span>{fmt(stats.physicalBooks)}</span>
+                  <span className="text-[10px] text-gray-700 font-semibold">{stats.totalBooks ? Math.round((stats.physicalBooks / stats.totalBooks) * 100) : 0}%</span>
+                </div>
+              </div>
+
+              <div className="w-[50%] flex items-center justify-between px-3 py-2 rounded-xl bg-[#15803D] text-white text-xs font-bold shadow-xs">
+                <span>Ebook DRM</span>
+                <div className="flex items-center gap-3">
+                  <span>{fmt(stats.digitalBooks)}</span>
+                  <span className="text-[10px] text-emerald-200 font-normal">{stats.totalBooks ? Math.round((stats.digitalBooks / stats.totalBooks) * 100) : 0}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. ROW 3 ACTIVITY WIDGETS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          
+          {/* Widget 1 */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[#00875A] text-[18px]">event_note</span>
+                <span>Lịch Sự Kiện &amp; Ký Tác Quyền</span>
+              </h2>
+              <span className="text-xs font-bold text-[#00875A] hover:underline cursor-pointer">
+                Xem lịch
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { day: '10', month: 'T6', title: 'Họp ký kết tác quyền sách mới', place: 'Tác giả James Clear', time: '10:00 SA', color: 'bg-emerald-500' },
+                { day: '11', month: 'T6', title: 'Kiểm tra mã hóa file EPUB DRM', place: 'Sách Công nghệ AI 2026', time: '02:00 CH', color: 'bg-blue-500' },
+                { day: '12', month: 'T6', title: 'Gửi bản in thử bìa cứng', place: 'Xưởng in Alpha Books', time: '11:30 SA', color: 'bg-amber-500' },
+                { day: '13', month: 'T6', title: 'Livestream ra mắt sách mới', place: 'Hội Sách HUKI Online', time: '04:00 CH', color: 'bg-purple-500' }
+              ].map((task, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs py-1 hover:bg-gray-50 rounded-lg px-1.5 transition-colors">
+                  <div className="flex items-center gap-2.5">
+                    <div className="text-center w-7 shrink-0">
+                      <span className="block font-bold text-gray-900 leading-none">{task.day}</span>
+                      <span className="text-[10px] text-gray-400 uppercase">{task.month}</span>
+                    </div>
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${task.color}`}></span>
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-800 truncate">{task.title}</div>
+                      <span className="text-[10px] text-gray-400 block truncate">{task.place}</span>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-semibold text-gray-500 shrink-0">{task.time}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Widget 2 */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[#00875A] text-[18px]">chat_bubble_outline</span>
+                <span>Tin Nhắn Khách Đọc Gần Đây</span>
+              </h2>
+              <Link href="/seller/chat" className="text-xs font-bold text-[#00875A] hover:underline">
+                Hộp thư
+              </Link>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { name: 'Nguyễn Thu Hà', msg: 'Sách Atomic Habits còn bản in bìa cứng kèm bookmark không shop?', time: '10:24', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80' },
+                { name: 'Trần Đức Anh', msg: 'Mình vừa kích hoạt Ebook DRM trên tablet đọc rất mượt!', time: 'Hôm qua', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80' },
+                { name: 'Lê Minh Tuấn', msg: 'Shop có áp dụng mã giảm combo 35% cho đơn sách này không?', time: 'Hôm qua', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=120&q=80' },
+                { name: 'Vũ Thanh Hằng', msg: 'Đã nhận sách giao hỏa tốc 2H, bọc sách cẩn thận lắm nhé.', time: '08/06', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80' }
+              ].map((msg, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs py-1 hover:bg-gray-50 rounded-lg px-1.5 transition-colors cursor-pointer">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img src={msg.avatar} alt={msg.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 truncate">{msg.name}</div>
+                      <p className="text-[11px] text-gray-500 truncate">{msg.msg}</p>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0 ml-2 font-medium">{msg.time}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Widget 3 */}
+          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
+              <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[#00875A] text-[18px]">history</span>
+                <span>Hoạt Động Gian Hàng</span>
+              </h2>
+              <span className="text-xs font-bold text-[#00875A] hover:underline cursor-pointer">
+                Lịch sử
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {[
+                { name: 'CSKH Hoàng Nam', action: 'xác nhận đơn hàng #HUK-9821 (Combo Hybrid)', time: '2h trước', avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&q=80' },
+                { name: 'Kho Vận Minh Trí', action: 'bàn giao 24 bưu kiện cho Giao Nhanh 2H', time: '4h trước', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80' },
+                { name: 'BTV Lan Anh', action: 'hoàn tất kiểm duyệt file PDF đọc thử', time: '6h trước', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=120&q=80' },
+                { name: `Quản trị ${stats.storeName || stats.businessName || 'Gian Hàng'}`, action: 'cập nhật hồ sơ và thông tin bán hàng', time: '1d trước', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80' }
+              ].map((act, idx) => (
+                <div key={idx} className="flex items-center justify-between text-xs py-1 hover:bg-gray-50 rounded-lg px-1.5 transition-colors">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <img src={act.avatar} alt={act.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-bold text-gray-900">{act.name} </span>
+                      <span className="text-gray-500 text-[11px]">{act.action}</span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] text-gray-400 shrink-0 ml-2 font-medium">{act.time}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

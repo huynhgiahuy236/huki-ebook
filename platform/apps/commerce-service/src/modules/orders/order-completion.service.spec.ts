@@ -6,7 +6,7 @@ describe('OrderCompletionService', () => {
     inboxEvent: { findUnique: jest.fn(), create: jest.fn() },
     sellerOrder: { findUnique: jest.fn(), update: jest.fn(), count: jest.fn() },
     order: { findUnique: jest.fn(), update: jest.fn(), updateMany: jest.fn() },
-    orderStatusHistory: { create: jest.fn() },
+    orderStatusHistory: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn() },
     payment: { updateMany: jest.fn() },
     outboxEvent: { createMany: jest.fn() },
   };
@@ -21,6 +21,7 @@ describe('OrderCompletionService', () => {
     jest.clearAllMocks();
     tx.inboxEvent.findUnique.mockResolvedValue(null);
     tx.inboxEvent.create.mockResolvedValue({});
+    tx.orderStatusHistory.findFirst.mockResolvedValue(null);
   });
 
   it('commits reserved stock when the carrier picks up a shipment', async () => {
@@ -62,6 +63,7 @@ describe('OrderCompletionService', () => {
       order: {},
     });
     tx.sellerOrder.count.mockResolvedValue(0);
+    tx.orderStatusHistory.findFirst.mockResolvedValue(null);
     tx.order.findUnique.mockResolvedValue({
       id: 'order-1',
       code: 'ORD-1',
@@ -99,5 +101,42 @@ describe('OrderCompletionService', () => {
         expect.objectContaining({ type: 'PAYMENT_SUCCEEDED' }),
       ]),
     });
+  });
+
+  it('blocks order completion and settlement when escrow is frozen by an active dispute (Task 65 / POL-14)', async () => {
+    tx.sellerOrder.findUnique.mockResolvedValue({
+      id: 'seller-1',
+      orderId: 'order-1',
+      status: 'SHIPPED',
+      trackingCode: 'HUKI-1',
+      items: [{ id: 'item-1' }],
+      order: {},
+    });
+    tx.sellerOrder.count.mockResolvedValue(0);
+    tx.order.findUnique.mockResolvedValue({
+      id: 'order-1',
+      code: 'ORD-1',
+      userId: 'user-1',
+      status: 'SHIPPING',
+      paymentMethod: 'COD',
+      paymentStatus: 'PENDING',
+      grandTotal: 120000,
+      sellerOrders: [
+        { id: 'seller-1', ownerUserId: 'owner-1', storeId: 'store-1' },
+      ],
+    });
+    // Mock active dispute / frozen escrow
+    tx.orderStatusHistory.findFirst
+      .mockResolvedValueOnce({
+        id: 'hist-freeze',
+        orderId: 'order-1',
+        toStatus: 'ESCROW_FROZEN',
+        createdAt: new Date('2026-06-01T10:00:00Z'),
+      })
+      .mockResolvedValueOnce(null); // No subsequent unfreeze
+
+    const completed = await service.completeIfReady(tx as any, 'order-1');
+    expect(completed).toBe(false);
+    expect(tx.order.update).not.toHaveBeenCalled();
   });
 });

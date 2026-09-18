@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "./ui.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3100"),
@@ -31,7 +32,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         className="h-full bg-[#f2fbf9] text-[#141d1c] font-sans antialiased selection:bg-[#ac2c19] selection:text-white"
         suppressHydrationWarning
       >
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

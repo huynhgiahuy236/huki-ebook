@@ -60,6 +60,7 @@ export enum AccessReason {
   QUOTA_EXCEEDED = 'QUOTA_EXCEEDED',     // Hết lượt đọc
   SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED', // Subscription hết hạn
   BOOK_NOT_PUBLISHED = 'BOOK_NOT_PUBLISHED', // Sách chưa xuất bản
+  ACCESS_REVOKED = 'ACCESS_REVOKED', // Quyền truy cập bị thu hồi (do refund/dispute)
 }
 
 /**

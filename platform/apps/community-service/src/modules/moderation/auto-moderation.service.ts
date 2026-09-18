@@ -18,10 +18,16 @@ export class AutoModerationService {
       .join(' ')
       .trim();
     const normalized = this.normalize(original);
+    const collapsed = normalized.replace(/[^a-z0-9]/g, '');
     const reasons: string[] = [];
-    const matched = BLOCKED_PHRASES.filter((phrase) =>
-      normalized.includes(this.normalize(phrase)),
-    );
+    const matched = BLOCKED_PHRASES.filter((phrase) => {
+      const normPhrase = this.normalize(phrase);
+      const collapsedPhrase = normPhrase.replace(/[^a-z0-9]/g, '');
+      return (
+        normalized.includes(normPhrase) ||
+        (collapsedPhrase.length >= 3 && collapsed.includes(collapsedPhrase))
+      );
+    });
     if (matched.length) reasons.push('PROFANITY');
     if ((original.match(/https?:\/\//gi) ?? []).length >= 3) {
       reasons.push('EXCESSIVE_LINKS');

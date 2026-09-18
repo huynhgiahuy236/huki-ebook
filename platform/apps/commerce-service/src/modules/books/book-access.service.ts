@@ -75,6 +75,15 @@ export class BookAccessService {
       };
     }
 
+    // Nếu quyền truy cập đã bị thu hồi (ví dụ: hoàn tiền / tranh chấp)
+    if (directAccess?.status === 'REVOKED') {
+      return {
+        allowed: false,
+        reason: AccessReason.ACCESS_REVOKED,
+        message: 'Quyền truy cập sách đã bị thu hồi do hoàn tiền hoặc tranh chấp',
+      };
+    }
+
     // Sách FREE - ai cũng đọc được (sau khi mua)
     if (bookAccessType === BookAccessType.FREE) {
       // Không cần subscription

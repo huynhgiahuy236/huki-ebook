@@ -1,0 +1,34 @@
+# ============================================
+# HUKI EBOOK - Backup Cron Configuration
+# ============================================
+# Add to crontab: crontab -e
+# ============================================
+
+# Environment variables
+export BACKUP_DIR="/path/to/backups"
+export PGPASSWORD="your_postgres_password"
+export REDIS_PASSWORD=""
+
+# Run backup every day at 3:00 AM
+0 3 * * * /path/to/scripts/backup/backup-all.sh >> /var/log/huki-backup.log 2>&1
+
+# Verify backup every day at 6:00 AM
+0 6 * * * /path/to/scripts/backup/backup-all.sh --verify >> /var/log/huki-backup-verify.log 2>&1
+
+# PostgreSQL backup every hour (optional - incremental)
+# 0 * * * * /path/to/scripts/backup/postgres-backup.sh >> /var/log/huki-postgres-hourly.log 2>&1
+
+# Redis backup every 30 minutes (optional - for session data)
+# */30 * * * * /path/to/scripts/backup/redis-backup.sh >> /var/log/huki-redis-halfhourly.log 2>&1
+
+# ============================================
+# CRON EXPLANATION
+# ============================================
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6)
+# │ │ │ │ │
+# * * * * * command
+# ============================================

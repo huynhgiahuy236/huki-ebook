@@ -1,0 +1,51 @@
+# Grafana Docker Compose Configuration
+version: '3.8'
+
+services:
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: huki-grafana
+    ports:
+      - "3101:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3101
+      - GF_ALERTING_ENABLED=false
+      - GF_UNIFIED_ALERTING_ENABLED=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./provisioning:/etc/grafana/provisioning
+      - ./dashboards:/var/lib/grafana/dashboards
+    networks:
+      - huki-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: huki-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../platform/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - huki-network
+    restart: unless-stopped
+
+volumes:
+  grafana_data:
+  prometheus_data:
+
+networks:
+  huki-network:
+    external: true
+    name: huki-network

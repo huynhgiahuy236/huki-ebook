@@ -1,0 +1,247 @@
+# Prometheus Alert Rules for HUKI EBOOK
+# https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/
+
+groups:
+  - name: huki_service_alerts
+    interval: 30s
+    rules:
+      # High Error Rate - Critical
+      - alert: HUKIHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: huki-platform
+        annotations:
+          summary: "High HTTP 5xx Error Rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value | humanizePercentage }} (threshold: 5%) for 5 minutes on {{ $labels.service }}"
+          runbook_url: "https://docs.huki.vn/runbooks/high-error-rate"
+
+      # Service Down - Critical
+      - alert: HUKIServiceDown
+        expr: |
+          up{job=~"huki-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: huki-platform
+        annotations:
+          summary: "Service {{ $labels.job }} is DOWN"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
+          runbook_url: "https://docs.huki.vn/runbooks/service-down"
+
+      # High Latency - Warning
+      - alert: HUKIHighLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) > 2
+        for: 5m
+        labels:
+          severity: warning
+          service: huki-platform
+        annotations:
+          summary: "High P95 Latency on {{ $labels.service }}"
+          description: "P95 latency is {{ $value | humanizeDuration }} (threshold: 2s) for 5 minutes on {{ $labels.service }}"
+          runbook_url: "https://docs.huki.vn/runbooks/high-latency"
+
+      # High Latency - Critical
+      - alert: HUKICriticalLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: huki-platform
+        annotations:
+          summary: "Critical P95 Latency on {{ $labels.service }}"
+          description: "P95 latency is {{ $value | humanizeDuration }} (threshold: 5s) for 5 minutes on {{ $labels.service }}"
+          runbook_url: "https://docs.huki.vn/runbooks/high-latency"
+
+  - name: huki_commerce_alerts
+    interval: 30s
+    rules:
+      # Payment Failure Spike - Critical
+      - alert: HUKIPaymentFailureSpike
+        expr: |
+          (
+            sum(rate(huki_payments_failed_total[5m])) by (service)
+            /
+            (sum(rate(huki_payments_succeeded_total[5m])) by (service) + sum(rate(huki_payments_failed_total[5m])) by (service))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: critical
+          service: commerce
+        annotations:
+          summary: "Payment Failure Rate Spike on {{ $labels.service }}"
+          description: "Payment failure rate is {{ $value | humanizePercentage }} (threshold: 10%) for 5 minutes"
+          runbook_url: "https://docs.huki.vn/runbooks/payment-failure"
+
+      # No Orders - Warning
+      - alert: HUKINoOrders
+        expr: |
+          sum(rate(huki_orders_created_total[10m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: commerce
+        annotations:
+          summary: "No orders created in last 15 minutes"
+          description: "No orders have been created in the last 15 minutes. This may indicate a service issue."
+          runbook_url: "https://docs.huki.vn/runbooks/no-orders"
+
+      # High Order Volume - Info
+      - alert: HUKIHighOrderVolume
+        expr: |
+          sum(rate(huki_orders_created_total[5m])) * 60 > 100
+        for: 5m
+        labels:
+          severity: info
+          service: commerce
+        annotations:
+          summary: "High order volume detected"
+          description: "Order rate is {{ $value | humanize }} orders/minute"
+
+      # Inventory Operation Failures
+      - alert: HUKIInventoryOperationFailures
+        expr: |
+          sum(rate(huki_inventory_operations_total{status="failed"}[5m])) by (operation) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: commerce
+        annotations:
+          summary: "High {{ $labels.operation }} failure rate"
+          description: "{{ $labels.operation }} failures: {{ $value | humanize }}/min"
+          runbook_url: "https://docs.huki.vn/runbooks/inventory-failures"
+
+  - name: huki_infrastructure_alerts
+    interval: 30s
+    rules:
+      # High Memory Usage - Warning
+      - alert: HUKIHighMemoryUsage
+        expr: |
+          (
+            node_memory_MemAvailable_bytes
+            /
+            node_memory_MemTotal_bytes
+          ) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High Memory Usage on {{ $labels.instance }}"
+          description: "Available memory is {{ $value | humanizePercentage }} (threshold: 20%)"
+          runbook_url: "https://docs.huki.vn/runbooks/high-memory"
+
+      # High Memory Usage - Critical
+      - alert: HUKICriticalMemoryUsage
+        expr: |
+          (
+            node_memory_MemAvailable_bytes
+            /
+            node_memory_MemTotal_bytes
+          ) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical Memory Usage on {{ $labels.instance }}"
+          description: "Available memory is {{ $value | humanizePercentage }} (threshold: 10%)"
+          runbook_url: "https://docs.huki.vn/runbooks/high-memory"
+
+      # High CPU Usage
+      - alert: HUKIHighCPUUsage
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "High CPU Usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value | humanize }}% (threshold: 80%)"
+          runbook_url: "https://docs.huki.vn/runbooks/high-cpu"
+
+      # Disk Space Low
+      - alert: HUKIDiskSpaceLow
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Available disk space is {{ $value | humanizePercentage }} (threshold: 15%)"
+          runbook_url: "https://docs.huki.vn/runbooks/low-disk"
+
+      # Disk Space Critical
+      - alert: HUKIDiskSpaceCritical
+        expr: |
+          (
+            node_filesystem_avail_bytes{mountpoint="/"}
+            /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) < 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Available disk space is {{ $value | humanizePercentage }} (threshold: 5%)"
+          runbook_url: "https://docs.huki.vn/runbooks/low-disk"
+
+      # Instance Down
+      - alert: HUKIInstanceDown
+        expr: |
+          up{job=~"huki-.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Instance {{ $labels.instance }} is DOWN"
+          description: "The instance {{ $labels.instance }} has been unreachable for 1 minute"
+
+  - name: huki_business_alerts
+    interval: 30s
+    rules:
+      # High Search Latency
+      - alert: HUKIHighSearchLatency
+        expr: |
+          histogram_quantile(0.95, sum(rate(huki_search_latency_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: business
+        annotations:
+          summary: "High search latency"
+          description: "P95 search latency is {{ $value | humanizeDuration }} (threshold: 1s)"
+
+      # Cart Abandonment High
+      - alert: HUKICartAbandonmentHigh
+        expr: |
+          (
+            sum(rate(huki_cart_operations_total{operation="add"}[1h]))
+            -
+            sum(rate(huki_orders_created_total[1h]))
+          ) / sum(rate(huki_cart_operations_total{operation="add"}[1h])) > 0.8
+        for: 30m
+        labels:
+          severity: info
+          service: commerce
+        annotations:
+          summary: "High cart abandonment rate"
+          description: "Cart abandonment rate is {{ $value | humanizePercentage }}"

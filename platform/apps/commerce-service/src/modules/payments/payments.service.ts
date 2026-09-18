@@ -9,6 +9,7 @@ import {
   CartItemFormat,
   PaymentMethod,
   PaymentStatus,
+  RefundStatus,
   Prisma,
   SellerOrderStatus,
 } from "../../../prisma/generated/client";
@@ -22,7 +23,7 @@ import {
   SettleRefundDto,
 } from "./dto/payment.dto";
 import { PayOSService } from "./payos.service";
-import { ORDER_EVENTS, PAYMENT_EVENTS } from "../../../../../libs/shared/src";
+import { ORDER_EVENTS, PAYMENT_EVENTS, policyConfig } from "../../../../../libs/shared/src";
 import {
   throwBadRequest,
   throwConflict,
@@ -31,6 +32,20 @@ import {
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "../orders/flash-sale-client.service";
+import { SettlementService } from "../orders/settlement.service";
+
+function formatPaymentTimeoutLabel(
+  isFlashSale: boolean,
+  ttlSeconds: number = policyConfig.orderPaymentTtlSeconds,
+): string {
+  if (isFlashSale) return "1 phút / 60s";
+  const minutes = Math.floor(ttlSeconds / 60);
+  const seconds = ttlSeconds % 60;
+  if (minutes > 0 && seconds === 0) {
+    return `${minutes} phút / ${ttlSeconds}s`;
+  }
+  return `${ttlSeconds}s`;
+}
 
 @Injectable()
 export class PaymentsService
@@ -44,6 +59,7 @@ export class PaymentsService
     private readonly payos: PayOSService,
     private readonly reservations: InventoryReservationService,
     private readonly flashSales: FlashSaleClientService,
+    private readonly settlementService?: SettlementService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -96,7 +112,9 @@ export class PaymentsService
     const isFlashSaleOrder = await this.flashSales
       .hasReservations(orderId)
       .catch(() => false);
-    const paymentTtlSeconds = isFlashSaleOrder ? 60 : 120;
+    const paymentTtlSeconds = isFlashSaleOrder
+      ? 60
+      : policyConfig.orderPaymentTtlSeconds;
     const expiresAt = new Date(Date.now() + paymentTtlSeconds * 1000);
     const link = await this.payos.createPaymentLink({
       orderCode,
@@ -216,6 +234,13 @@ export class PaymentsService
         include: { sellerOrders: { include: { items: true } } },
       }));
     if (!orderData) return;
+
+    if (orderData.status === "CANCELLED") {
+      this.logger.warn(
+        `Received PayOS payment callback for already cancelled order: ${orderData.id}. Rejecting resurrection.`,
+      );
+      return;
+    }
 
     const paidAt = linkInfo.transactions?.[0]?.transactionDateTime
       ? this.parsePayOSDate(linkInfo.transactions[0].transactionDateTime)
@@ -342,6 +367,14 @@ export class PaymentsService
         ],
       });
     });
+
+    if (this.settlementService) {
+      try {
+        await this.settlementService.ingestPaymentEscrow(payment.orderId);
+      } catch (err: any) {
+        this.logger.error(`Failed to ingest payment escrow for order ${payment.orderId}: ${err?.message}`);
+      }
+    }
   }
 
   async handlePayOSWebhook(payload: PayOSWebhookDto) {
@@ -491,6 +524,15 @@ export class PaymentsService
         });
       }
     });
+
+    if (this.settlementService) {
+      try {
+        await this.settlementService.ingestPaymentEscrow(payment.orderId);
+      } catch (err: any) {
+        this.logger.error(`Failed to ingest payment escrow for order ${payment.orderId}: ${err?.message}`);
+      }
+    }
+
     return { success: true };
   }
 
@@ -500,7 +542,7 @@ export class PaymentsService
     paidAt: Date,
   ) {
     const payosOrderId = String(payload.data.orderCode);
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       // Step 1: Check physical stock availability
       const allItems = payment.order.sellerOrders.flatMap(
         ({ items }: any) => items,
@@ -513,7 +555,7 @@ export class PaymentsService
         (payment.callbackData as Record<string, unknown> | null)
           ?.isFlashSaleOrder,
       );
-      const timeoutLabel = wasFlashSaleOrder ? "1 phút / 60s" : "2 phút / 120s";
+      const timeoutLabel = formatPaymentTimeoutLabel(wasFlashSaleOrder);
       let canRestore = !wasFlashSaleOrder;
       for (const item of physicalItems) {
         const details = await tx.physicalBookDetails.findUnique({
@@ -650,12 +692,23 @@ export class PaymentsService
         return { success: true, restored: false, refundPending: true };
       }
     });
+
+    if (res?.restored && this.settlementService) {
+      try {
+        await this.settlementService.ingestPaymentEscrow(payment.orderId);
+      } catch (err: any) {
+        this.logger.error(`Failed to ingest payment escrow for restored order ${payment.orderId}: ${err?.message}`);
+      }
+    }
+
+    return res;
   }
 
   async requestRefund(actor: BookActor, orderId: string, dto: CreateRefundDto) {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       include: {
+        sellerOrders: true,
         payments: {
           where: {
             status: {
@@ -675,6 +728,28 @@ export class PaymentsService
     }
     const payment = order!.payments[0];
     if (!payment) throwConflict(ErrorCode.REFUND_NOT_ALLOWED);
+
+    // Check 7-day return window if order was already completed/delivered (POL-11 / RMA-001)
+    if (order.status === "COMPLETED") {
+      const completionDates = (order.sellerOrders || [])
+        .map((so) => so.completedAt)
+        .filter((d): d is Date => Boolean(d));
+      const latestCompletedAt =
+        completionDates.length > 0
+          ? new Date(
+              Math.max(...completionDates.map((d) => new Date(d).getTime())),
+            )
+          : order.updatedAt;
+
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      if (Date.now() - latestCompletedAt.getTime() > sevenDaysMs) {
+        throwConflict(
+          ErrorCode.REFUND_NOT_ALLOWED,
+          "Thời hạn yêu cầu đổi trả / hoàn tiền (7 ngày) đã kết thúc",
+        );
+      }
+    }
+
     const alreadyRequested = order!.refunds.reduce(
       (sum, refund) => sum + Number(refund.amount),
       0,
@@ -807,6 +882,234 @@ export class PaymentsService
     });
   }
 
+  /**
+   * List refunds with role-based filtering (Task 60)
+   */
+  async listRefunds(actor: BookActor, status?: RefundStatus, orderId?: string) {
+    const where: any = {};
+    if (status) where.status = status;
+    if (orderId) where.orderId = orderId;
+
+    if (actor.role !== "PLATFORM_ADMIN") {
+      where.order = { userId: actor.sub };
+    }
+
+    const items = await this.prisma.refund.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        order: {
+          select: {
+            id: true,
+            code: true,
+            userId: true,
+            status: true,
+            paymentStatus: true,
+            grandTotal: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            status: true,
+            provider: true,
+            transactionId: true,
+          },
+        },
+      },
+    });
+
+    return items.map((r) => ({
+      ...r,
+      amount: Number(r.amount),
+      order: r.order
+        ? {
+            ...r.order,
+            grandTotal: Number(r.order.grandTotal),
+          }
+        : null,
+      payment: r.payment
+        ? {
+            ...r.payment,
+            amount: Number(r.payment.amount),
+          }
+        : null,
+    }));
+  }
+
+  /**
+   * Get single refund record with authorization check (Task 60)
+   */
+  async getRefund(actor: BookActor, refundId: string) {
+    const refund = await this.prisma.refund.findUnique({
+      where: { id: refundId },
+      include: {
+        order: true,
+        payment: true,
+      },
+    });
+
+    if (!refund) throwNotFound(ErrorCode.REFUND_NOT_FOUND);
+
+    if (actor.role !== "PLATFORM_ADMIN" && refund.order.userId !== actor.sub) {
+      throwForbidden(ErrorCode.AUTHZ_NOT_OWNER);
+    }
+
+    return {
+      ...refund,
+      amount: Number(refund.amount),
+      order: {
+        ...refund.order,
+        grandTotal: Number(refund.order.grandTotal),
+        itemSubtotal: Number(refund.order.itemSubtotal),
+        shippingTotal: Number(refund.order.shippingTotal),
+        discountTotal: Number(refund.order.discountTotal),
+      },
+      payment: {
+        ...refund.payment,
+        amount: Number(refund.payment.amount),
+      },
+    };
+  }
+
+  /**
+   * Admin retry for failed refund (Task 60 Deliverables: Admin retry option)
+   */
+  async retryRefund(actor: BookActor, refundId: string) {
+    if (actor.role !== "PLATFORM_ADMIN") {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
+    }
+
+    const refund = await this.prisma.refund.findUnique({
+      where: { id: refundId },
+      include: { payment: true, order: true },
+    });
+
+    if (!refund) throwNotFound(ErrorCode.REFUND_NOT_FOUND);
+
+    if (refund.status !== "FAILED") {
+      throwConflict(
+        ErrorCode.REFUND_ALREADY_PROCESSED,
+        "Chỉ có thể thử lại các khoản hoàn tiền có trạng thái THẤT BẠI (FAILED)",
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.refund.update({
+        where: { id: refundId },
+        data: {
+          status: "PENDING",
+          failedAt: null,
+          failureReason: null,
+          updatedAt: new Date(),
+        },
+      });
+
+      await tx.payment.update({
+        where: { id: refund.paymentId },
+        data: { status: PaymentStatus.REFUND_PENDING },
+      });
+
+      await tx.order.update({
+        where: { id: refund.orderId },
+        data: { paymentStatus: PaymentStatus.REFUND_PENDING },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString("hex"),
+          type: "refund.requested",
+          aggregateId: refund.orderId,
+          payload: {
+            refundId: updated.id,
+            orderId: refund.orderId,
+            paymentId: refund.paymentId,
+            amount: Number(updated.amount),
+            provider: refund.provider,
+            isRetry: true,
+          },
+        },
+      });
+
+      return { ...updated, amount: Number(updated.amount) };
+    });
+  }
+
+  /**
+   * Automatically initiate refund for a cancelled paid order (Task 60 / Task 59 handoff)
+   */
+  async autoInitiateRefund(orderId: string, customAmount?: number, reason?: string) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        payments: {
+          where: {
+            status: { in: [PaymentStatus.SUCCEEDED, PaymentStatus.PARTIAL_REFUND] },
+          },
+          orderBy: { paidAt: "desc" },
+        },
+        refunds: {
+          where: { status: { in: ["PENDING", "PROCESSING", "SUCCEEDED"] } },
+        },
+      },
+    });
+
+    if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+    const payment = order.payments[0];
+    if (!payment) return null;
+
+    const alreadyRequested = order.refunds.reduce(
+      (sum, refund) => sum + Number(refund.amount),
+      0,
+    );
+    const remaining = Number(payment.amount) - alreadyRequested;
+    const amount = customAmount ?? remaining;
+    if (amount <= 0) return null;
+
+    return this.prisma.$transaction(async (tx) => {
+      const refund = await tx.refund.create({
+        data: {
+          orderId,
+          paymentId: payment.id,
+          amount,
+          reason: reason || "Hoàn tiền tự động do đơn hàng bị hủy",
+          status: "PENDING",
+          provider: payment.provider || "PAYOS",
+          requestedBy: "SYSTEM",
+        },
+      });
+
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: { status: PaymentStatus.REFUND_PENDING },
+      });
+
+      await tx.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: PaymentStatus.REFUND_PENDING },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          eventId: randomBytes(16).toString("hex"),
+          type: "refund.requested",
+          aggregateId: orderId,
+          payload: {
+            refundId: refund.id,
+            orderId,
+            paymentId: payment.id,
+            amount,
+            provider: payment.provider || "PAYOS",
+          },
+        },
+      });
+
+      return { ...refund, amount: Number(refund.amount) };
+    });
+  }
+
   async expirePendingPayments() {
     const now = new Date();
     const expired = await this.prisma.payment.findMany({
@@ -824,9 +1127,7 @@ export class PaymentsService
         (payment.callbackData as Record<string, unknown> | null)
           ?.isFlashSaleOrder,
       );
-      const timeoutLabel = isFlashSalePayment
-        ? "1 phút / 60s"
-        : "2 phút / 120s";
+      const timeoutLabel = formatPaymentTimeoutLabel(isFlashSalePayment);
       if (payment.payosOrderId) {
         try {
           const linkInfo = await this.payos.getPaymentLinkInformation(
@@ -929,9 +1230,10 @@ export class PaymentsService
         .catch(() => undefined);
     }
 
-    // Flash Sale orphan orders expire after 60 seconds; regular orders after 120 seconds.
+    // Flash Sale orphan orders expire after 60 seconds; regular orders after configured TTL.
     const oneMinuteAgo = new Date(Date.now() - 60_000);
-    const twoMinutesAgo = new Date(Date.now() - 120_000);
+    const regularTtlMs = policyConfig.orderPaymentTtlSeconds * 1000;
+    const regularOrderTtlAgo = new Date(Date.now() - regularTtlMs);
     const orphanOrders = await this.prisma.order.findMany({
       where: {
         paymentMethod: PaymentMethod.ONLINE_PAYMENT,
@@ -954,15 +1256,15 @@ export class PaymentsService
       const isFlashSaleOrder = await this.flashSales
         .hasReservations(order.id)
         .catch(() => false);
-      if (!isFlashSaleOrder && order.createdAt > twoMinutesAgo) continue;
+      if (!isFlashSaleOrder && order.createdAt > regularOrderTtlAgo) continue;
       if (isFlashSaleOrder) flashSaleOrphanOrderIds.add(order.id);
       expirableOrphanOrders.push(order);
     }
 
     for (const order of expirableOrphanOrders) {
-      const timeoutLabel = flashSaleOrphanOrderIds.has(order.id)
-        ? "1 phút / 60s"
-        : "2 phút / 120s";
+      const timeoutLabel = formatPaymentTimeoutLabel(
+        flashSaleOrphanOrderIds.has(order.id),
+      );
       await this.prisma.$transaction(async (tx) => {
         const itemIds = order.sellerOrders.flatMap(({ items }) =>
           items.map(({ id }) => id),

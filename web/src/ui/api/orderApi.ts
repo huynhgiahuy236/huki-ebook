@@ -217,4 +217,138 @@ export const orderApi = {
       body: JSON.stringify(payload),
     });
   },
+
+  requestCancelBuyerSubOrder: async (orderId: string, sellerOrderId: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {
+    return apiClient<BuyerOrder>(`/orders/${orderId}/seller-orders/${sellerOrderId}/cancel-request`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  approveSellerCancellation: async (id: string, payload?: CancelOrderPayload): Promise<ApiResponse<SellerOrder>> => {
+    return apiClient<SellerOrder>(`/seller/orders/${id}/approve-cancellation`, {
+      method: 'PATCH',
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+  },
+
+  rejectSellerCancellation: async (id: string, payload: CancelOrderPayload): Promise<ApiResponse<SellerOrder>> => {
+    return apiClient<SellerOrder>(`/seller/orders/${id}/reject-cancellation`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  createDispute: async (
+    orderId: string,
+    payload: {
+      type: 'NOT_AS_DESCRIBED' | 'DAMAGED' | 'WRONG_PRODUCT' | 'NOT_RECEIVED' | 'COUNTERFEIT' | 'OTHER';
+      description: string;
+      resolution: 'REFUND' | 'REPLACE' | 'PARTIAL_REFUND';
+      evidence?: string[];
+      sellerOrderId?: string;
+    },
+  ): Promise<
+    ApiResponse<{
+      id: string;
+      orderId: string;
+      sellerOrderId?: string | null;
+      type: string;
+      description: string;
+      resolution: string;
+      evidence: string[];
+      status: string;
+      createdAt: string;
+    }>
+  > => {
+    return apiClient<{
+      id: string;
+      orderId: string;
+      sellerOrderId?: string | null;
+      type: string;
+      description: string;
+      resolution: string;
+      evidence: string[];
+      status: string;
+      createdAt: string;
+    }>(`/orders/${orderId}/disputes`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  uploadDisputeEvidence: async (
+    orderId: string,
+    file: File,
+  ): Promise<
+    ApiResponse<{
+      url: string;
+      key: string;
+      filename: string;
+      size: number;
+      mimeType: string;
+      uploadedAt: string;
+    }>
+  > => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient<{
+      url: string;
+      key: string;
+      filename: string;
+      size: number;
+      mimeType: string;
+      uploadedAt: string;
+    }>(`/orders/${orderId}/disputes/evidence`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * Lấy trạng thái ký quỹ Escrow và đóng băng (Task 65 / POL-14)
+   */
+  getOrderEscrow: async (orderId: string): Promise<ApiResponse<EscrowStatusData>> => {
+    return apiClient<EscrowStatusData>(`/orders/${orderId}/escrow`, { method: 'GET' });
+  },
+
+  /**
+   * Lấy trạng thái ký quỹ cho gói hàng của gian hàng (Task 65 / POL-14)
+   */
+  getSubOrderEscrow: async (orderId: string, sellerOrderId: string): Promise<ApiResponse<EscrowStatusData>> => {
+    return apiClient<EscrowStatusData>(`/orders/${orderId}/seller-orders/${sellerOrderId}/escrow`, { method: 'GET' });
+  },
 };
+
+export interface EscrowStatusData {
+  orderId: string;
+  orderCode: string;
+  sellerOrderId: string | null;
+  status: 'ESCROW_HOLDING' | 'ESCROW_FROZEN' | 'ESCROW_UNFROZEN' | 'ESCROW_RELEASED' | 'ESCROW_REFUNDED';
+  isFrozen: boolean;
+  canRelease: boolean;
+  blockReason?: string;
+  financials: {
+    totalAmount: number;
+    platformFee: number;
+    sellerNet: number;
+    frozenAmount?: number;
+    sellerPortion?: number;
+  };
+  holdingPeriod: {
+    totalHoldingSeconds: number;
+    deliveredAt: string | null;
+    isDelivered: boolean;
+    isExpired: boolean;
+  };
+  disputeContext: {
+    disputeId?: string;
+    disputeType?: string;
+    frozenAt?: string;
+    ruling?: string;
+    resolvedAt?: string;
+    routing?: string;
+  } | null;
+}
+
+

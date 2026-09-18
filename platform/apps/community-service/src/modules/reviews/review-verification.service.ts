@@ -67,10 +67,17 @@ export class ReviewVerificationService {
       if (!result) return null;
       for (const order of result.items ?? []) {
         for (const sellerOrder of order.sellerOrders ?? []) {
-          const item = sellerOrder.items?.find(
-            (candidate) =>
-              candidate.bookId === bookId && candidate.format === format,
-          );
+          const item = sellerOrder.items?.find((candidate) => {
+            if (candidate.bookId !== bookId) return false;
+            if (!format) return true;
+            const candFmt = String(candidate.format || "").toUpperCase();
+            const targetFmt = String(format).toUpperCase();
+            return (
+              candFmt === targetFmt ||
+              (targetFmt === "PHYSICAL" && candFmt.includes("PHYSICAL")) ||
+              (targetFmt === "DIGITAL" && (candFmt.includes("DIGITAL") || candFmt.includes("EBOOK")))
+            );
+          });
           if (item && sellerOrder.status === "COMPLETED") {
             return {
               orderId: order.id,

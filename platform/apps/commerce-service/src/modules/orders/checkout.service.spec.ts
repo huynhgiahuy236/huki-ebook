@@ -11,12 +11,52 @@ describe("CheckoutService (Prisma)", () => {
   const prisma = { checkoutSession: { create: jest.fn() } };
   const config = { get: jest.fn() };
   const flashSales = { quote: jest.fn() };
+  const pricingCalculator = {
+    calculate: jest.fn().mockImplementation(async (_userId, items) => {
+      const itemSubtotal = items.reduce(
+        (sum: number, i: any) => sum + i.subtotal,
+        0,
+      );
+      return {
+        groups: [
+          {
+            storeId: items[0]?.storeId ?? "store-id",
+            ownerUserId: items[0]?.ownerUserId ?? "seller-id",
+            requiresShipping: true,
+            itemSubtotal,
+            shippingFee: 30000,
+            storeVoucherDiscount: 0,
+            platformVoucherDiscount: 0,
+            shippingDiscount: 0,
+            totalDiscount: 0,
+            grandTotal: itemSubtotal + 30000,
+            items: items.map((it: any) => ({
+              ...it,
+              isFlashSale: it.unitPrice === 79000,
+            })),
+          },
+        ],
+        itemSubtotal,
+        shippingTotal: 30000,
+        storeVoucherTotal: 0,
+        platformVoucherDiscount: 0,
+        shippingDiscountTotal: 0,
+        discountTotal: 0,
+        grandTotal: itemSubtotal + 30000,
+        appliedVouchers: {},
+        vouchers: { stores: [] },
+      };
+    }),
+  };
   const service = new CheckoutService(
     prisma as any,
     cartService as any,
     config as any,
     {} as any,
     flashSales as any,
+    {} as any,
+    {} as any,
+    pricingCalculator as any,
   );
   beforeEach(() => jest.clearAllMocks());
 

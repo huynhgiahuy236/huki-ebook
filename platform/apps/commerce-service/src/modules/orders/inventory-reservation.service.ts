@@ -74,38 +74,50 @@ export class InventoryReservationService {
     }
   }
 
-  async release(tx: Prisma.TransactionClient, orderId: string, itemIds?: string[]): Promise<void> {
+  async release(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    itemIds?: string[],
+    options?: { reason?: string; initiator?: string },
+  ): Promise<{ releasedCount: number; totalQuantity: number }> {
     const where: any = { orderId, status: 'ACTIVE' };
-    if (itemIds) {
+    if (itemIds && itemIds.length > 0) {
       where.orderItemId = { in: itemIds };
     }
 
     const reservations = await tx.inventoryReservation.findMany({ where });
+    let totalQuantity = 0;
 
     for (const reservation of reservations.sort((a, b) => a.bookId.localeCompare(b.bookId))) {
+      totalQuantity += reservation.quantity;
       const details = await tx.physicalBookDetails.findUnique({
         where: { bookId: reservation.bookId },
       });
 
       if (details) {
-        // Update reserved count
+        // Safe non-negative reserved update (POL-05 INV-001)
+        const newReserved = Math.max(0, details.reserved - reservation.quantity);
         await tx.physicalBookDetails.update({
           where: { bookId: reservation.bookId },
-          data: { reserved: { decrement: reservation.quantity } },
+          data: { reserved: newReserved },
         });
 
         // Layer 1: Restore Redis atomic counter
         await this.redisService.releaseStockAtomic(reservation.bookId, reservation.quantity);
 
         // Audit trail in inventory_logs
+        const logNote = options?.initiator
+          ? `Giải phóng ${reservation.quantity} cuốn từ đơn hàng ${orderId} (Bởi: ${options.initiator})`
+          : `Giải phóng ${reservation.quantity} cuốn từ đơn hàng ${orderId}`;
+
         await tx.inventoryLog.create({
           data: {
             bookId: details.id,
             change: reservation.quantity,
             balance: details.stock,
-            reason: 'RELEASE',
+            reason: options?.reason || 'RELEASE',
             orderId,
-            note: `Giải phóng ${reservation.quantity} cuốn từ đơn hàng ${orderId}`,
+            note: logNote,
           },
         });
       }
@@ -116,6 +128,8 @@ export class InventoryReservationService {
         data: { status: 'RELEASED', releasedAt: new Date() },
       });
     }
+
+    return { releasedCount: reservations.length, totalQuantity };
   }
 
   async commit(tx: Prisma.TransactionClient, orderId: string, itemIds?: string[]): Promise<void> {
@@ -172,6 +186,104 @@ export class InventoryReservationService {
         },
       });
     }
+  }
+
+  /**
+   * Verify whether all inventory reservations for an order/items have been released (Task 61 Deliverables)
+   */
+  async verifyOrderRelease(
+    orderId: string,
+    itemIds?: string[],
+  ): Promise<{
+    verified: boolean;
+    hasActiveReservations: boolean;
+    totalReservations: number;
+    activeCount: number;
+    releasedCount: number;
+    committedCount: number;
+  }> {
+    const where: any = { orderId };
+    if (itemIds && itemIds.length > 0) {
+      where.orderItemId = { in: itemIds };
+    }
+
+    const reservations = await this.prisma.inventoryReservation.findMany({ where });
+    const activeCount = reservations.filter((r) => r.status === 'ACTIVE').length;
+    const releasedCount = reservations.filter((r) => r.status === 'RELEASED').length;
+    const committedCount = reservations.filter((r) => r.status === 'COMMITTED').length;
+
+    return {
+      verified: activeCount === 0,
+      hasActiveReservations: activeCount > 0,
+      totalReservations: reservations.length,
+      activeCount,
+      releasedCount,
+      committedCount,
+    };
+  }
+
+  /**
+   * Reconciliation job: compare active reservation sum vs physicalBookDetails.reserved (Task 61 Consistency Check)
+   */
+  async reconcileBookStock(bookId: string): Promise<{
+    bookId: string;
+    stock: number;
+    actualReserved: number;
+    previousReserved: number;
+    available: number;
+    discrepancy: boolean;
+  }> {
+    const details = await this.prisma.physicalBookDetails.findUnique({
+      where: { bookId },
+    });
+
+    if (!details) {
+      throw new ConflictException(`Book ${bookId} physical details not found`);
+    }
+
+    const activeAgg = await this.prisma.inventoryReservation.aggregate({
+      where: { bookId, status: 'ACTIVE' },
+      _sum: { quantity: true },
+    });
+
+    const actualReserved = activeAgg._sum.quantity || 0;
+    const previousReserved = details.reserved;
+    const discrepancy = actualReserved !== previousReserved;
+
+    if (discrepancy) {
+      this.logger.warn(
+        `[INVENTORY RECONCILIATION] Discrepancy detected for book ${bookId}: DB reserved=${previousReserved}, actual active reservations=${actualReserved}. Auto-healing...`,
+      );
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.physicalBookDetails.update({
+          where: { bookId },
+          data: { reserved: actualReserved },
+        });
+
+        await tx.inventoryLog.create({
+          data: {
+            bookId: details.id,
+            change: previousReserved - actualReserved,
+            balance: details.stock,
+            reason: 'RECONCILIATION',
+            note: `Tự động đối soát tồn kho: điều chỉnh reserved từ ${previousReserved} thành ${actualReserved}`,
+          },
+        });
+      });
+    }
+
+    const available = Math.max(0, details.stock - actualReserved);
+    await this.redisService.syncStock(bookId, available);
+
+    return {
+      bookId,
+      stock: details.stock,
+      actualReserved,
+      previousReserved,
+      available,
+      discrepancy,
+    };
   }
 }
 

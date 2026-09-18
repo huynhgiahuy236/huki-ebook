@@ -312,6 +312,9 @@ function translateValidationRule(msg: string): string {
   if (/isbn.*(string|length)/i.test(trimmed)) return 'Mã ISBN không đúng định dạng';
   if (/stock.*(int|number|min)/i.test(trimmed)) return 'Số lượng tồn kho phải là số nguyên lớn hơn hoặc bằng 0';
   if (/weight.*(number|min)/i.test(trimmed)) return 'Trọng lượng sách phải là số hợp lệ';
+  if (/physicalDetails\.length/i.test(trimmed)) return 'Số trang sách phải là số dương';
+  if (/physicalDetails\.width/i.test(trimmed)) return 'Chiều rộng sách phải là số dương';
+  if (/physicalDetails\.height/i.test(trimmed)) return 'Chiều cao sách phải là số dương';
   if (/email.*email/i.test(trimmed)) return 'Email không đúng định dạng';
   if (/phone/i.test(trimmed)) return 'Số điện thoại không hợp lệ';
   if (/tax.*code/i.test(trimmed)) return 'Mã số thuế không hợp lệ';

@@ -1,0 +1,646 @@
+[
+  {
+    "route": "/",
+    "status": 200,
+    "size": 120231,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/books",
+    "status": 200,
+    "size": 9295,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/book/con-duong-phia-truoc",
+    "status": 200,
+    "size": 27189,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/book/con-duong-phia-truoc/preview",
+    "status": 200,
+    "size": 16519,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/audiobooks",
+    "status": 200,
+    "size": 30062,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/author/bill-gates",
+    "status": 200,
+    "size": 32711,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/cart",
+    "status": 200,
+    "size": 13033,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/checkout",
+    "status": 200,
+    "size": 24655,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/order/success",
+    "status": 307,
+    "size": 14,
+    "hasHtml": false,
+    "errorText": null
+  },
+  {
+    "route": "/order-success",
+    "status": 200,
+    "size": 9577,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/orders",
+    "status": 200,
+    "size": 14422,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/orders/ord-123456",
+    "status": 200,
+    "size": 10563,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/orders/ord-123456/invoice",
+    "status": 200,
+    "size": 17451,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/orders/ord-123456/return",
+    "status": 200,
+    "size": 24022,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/orders/ord-123456/review",
+    "status": 200,
+    "size": 15926,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/library",
+    "status": 200,
+    "size": 14758,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/library/con-duong-phia-truoc",
+    "status": 200,
+    "size": 16333,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/library/devices",
+    "status": 200,
+    "size": 19621,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/reader",
+    "status": 200,
+    "size": 9668,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/flash-sale",
+    "status": 200,
+    "size": 11813,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/stores",
+    "status": 200,
+    "size": 9563,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/shop/huki-store",
+    "status": 200,
+    "size": 9941,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/messages",
+    "status": 200,
+    "size": 9415,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/profile",
+    "status": 200,
+    "size": 22245,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/profile/addresses",
+    "status": 200,
+    "size": 12061,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/profile/security",
+    "status": 200,
+    "size": 16372,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/profile/wallet",
+    "status": 200,
+    "size": 23331,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community",
+    "status": 200,
+    "size": 57851,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/challenge",
+    "status": 200,
+    "size": 20300,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/clubs",
+    "status": 200,
+    "size": 26864,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/clubs/clb-cong-nghe",
+    "status": 200,
+    "size": 25870,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/posts/post-1",
+    "status": 200,
+    "size": 20024,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/quotes",
+    "status": 200,
+    "size": 20205,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/community/reviews",
+    "status": 200,
+    "size": 26163,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/login",
+    "status": 200,
+    "size": 14746,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/register",
+    "status": 200,
+    "size": 24025,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/forgot-password",
+    "status": 200,
+    "size": 19420,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/reset-password",
+    "status": 200,
+    "size": 14764,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/change-password",
+    "status": 200,
+    "size": 17502,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/verify",
+    "status": 200,
+    "size": 14497,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/status",
+    "status": 200,
+    "size": 15753,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/auth/onboarding",
+    "status": 200,
+    "size": 23396,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller",
+    "status": 200,
+    "size": 32158,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/dashboard",
+    "status": 200,
+    "size": 18124,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/products",
+    "status": 200,
+    "size": 18113,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/products/create",
+    "status": 200,
+    "size": 18497,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/products/prod-1/edit",
+    "status": 200,
+    "size": 37194,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/products/prod-1/correct",
+    "status": 200,
+    "size": 40731,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/create",
+    "status": 307,
+    "size": 23,
+    "hasHtml": false,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/create-ebook",
+    "status": 200,
+    "size": 17702,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/create-hybrid",
+    "status": 200,
+    "size": 17704,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/create-physical",
+    "status": 200,
+    "size": 17707,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/edit-hybrid",
+    "status": 200,
+    "size": 36145,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/product/correction",
+    "status": 200,
+    "size": 40354,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/orders",
+    "status": 200,
+    "size": 17704,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/orders/ord-1",
+    "status": 200,
+    "size": 18171,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/inventory",
+    "status": 200,
+    "size": 22138,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/finance",
+    "status": 200,
+    "size": 25544,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/revenue",
+    "status": 200,
+    "size": 25544,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/wallet",
+    "status": 200,
+    "size": 25542,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/stores",
+    "status": 200,
+    "size": 17700,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/stores/new",
+    "status": 200,
+    "size": 18188,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/staff",
+    "status": 200,
+    "size": 17678,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/vouchers",
+    "status": 200,
+    "size": 20267,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/chat",
+    "status": 200,
+    "size": 39200,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/profile",
+    "status": 200,
+    "size": 18110,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/business",
+    "status": 200,
+    "size": 18112,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/business/notifications",
+    "status": 200,
+    "size": 21928,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/notifications",
+    "status": 200,
+    "size": 21430,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/edge-cases",
+    "status": 200,
+    "size": 81906,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/seller/register",
+    "status": 200,
+    "size": 27282,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin",
+    "status": 200,
+    "size": 32527,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/dashboard",
+    "status": 200,
+    "size": 32999,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/accounts",
+    "status": 200,
+    "size": 30064,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/book-moderation",
+    "status": 200,
+    "size": 30379,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/books",
+    "status": 200,
+    "size": 26663,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/business-requests",
+    "status": 200,
+    "size": 25958,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/businesses",
+    "status": 200,
+    "size": 26675,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/calendar",
+    "status": 200,
+    "size": 30035,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/categories",
+    "status": 200,
+    "size": 25814,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/drm-vault",
+    "status": 200,
+    "size": 32233,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/finance",
+    "status": 200,
+    "size": 35218,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/health",
+    "status": 200,
+    "size": 31911,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/integrations",
+    "status": 200,
+    "size": 31117,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/marketing",
+    "status": 200,
+    "size": 24856,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/publisher-leads",
+    "status": 200,
+    "size": 26592,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/publishers",
+    "status": 200,
+    "size": 27686,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/reports",
+    "status": 200,
+    "size": 28889,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/settings",
+    "status": 200,
+    "size": 26260,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/stores",
+    "status": 200,
+    "size": 25972,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/support",
+    "status": 200,
+    "size": 28052,
+    "hasHtml": true,
+    "errorText": null
+  },
+  {
+    "route": "/admin/users",
+    "status": 200,
+    "size": 39704,
+    "hasHtml": true,
+    "errorText": null
+  }
+]

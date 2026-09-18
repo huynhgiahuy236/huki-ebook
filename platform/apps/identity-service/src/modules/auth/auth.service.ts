@@ -4,7 +4,7 @@ import { JwtService } from "@nestjs/jwt";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import * as bcrypt from "bcrypt";
 import { createHash, randomBytes, randomUUID } from "crypto";
-import { User, UserRole, UserStatus } from "../../../prisma/generated/client";
+import { User, UserRole, UserStatus, Prisma } from "../../../prisma/generated/client";
 import { PrismaService } from "../../prisma/prisma.service";
 import { LoginDto, RefreshTokenDto, RegisterDto } from "./dto";
 import {
@@ -17,10 +17,11 @@ import {
   throwUnauthorized,
   throwBadRequest,
   throwNotFound,
+  throwForbidden,
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { USER_EVENTS } from "@huki/shared/events";
-import { EmailService } from "@huki/shared";
+import { EmailService, policyConfig } from "@huki/shared";
 
 // ============================================
 // USER DOMAIN EVENTS (Simple Abstraction)
@@ -439,15 +440,43 @@ export class AuthService {
     const refreshToken = randomUUID();
     const tokenHash = this.hashToken(refreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
-    await this.prisma.authSession.create({
-      data: {
-        userId: user.id,
-        refreshTokenHash: tokenHash,
-        ipAddress: deviceInfo?.ipAddress,
-        userAgent: deviceInfo?.userAgent,
-        expiresAt,
+
+    await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Acquire row lock on the user to serialize concurrent session creations for the same user
+        await tx.$executeRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
+
+        // 2. Enforce POL-04 / DRM-003 / DEC-007: active device limit
+        const activeSessionsCount = await tx.authSession.count({
+          where: {
+            userId: user.id,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+        });
+
+        const maxAllowedDevices = policyConfig.drmMaxActiveDevices;
+        if (activeSessionsCount >= maxAllowedDevices) {
+          throwForbidden(
+            ErrorCode.AUTHZ_FORBIDDEN,
+            `Đã đạt giới hạn tối đa ${maxAllowedDevices} thiết bị hoạt động đồng thời (POL-04 / DEC-007). Vui lòng hủy kích hoạt một thiết bị cũ trước khi đăng nhập trên thiết bị mới.`,
+          );
+        }
+
+        await tx.authSession.create({
+          data: {
+            userId: user.id,
+            refreshTokenHash: tokenHash,
+            ipAddress: deviceInfo?.ipAddress,
+            userAgent: deviceInfo?.userAgent,
+            expiresAt,
+          },
+        });
       },
-    });
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
+    );
 
     const accessToken = this.signAccessToken(user);
     return { accessToken, refreshToken };

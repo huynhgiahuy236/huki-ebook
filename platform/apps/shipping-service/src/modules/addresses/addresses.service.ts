@@ -53,6 +53,15 @@ export class AddressesService {
       return { deleted: true };
     });
   }
+
+  async findOne(userId: string, id: string) {
+    const address = await this.prisma.address.findFirst({
+      where: { id, userId },
+    });
+    if (!address) throwNotFound(ErrorCode.ADDRESS_NOT_FOUND);
+    return address;
+  }
+
   private async requireOwned(userId: string, id: string): Promise<NonNullable<Awaited<ReturnType<typeof this.prisma.address.findFirst>>>> {
     const address = await this.prisma.address.findFirst({
       where: { id, userId },

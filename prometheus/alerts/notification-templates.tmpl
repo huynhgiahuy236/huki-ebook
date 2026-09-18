@@ -1,0 +1,52 @@
+{{ define "email.default.subject" }}
+[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }} - {{ .GroupLabels.service }}
+{{ end }}
+
+{{ define "email.default.body" }}
+{{ .GroupLabels.alertname }} Alert
+
+Status: {{ .Status | toUpper }}
+Severity: {{ .GroupLabels.severity }}
+Service: {{ .GroupLabels.service }}
+{{ if .GroupLabels.instance }}
+Instance: {{ .GroupLabels.instance }}
+{{ end }}
+
+{{ range .Alerts }}
+--------------------------------------------------
+{{ if .Annotations.summary }}
+{{ .Annotations.summary }}
+{{ else }}
+Alert: {{ .Labels.alertname }}
+{{ end }}
+
+{{ if .Annotations.description }}
+Description: {{ .Annotations.description }}
+{{ end }}
+
+{{ if .Annotations.runbook_url }}
+Runbook: {{ .Annotations.runbook_url }}
+{{ end }}
+
+{{ if .Annotations.dashboard_url }}
+Dashboard: {{ .Annotations.dashboard_url }}
+{{ end }}
+
+Started: {{ .StartsAt }}
+{{ if .EndsAt }}
+Ends: {{ .EndsAt }}
+{{ else }}
+Ends: Still firing
+{{ end }}
+{{ end }}
+
+{{ end }}
+
+{{ define "slack.default.text" }}
+{{ range .Alerts }}
+:{{ if eq .Status "firing" }}warning{{ else }}white_check_mark{{ end }}: *{{ .Labels.alertname }}*
+{{ if .Annotations.summary }}• {{ .Annotations.summary }}{{ end }}
+{{ if .Annotations.description }}• {{ .Annotations.description }}{{ end }}
+{{ if .Annotations.runbook_url }}• Runbook: <{{ .Annotations.runbook_url }}|Link>{{ end }}
+{{ end }}
+{{ end }}

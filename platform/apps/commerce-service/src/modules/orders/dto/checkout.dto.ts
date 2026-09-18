@@ -35,28 +35,73 @@ export class ShippingAddressDto implements ShippingAddress {
 }
 
 export class CheckoutPreviewDto {
-  @ApiPropertyOptional({ type: ShippingAddressDto })
+  @ApiPropertyOptional({ description: 'Address ID - validated against user ownership' })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @ApiPropertyOptional({ type: ShippingAddressDto, description: 'Deprecated: Use addressId instead' })
   @IsOptional()
   @ValidateNested()
   @Type(() => ShippingAddressDto)
   shippingAddress?: ShippingAddressDto;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(500)
   note?: string;
+
+  @ApiPropertyOptional({ description: 'Platform voucher code' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  platformVoucherCode?: string;
+
+  @ApiPropertyOptional({ description: 'Store voucher codes by store ID' })
+  @IsOptional()
+  storeVoucherCodes?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: 'Shipping voucher code' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  shippingVoucherCode?: string;
 }
 
 export class CheckoutConfirmDto {
   @ApiProperty({ format: 'uuid' }) @IsUUID() sessionId: string;
-  @ApiProperty({ enum: PaymentMethod })
+
+  @ApiPropertyOptional({ description: 'Address ID - validated against user ownership' })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @ApiPropertyOptional({ enum: PaymentMethod })
   @IsEnum(PaymentMethod)
   paymentMethod: PaymentMethod;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(50)
   paymentProvider?: string;
+
+  @ApiPropertyOptional({ description: 'Platform voucher code (re-validated on confirm)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  platformVoucherCode?: string;
+
+  @ApiPropertyOptional({ description: 'Store voucher codes by store ID (re-validated on confirm)' })
+  @IsOptional()
+  storeVoucherCodes?: Record<string, string>;
+
+  @ApiPropertyOptional({ description: 'Shipping voucher code (re-validated on confirm)' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  shippingVoucherCode?: string;
 }
 
 export class CancelOrderDto {

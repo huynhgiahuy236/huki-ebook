@@ -54,4 +54,24 @@ export class SellerOrdersController {
   cancel(@CurrentBookActor() actor: BookActor, @Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelOrderDto) {
     return this.orders.cancelSeller(actor, id, dto);
   }
+
+  @Patch(':id/approve-cancellation')
+  @ApiOperation({ summary: 'Approve buyer cancellation request during packing phase (Task 59)' })
+  approveCancellation(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto?: CancelOrderDto,
+  ) {
+    return this.orders.approveCancellation(actor, id, dto);
+  }
+
+  @Patch(':id/reject-cancellation')
+  @ApiOperation({ summary: 'Reject buyer cancellation request during packing phase (Task 59)' })
+  rejectCancellation(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CancelOrderDto,
+  ) {
+    return this.orders.rejectCancellation(actor, id, dto);
+  }
 }

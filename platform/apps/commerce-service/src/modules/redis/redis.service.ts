@@ -128,5 +128,66 @@ export class RedisService {
       this.logger.warn(`syncStock failed for ${key}`, error);
     }
   }
+
+  /**
+   * Atomic GET and DEL (consume single-use token)
+   */
+  async getdel<T = string>(key: string): Promise<T | null> {
+    const luaScript = `
+      local val = redis.call('GET', KEYS[1])
+      if val then
+        redis.call('DEL', KEYS[1])
+      end
+      return val
+    `;
+    try {
+      const result = await this.redis.eval(luaScript, 1, key);
+      if (!result) return null;
+      return JSON.parse(result as string) as T;
+    } catch (error) {
+      this.logger.warn(`Redis getdel failed for key ${key}`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Atomic 2FA OTP verification, attempt increment, and consumption
+   */
+  async verifyAndConsumeChallengeAtomic(
+    key: string,
+    inputHash: string,
+    maxAttempts = 3,
+  ): Promise<{ status: 'SUCCESS' | 'NOT_FOUND' | 'INCORRECT' | 'INVALIDATED'; data?: any; attempts?: number }> {
+    const luaScript = `
+      local raw = redis.call('GET', KEYS[1])
+      if not raw then
+        return cjson.encode({ status = 'NOT_FOUND' })
+      end
+      local data = cjson.decode(raw)
+      if data.codeHash == ARGV[1] then
+        redis.call('DEL', KEYS[1])
+        return cjson.encode({ status = 'SUCCESS', data = data })
+      else
+        data.attempts = (data.attempts or 0) + 1
+        if data.attempts >= tonumber(ARGV[2]) then
+          redis.call('DEL', KEYS[1])
+          return cjson.encode({ status = 'INVALIDATED', attempts = data.attempts })
+        else
+          local ttl = redis.call('TTL', KEYS[1])
+          if ttl > 0 then
+            redis.call('SETEX', KEYS[1], ttl, cjson.encode(data))
+          end
+          return cjson.encode({ status = 'INCORRECT', attempts = data.attempts })
+        end
+      end
+    `;
+    try {
+      const result = await this.redis.eval(luaScript, 1, key, inputHash, maxAttempts);
+      return JSON.parse(result as string);
+    } catch (error) {
+      this.logger.warn(`Redis verifyAndConsumeChallengeAtomic failed for key ${key}`, error);
+      return { status: 'NOT_FOUND' };
+    }
+  }
 }
 

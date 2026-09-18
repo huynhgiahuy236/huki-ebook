@@ -1,0 +1,44 @@
+# Grafana Loki Docker Compose Configuration
+version: '3.8'
+
+services:
+  # ============================================
+  # Loki - Log Aggregator
+  # ============================================
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: huki-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - huki-network
+    restart: unless-stopped
+
+  # ============================================
+  # Promtail - Log Collector
+  # ============================================
+  promtail:
+    image: grafana/promtail:2.9.0
+    container_name: huki-promtail
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml
+      - /var/log:/var/log:ro
+      - ./docker:/var/log/docker:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - huki-network
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+volumes:
+  loki_data:
+
+networks:
+  huki-network:
+    external: true
+    name: huki-network

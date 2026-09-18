@@ -1,0 +1,178 @@
+# AlertManager Configuration for HUKI EBOOK
+# https://prometheus.io/docs/alerting/latest/alertmanager/
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@huki.vn'
+  smtp_auth_username: 'alerts@huki.vn'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+
+# Templates for alert notifications
+templates:
+  - '/etc/alertmanager/template*.tmpl'
+
+# Notification routes
+route:
+  group_by: ['alertname', 'service', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: 'default'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      repeat_interval: 1h
+      routes:
+        # Payment alerts - highest priority
+        - match:
+            alertname: HUKIPaymentFailureSpike
+          receiver: 'payment-alerts'
+          continue: true
+
+        # Service down - critical
+        - match:
+            alertname: HUKIServiceDown
+          receiver: 'on-call'
+          continue: true
+
+        # High error rate
+        - match:
+            alertname: HUKIHighErrorRate
+          receiver: 'engineering'
+          continue: true
+
+    # Warning alerts - less urgent
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 1m
+      repeat_interval: 4h
+      routes:
+        - match:
+            service: commerce
+          receiver: 'commerce-team'
+
+    # Info alerts - low priority
+    - match:
+        severity: info
+      receiver: 'info-alerts'
+      group_wait: 5m
+
+# Receivers
+receivers:
+  # Default receiver (fallback)
+  - name: 'default'
+    email_configs:
+      - to: 'team@huki.vn'
+        send_resolved: true
+        headers:
+          subject: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+
+  # Critical alerts - multiple channels
+  - name: 'critical-alerts'
+    email_configs:
+      - to: 'oncall@huki.vn,tech-lead@huki.vn'
+        send_resolved: true
+        headers:
+          subject: '[CRITICAL] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-critical'
+        send_resolved: true
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          *Alert:* {{ .Labels.alertname }}
+          *Severity:* {{ .Labels.severity }}
+          *Service:* {{ .Labels.service }}
+          *Description:* {{ .Annotations.description }}
+          *Time:* {{ .StartsAt }}
+          {{ if .Annotations.runbook_url }}
+          *Runbook:* {{ .Annotations.runbook_url }}
+          {{ end }}
+          {{ end }}
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+        severity: critical
+    webhook_configs:
+      - url: '${WEBHOOK_URL}'
+        send_resolved: true
+
+  # Payment alerts - finance team
+  - name: 'payment-alerts'
+    email_configs:
+      - to: 'finance@huki.vn,payments-team@huki.vn'
+        send_resolved: true
+        headers:
+          subject: '[PAYMENT ALERT] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-payments'
+        send_resolved: true
+
+  # On-call alerts
+  - name: 'on-call'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#on-call'
+        send_resolved: true
+        title: '[ON-CALL] {{ .GroupLabels.alertname }}'
+    pagerduty_configs:
+      - service_key: '${PAGERDUTY_SERVICE_KEY}'
+
+  # Engineering team
+  - name: 'engineering'
+    email_configs:
+      - to: 'engineering@huki.vn'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-engineering'
+        send_resolved: true
+
+  # Warning alerts
+  - name: 'warning-alerts'
+    email_configs:
+      - to: 'team@huki.vn'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts'
+        send_resolved: true
+
+  # Commerce team
+  - name: 'commerce-team'
+    email_configs:
+      - to: 'commerce-team@huki.vn'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-commerce'
+        send_resolved: true
+
+  # Info alerts
+  - name: 'info-alerts'
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#alerts-info'
+        send_resolved: true
+
+# Inhibition rules - suppress certain alerts when others are firing
+inhibit_rules:
+  # Suppress less severe alerts when service is down
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'service', 'instance']
+
+  # Suppress infrastructure alerts when instance is down
+  - source_match:
+      alertname: 'HUKIInstanceDown'
+    target_match_re:
+      alertname: 'HUKI(High|Disk|Memory|CPU)'
+    equal: ['instance']

@@ -316,35 +316,35 @@ function getMessage(code: ErrorCode, customMessage?: string): string {
 /**
  * Throw helper - Usage: throwNotFound(ErrorCode.BOOK_NOT_FOUND)
  */
-export function throwNotFound(code: ErrorCode, customMessage?: string) {
+export function throwNotFound(code: ErrorCode, customMessage?: string): never {
   throw new NotFoundException({ code, message: getMessage(code, customMessage) });
 }
 
 /**
  * Throw helper for BadRequest - Usage: throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'Name is required')
  */
-export function throwBadRequest(code: ErrorCode, customMessage?: string) {
+export function throwBadRequest(code: ErrorCode, customMessage?: string): never {
   throw new BadRequestException({ code, message: getMessage(code, customMessage) });
 }
 
 /**
  * Throw helper for Conflict - Usage: throwConflict(ErrorCode.BOOK_SLUG_EXISTS)
  */
-export function throwConflict(code: ErrorCode, customMessage?: string) {
+export function throwConflict(code: ErrorCode, customMessage?: string): never {
   throw new ConflictException({ code, message: getMessage(code, customMessage) });
 }
 
 /**
  * Throw helper for Forbidden - Usage: throwForbidden(ErrorCode.AUTHZ_NOT_OWNER)
  */
-export function throwForbidden(code: ErrorCode, customMessage?: string) {
+export function throwForbidden(code: ErrorCode, customMessage?: string): never {
   throw new ForbiddenException({ code, message: getMessage(code, customMessage) });
 }
 
 /**
  * Throw helper for Unauthorized - Usage: throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED)
  */
-export function throwUnauthorized(code: ErrorCode, customMessage?: string) {
+export function throwUnauthorized(code: ErrorCode, customMessage?: string): never {
   throw new UnauthorizedException({ code, message: getMessage(code, customMessage) });
 }
 

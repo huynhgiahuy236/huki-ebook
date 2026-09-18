@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   MEMBER_VIEW: 'MEMBER_VIEW',
   MEMBER_MANAGE: 'MEMBER_MANAGE',
   FINANCE_VIEW: 'FINANCE_VIEW',
+  VOUCHER_MANAGE: 'VOUCHER_MANAGE',
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
@@ -197,19 +198,45 @@ export function can(
   // 1. Platform Admin có toàn quyền hệ thống
   if (user.role === 'PLATFORM_ADMIN') return true;
 
-  // 2. Chủ doanh nghiệp / Đối tác (Owner) luôn có toàn quyền trong gian hàng của mình
-  if (
-    user.role === 'BUSINESS' ||
-    user.hasApprovedBusiness ||
-    user.business?.ownerId === user.id ||
-    user.business?.currentMember?.role === 'OWNER' ||
-    user.memberships?.some((m) => m.role === 'OWNER' && m.status === 'ACTIVE')
-  ) {
+  // 2. Kiểm tra xem User có phải là Chủ doanh nghiệp (Owner) của Business này hay không
+  const isOwner = () => {
+    // Nếu có businessId cụ thể
+    if (businessId) {
+      if (
+        user.business?.id === businessId &&
+        (user.business.ownerId === user.id || user.business.currentMember?.role === 'OWNER')
+      ) {
+        return true;
+      }
+      return (
+        user.memberships?.some(
+          (m) => m.businessId === businessId && m.role === 'OWNER' && m.status === 'ACTIVE'
+        ) ?? false
+      );
+    }
+
+    // Nếu không chỉ định businessId cụ thể, kiểm tra xem user có phải là owner của business hiện tại không
+    if (user.business?.ownerId === user.id || user.business?.currentMember?.role === 'OWNER') {
+      return true;
+    }
+    return user.memberships?.some((m) => m.role === 'OWNER' && m.status === 'ACTIVE') ?? false;
+  };
+
+  if (isOwner()) {
     return true;
   }
 
-  // 3. Nếu không chỉ định businessId, kiểm tra xem user có bất kỳ membership nào chứa quyền đó không
+  // 3. Đối với Nhân viên (Staff): Kiểm tra danh sách permissions được cấp
+  // 3.1 Nếu không chỉ định businessId: kiểm tra trên tất cả active memberships hoặc user.business.currentMember
   if (!businessId) {
+    // Kiểm tra currentMember trong business hiện tại
+    if (user.business?.currentMember) {
+      const perms = user.business.currentMember.permissions;
+      if (Array.isArray(perms) && (perms.includes('*') || perms.includes(permission))) {
+        return true;
+      }
+    }
+    // Kiểm tra các memberships khác
     return (
       user.memberships?.some(
         (m) =>
@@ -219,28 +246,26 @@ export function can(
     );
   }
 
-  // 4. Tìm membership trong business cụ thể đối với Nhân viên (Staff)
+  // 3.2 Nếu chỉ định businessId cụ thể: Tìm membership tương ứng
   const membership = user.memberships?.find(
     (m) => m.businessId === businessId && m.status === 'ACTIVE'
   );
 
-  if (!membership) {
-    if (user.business?.id === businessId) {
-      if (!user.business.currentMember || user.business.currentMember.role === 'OWNER') {
-        return true;
-      }
-      const perms = user.business.currentMember.permissions;
-      return Array.isArray(perms) && (perms.includes('*') || perms.includes(permission));
-    }
-    return false;
+  if (membership) {
+    if (membership.role === 'OWNER') return true;
+    return (
+      Array.isArray(membership.permissions) &&
+      (membership.permissions.includes('*') || membership.permissions.includes(permission))
+    );
   }
 
-  // Owner luôn có toàn quyền
-  if (membership.role === 'OWNER') return true;
+  // Kiểm tra fallback user.business nếu trùng businessId
+  if (user.business?.id === businessId && user.business.currentMember) {
+    if (user.business.currentMember.role === 'OWNER') return true;
+    const perms = user.business.currentMember.permissions;
+    return Array.isArray(perms) && (perms.includes('*') || perms.includes(permission));
+  }
 
-  // Nhân viên (Staff) kiểm tra danh sách permissions
-  return (
-    Array.isArray(membership.permissions) &&
-    (membership.permissions.includes('*') || membership.permissions.includes(permission))
-  );
+  return false;
 }
+

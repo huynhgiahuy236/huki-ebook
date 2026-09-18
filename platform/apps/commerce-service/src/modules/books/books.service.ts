@@ -172,38 +172,55 @@ export class BooksService {
 
   async findOwned(query: BookListQueryDto, actor: BookActor) {
     const scope = await getSellerScope(actor);
-    const where: any = {};
+    const conditions: any[] = [];
 
     if (!scope.isPlatformAdmin) {
-      if (scope.storeIds.length === 0 && scope.ownerUserIds.length === 0) {
+      const orConditions: any[] = [];
+      if (scope.storeIds.length > 0) {
+        orConditions.push({ storeId: { in: scope.storeIds } });
+      }
+      if (scope.businessIds.length > 0) {
+        orConditions.push({ storeId: { in: scope.businessIds } });
+      }
+      if (scope.ownerUserIds.length > 0) {
+        orConditions.push({ ownerUserId: { in: scope.ownerUserIds } });
+      }
+      if (actor.sub) {
+        orConditions.push({ ownerUserId: actor.sub });
+      }
+
+      if (query.business || query.store) {
+        const target = (query.business || query.store) as string;
+        orConditions.push({ storeId: target });
+      }
+
+      if (orConditions.length === 0) {
         return paginate([], 0, query.page, query.limit);
       }
-
-      const targetStore: string | undefined = query.business || query.store;
-      if (targetStore) {
-        if (!scope.storeIds.includes(targetStore) && !scope.businessIds.includes(targetStore)) {
-          return paginate([], 0, query.page, query.limit);
-        }
-        where.storeId = targetStore;
-      } else {
-        where.OR = [
-          { storeId: { in: scope.storeIds } },
-          { ownerUserId: { in: scope.ownerUserIds } },
-        ];
-      }
+      conditions.push({ OR: orConditions });
     } else if (query.business || query.store) {
-      where.storeId = query.business || query.store;
+      const target = (query.business || query.store) as string;
+      conditions.push({
+        OR: [
+          { storeId: target },
+          { storeId: { in: [query.business, query.store].filter(Boolean) as string[] } },
+        ],
+      });
     }
 
-    if (query.format) where.format = query.format;
-    if (query.category) where.categoryId = query.category;
+    if (query.format) conditions.push({ format: query.format });
+    if (query.category) conditions.push({ categoryId: query.category });
     if (query.search) {
       const search = normalizeCatalogText(query.search);
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { normalizedTitle: { contains: search, mode: 'insensitive' } },
-      ];
+      conditions.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { normalizedTitle: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
+
+    const where: any = conditions.length > 0 ? { AND: conditions } : {};
 
     const orderBy: any = {};
     const direction = query.order.toLowerCase();
@@ -260,7 +277,7 @@ export class BooksService {
     const canManage = await this.canManage(existing, actor);
     if (!canManage) throwForbidden(ErrorCode.BOOK_UNAUTHORIZED);
 
-    if (existing!.status === BookStatus.PUBLISHED) {
+    if (existing!.status === BookStatus.ARCHIVED) {
       throwConflict(ErrorCode.BOOK_ARCHIVED);
     }
 
@@ -279,20 +296,63 @@ export class BooksService {
       await this.ensureSlugAvailable(existing!.storeId, slug, id);
     }
 
-    const updated = await this.prisma.book.update({
-      where: { id },
-      data: {
-        title,
-        normalizedTitle: normalizeCatalogText(title),
-        slug,
-        isbn: dto.isbn === undefined ? existing!.isbn : dto.isbn ?? null,
-        description: dto.description?.trim() ?? existing!.description,
-        price: dto.price ?? existing!.price,
-        categoryId,
-        authorId,
-        publisherId,
-        format: dto.format ?? existing!.format,
-      },
+    const coverUrl = (dto as any).coverUrl || (dto as any).coverImage || existing!.coverUrl;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const book = await tx.book.update({
+        where: { id },
+        data: {
+          title,
+          normalizedTitle: normalizeCatalogText(title),
+          slug,
+          isbn: dto.isbn === undefined ? existing!.isbn : dto.isbn ?? null,
+          description: dto.description?.trim() ?? existing!.description,
+          price: dto.price ?? existing!.price,
+          coverUrl,
+          categoryId,
+          authorId,
+          publisherId,
+          format: dto.format ?? existing!.format,
+        },
+      });
+
+      if (dto.physicalDetails) {
+        const dim = (dto.physicalDetails.length && dto.physicalDetails.width && dto.physicalDetails.height)
+          ? `${dto.physicalDetails.length}x${dto.physicalDetails.width}x${dto.physicalDetails.height}`
+          : undefined;
+
+        await tx.physicalBookDetails.upsert({
+          where: { bookId: id },
+          create: {
+            bookId: id,
+            stock: dto.physicalDetails.stock ?? 100,
+            weight: dto.physicalDetails.weight ?? 300,
+            dimensions: dim,
+            physicalEnabled: dto.physicalDetails.physicalEnabled ?? true,
+          },
+          update: {
+            ...(dto.physicalDetails.stock !== undefined ? { stock: dto.physicalDetails.stock } : {}),
+            ...(dto.physicalDetails.weight !== undefined ? { weight: dto.physicalDetails.weight } : {}),
+            ...(dim !== undefined ? { dimensions: dim } : {}),
+            ...(dto.physicalDetails.physicalEnabled !== undefined ? { physicalEnabled: dto.physicalDetails.physicalEnabled } : {}),
+          },
+        });
+      }
+
+      if (dto.digitalDetails) {
+        await tx.digitalBookDetails.upsert({
+          where: { bookId: id },
+          create: {
+            bookId: id,
+            digitalEnabled: dto.digitalDetails.digitalEnabled ?? true,
+          },
+          update: {
+            ...(dto.digitalDetails.digitalEnabled !== undefined ? { digitalEnabled: dto.digitalDetails.digitalEnabled } : {}),
+          },
+        });
+      }
+
+      return book;
     });
 
     return this.findOne(updated.id, actor);

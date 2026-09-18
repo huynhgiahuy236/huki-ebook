@@ -9,12 +9,14 @@ import {
 import { Prisma, SellerOrderStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InventoryReservationService } from './inventory-reservation.service';
+import { SettlementService } from './settlement.service';
 
 @Injectable()
 export class OrderCompletionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reservations: InventoryReservationService,
+    private readonly settlementService?: SettlementService,
   ) {}
 
   async processShippingEvent(event: DomainEvent): Promise<void> {
@@ -152,6 +154,36 @@ export class OrderCompletionService {
     if (!order || order.status === 'COMPLETED' || order.status === 'CANCELLED')
       return false;
 
+    // Check if there is an active frozen escrow due to dispute (Task 65 / POL-14 / POL-12)
+    const activeDisputeHistory = await tx.orderStatusHistory.findFirst({
+      where: {
+        orderId,
+        toStatus: { in: ['DISPUTE_OPENED', 'ESCROW_FROZEN'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (activeDisputeHistory) {
+      const resolvingHistory = await tx.orderStatusHistory.findFirst({
+        where: {
+          orderId,
+          toStatus: {
+            in: [
+              'ESCROW_UNFROZEN',
+              'RULING_BUYER_WINS',
+              'RULING_SELLER_WINS',
+              'RULING_PARTIAL_SETTLEMENT',
+              'RULING_CARRIER_AT_FAULT',
+            ],
+          },
+          createdAt: { gt: activeDisputeHistory.createdAt },
+        },
+      });
+      if (!resolvingHistory) {
+        // Active dispute with frozen escrow: block automated order completion settlement
+        return false;
+      }
+    }
+
     const cancelledCount = order.sellerOrders.filter(
       ({ status }) => status === SellerOrderStatus.CANCELLED,
     ).length;
@@ -253,6 +285,15 @@ export class OrderCompletionService {
       );
     }
     await tx.outboxEvent.createMany({ data: outbox });
+
+    if (codPaid && this.settlementService) {
+      try {
+        await this.settlementService.ingestPaymentEscrow(orderId);
+      } catch (err: any) {
+        // safe log
+      }
+    }
+
     return true;
   }
 

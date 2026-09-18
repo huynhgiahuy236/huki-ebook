@@ -68,6 +68,38 @@ export class PaymentsController {
     return this.payments.settleRefund(actor, refundId, dto);
   }
 
+  @Get('refunds')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'List refund requests with role filtering (Task 60)' })
+  listRefunds(
+    @CurrentBookActor() actor: BookActor,
+  ) {
+    return this.payments.listRefunds(actor);
+  }
+
+  @Get('refunds/:refundId')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Get details of a specific refund (Task 60)' })
+  getRefund(
+    @CurrentBookActor() actor: BookActor,
+    @Param('refundId', ParseUUIDPipe) refundId: string,
+  ) {
+    return this.payments.getRefund(actor, refundId);
+  }
+
+  @Post('refunds/:refundId/retry')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Admin retry for failed refund (Task 60)' })
+  retryRefund(
+    @CurrentBookActor() actor: BookActor,
+    @Param('refundId', ParseUUIDPipe) refundId: string,
+  ) {
+    return this.payments.retryRefund(actor, refundId);
+  }
+
   @Post('webhooks/payos')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Receive a signed PayOS webhook' })

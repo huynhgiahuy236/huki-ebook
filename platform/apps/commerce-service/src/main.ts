@@ -8,12 +8,29 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
+import { HttpExceptionFilter, TransformInterceptor, MetricsService } from '@huki/shared';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.enableCors();
   app.setGlobalPrefix('api/v1');
+
+  // Apply HTTP metrics middleware
+  const metricsService = app.get(MetricsService);
+  app.use((req: any, res: any, next: any) => {
+    const startTime = process.hrtime();
+
+    res.on('finish', () => {
+      const [seconds, nanoseconds] = process.hrtime(startTime);
+      const duration = seconds + nanoseconds / 1e9;
+      const route = req.route?.path || req.path;
+
+      metricsService.recordHttpRequest(req.method, route, res.statusCode, duration);
+    });
+
+    next();
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -36,6 +53,7 @@ async function bootstrap() {
   const port = process.env.COMMERCE_SERVICE_PORT || 3003;
   await app.listen(port);
   console.log(`🚀 Commerce Service running on: http://localhost:${port}`);
+  console.log(`📊 Metrics available at: http://localhost:${port}/api/v1/metrics`);
 }
 
 bootstrap();

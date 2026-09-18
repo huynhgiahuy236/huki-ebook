@@ -9,6 +9,33 @@
 
 ---
 
+## 🔴🔵🟢 ĐÁNH GIÁ TỔNG HỢP (PM AUDIT SUMMARY)
+
+| Chỉ Số | Đánh Giá | Ghi Chú |
+|---|:---:|---|
+| **Mức độ hoàn thành** | **96%** | Đã hoàn thiện toàn bộ luồng thanh toán VietQR PayOS, Webhook và Escrow |
+| **Độ ổn định Backend** | 🟢 **Đạt** | Cơ chế Khóa tạm giữ tồn kho (2 phút) & Idempotency Webhook hoạt động tin cậy |
+| **Trải nghiệm Frontend** | 🟢 **Đạt** | Modal đếm ngược Live Countdown, Auto-refresh trạng thái khi chuyển khoản xong |
+| **Đối chiếu E-Commerce** | 🔵 **Tốt** | Tương đồng ShopeePay/TikiPay về cơ chế QR động và tự động hoàn đơn khi quá hạn |
+
+### Điểm mạnh (🟢)
+* 🟢 **Tạo Payment Link PayOS VietQR tự động**: VietQR động chính xác từng đồng
+* 🟢 **Modal Countdown 120s**: Trực quan với nút copy nhanh
+* 🟢 **Webhook Idempotency**: Xử lý retry an toàn
+* 🟢 **Auto-unlock Ebook DRM**: Kích hoạt ngay sau thanh toán
+
+### Điểm cần cải thiện (🔵)
+* 🔵 **WebSocket thay Polling**: Hiện dùng polling 2.5s, nên dùng WebSocket/SSE
+* 🔵 **Tra soát giao dịch**: Chưa có màn hình hỗ trợ khi CK lệch nội dung
+
+### Rủi ro (🔴)
+* 🔴 **Late Webhook**: CK lệch nội dung → PayOS không match được, cần tra soát thủ công
+* 🔴 **No real-time push**: Polling không tối ưu cho high traffic
+
+---
+
+---
+
 ## I. TỔNG QUAN ĐÁNH GIÁ CHUNG (EXECUTIVE SUMMARY)
 
 | Chỉ Số | Đánh Giá | Ghi Chú |

@@ -54,6 +54,23 @@ export class AddressesController {
     return this.addresses.list(actor.sub);
   }
 
+  @Get(':id')
+  @ApiOperation({
+    summary: 'Get shipping address by ID',
+    description: 'Returns a single shipping address by ID. Validates ownership.',
+  })
+  @ApiParam({ name: 'id', description: 'Address ID' })
+  @ApiResponse({ status: 200, description: 'Address details' })
+  @ApiNotFoundResponse({ description: 'Address not found' })
+  @ApiForbiddenResponse({ description: 'Address does not belong to user' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  findOne(
+    @CurrentActor() actor: ShippingActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.addresses.findOne(actor.sub, id);
+  }
+
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

@@ -34,11 +34,18 @@ export interface UserSession {
   id: string;
   email: string;
   fullName: string;
+  name?: string;
   phone?: string;
-  role: 'USER' | 'BUSINESS' | 'PLATFORM_ADMIN';
+  role: 'USER' | 'BUSINESS' | 'PLATFORM_ADMIN' | string;
+  status?: string;
   mustChangePassword?: boolean;
   memberships?: BusinessMembership[];
   avatarUrl?: string;
+  avatar?: string | null;
+  profile?: {
+    fullName?: string;
+    avatar?: string;
+  };
   business?: {
     id: string;
     name?: string;

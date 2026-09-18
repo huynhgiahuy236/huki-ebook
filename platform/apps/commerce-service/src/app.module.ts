@@ -15,7 +15,12 @@ import { PublishersModule } from './modules/publishers/publishers.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { CommerceEventsModule } from './modules/events/events.module';
+import { WalletModule } from './modules/wallet/wallet.module';
+import { LedgerModule } from './modules/ledger/ledger.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
+import { PayoutModule } from './modules/payout/payout.module';
 import { HealthController } from './health.controller';
+import { MonitoringModule } from '@huki/shared';
 
 @Module({
   imports: [
@@ -49,7 +54,12 @@ import { HealthController } from './health.controller';
     CartModule,
     OrdersModule,
     PaymentsModule,
+    WalletModule,
+    LedgerModule,
+    PayoutModule,
+    ReconciliationModule,
     CommerceEventsModule,
+    MonitoringModule,
   ],
   controllers: [HealthController],
 })

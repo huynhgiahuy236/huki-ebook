@@ -50,7 +50,144 @@ export interface AdminBookFilter {
   limit?: number;
 }
 
+export interface AdminDisputeFilter {
+  status?: string;
+  type?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export type ArbitrationRuling =
+  | 'BUYER_WINS'
+  | 'SELLER_WINS'
+  | 'PARTIAL_SETTLEMENT'
+  | 'CARRIER_AT_FAULT'
+  | 'REQUEST_MORE_INFO';
+
+export interface DisputeItem {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  userId: string;
+  grandTotal: number;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  sellerOrderId?: string | null;
+  type: string;
+  description: string;
+  resolution: string;
+  evidence: string[];
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  ruling?: string | null;
+  rulingNotes?: string | null;
+  refundPercentage?: number | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  adminEmail?: string | null;
+}
+
+export interface DisputeDetailData {
+  disputeId: string;
+  orderId: string;
+  orderCode: string;
+  buyerId?: string;
+  orderGrandTotal: number;
+  orderPaymentMethod?: string;
+  orderPaymentStatus?: string;
+  orderStatus?: string;
+  shippingAddress?: any;
+  sellerOrderId?: string | null;
+  targetSellerOrder?: {
+    id: string;
+    code: string;
+    storeId: string;
+    ownerUserId: string;
+    grandTotal: number;
+    status: string;
+    carrier?: string;
+    trackingCode?: string;
+    items: Array<{
+      id: string;
+      bookId: string;
+      bookTitle: string;
+      bookCoverUrl?: string;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+      format: string;
+    }>;
+  } | null;
+  type: string;
+  description: string;
+  resolution: string;
+  evidence: string[];
+  currentStatus: string;
+  isFinalized: boolean;
+  ruling?: string | null;
+  rulingNotes?: string | null;
+  refundPercentage?: number | null;
+  resolvedAt?: string | null;
+  resolvedBy?: string | null;
+  adminEmail?: string | null;
+  timeline: Array<{
+    id: string;
+    fromStatus?: string;
+    toStatus: string;
+    title: string;
+    description?: string;
+    actorType: string;
+    actorId?: string;
+    metadata?: any;
+    createdAt: string;
+  }>;
+}
+
+export interface ArbitrateDisputePayload {
+  ruling: ArbitrationRuling;
+  notes: string;
+  refundPercentage?: number;
+  targetSellerOrderId?: string;
+}
+
 export const adminApi = {
+  /**
+   * Lấy danh sách tranh chấp / khiếu nại (Task 64 / POL-12)
+   */
+  async getDisputes(params: AdminDisputeFilter = {}): Promise<ApiResponse<{ data: DisputeItem[]; total: number }>> {
+    const query = new URLSearchParams();
+    if (params.status) query.append('status', params.status);
+    if (params.type) query.append('type', params.type);
+    if (params.search) query.append('search', params.search);
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+
+    const qs = query.toString();
+    return apiClient<{ data: DisputeItem[]; total: number }>(`/orders/admin/disputes${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Lấy chi tiết hồ sơ tranh chấp và bằng chứng (Task 64 / POL-12)
+   */
+  async getDisputeDetail(disputeId: string): Promise<ApiResponse<DisputeDetailData>> {
+    return apiClient<DisputeDetailData>(`/orders/admin/disputes/${disputeId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Ban hành phán quyết trọng tài Platform Admin (Task 64 / POL-12)
+   */
+  async arbitrateDispute(disputeId: string, payload: ArbitrateDisputePayload): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/orders/admin/disputes/${disputeId}/arbitrate`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
   /**
    * Lấy danh sách doanh nghiệp dành riêng cho Admin HUKI
    */
