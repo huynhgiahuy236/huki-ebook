@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { randomBytes } from "crypto";
 import { PrismaService } from "../../prisma/prisma.service";
@@ -25,6 +25,7 @@ import { FlashSaleClientService } from "./flash-sale-client.service";
 import { ShippingClientService } from "../shipping/shipping-client.service";
 import { VoucherClientService } from "../voucher/voucher-client.service";
 import { PricingCalculatorService, PricingItem, VoucherSelection } from "../voucher/pricing-calculator.service";
+import { SanctionsService } from "../sanctions/sanctions.service";
 
 export interface CheckoutSnapshotItem {
   cartItemId: string;
@@ -98,6 +99,7 @@ export class CheckoutService {
     private readonly shippingClient: ShippingClientService,
     private readonly voucherClient: VoucherClientService,
     private readonly pricingCalculator: PricingCalculatorService,
+    @Optional() private readonly sanctionsService?: SanctionsService,
   ) {}
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
@@ -167,6 +169,13 @@ export class CheckoutService {
         };
       }),
     );
+
+    if (this.sanctionsService) {
+      const distinctStoreIds = Array.from(new Set(items.map((item) => item.storeId)));
+      for (const storeId of distinctStoreIds) {
+        await this.sanctionsService.assertCanReceiveOrders(storeId);
+      }
+    }
 
     const hasPhysicalItems = items.some(
       (item) => item.format === CartItemFormat.PHYSICAL,
@@ -446,6 +455,13 @@ export class CheckoutService {
           dto.paymentProvider.toUpperCase() !== "PAYOS"
         ) {
           throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
+        }
+
+        if (this.sanctionsService) {
+          const distinctStoreIds = Array.from(new Set(finalSnapshot.groups.map((group) => group.storeId)));
+          for (const storeId of distinctStoreIds) {
+            await this.sanctionsService.assertCanReceiveOrders(storeId);
+          }
         }
 
         // Create order

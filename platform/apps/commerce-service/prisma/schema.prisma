@@ -968,3 +968,102 @@ model FinanceReconciliationRun {
   @@map("finance_reconciliation_runs")
 }
 
+// ============================================
+// NOTIFICATIONS (Commerce In-App Notifications)
+// ============================================
+
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  type      String
+  title     String
+  message   String?
+  data      Json?
+  isRead    Boolean   @default(false) @map("is_read")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
+// ============================================
+// SANCTIONS & ENFORCEMENT (Task 83 / Phase 09)
+// ============================================
+
+enum SanctionLevel {
+  WARNING
+  PROBATION
+  SUSPENSION
+  BAN
+}
+
+enum SanctionStatus {
+  ACTIVE
+  APPEALED
+  LIFTED
+}
+
+enum AppealDecision {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Sanction {
+  id            String         @id @default(uuid())
+  storeId       String         @map("store_id")
+  sellerId      String         @map("seller_id")
+  level         SanctionLevel
+  status        SanctionStatus @default(ACTIVE)
+  reason        String
+  violationCode String?        @map("violation_code")
+  issuedBy      String         @map("issued_by")
+  issuedAt      DateTime       @default(now()) @map("issued_at")
+  expiresAt     DateTime?      @map("expires_at")
+
+  // Revocation / Lift Audit
+  liftedBy      String?        @map("lifted_by")
+  liftedAt      DateTime?      @map("lifted_at")
+  liftReason    String?        @map("lift_reason")
+
+  // Evidence & Metadata
+  evidence      Json?
+  metadata      Json?          @default("{}")
+
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  // Relations: Strict 1-to-1 Appeal
+  appeal        SanctionAppeal?
+
+  @@index([storeId, status])
+  @@index([storeId, expiresAt])
+  @@map("sanctions")
+}
+
+model SanctionAppeal {
+  id             String         @id @default(uuid())
+  sanctionId     String         @unique @map("sanction_id")
+  sanction       Sanction       @relation(fields: [sanctionId], references: [id], onDelete: Cascade)
+  storeId        String         @map("store_id")
+  sellerId       String         @map("seller_id")
+
+  reason         String
+  evidence       Json?
+
+  decision       AppealDecision @default(PENDING)
+  decisionReason String?        @map("decision_reason")
+  reviewedBy     String?        @map("reviewed_by")
+  reviewedAt     DateTime?      @map("reviewed_at")
+
+  submittedAt    DateTime       @default(now()) @map("submitted_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@index([decision])
+  @@map("sanction_appeals")
+}

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BookActor } from '../../common/book-auth.guard';
 import { getSellerScope } from '../../common/seller-scope.util';
@@ -10,16 +10,25 @@ import { BookListQueryDto, BookSortBy } from './dto/book-list-query.dto';
 import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
+import { SanctionsService } from '../sanctions/sanctions.service';
 
 @Injectable()
 export class BooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly sanctionsService?: SanctionsService,
+  ) {}
 
   async create(dto: CreateBookDto, actor: BookActor) {
     const scope = await getSellerScope(actor);
     // Business is the storefront. The physical column is still named store_id
     // for database compatibility while the Store domain is being retired.
     const storeId = dto.businessId || dto.storeId || (scope.storeIds.length > 0 ? scope.storeIds[0] : actor.sub) || '00000000-0000-0000-0000-000000000000';
+
+    if (this.sanctionsService) {
+      await this.sanctionsService.assertCanMutateBooks(storeId);
+    }
+
     const format = dto.format || (dto.physicalDetails ? (dto.digitalDetails ? BookFormat.BOTH : BookFormat.PHYSICAL) : BookFormat.DIGITAL);
     const description = dto.description ? dto.description.trim() : 'Mô tả tác phẩm sách';
     const price = dto.price ?? 0;
@@ -279,6 +288,10 @@ export class BooksService {
 
     if (existing!.status === BookStatus.ARCHIVED) {
       throwConflict(ErrorCode.BOOK_ARCHIVED);
+    }
+
+    if (this.sanctionsService) {
+      await this.sanctionsService.assertCanMutateBooks(existing!.storeId);
     }
 
     const categoryId = dto.categoryId ?? existing!.categoryId;

@@ -34,6 +34,10 @@ const configuration = () => ({
       host: process.env.PROMOTION_SERVICE_HOST || 'localhost',
       port: parseInt(process.env.PROMOTION_SERVICE_PORT || '3007', 10),
     },
+    analytics: {
+      host: process.env.ANALYTICS_SERVICE_HOST || 'localhost',
+      port: parseInt(process.env.ANALYTICS_SERVICE_PORT || '3008', 10),
+    },
   },
   jwt: {
     secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',

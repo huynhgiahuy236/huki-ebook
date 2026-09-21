@@ -17,8 +17,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { CommerceEventsModule } from './modules/events/events.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { LedgerModule } from './modules/ledger/ledger.module';
-import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { PayoutModule } from './modules/payout/payout.module';
+import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SanctionsModule } from './modules/sanctions/sanctions.module';
 import { HealthController } from './health.controller';
 import { MonitoringModule } from '@huki/shared';
 
@@ -46,6 +48,8 @@ import { MonitoringModule } from '@huki/shared';
     CommonModule,
     PrismaModule,
     RedisModule,
+    NotificationsModule,
+    SanctionsModule,
     CategoriesModule,
     AuthorsModule,
     PublishersModule,

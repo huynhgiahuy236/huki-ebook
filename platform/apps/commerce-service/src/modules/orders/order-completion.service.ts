@@ -149,7 +149,7 @@ export class OrderCompletionService {
     if (remaining > 0) return false;
     const order = await tx.order.findUnique({
       where: { id: orderId },
-      include: { sellerOrders: true },
+      include: { sellerOrders: { include: { items: true } } },
     });
     if (!order || order.status === 'COMPLETED' || order.status === 'CANCELLED')
       return false;
@@ -252,12 +252,23 @@ export class OrderCompletionService {
       orderId,
       orderCode: order.code,
       userId: order.userId,
-      amount: Number(order.grandTotal),
+      amount: order.grandTotal.toString(),
+      grandTotal: order.grandTotal.toString(),
       paymentMethod: order.paymentMethod,
-      sellerOrders: order.sellerOrders.map(({ id, ownerUserId, storeId }) => ({
-        sellerOrderId: id,
-        ownerUserId,
-        storeId,
+      sellerOrders: order.sellerOrders.map((so) => ({
+        sellerOrderId: so.id,
+        ownerUserId: so.ownerUserId,
+        storeId: so.storeId,
+        grandTotal: so.grandTotal ? so.grandTotal.toString() : '0.00',
+        itemSubtotal: so.itemSubtotal ? so.itemSubtotal.toString() : '0.00',
+        shippingFee: so.shippingFee ? so.shippingFee.toString() : '0.00',
+        items: (so.items || []).map((item) => ({
+          orderItemId: item.id,
+          bookId: item.bookId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice ? item.unitPrice.toString() : '0.00',
+          subtotal: item.subtotal ? item.subtotal.toString() : '0.00',
+        })),
       })),
     };
     const outbox: Prisma.OutboxEventCreateManyInput[] = [

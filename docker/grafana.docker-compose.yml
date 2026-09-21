@@ -16,8 +16,8 @@ services:
       - GF_UNIFIED_ALERTING_ENABLED=true
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./provisioning:/etc/grafana/provisioning
-      - ./dashboards:/var/lib/grafana/dashboards
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - huki-network
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ../platform/config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./platform/config/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

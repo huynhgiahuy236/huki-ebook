@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../dist/out-tsc/analytics-service",
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "prisma/generated/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+}

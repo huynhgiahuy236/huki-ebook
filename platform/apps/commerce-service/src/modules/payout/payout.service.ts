@@ -5,12 +5,14 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { WalletSecurityService } from '../wallet/wallet-security.service';
+import { SanctionsService } from '../sanctions/sanctions.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import {
   LedgerAccountType,
@@ -45,6 +47,7 @@ export class PayoutService {
     private readonly walletService: WalletService,
     private readonly ledgerService: LedgerService,
     private readonly walletSecurityService: WalletSecurityService,
+    @Optional() private readonly sanctionsService?: SanctionsService,
   ) {}
 
   /**
@@ -159,6 +162,11 @@ export class PayoutService {
   ): Promise<PayoutRequestView> {
     // Step 1: Authenticate actor & verify store authorization
     this.validateActorStoreAccess(dto.storeId, actor);
+
+    // Step 1b: Verify store is not restricted by sanction
+    if (this.sanctionsService) {
+      await this.sanctionsService.assertCanRequestPayout(dto.storeId);
+    }
 
     // Step 2: Amount formatting & numeric validation (Must be Decimal > 0)
     let decAmount: Decimal;

@@ -137,6 +137,21 @@ export const BUSINESS_EVENTS = {
   REJECTED: 'BUSINESS_REJECTED',
   SUSPENDED: 'BUSINESS_SUSPENDED',
   STORE_CREATED: 'STORE_CREATED',
-  STORE_SUSPENDED: 'STORE_SUSPENDED',
-  MEMBER_ADDED: 'MEMBER_ADDED',
+} as const;
+
+// ============================================
+// SETTLEMENT EVENTS (Phase 08 / Phase 09)
+// ============================================
+export const SETTLEMENT_EVENTS = {
+  COMPLETED: 'SETTLEMENT_COMPLETED',
+} as const;
+
+// ============================================
+// ANALYTICS TELEMETRY EVENT TYPES (Phase 09)
+// ============================================
+export const ANALYTICS_EVENT_TYPES = {
+  PAGE_VIEW: 'PAGE_VIEW',
+  PRODUCT_VIEW: 'PRODUCT_VIEW',
+  ADD_TO_CART: 'ADD_TO_CART',
+  SEARCH_QUERY: 'SEARCH_QUERY',
 } as const;

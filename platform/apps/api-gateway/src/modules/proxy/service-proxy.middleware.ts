@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { IncomingHttpHeaders, request as httpRequest } from 'node:http';
 import { Request, Response, NextFunction } from 'express';
 
-type ServiceName = 'identity' | 'business' | 'commerce' | 'shipping' | 'community' | 'promotion';
+type ServiceName = 'identity' | 'business' | 'commerce' | 'shipping' | 'community' | 'promotion' | 'analytics';
 
 const ROUTES: Record<string, ServiceName> = {
   auth: 'identity',
@@ -36,6 +36,9 @@ const ROUTES: Record<string, ServiceName> = {
   vouchers: 'promotion',
   banners: 'promotion',
   'flash-sales': 'promotion',
+  sanctions: 'commerce',
+  events: 'analytics',
+  analytics: 'analytics',
 };
 
 const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);

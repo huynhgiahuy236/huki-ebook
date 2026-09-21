@@ -23,7 +23,7 @@ export class BookUploadsService {
     private readonly configService: ConfigService,
     @Inject(COVER_STORAGE) private readonly coverStorage: CoverStorage,
     @Inject(EBOOK_STORAGE) private readonly ebookStorage: EbookStorage,
-  ) {}
+  ) { }
 
   async uploadCover(bookId: string, file: Express.Multer.File | undefined, actor: BookActor) {
     const book = await this.prisma.book.findUnique({ where: { id: bookId } });
@@ -73,8 +73,6 @@ export class BookUploadsService {
       const data: any = {};
       if (kind === PdfFileKind.SOURCE) {
         data.pdfKey = key;
-        data.fileSize = String(file!.size);
-        data.mimeType = 'application/pdf';
       } else {
         data.previewPdfKey = key;
       }
