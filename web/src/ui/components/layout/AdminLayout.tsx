@@ -111,6 +111,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/accounts': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/users-management': { parent: 'Quản Trị Người Dùng', title: 'Quản Lý Người Dùng Toàn Sàn' },
     '/admin/finance': { parent: 'Tài Chính & Kế Toán', title: 'Báo Cáo & Đối Soát Doanh Thu' },
+    '/admin/escrow': { parent: 'Tài Chính & Vận Hành', title: 'Tài Khoản Trung Gian & Quản Lý Dòng Tiền' },
     '/admin/disputes': { parent: 'Tài Chính & Vận Hành', title: 'Trọng Tài Khiếu Nại & Tranh Chấp' },
     '/admin/marketing': { parent: 'Tiếp Thị & Khuyến Mãi', title: 'Chiến Dịch & Voucher' },
     '/admin/drm-vault': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Kho Khóa Bảo Mật DRM' },
@@ -208,6 +209,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     {
       group: 'TÀI CHÍNH & VẬN HÀNH',
       items: [
+        { label: 'Tài Khoản Trung Gian', to: '/admin/escrow', icon: 'account_balance_wallet' },
         { label: 'Tài Chính & Kế Toán', to: '/admin/finance', icon: 'payments' },
         { label: 'Trọng Tài Khiếu Nại', to: '/admin/disputes', icon: 'gavel' },
         { label: 'Tiếp Thị & Khuyến Mãi', to: '/admin/marketing', icon: 'campaign' },

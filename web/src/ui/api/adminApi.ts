@@ -423,5 +423,32 @@ export const adminApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Lấy danh sách toàn bộ các món hàng trong quỹ tài khoản trung gian
+   */
+  async getEscrowItems(params?: { status?: string; search?: string }): Promise<ApiResponse<any[]>> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString();
+    return apiClient<any[]>(`/orders/admin/escrow/items${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Cập nhật trạng thái dòng tiền của từng món hàng trong quỹ tài khoản trung gian
+   */
+  async updateEscrowItemStatus(
+    orderItemId: string,
+    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+  ): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/orders/admin/escrow/items/${orderItemId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    });
+  },
 };
+
 

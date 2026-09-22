@@ -10,6 +10,7 @@ import {
   Get,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
   UploadedFile,
@@ -120,6 +121,44 @@ export class OrdersController {
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   adminListFrozenEscrows(@CurrentBookActor() actor: BookActor) {
     return this.orders.listFrozenEscrows(actor);
+  }
+
+  @Get('admin/escrow/items')
+  @ApiOperation({
+    summary: 'List all escrow holding items for Platform Admin (Task fix_checkout_v1)',
+    description: 'Platform Admin reviews all item-level payments in intermediate escrow holding.',
+  })
+  @ApiResponse({ status: 200, description: 'List of escrow items' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can access intermediate escrow account items',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminListEscrowItems(
+    @CurrentBookActor() actor: BookActor,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orders.adminListEscrowItems(actor, { status, search });
+  }
+
+  @Patch('admin/escrow/items/:orderItemId/status')
+  @ApiOperation({
+    summary: 'Update item-level escrow status (Task fix_checkout_v1)',
+    description: 'Platform Admin changes escrow status (HOLDING, FROZEN, RELEASED) for a single order item.',
+  })
+  @ApiParam({ name: 'orderItemId', description: 'Order Item UUID' })
+  @ApiResponse({ status: 200, description: 'Escrow status updated' })
+  @ApiNotFoundResponse({ description: 'Order item not found' })
+  @ApiForbiddenResponse({
+    description: 'Only Platform Admin can update item escrow status',
+  })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  adminUpdateEscrowItemStatus(
+    @CurrentBookActor() actor: BookActor,
+    @Param('orderItemId', ParseUUIDPipe) orderItemId: string,
+    @Body() dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+  ) {
+    return this.orders.adminUpdateEscrowItemStatus(actor, orderItemId, dto);
   }
 
   @Get()

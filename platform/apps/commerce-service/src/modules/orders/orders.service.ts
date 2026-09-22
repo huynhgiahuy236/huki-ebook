@@ -1800,6 +1800,170 @@ export class OrdersService {
   async listFrozenEscrows(actor: BookActor) {
     return this.escrow.listFrozenEscrows(actor);
   }
+
+  /**
+   * List all items currently in platform escrow holding account (Task fix_checkout_v1)
+   */
+  async adminListEscrowItems(actor: BookActor, query?: { status?: string; search?: string }) {
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        'Chỉ Platform Admin mới có quyền truy cập tài khoản trung gian',
+      );
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: {
+        paymentStatus: PaymentStatus.SUCCEEDED,
+      },
+      include: {
+        sellerOrders: {
+          include: {
+            items: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const histories = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        orderId: { in: orders.map((o) => o.id) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const items: any[] = [];
+
+    for (const order of orders) {
+      const shipping = (order.shippingAddress as any) || {};
+      const customerName = shipping.recipientName || 'Khách Hàng HUKI';
+      const customerPhone = shipping.phone || '0901234567';
+
+      for (const sellerOrder of order.sellerOrders) {
+        for (const item of sellerOrder.items) {
+          // Check item level history metadata
+          const itemHistory = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.metadata as any)?.orderItemId === item.id,
+          );
+
+          const freezeEntry = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.toStatus === 'ESCROW_FROZEN' || h.toStatus === 'DISPUTE_OPENED') &&
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+          );
+          const unfreezeEntry = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.toStatus === 'ESCROW_UNFROZEN' || h.toStatus === 'ESCROW_RELEASED' || h.toStatus.startsWith('RULING_')) &&
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+          );
+
+          let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' = 'HOLDING';
+
+          if (itemHistory) {
+            const target = (itemHistory.metadata as any)?.targetStatus;
+            if (target) escrowStatus = target;
+          } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
+            escrowStatus = 'FROZEN';
+          } else if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || sellerOrder.status === 'COMPLETED')) {
+            escrowStatus = 'RELEASED';
+          }
+
+          if (!query?.status || query.status === 'ALL' || escrowStatus === query.status) {
+            items.push({
+              id: item.id,
+              orderId: order.id,
+              orderCode: order.code,
+              orderCreatedAt: order.createdAt.toISOString(),
+              storeId: sellerOrder.storeId,
+              storeName: sellerOrder.storeId,
+              customerName,
+              customerPhone,
+              bookId: item.bookId,
+              bookTitle: item.bookTitle,
+              quantity: item.quantity,
+              unitPrice: Number(item.unitPrice),
+              subtotal: Number(item.subtotal),
+              escrowStatus,
+            });
+          }
+        }
+      }
+    }
+
+    return items;
+  }
+
+  /**
+   * Update item-level escrow status (Task fix_checkout_v1)
+   */
+  async adminUpdateEscrowItemStatus(
+    actor: BookActor,
+    orderItemId: string,
+    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+  ) {
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        'Chỉ Platform Admin mới có quyền cập nhật trạng thái dòng tiền',
+      );
+    }
+
+    const item = await this.prisma.orderItem.findUnique({
+      where: { id: orderItemId },
+      include: {
+        sellerOrder: {
+          include: {
+            order: true,
+          },
+        },
+      },
+    });
+
+    if (!item) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy món hàng');
+    }
+
+    const historyStatus =
+      dto.status === 'FROZEN'
+        ? 'ESCROW_FROZEN'
+        : dto.status === 'RELEASED'
+        ? 'ESCROW_RELEASED'
+        : 'ESCROW_HOLDING';
+
+    await this.prisma.orderStatusHistory.create({
+      data: {
+        orderId: item.sellerOrder.orderId,
+        sellerOrderId: item.sellerOrder.id,
+        fromStatus: 'ESCROW_STATUS_CHANGE',
+        toStatus: historyStatus,
+        title: `Cập nhật trạng thái dòng tiền món ${item.bookTitle} sang ${dto.status}`,
+        description: dto.reason || `Admin cập nhật dòng tiền món ${item.bookTitle} sang ${dto.status}`,
+        actorType: 'ADMIN',
+        actorId: actor.sub,
+        metadata: {
+          orderItemId,
+          bookId: item.bookId,
+          bookTitle: item.bookTitle,
+          subtotal: Number(item.subtotal),
+          targetStatus: dto.status,
+          updatedBy: actor.email,
+        },
+      },
+    });
+
+    return {
+      orderItemId,
+      status: dto.status,
+      message: `Đã cập nhật trạng thái dòng tiền món ${item.bookTitle} sang ${dto.status}`,
+    };
+  }
 }
+
 
 
