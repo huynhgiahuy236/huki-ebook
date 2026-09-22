@@ -205,6 +205,29 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       ]
     },
     {
+      title: 'QUẢN LÝ ƯU ĐÃI',
+      items: [
+        { 
+          to: '/seller/promotions/discounts', 
+          icon: 'sell', 
+          label: 'Giảm Giá Tự Do', 
+          permission: PERMISSIONS.PRODUCT_UPDATE 
+        },
+        { 
+          to: '/seller/promotions/vouchers', 
+          icon: 'confirmation_number', 
+          label: 'Voucher Giảm Giá', 
+          isDeferred: true 
+        },
+        { 
+          to: '/seller/promotions/flash-sale', 
+          icon: 'bolt', 
+          label: 'Flash Sale', 
+          isDeferred: true 
+        }
+      ]
+    },
+    {
       title: 'TÀI CHÍNH & DOANH THU',
       items: [
         { 
@@ -219,10 +242,22 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       title: 'CỬA HÀNG & NHÂN SỰ',
       items: [
         { 
+          to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
+          icon: 'storefront', 
+          label: 'Xem Gian Hàng', 
+          permission: PERMISSIONS.STORE_VIEW 
+        },
+        { 
           to: '/seller/dashboard', 
           icon: 'dashboard', 
           label: 'Bảng Tổng Quan (Dashboard)', 
           permission: PERMISSIONS.DASHBOARD_VIEW 
+        },
+        { 
+          to: '/seller/followers', 
+          icon: 'group', 
+          label: 'Người Theo Dõi', 
+          permission: PERMISSIONS.STORE_VIEW 
         },
         { 
           to: '/seller/business', 

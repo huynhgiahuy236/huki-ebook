@@ -49,6 +49,7 @@ export interface UserSession {
   business?: {
     id: string;
     name?: string;
+    slug?: string;
     ownerId?: string;
     currentMember?: {
       role: string;

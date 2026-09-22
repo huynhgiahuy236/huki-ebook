@@ -325,28 +325,39 @@ export default function HomePage() {
   // Combined Bestsellers
   const allBestsellers = useMemo(() => {
     let rankCounter = 1;
-    const realItems = realBooks.map((b) => ({
-      id: b.id,
-      rank: rankCounter++,
-      title: b.title,
-      author: b.author?.name || "Tác giả HUKI",
-      shop: b.publisher?.name || "Alpha Books Official",
-      cover:
-        b.coverUrl ||
-        b.coverImage ||
-        "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600",
-      price: b.price || 150000,
-      originalPrice: b.originalPrice || Math.round((b.price || 150000) * 1.25),
-      rating: 5.0,
-      reviews: "120",
-      soldSummary: "Mới phát hành",
-      category: b.format === "DIGITAL" ? "ebook" : "paper",
-      isReal: true,
-      isMock: false,
-    }));
+    const realItems = realBooks.map((b) => {
+      const salePrice = b.price || 150000;
+      const origPrice = b.originalPrice && b.originalPrice > salePrice ? b.originalPrice : undefined;
+      const discountPct = (b as any).discountPercent;
+      const discountTag = discountPct ? `-${discountPct}%` : undefined;
+
+      return {
+        id: b.id,
+        rank: rankCounter++,
+        title: b.title,
+        author: b.author?.name || "Tác giả HUKI",
+        shop: b.publisher?.name || "Alpha Books Official",
+        cover:
+          b.coverUrl ||
+          b.coverImage ||
+          "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600",
+        price: salePrice,
+        originalPrice: origPrice,
+        discount: discountTag,
+        discountPercent: discountPct,
+        rating: 5.0,
+        reviews: "120",
+        soldSummary: "Mới phát hành",
+        category: b.format === "DIGITAL" ? "ebook" : "paper",
+        isReal: true,
+        isMock: false,
+      };
+    });
     const mockItems = bestsellerBooks.map((b) => ({
       ...b,
       rank: rankCounter++,
+      discount: undefined as string | undefined,
+      discountPercent: undefined as number | undefined,
       isReal: false,
       isMock: true,
     }));
@@ -498,24 +509,33 @@ export default function HomePage() {
   const allEbooks = useMemo(() => {
     const realEbooks = realBooks
       .filter((b) => b.format === "DIGITAL" || b.digitalDetails?.digitalEnabled)
-      .map((b) => ({
-        id: b.id,
-        title: b.title,
-        author: b.author?.name || "Tác giả HUKI",
-        price: b.price || 99000,
-        originalPrice: b.originalPrice || 150000,
-        priceLabel: `${(b.price || 99000).toLocaleString("vi-VN")}₫`,
-        cover:
-          b.coverUrl ||
-          b.coverImage ||
-          "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600",
-        rating: 5.0,
-        reviews: "120",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isReal: true,
-        isMock: false,
-      }));
+      .map((b) => {
+        const salePrice = b.price || 99000;
+        const origPrice = b.originalPrice && b.originalPrice > salePrice ? b.originalPrice : undefined;
+        const discountPct = (b as any).discountPercent;
+        const discountTag = discountPct ? `-${discountPct}%` : undefined;
+
+        return {
+          id: b.id,
+          title: b.title,
+          author: b.author?.name || "Tác giả HUKI",
+          price: salePrice,
+          originalPrice: origPrice,
+          discount: discountTag,
+          discountPercent: discountPct,
+          priceLabel: `${salePrice.toLocaleString("vi-VN")}₫`,
+          cover:
+            b.coverUrl ||
+            b.coverImage ||
+            "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=600",
+          rating: 5.0,
+          reviews: "120",
+          format: "Ebook DRM",
+          formatType: "ebook",
+          isReal: true,
+          isMock: false,
+        };
+      });
     const mockItems = ebookShelf.map((b) => ({
       ...b,
       isReal: false,
@@ -1344,6 +1364,13 @@ export default function HomePage() {
                   </span>
                 )}
 
+                {/* Discount Tag */}
+                {!isMock && book.discount && (
+                  <span className="absolute top-2 right-2 z-20 bg-[#B02E1B] text-white text-[9.5px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                    {book.discount}
+                  </span>
+                )}
+
                 {/* Cover Image */}
                 <Link
                   href={isMock ? "#" : `/book/${book.id}`}
@@ -1390,8 +1417,15 @@ export default function HomePage() {
 
                   <div className="mt-2 pt-1.5 border-t border-outline-variant/20 flex items-center justify-between">
                     <div>
-                      <div className="text-[13.5px] font-bold text-tertiary">
-                        {book.price.toLocaleString("vi-VN")}₫
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-[13.5px] font-bold text-tertiary">
+                          {book.price.toLocaleString("vi-VN")}₫
+                        </span>
+                        {book.originalPrice && book.originalPrice > book.price && (
+                          <span className="text-[10px] text-gray-400 line-through">
+                            {book.originalPrice.toLocaleString("vi-VN")}₫
+                          </span>
+                        )}
                       </div>
                       <span className="text-[9.5px] text-on-surface-variant/80 font-medium block">
                         {book.soldSummary}

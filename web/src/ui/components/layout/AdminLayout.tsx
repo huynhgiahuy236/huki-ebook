@@ -123,7 +123,21 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const currentRouteInfo = routeMap[pathname] || { parent: 'Ban Quản Trị', title: 'Quản Trị Nền Tảng' };
 
-  const menuSections = [
+  interface AdminMenuItem {
+    label: string;
+    to: string;
+    icon: string;
+    count?: string;
+    badgeColor?: string;
+    isDeferred?: boolean;
+  }
+
+  interface AdminMenuSection {
+    group: string;
+    items: AdminMenuItem[];
+  }
+
+  const menuSections: AdminMenuSection[] = [
     {
       group: 'TỔNG QUAN HỆ THỐNG',
       items: [
@@ -182,6 +196,13 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           to: '/admin/drm-vault',
           icon: 'lock',
         },
+      ],
+    },
+    {
+      group: 'QUẢN LÝ ƯU ĐÃI',
+      items: [
+        { label: 'Voucher Giảm Giá', to: '/admin/promotions/vouchers', icon: 'confirmation_number', isDeferred: true },
+        { label: 'Flash Sale', to: '/admin/promotions/flash-sale', icon: 'bolt', isDeferred: true },
       ],
     },
     {
@@ -332,6 +353,30 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                   </div>
                 )}
                 {sec.items.map((item, iIdx) => {
+                  if ((item as any).isDeferred) {
+                    return (
+                      <div
+                        key={iIdx}
+                        title={isSidebarCollapsed ? `${item.label} (Sắp ra mắt)` : undefined}
+                        className={`flex items-center relative ${isSidebarCollapsed ? 'justify-center px-0 py-2' : 'justify-between px-2.5 py-1.5'} rounded-xl text-xs font-semibold opacity-45 cursor-not-allowed pointer-events-none select-none text-gray-400 bg-black/[0.02]`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className="material-symbols-outlined text-[18px] shrink-0 text-gray-400">
+                            {item.icon}
+                          </span>
+                          {!isSidebarCollapsed && (
+                            <span className="truncate">{item.label}</span>
+                          )}
+                        </div>
+                        {!isSidebarCollapsed && (
+                          <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-gray-400 bg-gray-100 border border-gray-200 whitespace-nowrap shrink-0 ml-1.5">
+                            Sắp ra mắt
+                          </span>
+                        )}
+                      </div>
+                    );
+                  }
+
                   const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
                   return (
                     <Link
@@ -412,6 +457,25 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                       {sec.group}
                     </div>
                     {sec.items.map((item, iIdx) => {
+                      if (item.isDeferred) {
+                        return (
+                          <div
+                            key={iIdx}
+                            className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold opacity-45 cursor-not-allowed pointer-events-none select-none text-gray-400 bg-black/[0.02]"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="material-symbols-outlined text-[16px] text-gray-400">
+                                {item.icon}
+                              </span>
+                              <span>{item.label}</span>
+                            </div>
+                            <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-gray-400 bg-gray-100 border border-gray-200">
+                              Sắp ra mắt
+                            </span>
+                          </div>
+                        );
+                      }
+
                       const isActive = pathname === item.to;
                       return (
                         <Link

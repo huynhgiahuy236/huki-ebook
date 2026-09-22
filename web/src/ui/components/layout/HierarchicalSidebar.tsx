@@ -106,6 +106,12 @@ export default function HierarchicalSidebar({
           ],
         },
         {
+          id: 'store-following',
+          title: 'Đang Theo Dõi',
+          to: '/following',
+          icon: 'favorite_border',
+        },
+        {
           id: 'store-audiobooks',
           title: 'Sách Nói & Podcasts',
           to: '/audiobooks',

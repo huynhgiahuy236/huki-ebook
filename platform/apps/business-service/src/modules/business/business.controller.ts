@@ -97,12 +97,51 @@ export class BusinessController {
 
   @Get('following/my')
   @ApiOperation({
+    summary: 'Get businesses followed by current user',
+    description: 'Returns a list of businesses followed by the logged-in user with store details.',
+  })
+  @ApiResponse({ status: 200, description: 'List of followed businesses' })
+  async getMyFollowedBusinesses(@CurrentUser('id') userId: string) {
+    const data = await this.businessService.getMyFollowedBusinesses(userId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('following/my-ids')
+  @ApiOperation({
     summary: 'Get IDs of businesses followed by current user',
     description: 'Returns a list of business IDs followed by the logged-in user.',
   })
   @ApiResponse({ status: 200, description: 'List of followed business IDs' })
-  async getMyFollowedBusinesses(@CurrentUser('id') userId: string) {
+  async getMyFollowedBusinessIds(@CurrentUser('id') userId: string) {
     const data = await this.businessService.getMyFollowedBusinessIds(userId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get(':id/followers')
+  @Public()
+  @ApiOperation({
+    summary: 'Get followers of a business (with pagination and search)',
+    description: 'Returns paginated list of users following the specified business/store.',
+  })
+  @ApiParam({ name: 'id', description: 'Business ID' })
+  async getBusinessFollowers(
+    @Param('id') businessId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+  ) {
+    const data = await this.businessService.getBusinessFollowers(
+      businessId,
+      page ? parseInt(page) : 1,
+      limit ? parseInt(limit) : 10,
+      search,
+    );
     return {
       success: true,
       data,

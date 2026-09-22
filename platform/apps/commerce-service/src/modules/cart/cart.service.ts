@@ -373,8 +373,10 @@ export class CartService {
   }
 
   private async resolveBookPrice(bookId: string, basePrice: number): Promise<number> {
+    const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
+
     try {
-      const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
+      // 1. Check active flash sale
       const res = await fetch(`http://localhost:${promotionPort}/api/v1/flash-sales/price/${bookId}`);
       if (res.ok) {
         const json = await res.json() as any;
@@ -386,6 +388,27 @@ export class CartService {
     } catch {
       // ignore
     }
+
+    try {
+      // 2. Check active seller book discount
+      const resDiscount = await fetch(`http://localhost:${promotionPort}/api/v1/discounts/active/${bookId}`);
+      if (resDiscount.ok) {
+        const json = await resDiscount.json() as any;
+        const discount = json.data || json;
+        if (discount && discount.value > 0) {
+          if (discount.type === 'PERCENTAGE') {
+            const calculated = Math.max(0, Math.round(basePrice * (1 - Number(discount.value) / 100)));
+            return calculated;
+          } else if (discount.type === 'FIXED_AMOUNT') {
+            const calculated = Math.max(0, Math.round(basePrice - Number(discount.value)));
+            return calculated;
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
     return basePrice;
   }
 
@@ -495,6 +518,8 @@ export class CartService {
         quantity: item.quantity,
         unitPrice,
         addedPrice,
+        originalPrice: Number(book.price),
+        discountAmount: Math.max(0, Number(book.price) - unitPrice),
         currentPrice: currentLivePrice,
         subtotal,
         isAvailable,

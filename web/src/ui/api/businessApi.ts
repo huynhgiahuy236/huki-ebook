@@ -42,6 +42,32 @@ export interface StoreData {
   createdAt: string;
 }
 
+export interface FollowerItem {
+  id: string;
+  userId: string;
+  customerCode: string;
+  fullName: string;
+  email?: string;
+  phone?: string | null;
+  avatar?: string | null;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  createdAt: string;
+}
+
+export interface FollowersPaginationData {
+  items: FollowerItem[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface FollowedBusinessItem {
+  followerId: string;
+  followedAt: string;
+  business: BusinessData;
+}
+
 export interface CreateBusinessPayload {
   name: string;
   taxCode?: string;
@@ -268,6 +294,16 @@ export const businessApi = {
   },
 
   /**
+   * Cập nhật thông tin cửa hàng / branding (logo, banner)
+   */
+  async updateStore(id: string, payload: Partial<CreateStorePayload>): Promise<ApiResponse<StoreData>> {
+    return apiClient<StoreData>(`/stores/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Phê duyệt Cửa hàng (Dành cho Admin HUKI)
    */
   async approveStore(id: string): Promise<ApiResponse<StoreData>> {
@@ -286,10 +322,19 @@ export const businessApi = {
   },
 
   /**
+   * Lấy danh sách chi tiết các Doanh nghiệp/NXB mà user hiện tại đang theo dõi
+   */
+  async getMyFollowedBusinesses(): Promise<ApiResponse<FollowedBusinessItem[]>> {
+    return apiClient<FollowedBusinessItem[]>('/businesses/following/my', {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Lấy danh sách ID các Doanh nghiệp/NXB mà user hiện tại đang theo dõi
    */
   async getMyFollowedBusinessIds(): Promise<ApiResponse<string[]>> {
-    return apiClient<string[]>('/businesses/following/my', {
+    return apiClient<string[]>('/businesses/following/my-ids', {
       method: 'GET',
     });
   },
@@ -310,6 +355,21 @@ export const businessApi = {
     return apiClient<{ followed: boolean; businessId: string; totalFollowers: number }>(`/businesses/${businessId}/follow`, {
       method: 'DELETE',
     });
+  },
+
+  /**
+   * Lấy danh sách Người theo dõi của gian hàng (Phân trang & Tìm kiếm)
+   */
+  async getBusinessFollowers(
+    businessId: string,
+    params?: { page?: number; limit?: number; search?: string },
+  ): Promise<ApiResponse<FollowersPaginationData>> {
+    const query = new URLSearchParams();
+    if (params?.page) query.set('page', String(params.page));
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.search) query.set('search', params.search);
+    const url = `/businesses/${businessId}/followers${query.toString() ? `?${query.toString()}` : ''}`;
+    return apiClient<FollowersPaginationData>(url, { method: 'GET' });
   },
 
   /**

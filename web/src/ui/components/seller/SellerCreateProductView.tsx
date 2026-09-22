@@ -352,13 +352,19 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         newErrors.ebookPrice = 'Vui lòng nhập giá Ebook DRM lớn hơn 0 ₫.';
       }
     } else if (selectedFormat === 'BOTH') {
-      if (!form.comboPrice || Number(form.comboPrice) <= 0) {
+      const phys = Number(form.physicalPrice) || 0;
+      const eb = Number(form.ebookPrice) || 0;
+      const combo = Number(form.comboPrice) || 0;
+
+      if (!form.comboPrice || combo <= 0) {
         newErrors.comboPrice = 'Vui lòng nhập giá bán Combo Hybrid lớn hơn 0 ₫.';
+      } else if (phys > 0 && eb > 0 && combo > (phys + eb)) {
+        newErrors.comboPrice = `Giá Combo Hybrid (${combo.toLocaleString('vi-VN')} ₫) không được vượt quá tổng giá gốc của sách giấy và ebook (${(phys + eb).toLocaleString('vi-VN')} ₫).`;
       }
-      if (!form.physicalPrice || Number(form.physicalPrice) <= 0) {
+      if (!form.physicalPrice || phys <= 0) {
         newErrors.physicalPrice = 'Vui lòng nhập giá sách in riêng lẻ.';
       }
-      if (!form.ebookPrice || Number(form.ebookPrice) <= 0) {
+      if (!form.ebookPrice || eb <= 0) {
         newErrors.ebookPrice = 'Vui lòng nhập giá Ebook DRM riêng lẻ.';
       }
     }
@@ -684,14 +690,6 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             >
               <span className="material-symbols-outlined text-xs">troubleshoot</span>
               <span>SEO ({seoAudit.score}/100)</span>
-            </button>
-            <button 
-              type="button"
-              onClick={() => scrollToSection('sec-basic')}
-              className="px-2.5 py-1.5 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container hover:border-theme-primary/30 transition-all flex items-center gap-1 shadow-xs cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">visibility</span>
-              <span>Xem Trước</span>
             </button>
           </div>
         </div>

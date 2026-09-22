@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useToast } from '@/ui/context/ToastContext';
+import { useAuth } from '@/ui/context/AuthContext';
 import BookCard, { type BookCardData } from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { businessApi, type BusinessData } from '@/ui/api/businessApi';
@@ -13,6 +14,7 @@ export default function ShopPage() {
   const params = useParams();
   const businessSlugOrId = (params?.id as string) || '';
   const { showToast } = useToast();
+  const { user, activeBusinessId } = useAuth();
 
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
@@ -21,6 +23,197 @@ export default function ShopPage() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isFollowed, setIsFollowed] = useState(false);
+  const [isFollowDropdownOpen, setIsFollowDropdownOpen] = useState(false);
+  const [isUnfollowModalOpen, setIsUnfollowModalOpen] = useState(false);
+  const [unfollowCountdown, setUnfollowCountdown] = useState(5);
+  const [isUnfollowing, setIsUnfollowing] = useState(false);
+  const followDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Owner branding state
+  const [isImageDropdownOpen, setIsImageDropdownOpen] = useState(false);
+  const [activeImageModal, setActiveImageModal] = useState<'avatar' | 'banner' | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [isApplyingImage, setIsApplyingImage] = useState(false);
+  const modalFileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Click outside listener for image dropdown & follow dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsImageDropdownOpen(false);
+      }
+      if (followDropdownRef.current && !followDropdownRef.current.contains(event.target as Node)) {
+        setIsFollowDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Check initial follow state
+  useEffect(() => {
+    if (user && business?.id) {
+      businessApi
+        .getMyFollowedBusinessIds()
+        .then((res) => {
+          if (res?.success && Array.isArray(res.data)) {
+            setIsFollowed(res.data.includes(business.id));
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user, business?.id]);
+
+  // Handle countdown for unfollow modal
+  useEffect(() => {
+    if (!isUnfollowModalOpen) {
+      setUnfollowCountdown(5);
+      return undefined;
+    }
+    setUnfollowCountdown(5);
+    const timer = window.setInterval(() => {
+      setUnfollowCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isUnfollowModalOpen]);
+
+  const handleFollowStore = async () => {
+    if (!user) {
+      showToast('Vui lòng đăng nhập để theo dõi gian hàng!', 'warning');
+      return;
+    }
+    if (!business?.id) return;
+
+    try {
+      const res = await businessApi.followBusiness(business.id);
+      if (res?.success) {
+        setIsFollowed(true);
+        showToast(`Đã theo dõi gian hàng ${business.name}!`, 'success');
+      } else {
+        showToast(res?.error?.message || 'Không thể theo dõi gian hàng', 'error');
+      }
+    } catch {
+      showToast('Có lỗi xảy ra khi theo dõi gian hàng', 'error');
+    }
+  };
+
+  const handleConfirmUnfollow = async () => {
+    if (unfollowCountdown > 0 || !business?.id) return;
+
+    setIsUnfollowing(true);
+    try {
+      const res = await businessApi.unfollowBusiness(business.id);
+      if (res?.success) {
+        setIsFollowed(false);
+        setIsFollowDropdownOpen(false);
+        setIsUnfollowModalOpen(false);
+        showToast(`Đã hủy theo dõi gian hàng ${business.name}!`, 'info');
+      } else {
+        showToast(res?.error?.message || 'Không thể hủy theo dõi', 'error');
+      }
+    } catch {
+      showToast('Có lỗi xảy ra khi hủy theo dõi', 'error');
+    } finally {
+      setIsUnfollowing(false);
+    }
+  };
+
+  // Check if current user is owner or manager of this business
+  const isOwner = Boolean(
+    user && business && (
+      (user.business?.id && user.business.id === business.id) ||
+      (user.business?.slug && user.business.slug.toLowerCase() === businessSlugOrId.toLowerCase()) ||
+      (business.slug && business.slug.toLowerCase() === businessSlugOrId.toLowerCase() && user.business?.id === business.id) ||
+      user.id === business.ownerId ||
+      activeBusinessId === business.id
+    )
+  );
+
+  // Xử lý chọn tệp từ máy trong modal
+  const handleModalFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_SIZE) {
+      showToast('Dung lượng ảnh vượt quá 2MB. Vui lòng chọn ảnh có dung lượng tối đa 2MB!', 'error');
+      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP).', 'error');
+      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setPreviewImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Xử lý bấm Áp dụng cập nhật ảnh vào DB
+  const handleApplyImage = async () => {
+    if (!activeImageModal) return;
+    setIsApplyingImage(true);
+    try {
+      const targetStoreId = business?.stores?.[0]?.id;
+      const isDefault = previewImage === 'DEFAULT';
+      const finalUrl = isDefault ? '' : (previewImage || '');
+
+      if (activeImageModal === 'avatar') {
+        if (targetStoreId) {
+          await businessApi.updateStore(targetStoreId, { logo: finalUrl });
+        }
+        setBusiness((prev) =>
+          prev
+            ? {
+                ...prev,
+                logo: isDefault ? undefined : (finalUrl || prev.logo),
+                stores: prev.stores?.length
+                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, logo: isDefault ? undefined : (finalUrl || s.logo) } : s))
+                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', logo: isDefault ? undefined : finalUrl }],
+              }
+            : null
+        );
+        showToast(isDefault ? 'Đã khôi phục ảnh đại diện mặc định!' : 'Cập nhật ảnh đại diện thành công!', 'success');
+      } else {
+        if (targetStoreId) {
+          await businessApi.updateStore(targetStoreId, { banner: finalUrl });
+        }
+        setBusiness((prev) =>
+          prev
+            ? {
+                ...prev,
+                banner: isDefault ? undefined : (finalUrl || prev.banner),
+                stores: prev.stores?.length
+                  ? prev.stores.map((s, idx) => (idx === 0 ? { ...s, banner: isDefault ? undefined : (finalUrl || s.banner) } : s))
+                  : [{ id: targetStoreId || '1', name: prev.name, slug: prev.slug || '', banner: isDefault ? undefined : finalUrl }],
+              }
+            : null
+        );
+        showToast(isDefault ? 'Đã khôi phục ảnh bìa mặc định!' : 'Cập nhật ảnh bìa gian hàng thành công!', 'success');
+      }
+      setActiveImageModal(null);
+      setPreviewImage(null);
+    } catch {
+      showToast('Có lỗi khi cập nhật ảnh. Vui lòng thử lại!', 'error');
+    } finally {
+      setIsApplyingImage(false);
+      if (modalFileInputRef.current) modalFileInputRef.current.value = '';
+    }
+  };
 
   const fetchBusinessData = useCallback(async () => {
     setIsLoadingStore(true);
@@ -80,10 +273,11 @@ export default function ShopPage() {
   const allStoreBooks: BookCardData[] = useMemo(() => {
     const formattedRealBooks: BookCardData[] = realBooks.map(rb => {
       const normalized = toCatalogBook(rb);
-      const priceVal = Number((rb as any).priceEbook || (rb as any).pricePaper || rb.price || 0);
-      const originalPriceVal = Number((rb as any).originalPriceEbook || (rb as any).originalPricePaper || rb.originalPrice || 0);
-      const hasEb = Boolean((rb as any).hasEbook || (rb as any).priceEbook || rb.digitalDetails?.digitalEnabled);
-      const hasPa = Boolean((rb as any).hasPaper || (rb as any).pricePaper || rb.physicalDetails?.physicalEnabled);
+      const rawRb = rb as any;
+      const priceVal = Number(rb.price !== undefined ? rb.price : rawRb.priceEbook || rawRb.pricePaper || 0);
+      const originalPriceVal = Number(rb.originalPrice !== undefined ? rb.originalPrice : rawRb.originalPriceEbook || rawRb.originalPricePaper || 0);
+      const hasEb = Boolean(rawRb.hasEbook || rawRb.priceEbook || rb.digitalDetails?.digitalEnabled);
+      const hasPa = Boolean(rawRb.hasPaper || rawRb.pricePaper || rb.physicalDetails?.physicalEnabled);
       const fmt = (hasEb && hasPa) ? 'Combo' : hasEb ? 'Ebook' : 'Sách giấy';
       const fmtType = (hasEb && hasPa) ? 'hybrid' : hasEb ? 'ebook' : 'physical';
 
@@ -179,10 +373,10 @@ export default function ShopPage() {
       </nav>
 
       {/* Publisher Hero Header & Profile Card */}
-      <section className="relative rounded-3xl overflow-hidden shadow-sm bg-theme-surface border border-theme-border mb-8">
+      <section className="relative rounded-3xl shadow-sm bg-theme-surface border border-theme-border mb-8 z-30">
         {/* Panoramic Banner */}
         <div
-          className="h-56 md:h-72 w-full relative bg-cover bg-center"
+          className="h-56 md:h-72 w-full relative bg-cover bg-center rounded-t-3xl overflow-hidden"
           style={{ backgroundImage: `url('${bannerImg}')` }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
@@ -209,7 +403,7 @@ export default function ShopPage() {
         </div>
 
         {/* Info & Stats Bar Below Banner */}
-        <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface">
+        <div className="p-6 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-t border-theme-border/30 bg-theme-surface rounded-b-3xl relative">
           <div className="flex items-center gap-4">
             {business?.logo || legacyProfile?.logo ? (
               <img
@@ -247,61 +441,286 @@ export default function ShopPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-3 w-full lg:w-auto pointer-events-none opacity-60" aria-disabled="true">
-            <button
-              type="button"
-              onClick={handleFollow}
-              className={`flex-1 lg:flex-none px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
-                isFollowed
-                  ? 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
-                  : 'bg-theme-primary hover:bg-theme-primary-hover text-white'
-              }`}
-            >
-              <span className="material-symbols-outlined text-base">
-                {isFollowed ? 'check' : 'add'}
-              </span>
-              <span>{isFollowed ? 'Đã Theo Dõi' : 'Theo Dõi Doanh Nghiệp'}</span>
-            </button>
+          <div className="flex items-center gap-2.5 w-full lg:w-auto relative">
+            {isOwner ? (
+              <>
+                {/* Nút Cập Nhật Ảnh (Dropdown Menu) */}
+                <div
+                  ref={dropdownRef}
+                  className="relative flex-1 lg:flex-none"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setIsImageDropdownOpen((prev) => !prev)}
+                    disabled={isApplyingImage}
+                    className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-base">
+                      {isApplyingImage ? 'progress_activity' : 'photo_camera'}
+                    </span>
+                    <span>{isApplyingImage ? 'Đang Xử Lý...' : 'Cập Nhật Ảnh'}</span>
+                    <span className={`material-symbols-outlined text-sm transition-transform duration-200 ${isImageDropdownOpen ? 'rotate-180' : ''}`}>
+                      expand_more
+                    </span>
+                  </button>
 
-            <Link
-              href="/chat"
-              className="flex-1 lg:flex-none px-4 py-2.5 rounded-xl border border-theme-border hover:bg-theme-surface-subtle text-theme-text font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs"
-            >
-              <span className="material-symbols-outlined text-base">chat</span>
-              <span>Chat — Sắp Ra Mắt</span>
-            </Link>
+                  {/* Dropdown Menu - Chỉ 2 lựa chọn */}
+                  {isImageDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-theme-border p-1.5 z-[999] animate-in fade-in slide-in-from-top-2 duration-150">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveImageModal('avatar');
+                          setPreviewImage(business?.logo || null);
+                          setIsImageDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-lg text-theme-primary">account_circle</span>
+                        <span>Chọn ảnh đại diện</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveImageModal('banner');
+                          setPreviewImage(business?.banner || legacyProfile?.banner || null);
+                          setIsImageDropdownOpen(false);
+                        }}
+                        className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold text-gray-700 hover:bg-theme-secondary-subtle hover:text-theme-primary transition-colors flex items-center gap-2.5 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-lg text-theme-primary">panorama</span>
+                        <span>Chọn ảnh nền</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Nút Quay Lại Trang Quản Lý */}
+                <Link
+                  href="/seller/dashboard"
+                  className="flex-1 lg:flex-none px-4 py-2.5 rounded-xl border border-theme-border bg-white hover:bg-theme-surface-subtle text-theme-text font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-base">dashboard</span>
+                  <span>Quay Lại Trang Quản Lý</span>
+                </Link>
+              </>
+            ) : (
+              <div className="relative flex-1 lg:flex-none">
+                {!isFollowed ? (
+                  <button
+                    type="button"
+                    onClick={handleFollowStore}
+                    className="w-full lg:w-auto px-5 py-2.5 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-base">person_add</span>
+                    <span>Theo Dõi Gian Hàng</span>
+                  </button>
+                ) : (
+                  <div className="relative" ref={followDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsFollowDropdownOpen((prev) => !prev)}
+                      className="w-full lg:w-auto px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <span className="material-symbols-outlined text-base">check</span>
+                      <span>Đang Theo Dõi</span>
+                      <span className="material-symbols-outlined text-sm">expand_more</span>
+                    </button>
+
+                    {isFollowDropdownOpen && (
+                      <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-theme-border p-1.5 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
+                        {/* Option 1: Nhắn tin (disabled) */}
+                        <div
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
+                          title="Chức năng nhắn tin đang được phát triển"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
+                            <span>Nhắn tin</span>
+                          </div>
+                          <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
+                            Sắp ra mắt
+                          </span>
+                        </div>
+
+                        {/* Option 2: Hủy theo dõi */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsFollowDropdownOpen(false);
+                            setIsUnfollowModalOpen(true);
+                          }}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
+                        >
+                          <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
+                          <span>Hủy theo dõi</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Store Vouchers Section */}
-      <section className="mb-8">
-        <header className="flex items-center justify-between mb-3">
-          <div className="font-bold text-sm text-theme-text flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-theme-accent text-lg">local_activity</span>
-            Voucher Ưu Đãi Dành Riêng Cho Bạn
-          </div>
-          <p className="text-xs text-theme-text-muted">Áp dụng trực tiếp khi thanh toán</p>
-        </header>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pointer-events-none opacity-60" aria-disabled="true">
-          <div className="bg-white rounded-2xl border border-[#e8e5df] p-3.5 flex items-center justify-between gap-3 shadow-2xs">
-            <div>
-              <span className="font-mono font-bold text-xs text-[#003b2b] bg-[#f2fbf9] px-2 py-0.5 rounded-md border border-[#94f5d6]/40">SẮP RA MẮT</span>
-              <div className="font-bold text-xs text-slate-800 mt-1">Ưu đãi doanh nghiệp</div>
-              <div className="text-[10.5px] text-slate-500">Tính năng ngoài happy case</div>
+      {/* Modal Popup Cập Nhật Ảnh (Avatar hoặc Banner) */}
+      {activeImageModal && (
+        <div
+          className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen min-h-screen bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-in fade-in duration-200"
+          onClick={() => {
+            if (!isApplyingImage) {
+              setActiveImageModal(null);
+              setPreviewImage(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl border border-theme-border w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Modal */}
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-surface-container-lowest">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-theme-primary/10 text-theme-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-xl">
+                    {activeImageModal === 'avatar' ? 'account_circle' : 'panorama'}
+                  </span>
+                </div>
+                <div>
+                  <h3 className="font-title-md text-base font-bold text-on-surface">
+                    {activeImageModal === 'avatar' ? 'Cập Nhật Ảnh Đại Diện' : 'Cập Nhật Ảnh Bìa Gian Hàng'}
+                  </h3>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {activeImageModal === 'avatar'
+                      ? 'Logo đại diện chính thức của gian hàng'
+                      : 'Ảnh nền panorama hiển thị đầu trang gian hàng'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isApplyingImage) {
+                    setActiveImageModal(null);
+                    setPreviewImage(null);
+                  }
+                }}
+                disabled={isApplyingImage}
+                className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
             </div>
-            <button type="button" disabled className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300">Sắp Ra Mắt</button>
-          </div>
-          <div className="bg-white rounded-2xl border border-[#e8e5df] p-3.5 flex items-center justify-between gap-3 shadow-2xs">
-            <div>
-              <span className="font-mono font-bold text-xs text-[#003b2b] bg-[#f2fbf9] px-2 py-0.5 rounded-md border border-[#94f5d6]/40">SẮP RA MẮT</span>
-              <div className="font-bold text-xs text-slate-800 mt-1">Miễn phí vận chuyển</div>
-              <div className="text-[10.5px] text-slate-500">Tính năng ngoài happy case</div>
+
+            {/* Body Modal */}
+            <div className="p-6 space-y-5">
+              {/* Preview Box */}
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-2 uppercase tracking-wider">
+                  Xem trước ảnh:
+                </label>
+                {activeImageModal === 'avatar' ? (
+                  <div className="w-28 h-28 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
+                    {previewImage === 'DEFAULT' || (!previewImage && !business?.logo && !legacyProfile?.logo) ? (
+                      <div className="w-full h-full bg-[#003b2b] text-white font-black text-3xl flex items-center justify-center">
+                        {(business?.name || 'H').slice(0, 1).toUpperCase()}
+                      </div>
+                    ) : (
+                      <img
+                        src={previewImage || business?.logo || legacyProfile?.logo}
+                        alt="Avatar Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-full h-36 sm:h-44 rounded-2xl border-2 border-theme-border overflow-hidden bg-gray-50 flex items-center justify-center mx-auto shadow-inner relative">
+                    <img
+                      src={
+                        previewImage === 'DEFAULT'
+                          ? 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1600&q=80'
+                          : previewImage || bannerImg
+                      }
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    {previewImage === 'DEFAULT' && (
+                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs">
+                        Ảnh bìa mặc định
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Dropzone */}
+              <div
+                onClick={() => modalFileInputRef.current?.click()}
+                className="border-2 border-dashed border-theme-primary/30 hover:border-theme-primary hover:bg-theme-primary/[0.03] rounded-2xl p-4 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1.5 group"
+              >
+                <div className="w-10 h-10 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <span className="material-symbols-outlined text-xl">cloud_upload</span>
+                </div>
+                <div className="font-semibold text-xs text-theme-text">
+                  Bấm để chọn ảnh từ thiết bị
+                </div>
+                <p className="text-[11px] text-theme-text-muted">
+                  Định dạng hỗ trợ: PNG, JPG, WEBP • Dung lượng tối đa: <strong>2MB</strong>
+                </p>
+              </div>
+
+              <input
+                type="file"
+                ref={modalFileInputRef}
+                onChange={handleModalFileChange}
+                accept="image/png,image/jpeg,image/webp,image/jpg"
+                className="hidden"
+              />
             </div>
-            <button type="button" disabled className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-500 border border-slate-300">Sắp Ra Mắt</button>
+
+            {/* Footer Modal */}
+            <div className="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setPreviewImage('DEFAULT')}
+                disabled={isApplyingImage}
+                className="px-3.5 py-2 rounded-xl border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base">restart_alt</span>
+                <span>Chọn ảnh mặc định</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageModal(null);
+                    setPreviewImage(null);
+                  }}
+                  disabled={isApplyingImage}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-200 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyImage}
+                  disabled={isApplyingImage}
+                  className="px-5 py-2 rounded-xl bg-theme-primary hover:bg-theme-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">
+                    {isApplyingImage ? 'progress_activity' : 'check'}
+                  </span>
+                  <span>{isApplyingImage ? 'Đang Lưu...' : 'Áp Dụng'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </section>
+      )}
 
       {/* Product Showcase & Filtering */}
       <section>
@@ -414,6 +833,66 @@ export default function ShopPage() {
           </div>
         )}
       </section>
+
+      {/* Modal Popup Xác Nhận Hủy Theo Dõi (Đếm ngược 5s) */}
+      {isUnfollowModalOpen && (
+        <div className="fixed inset-0 w-screen h-screen z-[99999] bg-black/65 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-theme-border relative animate-in fade-in zoom-in-95 duration-150">
+            {/* Icon Warning */}
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100">
+              <span className="material-symbols-outlined text-2xl">person_remove</span>
+            </div>
+
+            {/* Title & Body */}
+            <h3 className="font-bold text-center text-gray-900 text-lg mb-2">
+              Xác Nhận Hủy Theo Dõi Gian Hàng
+            </h3>
+            <p className="text-xs sm:text-sm text-center text-gray-600 mb-6 leading-relaxed">
+              Bạn có chắc chắn muốn hủy theo dõi gian hàng{' '}
+              <strong className="text-gray-900">{business?.name || 'này'}</strong> không? Bạn sẽ không còn nhận được các thông báo cập nhật sách mới và ưu đãi độc quyền từ gian hàng này.
+            </p>
+
+            {/* Actions */}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsUnfollowModalOpen(false)}
+                disabled={isUnfollowing}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-xs sm:text-sm font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                Đóng / Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmUnfollow}
+                disabled={unfollowCountdown > 0 || isUnfollowing}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${
+                  unfollowCountdown > 0 || isUnfollowing
+                    ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                    : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+                }`}
+              >
+                {isUnfollowing ? (
+                  <>
+                    <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    <span>Đang xử lý...</span>
+                  </>
+                ) : unfollowCountdown > 0 ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm">timer</span>
+                    <span>Xác nhận ({unfollowCountdown}s)</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">check</span>
+                    <span>Xác nhận hủy</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

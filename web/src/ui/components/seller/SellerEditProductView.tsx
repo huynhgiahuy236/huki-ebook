@@ -35,10 +35,6 @@ export default function SellerEditProductView() {
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <button className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface-container-lowest border border-surface-variant text-on-surface font-title-md text-xs hover:border-tertiary hover:bg-surface-container-low transition-all shadow-xs cursor-pointer">
-              <span className="material-symbols-outlined text-base">visibility</span>
-              <span>Xem Trước Giao Diện</span>
-            </button>
             <Link className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-surface-container-lowest border border-surface-variant text-tertiary font-title-md text-xs hover:border-tertiary hover:bg-tertiary-fixed/20 transition-all shadow-xs" target="_blank" href="/seller/product/edit-hybrid">
               <span className="material-symbols-outlined text-base">open_in_new</span>
               <span>Xem Trên Cửa Hàng</span>

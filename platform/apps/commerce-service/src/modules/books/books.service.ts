@@ -107,7 +107,8 @@ export class BooksService {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
-    return this.serializeBook(book!, canAccess);
+    const discountsMap = await this.getDiscountsMap([book!.id]);
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id));
   }
 
   async findAll(query: BookListQueryDto) {
@@ -176,7 +177,10 @@ export class BooksService {
       this.prisma.book.count({ where }),
     ]);
 
-    return paginate(books.map(b => this.serializeBook(b, false)), total, query.page, query.limit);
+    const bookIds = books.map(b => b.id);
+    const discountsMap = await this.getDiscountsMap(bookIds);
+
+    return paginate(books.map(b => this.serializeBook(b, false, discountsMap.get(b.id))), total, query.page, query.limit);
   }
 
   async findOwned(query: BookListQueryDto, actor: BookActor) {
@@ -277,7 +281,8 @@ export class BooksService {
       throwNotFound(ErrorCode.BOOK_NOT_FOUND);
     }
 
-    return this.serializeBook(book!, canAccess);
+    const discountsMap = await this.getDiscountsMap([book!.id]);
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id));
   }
 
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
@@ -447,11 +452,62 @@ export class BooksService {
     if (existing) throwConflict(ErrorCode.BOOK_SLUG_EXISTS);
   }
 
-  private serializeBook(book: any, isPrivate: boolean) {
+  private async getDiscountsMap(bookIds: string[]): Promise<Map<string, any>> {
+    const map = new Map<string, any>();
+    if (!bookIds || bookIds.length === 0) return map;
+
+    const promotionPort = process.env.PROMOTION_SERVICE_PORT || 3007;
+    try {
+      const res = await fetch(`http://localhost:${promotionPort}/api/v1/discounts/batch-active`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookIds }),
+      });
+      if (res.ok) {
+        const json = (await res.json()) as any;
+        const items = json.data || json;
+        if (Array.isArray(items)) {
+          for (const item of items) {
+            if (item && item.bookId && (item.isCurrentlyActive ?? true)) {
+              map.set(item.bookId, item);
+            }
+          }
+        }
+      }
+    } catch {
+      // Ignore promotion service unreachable in testing
+    }
+    return map;
+  }
+
+  private serializeBook(book: any, isPrivate: boolean, discount?: any) {
     const physical = book.physicalDetails;
     const stock = physical?.stock ?? 0;
     const reserved = physical?.reserved ?? 0;
     const available = Math.max(0, stock - reserved);
+
+    const basePrice = Number(book.price);
+    let salePrice = basePrice;
+    let originalPrice: number | undefined = undefined;
+    let discountPercent: number | undefined = undefined;
+    let discountAmount: number | undefined = undefined;
+    let hasActiveDiscount = false;
+
+    if (discount && discount.value > 0) {
+      if (discount.type === 'PERCENTAGE') {
+        salePrice = Math.max(0, Math.round(basePrice * (1 - Number(discount.value) / 100)));
+        discountPercent = Number(discount.value);
+        discountAmount = basePrice - salePrice;
+        originalPrice = basePrice;
+        hasActiveDiscount = true;
+      } else if (discount.type === 'FIXED_AMOUNT') {
+        salePrice = Math.max(0, Math.round(basePrice - Number(discount.value)));
+        discountAmount = Number(discount.value);
+        discountPercent = basePrice > 0 ? Math.round((discountAmount / basePrice) * 100) : 0;
+        originalPrice = basePrice;
+        hasActiveDiscount = true;
+      }
+    }
 
     return {
       id: book.id,
@@ -461,7 +517,12 @@ export class BooksService {
       slug: book.slug,
       isbn: book.isbn,
       description: book.description,
-      price: Number(book.price),
+      price: salePrice,
+      originalPrice,
+      discountPercent,
+      discountAmount,
+      discountType: discount?.type ?? null,
+      hasActiveDiscount,
       format: book.format,
       status: book.status,
       coverUrl: book.coverUrl,

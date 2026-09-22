@@ -105,8 +105,8 @@ function CatalogPageContent() {
   const allBooks = useMemo<CatalogBookItem[]>(() => {
     const formattedRealBooks: CatalogBookItem[] = realBooks.map((rb) => {
       const rawRb = rb as any;
-      const priceVal = Number(rawRb.priceEbook || rawRb.pricePaper || rb.price || 0);
-      const originalPriceVal = Number(rawRb.originalPriceEbook || rawRb.originalPricePaper || rb.originalPrice || 0);
+      const priceVal = Number(rb.price !== undefined ? rb.price : rawRb.priceEbook || rawRb.pricePaper || 0);
+      const originalPriceVal = Number(rb.originalPrice !== undefined ? rb.originalPrice : rawRb.originalPriceEbook || rawRb.originalPricePaper || 0);
       const hasEb = Boolean(rawRb.hasEbook || rawRb.priceEbook || rb.digitalDetails?.digitalEnabled || rb.format === 'DIGITAL' || rb.format === 'BOTH');
       const hasPa = Boolean(rawRb.hasPaper || rawRb.pricePaper || rb.physicalDetails?.physicalEnabled || rb.format === 'PHYSICAL' || rb.format === 'BOTH');
       const fmt = hasEb && hasPa ? 'Combo' : hasEb ? 'Ebook' : 'Sách giấy';

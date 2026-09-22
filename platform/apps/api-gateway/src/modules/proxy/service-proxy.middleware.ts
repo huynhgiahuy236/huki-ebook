@@ -36,6 +36,7 @@ const ROUTES: Record<string, ServiceName> = {
   vouchers: 'promotion',
   banners: 'promotion',
   'flash-sales': 'promotion',
+  discounts: 'promotion',
   sanctions: 'commerce',
   events: 'analytics',
   analytics: 'analytics',
@@ -185,6 +186,11 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     // Route /reviews/* → community
     if (firstSegment === 'reviews') {
       return 'community';
+    }
+
+    // Route /seller/vouchers/* or /seller/discounts/* → promotion
+    if (firstSegment === 'seller' && (path.includes('/seller/vouchers') || path.includes('/seller/discounts'))) {
+      return 'promotion';
     }
 
     // Standard first-segment routing

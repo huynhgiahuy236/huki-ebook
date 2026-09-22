@@ -5,6 +5,7 @@ import { VouchersModule } from './modules/vouchers/vouchers.module';
 import { FlashSalesModule } from './modules/flash-sales/flash-sales.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
+import { DiscountsModule } from './modules/discounts/discounts.module';
 import { PromotionOutboxModule } from './modules/outbox/outbox.module';
 import { HealthController } from './health.controller';
 
@@ -16,6 +17,7 @@ import { HealthController } from './health.controller';
     FlashSalesModule,
     BannersModule,
     PromotionsModule,
+    DiscountsModule,
     PromotionOutboxModule,
   ],
   controllers: [HealthController],

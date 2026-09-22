@@ -157,7 +157,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       formatTag: isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền',
       price: Number(serverItem.unitPrice || existing?.price || 0),
       addedPrice: Number(serverItem.addedPrice || existing?.addedPrice || serverItem.unitPrice || 0),
-      originalPrice: existing?.originalPrice || Number(serverItem.unitPrice || 0) * 1.3,
+      originalPrice: Number(serverItem.originalPrice || existing?.originalPrice || serverItem.addedPrice || serverItem.unitPrice || 0),
       quantity: serverItem.quantity,
       checked: isAvailable ? (existing ? existing.checked : true) : false,
       cover: serverItem.book?.coverUrl || existing?.cover || booksData[0]?.cover,

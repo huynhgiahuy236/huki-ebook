@@ -33,6 +33,8 @@ export interface CachedCartItem {
   quantity: number;
   unitPrice: number;
   addedPrice: number;
+  originalPrice?: number;
+  discountAmount?: number;
   currentPrice: number;
   subtotal: number;
   isAvailable: boolean;

@@ -145,6 +145,8 @@ export class BusinessService {
             slug: true,
             status: true,
             logo: true,
+            banner: true,
+            description: true,
           },
         },
         members: {
@@ -476,6 +478,145 @@ export class BusinessService {
       select: { businessId: true },
     });
     return records.map((r: { businessId: string }) => r.businessId);
+  }
+
+  async getMyFollowedBusinesses(userId: string) {
+    const records = await (this.prisma as any).businessFollower.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        business: {
+          include: {
+            stores: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                status: true,
+                logo: true,
+                banner: true,
+                description: true,
+              },
+            },
+          },
+        },
+      },
+    });
+    return records.map((r: any) => ({
+      followerId: r.id,
+      followedAt: r.createdAt,
+      business: r.business,
+    }));
+  }
+
+  private getIdentityDbClient() {
+    const { Client } = require('pg');
+    const identityDbUrl =
+      process.env.IDENTITY_DATABASE_URL ||
+      process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_identity') ||
+      'postgresql://postgres:postgres123@localhost:5432/huki_identity';
+    return new Client({ connectionString: identityDbUrl });
+  }
+
+  async getBusinessFollowers(businessId: string, page = 1, limit = 10, search = '') {
+    const pageNum = Math.max(1, Number(page) || 1);
+    const limitNum = Math.max(1, Math.min(100, Number(limit) || 10));
+
+    // 1. Fetch all follower records for this business
+    const allFollowers = await (this.prisma as any).businessFollower.findMany({
+      where: { businessId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!allFollowers || allFollowers.length === 0) {
+      return {
+        items: [],
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: 0,
+      };
+    }
+
+    const userIds = allFollowers.map((f: any) => f.userId);
+
+    // 2. Fetch user details from identity_db
+    const userMap: Record<string, any> = {};
+    try {
+      const pgClient = this.getIdentityDbClient();
+      await pgClient.connect();
+      const res = await pgClient.query(
+        'SELECT id, full_name, email, phone, avatar, status FROM users WHERE id = ANY($1)',
+        [userIds],
+      );
+      await pgClient.end();
+
+      for (const row of res.rows) {
+        userMap[row.id] = {
+          fullName: row.full_name,
+          email: row.email,
+          phone: row.phone,
+          avatar: row.avatar,
+          status: row.status || 'ACTIVE',
+        };
+      }
+    } catch (err: any) {
+      console.warn(
+        '[BusinessService] Failed to load user details from identity DB for followers:',
+        err?.message || err,
+      );
+    }
+
+    // 3. Map follower items
+    let mappedItems = allFollowers.map((f: any) => {
+      const u = userMap[f.userId] || {
+        fullName: 'Khách Hàng',
+        email: '',
+        phone: null,
+        avatar: null,
+        status: 'ACTIVE',
+      };
+      // Customer code: short readable ID (e.g. KH-8F4A12)
+      const cleanId = (f.userId || f.id || '').replace(/-/g, '').toUpperCase();
+      const customerCode = `KH-${cleanId.slice(0, 6)}`;
+
+      return {
+        id: f.id,
+        userId: f.userId,
+        customerCode,
+        fullName: u.fullName || 'Khách Hàng',
+        email: u.email,
+        phone: u.phone,
+        avatar: u.avatar,
+        status: u.status || 'ACTIVE',
+        createdAt: f.createdAt,
+      };
+    });
+
+    // 4. Search filter (if provided)
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      mappedItems = mappedItems.filter((item: any) =>
+        item.fullName?.toLowerCase().includes(q) ||
+        item.phone?.toLowerCase().includes(q) ||
+        item.customerCode?.toLowerCase().includes(q) ||
+        item.email?.toLowerCase().includes(q),
+      );
+    }
+
+    const total = mappedItems.length;
+    const totalPages = Math.ceil(total / limitNum) || 1;
+    const offset = (pageNum - 1) * limitNum;
+    const items = mappedItems.slice(offset, offset + limitNum);
+
+    return {
+      items,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+    };
   }
 
   // ==================== HELPERS ====================
