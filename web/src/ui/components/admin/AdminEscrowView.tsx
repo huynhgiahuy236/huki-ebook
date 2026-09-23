@@ -20,9 +20,11 @@ export interface EscrowTableItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
-  escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED';
+  escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED';
   releasedAt?: string | null;
+  refundedAt?: string | null;
   frozenReason?: string | null;
+  returnRequestStatus?: string | null;
 }
 
 const STATUS_TABS = [
@@ -30,6 +32,7 @@ const STATUS_TABS = [
   { key: 'HOLDING', label: 'Đang Giữ Dòng Tiền' },
   { key: 'FROZEN', label: 'Đóng Băng Dòng Tiền' },
   { key: 'RELEASED', label: 'Đã Chuyển Cho Cửa Hàng' },
+  { key: 'REFUNDED', label: 'Đã Hoàn Trả Khách' },
 ];
 
 // Dữ liệu mẫu ban đầu static để SSR không bị lệch thời gian
@@ -206,31 +209,10 @@ export function AdminEscrowView() {
   const [mounted, setMounted] = useState<boolean>(false);
   const [nowTime, setNowTime] = useState<number>(0);
 
-  // Mount effect to initialize client-side time and mock timers
+  // Mount effect to initialize client-side time
   useEffect(() => {
     setMounted(true);
     setNowTime(Date.now());
-
-    // Khởi tạo mốc đếm ngược demo sinh động khi Client mount
-    setItems((prev) =>
-      prev.map((it) => {
-        // item-002: Ebook vừa mua 40 giây trước -> Đang đếm ngược còn ~80s
-        if (it.id === 'item-002') {
-          return {
-            ...it,
-            orderCreatedAt: new Date(Date.now() - 40 * 1000).toISOString(),
-          };
-        }
-        // item-003: Sách giấy đã giao 80 giây trước -> Đang đếm ngược còn ~40s
-        if (it.id === 'item-003') {
-          return {
-            ...it,
-            deliveredAt: new Date(Date.now() - 80 * 1000).toISOString(),
-          };
-        }
-        return it;
-      }),
-    );
 
     const ticker = setInterval(() => {
       setNowTime(Date.now());
@@ -348,17 +330,17 @@ export function AdminEscrowView() {
   // Xử lý thay đổi trạng thái của từng dòng sản phẩm
   const handleStatusChange = async (
     itemId: string,
-    newStatus: 'HOLDING' | 'FROZEN' | 'RELEASED',
+    newStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED',
   ) => {
     setOpenDropdownId(null);
 
     const targetItem = items.find((it) => it.id === itemId);
     if (!targetItem) return;
 
-    if (targetItem.escrowStatus === 'RELEASED') {
+    if (targetItem.escrowStatus === 'RELEASED' || targetItem.escrowStatus === 'REFUNDED') {
       showToast?.({
         title: 'Thao tác không khả dụng',
-        message: 'Món hàng này đã được bàn giao cho cửa hàng, không thể thay đổi trạng thái.',
+        message: 'Món hàng này đã kết thúc xử lý dòng tiền, không thể thay đổi trạng thái.',
         type: 'warning',
       });
       return;
@@ -371,6 +353,7 @@ export function AdminEscrowView() {
             ...it,
             escrowStatus: newStatus,
             releasedAt: newStatus === 'RELEASED' ? new Date().toLocaleString('vi-VN') : it.releasedAt,
+            refundedAt: newStatus === 'REFUNDED' ? new Date().toLocaleString('vi-VN') : it.refundedAt,
           };
         }
         return it;
@@ -393,6 +376,12 @@ export function AdminEscrowView() {
       showToast?.({
         title: 'Bàn giao thành công',
         message: `Đã chuyển ${targetItem.subtotal.toLocaleString('vi-VN')} đ cho gian hàng "${targetItem.storeName}". Nút thao tác đã bị khóa.`,
+        type: 'success',
+      });
+    } else if (newStatus === 'REFUNDED') {
+      showToast?.({
+        title: 'Hoàn tiền thành công',
+        message: `Đã hoàn lại ${targetItem.subtotal.toLocaleString('vi-VN')} đ cho khách hàng "${targetItem.customerName}". Nút thao tác đã bị khóa.`,
         type: 'success',
       });
     }
@@ -425,6 +414,29 @@ export function AdminEscrowView() {
           reason: '',
         };
       }
+
+      const isDigital =
+        item.format === 'DIGITAL' ||
+        item.bookTitle.toLowerCase().includes('ebook') ||
+        item.bookTitle.toLowerCase().includes('digital');
+      const isPhysical = !isDigital;
+      const isDelivered =
+        item.orderStatus === 'DELIVERED' ||
+        Boolean(item.deliveredAt);
+
+      // Sách giấy chưa giao hàng -> Luôn là Chờ giao hàng, không được giải ngân
+      if (isPhysical && !isDelivered) {
+        return {
+          type: 'WAITING_DELIVERY',
+          isExpired: false,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '--:--',
+          text: 'Chờ giao hàng thành công',
+          reason: 'Sách giấy chưa giao hàng thành công đến tay người mua',
+        };
+      }
+
       if (item.escrowStatus === 'RELEASED') {
         return {
           type: 'RELEASED',
@@ -437,26 +449,27 @@ export function AdminEscrowView() {
         };
       }
 
-      const isDigital =
-        item.format === 'DIGITAL' ||
-        item.bookTitle.toLowerCase().includes('ebook') ||
-        item.bookTitle.toLowerCase().includes('digital');
-      const isPhysical = !isDigital;
-      const isDelivered =
-        item.orderStatus === 'DELIVERED' ||
-        item.orderStatus === 'COMPLETED' ||
-        Boolean(item.deliveredAt);
-
-      // Sách giấy chưa giao hàng -> Chưa kích hoạt đếm ngược
-      if (isPhysical && !isDelivered) {
+      if (item.escrowStatus === 'REFUNDED') {
         return {
-          type: 'WAITING_DELIVERY',
+          type: 'REFUNDED',
+          isExpired: true,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '00:00',
+          text: 'Đã hoàn tiền cho khách',
+          reason: 'Đã hoàn trả tiền cho người mua',
+        };
+      }
+
+      if (item.escrowStatus === 'FROZEN') {
+        return {
+          type: 'FROZEN',
           isExpired: false,
           canRelease: false,
           remainingSec: 0,
           formattedTime: '--:--',
-          text: 'Chờ giao hàng thành công',
-          reason: 'Sách giấy chưa giao hàng thành công đến tay người mua',
+          text: 'Đang khiếu nại (Đóng băng)',
+          reason: 'Dòng tiền đang bị đóng băng do có khiếu nại đổi trả',
         };
       }
 
@@ -783,9 +796,14 @@ export function AdminEscrowView() {
                       {/* Các dòng sản phẩm của đơn hàng */}
                       {group.items.map((item) => {
                         const isReleased = item.escrowStatus === 'RELEASED';
+                        const isRefunded = item.escrowStatus === 'REFUNDED';
                         const isFrozen = item.escrowStatus === 'FROZEN';
                         const isHolding = item.escrowStatus === 'HOLDING';
                         const returnInfo = getReturnStatusInfo(item);
+                        const canRefund =
+                          item.returnRequestStatus === 'SELLER_ACCEPTED' ||
+                          item.returnRequestStatus === 'ARBITRATED_BUYER_WINS' ||
+                          isFrozen;
 
                         return (
                           <tr
@@ -873,11 +891,33 @@ export function AdminEscrowView() {
                                   Đã chuyển cho cửa hàng
                                 </span>
                               )}
+                              {isRefunded && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-300 dark:border-blue-700">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>
+                                  Đã hoàn tiền cho khách
+                                </span>
+                              )}
                             </td>
 
                             {/* 12. Thời Hạn Đổi Trả (Quy tắc Sách Giấy & Ebook) */}
                             <td className="py-3 px-3 text-center whitespace-nowrap">
-                              {returnInfo.type === 'WAITING_DELIVERY' ? (
+                              {returnInfo.type === 'FROZEN' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+                                  title="Đơn hàng đang có khiếu nại, thời hạn đổi trả tạm dừng"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-rose-600 animate-pulse">pause_circle</span>
+                                  <span>Đang khiếu nại</span>
+                                </span>
+                              ) : returnInfo.type === 'REFUNDED' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                                  title="Đã hoàn tiền cho người mua"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-blue-600">replay</span>
+                                  <span>Đã hoàn tiền</span>
+                                </span>
+                              ) : returnInfo.type === 'WAITING_DELIVERY' ? (
                                 <span
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
                                   title="Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả 2 phút"
@@ -894,10 +934,18 @@ export function AdminEscrowView() {
                                   <span className="material-symbols-outlined text-[14px] text-rose-600 animate-spin">timer</span>
                                   <span>Còn {returnInfo.formattedTime}</span>
                                 </span>
+                              ) : returnInfo.type === 'RELEASED' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                  title="Đã bàn giao tiền cho cửa hàng"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
+                                  <span>Đã hoàn tất bàn giao</span>
+                                </span>
                               ) : (
                                 <span
                                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
-                                  title="Đã qua thời hạn 2 phút đổi trả hoặc đã bàn giao hoàn tất"
+                                  title="Đã qua thời hạn 2 phút đổi trả, sẵn sàng bàn giao cho cửa hàng"
                                 >
                                   <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
                                   <span>Hết hạn đổi trả</span>
@@ -905,7 +953,7 @@ export function AdminEscrowView() {
                               )}
                             </td>
 
-                            {/* 13. Thao tác (Đang giữ & Đóng băng luôn hoạt động; Bàn giao chỉ mở khi đủ điều kiện) */}
+                            {/* 13. Thao tác */}
                             <td className="py-3 px-3 text-center whitespace-nowrap relative escrow-dropdown-container">
                               {isReleased ? (
                                 /* Đã bàn giao hoàn tất */
@@ -918,8 +966,19 @@ export function AdminEscrowView() {
                                   <span className="material-symbols-outlined text-14">check_circle</span>
                                   <span>Bàn giao</span>
                                 </button>
+                              ) : isRefunded ? (
+                                /* Đã hoàn trả cho khách */
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg shadow-xs opacity-60 cursor-not-allowed select-none"
+                                  title="Đã hoàn trả tiền cho khách hàng, không thể thay đổi trạng thái"
+                                >
+                                  <span className="material-symbols-outlined text-14">replay</span>
+                                  <span>Hoàn trả</span>
+                                </button>
                               ) : (
-                                /* Dropdown thao tác: Đang giữ & Đóng băng luôn dùng được, Bàn giao kiểm tra điều kiện */
+                                /* Dropdown thao tác: Đang giữ, Đóng băng, Bàn giao, Hoàn trả */
                                 <div className="relative inline-block text-left">
                                   <button
                                     type="button"
@@ -941,10 +1000,10 @@ export function AdminEscrowView() {
                                     <span className="material-symbols-outlined text-14">arrow_drop_down</span>
                                   </button>
 
-                                  {/* Menu Dropdown 3 lựa chọn */}
+                                  {/* Menu Dropdown 4 lựa chọn */}
                                   {openDropdownId === item.id && (
-                                    <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 divide-y divide-slate-100 dark:divide-slate-700 text-left">
-                                      {/* Lựa chọn 1: Đang giữ (Luôn khả dụng) */}
+                                    <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 divide-y divide-slate-100 dark:divide-slate-700 text-left">
+                                      {/* Lựa chọn 1: Đang giữ */}
                                       <button
                                         type="button"
                                         onClick={() => handleStatusChange(item.id, 'HOLDING')}
@@ -954,7 +1013,7 @@ export function AdminEscrowView() {
                                         <span>Đang giữ</span>
                                       </button>
 
-                                      {/* Lựa chọn 2: Đóng băng (Luôn khả dụng) */}
+                                      {/* Lựa chọn 2: Đóng băng */}
                                       <button
                                         type="button"
                                         onClick={() => handleStatusChange(item.id, 'FROZEN')}
@@ -964,7 +1023,7 @@ export function AdminEscrowView() {
                                         <span>Đóng băng</span>
                                       </button>
 
-                                      {/* Lựa chọn 3: Bàn giao (Disable nếu chưa giao hoặc còn hạn đổi trả) */}
+                                      {/* Lựa chọn 3: Bàn giao */}
                                       {returnInfo.canRelease ? (
                                         <button
                                           type="button"
@@ -972,7 +1031,7 @@ export function AdminEscrowView() {
                                           className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer"
                                         >
                                           <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-                                          <span>Bàn giao (Đủ điều kiện)</span>
+                                          <span>Bàn giao (Cửa hàng)</span>
                                         </button>
                                       ) : (
                                         <button
@@ -984,6 +1043,31 @@ export function AdminEscrowView() {
                                           <div className="flex items-center gap-2">
                                             <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
                                             <span>Bàn giao (Khóa)</span>
+                                          </div>
+                                          <span className="material-symbols-outlined text-14">lock</span>
+                                        </button>
+                                      )}
+
+                                      {/* Lựa chọn 4: Hoàn trả (Blue button) */}
+                                      {canRefund ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusChange(item.id, 'REFUNDED')}
+                                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors cursor-pointer"
+                                        >
+                                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+                                          <span>Hoàn trả (Khách hàng)</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled
+                                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 opacity-60 cursor-not-allowed select-none bg-slate-50/50 dark:bg-slate-900/30"
+                                          title="Chỉ khả dụng khi Shop đồng ý hoặc Trọng tài xử Khách thắng"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                                            <span>Hoàn trả (Khóa)</span>
                                           </div>
                                           <span className="material-symbols-outlined text-14">lock</span>
                                         </button>

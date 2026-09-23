@@ -156,7 +156,7 @@ export class OrdersController {
   adminUpdateEscrowItemStatus(
     @CurrentBookActor() actor: BookActor,
     @Param('orderItemId', ParseUUIDPipe) orderItemId: string,
-    @Body() dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+    @Body() dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED'; reason?: string },
   ) {
     return this.orders.adminUpdateEscrowItemStatus(actor, orderItemId, dto);
   }
@@ -174,6 +174,120 @@ export class OrdersController {
     @Query('search') search?: string,
   ) {
     return this.orders.sellerListEscrowItems(actor, { status, search });
+  }
+
+  // ============================================
+  // RETURN & REFUND REQUESTS (Flow Return v1)
+  // ============================================
+
+  @Get(['admin/return-requests', 'admin/returns'])
+  @ApiOperation({ summary: 'List all return requests for Platform Admin' })
+  adminListReturnRequests(
+    @CurrentBookActor() actor: BookActor,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orders.adminListReturnRequests(actor, { status, search });
+  }
+
+  @Post(['admin/return-requests/:id/forward', 'admin/returns/:id/forward'])
+  @ApiOperation({ summary: 'Platform Admin forwards return request to Seller' })
+  adminForwardReturnRequest(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.orders.adminForwardReturnRequest(actor, id);
+  }
+
+  @Post(['admin/return-requests/:id/arbitrate', 'admin/returns/:id/arbitrate'])
+  @ApiOperation({ summary: 'Platform Admin arbitrates return dispute' })
+  adminArbitrateReturnRequest(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { ruling: 'BUYER_WINS' | 'SELLER_WINS'; notes?: string; reason?: string },
+  ) {
+    return this.orders.adminArbitrateReturnRequest(actor, id, dto);
+  }
+
+  @Get(['seller/return-requests', 'seller/returns'])
+  @ApiOperation({ summary: 'List return requests for Seller' })
+  sellerListReturnRequests(
+    @CurrentBookActor() actor: BookActor,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orders.sellerListReturnRequests(actor, { status, search });
+  }
+
+  @Get(['seller/return-requests/:id', 'seller/returns/:id'])
+  @ApiOperation({ summary: 'Get return request detail for Seller' })
+  sellerGetReturnRequestDetail(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.orders.sellerGetReturnRequestDetail(actor, id);
+  }
+
+  @Post(['seller/return-requests/:id/accept', 'seller/returns/:id/accept'])
+  @ApiOperation({ summary: 'Seller accepts return request' })
+  sellerAcceptReturnRequest(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.orders.sellerAcceptReturnRequest(actor, id);
+  }
+
+  @Post(['seller/return-requests/:id/dispute', 'seller/returns/:id/dispute'])
+  @ApiOperation({ summary: 'Seller disputes return request' })
+  sellerDisputeReturnRequest(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { reason?: string; evidence?: { images?: string[]; videos?: string[]; note?: string }; evidenceImages?: string[]; evidenceVideos?: string[] },
+  ) {
+    return this.orders.sellerDisputeReturnRequest(actor, id, dto);
+  }
+
+  @Post(['seller/return-requests/:id/ship-replacement', 'seller/returns/:id/ship-replacement'])
+  @ApiOperation({ summary: 'Seller ships replacement order' })
+  sellerShipReplacement(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: { carrier: string; trackingCode: string },
+  ) {
+    return this.orders.sellerShipReplacement(actor, id, dto);
+  }
+
+  @Get('seller/replacements')
+  @ApiOperation({ summary: 'Seller lists replacement orders' })
+  sellerListReplacements(@CurrentBookActor() actor: BookActor) {
+    return this.orders.sellerListReplacements(actor);
+  }
+
+  @Get('buyer/replacements')
+  @ApiOperation({ summary: 'Buyer lists replacement orders' })
+  buyerListReplacements(@CurrentBookActor() actor: BookActor) {
+    return this.orders.buyerListReplacements(actor.sub);
+  }
+
+  @Get(['buyer/return-requests', 'buyer/returns'])
+  @ApiOperation({ summary: 'Buyer lists their return and refund requests' })
+  buyerListReturnRequests(
+    @CurrentBookActor() actor: BookActor,
+    @Query('type') type?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.orders.buyerListReturnRequests(actor.sub, { type, status });
+  }
+
+  @Post([':id/items/:orderItemId/return-request', ':id/items/:orderItemId/returns'])
+  @ApiOperation({ summary: 'Buyer creates a return request for an item' })
+  createReturnRequest(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id') id: string,
+    @Param('orderItemId') orderItemId: string,
+    @Body() dto: any,
+  ) {
+    return this.orders.createReturnRequest(actor.sub, id, orderItemId, dto);
   }
 
   @Get()
@@ -399,6 +513,22 @@ export class OrdersController {
     @Param('sellerOrderId', ParseUUIDPipe) sellerOrderId: string,
   ) {
     return this.orders.getEscrowStatus(actor, id, sellerOrderId);
+  }
+
+  @Post([':id/confirm-delivered', ':id/release-escrow', 'buyer/confirm-delivered'])
+  @ApiOperation({
+    summary: 'Buyer confirms delivery and releases escrow immediately',
+    description: 'Marks sub-order or master order as completed and unfreezes/releases escrow funds to seller.',
+  })
+  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiResponse({ status: 200, description: 'Order completed and escrow released' })
+  confirmDelivered(
+    @CurrentBookActor() actor: BookActor,
+    @Param('id') id: string,
+    @Body() body?: { subOrderId?: string; orderId?: string },
+  ) {
+    const targetOrderId = id && id !== 'buyer' ? id : body?.orderId || id;
+    return this.orders.buyerConfirmDelivered(actor.sub, targetOrderId, body?.subOrderId);
   }
 }
 

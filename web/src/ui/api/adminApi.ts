@@ -87,6 +87,12 @@ export interface DisputeItem {
   resolvedAt?: string | null;
   resolvedBy?: string | null;
   adminEmail?: string | null;
+  isReturnRequest?: boolean;
+  bookTitle?: string;
+  storeName?: string;
+  customerName?: string;
+  customerEvidence?: { images?: string[]; videos?: string[]; reason?: string; reasonDetail?: string; type?: string };
+  sellerEvidence?: { images?: string[]; videos?: string[]; note?: string };
 }
 
 export interface DisputeDetailData {
@@ -94,6 +100,14 @@ export interface DisputeDetailData {
   orderId: string;
   orderCode: string;
   buyerId?: string;
+  customerName?: string;
+  storeId?: string;
+  storeName?: string;
+  bookTitle?: string;
+  bookCoverUrl?: string;
+  isReturnRequest?: boolean;
+  customerEvidence?: { images?: string[]; videos?: string[]; reason?: string; reasonDetail?: string; type?: string };
+  sellerEvidence?: { images?: string[]; videos?: string[]; note?: string };
   orderGrandTotal: number;
   orderPaymentMethod?: string;
   orderPaymentStatus?: string;
@@ -442,13 +456,49 @@ export const adminApi = {
    */
   async updateEscrowItemStatus(
     orderItemId: string,
-    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED'; reason?: string },
   ): Promise<ApiResponse<any>> {
     return apiClient<any>(`/orders/admin/escrow/items/${orderItemId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(dto),
     });
   },
+
+  /**
+   * Admin lấy danh sách yêu cầu đổi trả
+   */
+  async getReturnRequests(params?: { status?: string; search?: string }): Promise<ApiResponse<any[]>> {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString();
+    return apiClient<any[]>(`/orders/admin/returns${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Admin gửi yêu cầu đổi trả đến cửa hàng
+   */
+  async forwardReturnRequestToSeller(id: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/orders/admin/returns/${id}/forward`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Admin ra phán quyết trọng tài cho tranh chấp đổi trả
+   */
+  async arbitrateReturnRequest(
+    id: string,
+    dto: { ruling: 'BUYER_WINS' | 'SELLER_WINS'; reason: string },
+  ): Promise<ApiResponse<any>> {
+    return apiClient<any>(`/orders/admin/returns/${id}/arbitrate`, {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    });
+  },
 };
+
 
 

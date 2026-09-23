@@ -1021,7 +1021,7 @@ function SellerOrdersContent() {
                                 <span className="material-symbols-outlined text-[16px]">visibility</span>
                                 <span>Chi tiết</span>
                               </Link>
-                              {order.status === 'PENDING_CONFIRMATION' && (
+                              {order.status === 'PENDING_CONFIRMATION' && hasPhysical && (
                                 <>
                                   {can(PERMISSIONS.ORDER_PROCESS, businessId, user) && (
                                     <button
@@ -1045,7 +1045,7 @@ function SellerOrdersContent() {
                                 </>
                               )}
 
-                              {order.status === 'CONFIRMED' && (
+                              {order.status === 'CONFIRMED' && hasPhysical && (
                                 can(PERMISSIONS.ORDER_PROCESS, businessId, user) ? (
                                   <button
                                     onClick={() => handlePrepare(order.id)}
@@ -1058,7 +1058,7 @@ function SellerOrdersContent() {
                                 ) : null
                               )}
 
-                              {order.status === 'PREPARING' && (
+                              {order.status === 'PREPARING' && hasPhysical && (
                                 can(PERMISSIONS.ORDER_PROCESS, businessId, user) ? (
                                   <button
                                     onClick={() => setModalState({ type: 'SHIP', order })}

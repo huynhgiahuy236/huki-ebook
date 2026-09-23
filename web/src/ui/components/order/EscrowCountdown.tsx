@@ -11,6 +11,8 @@ export interface EscrowCountdownProps {
   initialSeconds?: number;
   startTime?: string | number | Date;
   isFrozen?: boolean;
+  isEbook?: boolean;
+  hideConfirmButton?: boolean;
   onReleaseEscrow?: (params: { subOrderId?: string; orderId?: string; auto: boolean }) => void;
   onDispute?: (params: { subOrderId?: string; orderId?: string }) => void;
   className?: string;
@@ -28,6 +30,8 @@ export default function EscrowCountdown({
   initialSeconds = 120,
   startTime,
   isFrozen = false,
+  isEbook = false,
+  hideConfirmButton = false,
   onReleaseEscrow,
   onDispute,
   className = '',
@@ -107,18 +111,12 @@ export default function EscrowCountdown({
     };
   }, [frozen, isCompleted, secondsLeft]);
 
-  // Safe side-effect when countdown finishes: trigger release outside state updater
+  // When countdown finishes, mark as completed (disables returns) without auto-releasing funds to allow Admin manual handover
   useEffect(() => {
     if (secondsLeft <= 0 && !isCompleted && !frozen) {
       setIsCompleted(true);
-      if (!hasTriggeredReleaseRef.current) {
-        hasTriggeredReleaseRef.current = true;
-        if (onReleaseEscrow) {
-          onReleaseEscrow({ subOrderId, orderId, auto: true });
-        }
-      }
     }
-  }, [secondsLeft, isCompleted, frozen, onReleaseEscrow, subOrderId, orderId]);
+  }, [secondsLeft, isCompleted, frozen]);
 
   const formatTime = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);
@@ -150,17 +148,17 @@ export default function EscrowCountdown({
 
   if (isCompleted || secondsLeft <= 0) {
     return (
-      <div className={`p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 flex items-center justify-between gap-3 ${className}`}>
+      <div className={`p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-200 flex items-center justify-between gap-3 ${className}`}>
         <div className="flex items-center gap-2.5">
           <span className="material-symbols-outlined text-[24px] text-emerald-600 dark:text-emerald-400">
             verified
           </span>
           <div>
             <div className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Ký Quỹ Hoàn Tất (Escrow Settled)
+              Hết Hạn Đổi Trả (Dispute Window Closed)
             </div>
-            <div className="text-xs text-emerald-800/80 dark:text-emerald-300/80">
-              Tiền thanh toán ({Number(amount).toLocaleString('vi-VN')}₫) đã được giải ngân vào Ví của {storeName}.
+            <div className="text-xs text-slate-600 dark:text-slate-400">
+              Thời hạn kiểm tra và đổi trả 2 phút đã kết thúc. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) đang được Sàn xử lý bàn giao cho {storeName}.
             </div>
           </div>
         </div>
@@ -230,27 +228,25 @@ export default function EscrowCountdown({
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
         <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-          Sau <strong>{formatTime(secondsLeft)}</strong>, tiền sẽ tự động chuyển vào Ví Khả Dụng của Shop.
+          {isEbook || hideConfirmButton || subOrderId?.includes('_ebook') ? (
+            <>Trong thời gian <strong>{formatTime(secondsLeft)}</strong>, tiền được giữ an toàn tại Sàn (quý khách có thể gửi Yêu Cầu Đổi Trả nếu sách có vấn đề).</>
+          ) : (
+            <>Trong thời gian <strong>{formatTime(secondsLeft)}</strong>, quý khách có thể xác nhận nhận hàng hoặc gửi Yêu Cầu Đổi Trả.</>
+          )}
         </span>
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={handleDisputeClick}
-            className="px-3.5 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 text-xs font-bold hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all cursor-pointer"
-          >
-            Yêu Cầu Đổi Trả
-          </button>
-
-          <button
-            type="button"
-            onClick={handleInstantConfirm}
-            className="px-4 py-1.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs font-bold hover:opacity-95 shadow-xs transition-all cursor-pointer flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-[15px]">check_circle</span>
-            <span>Đã Nhận Đủ Hàng</span>
-          </button>
-        </div>
+        {!(isEbook || hideConfirmButton || subOrderId?.includes('_ebook')) && (
+          <div className="flex items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleInstantConfirm}
+              className="px-4 py-1.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs font-bold hover:opacity-95 shadow-xs transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[15px]">check_circle</span>
+              <span>Đã Nhận Đủ Hàng</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

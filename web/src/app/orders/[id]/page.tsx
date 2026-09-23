@@ -9,6 +9,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import OrderItemBadge from '@/ui/components/common/OrderItemBadge';
 import EscrowCountdown from '@/ui/components/order/EscrowCountdown';
 import DisputeModal from '@/ui/components/order/DisputeModal';
+import ReturnRequestModal from '@/ui/components/order/ReturnRequestModal';
 import PaymentCountdownModal from '@/ui/components/checkout/PaymentCountdownModal';
 import { paymentApi } from '@/ui/api/paymentApi';
 
@@ -21,6 +22,8 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<any>(null);
   const [trackingInfo, setTrackingInfo] = useState<any>(null);
+  const [replacements, setReplacements] = useState<any[]>([]);
+  const [returnRequests, setReturnRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -31,6 +34,7 @@ export default function OrderDetailPage() {
   const [cancelSubOrderModal, setCancelSubOrderModal] = useState<{ open: boolean; subOrder: any; reason: string }>({ open: false, subOrder: null, reason: '' });
   const [cancelOrderModal, setCancelOrderModal] = useState<{ open: boolean; reason: string }>({ open: false, reason: '' });
   const [disputeModal, setDisputeModal] = useState<{ open: boolean; subOrder: any | null }>({ open: false, subOrder: null });
+  const [returnModal, setReturnModal] = useState<{ open: boolean; item: any; storeName: string; subOrderId?: string }>({ open: false, item: null, storeName: '' });
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   const fetchOrderDetail = useCallback(async () => {
@@ -39,10 +43,20 @@ export default function OrderDetailPage() {
     setNotFound(false);
 
     try {
-      const [detailRes, trackRes] = await Promise.all([
+      const [detailRes, trackRes, repRes, retRes] = await Promise.all([
         orderApi.getBuyerOrderDetail(id),
         orderApi.getOrderTracking(id).catch(() => ({ success: false, data: null })),
+        orderApi.getBuyerReplacements().catch(() => ({ success: false, data: [] })),
+        orderApi.getBuyerReturnRequests().catch(() => ({ success: false, data: [] })),
       ]);
+
+      if (repRes.success && Array.isArray(repRes.data)) {
+        setReplacements(repRes.data);
+      }
+
+      if (retRes.success && Array.isArray(retRes.data)) {
+        setReturnRequests(retRes.data);
+      }
 
       if (detailRes.success && detailRes.data) {
         setOrder(detailRes.data);
@@ -768,6 +782,47 @@ export default function OrderDetailPage() {
                                 const itPrice = Number(item.unitPrice || item.price || 0);
                                 const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
 
+                                const isEbookSettled = !!settledEscrowStores[`${so.id}_ebook`];
+                                const isEbookTimeExpired = (() => {
+                                  if (so.escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'ESCROW_SETTLED') return true;
+
+                                  const rawStart = order.paidAt || order.createdAt;
+                                  let startTimestamp: number | null = null;
+                                  if (rawStart) {
+                                    const parsed = new Date(rawStart).getTime();
+                                    if (!isNaN(parsed) && parsed > 0) {
+                                      startTimestamp = parsed;
+                                    }
+                                  }
+
+                                  if (typeof window !== 'undefined') {
+                                    const storageKey = `huki_escrow_timer_${order.id || ''}_${so.id}_ebook`;
+                                    const stored = localStorage.getItem(storageKey);
+                                    if (stored) {
+                                      const parsedStored = Number(stored);
+                                      if (!isNaN(parsedStored) && parsedStored > 0) {
+                                        startTimestamp = startTimestamp ? Math.min(startTimestamp, parsedStored) : parsedStored;
+                                      }
+                                    }
+                                  }
+
+                                  if (startTimestamp) {
+                                    const elapsed = (Date.now() - startTimestamp) / 1000;
+                                    if (elapsed >= 120) return true;
+                                  }
+
+                                  return false;
+                                })();
+                                const existingReturn = returnRequests.find(
+                                  (r: any) =>
+                                    (r.orderItemId === item.id ||
+                                      r.bookId === item.bookId ||
+                                      (r.bookTitle && item.bookTitle && r.bookTitle.toLowerCase() === item.bookTitle.toLowerCase())) &&
+                                    (r.orderId === order.id || r.order?.code === order.code)
+                                );
+                                const hasSubmittedReturn = Boolean(existingReturn);
+                                const isReturnDisabled = isEbookSettled || isEbookTimeExpired;
+
                                 return (
                                   <div
                                     key={item.id || idx}
@@ -807,8 +862,8 @@ export default function OrderDetailPage() {
                                       </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 shrink-0">
-                                      <span className="font-bold text-sm text-indigo-700 dark:text-indigo-400">
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="font-bold text-sm text-indigo-700 dark:text-indigo-400 mr-1">
                                         {itSubtotal.toLocaleString('vi-VN')}đ
                                       </span>
                                       <Link
@@ -818,6 +873,46 @@ export default function OrderDetailPage() {
                                         <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
                                         <span>Đọc Ngay</span>
                                       </Link>
+                                      {isOrderPaid && (
+                                        hasSubmittedReturn ? (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 opacity-90 cursor-not-allowed select-none"
+                                            title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_turned_in</span>
+                                            <span>Đã Gửi Yêu Cầu</span>
+                                          </button>
+                                        ) : isReturnDisabled ? (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/60 text-gray-400 dark:text-gray-500 text-xs font-semibold inline-flex items-center gap-1 opacity-60 cursor-not-allowed"
+                                            title="Đã hết thời hạn yêu cầu đổi trả cho Ebook này"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
+                                            <span>Hết Hạn Đổi Trả</span>
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setReturnModal({
+                                                open: true,
+                                                item,
+                                                storeName: storeDisplayName,
+                                                subOrderId: so.id,
+                                              })
+                                            }
+                                            className="px-2.5 py-1.5 rounded-xl border border-indigo-300 dark:border-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 text-xs font-bold inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                            title="Yêu cầu đổi trả cho Ebook này"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
+                                            <span>Yêu Cầu Đổi Trả</span>
+                                          </button>
+                                        )
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -833,9 +928,22 @@ export default function OrderDetailPage() {
                                   storeName={`${storeDisplayName} (Ebook)`}
                                   amount={ebookSubtotal}
                                   startTime={order.paidAt || order.createdAt}
+                                  isEbook={true}
+                                  hideConfirmButton={true}
+                                  isFrozen={returnRequests.some(
+                                    (r: any) =>
+                                      (r.orderId === order.id || r.order?.code === order.code) &&
+                                      (r.sellerOrderId === so.id ||
+                                        so.items.some((it: any) => it.id === r.orderItemId || it.bookId === r.bookId || it.format === 'DIGITAL'))
+                                  )}
                                   onDispute={() => setDisputeModal({ open: true, subOrder: so })}
-                                  onReleaseEscrow={({ auto }: any) => {
+                                  onReleaseEscrow={async ({ auto }: any) => {
                                     setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_ebook`]: true }));
+                                    try {
+                                      await orderApi.confirmDelivered(order.id, `${so.id}_ebook`);
+                                    } catch (err) {
+                                      console.warn('Lỗi gọi API confirmDelivered:', err);
+                                    }
                                     showToast(
                                       {
                                         title: auto ? 'Hết hạn ký quỹ Ebook 2 phút' : 'Xác nhận thành công!',
@@ -877,6 +985,53 @@ export default function OrderDetailPage() {
                                 const itPrice = Number(item.unitPrice || item.price || 0);
                                 const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
 
+                                const isPhysicalSettled = !!settledEscrowStores[`${so.id}_physical`];
+
+                                // Check if return window (120s / 2 minutes) has expired based on delivery timestamps or localStorage
+                                const isTimeExpired = (() => {
+                                  if (so.escrowStatus === 'ESCROW_SETTLED' || (order as any).escrowStatus === 'ESCROW_SETTLED') return true;
+
+                                  const rawStart = so.deliveredAt || so.completedAt || (order as any).deliveredAt;
+                                  let startTimestamp: number | null = null;
+                                  if (rawStart) {
+                                    const parsed = new Date(rawStart).getTime();
+                                    if (!isNaN(parsed) && parsed > 0) {
+                                      startTimestamp = parsed;
+                                    }
+                                  }
+
+                                  if (typeof window !== 'undefined' && isPhysicalDelivered) {
+                                    const storageKey = `huki_escrow_timer_${order.id || ''}_${so.id}_physical`;
+                                    const stored = localStorage.getItem(storageKey);
+                                    if (stored) {
+                                      const parsedStored = Number(stored);
+                                      if (!isNaN(parsedStored) && parsedStored > 0) {
+                                        startTimestamp = startTimestamp ? Math.min(startTimestamp, parsedStored) : parsedStored;
+                                      }
+                                    } else if (!startTimestamp) {
+                                      startTimestamp = Date.now();
+                                      localStorage.setItem(storageKey, String(startTimestamp));
+                                    }
+                                  }
+
+                                  if (startTimestamp) {
+                                    const elapsed = (Date.now() - startTimestamp) / 1000;
+                                    if (elapsed >= 120) return true;
+                                  }
+
+                                  return false;
+                                })();
+
+                                const existingReturn = returnRequests.find(
+                                  (r: any) =>
+                                    (r.orderItemId === item.id ||
+                                      r.bookId === item.bookId ||
+                                      (r.bookTitle && item.bookTitle && r.bookTitle.toLowerCase() === item.bookTitle.toLowerCase())) &&
+                                    (r.orderId === order.id || r.order?.code === order.code)
+                                );
+                                const hasSubmittedReturn = Boolean(existingReturn);
+                                const isReturnDisabled = isPhysicalSettled || isTimeExpired;
+
                                 return (
                                   <div
                                     key={item.id || idx}
@@ -911,15 +1066,79 @@ export default function OrderDetailPage() {
                                       </div>
                                     </div>
 
-                                    <div className="text-right shrink-0">
+                                    <div className="flex items-center gap-3 shrink-0">
                                       <span className="font-bold text-sm text-theme-primary">
                                         {itSubtotal.toLocaleString('vi-VN')}đ
                                       </span>
+                                      {isPhysicalDelivered && (
+                                        hasSubmittedReturn ? (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 opacity-90 cursor-not-allowed select-none"
+                                            title="Món hàng này đã gửi yêu cầu đổi trả và đang chờ xử lý"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_turned_in</span>
+                                            <span>Đã Gửi Yêu Cầu</span>
+                                          </button>
+                                        ) : isReturnDisabled ? (
+                                          <button
+                                            type="button"
+                                            disabled
+                                            className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800/60 text-gray-400 dark:text-gray-500 text-xs font-semibold inline-flex items-center gap-1 opacity-60 cursor-not-allowed"
+                                            title="Đã hết thời hạn yêu cầu đổi trả cho sản phẩm này"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
+                                            <span>Hết Hạn Đổi Trả</span>
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              setReturnModal({
+                                                open: true,
+                                                item,
+                                                storeName: storeDisplayName,
+                                                subOrderId: so.id,
+                                              })
+                                            }
+                                            className="px-2.5 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-bold inline-flex items-center gap-1 transition-all cursor-pointer shadow-2xs"
+                                            title="Yêu cầu đổi trả cho sản phẩm này"
+                                          >
+                                            <span className="material-symbols-outlined text-[15px]">assignment_return</span>
+                                            <span>Yêu Cầu Đổi Trả</span>
+                                          </button>
+                                        )
+                                      )}
                                     </div>
                                   </div>
                                 );
                               })}
                             </div>
+
+                            {/* Section Theo dõi hàng đổi (Replacement Tracking nếu có) */}
+                            {replacements.filter((r) => r.orderId === order.id || r.sellerOrderId === so.id).length > 0 && (
+                              <div className="p-3.5 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 space-y-2">
+                                <div className="flex items-center gap-2 text-xs font-bold text-blue-900 dark:text-blue-200">
+                                  <span className="material-symbols-outlined text-[18px] text-blue-600">sync_alt</span>
+                                  <span>Kiện hàng đổi mới (0đ) đang được xử lý</span>
+                                </div>
+                                {replacements
+                                  .filter((r) => r.orderId === order.id || r.sellerOrderId === so.id)
+                                  .map((rep) => (
+                                    <div key={rep.id} className="text-xs text-blue-800 dark:text-blue-300 flex items-center justify-between gap-2 flex-wrap">
+                                      <span>Sách đổi: <b>{rep.orderItem?.title || 'Sách in mới'}</b></span>
+                                      {rep.replacementTrackingCode ? (
+                                        <span className="px-2 py-0.5 rounded-lg bg-blue-100 dark:bg-blue-900/60 font-mono font-bold">
+                                          {rep.replacementCarrier || 'Vận chuyển'}: {rep.replacementTrackingCode}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[11px] italic text-blue-600 dark:text-blue-400">Shop đang chuẩn bị gửi hàng đổi</span>
+                                      )}
+                                    </div>
+                                  ))}
+                              </div>
+                            )}
 
                             {/* Ký quỹ đếm ngược hoặc Thông báo chờ giao riêng cho Sách Giấy */}
                             {isPhysicalDelivered ? (
@@ -931,8 +1150,13 @@ export default function OrderDetailPage() {
                                   amount={physicalSubtotal + Number(so.shippingFee || 0)}
                                   startTime={so.deliveredAt || so.completedAt || (order as any).deliveredAt || so.updatedAt || order.updatedAt}
                                   onDispute={() => setDisputeModal({ open: true, subOrder: so })}
-                                  onReleaseEscrow={({ auto }: any) => {
+                                  onReleaseEscrow={async ({ auto }: any) => {
                                     setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_physical`]: true }));
+                                    try {
+                                      await orderApi.confirmDelivered(order.id, `${so.id}_physical`);
+                                    } catch (err) {
+                                      console.warn('Lỗi gọi API confirmDelivered:', err);
+                                    }
                                     showToast(
                                       {
                                         title: auto ? 'Hết hạn ký quỹ Sách giấy 2 phút' : 'Xác nhận thành công!',
@@ -1351,6 +1575,27 @@ export default function OrderDetailPage() {
               },
               'success',
             );
+            fetchOrderDetail();
+          }}
+        />
+      )}
+
+      {/* Return Request Modal (Flow Đổi Trả V1) */}
+      {returnModal.open && returnModal.item && (
+        <ReturnRequestModal
+          isOpen={returnModal.open}
+          onClose={() => setReturnModal({ open: false, item: null, storeName: '' })}
+          orderId={order.id}
+          orderCode={order.code}
+          orderItem={{
+            id: returnModal.item.id,
+            title: returnModal.item.bookTitle || returnModal.item.title || 'Sách',
+            price: Number(returnModal.item.unitPrice || returnModal.item.price || 0),
+            quantity: Number(returnModal.item.quantity || 1),
+            coverUrl: returnModal.item.bookCoverUrl || returnModal.item.coverUrl,
+          }}
+          storeName={returnModal.storeName}
+          onSuccess={() => {
             fetchOrderDetail();
           }}
         />

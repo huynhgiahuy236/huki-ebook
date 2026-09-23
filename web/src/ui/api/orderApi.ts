@@ -318,7 +318,195 @@ export const orderApi = {
   getSubOrderEscrow: async (orderId: string, sellerOrderId: string): Promise<ApiResponse<EscrowStatusData>> => {
     return apiClient<EscrowStatusData>(`/orders/${orderId}/seller-orders/${sellerOrderId}/escrow`, { method: 'GET' });
   },
+
+  // ===== FLOW ĐỔI TRẢ V1 =====
+
+  /**
+   * Khách hàng xác nhận đã nhận đủ hàng và giải ngân ký quỹ tức thì
+   */
+  confirmDelivered: async (
+    orderId: string,
+    subOrderId?: string
+  ): Promise<ApiResponse<{ message?: string }>> => {
+    return apiClient<{ message?: string }>(`/orders/${orderId}/confirm-delivered`, {
+      method: 'POST',
+      body: JSON.stringify({ orderId, subOrderId }),
+    });
+  },
+
+  /**
+   * Khách hàng tạo yêu cầu đổi trả cho 1 sản phẩm
+   */
+  createReturnRequest: async (
+    orderId: string,
+    orderItemId: string,
+    payload: {
+      type: 'REFUND' | 'REPLACEMENT';
+      reason: 'NOT_AS_DESCRIBED' | 'DAMAGED_TORN' | 'OTHER';
+      reasonDetail?: string;
+      evidenceImages?: string[];
+      evidenceVideos?: string[];
+      evidenceDocuments?: string[];
+      evidencePdfs?: string[];
+      bookTitle?: string;
+      bookCoverUrl?: string;
+      amount?: number;
+      quantity?: number;
+    }
+  ): Promise<ApiResponse<ReturnRequestData>> => {
+    return apiClient<ReturnRequestData>(`/orders/${orderId}/items/${orderItemId}/return-request`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Khách hàng lấy danh sách hàng đổi đang giao
+   */
+  getBuyerReplacements: async (): Promise<ApiResponse<ReturnRequestData[]>> => {
+    return apiClient<ReturnRequestData[]>('/orders/buyer/replacements', { method: 'GET' });
+  },
+
+  /**
+   * Khách hàng lấy danh sách tất cả yêu cầu đổi trả & hoàn tiền
+   */
+  getBuyerReturnRequests: async (params?: { type?: string; status?: string }): Promise<ApiResponse<ReturnRequestData[]>> => {
+    const query = new URLSearchParams();
+    if (params?.type) query.append('type', params.type);
+    if (params?.status) query.append('status', params.status);
+    const qs = query.toString();
+    return apiClient<ReturnRequestData[]>(`/orders/buyer/returns${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Seller lấy danh sách yêu cầu đổi trả
+   */
+  getSellerReturnRequests: async (params?: { status?: string; search?: string }): Promise<ApiResponse<ReturnRequestData[]>> => {
+    const query = new URLSearchParams();
+    if (params?.status) query.append('status', params.status);
+    if (params?.search) query.append('search', params.search);
+    const qs = query.toString();
+    return apiClient<ReturnRequestData[]>(`/orders/seller/returns${qs ? `?${qs}` : ''}`, { method: 'GET' });
+  },
+
+  /**
+   * Seller lấy chi tiết yêu cầu đổi trả
+   */
+  getSellerReturnRequestDetail: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {
+    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}`, { method: 'GET' });
+  },
+
+  /**
+   * Seller xác nhận yêu cầu đổi trả (đồng ý)
+   */
+  sellerAcceptReturnRequest: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {
+    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/accept`, { method: 'POST' });
+  },
+
+  /**
+   * Seller yêu cầu phản biện
+   */
+  sellerDisputeReturnRequest: async (
+    id: string,
+    payload: {
+      reason: string;
+      evidenceImages?: string[];
+      evidenceVideos?: string[];
+      evidenceDocuments?: string[];
+      evidencePdfs?: string[];
+    }
+  ): Promise<ApiResponse<ReturnRequestData>> => {
+    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/dispute`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Seller nhập mã vận đơn gửi hàng đổi cho khách
+   */
+  sellerShipReplacement: async (
+    id: string,
+    payload: {
+      carrier: string;
+      trackingCode: string;
+    }
+  ): Promise<ApiResponse<ReturnRequestData>> => {
+    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/ship-replacement`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Seller lấy danh sách đơn đổi hàng
+   */
+  getSellerReplacements: async (): Promise<ApiResponse<ReturnRequestData[]>> => {
+    return apiClient<ReturnRequestData[]>('/orders/seller/replacements', { method: 'GET' });
+  },
 };
+
+export interface ReturnRequestData {
+  id: string;
+  orderId: string;
+  orderItemId: string;
+  sellerOrderId?: string | null;
+  userId: string;
+  storeId: string;
+  type: 'REFUND' | 'REPLACEMENT';
+  reason: 'NOT_AS_DESCRIBED' | 'DAMAGED_TORN' | 'OTHER';
+  reasonDetail?: string | null;
+  evidenceImages: string[];
+  evidenceVideos: string[];
+  evidenceDocuments?: string[];
+  sellerEvidenceImages?: string[];
+  sellerEvidenceVideos?: string[];
+  sellerEvidenceDocuments?: string[];
+  sellerDisputeReason?: string | null;
+  status:
+    | 'WAITING_FORWARD'
+    | 'FORWARDED_TO_SELLER'
+    | 'SELLER_ACCEPTED'
+    | 'SELLER_DISPUTED'
+    | 'ARBITRATED_BUYER_WINS'
+    | 'ARBITRATED_SELLER_WINS'
+    | 'COMPLETED';
+  forwardedToSellerAt?: string | null;
+  sellerRespondedAt?: string | null;
+  replacementTrackingCode?: string | null;
+  replacementCarrier?: string | null;
+  replacementShippedAt?: string | null;
+  replacementDeliveredAt?: string | null;
+  adminRuling?: string | null;
+  adminRulingReason?: string | null;
+  arbitratedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  orderItem?: {
+    id: string;
+    title: string;
+    price: number;
+    quantity: number;
+    coverUrl?: string;
+    format?: string;
+  };
+  order?: {
+    code: string;
+    createdAt: string;
+    shippingAddress?: any;
+  };
+  store?: {
+    id: string;
+    name: string;
+  };
+  user?: {
+    id: string;
+    name?: string;
+    fullName?: string;
+    email?: string;
+    phone?: string;
+  };
+}
 
 export interface EscrowStatusData {
   orderId: string;
@@ -350,5 +538,6 @@ export interface EscrowStatusData {
     routing?: string;
   } | null;
 }
+
 
 

@@ -155,8 +155,20 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/orders?tab=CANCELLED', 
           icon: 'cancel', 
-          label: 'Đơn Hủy & Khiếu Nại', 
+          label: 'Đơn Hủy', 
           permission: PERMISSIONS.ORDER_CANCEL 
+        },
+        { 
+          to: '/seller/returns', 
+          icon: 'assignment_return', 
+          label: 'Yêu Cầu Đổi Trả', 
+          permission: PERMISSIONS.ORDER_VIEW 
+        },
+        { 
+          to: '/seller/replacement-orders', 
+          icon: 'sync_alt', 
+          label: 'Đơn Hàng Đổi Mới', 
+          permission: PERMISSIONS.ORDER_VIEW 
         },
         { 
           to: '/seller/chat', 

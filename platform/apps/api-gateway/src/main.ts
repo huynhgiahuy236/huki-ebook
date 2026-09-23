@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, NestApplicationOptions } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
 import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { aggregateOpenApi } from './modules/proxy/openapi-aggregator';
 
@@ -11,6 +12,10 @@ async function bootstrap() {
   };
 
   const app = await NestFactory.create(AppModule, options);
+
+  // Increase body size limit to allow PDF/image/video evidence uploads
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
 
   // Enable CORS
   app.enableCors({

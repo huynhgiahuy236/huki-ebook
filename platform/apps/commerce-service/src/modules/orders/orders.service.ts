@@ -18,6 +18,9 @@ import {
   OrderStatus,
   PaymentStatus,
   PaymentMethod,
+  ReturnType,
+  ReturnReason,
+  ReturnRequestStatus,
   Prisma,
 } from "../../../prisma/generated/client";
 import { ORDER_EVENTS, policyConfig } from "../../../../../libs/shared/src";
@@ -1332,6 +1335,95 @@ export class OrdersService {
     // Group history entries by disputeId
     const disputeMap = new Map<string, any>();
 
+    // 1. Merge disputed return requests from Flow Return v1
+    try {
+      const disputedReturns = await this.prisma.returnRequest.findMany({
+        where: {
+          status: {
+            in: [
+              ReturnRequestStatus.SELLER_DISPUTED,
+              ReturnRequestStatus.ARBITRATED_BUYER_WINS,
+              ReturnRequestStatus.ARBITRATED_SELLER_WINS,
+            ],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      const orderIds = Array.from(new Set(disputedReturns.map((r) => r.orderId)));
+      const orders = await this.prisma.order.findMany({
+        where: { id: { in: orderIds } },
+      });
+      const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+      for (const r of disputedReturns) {
+        const custEv = (r.customerEvidence as any) || {};
+        const sellerEv = (r.sellerEvidence as any) || {};
+        const order = orderMap.get(r.orderId);
+
+        const images: string[] = [
+          ...(Array.isArray(custEv.images) ? custEv.images : []),
+          ...(Array.isArray(sellerEv.images) ? sellerEv.images : []),
+        ];
+
+        const disputeStatus =
+          r.status === ReturnRequestStatus.SELLER_DISPUTED
+            ? 'DISPUTE_OPENED'
+            : r.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
+            ? 'RULING_BUYER_WINS'
+            : r.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+            ? 'RULING_SELLER_WINS'
+            : r.status;
+
+        disputeMap.set(r.id, {
+          id: r.id,
+          orderId: r.orderId,
+          orderCode: order?.code || 'N/A',
+          userId: r.userId,
+          customerName: r.customerName,
+          storeId: r.storeId,
+          storeName: r.storeName,
+          bookTitle: r.bookTitle,
+          grandTotal: order ? Number(order.grandTotal) : 0,
+          paymentMethod: order?.paymentMethod,
+          paymentStatus: order?.paymentStatus,
+          sellerOrderId: r.sellerOrderId,
+          type: r.reason,
+          description:
+            r.reasonDetail ||
+            ((r.reason as string) === 'NOT_AS_DESCRIBED'
+              ? 'Hàng không đúng mô tả'
+              : (r.reason as string) === 'DAMAGED_TORN' || (r.reason as string) === 'DAMAGED'
+              ? 'Hàng bị hỏng rách'
+              : 'Khác'),
+          resolution: (r.returnType as string) === 'REPLACE' || (r.returnType as string) === 'REPLACEMENT' ? 'REPLACEMENT' : 'REFUND',
+          evidence: images,
+          customerEvidence: custEv,
+          sellerEvidence: sellerEv,
+          status: disputeStatus,
+          createdAt: r.createdAt,
+          updatedAt: r.updatedAt,
+          ruling:
+            r.arbitrationRuling ||
+            (r.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
+              ? 'BUYER_WINS'
+              : r.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+              ? 'SELLER_WINS'
+              : null),
+          rulingNotes: r.arbitrationNotes || null,
+          refundPercentage: null,
+          resolvedAt: r.arbitratedAt || null,
+          resolvedBy: r.arbitratedBy || null,
+          adminEmail: r.arbitratedBy || null,
+          isReturnRequest: true,
+          history: [],
+        });
+      }
+    } catch (err) {
+      console.warn('Error fetching disputed return requests for adminListDisputes:', err);
+    }
+
+    // 2. Merge legacy OrderStatusHistory entries
     for (const h of histories) {
       const meta = (h.metadata as any) || {};
       const disputeId = meta.disputeId || h.id;
@@ -1435,6 +1527,148 @@ export class OrdersService {
         ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
         "Chỉ Platform Admin mới có quyền truy cập cổng trọng tài tranh chấp",
       );
+    }
+
+    // Check if disputeId is a ReturnRequest record
+    const returnReq = await this.prisma.returnRequest.findUnique({
+      where: { id: disputeId },
+    });
+
+    if (returnReq) {
+      const order = await this.prisma.order.findUnique({
+        where: { id: returnReq.orderId },
+        include: {
+          sellerOrders: {
+            include: {
+              items: {
+                include: { book: true },
+              },
+            },
+          },
+        },
+      });
+
+      const custEv = (returnReq.customerEvidence as any) || {};
+      const sellerEv = (returnReq.sellerEvidence as any) || {};
+      const targetSellerOrder = order?.sellerOrders.find((so) => so.id === returnReq.sellerOrderId);
+
+      const custImages = Array.isArray(custEv.images) ? custEv.images : [];
+      const sellerImages = Array.isArray(sellerEv.images) ? sellerEv.images : [];
+      const allEvidence = [...custImages, ...sellerImages];
+
+      const currentStatus =
+        returnReq.status === ReturnRequestStatus.SELLER_DISPUTED
+          ? 'DISPUTE_OPENED'
+          : returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
+          ? 'RULING_BUYER_WINS'
+          : returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+          ? 'RULING_SELLER_WINS'
+          : returnReq.status;
+
+      const isFinalized =
+        returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS ||
+        returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS;
+
+      return {
+        disputeId: returnReq.id,
+        orderId: returnReq.orderId,
+        orderCode: order?.code || 'N/A',
+        buyerId: returnReq.userId,
+        customerName: returnReq.customerName,
+        orderGrandTotal: order ? Number(order.grandTotal) : 0,
+        orderPaymentMethod: order?.paymentMethod,
+        orderPaymentStatus: order?.paymentStatus,
+        orderStatus: order?.status,
+        shippingAddress: order?.shippingAddress,
+        sellerOrderId: returnReq.sellerOrderId,
+        storeId: returnReq.storeId,
+        storeName: returnReq.storeName,
+        bookTitle: returnReq.bookTitle,
+        bookCoverUrl: returnReq.bookCoverUrl,
+        targetSellerOrder: targetSellerOrder
+          ? {
+              id: targetSellerOrder.id,
+              code: targetSellerOrder.code,
+              storeId: targetSellerOrder.storeId,
+              ownerUserId: targetSellerOrder.ownerUserId,
+              grandTotal: Number(targetSellerOrder.grandTotal),
+              status: targetSellerOrder.status,
+              carrier: targetSellerOrder.carrier,
+              trackingCode: targetSellerOrder.trackingCode,
+              items: targetSellerOrder.items.map((it) => ({
+                id: it.id,
+                bookId: it.bookId,
+                bookTitle: it.bookTitle,
+                bookCoverUrl: it.bookCoverUrl,
+                quantity: it.quantity,
+                unitPrice: Number(it.unitPrice),
+                subtotal: Number(it.subtotal),
+                format: it.format,
+              })),
+            }
+          : null,
+        type: returnReq.reason,
+        description:
+          returnReq.reasonDetail ||
+          ((returnReq.reason as string) === 'NOT_AS_DESCRIBED'
+            ? 'Hàng không đúng mô tả'
+            : (returnReq.reason as string) === 'DAMAGED_TORN' || (returnReq.reason as string) === 'DAMAGED'
+            ? 'Hàng bị hỏng rách'
+            : 'Khác'),
+        resolution: (returnReq.returnType as string) === 'REPLACE' || (returnReq.returnType as string) === 'REPLACEMENT' ? 'REPLACEMENT' : 'REFUND',
+        evidence: allEvidence,
+        customerEvidence: custEv,
+        sellerEvidence: sellerEv,
+        currentStatus,
+        isFinalized,
+        ruling:
+          returnReq.arbitrationRuling ||
+          (returnReq.status === ReturnRequestStatus.ARBITRATED_BUYER_WINS
+            ? 'BUYER_WINS'
+            : returnReq.status === ReturnRequestStatus.ARBITRATED_SELLER_WINS
+            ? 'SELLER_WINS'
+            : null),
+        rulingNotes: returnReq.arbitrationNotes || null,
+        refundPercentage: null,
+        resolvedAt: returnReq.arbitratedAt ? returnReq.arbitratedAt.toISOString() : null,
+        resolvedBy: returnReq.arbitratedBy || null,
+        adminEmail: returnReq.arbitratedBy || null,
+        isReturnRequest: true,
+        timeline: [
+          {
+            id: returnReq.id + '-1',
+            toStatus: 'RETURN_REQUESTED',
+            title: 'Khách hàng gửi yêu cầu đổi trả',
+            description: returnReq.reasonDetail || returnReq.reason,
+            actorType: 'BUYER',
+            createdAt: returnReq.createdAt.toISOString(),
+          },
+          ...(returnReq.sellerEvidence
+            ? [
+                {
+                  id: returnReq.id + '-2',
+                  toStatus: 'SELLER_DISPUTED',
+                  title: 'Cửa hàng gửi phản biện và từ chối đổi trả',
+                  description: (sellerEv.note as string) || 'Cửa hàng không đồng ý yêu cầu đổi trả',
+                  actorType: 'SELLER',
+                  createdAt: returnReq.updatedAt.toISOString(),
+                },
+              ]
+            : []),
+          ...(returnReq.arbitratedAt
+            ? [
+                {
+                  id: returnReq.id + '-3',
+                  toStatus: returnReq.status,
+                  title: `Admin ra phán quyết: ${returnReq.arbitrationRuling === 'BUYER_WINS' ? 'Người mua thắng' : 'Người bán thắng'}`,
+                  description: returnReq.arbitrationNotes || '',
+                  actorType: 'ADMIN',
+                  createdAt: returnReq.arbitratedAt.toISOString(),
+                },
+              ]
+            : []),
+        ],
+      };
     }
 
     const histories = await this.prisma.orderStatusHistory.findMany({
@@ -1572,6 +1806,23 @@ export class OrdersService {
         ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
         "Chỉ Platform Admin mới có thẩm quyền ra phán quyết trọng tài",
       );
+    }
+
+    // Check if disputeId is a ReturnRequest record
+    const returnReq = await this.prisma.returnRequest.findUnique({
+      where: { id: disputeId },
+    });
+
+    if (returnReq) {
+      const rulingType =
+        dto.ruling === ArbitrationRuling.BUYER_WINS || (dto.ruling as any) === 'BUYER_WINS'
+          ? 'BUYER_WINS'
+          : 'SELLER_WINS';
+
+      return this.adminArbitrateReturnRequest(actor, disputeId, {
+        ruling: rulingType,
+        notes: dto.notes,
+      });
     }
 
     if (dto.ruling === ArbitrationRuling.PARTIAL_SETTLEMENT) {
@@ -1848,17 +2099,24 @@ export class OrdersService {
               (h.metadata as any)?.orderItemId === item.id,
           );
 
+          const isItemDigital = item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook');
+
           const freezeEntry = histories.find(
             (h) =>
               h.orderId === order.id &&
               (h.toStatus === 'ESCROW_FROZEN' || h.toStatus === 'DISPUTE_OPENED') &&
-              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id) &&
+              (!(h.metadata as any)?.orderItemId || (h.metadata as any)?.orderItemId === item.id),
           );
+
           const unfreezeEntry = histories.find(
             (h) =>
               h.orderId === order.id &&
               (h.toStatus === 'ESCROW_UNFROZEN' || h.toStatus === 'ESCROW_RELEASED' || h.toStatus.startsWith('RULING_')) &&
-              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id) &&
+              // Ebook-only release entry does not release physical items
+              (!((h.metadata as any)?.format === 'DIGITAL') || isItemDigital) &&
+              (!(h.metadata as any)?.orderItemId || (h.metadata as any)?.orderItemId === item.id),
           );
 
           let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'PENDING_PAYMENT' = 'HOLDING';
@@ -1872,8 +2130,20 @@ export class OrdersService {
             if (target) escrowStatus = target;
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
-          } else if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || sellerOrder.status === 'COMPLETED')) {
-            escrowStatus = 'RELEASED';
+          } else if (isItemDigital) {
+            if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
+              escrowStatus = 'RELEASED';
+            } else {
+              escrowStatus = 'HOLDING';
+            }
+          } else {
+            // For PHYSICAL book: Only RELEASED if the physical order is fully COMPLETED with delivery, or an explicit physical release exists
+            const isPhysicalDelivered = sellerOrder.status === 'COMPLETED' && Boolean(sellerOrder.completedAt);
+            if (isPhysicalDelivered && unfreezeEntry && (unfreezeEntry.metadata as any)?.format !== 'DIGITAL') {
+              escrowStatus = 'RELEASED';
+            } else {
+              escrowStatus = 'HOLDING';
+            }
           }
 
           if (!query?.status || query.status === 'ALL' || escrowStatus === query.status) {
@@ -1957,17 +2227,23 @@ export class OrdersService {
               (h.metadata as any)?.orderItemId === item.id,
           );
 
+          const isItemDigital = item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook');
+
           const freezeEntry = histories.find(
             (h) =>
               h.orderId === order.id &&
               (h.toStatus === 'ESCROW_FROZEN' || h.toStatus === 'DISPUTE_OPENED') &&
-              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id) &&
+              (!(h.metadata as any)?.orderItemId || (h.metadata as any)?.orderItemId === item.id),
           );
+
           const unfreezeEntry = histories.find(
             (h) =>
               h.orderId === order.id &&
               (h.toStatus === 'ESCROW_UNFROZEN' || h.toStatus === 'ESCROW_RELEASED' || h.toStatus.startsWith('RULING_')) &&
-              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id) &&
+              (!((h.metadata as any)?.format === 'DIGITAL') || isItemDigital) &&
+              (!(h.metadata as any)?.orderItemId || (h.metadata as any)?.orderItemId === item.id),
           );
 
           let escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED' = 'HOLDING';
@@ -1981,8 +2257,20 @@ export class OrdersService {
             if (target) escrowStatus = target;
           } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
             escrowStatus = 'FROZEN';
-          } else if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || sellerOrder.status === 'COMPLETED')) {
-            escrowStatus = 'RELEASED';
+          } else if (isItemDigital) {
+            if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
+              escrowStatus = 'RELEASED';
+            } else {
+              escrowStatus = 'HOLDING';
+            }
+          } else {
+            // For PHYSICAL book: Only RELEASED if the physical order is fully COMPLETED with delivery, or an explicit physical release exists
+            const isPhysicalDelivered = sellerOrder.status === 'COMPLETED' && Boolean(sellerOrder.completedAt);
+            if (isPhysicalDelivered && unfreezeEntry && (unfreezeEntry.metadata as any)?.format !== 'DIGITAL') {
+              escrowStatus = 'RELEASED';
+            } else {
+              escrowStatus = 'HOLDING';
+            }
           }
 
           const subtotal = Number(item.subtotal);
@@ -2026,7 +2314,7 @@ export class OrdersService {
   async adminUpdateEscrowItemStatus(
     actor: BookActor,
     orderItemId: string,
-    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED'; reason?: string },
+    dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED'; reason?: string },
   ) {
     if (actor.role !== 'PLATFORM_ADMIN') {
       throwForbidden(
@@ -2055,6 +2343,8 @@ export class OrdersService {
         ? 'ESCROW_FROZEN'
         : dto.status === 'RELEASED'
         ? 'ESCROW_RELEASED'
+        : dto.status === 'REFUNDED'
+        ? 'ESCROW_REFUNDED'
         : 'ESCROW_HOLDING';
 
     await this.prisma.orderStatusHistory.create({
@@ -2121,13 +2411,855 @@ export class OrdersService {
       });
     }
 
+    // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
+    if (dto.status === 'REFUNDED') {
+      await this.prisma.returnRequest.updateMany({
+        where: { orderItemId: item.id },
+        data: { status: ReturnRequestStatus.REFUNDED },
+      });
+    }
+
     return {
       orderItemId,
       status: dto.status,
       message: `Đã cập nhật trạng thái dòng tiền món ${item.bookTitle} sang ${dto.status}`,
     };
   }
+
+  // ============================================
+  // RETURN & REFUND REQUESTS (Flow Return v1)
+  // ============================================
+
+  /**
+   * Buyer creates a Return/Refund request for an order item
+  /**
+   * Helper format return request object for frontend compatibility
+   */
+  private formatReturnRequest(req: any, order?: any) {
+    if (!req) return null;
+    const customerEvidence = (req.customerEvidence as any) || {};
+    const sellerEvidence = (req.sellerEvidence as any) || {};
+
+    return {
+      id: req.id,
+      orderId: req.orderId,
+      sellerOrderId: req.sellerOrderId,
+      orderItemId: req.orderItemId,
+      bookId: req.bookId,
+      userId: req.userId,
+      storeId: req.storeId,
+      type: req.returnType === 'REPLACE' || req.returnType === 'REPLACEMENT' ? 'REPLACEMENT' : 'REFUND',
+      reason: req.reason === 'DAMAGED' ? 'DAMAGED_TORN' : req.reason,
+      reasonDetail: req.reasonDetail,
+      evidenceImages: Array.isArray(customerEvidence.images) ? customerEvidence.images : [],
+      evidenceVideos: Array.isArray(customerEvidence.videos) ? customerEvidence.videos : [],
+      evidenceDocuments: Array.isArray(customerEvidence.documents) ? customerEvidence.documents : Array.isArray(customerEvidence.pdfs) ? customerEvidence.pdfs : [],
+      sellerEvidenceImages: Array.isArray(sellerEvidence.images) ? sellerEvidence.images : [],
+      sellerEvidenceVideos: Array.isArray(sellerEvidence.videos) ? sellerEvidence.videos : [],
+      sellerEvidenceDocuments: Array.isArray(sellerEvidence.documents) ? sellerEvidence.documents : Array.isArray(sellerEvidence.pdfs) ? sellerEvidence.pdfs : [],
+      sellerDisputeReason: sellerEvidence.note || req.sellerDisputeReason || null,
+      status: req.status === 'PENDING_REVIEW' ? 'WAITING_FORWARD' : req.status,
+      replacementCarrier: req.replacementCarrier,
+      replacementTrackingCode: req.replacementTrackingCode,
+      replacementStatus: req.replacementStatus,
+      replacementShippedAt: req.replacementShippedAt,
+      adminRuling: req.arbitrationRuling,
+      adminRulingReason: req.arbitrationNotes,
+      arbitratedAt: req.arbitratedAt,
+      createdAt: req.createdAt,
+      updatedAt: req.updatedAt,
+      amount: Number(req.amount || 0),
+      orderItem: {
+        id: req.orderItemId,
+        title: req.bookTitle || 'Sản phẩm',
+        price: Number(req.amount || 0) / (req.quantity || 1),
+        quantity: req.quantity || 1,
+        coverUrl: req.bookCoverUrl,
+      },
+      order: {
+        id: req.orderId,
+        code: order?.code || req.orderId,
+        paymentMethod: order?.paymentMethod,
+        paymentStatus: order?.paymentStatus,
+        status: order?.status,
+      },
+      store: {
+        id: req.storeId,
+        name: req.storeName || req.storeId,
+      },
+      user: {
+        id: req.userId,
+        fullName: req.customerName,
+        phone: req.customerPhone,
+      },
+    };
+  }
+
+  /**
+   * Buyer creates a Return Request for an Order Item (Flow Đổi Trả V1)
+   */
+  async createReturnRequest(
+    userId: string,
+    orderId: string,
+    orderItemId: string,
+    dto: {
+      type?: string;
+      returnType?: any;
+      reason?: any;
+      reasonDetail?: string;
+      evidenceImages?: string[];
+      evidenceVideos?: string[];
+      customerEvidence?: { images?: string[]; videos?: string[] };
+      bookTitle?: string;
+      bookCoverUrl?: string;
+      amount?: number;
+      quantity?: number;
+    },
+  ) {
+    const isUuid = (val?: string): boolean =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+
+    // 1. Find Order first (safe query by UUID or code)
+    let masterOrder: any = null;
+    try {
+      if (isUuid(orderId)) {
+        masterOrder = await this.prisma.order.findFirst({
+          where: { id: orderId },
+          include: {
+            sellerOrders: {
+              include: { items: true },
+            },
+          },
+        });
+      }
+      if (!masterOrder) {
+        masterOrder = await this.prisma.order.findFirst({
+          where: { code: orderId },
+          include: {
+            sellerOrders: {
+              include: { items: true },
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Error querying order for return request:', err);
+    }
+
+    // 2. Find Item in order or directly
+    let targetItem: any = null;
+    let targetSellerOrder: any = null;
+
+    if (masterOrder) {
+      for (const so of masterOrder.sellerOrders) {
+        const found = so.items.find(
+          (it: any) =>
+            it.id === orderItemId ||
+            it.bookId === orderItemId ||
+            (dto.bookTitle && it.bookTitle?.toLowerCase() === dto.bookTitle.toLowerCase()),
+        );
+        if (found) {
+          targetItem = found;
+          targetSellerOrder = so;
+          break;
+        }
+      }
+      // If not directly matched by id/bookId, fallback to matching first item in order
+      if (!targetItem && masterOrder.sellerOrders?.[0]?.items?.length > 0) {
+        targetItem = masterOrder.sellerOrders[0].items[0];
+        targetSellerOrder = masterOrder.sellerOrders[0];
+      }
+    }
+
+    if (!targetItem && isUuid(orderItemId)) {
+      try {
+        targetItem = await this.prisma.orderItem.findFirst({
+          where: { id: orderItemId },
+          include: {
+            sellerOrder: {
+              include: { order: true },
+            },
+          },
+        });
+        if (targetItem) {
+          targetSellerOrder = targetItem.sellerOrder;
+          masterOrder = targetItem.sellerOrder?.order;
+        }
+      } catch (err) {
+        console.warn('Error querying order item by UUID:', err);
+      }
+    }
+
+    // Safe parameters with defaults
+    const masterOrderId = masterOrder?.id || (isUuid(orderId) ? orderId : randomUUID());
+    const sellerOrderId = targetSellerOrder?.id || randomUUID();
+    const itemId = targetItem?.id || (isUuid(orderItemId) ? orderItemId : randomUUID());
+    const bookId = targetItem?.bookId || (dto as any).bookId || orderItemId || 'BOOK-EBOOK';
+    const bookTitle = targetItem?.bookTitle || dto.bookTitle || 'Sách Ebook';
+    const bookCoverUrl = targetItem?.bookCoverUrl || dto.bookCoverUrl || null;
+    const storeId = targetSellerOrder?.storeId || (dto as any).storeId || 'default-store';
+    const storeName = targetSellerOrder?.storeId || (dto as any).storeName || storeId;
+    const amount = targetItem?.subtotal
+      ? targetItem.subtotal
+      : dto.amount
+      ? new Prisma.Decimal(dto.amount)
+      : new Prisma.Decimal(0);
+    const quantity = targetItem?.quantity || dto.quantity || 1;
+
+    // Check if there is an existing return request for this item
+    let existing: any = null;
+    try {
+      if (isUuid(itemId)) {
+        existing = await this.prisma.returnRequest.findFirst({
+          where: {
+            orderItemId: itemId,
+            status: {
+              notIn: [ReturnRequestStatus.REJECTED, ReturnRequestStatus.REFUNDED, ReturnRequestStatus.REPLACED],
+            },
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Error querying existing return request:', err);
+    }
+
+    if (existing) {
+      return this.formatReturnRequest(existing, masterOrder);
+    }
+
+    // Determine type
+    const rawType = String(dto.type || dto.returnType || 'REFUND').toUpperCase();
+    const returnType = rawType.includes('REPLACE') ? ReturnType.REPLACE : ReturnType.REFUND;
+
+    // Determine reason
+    let reason: ReturnReason = ReturnReason.NOT_AS_DESCRIBED;
+    if (dto.reason === 'DAMAGED_TORN' || dto.reason === 'DAMAGED') {
+      reason = ReturnReason.DAMAGED;
+    } else if (dto.reason === 'OTHER') {
+      reason = ReturnReason.OTHER;
+    }
+
+    const customerEvidence = {
+      images: Array.isArray(dto.evidenceImages) ? dto.evidenceImages : dto.customerEvidence?.images || [],
+      videos: Array.isArray(dto.evidenceVideos) ? dto.evidenceVideos : dto.customerEvidence?.videos || [],
+      documents: Array.isArray((dto as any).evidenceDocuments) ? (dto as any).evidenceDocuments : Array.isArray((dto as any).evidencePdfs) ? (dto as any).evidencePdfs : (dto.customerEvidence as any)?.documents || [],
+    };
+
+    const shipping = (masterOrder?.shippingAddress as any) || {};
+    const customerName = shipping.recipientName || shipping.fullName || 'Khách Hàng HUKI';
+    const customerPhone = shipping.phone || shipping.phoneNumber || '';
+
+    const returnRequest = await this.prisma.returnRequest.create({
+      data: {
+        orderId: masterOrderId,
+        sellerOrderId,
+        orderItemId: itemId,
+        bookId,
+        bookTitle,
+        bookCoverUrl,
+        storeId,
+        storeName,
+        userId: userId || masterOrder?.userId || 'unknown-user',
+        customerName,
+        customerPhone,
+        returnType,
+        reason,
+        reasonDetail: dto.reasonDetail || '',
+        customerEvidence,
+        status: ReturnRequestStatus.PENDING_REVIEW,
+        amount,
+        quantity,
+      },
+    });
+
+    // Auto-freeze escrow for this item
+    if (masterOrder && isUuid(masterOrderId)) {
+      try {
+        await this.prisma.orderStatusHistory.create({
+          data: {
+            orderId: masterOrderId,
+            sellerOrderId: isUuid(sellerOrderId) ? sellerOrderId : null,
+            fromStatus: 'ESCROW_HOLDING',
+            toStatus: 'ESCROW_FROZEN',
+            title: `Đóng băng dòng tiền do phát sinh yêu cầu đổi trả món ${bookTitle}`,
+            description: `Khách hàng gửi yêu cầu đổi trả: ${dto.reasonDetail || dto.reason}`,
+            actorType: 'BUYER',
+            actorId: userId,
+            metadata: {
+              orderItemId: itemId,
+              bookId,
+              returnRequestId: returnRequest.id,
+              targetStatus: 'FROZEN',
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('Could not record status history for escrow freeze:', err);
+      }
+    }
+
+    return this.formatReturnRequest(returnRequest, masterOrder);
+  }
+
+  /**
+   * Admin Platform lists all return requests
+   */
+  async adminListReturnRequests(actor: BookActor, query?: { status?: string; search?: string }) {
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ Platform Admin mới có quyền truy cập');
+    }
+
+    const where: any = {};
+    if (query?.status && query.status !== 'ALL') {
+      const dbStatus = query.status === 'WAITING_FORWARD' ? ReturnRequestStatus.PENDING_REVIEW : query.status;
+      where.status = dbStatus as ReturnRequestStatus;
+    }
+
+    if (query?.search) {
+      const q = query.search.trim();
+      where.OR = [
+        { bookTitle: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { storeId: { contains: q, mode: 'insensitive' } },
+        { orderId: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const list = await this.prisma.returnRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return list.map((r) => this.formatReturnRequest(r));
+  }
+
+  /**
+   * Admin Platform forwards return request to Seller
+   */
+  async adminForwardReturnRequest(actor: BookActor, returnRequestId: string) {
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ Platform Admin mới có quyền chuyển tiếp');
+    }
+
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: ReturnRequestStatus.FORWARDED_TO_SELLER,
+      },
+    });
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Seller lists return requests assigned to their store
+   */
+  async sellerListReturnRequests(actor: BookActor, query?: { status?: string; search?: string }) {
+    const scope = await getSellerScope(actor);
+    const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
+
+    const where: any = {};
+    if (!scope.isPlatformAdmin && storeIds.length > 0) {
+      where.storeId = { in: storeIds };
+    }
+
+    if (query?.status && query.status !== 'ALL') {
+      const dbStatus = query.status as ReturnRequestStatus;
+      if (!scope.isPlatformAdmin && dbStatus === ReturnRequestStatus.PENDING_REVIEW) {
+        return [];
+      }
+      where.status = dbStatus;
+    } else {
+      // Only show requests that have been forwarded to seller or beyond
+      if (!scope.isPlatformAdmin) {
+        where.status = {
+          not: ReturnRequestStatus.PENDING_REVIEW,
+        };
+      }
+    }
+
+    if (query?.search) {
+      const q = query.search.trim();
+      where.OR = [
+        { bookTitle: { contains: q, mode: 'insensitive' } },
+        { customerName: { contains: q, mode: 'insensitive' } },
+        { orderId: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    const list = await this.prisma.returnRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return list.map((r) => this.formatReturnRequest(r));
+  }
+
+  /**
+   * Seller views detail of a return request
+   */
+  async sellerGetReturnRequestDetail(actor: BookActor, returnRequestId: string) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    let hasPermission = scope.isPlatformAdmin;
+    if (!hasPermission) {
+      if (
+        scope.storeIds.includes(req.storeId) ||
+        scope.ownerUserIds.includes(req.storeId) ||
+        scope.businessIds.includes(req.storeId) ||
+        req.storeId === actor.sub
+      ) {
+        hasPermission = true;
+      } else if (req.sellerOrderId) {
+        const isUuid = (v?: string) => Boolean(v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+        if (isUuid(req.sellerOrderId)) {
+          const so = await this.prisma.sellerOrder.findUnique({ where: { id: req.sellerOrderId } });
+          if (so && (scope.storeIds.includes(so.storeId) || so.ownerUserId === actor.sub || scope.ownerUserIds.includes(so.ownerUserId))) {
+            hasPermission = true;
+          }
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền xem yêu cầu đổi trả này');
+    }
+
+    return this.formatReturnRequest(req);
+  }
+
+  /**
+   * Seller accepts the return request (Customer is right)
+   */
+  async sellerAcceptReturnRequest(actor: BookActor, returnRequestId: string) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    let hasPermission = scope.isPlatformAdmin;
+    if (!hasPermission) {
+      if (
+        scope.storeIds.includes(req.storeId) ||
+        scope.ownerUserIds.includes(req.storeId) ||
+        scope.businessIds.includes(req.storeId) ||
+        req.storeId === actor.sub
+      ) {
+        hasPermission = true;
+      } else if (req.sellerOrderId) {
+        const isUuid = (v?: string) => Boolean(v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+        if (isUuid(req.sellerOrderId)) {
+          const so = await this.prisma.sellerOrder.findUnique({ where: { id: req.sellerOrderId } });
+          if (so && (scope.storeIds.includes(so.storeId) || so.ownerUserId === actor.sub || scope.ownerUserIds.includes(so.ownerUserId))) {
+            hasPermission = true;
+          }
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác trên yêu cầu đổi trả này');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: ReturnRequestStatus.SELLER_ACCEPTED,
+      },
+    });
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Seller disputes the return request with evidence
+   */
+  async sellerDisputeReturnRequest(
+    actor: BookActor,
+    returnRequestId: string,
+    dto: {
+      reason?: string;
+      evidenceImages?: string[];
+      evidenceVideos?: string[];
+      evidenceDocuments?: string[];
+      evidencePdfs?: string[];
+      evidence?: { images?: string[]; videos?: string[]; documents?: string[]; note?: string };
+    },
+  ) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    let hasPermission = scope.isPlatformAdmin;
+    if (!hasPermission) {
+      if (
+        scope.storeIds.includes(req.storeId) ||
+        scope.ownerUserIds.includes(req.storeId) ||
+        scope.businessIds.includes(req.storeId) ||
+        req.storeId === actor.sub
+      ) {
+        hasPermission = true;
+      } else if (req.sellerOrderId) {
+        const isUuid = (v?: string) => Boolean(v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v));
+        if (isUuid(req.sellerOrderId)) {
+          const so = await this.prisma.sellerOrder.findUnique({ where: { id: req.sellerOrderId } });
+          if (so && (scope.storeIds.includes(so.storeId) || so.ownerUserId === actor.sub || scope.ownerUserIds.includes(so.ownerUserId))) {
+            hasPermission = true;
+          }
+        }
+      }
+    }
+
+    if (!hasPermission) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác trên yêu cầu đổi trả này');
+    }
+
+    const sellerEvidence = {
+      images: Array.isArray(dto.evidenceImages) ? dto.evidenceImages : dto.evidence?.images || [],
+      videos: Array.isArray(dto.evidenceVideos) ? dto.evidenceVideos : dto.evidence?.videos || [],
+      documents: Array.isArray(dto.evidenceDocuments)
+        ? dto.evidenceDocuments
+        : Array.isArray(dto.evidencePdfs)
+        ? dto.evidencePdfs
+        : dto.evidence?.documents || [],
+      note: dto.reason || dto.evidence?.note || '',
+    };
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        sellerEvidence,
+        status: ReturnRequestStatus.SELLER_DISPUTED,
+      },
+    });
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Admin Platform arbitrates dispute (BUYER_WINS or SELLER_WINS)
+   */
+  async adminArbitrateReturnRequest(
+    actor: BookActor,
+    returnRequestId: string,
+    dto: { ruling: 'BUYER_WINS' | 'SELLER_WINS'; notes?: string; reason?: string },
+  ) {
+    if (actor.role !== 'PLATFORM_ADMIN') {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Chỉ Platform Admin mới có quyền phân xử');
+    }
+
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    const newStatus =
+      dto.ruling === 'BUYER_WINS'
+        ? ReturnRequestStatus.ARBITRATED_BUYER_WINS
+        : ReturnRequestStatus.ARBITRATED_SELLER_WINS;
+
+    const rulingNotes = dto.notes || dto.reason || '';
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        status: newStatus,
+        arbitrationRuling: dto.ruling,
+        arbitrationNotes: rulingNotes,
+        arbitratedBy: actor.email || actor.sub,
+        arbitratedAt: new Date(),
+      },
+    });
+
+    // If seller wins: unfreeze escrow for that item
+    if (dto.ruling === 'SELLER_WINS') {
+      try {
+        await this.prisma.orderStatusHistory.create({
+          data: {
+            orderId: req.orderId,
+            sellerOrderId: req.sellerOrderId,
+            fromStatus: 'ESCROW_FROZEN',
+            toStatus: 'ESCROW_HOLDING',
+            title: `Mở đóng băng dòng tiền do Seller thắng trọng tài`,
+            description: `Admin phán quyết: ${rulingNotes}`,
+            actorType: 'ADMIN',
+            actorId: actor.sub,
+            metadata: {
+              orderItemId: req.orderItemId,
+              returnRequestId: req.id,
+              targetStatus: 'HOLDING',
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('Could not record status history for unfreeze:', err);
+      }
+    }
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Seller ships replacement order item
+   */
+  async sellerShipReplacement(
+    actor: BookActor,
+    returnRequestId: string,
+    dto: { carrier: string; trackingCode: string },
+  ) {
+    const scope = await getSellerScope(actor);
+    const req = await this.prisma.returnRequest.findUnique({
+      where: { id: returnRequestId },
+    });
+
+    if (!req) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy yêu cầu đổi trả');
+    }
+
+    if (!scope.isPlatformAdmin && !scope.storeIds.includes(req.storeId) && !scope.ownerUserIds.includes(req.storeId)) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Không có quyền thao tác');
+    }
+
+    if (!scope.isPlatformAdmin && req.status === ReturnRequestStatus.PENDING_REVIEW) {
+      throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT, 'Yêu cầu đổi trả chưa được Admin Platform chuyển tiếp đến Cửa hàng');
+    }
+
+    const updated = await this.prisma.returnRequest.update({
+      where: { id: returnRequestId },
+      data: {
+        replacementCarrier: dto.carrier,
+        replacementTrackingCode: dto.trackingCode,
+        replacementStatus: 'SHIPPED',
+        replacementShippedAt: new Date(),
+        status: ReturnRequestStatus.REPLACED,
+      },
+    });
+
+    return this.formatReturnRequest(updated);
+  }
+
+  /**
+   * Seller lists replacement orders (HÀNG ĐỔI 0đ)
+   */
+  async sellerListReplacements(actor: BookActor) {
+    const scope = await getSellerScope(actor);
+    const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
+
+    const where: any = {
+      returnType: ReturnType.REPLACE,
+      status: {
+        in: [
+          ReturnRequestStatus.SELLER_ACCEPTED,
+          ReturnRequestStatus.ARBITRATED_BUYER_WINS,
+          ReturnRequestStatus.REPLACED,
+        ],
+      },
+    };
+
+    if (!scope.isPlatformAdmin && storeIds.length > 0) {
+      where.storeId = { in: storeIds };
+    }
+
+    const list = await this.prisma.returnRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return list.map((r) => this.formatReturnRequest(r));
+  }
+
+  /**
+   * Buyer lists replacement orders
+   */
+  async buyerListReplacements(userId: string) {
+    const list = await this.prisma.returnRequest.findMany({
+      where: {
+        userId,
+        returnType: ReturnType.REPLACE,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return list.map((r) => this.formatReturnRequest(r));
+  }
+
+  /**
+   * Buyer lists all return and refund requests
+   */
+  async buyerListReturnRequests(userId: string, query?: { type?: string; status?: string }) {
+    const where: any = { userId };
+
+    if (query?.type && query.type !== 'ALL') {
+      const dbType = query.type === 'REPLACEMENT' ? ReturnType.REPLACE : query.type === 'REFUND' ? ReturnType.REFUND : query.type;
+      where.returnType = dbType;
+    }
+
+    if (query?.status && query.status !== 'ALL') {
+      where.status = query.status as ReturnRequestStatus;
+    }
+
+    const list = await this.prisma.returnRequest.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const orderIds = Array.from(new Set(list.map((r) => r.orderId)));
+    const isUuid = (val?: string) =>
+      Boolean(val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val));
+    const validOrderIds = orderIds.filter(isUuid);
+    const orders = validOrderIds.length > 0
+      ? await this.prisma.order.findMany({
+          where: { id: { in: validOrderIds } },
+          select: { id: true, code: true, paymentMethod: true, paymentStatus: true, status: true },
+        })
+      : [];
+    const orderMap = new Map(orders.map((o) => [o.id, o]));
+
+    return list.map((r) => this.formatReturnRequest(r, orderMap.get(r.orderId)));
+  }
+
+  /**
+   * Buyer confirms receipt of order/items and releases escrow immediately
+   */
+  async buyerConfirmDelivered(userId: string, orderId: string, subOrderId?: string) {
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, userId },
+      include: {
+        sellerOrders: {
+          include: { items: true },
+        },
+      },
+    });
+
+    if (!order) {
+      throwNotFound(ErrorCode.ORDER_NOT_FOUND, 'Không tìm thấy đơn hàng của bạn');
+    }
+
+    const isEbookRelease = Boolean(subOrderId && (subOrderId.endsWith('_ebook') || subOrderId.includes('ebook')));
+    const cleanSubOrderId = subOrderId ? subOrderId.replace('_physical', '').replace('_ebook', '') : null;
+    const targetSellerOrders = cleanSubOrderId
+      ? order.sellerOrders.filter((so) => so.id === cleanSubOrderId)
+      : order.sellerOrders;
+
+    for (const so of targetSellerOrders) {
+      const ebookItems = so.items.filter((it: any) => it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook'));
+      const physicalItems = so.items.filter((it: any) => it.format !== 'DIGITAL' && !it.bookTitle?.toLowerCase().includes('ebook'));
+      const hasPhysical = physicalItems.length > 0;
+      const ebookSubtotal = ebookItems.reduce((sum: number, it: any) => sum + Number(it.subtotal), 0);
+      const physicalSubtotal = physicalItems.reduce((sum: number, it: any) => sum + Number(it.subtotal), 0);
+
+      if (isEbookRelease) {
+        // Ebook escrow release: do NOT complete the sellerOrder if it still has physical goods to ship
+        if (!hasPhysical && !so.requiresShipping) {
+          await this.prisma.sellerOrder.update({
+            where: { id: so.id },
+            data: {
+              status: OrderStatus.COMPLETED,
+              completedAt: new Date(),
+            },
+          });
+        }
+
+        // Record ESCROW_RELEASED specifically for Ebook items
+        await this.prisma.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            sellerOrderId: so.id,
+            fromStatus: 'ESCROW_HOLDING',
+            toStatus: 'ESCROW_RELEASED',
+            title: 'Giải ngân ký quỹ Ebook (Hết hạn đổi trả 2 phút)',
+            description: `Dòng tiền phần Ebook ${ebookSubtotal.toLocaleString('vi-VN')}₫ đã được giải ngân vào Ví của Gian hàng #${so.code}. Phần sách giấy vẫn duy trì tiến độ vận chuyển.`,
+            actorType: 'USER',
+            actorId: userId,
+            metadata: {
+              orderId: order.id,
+              sellerOrderId: so.id,
+              format: 'DIGITAL',
+              targetStatus: 'RELEASED',
+              releasedAmount: ebookSubtotal,
+              releasedAt: new Date().toISOString(),
+            },
+          },
+        });
+      } else {
+        // Physical delivery or full order confirmation
+        await this.prisma.sellerOrder.update({
+          where: { id: so.id },
+          data: {
+            status: OrderStatus.COMPLETED,
+            completedAt: new Date(),
+          },
+        });
+
+        await this.prisma.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            sellerOrderId: so.id,
+            fromStatus: 'ESCROW_HOLDING',
+            toStatus: 'ESCROW_RELEASED',
+            title: 'Khách hàng xác nhận đã nhận đủ hàng - Giải ngân ký quỹ',
+            description: `Người mua đã xác nhận nhận hàng. Dòng tiền ${Number(so.grandTotal).toLocaleString('vi-VN')}₫ đã được giải ngân vào Ví của Gian hàng #${so.code}.`,
+            actorType: 'USER',
+            actorId: userId,
+            metadata: {
+              orderId: order.id,
+              sellerOrderId: so.id,
+              targetStatus: 'RELEASED',
+              releasedAmount: Number(so.grandTotal),
+              releasedAt: new Date().toISOString(),
+            },
+          },
+        });
+      }
+    }
+
+    // If all seller orders are completed, mark master order completed
+    const allSo = await this.prisma.sellerOrder.findMany({
+      where: { orderId: order.id },
+    });
+    if (allSo.every((s) => s.status === OrderStatus.COMPLETED)) {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { status: OrderStatus.COMPLETED },
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Đã xác nhận đã nhận đủ hàng và giải ngân ký quỹ thành công.',
+    };
+  }
 }
+
 
 
 

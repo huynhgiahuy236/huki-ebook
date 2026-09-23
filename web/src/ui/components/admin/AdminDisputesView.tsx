@@ -264,17 +264,17 @@ export function AdminDisputesView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-700">
-              <thead className="bg-gray-50 text-xs font-semibold uppercase text-gray-500 border-b border-gray-200">
+            <table className="w-full text-left text-sm text-gray-700 min-w-[1000px]">
+              <thead className="bg-gray-50/80 text-xs font-semibold uppercase text-gray-500 border-b border-gray-200">
                 <tr>
-                  <th className="px-4 py-3">Mã Khiếu Nại / Đơn Hàng</th>
-                  <th className="px-4 py-3">Phân Loại</th>
-                  <th className="px-4 py-3">Mô Tả Vấn Đề</th>
-                  <th className="px-4 py-3">Giải Pháp Mong Muốn</th>
-                  <th className="px-4 py-3">Bằng Chứng</th>
-                  <th className="px-4 py-3">Trạng Thái / Phán Quyết</th>
-                  <th className="px-4 py-3">Ngày Mở</th>
-                  <th className="px-4 py-3 text-right">Thao Tác</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-left">Mã Khiếu Nại / Đơn Hàng</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-left">Phân Loại</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-left">Mô Tả Vấn Đề</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-left">Giải Pháp Mong Muốn</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-center">Bằng Chứng</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-center">Trạng Thái / Phán Quyết</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-left">Ngày Mở</th>
+                  <th className="px-6 py-4 whitespace-nowrap text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -285,65 +285,83 @@ export function AdminDisputesView() {
                   const rulingMeta = RULING_LABELS[rulingKey];
 
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50/80 transition">
-                      <td className="px-4 py-3.5">
-                        <div className="font-semibold text-gray-900">{item.orderCode}</div>
-                        <div className="text-xs text-gray-400 font-mono">ID: {item.id.slice(0, 10)}...</div>
-                        <div className="text-xs text-gray-500 mt-0.5 font-medium">
+                    <tr key={item.id} className="hover:bg-gray-50/80 transition group">
+                      {/* Cột 1: Mã Khiếu Nại / Đơn Hàng - Cho phép xuống dòng */}
+                      <td className="px-6 py-4 align-top">
+                        <div className="font-semibold text-gray-900 font-mono text-sm">{item.orderCode}</div>
+                        {item.bookTitle && (
+                          <div className="text-xs font-medium text-emerald-700 truncate max-w-[220px] mt-0.5" title={item.bookTitle}>
+                            📚 {item.bookTitle}
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-600 mt-1 font-semibold">
                           {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal)}
                         </div>
+                        {(item.storeName || item.customerName) && (
+                          <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap items-center gap-1.5">
+                            {item.storeName && <span>Shop: <strong className="text-gray-600">{item.storeName}</strong></span>}
+                            {item.customerName && <span>• Khách: <strong className="text-gray-600">{item.customerName}</strong></span>}
+                          </div>
+                        )}
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${typeMeta.color}`}>
+                      {/* Cột 2: Phân Loại - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${typeMeta.color}`}>
                           {typeMeta.label}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5 max-w-xs truncate" title={item.description}>
-                        <span className="text-gray-700 line-clamp-2">{item.description}</span>
+                      {/* Cột 3: Mô Tả Vấn Đề - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap max-w-sm truncate align-middle text-gray-700 text-sm" title={item.description}>
+                        {item.description}
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      {/* Cột 4: Giải Pháp Mong Muốn - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle">
                         <span className="font-medium text-gray-900">
                           {item.resolution === 'REFUND' ? 'Hoàn tiền' : item.resolution === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'}
                         </span>
                       </td>
 
-                      <td className="px-4 py-3.5">
-                        <div className="flex items-center gap-1 text-gray-500">
-                          <span className="material-symbols-outlined text-[16px]">attach_file</span>
-                          <span className="text-xs font-medium">{item.evidence?.length || 0} tệp</span>
+                      {/* Cột 5: Bằng Chứng - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle text-center">
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
+                          <span className="material-symbols-outlined text-[15px]">attach_file</span>
+                          <span>{item.evidence?.length || 0} tệp</span>
                         </div>
                       </td>
 
-                      <td className="px-4 py-3.5">
+                      {/* Cột 6: Trạng Thái / Phán Quyết - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle text-center">
                         {isPending ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
                             Chờ Sàn Phân Xử
                           </span>
                         ) : rulingMeta ? (
-                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border ${rulingMeta.badge}`}>
-                            {rulingMeta.label.split('(')[0]}
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${rulingMeta.badge}`}>
+                            {rulingMeta.label.split('(')[0].trim()}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
                             {item.status}
                           </span>
                         )}
                       </td>
 
-                      <td className="px-4 py-3.5 text-xs text-gray-500 whitespace-nowrap">
+                      {/* Cột 7: Ngày Mở - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle text-xs text-gray-500 font-medium">
                         {new Date(item.createdAt).toLocaleString('vi-VN')}
                       </td>
 
-                      <td className="px-4 py-3.5 text-right">
+                      {/* Cột 8: Thao Tác - không xuống dòng */}
+                      <td className="px-6 py-4 whitespace-nowrap align-middle text-right">
                         <button
                           onClick={() => handleOpenDetail(item.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition shadow-sm"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition shadow-sm hover:shadow active:scale-95"
                         >
-                          <span className="material-symbols-outlined text-[15px]">visibility</span>
+                          <span className="material-symbols-outlined text-[16px]">visibility</span>
                           Thẩm định
                         </button>
                       </td>
@@ -423,109 +441,80 @@ export function AdminDisputesView() {
                     </div>
                   </div>
 
-                  {/* 2-Column Grid: Order & Disputant Context */}
+                  {/* Product & Store info (Flow Return v1 Support) */}
+                  {(selectedDispute.bookTitle || selectedDispute.storeName) && (
+                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+                      <div className="flex items-center gap-3">
+                        {selectedDispute.bookCoverUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={selectedDispute.bookCoverUrl}
+                            alt={selectedDispute.bookTitle || 'Book cover'}
+                            className="w-12 h-16 object-cover rounded-lg border border-emerald-300 shadow-xs"
+                          />
+                        ) : (
+                          <div className="w-12 h-16 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
+                            <span className="material-symbols-outlined text-2xl">menu_book</span>
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Sản Phẩm Tranh Chấp</div>
+                          <div className="text-base font-bold text-gray-900">{selectedDispute.bookTitle || 'Sách'}</div>
+                          <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-3">
+                            <span>Gian hàng: <strong className="text-gray-700">{selectedDispute.storeName || selectedDispute.targetSellerOrder?.storeId || 'Shop'}</strong></span>
+                            <span>•</span>
+                            <span>Khách hàng: <strong className="text-gray-700">{selectedDispute.customerName || selectedDispute.buyerId || 'N/A'}</strong></span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs">
+                          {selectedDispute.resolution === 'REFUND' ? 'Hình thức: Hoàn tiền 100%' : 'Hình thức: Đổi hàng mới (0đ)'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2-Column Grid: Buyer Claim & Seller Counter-Evidence */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Buyer Claim */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500">
-                        <span className="material-symbols-outlined text-[16px] text-emerald-600">person</span>
-                        Thông Tin Khiếu Nại (Người Mua)
+                    <div className="bg-amber-50/40 p-4 rounded-xl border border-amber-200/80 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-amber-200/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[18px] text-amber-700">person</span>
+                          Chứng Cứ Từ Người Mua
+                        </div>
+                        <span className="text-[11px] font-normal text-amber-700">
+                          {selectedDispute.customerName ? `Khách: ${selectedDispute.customerName}` : ''}
+                        </span>
                       </div>
+                      
                       <div>
-                        <div className="text-xs text-gray-400">Khách hàng ID</div>
-                        <div className="text-sm font-medium text-gray-800 font-mono">{selectedDispute.buyerId}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400">Loại khiếu nại</div>
+                        <div className="text-xs text-gray-500">Lý do khiếu nại</div>
                         <div className="text-sm font-bold text-gray-900 mt-0.5">
                           {DISPUTE_TYPE_LABELS[selectedDispute.type]?.label || selectedDispute.type}
                         </div>
                       </div>
+
                       <div>
-                        <div className="text-xs text-gray-400">Giải pháp mong muốn</div>
-                        <div className="text-sm font-medium text-emerald-700">
-                          {selectedDispute.resolution === 'REFUND' ? 'Hoàn tiền 100%' : selectedDispute.resolution === 'REPLACE' ? 'Đổi hàng' : 'Hoàn một phần'}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400">Mô tả chi tiết từ khách hàng</div>
-                        <p className="text-sm text-gray-800 bg-white p-2.5 rounded-lg border border-gray-200 mt-1 whitespace-pre-wrap">
-                          {selectedDispute.description}
+                        <div className="text-xs text-gray-500">Nội dung chi tiết từ khách hàng</div>
+                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-amber-200/60 mt-1 whitespace-pre-wrap min-h-[60px]">
+                          {selectedDispute.description || 'Không có mô tả chi tiết'}
                         </p>
                       </div>
-                    </div>
 
-                    {/* Seller Order Context */}
-                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-500">
-                        <span className="material-symbols-outlined text-[16px] text-blue-600">storefront</span>
-                        Gói Hàng & Đối Tác (Người Bán)
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400">Mã đơn / Gói hàng</div>
-                        <div className="text-sm font-medium text-gray-800 font-mono">
-                          {selectedDispute.targetSellerOrder?.code || selectedDispute.orderCode}
+                      {/* Customer Evidence (Images & Videos) */}
+                      <div className="space-y-2 pt-1">
+                        <div className="text-xs font-semibold text-gray-700">
+                          Hình ảnh minh chứng của Khách ({selectedDispute.customerEvidence?.images?.length || selectedDispute.evidence?.length || 0})
                         </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-400">Giá trị gói hàng</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
-                            selectedDispute.targetSellerOrder?.grandTotal || selectedDispute.orderGrandTotal,
-                          )}
-                        </div>
-                      </div>
-                      {selectedDispute.targetSellerOrder && (
-                        <div>
-                          <div className="text-xs text-gray-400">Vận chuyển / Mã vận đơn</div>
-                          <div className="text-sm text-gray-700">
-                            {selectedDispute.targetSellerOrder.carrier || 'Đơn vị vận chuyển'}:{' '}
-                            <span className="font-mono font-semibold">{selectedDispute.targetSellerOrder.trackingCode || 'N/A'}</span>
-                          </div>
-                        </div>
-                      )}
-                      {selectedDispute.targetSellerOrder?.items && (
-                        <div>
-                          <div className="text-xs text-gray-400 mb-1">Sản phẩm trong gói khiếu nại</div>
-                          <div className="space-y-1.5 max-h-32 overflow-y-auto">
-                            {selectedDispute.targetSellerOrder.items.map((it) => (
-                              <div key={it.id} className="flex items-center justify-between text-xs bg-white p-1.5 rounded border border-gray-200">
-                                <span className="font-medium text-gray-800 truncate max-w-[200px]">{it.bookTitle}</span>
-                                <span className="text-gray-500">x{it.quantity}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Evidence Gallery (Task 63 Integration) */}
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-700">
-                      <span className="material-symbols-outlined text-[18px] text-amber-600">photo_library</span>
-                      Tài Liệu & Bằng Chứng Đối Soát ({selectedDispute.evidence?.length || 0})
-                    </div>
-                    {selectedDispute.evidence && selectedDispute.evidence.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {selectedDispute.evidence.map((url, idx) => {
-                          const isPdf = url.toLowerCase().endsWith('.pdf');
-                          return (
-                            <div
-                              key={idx}
-                              className="group relative rounded-xl border border-gray-200 overflow-hidden bg-gray-100 aspect-video flex items-center justify-center shadow-xs"
-                            >
-                              {isPdf ? (
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="flex flex-col items-center gap-1 text-red-600 hover:text-red-700 p-2"
-                                >
-                                  <span className="material-symbols-outlined text-3xl">picture_as_pdf</span>
-                                  <span className="text-[11px] font-semibold">Tài liệu PDF</span>
-                                </a>
-                              ) : (
+                        {((selectedDispute.customerEvidence?.images && selectedDispute.customerEvidence.images.length > 0) || (selectedDispute.evidence && selectedDispute.evidence.length > 0)) ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {(selectedDispute.customerEvidence?.images || selectedDispute.evidence || []).map((url, idx) => (
+                              <div
+                                key={idx}
+                                className="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-100 aspect-video flex items-center justify-center shadow-xs"
+                              >
                                 <button
                                   type="button"
                                   onClick={() => setZoomImage(url)}
@@ -534,29 +523,119 @@ export function AdminDisputesView() {
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={url}
-                                    alt={`Evidence ${idx + 1}`}
+                                    alt={`Buyer evidence ${idx + 1}`}
                                     className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
                                   />
                                 </button>
-                              )}
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="absolute top-1.5 right-1.5 p-1 bg-black/60 hover:bg-black/80 rounded-md text-white opacity-0 group-hover:opacity-100 transition"
-                                title="Mở trong tab mới"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                              </a>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-400 italic bg-white/60 p-2 rounded border border-gray-200">
+                            Không có hình ảnh đính kèm
+                          </div>
+                        )}
+
+                        {/* Customer Videos if any */}
+                        {selectedDispute.customerEvidence?.videos && selectedDispute.customerEvidence.videos.length > 0 && (
+                          <div className="space-y-1 pt-1">
+                            <div className="text-xs font-semibold text-gray-700">Video của Khách:</div>
+                            <div className="space-y-1">
+                              {selectedDispute.customerEvidence.videos.map((vidUrl, vIdx) => (
+                                <video
+                                  key={vIdx}
+                                  controls
+                                  className="w-full max-h-40 rounded-lg border border-gray-200 bg-black"
+                                >
+                                  <source src={vidUrl} />
+                                  Trình duyệt không hỗ trợ xem video trực tiếp.
+                                </video>
+                              ))}
                             </div>
-                          );
-                        })}
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl text-center text-xs text-gray-500">
-                        Chưa có hình ảnh hoặc video bằng chứng đính kèm
+                    </div>
+
+                    {/* Seller Counter-Evidence */}
+                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-200/80 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-blue-900 border-b border-blue-200/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[18px] text-blue-700">storefront</span>
+                          Chứng Cứ Phản Biện Từ Cửa Hàng
+                        </div>
+                        <span className="text-[11px] font-normal text-blue-700">
+                          {selectedDispute.storeName ? `Shop: ${selectedDispute.storeName}` : ''}
+                        </span>
                       </div>
-                    )}
+
+                      <div>
+                        <div className="text-xs text-gray-500">Mã đơn / Gói hàng</div>
+                        <div className="text-sm font-semibold text-gray-800 font-mono mt-0.5">
+                          {selectedDispute.targetSellerOrder?.code || selectedDispute.orderCode}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="text-xs text-gray-500">Lý do phản biện & đối chất của Shop</div>
+                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-200/60 mt-1 whitespace-pre-wrap min-h-[60px]">
+                          {selectedDispute.sellerEvidence?.note || 'Shop chưa gửi thêm ghi chú phản biện'}
+                        </p>
+                      </div>
+
+                      {/* Seller Evidence (Images & Videos) */}
+                      <div className="space-y-2 pt-1">
+                        <div className="text-xs font-semibold text-gray-700">
+                          Hình ảnh đối chất của Shop ({selectedDispute.sellerEvidence?.images?.length || 0})
+                        </div>
+                        {selectedDispute.sellerEvidence?.images && selectedDispute.sellerEvidence.images.length > 0 ? (
+                          <div className="grid grid-cols-3 gap-2">
+                            {selectedDispute.sellerEvidence.images.map((url, idx) => (
+                              <div
+                                key={idx}
+                                className="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-100 aspect-video flex items-center justify-center shadow-xs"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => setZoomImage(url)}
+                                  className="w-full h-full cursor-zoom-in"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={url}
+                                    alt={`Seller evidence ${idx + 1}`}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                                  />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-400 italic bg-white/60 p-2 rounded border border-gray-200">
+                            Shop không đính kèm hình ảnh
+                          </div>
+                        )}
+
+                        {/* Seller Videos if any */}
+                        {selectedDispute.sellerEvidence?.videos && selectedDispute.sellerEvidence.videos.length > 0 && (
+                          <div className="space-y-1 pt-1">
+                            <div className="text-xs font-semibold text-gray-700">Video đối chất của Shop:</div>
+                            <div className="space-y-1">
+                              {selectedDispute.sellerEvidence.videos.map((vidUrl, vIdx) => (
+                                <video
+                                  key={vIdx}
+                                  controls
+                                  className="w-full max-h-40 rounded-lg border border-gray-200 bg-black"
+                                >
+                                  <source src={vidUrl} />
+                                  Trình duyệt không hỗ trợ xem video trực tiếp.
+                                </video>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {/* History Timeline */}
