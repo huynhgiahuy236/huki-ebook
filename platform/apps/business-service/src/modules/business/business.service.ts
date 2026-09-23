@@ -63,6 +63,10 @@ export class BusinessService {
           businessType: dto.businessType as BusinessType,
           ownerId: userId,
           status: BusinessStatus.PENDING_APPROVAL,
+          bankName: (dto.bank_name || dto.bankName)?.trim() || null,
+          bankAccountNumber: (dto.account_number || dto.bankAccountNumber)?.trim() || null,
+          bankAccountHolderName: (dto.account_holder_name || dto.bankAccountHolderName || dto.name)?.trim() || null,
+          bankBranch: (dto.bank_branch || dto.bankBranch)?.trim() || null,
         },
       });
     } catch (err: any) {

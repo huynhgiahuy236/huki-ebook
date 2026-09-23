@@ -32,9 +32,9 @@ export interface AuditMetadata {
 @Injectable()
 export class WalletSecurityService {
   private readonly logger = new Logger(WalletSecurityService.name);
-  private readonly BCRYPT_SALT_ROUNDS = 12;
+  private readonly BCRYPT_SALT_ROUNDS = 10;
   private readonly MAX_CONSECUTIVE_FAILED_ATTEMPTS = 5;
-  private readonly LOCKOUT_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+  private readonly LOCKOUT_DURATION_MS = 3 * 60 * 1000; // 3 minutes (180 seconds)
   private readonly CHALLENGE_TTL_SECONDS = 300; // 5 minutes
   private readonly FINANCE_AUTH_TOKEN_TTL_SECONDS = 300; // 5 minutes
 
@@ -75,12 +75,15 @@ export class WalletSecurityService {
     });
 
     if (!security) {
+      const defaultPinHash = await bcrypt.hash('123456', 10);
       try {
         security = await this.prisma.walletSecurity.create({
           data: {
             walletId: wallet.id,
             storeId,
             failedAttempts: 0,
+            pinHash: defaultPinHash,
+            pinSetAt: new Date(),
           },
         });
       } catch (err) {
@@ -89,6 +92,15 @@ export class WalletSecurityService {
         });
         if (!security) throw err;
       }
+    } else if (!security.pinHash) {
+      const defaultPinHash = await bcrypt.hash('123456', 10);
+      security = await this.prisma.walletSecurity.update({
+        where: { storeId },
+        data: {
+          pinHash: defaultPinHash,
+          pinSetAt: new Date(),
+        },
+      });
     }
 
     return { wallet, security };
@@ -259,7 +271,7 @@ export class WalletSecurityService {
 
         throw new ForbiddenException({
           code: 'WALLET_SECURITY_LOCKED',
-          message: 'Bạn đã nhập sai mã PIN 5 lần liên tiếp. Chức năng rút tiền tạm khóa trong 24 giờ.',
+          message: 'Bạn đã nhập sai mã PIN 5 lần liên tiếp. Chức năng rút tiền tạm khóa trong 3 phút.',
           lockedUntil: lockedUntilDate,
         });
       } else {
@@ -275,7 +287,7 @@ export class WalletSecurityService {
         const remaining = this.MAX_CONSECUTIVE_FAILED_ATTEMPTS - newFailedCount;
         throw new BadRequestException({
           code: 'PIN_INCORRECT',
-          message: `Mã PIN không đúng. Bạn còn ${remaining} lần thử trước khi bị khóa 24 giờ.`,
+          message: `Mã PIN không đúng. Bạn còn ${remaining} lần thử lại (tối đa 5 lần).`,
           remainingAttempts: remaining,
         });
       }
@@ -610,6 +622,139 @@ export class WalletSecurityService {
     }
 
     return true;
+  }
+
+  /**
+   * 8. Direct full withdrawal with 6-digit PIN verification (Task update_proceed_money_flow_v1)
+   */
+  async withdrawAllDirectly(
+    storeId: string,
+    pin: string,
+    actor: BookActor,
+    meta?: AuditMetadata,
+  ): Promise<{
+    success: boolean;
+    withdrawnAmount: number;
+    message: string;
+  }> {
+    this.validateActorStoreAccess(storeId, actor);
+
+    if (!/^\d{6}$/.test(pin)) {
+      throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');
+    }
+
+    const { wallet, security } = await this.getOrCreateWalletSecurity(storeId);
+
+    const now = new Date();
+    if (security.lockedUntil && security.lockedUntil > now) {
+      const remainingSeconds = Math.ceil((security.lockedUntil.getTime() - now.getTime()) / 1000);
+      throw new ForbiddenException({
+        code: 'WALLET_SECURITY_LOCKED',
+        message: `Chức năng rút tiền đang tạm khóa do nhập sai PIN quá 5 lần. Vui lòng thử lại sau ${remainingSeconds} giây.`,
+        lockedUntil: security.lockedUntil,
+        remainingSeconds,
+      });
+    }
+
+    const available = Number(wallet.availableBalance);
+    if (available <= 0) {
+      throw new BadRequestException('Số dư khả dụng hiện tại là 0 ₫. Không thể thực hiện lệnh rút tiền.');
+    }
+
+    const isMatch = await bcrypt.compare(pin, security.pinHash || '');
+
+    if (!isMatch) {
+      const newFailedCount = (security.failedAttempts || 0) + 1;
+      const isNowLocked = newFailedCount >= this.MAX_CONSECUTIVE_FAILED_ATTEMPTS;
+      const lockedUntilDate = isNowLocked ? new Date(now.getTime() + this.LOCKOUT_DURATION_MS) : null;
+
+      await this.prisma.walletSecurity.update({
+        where: { storeId },
+        data: {
+          failedAttempts: isNowLocked ? this.MAX_CONSECUTIVE_FAILED_ATTEMPTS : newFailedCount,
+          lockedUntil: lockedUntilDate,
+        },
+      });
+
+      if (isNowLocked) {
+        await this.recordAuditLog({
+          storeId,
+          walletId: wallet.id,
+          eventType: 'PIN_LOCKED',
+          actor,
+          details: { failedAttempts: newFailedCount, lockedUntil: lockedUntilDate },
+          meta,
+        });
+
+        throw new ForbiddenException({
+          code: 'WALLET_SECURITY_LOCKED',
+          message: 'Bạn đã nhập sai mã PIN 5 lần liên tiếp. Chức năng rút tiền tạm khóa trong 3 phút.',
+          lockedUntil: lockedUntilDate,
+          remainingSeconds: 180,
+        });
+      } else {
+        const remaining = this.MAX_CONSECUTIVE_FAILED_ATTEMPTS - newFailedCount;
+        throw new BadRequestException({
+          code: 'PIN_INCORRECT',
+          message: `Mã PIN không chính xác. Bạn còn ${remaining} lần thử lại (tối đa 5 lần).`,
+          remainingAttempts: remaining,
+        });
+      }
+    }
+
+    // Success PIN: reset attempts, zero out available balance, create transaction in atomic prisma transaction
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Reset security state
+      await tx.walletSecurity.update({
+        where: { storeId },
+        data: {
+          failedAttempts: 0,
+          lockedUntil: null,
+          lastVerifiedAt: now,
+        },
+      });
+
+      // 2. Set availableBalance = 0
+      await tx.wallet.update({
+        where: { storeId },
+        data: {
+          availableBalance: 0,
+          version: { increment: 1 },
+        },
+      });
+
+      // 3. Create audit transaction
+      await tx.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'DEBIT_AVAILABLE',
+          amount: available,
+          availableBefore: available,
+          availableAfter: 0,
+          pendingBefore: wallet.pendingBalance,
+          pendingAfter: wallet.pendingBalance,
+          frozenBefore: wallet.frozenBalance,
+          frozenAfter: wallet.frozenBalance,
+          description: `Rút toàn bộ số dư ví về tài khoản ngân hàng thụ hưởng (-${available.toLocaleString('vi-VN')} ₫)`,
+          referenceType: 'WALLET_WITHDRAWAL_ALL',
+        },
+      });
+    });
+
+    await this.recordAuditLog({
+      storeId,
+      walletId: wallet.id,
+      eventType: 'WITHDRAWAL_ALL_COMPLETED',
+      actor,
+      details: { amount: available },
+      meta,
+    });
+
+    return {
+      success: true,
+      withdrawnAmount: available,
+      message: `Đã rút thành công ${available.toLocaleString('vi-VN')} ₫ về tài khoản ngân hàng!`,
+    };
   }
 }
 

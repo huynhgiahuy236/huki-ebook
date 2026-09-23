@@ -742,8 +742,8 @@ function SellerOrdersContent() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-label-md text-label-md uppercase tracking-wider">
-                      <th className="py-3.5 pl-space-md pr-2 w-10">
+                    <tr className="border-b border-outline-variant bg-surface-container-low text-on-surface-variant font-label-md text-label-md uppercase tracking-wider whitespace-nowrap">
+                      <th className="py-4 pl-6 pr-3 w-12 whitespace-nowrap">
                         <input
                           type="checkbox"
                           checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0}
@@ -751,16 +751,15 @@ function SellerOrdersContent() {
                           className="w-4 h-4 rounded border-outline text-primary focus:ring-primary"
                         />
                       </th>
-                      <th className="py-3.5 px-3">Mã Đơn Hàng</th>
-                      <th className="py-3.5 px-3 min-w-[140px]">Khách Hàng</th>
-                      <th className="py-3.5 px-3 min-w-[130px]">Số Điện Thoại</th>
-                      <th className="py-3.5 px-3 min-w-[260px]">Sản Phẩm</th>
-                      <th className="py-3.5 px-3">Định Dạng</th>
-                      <th className="py-3.5 px-3 text-right">Tổng Tiền</th>
-                      <th className="py-3.5 px-3">Thanh Toán</th>
-                      <th className="py-3.5 px-3 min-w-[160px]">Vận Chuyển</th>
-                      <th className="py-3.5 px-3 min-w-[160px]">Trạng Thái</th>
-                      <th className="py-3.5 pr-space-md pl-3 text-right">Thao Tác</th>
+                      <th className="py-4 px-6 min-w-[150px] whitespace-nowrap">Mã Đơn Hàng</th>
+                      <th className="py-4 px-6 min-w-[180px] whitespace-nowrap">Khách Hàng</th>
+                      <th className="py-4 px-6 min-w-[140px] whitespace-nowrap">Số Điện Thoại</th>
+                      <th className="py-4 px-6 min-w-[340px] whitespace-nowrap">Sản Phẩm</th>
+                      <th className="py-4 px-6 min-w-[150px] whitespace-nowrap">Định Dạng</th>
+                      <th className="py-4 px-6 min-w-[140px] text-right whitespace-nowrap">Tổng Tiền</th>
+                      <th className="py-4 px-6 min-w-[160px] whitespace-nowrap">Thanh Toán</th>
+                      <th className="py-4 px-6 min-w-[180px] whitespace-nowrap">Trạng Thái</th>
+                      <th className="py-4 pr-6 pl-6 min-w-[170px] text-right whitespace-nowrap">Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-outline-variant text-body-sm">
@@ -799,16 +798,26 @@ function SellerOrdersContent() {
                           .join(', ') ||
                         address.address ||
                         'Địa chỉ tiêu chuẩn';
-                      const isDigitalOnly = order.items?.every((it) => it.format === 'DIGITAL') || !order.requiresShipping;
+
+                      const items = order.items || [];
+                      const physicalItems = items.filter(
+                        (it) => it.format !== 'DIGITAL' && it.format !== 'EBOOK'
+                      );
+                      const ebookItems = items.filter(
+                        (it) => it.format === 'DIGITAL' || it.format === 'EBOOK'
+                      );
+                      const hasPhysical = physicalItems.length > 0 || (order.requiresShipping && ebookItems.length === 0);
+                      const hasEbook = ebookItems.length > 0 || (!order.requiresShipping && physicalItems.length === 0);
+                      const isHybrid = hasPhysical && hasEbook;
 
                       return (
                         <tr
                           key={order.id}
-                          className={`hover:bg-surface-container-low/60 transition-colors ${
+                          className={`hover:bg-surface-container-low/60 transition-colors whitespace-nowrap ${
                             isSelected ? 'bg-primary-fixed/10' : 'bg-surface-container-lowest'
                           }`}
                         >
-                          <td className="py-4 pl-space-md pr-2 align-top">
+                          <td className="py-4.5 pl-6 pr-3 align-middle whitespace-nowrap">
                             <input
                               type="checkbox"
                               checked={isSelected}
@@ -817,98 +826,156 @@ function SellerOrdersContent() {
                             />
                           </td>
 
-                          <td className="py-4 px-3 align-top">
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
                             <Link
                               href={`/seller/orders/${order.id}`}
-                              className="font-title-md text-primary font-bold block hover:underline"
+                              className="font-title-md text-primary font-bold block hover:underline whitespace-nowrap"
                               title="Xem chi tiết đơn hàng"
                             >
                               #{order.code || order.id.slice(0, 8).toUpperCase()}
                             </Link>
-                            <span className="text-[11px] text-outline block mt-0.5">
+                            <span className="text-[11px] text-outline block mt-0.5 whitespace-nowrap">
                               {order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}
                             </span>
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            <div className="font-semibold text-on-surface cursor-help" title={buyerName}>
-                              {buyerName.length > 10 ? `${buyerName.slice(0, 10)}...` : buyerName}
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            <div className="font-semibold text-on-surface whitespace-nowrap cursor-help" title={buyerName}>
+                              {buyerName}
                             </div>
-                            <div className="text-[11px] text-outline truncate max-w-[160px] mt-0.5" title={buyerAddress}>
+                            <div className="text-[11px] text-outline truncate max-w-[180px] whitespace-nowrap mt-0.5 cursor-help" title={buyerAddress}>
                               {buyerAddress}
                             </div>
                           </td>
 
-                          <td className="py-4 px-3 align-top whitespace-nowrap">
-                            <span className="font-mono text-[13px] font-medium text-on-surface">
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            <span className="font-mono text-[13px] font-medium text-on-surface whitespace-nowrap">
                               {buyerPhone}
                             </span>
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            <div className="space-y-2">
-                              {order.items && order.items.length > 0 ? (
-                                order.items.map((item, idx) => {
-                                  const itTitle = item.title || item.bookTitle || 'Sách HUKI';
-                                  const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
-                                  const itPrice = Number(item.price ?? item.unitPrice ?? 0);
-                                  const displayTitle = itTitle.length > 10 ? `${itTitle.slice(0, 10)}...` : itTitle;
-                                  return (
-                                    <div key={item.id || idx} className="flex items-start gap-2.5">
-                                      <div className="w-9 h-12 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
-                                        {itCover ? (
-                                          <img
-                                            src={itCover}
-                                            alt={itTitle}
-                                            className="w-full h-full object-cover"
-                                          />
-                                        ) : (
-                                          <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-outline">
-                                            <span className="material-symbols-outlined text-[16px]">menu_book</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      <div className="min-w-0">
-                                        <p
-                                          className="font-medium text-on-surface text-[13px] leading-tight cursor-help"
-                                          title={itTitle}
-                                        >
-                                          {displayTitle}
-                                        </p>
-                                        <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                          SL: <strong className="text-on-surface">{item.quantity || 1}</strong> × {itPrice > 0 ? `${itPrice.toLocaleString('vi-VN')}đ` : '0đ'}
-                                        </p>
-                                      </div>
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            <div className="space-y-2.5 whitespace-nowrap">
+                              {/* Physical items group */}
+                              {physicalItems.length > 0 && (
+                                <div className="space-y-2 whitespace-nowrap">
+                                  {physicalItems.length > 1 && (
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 whitespace-nowrap">
+                                      <span className="material-symbols-outlined text-[12px]">menu_book</span>
+                                      <span>SÁCH GIẤY ({physicalItems.length} quyển)</span>
                                     </div>
-                                  );
-                                })
-                              ) : (
-                                <p className="text-outline text-[12px] italic">Chi tiết sản phẩm...</p>
+                                  )}
+                                  {physicalItems.map((item, idx) => {
+                                    const itTitle = item.title || item.bookTitle || 'Sách in HUKI';
+                                    const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
+                                    const itPrice = Number(item.price ?? item.unitPrice ?? 0);
+                                    return (
+                                      <div key={item.id || idx} className="flex items-center gap-2.5 whitespace-nowrap">
+                                        <div className="w-8 h-10 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
+                                          {itCover ? (
+                                            <img
+                                              src={itCover}
+                                              alt={itTitle}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-outline">
+                                              <span className="material-symbols-outlined text-[14px]">menu_book</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="whitespace-nowrap">
+                                          <span className="font-medium text-on-surface text-[13px] whitespace-nowrap cursor-help" title={itTitle}>
+                                            {itTitle.length > 25 ? `${itTitle.slice(0, 25)}...` : itTitle}
+                                          </span>
+                                          <span className="text-[11px] text-on-surface-variant ml-2 whitespace-nowrap">
+                                            SL: <strong className="text-on-surface">{item.quantity || 1}</strong> × {itPrice > 0 ? `${itPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {/* Ebook items group */}
+                              {ebookItems.length > 0 && (
+                                <div className="space-y-2 whitespace-nowrap">
+                                  {ebookItems.length > 1 && (
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 whitespace-nowrap">
+                                      <span className="material-symbols-outlined text-[12px]">bolt</span>
+                                      <span>EBOOK ({ebookItems.length} quyển)</span>
+                                    </div>
+                                  )}
+                                  {ebookItems.map((item, idx) => {
+                                    const itTitle = item.title || item.bookTitle || 'Ebook DRM HUKI';
+                                    const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
+                                    const itPrice = Number(item.price ?? item.unitPrice ?? 0);
+                                    return (
+                                      <div key={item.id || idx} className="flex items-center gap-2.5 whitespace-nowrap">
+                                        <div className="w-8 h-10 bg-surface-container rounded shrink-0 overflow-hidden border border-outline-variant">
+                                          {itCover ? (
+                                            <img
+                                              src={itCover}
+                                              alt={itTitle}
+                                              className="w-full h-full object-cover"
+                                            />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center bg-surface-container-high text-outline">
+                                              <span className="material-symbols-outlined text-[14px]">bolt</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="whitespace-nowrap">
+                                          <span className="font-medium text-on-surface text-[13px] whitespace-nowrap cursor-help" title={itTitle}>
+                                            {itTitle.length > 25 ? `${itTitle.slice(0, 25)}...` : itTitle}
+                                          </span>
+                                          <span className="text-[11px] text-on-surface-variant ml-2 whitespace-nowrap">
+                                            SL: <strong className="text-on-surface">{item.quantity || 1}</strong> × {itPrice > 0 ? `${itPrice.toLocaleString('vi-VN')}đ` : '0đ'}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {items.length === 0 && (
+                                <p className="text-outline text-[12px] italic whitespace-nowrap">Chi tiết sản phẩm...</p>
                               )}
                             </div>
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            {isDigitalOnly ? (
-                              <OrderItemBadge format="DIGITAL" />
-                            ) : (
-                              <OrderItemBadge format="PHYSICAL" />
-                            )}
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            <div className="flex flex-col gap-2 whitespace-nowrap">
+                              {hasPhysical && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shrink-0 whitespace-nowrap">
+                                  <span className="material-symbols-outlined text-[13px]">menu_book</span>
+                                  <span>SÁCH GIẤY</span>
+                                </span>
+                              )}
+                              {hasEbook && (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0 whitespace-nowrap">
+                                  <span className="material-symbols-outlined text-[13px]">bolt</span>
+                                  <span>EBOOK</span>
+                                </span>
+                              )}
+                            </div>
                           </td>
 
-                          <td className="py-4 px-3 align-top text-right">
+                          <td className="py-4.5 px-6 align-middle text-right whitespace-nowrap">
                             <span className="font-title-md text-body-md font-bold text-primary block whitespace-nowrap">
                               {order.grandTotal ? `${order.grandTotal.toLocaleString('vi-VN')}đ` : '0đ'}
                             </span>
                             {order.shippingFee !== undefined && order.shippingFee > 0 && (
-                              <span className="text-[11px] text-outline block whitespace-nowrap">
+                              <span className="text-[11px] text-outline block whitespace-nowrap mt-0.5">
                                 Ship: {order.shippingFee.toLocaleString('vi-VN')}đ
                               </span>
                             )}
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-tertiary-fixed text-on-tertiary-fixed-variant whitespace-nowrap">
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-tertiary-fixed text-on-tertiary-fixed-variant whitespace-nowrap">
                               <span className="material-symbols-outlined text-[14px]">
                                 {order.order?.paymentMethod === 'COD' ? 'payments' : 'check_circle'}
                               </span>
@@ -916,49 +983,51 @@ function SellerOrdersContent() {
                             </span>
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            {isDigitalOnly ? (
-                              <div className="text-[12px] text-on-surface-variant flex items-center gap-1 whitespace-nowrap">
-                                <span className="material-symbols-outlined text-[16px] text-cyan-600">lock_open</span>
-                                <span>Cấp quyền số (DRM)</span>
+                          <td className="py-4.5 px-6 align-middle whitespace-nowrap">
+                            {isHybrid ? (
+                              <div className="flex flex-col gap-2 whitespace-nowrap">
+                                <span
+                                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${statusCfg.bg}`}
+                                >
+                                  <span className="material-symbols-outlined text-[13px]">{statusCfg.icon}</span>
+                                  {statusCfg.label}
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 whitespace-nowrap">
+                                  <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                                  Đã nhận sách
+                                </span>
                               </div>
-                            ) : order.carrier ? (
-                              <div>
-                                <p className="font-semibold text-on-surface text-[12px] whitespace-nowrap">{order.carrier}</p>
-                                {order.trackingCode && (
-                                  <p className="text-[11px] font-mono text-outline whitespace-nowrap">{order.trackingCode}</p>
-                                )}
-                              </div>
+                            ) : !hasPhysical ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 whitespace-nowrap">
+                                <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                Đã nhận sách
+                              </span>
                             ) : (
-                              <span className="text-[12px] text-outline italic whitespace-nowrap">Chưa bàn giao ship</span>
+                              <span
+                                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${statusCfg.bg}`}
+                              >
+                                <span className="material-symbols-outlined text-[14px]">{statusCfg.icon}</span>
+                                {statusCfg.label}
+                              </span>
                             )}
                           </td>
 
-                          <td className="py-4 px-3 align-top">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border whitespace-nowrap ${statusCfg.bg}`}
-                            >
-                              <span className="material-symbols-outlined text-[14px]">{statusCfg.icon}</span>
-                              {statusCfg.label}
-                            </span>
-                          </td>
-
-                          <td className="py-4 pr-space-md pl-3 align-top text-right whitespace-nowrap min-w-[130px]">
-                            <div className="flex flex-col items-end gap-1.5">
+                          <td className="py-4.5 pr-6 pl-6 align-middle text-right whitespace-nowrap min-w-[170px]">
+                            <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                               <Link
                                 href={`/seller/orders/${order.id}`}
-                                className="px-3 py-1.5 rounded-lg border border-outline-variant text-primary font-bold text-[12px] hover:bg-primary/5 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
+                                className="px-3.5 py-1.5 rounded-lg border border-outline-variant text-primary font-bold text-[12px] hover:bg-primary/5 inline-flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer shadow-2xs"
                               >
                                 <span className="material-symbols-outlined text-[16px]">visibility</span>
-                                <span>Xem chi tiết</span>
+                                <span>Chi tiết</span>
                               </Link>
                               {order.status === 'PENDING_CONFIRMATION' && (
-                                <div className="flex items-center gap-1.5 mt-1">
+                                <>
                                   {can(PERMISSIONS.ORDER_PROCESS, businessId, user) && (
                                     <button
                                       onClick={() => handleConfirm(order.id)}
                                       disabled={actionLoading}
-                                      className="px-2.5 py-1 bg-primary text-on-primary rounded-lg text-[11px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                      className="px-3 py-1.5 bg-primary text-on-primary rounded-lg text-[11px] font-semibold hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
                                     >
                                       <span className="material-symbols-outlined text-[13px]">check</span>
                                       <span>Xác nhận</span>
@@ -968,12 +1037,12 @@ function SellerOrdersContent() {
                                     <button
                                       onClick={() => setModalState({ type: 'CANCEL', order })}
                                       disabled={actionLoading}
-                                      className="px-2 py-1 text-error hover:bg-error/10 rounded-lg text-[11px] font-medium transition-colors cursor-pointer"
+                                      className="px-2.5 py-1.5 text-error hover:bg-error/10 rounded-lg text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap"
                                     >
                                       Hủy
                                     </button>
                                   )}
-                                </div>
+                                </>
                               )}
 
                               {order.status === 'CONFIRMED' && (
@@ -981,7 +1050,7 @@ function SellerOrdersContent() {
                                   <button
                                     onClick={() => handlePrepare(order.id)}
                                     disabled={actionLoading}
-                                    className="mt-1 px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
                                   >
                                     <span className="material-symbols-outlined text-[13px]">inventory_2</span>
                                     <span>Đóng gói</span>
@@ -994,7 +1063,7 @@ function SellerOrdersContent() {
                                   <button
                                     onClick={() => setModalState({ type: 'SHIP', order })}
                                     disabled={actionLoading}
-                                    className="mt-1 px-2.5 py-1 bg-purple-600 text-white rounded-lg text-[11px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                    className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-[11px] font-semibold hover:bg-purple-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
                                   >
                                     <span className="material-symbols-outlined text-[13px]">local_shipping</span>
                                     <span>Giao bưu tá</span>
@@ -1004,11 +1073,11 @@ function SellerOrdersContent() {
 
                               {order.status === 'SHIPPED' && (
                                 can(PERMISSIONS.ORDER_PROCESS, businessId, user) ? (
-                                  <div className="flex items-center gap-1 mt-1">
+                                  <>
                                     <button
                                       onClick={() => handleDeliver(order.id)}
                                       disabled={actionLoading}
-                                      className="px-2.5 py-1 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer"
+                                      className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 shadow-xs cursor-pointer whitespace-nowrap"
                                     >
                                       <span className="material-symbols-outlined text-[13px]">task_alt</span>
                                       <span>Đã giao</span>
@@ -1016,12 +1085,12 @@ function SellerOrdersContent() {
                                     <button
                                       onClick={() => setModalState({ type: 'CANCEL', order })}
                                       disabled={actionLoading}
-                                      className="px-2 py-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
+                                      className="px-2.5 py-1.5 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
                                       title="Giao thất bại 3 lần - Hoàn hàng về kho"
                                     >
                                       Boom hàng
                                     </button>
-                                  </div>
+                                  </>
                                 ) : null
                               )}
                             </div>

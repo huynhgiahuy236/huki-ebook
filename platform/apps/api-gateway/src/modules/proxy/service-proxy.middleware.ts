@@ -22,6 +22,7 @@ const ROUTES: Record<string, ServiceName> = {
   cart: 'commerce',
   orders: 'commerce',
   payments: 'commerce',
+  wallet: 'commerce',
   'seller': 'commerce',
   shipping: 'shipping',
   shipments: 'shipping',

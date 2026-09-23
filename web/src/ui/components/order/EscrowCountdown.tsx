@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface EscrowCountdownProps {
@@ -9,6 +9,7 @@ export interface EscrowCountdownProps {
   storeName?: string;
   amount?: number;
   initialSeconds?: number;
+  startTime?: string | number | Date;
   isFrozen?: boolean;
   onReleaseEscrow?: (params: { subOrderId?: string; orderId?: string; auto: boolean }) => void;
   onDispute?: (params: { subOrderId?: string; orderId?: string }) => void;
@@ -17,7 +18,7 @@ export interface EscrowCountdownProps {
 
 /**
  * HUKI EBOOK - Escrow Countdown Timer Component (2-Minute Dispute Window)
- * Handles live countdown, escrow freeze upon dispute, and instant settlement release.
+ * Handles live countdown synchronized with persistent timestamps, escrow freeze upon dispute, and instant settlement release.
  */
 export default function EscrowCountdown({
   orderId,
@@ -25,26 +26,76 @@ export default function EscrowCountdown({
   storeName = 'Gian Hàng',
   amount = 0,
   initialSeconds = 120,
+  startTime,
   isFrozen = false,
   onReleaseEscrow,
   onDispute,
   className = '',
 }: EscrowCountdownProps) {
   const router = useRouter();
-  const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
+
+  const calculateRemainingSeconds = useCallback(() => {
+    const totalDuration = initialSeconds || 120;
+
+    let startTimestamp: number | null = null;
+    if (startTime) {
+      const parsed = new Date(startTime).getTime();
+      if (!isNaN(parsed) && parsed > 0) {
+        startTimestamp = parsed;
+      }
+    }
+
+    // LocalStorage fallback based on orderId/subOrderId to preserve countdown on page reload
+    const storageKey = `huki_escrow_timer_${orderId || ''}_${subOrderId || ''}`;
+    if (!startTimestamp && typeof window !== 'undefined' && (orderId || subOrderId)) {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const parsed = Number(stored);
+        if (!isNaN(parsed) && parsed > 0) {
+          startTimestamp = parsed;
+        }
+      } else {
+        startTimestamp = Date.now();
+        localStorage.setItem(storageKey, String(startTimestamp));
+      }
+    }
+
+    if (!startTimestamp) {
+      return totalDuration;
+    }
+
+    const elapsed = Math.floor((Date.now() - startTimestamp) / 1000);
+    return Math.max(0, totalDuration - elapsed);
+  }, [startTime, initialSeconds, orderId, subOrderId]);
+
+  const [secondsLeft, setSecondsLeft] = useState<number>(120);
   const [isCompleted, setIsCompleted] = useState(false);
   const [frozen, setFrozen] = useState(isFrozen);
+  const hasTriggeredReleaseRef = useRef(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Initialize remaining seconds on client mount
   useEffect(() => {
-    if (frozen || isCompleted) return;
+    const initial = calculateRemainingSeconds();
+    setSecondsLeft(initial);
+    if (initial <= 0) {
+      setIsCompleted(true);
+    }
+  }, [calculateRemainingSeconds]);
+
+  useEffect(() => {
+    setFrozen(isFrozen);
+  }, [isFrozen]);
+
+  useEffect(() => {
+    if (frozen || isCompleted || secondsLeft <= 0) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
 
     timerRef.current = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          setIsCompleted(true);
-          if (onReleaseEscrow) onReleaseEscrow({ subOrderId, orderId, auto: true });
           return 0;
         }
         return prev - 1;
@@ -54,7 +105,20 @@ export default function EscrowCountdown({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [frozen, isCompleted, onReleaseEscrow, subOrderId, orderId]);
+  }, [frozen, isCompleted, secondsLeft]);
+
+  // Safe side-effect when countdown finishes: trigger release outside state updater
+  useEffect(() => {
+    if (secondsLeft <= 0 && !isCompleted && !frozen) {
+      setIsCompleted(true);
+      if (!hasTriggeredReleaseRef.current) {
+        hasTriggeredReleaseRef.current = true;
+        if (onReleaseEscrow) {
+          onReleaseEscrow({ subOrderId, orderId, auto: true });
+        }
+      }
+    }
+  }, [secondsLeft, isCompleted, frozen, onReleaseEscrow, subOrderId, orderId]);
 
   const formatTime = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);
@@ -68,7 +132,10 @@ export default function EscrowCountdown({
     if (timerRef.current) clearInterval(timerRef.current);
     setIsCompleted(true);
     setSecondsLeft(0);
-    if (onReleaseEscrow) onReleaseEscrow({ subOrderId, orderId, auto: false });
+    if (!hasTriggeredReleaseRef.current) {
+      hasTriggeredReleaseRef.current = true;
+      if (onReleaseEscrow) onReleaseEscrow({ subOrderId, orderId, auto: false });
+    }
   };
 
   const handleDisputeClick = () => {

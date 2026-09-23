@@ -161,6 +161,21 @@ export class OrdersController {
     return this.orders.adminUpdateEscrowItemStatus(actor, orderItemId, dto);
   }
 
+  @Get('seller/escrow/items')
+  @ApiOperation({
+    summary: 'List all escrow holding items for Seller (Task update_proceed_money_flow_v1)',
+    description: 'Seller reviews all item-level payments in intermediate escrow holding with 4 statuses, 5% fee and 95% net revenue.',
+  })
+  @ApiResponse({ status: 200, description: 'List of seller escrow items' })
+  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
+  sellerListEscrowItems(
+    @CurrentBookActor() actor: BookActor,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.orders.sellerListEscrowItems(actor, { status, search });
+  }
+
   @Get()
   @ApiOperation({
     summary: 'List user orders',

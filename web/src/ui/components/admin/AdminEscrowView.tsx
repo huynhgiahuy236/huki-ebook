@@ -8,6 +8,9 @@ export interface EscrowTableItem {
   orderId: string;
   orderCode: string;
   orderCreatedAt: string;
+  orderStatus?: string; // 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'COMPLETED'
+  format?: 'PHYSICAL' | 'DIGITAL' | 'BOTH';
+  deliveredAt?: string | null;
   storeId: string;
   storeName: string;
   customerName: string;
@@ -29,12 +32,16 @@ const STATUS_TABS = [
   { key: 'RELEASED', label: 'Đã Chuyển Cho Cửa Hàng' },
 ];
 
+// Dữ liệu mẫu ban đầu static để SSR không bị lệch thời gian
 const INITIAL_MOCK_ITEMS: EscrowTableItem[] = [
   {
     id: 'item-001',
     orderId: 'ord-1001',
     orderCode: 'DH-2026-9812',
-    orderCreatedAt: '2026-09-22T10:15:00.000Z',
+    orderCreatedAt: '2026-09-23T10:00:00.000Z',
+    orderStatus: 'SHIPPING', // Sách giấy đang giao -> Chờ giao hàng
+    format: 'PHYSICAL',
+    deliveredAt: null,
     storeId: 'STR-KIEN-02',
     storeName: 'CÔNG TY TNHH KIEN SELLER 2',
     customerName: 'Nguyễn Văn Hoàng',
@@ -50,23 +57,29 @@ const INITIAL_MOCK_ITEMS: EscrowTableItem[] = [
     id: 'item-002',
     orderId: 'ord-1001',
     orderCode: 'DH-2026-9812',
-    orderCreatedAt: '2026-09-22T10:15:00.000Z',
+    orderCreatedAt: '2026-09-23T10:00:00.000Z',
+    orderStatus: 'CONFIRMED', // Ebook -> Kích hoạt đếm ngược ngay sau thanh toán
+    format: 'DIGITAL',
+    deliveredAt: null,
     storeId: 'STR-KIEN-02',
     storeName: 'CÔNG TY TNHH KIEN SELLER 2',
     customerName: 'Nguyễn Văn Hoàng',
     customerPhone: '0912345678',
     bookId: 'BOOK-GK-02',
-    bookTitle: 'Nhà Giả Kim (Tái Bản Kỷ Niệm 25 Năm)',
-    quantity: 2,
+    bookTitle: 'Nhà Giả Kim (Ebook Bản Quyền)',
+    quantity: 1,
     unitPrice: 85000,
-    subtotal: 170000,
+    subtotal: 85000,
     escrowStatus: 'HOLDING',
   },
   {
     id: 'item-003',
     orderId: 'ord-1002',
     orderCode: 'DH-2026-9815',
-    orderCreatedAt: '2026-09-22T09:40:00.000Z',
+    orderCreatedAt: '2026-09-23T09:40:00.000Z',
+    orderStatus: 'DELIVERED', // Sách giấy đã giao -> Kích hoạt đếm ngược từ lúc giao
+    format: 'PHYSICAL',
+    deliveredAt: '2026-09-23T09:40:00.000Z',
     storeId: 'STR-ALPHA',
     storeName: 'CÔNG TY CỔ PHẦN SÁCH ALPHA',
     customerName: 'Trần Thị Mai Anh',
@@ -84,6 +97,9 @@ const INITIAL_MOCK_ITEMS: EscrowTableItem[] = [
     orderId: 'ord-1002',
     orderCode: 'DH-2026-9815',
     orderCreatedAt: '2026-09-22T09:40:00.000Z',
+    orderStatus: 'DELIVERED',
+    format: 'PHYSICAL',
+    deliveredAt: '2026-09-22T10:00:00.000Z',
     storeId: 'STR-ALPHA',
     storeName: 'CÔNG TY CỔ PHẦN SÁCH ALPHA',
     customerName: 'Trần Thị Mai Anh',
@@ -101,23 +117,24 @@ const INITIAL_MOCK_ITEMS: EscrowTableItem[] = [
     orderId: 'ord-1003',
     orderCode: 'DH-2026-9820',
     orderCreatedAt: '2026-09-21T16:20:00.000Z',
+    orderStatus: 'COMPLETED',
+    format: 'DIGITAL',
+    deliveredAt: '2026-09-21T16:20:00.000Z',
     storeId: 'STR-FAHASA',
     storeName: 'CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH FAHASA',
     customerName: 'Lê Minh Quân',
     customerPhone: '0903112233',
     bookId: 'BOOK-KD-05',
-    bookTitle: 'Thám Tử Lừng Danh Conan - Tập 104',
+    bookTitle: 'Thám Tử Lừng Danh Conan - Ebook Tập 104',
     quantity: 3,
     unitPrice: 35000,
     subtotal: 105000,
-    escrowStatus: 'RELEASED',
-    releasedAt: '2026-09-22 08:00',
+    escrowStatus: 'HOLDING', // Đã hết hạn đổi trả -> Sẵn sàng Bàn giao
   },
 ];
 
 /**
  * Format chuỗi thời gian sang chuẩn Việt Nam (GMT+7: DD/MM/YYYY HH:mm)
- * Xử lý chính xác múi giờ cả với định dạng ISO UTC (kết thúc bằng Z) lẫn chuỗi ngày thông thường.
  */
 function formatVietnamDateTime(dateStr: string): string {
   if (!dateStr) return '';
@@ -151,52 +168,28 @@ function formatVietnamDateTime(dateStr: string): string {
 }
 
 /**
- * Helper hàm rút gọn chuỗi tối đa 10 ký tự, nếu vượt quá thì cắt và thêm "..."
+ * Component hiển thị chữ giới hạn 10 ký tự, khi rê chuột sẽ hiện Popup đầy đủ
  */
-function truncate10(str: string): { text: string; isTruncated: boolean } {
-  if (!str) return { text: '', isTruncated: false };
-  if (str.length <= 10) {
-    return { text: str, isTruncated: false };
-  }
-  return {
-    text: `${str.slice(0, 10)}...`,
-    isTruncated: true,
-  };
-}
-
-/**
- * Component hiển thị text tối đa 10 ký tự, nếu quá dài thì có "..."
- * và khi hover vào sẽ hiển thị tooltip đầy đủ nội dung bên dưới
- */
-function TruncatedCellWithTooltip({
-  text,
-  className = '',
-}: {
-  text: string;
-  className?: string;
-}) {
-  if (text === 'Đang cập nhật') {
-    return (
-      <span className={`inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md ${className}`}>
-        <span className="material-symbols-outlined text-xs animate-spin">sync</span>
-        <span>Đang cập nhật</span>
-      </span>
-    );
-  }
-
-  const { text: displayText, isTruncated } = truncate10(text);
+function TruncatedCellWithTooltip({ text, maxLen = 10 }: { text?: string | null; maxLen?: number }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const str = text || '—';
+  const isTruncated = str.length > maxLen;
+  const displayStr = isTruncated ? `${str.slice(0, maxLen)}...` : str;
 
   return (
-    <div className={`group relative inline-flex items-center ${className}`}>
-      <span className="cursor-default font-medium text-slate-800 dark:text-slate-100 select-none">
-        {displayText}
+    <div
+      className="relative inline-block"
+      onMouseEnter={() => isTruncated && setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <span className={`cursor-default ${isTruncated ? 'border-b border-dotted border-slate-400' : ''}`}>
+        {displayStr}
       </span>
-      {isTruncated && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 hidden group-hover:flex flex-col items-center z-50 pointer-events-none transition-all duration-200">
-          <div className="w-2 h-2 bg-slate-900 rotate-45 -mb-1 shadow-sm"></div>
-          <div className="bg-slate-900 text-white text-xs px-2.5 py-1.5 rounded-md shadow-xl border border-slate-700 whitespace-nowrap max-w-xs break-words text-center font-normal">
-            {text}
-          </div>
+
+      {showTooltip && (
+        <div className="absolute left-0 bottom-full mb-1 z-50 px-2.5 py-1.5 text-xs text-white bg-slate-900 rounded-md shadow-lg whitespace-normal max-w-xs pointer-events-none transition-opacity duration-150">
+          {str}
+          <div className="absolute top-full left-4 -mt-1 border-4 border-transparent border-t-slate-900" />
         </div>
       )}
     </div>
@@ -210,43 +203,76 @@ export function AdminEscrowView() {
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState<boolean>(false);
+  const [nowTime, setNowTime] = useState<number>(0);
 
-  // Đóng dropdown khi click bên ngoài
+  // Mount effect to initialize client-side time and mock timers
   useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
+    setMounted(true);
+    setNowTime(Date.now());
+
+    // Khởi tạo mốc đếm ngược demo sinh động khi Client mount
+    setItems((prev) =>
+      prev.map((it) => {
+        // item-002: Ebook vừa mua 40 giây trước -> Đang đếm ngược còn ~80s
+        if (it.id === 'item-002') {
+          return {
+            ...it,
+            orderCreatedAt: new Date(Date.now() - 40 * 1000).toISOString(),
+          };
+        }
+        // item-003: Sách giấy đã giao 80 giây trước -> Đang đếm ngược còn ~40s
+        if (it.id === 'item-003') {
+          return {
+            ...it,
+            deliveredAt: new Date(Date.now() - 80 * 1000).toISOString(),
+          };
+        }
+        return it;
+      }),
+    );
+
+    const ticker = setInterval(() => {
+      setNowTime(Date.now());
+    }, 1000);
+
+    return () => clearInterval(ticker);
+  }, []);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (!target.closest('.escrow-dropdown-container')) {
         setOpenDropdownId(null);
       }
     };
-    window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Fetch dữ liệu từ API và map chính xác Tên Cửa Hàng từ CSDL thật
+  // Lấy dữ liệu Escrow Items và danh sách Cửa Hàng thực tế
   const fetchEscrowItems = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Lấy danh sách Store & Business thật từ Database
       const storeMap = new Map<string, string>();
+
+      // 1. Tải Store & Business để map ID sang tên hiển thị
       try {
-        const [storeRes, bizRes] = await Promise.all([
-          adminApi.getStores({ limit: 500 }),
-          adminApi.getBusinesses({ limit: 500 }),
+        const [storesRes, bizRes] = await Promise.all([
+          (adminApi as any).getStores?.().catch(() => null),
+          (adminApi as any).getBusinesses?.().catch(() => null),
         ]);
 
-        const rawStores = Array.isArray(storeRes?.data)
-          ? storeRes.data
-          : Array.isArray((storeRes?.data as any)?.data)
-          ? (storeRes?.data as any).data
+        const rawStores = Array.isArray(storesRes?.data)
+          ? storesRes.data
+          : Array.isArray((storesRes?.data as any)?.data)
+          ? (storesRes?.data as any).data
           : [];
 
         rawStores.forEach((st: any) => {
           if (st.id && st.name) {
             storeMap.set(st.id, st.name);
-          }
-          if (st.businessId && st.name) {
-            storeMap.set(st.businessId, st.name);
           }
           if (st.slug && st.name) {
             storeMap.set(st.slug, st.name);
@@ -279,7 +305,6 @@ export function AdminEscrowView() {
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val || '');
 
           const mappedItems: EscrowTableItem[] = res.data.map((it: any) => {
-            // Tìm tên cửa hàng thật từ storeId hoặc storeName
             let resolvedStoreName: string | undefined;
 
             if (it.storeId && storeMap.has(it.storeId)) {
@@ -296,7 +321,6 @@ export function AdminEscrowView() {
               resolvedStoreName = it.storeName;
             }
 
-            // Nếu không tìm thấy hoặc bị lỗi ID thì hiển thị "Đang cập nhật"
             if (!resolvedStoreName || isUuid(resolvedStoreName)) {
               resolvedStoreName = 'Đang cập nhật';
             }
@@ -331,7 +355,6 @@ export function AdminEscrowView() {
     const targetItem = items.find((it) => it.id === itemId);
     if (!targetItem) return;
 
-    // Nếu đã chuyển cho cửa hàng thì không cho phép đổi lại
     if (targetItem.escrowStatus === 'RELEASED') {
       showToast?.({
         title: 'Thao tác không khả dụng',
@@ -341,7 +364,6 @@ export function AdminEscrowView() {
       return;
     }
 
-    // Cập nhật State trong RAM ngay lập tức
     setItems((prev) =>
       prev.map((it) => {
         if (it.id === itemId) {
@@ -355,7 +377,6 @@ export function AdminEscrowView() {
       }),
     );
 
-    // Bắn Toast thông báo theo đúng trạng thái
     if (newStatus === 'HOLDING') {
       showToast?.({
         title: 'Đang giữ dòng tiền',
@@ -376,7 +397,6 @@ export function AdminEscrowView() {
       });
     }
 
-    // Gọi API cập nhật backend
     try {
       if (adminApi && (adminApi as any).updateEscrowItemStatus) {
         await (adminApi as any).updateEscrowItemStatus(itemId, { status: newStatus });
@@ -385,6 +405,103 @@ export function AdminEscrowView() {
       console.warn('Lỗi gọi API cập nhật trạng thái ký quỹ:', err);
     }
   };
+
+  /**
+   * Tính toán trạng thái đổi trả và điều kiện bàn giao theo đúng nghiệp vụ:
+   * 1. Sách giấy: Phải đợi giao hàng thành công (DELIVERED/COMPLETED) mới kích hoạt đếm ngược 2 phút.
+   * 2. Ebook: Kích hoạt đếm ngược 2 phút ngay sau khi thanh toán.
+   * 3. Ràng buộc: Khi chưa giao hoặc còn trong hạn đổi trả -> Nút Bàn giao bị disable, Đang giữ & Đóng băng vẫn hoạt động.
+   */
+  const getReturnStatusInfo = useCallback(
+    (item: EscrowTableItem) => {
+      if (!mounted) {
+        return {
+          type: 'EXPIRED',
+          isExpired: true,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '00:00',
+          text: 'Hết hạn đổi trả',
+          reason: '',
+        };
+      }
+      if (item.escrowStatus === 'RELEASED') {
+        return {
+          type: 'RELEASED',
+          isExpired: true,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '00:00',
+          text: 'Đã hoàn tất bàn giao',
+          reason: 'Đã bàn giao tiền cho cửa hàng',
+        };
+      }
+
+      const isDigital =
+        item.format === 'DIGITAL' ||
+        item.bookTitle.toLowerCase().includes('ebook') ||
+        item.bookTitle.toLowerCase().includes('digital');
+      const isPhysical = !isDigital;
+      const isDelivered =
+        item.orderStatus === 'DELIVERED' ||
+        item.orderStatus === 'COMPLETED' ||
+        Boolean(item.deliveredAt);
+
+      // Sách giấy chưa giao hàng -> Chưa kích hoạt đếm ngược
+      if (isPhysical && !isDelivered) {
+        return {
+          type: 'WAITING_DELIVERY',
+          isExpired: false,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '--:--',
+          text: 'Chờ giao hàng thành công',
+          reason: 'Sách giấy chưa giao hàng thành công đến tay người mua',
+        };
+      }
+
+      // Ebook kích hoạt từ orderCreatedAt (thanh toán); Sách giấy đã giao kích hoạt từ deliveredAt
+      let startMs = 0;
+      if (isDigital) {
+        startMs = new Date(item.orderCreatedAt).getTime();
+      } else {
+        startMs = item.deliveredAt ? new Date(item.deliveredAt).getTime() : new Date(item.orderCreatedAt).getTime();
+      }
+
+      if (isNaN(startMs) || startMs <= 0) {
+        return {
+          type: 'EXPIRED',
+          isExpired: true,
+          canRelease: true,
+          remainingSec: 0,
+          formattedTime: '00:00',
+          text: 'Hết hạn đổi trả',
+          reason: '',
+        };
+      }
+
+      const currentTime = nowTime || Date.now();
+      const elapsed = Math.floor((currentTime - startMs) / 1000);
+      const totalDuration = 120; // 2 Phút Ký Quỹ Đổi Trả
+      const remainingSec = Math.max(0, totalDuration - elapsed);
+      const isExpired = remainingSec <= 0;
+
+      const m = Math.floor(remainingSec / 60);
+      const s = remainingSec % 60;
+      const formatted = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+      return {
+        type: isExpired ? 'EXPIRED' : 'COUNTDOWN',
+        isExpired,
+        canRelease: isExpired,
+        remainingSec,
+        formattedTime: formatted,
+        text: isExpired ? 'Hết hạn đổi trả' : `Còn ${formatted}`,
+        reason: isExpired ? '' : `Đang trong hạn đổi trả 2 phút (${formatted} còn lại)`,
+      };
+    },
+    [mounted, nowTime],
+  );
 
   // Lọc danh sách theo Tab và Ô tìm kiếm
   const filteredItems = useMemo(() => {
@@ -404,7 +521,7 @@ export function AdminEscrowView() {
     });
   }, [items, activeTab, searchQuery]);
 
-  // Gom nhóm các sản phẩm theo đơn hàng để hiển thị dòng phân cách & chung màu nền
+  // Gom nhóm các sản phẩm theo đơn hàng
   const groupedOrders = useMemo(() => {
     const map = new Map<string, { orderCode: string; orderCreatedAt: string; items: EscrowTableItem[] }>();
 
@@ -422,7 +539,7 @@ export function AdminEscrowView() {
     return Array.from(map.values());
   }, [filteredItems]);
 
-  // Thống kê tài chính theo trạng thái
+  // Thống kê tài chính
   const stats = useMemo(() => {
     const totalHolding = items
       .filter((it) => it.escrowStatus === 'HOLDING')
@@ -448,135 +565,111 @@ export function AdminEscrowView() {
   }, [items]);
 
   return (
-    <div className="space-y-5 pb-12">
-      {/* 1. Header Trang & Thao tác làm mới */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+    <div className="space-y-6">
+      {/* 1. Tiêu đề Trang */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-28">
-              account_balance_wallet
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2.5">
+            <span className="material-symbols-outlined text-emerald-600 text-32">
+              account_balance
             </span>
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-              Tài Khoản Trung Gian & Quản Lý Dòng Tiền
-            </h1>
-          </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Nơi tạm giữ dòng tiền chuyển khoản trực tuyến từ khách hàng và kiểm soát giải ngân độc lập cho từng món hàng.
+            <span>Ký Quỹ Sàn (Escrow Holding)</span>
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Quản lý dòng tiền tạm giữ của các đơn hàng. Tự động bảo vệ quyền lợi người mua và giải ngân an toàn cho người bán.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              fetchEscrowItems();
-              showToast?.({
-                title: 'Đã làm mới',
-                message: 'Dữ liệu tài khoản trung gian đã được cập nhật.',
-                type: 'info',
-              });
-            }}
-            disabled={loading}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
-          >
-            <span className={`material-symbols-outlined text-18 ${loading ? 'animate-spin' : ''}`}>
-              refresh
-            </span>
-            <span>Làm mới</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={fetchEscrowItems}
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-xs transition-colors disabled:opacity-60 cursor-pointer self-start sm:self-auto"
+        >
+          <span className={`material-symbols-outlined text-16 ${loading ? 'animate-spin' : ''}`}>
+            refresh
+          </span>
+          <span>Làm mới dữ liệu</span>
+        </button>
       </div>
 
       {/* 2. Thẻ Thống Kê Tổng Quan */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Đang giữ */}
-        <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 p-4 rounded-xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-              Đang Giữ Dòng Tiền
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Đang Giữ */}
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Đang Giữ Ký Quỹ
             </span>
-            <span className="material-symbols-outlined text-amber-500 text-20">hourglass_empty</span>
+            <div className="text-xl sm:text-2xl font-black text-amber-600 dark:text-amber-400 mt-1">
+              {stats.totalHolding.toLocaleString('vi-VN')} đ
+            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block font-medium">
+              {stats.holdingCount} món hàng đang giữ
+            </span>
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-amber-900 dark:text-amber-200">
-            {stats.totalHolding.toLocaleString('vi-VN')} đ
-          </div>
-          <div className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-1">
-            {stats.holdingCount} món hàng đang trong quỹ tạm
+          <div className="w-12 h-12 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center">
+            <span className="material-symbols-outlined text-24">lock_clock</span>
           </div>
         </div>
 
-        {/* Đóng băng */}
-        <div className="bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/50 p-4 rounded-xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400">
-              Đóng Băng Dòng Tiền
+        {/* Đã Bàn Giao */}
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Đã Bàn Giao Cho Shop
             </span>
-            <span className="material-symbols-outlined text-rose-500 text-20">lock_clock</span>
+            <div className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1">
+              {stats.totalReleased.toLocaleString('vi-VN')} đ
+            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block font-medium">
+              {stats.releasedCount} món hàng đã hoàn tất
+            </span>
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-rose-900 dark:text-rose-200">
-            {stats.totalFrozen.toLocaleString('vi-VN')} đ
-          </div>
-          <div className="text-xs text-rose-700/80 dark:text-rose-400/80 mt-1">
-            {stats.frozenCount} món hàng đang tạm khóa xử lý
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+            <span className="material-symbols-outlined text-24">verified</span>
           </div>
         </div>
 
-        {/* Đã chuyển cho cửa hàng */}
-        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 p-4 rounded-xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Đã Chuyển Cửa Hàng
+        {/* Đóng Băng Tranh Chấp */}
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+              Đóng Băng Tranh Chấp
             </span>
-            <span className="material-symbols-outlined text-emerald-500 text-20">verified</span>
-          </div>
-          <div className="mt-2 text-2xl font-extrabold text-emerald-900 dark:text-emerald-200">
-            {stats.totalReleased.toLocaleString('vi-VN')} đ
-          </div>
-          <div className="text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
-            {stats.releasedCount} món hàng đã hoàn tất bàn giao
-          </div>
-        </div>
-
-        {/* Tổng món trong sàn */}
-        <div className="bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-4 rounded-xl shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
-              Tổng Món Ký Quỹ
+            <div className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 mt-1">
+              {stats.totalFrozen.toLocaleString('vi-VN')} đ
+            </div>
+            <span className="text-[11px] text-slate-400 mt-0.5 block font-medium">
+              {stats.frozenCount} món hàng khiếu nại
             </span>
-            <span className="material-symbols-outlined text-slate-500 text-20">receipt_long</span>
           </div>
-          <div className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">
-            {stats.totalCount} món
-          </div>
-          <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Trên toàn bộ đơn thanh toán online
+          <div className="w-12 h-12 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center">
+            <span className="material-symbols-outlined text-24">gavel</span>
           </div>
         </div>
       </div>
 
-      {/* 3. BỘ LỌC ĐIỀU KIỆN & TÌM KIẾM NGAY NGẮN TRÊN 1 HÀNG */}
-      <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-          {/* Tabs Điều Kiện Lọc Trạng Thái Ngay Ngắn */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-lg overflow-x-auto no-scrollbar shrink-0">
+      {/* 3. Thanh Bộ Lọc & Tìm Kiếm */}
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Tabs Trạng Thái */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
             {STATUS_TABS.map((tab) => {
-              const count =
-                tab.key === 'ALL'
-                  ? stats.totalCount
-                  : tab.key === 'HOLDING'
-                  ? stats.holdingCount
-                  : tab.key === 'FROZEN'
-                  ? stats.frozenCount
-                  : stats.releasedCount;
               const isActive = activeTab === tab.key;
+              let count = stats.totalCount;
+              if (tab.key === 'HOLDING') count = stats.holdingCount;
+              if (tab.key === 'FROZEN') count = stats.frozenCount;
+              if (tab.key === 'RELEASED') count = stats.releasedCount;
 
               return (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
-                  className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md whitespace-nowrap transition-all select-none ${
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                     isActive
-                      ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                      ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -595,7 +688,7 @@ export function AdminEscrowView() {
             })}
           </div>
 
-          {/* Ô Tìm Kiếm Nằm Cùng Hàng */}
+          {/* Ô Tìm Kiếm */}
           <div className="relative w-full lg:w-72 shrink-0">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-18">
               search
@@ -620,7 +713,7 @@ export function AdminEscrowView() {
         </div>
       </div>
 
-      {/* 4. Bảng Dữ Liệu 12 Cột */}
+      {/* 4. Bảng Dữ Liệu 13 Cột */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
         <div className="overflow-x-auto min-h-[350px]">
           <table className="w-full text-left border-collapse text-xs sm:text-sm">
@@ -636,7 +729,8 @@ export function AdminEscrowView() {
                 <th className="py-3 px-3">Tên Sản Phẩm</th>
                 <th className="py-3 px-3 text-right">Đơn Giá</th>
                 <th className="py-3 px-3 text-right">Thành Tiền</th>
-                <th className="py-3 px-3 text-center">Trạng Thái</th>
+                <th className="py-3 px-3 text-center">Trạng Thái Dòng Tiền</th>
+                <th className="py-3 px-3 text-center">Thời Hạn Đổi Trả</th>
                 <th className="py-3 px-3 text-center">Thao Tác</th>
               </tr>
             </thead>
@@ -644,7 +738,7 @@ export function AdminEscrowView() {
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {groupedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-12 text-center text-slate-400">
+                  <td colSpan={13} className="py-12 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <span className="material-symbols-outlined text-48 text-slate-300 dark:text-slate-600">
                         inbox
@@ -655,7 +749,6 @@ export function AdminEscrowView() {
                 </tr>
               ) : (
                 groupedOrders.map((group, groupIndex) => {
-                  // Xen kẽ màu nền cho từng nhóm đơn hàng
                   const groupBgClass =
                     groupIndex % 2 === 0
                       ? 'bg-white dark:bg-slate-800'
@@ -665,7 +758,7 @@ export function AdminEscrowView() {
                     <React.Fragment key={group.orderCode}>
                       {/* Dòng phân cách đơn hàng: Mã đơn - Ngày giờ tạo chuẩn Việt Nam GMT+7 */}
                       <tr className="bg-slate-200/80 dark:bg-slate-900/90 text-slate-800 dark:text-slate-200 border-y border-slate-300 dark:border-slate-700">
-                        <td colSpan={12} className="py-2 px-3.5">
+                        <td colSpan={13} className="py-2 px-3.5">
                           <div className="flex items-center justify-between text-xs font-bold">
                             <div className="flex items-center gap-2">
                               <span className="material-symbols-outlined text-emerald-600 dark:text-emerald-400 text-16">
@@ -673,7 +766,10 @@ export function AdminEscrowView() {
                               </span>
                               <span>ĐƠN HÀNG: #{group.orderCode}</span>
                               <span className="text-slate-400 font-normal">|</span>
-                              <span className="text-slate-600 dark:text-slate-400 font-normal">
+                              <span
+                                suppressHydrationWarning
+                                className="text-slate-600 dark:text-slate-400 font-normal"
+                              >
                                 Ngày tạo: {formatVietnamDateTime(group.orderCreatedAt)}
                               </span>
                             </div>
@@ -689,6 +785,7 @@ export function AdminEscrowView() {
                         const isReleased = item.escrowStatus === 'RELEASED';
                         const isFrozen = item.escrowStatus === 'FROZEN';
                         const isHolding = item.escrowStatus === 'HOLDING';
+                        const returnInfo = getReturnStatusInfo(item);
 
                         return (
                           <tr
@@ -730,9 +827,20 @@ export function AdminEscrowView() {
                               {item.quantity}
                             </td>
 
-                            {/* 8. Tên sản phẩm (Tối đa 10 ký tự + Hover Tooltip) */}
+                            {/* 8. Tên sản phẩm kèm Định dạng (Sách giấy / Ebook) */}
                             <td className="py-3 px-3 whitespace-nowrap">
-                              <TruncatedCellWithTooltip text={item.bookTitle} />
+                              <div className="flex items-center gap-1.5">
+                                {item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook') ? (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shrink-0">
+                                    EBOOK
+                                  </span>
+                                ) : (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shrink-0">
+                                    SÁCH GIẤY
+                                  </span>
+                                )}
+                                <TruncatedCellWithTooltip text={item.bookTitle} />
+                              </div>
                             </td>
 
                             {/* 9. Đơn giá */}
@@ -767,10 +875,40 @@ export function AdminEscrowView() {
                               )}
                             </td>
 
-                            {/* 12. Thao tác (Dropdown 3 màu & Khóa Disable khi Bàn giao) */}
+                            {/* 12. Thời Hạn Đổi Trả (Quy tắc Sách Giấy & Ebook) */}
+                            <td className="py-3 px-3 text-center whitespace-nowrap">
+                              {returnInfo.type === 'WAITING_DELIVERY' ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                                  title="Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả 2 phút"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-amber-600">local_shipping</span>
+                                  <span>Chờ giao hàng</span>
+                                </span>
+                              ) : returnInfo.type === 'COUNTDOWN' ? (
+                                <span
+                                  suppressHydrationWarning
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-mono"
+                                  title="Đang trong thời hạn kiểm tra và đổi trả 2 phút"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-rose-600 animate-spin">timer</span>
+                                  <span>Còn {returnInfo.formattedTime}</span>
+                                </span>
+                              ) : (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                                  title="Đã qua thời hạn 2 phút đổi trả hoặc đã bàn giao hoàn tất"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
+                                  <span>Hết hạn đổi trả</span>
+                                </span>
+                              )}
+                            </td>
+
+                            {/* 13. Thao tác (Đang giữ & Đóng băng luôn hoạt động; Bàn giao chỉ mở khi đủ điều kiện) */}
                             <td className="py-3 px-3 text-center whitespace-nowrap relative escrow-dropdown-container">
                               {isReleased ? (
-                                /* Khi đã chuyển tiền cho cửa hàng: Nút Bị DISABLE hoàn toàn */
+                                /* Đã bàn giao hoàn tất */
                                 <button
                                   type="button"
                                   disabled
@@ -781,7 +919,7 @@ export function AdminEscrowView() {
                                   <span>Bàn giao</span>
                                 </button>
                               ) : (
-                                /* Nút dropdown tương tác 3 lựa chọn */
+                                /* Dropdown thao tác: Đang giữ & Đóng băng luôn dùng được, Bàn giao kiểm tra điều kiện */
                                 <div className="relative inline-block text-left">
                                   <button
                                     type="button"
@@ -789,7 +927,7 @@ export function AdminEscrowView() {
                                       e.stopPropagation();
                                       setOpenDropdownId(openDropdownId === item.id ? null : item.id);
                                     }}
-                                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors ${
+                                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg shadow-xs transition-colors cursor-pointer ${
                                       isHolding
                                         ? 'bg-amber-500 hover:bg-amber-600 text-slate-900'
                                         : isFrozen
@@ -805,36 +943,51 @@ export function AdminEscrowView() {
 
                                   {/* Menu Dropdown 3 lựa chọn */}
                                   {openDropdownId === item.id && (
-                                    <div className="absolute right-0 mt-1 w-36 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 divide-y divide-slate-100 dark:divide-slate-700 text-left">
-                                      {/* Lựa chọn 1: Đang giữ */}
+                                    <div className="absolute right-0 mt-1 w-44 bg-white dark:bg-slate-800 rounded-lg shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-1 divide-y divide-slate-100 dark:divide-slate-700 text-left">
+                                      {/* Lựa chọn 1: Đang giữ (Luôn khả dụng) */}
                                       <button
                                         type="button"
                                         onClick={() => handleStatusChange(item.id, 'HOLDING')}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors cursor-pointer"
                                       >
                                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                                         <span>Đang giữ</span>
                                       </button>
 
-                                      {/* Lựa chọn 2: Đóng băng */}
+                                      {/* Lựa chọn 2: Đóng băng (Luôn khả dụng) */}
                                       <button
                                         type="button"
                                         onClick={() => handleStatusChange(item.id, 'FROZEN')}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
                                       >
                                         <span className="w-2.5 h-2.5 rounded-full bg-rose-600"></span>
                                         <span>Đóng băng</span>
                                       </button>
 
-                                      {/* Lựa chọn 3: Bàn giao */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStatusChange(item.id, 'RELEASED')}
-                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
-                                      >
-                                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
-                                        <span>Bàn giao</span>
-                                      </button>
+                                      {/* Lựa chọn 3: Bàn giao (Disable nếu chưa giao hoặc còn hạn đổi trả) */}
+                                      {returnInfo.canRelease ? (
+                                        <button
+                                          type="button"
+                                          onClick={() => handleStatusChange(item.id, 'RELEASED')}
+                                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors cursor-pointer"
+                                        >
+                                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600"></span>
+                                          <span>Bàn giao (Đủ điều kiện)</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          disabled
+                                          className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 opacity-60 cursor-not-allowed select-none bg-slate-50/50 dark:bg-slate-900/30"
+                                          title={returnInfo.reason}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                                            <span>Bàn giao (Khóa)</span>
+                                          </div>
+                                          <span className="material-symbols-outlined text-14">lock</span>
+                                        </button>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -854,3 +1007,4 @@ export function AdminEscrowView() {
     </div>
   );
 }
+export default AdminEscrowView;

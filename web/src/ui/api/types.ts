@@ -51,6 +51,10 @@ export interface UserSession {
     name?: string;
     slug?: string;
     ownerId?: string;
+    bankName?: string;
+    bankAccountNumber?: string;
+    bankAccountHolderName?: string;
+    bankBranch?: string;
     currentMember?: {
       role: string;
       permissions?: string[];

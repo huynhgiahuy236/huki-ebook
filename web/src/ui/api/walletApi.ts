@@ -146,13 +146,54 @@ export const walletApi = {
   /**
    * Task 75: Verify 2FA OTP Code (Step 2) -> Obtain Finance Authorization Token
    */
-  verifyTwoFactorChallenge: async (storeId: string, challengeId: string, code: string): Promise<ApiResponse<TwoFactorVerifyResult>> => {
-    return apiClient<TwoFactorVerifyResult>(`/wallet/store/${encodeURIComponent(storeId)}/security/2fa/verify`, {
+  /**
+   * Task update_proceed_money_flow_v1: Rút toàn bộ số dư khả dụng về tài khoản ngân hàng bằng mã PIN 6 số
+   */
+  withdrawAllBalance: async (
+    storeId: string,
+    pin: string,
+  ): Promise<ApiResponse<{ success: boolean; withdrawnAmount: number; message: string; remainingAttempts?: number; remainingSeconds?: number }>> => {
+    return apiClient(`/wallet/store/${encodeURIComponent(storeId)}/withdraw-all`, {
       method: 'POST',
-      body: JSON.stringify({ storeId, challengeId, code }),
+      body: JSON.stringify({ pin }),
+    });
+  },
+
+  /**
+   * Task update_proceed_money_flow_v1: Lấy danh sách Tiền Đang Treo của gian hàng
+   */
+  getSellerEscrowItems: async (
+    params: { status?: string; search?: string } = {},
+  ): Promise<ApiResponse<SellerEscrowItem[]>> => {
+    const searchParams = new URLSearchParams();
+    if (params.status) searchParams.set('status', params.status);
+    if (params.search) searchParams.set('search', params.search);
+    const qs = searchParams.toString();
+    return apiClient<SellerEscrowItem[]>(`/orders/seller/escrow/items${qs ? `?${qs}` : ''}`, {
+      method: 'GET',
     });
   },
 };
+
+export interface SellerEscrowItem {
+  id: string;
+  orderId: string;
+  orderCode: string;
+  orderCreatedAt: string;
+  storeId: string;
+  storeName: string;
+  customerName: string;
+  customerPhone: string;
+  bookId: string;
+  bookTitle: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  platformFee: number;
+  sellerNet: number;
+  escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED';
+}
+
 
 export interface PayoutRequestItem {
   id: string;

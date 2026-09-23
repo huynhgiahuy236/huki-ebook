@@ -225,4 +225,28 @@ export class WalletController {
       userAgent: req.headers?.['user-agent'],
     });
   }
+
+  @Post('store/:storeId/withdraw-all')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({
+    summary: 'Withdraw entire available balance using 6-digit PIN',
+    description: 'Verifies 6-digit PIN with 5-attempt limit and 3-minute lock, zeroes out available balance upon success.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Withdrawal completed successfully',
+  })
+  async withdrawAll(
+    @Param('storeId') storeId: string,
+    @Body() dto: { pin: string },
+    @CurrentBookActor() actor: BookActor,
+    @Req() req: any,
+  ) {
+    return this.walletSecurityService.withdrawAllDirectly(storeId, dto.pin, actor, {
+      ipAddress: req.ip,
+      userAgent: req.headers?.['user-agent'],
+    });
+  }
 }
+

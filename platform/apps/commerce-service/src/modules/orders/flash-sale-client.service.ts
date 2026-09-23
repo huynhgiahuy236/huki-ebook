@@ -108,6 +108,38 @@ export class FlashSaleClientService {
     return result.hasReservations;
   }
 
+  async getCustomBookDiscount(bookId: string): Promise<{
+    id: string;
+    bookId: string;
+    type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+    value: number;
+    startsAt?: string;
+    expiresAt?: string;
+  } | null> {
+    try {
+      const baseUrl =
+        this.config.get<string>("PROMOTION_SERVICE_URL") ||
+        `http://localhost:${this.config.get<string>("PROMOTION_SERVICE_PORT") || 3007}`;
+      const response = await fetch(
+        `${baseUrl}/api/v1/discounts/active/${encodeURIComponent(bookId)}`,
+        {
+          method: "GET",
+          headers: {
+            "content-type": "application/json",
+            ...this.internalHeaders(),
+          },
+          signal: AbortSignal.timeout(3000),
+        },
+      );
+      if (!response.ok) return null;
+      const body = (await response.json().catch(() => ({}))) as any;
+      return body?.data || null;
+    } catch (err: any) {
+      this.logger.warn(`Failed to fetch custom book discount for ${bookId}: ${err?.message}`);
+      return null;
+    }
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const baseUrl =
       this.config.get<string>("PROMOTION_SERVICE_URL") ||

@@ -25,6 +25,12 @@ model Business {
   registryNumber     String?   @map("registry_number")
   registryVerifiedAt DateTime? @map("registry_verified_at")
 
+  // Bank KYC details
+  bankName              String?   @map("bank_name")
+  bankAccountNumber     String?   @map("bank_account_number")
+  bankAccountHolderName String?   @map("bank_account_holder_name")
+  bankBranch            String?   @map("bank_branch")
+
   // Admin approval
   approvedAt      DateTime? @map("approved_at")
   approvedBy      String?   @map("approved_by")

@@ -285,3 +285,4 @@ model WalletTransaction {
   - Nhập sai quá 5 lần: Khóa chức năng rút tiền trong **3 phút**, không bị trừ tiền trong ví.
   - Lỗi mạng/lỗi hệ thống: Hiển thị thông báo lỗi, giữ nguyên $100\%$ số dư ví.
 - [ ] **Đăng ký gian hàng mới (`/seller/register`):** Bổ sung ô nhập và xác nhận Mã PIN rút tiền 6 số; gian hàng sau khi đăng ký sẽ dùng chính mã PIN này để rút tiền.
+- [ ] **Bảo toàn toàn diện hệ thống (Regression Check):** Tuyệt đối không làm ảnh hưởng, biến đổi hay phát sinh lỗi tại bất kỳ tính năng và giao diện không liên quan nào (Giỏ hàng, Checkout thanh toán của khách hàng, Quản lý kho sách, Quản lý danh mục, Quản lý tài khoản User, Trang chủ, v.v.).

@@ -8,6 +8,10 @@ export interface BusinessData {
   address?: string;
   email?: string;
   phone?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankAccountHolderName?: string;
+  bankBranch?: string;
   status: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SUSPENDED';
   ownerId: string;
   createdAt: string;
@@ -77,6 +81,14 @@ export interface CreateBusinessPayload {
   email?: string;
   phone?: string;
   businessType?: 'INDIVIDUAL' | 'PARTNERSHIP' | 'CORPORATION' | 'LLC';
+  bank_name?: string;
+  bankName?: string;
+  account_number?: string;
+  bankAccountNumber?: string;
+  account_holder_name?: string;
+  bankAccountHolderName?: string;
+  bank_branch?: string;
+  bankBranch?: string;
 }
 
 export interface CreateStorePayload {

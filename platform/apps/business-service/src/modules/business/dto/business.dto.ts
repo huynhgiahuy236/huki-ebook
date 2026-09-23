@@ -45,6 +45,46 @@ export class CreateBusinessDto {
   @IsOptional()
   @IsString()
   taxCode?: string;
+
+  @ApiPropertyOptional({ example: 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)' })
+  @IsOptional()
+  @IsString()
+  bank_name?: string;
+
+  @ApiPropertyOptional({ example: 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)' })
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiPropertyOptional({ example: '1029384756' })
+  @IsOptional()
+  @IsString()
+  account_number?: string;
+
+  @ApiPropertyOptional({ example: '1029384756' })
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional({ example: 'CÔNG TY TNHH ABC' })
+  @IsOptional()
+  @IsString()
+  account_holder_name?: string;
+
+  @ApiPropertyOptional({ example: 'CÔNG TY TNHH ABC' })
+  @IsOptional()
+  @IsString()
+  bankAccountHolderName?: string;
+
+  @ApiPropertyOptional({ example: 'Chi nhánh Ba Đình' })
+  @IsOptional()
+  @IsString()
+  bank_branch?: string;
+
+  @ApiPropertyOptional({ example: 'Chi nhánh Ba Đình' })
+  @IsOptional()
+  @IsString()
+  bankBranch?: string;
 }
 
 export class UpdateBusinessDto {
@@ -64,6 +104,26 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsString()
   address?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankAccountHolderName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  bankBranch?: string;
 }
 
 export class RegisterBusinessResponseDto {
@@ -82,6 +142,10 @@ export class BusinessDetailDto {
   phone: string | null;
   address: string | null;
   taxCode: string | null;
+  bankName: string | null;
+  bankAccountNumber: string | null;
+  bankAccountHolderName: string | null;
+  bankBranch: string | null;
   businessType: BusinessType;
   status: BusinessStatus;
   registryVerifiedAt: Date | null;

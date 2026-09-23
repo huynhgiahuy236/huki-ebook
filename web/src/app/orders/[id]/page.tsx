@@ -708,70 +708,254 @@ export default function OrderDetailPage() {
                     </div>
                   )}
 
-                  {/* Items in Package */}
-                  <div className="divide-y divide-theme-border/60">
-                    {so.items?.map((item: any) => (
-                      <div key={item.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
-                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                          {/* Book Cover */}
-                          <div className="w-16 h-22 sm:w-20 sm:h-26 rounded-xl bg-theme-surface-subtle border border-theme-border overflow-hidden shrink-0 flex items-center justify-center">
-                            {item.bookCoverUrl || item.coverUrl ? (
-                              <img
-                                src={item.bookCoverUrl || item.coverUrl}
-                                alt={item.bookTitle}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="material-symbols-outlined text-3xl text-theme-primary/40">
-                                auto_stories
-                              </span>
-                            )}
-                          </div>
+                  {/* Items in Package Grouped by Format */}
+                  {(() => {
+                    const ebookItems = (so.items || []).filter((it: any) =>
+                      it.format?.toUpperCase().includes('DIGITAL') || it.format?.toLowerCase().includes('ebook')
+                    );
+                    const physicalItems = (so.items || []).filter((it: any) =>
+                      !it.format?.toUpperCase().includes('DIGITAL') && !it.format?.toLowerCase().includes('ebook')
+                    );
+                    const isOrderPaid =
+                      order.paymentStatus === 'SUCCEEDED' ||
+                      order.status === 'CONFIRMED' ||
+                      order.status === 'PROCESSING' ||
+                      order.status === 'SHIPPING' ||
+                      order.status === 'DELIVERED' ||
+                      order.status === 'COMPLETED';
+                    const isPhysicalDelivered =
+                      so.status === 'DELIVERED' ||
+                      so.status === 'COMPLETED' ||
+                      order.status === 'DELIVERED' ||
+                      order.status === 'COMPLETED' ||
+                      isDelivered;
 
-                          {/* Info */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                              <h4 className="font-editorial text-sm sm:text-base font-bold text-on-surface leading-snug">
-                                {item.bookTitle}
-                              </h4>
-                              <OrderItemBadge format={item.format} type={item.type || (item.format?.toLowerCase().includes('ebook') || item.format?.toUpperCase().includes('DIGITAL') ? 'ebook' : 'physical')} />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 mt-1">
-                              {item.bookIsbn && (
-                                <span className="text-[11px] text-on-surface-variant font-mono">
-                                  ISBN: {item.bookIsbn}
+                    const ebookSubtotal = ebookItems.reduce(
+                      (sum: number, it: any) => sum + Number(it.subtotal || it.unitPrice * it.quantity || 0),
+                      0
+                    );
+                    const physicalSubtotal = physicalItems.reduce(
+                      (sum: number, it: any) => sum + Number(it.subtotal || it.unitPrice * it.quantity || 0),
+                      0
+                    );
+
+                    return (
+                      <div className="space-y-6">
+                        {/* NHÓM 1: EBOOK (NẾU CÓ) */}
+                        {ebookItems.length > 0 && (
+                          <div className="p-4 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-indigo-100/80 dark:border-indigo-900/40">
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[20px] text-indigo-600 dark:text-indigo-400">
+                                  auto_stories
                                 </span>
-                              )}
+                                <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                                  Sách Điện Tử Ebook ({ebookItems.length})
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                  Giao tức thì 24/7
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                                {ebookSubtotal.toLocaleString('vi-VN')}đ
+                              </span>
                             </div>
-                            <div className="text-xs text-on-surface-variant mt-1.5">
-                              Số lượng: <b className="text-on-surface">{item.quantity}</b> ×{' '}
-                              {Number(item.unitPrice).toLocaleString('vi-VN')}đ
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Subtotal & Action */}
-                        <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
-                          <div className="font-bold text-sm sm:text-base text-theme-primary">
-                            {Number(item.subtotal || item.unitPrice * item.quantity).toLocaleString(
-                              'vi-VN'
+                            {/* Danh sách Ebook - 1 hàng ngang duy nhất */}
+                            <div className="divide-y divide-indigo-100/60 dark:divide-indigo-900/30 overflow-x-auto">
+                              {ebookItems.map((item: any, idx: number) => {
+                                const itTitle = item.bookTitle || item.title || 'Sách Ebook';
+                                const itPrice = Number(item.unitPrice || item.price || 0);
+                                const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
+
+                                return (
+                                  <div
+                                    key={item.id || idx}
+                                    className="py-3 flex items-center justify-between gap-3 whitespace-nowrap min-w-[550px]"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-10 h-14 rounded-lg bg-indigo-100/60 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                        {item.bookCoverUrl || item.coverUrl ? (
+                                          <img
+                                            src={item.bookCoverUrl || item.coverUrl}
+                                            alt={itTitle}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <span className="material-symbols-outlined text-indigo-400 text-[18px]">
+                                            auto_stories
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-sm text-on-surface truncate max-w-[220px]" title={itTitle}>
+                                            {itTitle}
+                                          </span>
+                                          <OrderItemBadge format="DIGITAL" />
+                                          {isOrderPaid && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                                              <span className="material-symbols-outlined text-[12px]">verified</span>
+                                              <span>ĐÃ NHẬN SÁCH</span>
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-[11px] text-on-surface-variant mt-0.5">
+                                          SL: <b className="text-on-surface">{item.quantity || 1}</b> × {itPrice.toLocaleString('vi-VN')}đ
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 shrink-0">
+                                      <span className="font-bold text-sm text-indigo-700 dark:text-indigo-400">
+                                        {itSubtotal.toLocaleString('vi-VN')}đ
+                                      </span>
+                                      <Link
+                                        href={`/reader/${item.bookId}`}
+                                        className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold inline-flex items-center gap-1 shadow-xs transition-colors"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
+                                        <span>Đọc Ngay</span>
+                                      </Link>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Ký quỹ đếm ngược riêng cho Ebook */}
+                            {isOrderPaid && (
+                              <div className="pt-2 border-t border-indigo-100/80 dark:border-indigo-900/40">
+                                <EscrowCountdown
+                                  orderId={order.id}
+                                  subOrderId={`${so.id}_ebook`}
+                                  storeName={`${storeDisplayName} (Ebook)`}
+                                  amount={ebookSubtotal}
+                                  startTime={order.paidAt || order.createdAt}
+                                  onDispute={() => setDisputeModal({ open: true, subOrder: so })}
+                                  onReleaseEscrow={({ auto }: any) => {
+                                    setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_ebook`]: true }));
+                                    showToast(
+                                      {
+                                        title: auto ? 'Hết hạn ký quỹ Ebook 2 phút' : 'Xác nhận thành công!',
+                                        message: `Đã giải ngân phần Ebook (${ebookSubtotal.toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
+                                      },
+                                      'success'
+                                    );
+                                  }}
+                                />
+                              </div>
                             )}
-                            đ
                           </div>
+                        )}
 
-                          {(item.format?.toUpperCase().includes('DIGITAL') || item.format?.toLowerCase().includes('ebook')) && (
-                            <Link
-                              href={`/reader/${item.bookId}`}
-                              className="px-2.5 py-1 rounded-lg bg-theme-primary/10 hover:bg-theme-primary/20 text-theme-primary text-[11px] font-bold inline-flex items-center gap-1 transition-colors"
-                            >
-                              <span className="material-symbols-outlined text-sm">chrome_reader_mode</span>
-                              <span>Đọc Ngay</span>
-                            </Link>
-                          )}
-                        </div>
+                        {/* NHÓM 2: SÁCH GIẤY (NẾU CÓ) */}
+                        {physicalItems.length > 0 && (
+                          <div className="p-4 rounded-2xl bg-amber-50/40 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/30 space-y-3">
+                            <div className="flex items-center justify-between pb-2 border-b border-amber-100/80 dark:border-amber-900/40">
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-[20px] text-amber-600 dark:text-amber-400">
+                                  local_shipping
+                                </span>
+                                <span className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                                  Kiện Sách Giấy ({physicalItems.length})
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                                  Giao tận tay
+                                </span>
+                              </div>
+                              <span className="text-xs font-bold text-amber-800 dark:text-amber-300">
+                                {physicalSubtotal.toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+
+                            {/* Danh sách Sách giấy - 1 hàng ngang duy nhất */}
+                            <div className="divide-y divide-amber-100/60 dark:divide-amber-900/30 overflow-x-auto">
+                              {physicalItems.map((item: any, idx: number) => {
+                                const itTitle = item.bookTitle || item.title || 'Sách Giấy';
+                                const itPrice = Number(item.unitPrice || item.price || 0);
+                                const itSubtotal = Number(item.subtotal || itPrice * (item.quantity || 1));
+
+                                return (
+                                  <div
+                                    key={item.id || idx}
+                                    className="py-3 flex items-center justify-between gap-3 whitespace-nowrap min-w-[550px]"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-10 h-14 rounded-lg bg-amber-100/60 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 overflow-hidden shrink-0 flex items-center justify-center">
+                                        {item.bookCoverUrl || item.coverUrl ? (
+                                          <img
+                                            src={item.bookCoverUrl || item.coverUrl}
+                                            alt={itTitle}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <span className="material-symbols-outlined text-amber-500 text-[18px]">
+                                            menu_book
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-bold text-sm text-on-surface truncate max-w-[260px]" title={itTitle}>
+                                            {itTitle}
+                                          </span>
+                                          <OrderItemBadge format="PHYSICAL" />
+                                        </div>
+                                        <div className="text-[11px] text-on-surface-variant mt-0.5">
+                                          SL: <b className="text-on-surface">{item.quantity || 1}</b> × {itPrice.toLocaleString('vi-VN')}đ
+                                          {item.bookIsbn && <span className="ml-2 font-mono text-[10px]">ISBN: {item.bookIsbn}</span>}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="text-right shrink-0">
+                                      <span className="font-bold text-sm text-theme-primary">
+                                        {itSubtotal.toLocaleString('vi-VN')}đ
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Ký quỹ đếm ngược hoặc Thông báo chờ giao riêng cho Sách Giấy */}
+                            {isPhysicalDelivered ? (
+                              <div className="pt-2 border-t border-amber-100/80 dark:border-amber-900/40">
+                                <EscrowCountdown
+                                  orderId={order.id}
+                                  subOrderId={`${so.id}_physical`}
+                                  storeName={`${storeDisplayName} (Sách Giấy)`}
+                                  amount={physicalSubtotal + Number(so.shippingFee || 0)}
+                                  startTime={so.deliveredAt || so.completedAt || (order as any).deliveredAt || so.updatedAt || order.updatedAt}
+                                  onDispute={() => setDisputeModal({ open: true, subOrder: so })}
+                                  onReleaseEscrow={({ auto }: any) => {
+                                    setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_physical`]: true }));
+                                    showToast(
+                                      {
+                                        title: auto ? 'Hết hạn ký quỹ Sách giấy 2 phút' : 'Xác nhận thành công!',
+                                        message: `Đã giải ngân phần Sách giấy (${(physicalSubtotal + Number(so.shippingFee || 0)).toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
+                                      },
+                                      'success'
+                                    );
+                                  }}
+                                />
+                              </div>
+                            ) : isOrderPaid ? (
+                              <div className="p-3 rounded-xl bg-amber-100/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 flex items-center gap-2 text-xs">
+                                <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">local_shipping</span>
+                                <span>
+                                  <strong>Đang giao sách giấy:</strong> Thời hạn đổi trả 2 phút sẽ bắt đầu đếm ngược ngay khi quý khách nhận được sách.
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()}
 
                   {/* Sub-order Summary Footer */}
                   <div className="mt-4 pt-4 border-t border-theme-border/60 flex items-center justify-between text-xs text-on-surface-variant flex-wrap gap-2">
@@ -784,29 +968,6 @@ export default function OrderDetailPage() {
                       Tổng kiện: <b className="text-sm font-bold text-theme-primary">{Number(so.grandTotal).toLocaleString('vi-VN')}đ</b>
                     </div>
                   </div>
-
-                  {/* 2-Minute Escrow Holding Countdown if Delivered */}
-                  {(so.status === 'DELIVERED' || order.status === 'DELIVERED' || isDelivered) && (
-                    <div className="mt-5 pt-5 border-t border-theme-border">
-                      <EscrowCountdown
-                        orderId={order.id}
-                        subOrderId={so.id}
-                        storeName={storeDisplayName}
-                        amount={so.grandTotal || order.grandTotal}
-                        onDispute={() => setDisputeModal({ open: true, subOrder: so })}
-                        onReleaseEscrow={({ subOrderId, auto }: any) => {
-                          setSettledEscrowStores((prev) => ({ ...prev, [subOrderId || so.id]: true }));
-                          showToast(
-                            {
-                              title: auto ? 'Hết hạn ký quỹ 2 phút' : 'Xác nhận thành công!',
-                              message: `Đã hoàn tất giải ngân cho gian hàng #${so.code}.`,
-                            },
-                            'success'
-                          );
-                        }}
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}

@@ -17,6 +17,7 @@ import {
   SellerOrderStatus,
   OrderStatus,
   PaymentStatus,
+  PaymentMethod,
   Prisma,
 } from "../../../prisma/generated/client";
 import { ORDER_EVENTS, policyConfig } from "../../../../../libs/shared/src";
@@ -1813,9 +1814,6 @@ export class OrdersService {
     }
 
     const orders = await this.prisma.order.findMany({
-      where: {
-        paymentStatus: PaymentStatus.SUCCEEDED,
-      },
       include: {
         sellerOrders: {
           include: {
@@ -1863,7 +1861,11 @@ export class OrdersService {
               (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
           );
 
-          let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' = 'HOLDING';
+          let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'PENDING_PAYMENT' = 'HOLDING';
+
+          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+            escrowStatus = 'PENDING_PAYMENT';
+          }
 
           if (itemHistory) {
             const target = (itemHistory.metadata as any)?.targetStatus;
@@ -1880,6 +1882,10 @@ export class OrdersService {
               orderId: order.id,
               orderCode: order.code,
               orderCreatedAt: order.createdAt.toISOString(),
+              orderStatus: sellerOrder.status || order.status,
+              format: item.format,
+              deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
+              requiresShipping: sellerOrder.requiresShipping,
               storeId: sellerOrder.storeId,
               storeName: sellerOrder.storeId,
               customerName,
@@ -1900,7 +1906,122 @@ export class OrdersService {
   }
 
   /**
-   * Update item-level escrow status (Task fix_checkout_v1)
+   * List all escrow holding items for Seller (Task update_proceed_money_flow_v1)
+   */
+  async sellerListEscrowItems(actor: BookActor, query?: { status?: string; search?: string }) {
+    const scope = await getSellerScope(actor);
+    const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
+
+    const whereOrder: any = {};
+    if (!scope.isPlatformAdmin && storeIds.length > 0) {
+      whereOrder.sellerOrders = {
+        some: {
+          storeId: { in: storeIds },
+        },
+      };
+    }
+
+    const orders = await this.prisma.order.findMany({
+      where: whereOrder,
+      include: {
+        sellerOrders: {
+          where: scope.isPlatformAdmin ? {} : { storeId: { in: storeIds } },
+          include: {
+            items: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    const histories = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        orderId: { in: orders.map((o) => o.id) },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const items: any[] = [];
+
+    for (const order of orders) {
+      const shipping = (order.shippingAddress as any) || {};
+      const customerName = shipping.recipientName || 'Khách Hàng HUKI';
+      const customerPhone = shipping.phone || '0901234567';
+
+      for (const sellerOrder of order.sellerOrders) {
+        for (const item of sellerOrder.items) {
+          const itemHistory = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.metadata as any)?.orderItemId === item.id,
+          );
+
+          const freezeEntry = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.toStatus === 'ESCROW_FROZEN' || h.toStatus === 'DISPUTE_OPENED') &&
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+          );
+          const unfreezeEntry = histories.find(
+            (h) =>
+              h.orderId === order.id &&
+              (h.toStatus === 'ESCROW_UNFROZEN' || h.toStatus === 'ESCROW_RELEASED' || h.toStatus.startsWith('RULING_')) &&
+              (!h.sellerOrderId || h.sellerOrderId === sellerOrder.id),
+          );
+
+          let escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED' = 'HOLDING';
+
+          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+            escrowStatus = 'PENDING_PAYMENT';
+          }
+
+          if (itemHistory) {
+            const target = (itemHistory.metadata as any)?.targetStatus;
+            if (target) escrowStatus = target;
+          } else if (freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt))) {
+            escrowStatus = 'FROZEN';
+          } else if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || sellerOrder.status === 'COMPLETED')) {
+            escrowStatus = 'RELEASED';
+          }
+
+          const subtotal = Number(item.subtotal);
+          const platformFee = Math.round(subtotal * 0.05); // 5% fee
+          const sellerNet = subtotal - platformFee; // 95% net revenue
+
+          if (!query?.status || query.status === 'ALL' || escrowStatus === query.status) {
+            items.push({
+              id: item.id,
+              orderId: order.id,
+              orderCode: order.code,
+              orderCreatedAt: order.createdAt.toISOString(),
+              orderStatus: sellerOrder.status || order.status,
+              format: item.format,
+              deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
+              requiresShipping: sellerOrder.requiresShipping,
+              storeId: sellerOrder.storeId,
+              storeName: sellerOrder.storeId,
+              customerName,
+              customerPhone,
+              bookId: item.bookId,
+              bookTitle: item.bookTitle,
+              quantity: item.quantity,
+              unitPrice: Number(item.unitPrice),
+              subtotal,
+              platformFee,
+              sellerNet,
+              escrowStatus,
+            });
+          }
+        }
+      }
+    }
+
+    return items;
+  }
+
+  /**
+   * Update item-level escrow status (Task fix_checkout_v1 & update_proceed_money_flow_v1)
    */
   async adminUpdateEscrowItemStatus(
     actor: BookActor,
@@ -1956,6 +2077,49 @@ export class OrdersService {
         },
       },
     });
+
+    // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
+    if (dto.status === 'RELEASED') {
+      const subtotal = Number(item.subtotal);
+      const sellerNet = Math.round(subtotal * 0.95);
+      const storeId = item.sellerOrder.storeId;
+      const ownerUserId = item.sellerOrder.ownerUserId;
+
+      const wallet = await this.prisma.wallet.upsert({
+        where: { storeId },
+        create: {
+          storeId,
+          ownerUserId,
+          availableBalance: sellerNet,
+          pendingBalance: 0,
+          frozenBalance: 0,
+          currency: 'VND',
+        },
+        update: {
+          availableBalance: { increment: sellerNet },
+        },
+      });
+
+      const availableAfter = Number(wallet.availableBalance);
+      const availableBefore = availableAfter - sellerNet;
+
+      await this.prisma.walletTransaction.create({
+        data: {
+          walletId: wallet.id,
+          type: 'CREDIT_AVAILABLE',
+          amount: sellerNet,
+          availableBefore,
+          availableAfter,
+          pendingBefore: Number(wallet.pendingBalance),
+          pendingAfter: Number(wallet.pendingBalance),
+          frozenBefore: Number(wallet.frozenBalance),
+          frozenAfter: Number(wallet.frozenBalance),
+          description: `Sàn bàn giao tiền bán ${item.bookTitle} - Đơn hàng #${item.sellerOrder.order.code} (+${sellerNet.toLocaleString('vi-VN')} ₫)`,
+          referenceType: 'ORDER_ESCROW_RELEASE',
+          referenceId: item.id,
+        },
+      });
+    }
 
     return {
       orderItemId,

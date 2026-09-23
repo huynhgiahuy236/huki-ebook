@@ -53,12 +53,14 @@ export function SellerRegisterView() {
     operator_email: user?.email || '',
     authorization_letter_url: '',
 
-    // 3. Collection: business_bank_accounts
+    // 3. Collection: business_bank_accounts & Bảo mật rút tiền gian hàng
     account_holder_name: '',
     account_number: '',
     bank_name: '',
     bank_branch: '',
     is_default_bank: true,
+    withdrawal_pin: '',
+    confirm_withdrawal_pin: '',
 
     // 4. Collection: business_warehouses
     warehouse_street: '',
@@ -219,6 +221,16 @@ export function SellerRegisterView() {
       }
     } else if (field === 'bank_name') {
       if (!trimmed) error = 'Vui lòng nhập Tên ngân hàng nhận thanh toán.';
+    } else if (field === 'withdrawal_pin') {
+      if (!trimmed) error = 'Vui lòng thiết lập Mã PIN rút tiền gian hàng (6 số).';
+      else if (!/^[0-9]{6}$/.test(trimmed)) {
+        error = 'Mã PIN rút tiền phải bao gồm chính xác 6 chữ số.';
+      }
+    } else if (field === 'confirm_withdrawal_pin') {
+      if (!trimmed) error = 'Vui lòng xác nhận lại Mã PIN rút tiền.';
+      else if (trimmed !== formData.withdrawal_pin) {
+        error = 'Xác nhận mã PIN không khớp với mã PIN đã nhập.';
+      }
     } else if (field === 'warehouse_street') {
       if (!trimmed) error = 'Vui lòng nhập Địa chỉ kho xuất hàng lấy hàng.';
     } else if (field === 'warehouse_contact_phone') {
@@ -270,6 +282,14 @@ export function SellerRegisterView() {
       if (!formData.account_holder_name.trim()) errors.account_holder_name = 'Tên chủ tài khoản ngân hàng không được để trống.';
       if (!formData.account_number.trim()) errors.account_number = 'Vui lòng nhập Số tài khoản ngân hàng.';
       if (!formData.bank_name.trim()) errors.bank_name = 'Vui lòng nhập Tên ngân hàng nhận thanh toán.';
+      if (!formData.withdrawal_pin.trim()) errors.withdrawal_pin = 'Vui lòng thiết lập Mã PIN rút tiền gian hàng (6 số).';
+      else if (!/^[0-9]{6}$/.test(formData.withdrawal_pin.trim())) {
+        errors.withdrawal_pin = 'Mã PIN rút tiền phải bao gồm chính xác 6 chữ số numeric.';
+      }
+      if (!formData.confirm_withdrawal_pin.trim()) errors.confirm_withdrawal_pin = 'Vui lòng xác nhận lại Mã PIN rút tiền.';
+      else if (formData.confirm_withdrawal_pin.trim() !== formData.withdrawal_pin.trim()) {
+        errors.confirm_withdrawal_pin = 'Xác nhận mã PIN không khớp với mã PIN đã nhập.';
+      }
     } else if (step === 4) {
       if (!formData.warehouse_street.trim()) errors.warehouse_street = 'Vui lòng nhập Địa chỉ kho xuất hàng lấy hàng.';
       if (!formData.warehouse_contact_phone.trim()) errors.warehouse_contact_phone = 'Vui lòng nhập SĐT thủ kho / người liên hệ.';
@@ -331,6 +351,10 @@ export function SellerRegisterView() {
       email: formData.operator_email.trim(),
       phone: formData.operator_phone.trim(),
       businessType: formData.businessType,
+      bankName: formData.bank_name.trim(),
+      bankAccountNumber: formData.account_number.trim(),
+      bankAccountHolderName: formData.account_holder_name.trim() || formData.company_name.trim(),
+      bankBranch: formData.bank_branch.trim() || 'Chi nhánh TP. HCM',
     };
 
     const fullProfile = {
@@ -359,6 +383,7 @@ export function SellerRegisterView() {
       bank_branch: formData.bank_branch.trim() || 'Chi nhánh TP. HCM',
       bank_account_number: formData.account_number.trim(),
       bank_account_holder_name: formData.account_holder_name.trim(),
+      withdrawal_pin: formData.withdrawal_pin.trim(),
       partner_type: 'PUBLISHER',
       publishing_license_number: formData.compliance_doc_number || 'GP-XB/2024-HUKI',
       license_issue_date: formData.compliance_issue_date || '2024-01-01',
@@ -1100,6 +1125,65 @@ export function SellerRegisterView() {
                     placeholder="Chi nhánh TP.HCM / Chi nhánh Hà Nội..."
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
+                </div>
+
+                {/* THIẾT LẬP MÃ PIN RÚT TIỀN GIAN HÀNG (6 CHỮ SỐ) */}
+                <div className="md:col-span-2 bg-emerald-50/50 p-4 sm:p-5 rounded-2xl border border-emerald-200 space-y-3 mt-2">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs sm:text-sm">
+                    <span className="material-symbols-outlined text-emerald-700 text-lg">shield_lock</span>
+                    <span>THIẾT LẬP MÃ PIN RÚT TIỀN GIAN HÀNG (6 SỐ BẢO MẬT)</span>
+                  </div>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    Mã PIN 6 số do bạn tự thiết lập sẽ được dùng để xác thực và bảo vệ toàn bộ các lệnh rút tiền từ ví gian hàng về tài khoản ngân hàng thụ hưởng sau này.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Mã PIN rút tiền (6 chữ số) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={formData.withdrawal_pin}
+                        onChange={(e) => handleChange('withdrawal_pin', e.target.value)}
+                        onBlur={(e) => validateSingleField('withdrawal_pin', e.target.value)}
+                        placeholder="••••••"
+                        className={`w-full h-12 bg-white border rounded-xl px-4 text-center text-lg font-mono font-bold tracking-widest text-slate-900 outline-none transition-all shadow-2xs ${
+                          fieldErrors.withdrawal_pin
+                            ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
+                            : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
+                        }`}
+                      />
+                      {fieldErrors.withdrawal_pin && (
+                        <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.withdrawal_pin}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Xác nhận lại mã PIN (6 chữ số) <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={formData.confirm_withdrawal_pin}
+                        onChange={(e) => handleChange('confirm_withdrawal_pin', e.target.value)}
+                        onBlur={(e) => validateSingleField('confirm_withdrawal_pin', e.target.value)}
+                        placeholder="••••••"
+                        className={`w-full h-12 bg-white border rounded-xl px-4 text-center text-lg font-mono font-bold tracking-widest text-slate-900 outline-none transition-all shadow-2xs ${
+                          fieldErrors.confirm_withdrawal_pin
+                            ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
+                            : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
+                        }`}
+                      />
+                      {fieldErrors.confirm_withdrawal_pin && (
+                        <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.confirm_withdrawal_pin}</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

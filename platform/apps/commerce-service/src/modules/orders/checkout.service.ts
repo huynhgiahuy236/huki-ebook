@@ -142,10 +142,20 @@ export class CheckoutService {
           book.id,
           item.quantity,
         );
-        const unitPrice =
-          flashSale.isFlashSale && flashSale.salePrice
-            ? Number(flashSale.salePrice)
-            : basePrice;
+        let unitPrice = basePrice;
+        if (flashSale.isFlashSale && flashSale.salePrice) {
+          unitPrice = Number(flashSale.salePrice);
+        } else {
+          const customDiscount = await this.flashSales.getCustomBookDiscount(book.id);
+          if (customDiscount) {
+            if (customDiscount.type === 'PERCENTAGE') {
+              const discountAmt = Math.round(basePrice * (Number(customDiscount.value) / 100));
+              unitPrice = Math.max(0, basePrice - discountAmt);
+            } else if (customDiscount.type === 'FIXED_AMOUNT') {
+              unitPrice = Math.max(0, basePrice - Number(customDiscount.value));
+            }
+          }
+        }
         return {
           cartItemId: item.id,
           bookId: book.id,

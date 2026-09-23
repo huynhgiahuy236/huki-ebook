@@ -12,8 +12,8 @@ export const DEFAULT_POLICY_CONFIG: Readonly<IPolicyConfig> = {
   // DEC-001: 120s dev/test default (Proposed Production: 900s)
   orderPaymentTtlSeconds: 120,
 
-  // DEC-002: Proposed 15% platform commission rate
-  platformCommissionPercent: 15,
+  // DEC-002: Platform commission rate 5%
+  platformCommissionPercent: 5,
 
   // DEC-002: Engineering placeholder for fee basis
   commissionCalculationBasis: 'NET_PAID',

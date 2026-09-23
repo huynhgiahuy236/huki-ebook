@@ -66,60 +66,59 @@ export default function OrdersPage() {
     fetchOrders();
   }, [fetchOrders]);
 
-  // Vietnamese Status Translator & Badge Styling
-  const getStatusBadge = (status?: string) => {
-    switch (status?.toUpperCase()) {
-      case 'PENDING_PAYMENT':
-        return {
-          text: 'Chờ thanh toán',
-          icon: 'pending',
-          className: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800',
-        };
-      case 'PENDING_CONFIRMATION':
-        return {
-          text: 'Chờ người bán xác nhận',
-          icon: 'hourglass_top',
-          className: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
-        };
-      case 'CONFIRMED':
-        return {
-          text: 'Người bán đã tiếp nhận',
-          icon: 'task_alt',
-          className: 'bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800',
-        };
-      case 'PROCESSING':
-      case 'PREPARING':
-        return {
-          text: 'Đang đóng gói & chuẩn bị',
-          icon: 'inventory_2',
-          className: 'bg-purple-50 text-purple-800 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
-        };
-      case 'SHIPPED':
-        return {
-          text: 'Đang vận chuyển',
-          icon: 'local_shipping',
-          className: 'bg-orange-50 text-orange-800 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800',
-        };
-      case 'DELIVERED':
-      case 'COMPLETED':
-        return {
-          text: 'Giao hàng thành công',
-          icon: 'check_circle',
-          className: 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
-        };
-      case 'CANCELLED':
-        return {
-          text: 'Đã hủy',
-          icon: 'cancel',
-          className: 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800',
-        };
-      default:
-        return {
-          text: 'Đang xử lý',
-          icon: 'sync',
-          className: 'bg-slate-50 text-slate-800 border-slate-200 dark:bg-slate-900 dark:text-slate-300 dark:border-slate-800',
-        };
+  // Vietnamese Status Translator & Badge Styling (Đồng bộ 100% với trang chi tiết /orders/[id])
+  const getStatusBadge = (orderOrStatus: any) => {
+    let statusStr = '';
+    if (typeof orderOrStatus === 'string') {
+      statusStr = orderOrStatus;
+    } else if (orderOrStatus && typeof orderOrStatus === 'object') {
+      const primarySo = orderOrStatus.sellerOrders?.[0];
+      statusStr = primarySo?.status || orderOrStatus.status || 'PENDING_CONFIRMATION';
     }
+
+    const s = (statusStr || '').toUpperCase();
+
+    if (s === 'CANCELLED') {
+      return {
+        text: 'Đã hủy',
+        icon: 'cancel',
+        className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+      };
+    }
+    if (s === 'COMPLETED' || s === 'DELIVERED') {
+      return {
+        text: 'Đã hoàn tất',
+        icon: 'check_circle',
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+      };
+    }
+    if (s === 'SHIPPED') {
+      return {
+        text: 'Đang vận chuyển',
+        icon: 'local_shipping',
+        className: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900',
+      };
+    }
+    if (s === 'CONFIRMED' || s === 'PREPARING' || s === 'PROCESSING') {
+      return {
+        text: 'Đang chuẩn bị hàng',
+        icon: 'inventory_2',
+        className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+      };
+    }
+    if (s === 'PENDING_PAYMENT') {
+      return {
+        text: 'Chờ thanh toán',
+        icon: 'pending',
+        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+      };
+    }
+    // Default: PENDING_CONFIRMATION / PENDING
+    return {
+      text: 'Chờ xác nhận',
+      icon: 'hourglass_top',
+      className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+    };
   };
 
   // Filter Orders based on activeTab and searchQuery
@@ -129,7 +128,7 @@ export default function OrdersPage() {
       const search = searchQuery.toLowerCase().trim();
       const matchCode = ord.code?.toLowerCase().includes(search);
       const matchItems = ord.sellerOrders?.some((so: any) =>
-        so.items?.some((it: any) => it.bookTitle?.toLowerCase().includes(search))
+        so.items?.some((it: any) => (it.bookTitle || it.title)?.toLowerCase().includes(search))
       );
       if (search && !matchCode && !matchItems) {
         return false;
@@ -137,18 +136,31 @@ export default function OrdersPage() {
 
       // 2. Status Tab Filter
       if (activeTab === 'ALL') return true;
-      if (activeTab === 'PROCESSING') {
+      const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
+
+      if (activeTab === 'PENDING') {
         return (
-          ord.status === 'PROCESSING' ||
-          ord.status === 'CONFIRMED' ||
-          ord.status === 'PREPARING' ||
-          ord.status === 'PENDING_CONFIRMATION' ||
-          ord.status === 'PENDING_PAYMENT'
+          effectiveStatus === 'PENDING_CONFIRMATION' ||
+          effectiveStatus === 'PENDING_PAYMENT' ||
+          effectiveStatus === 'PENDING'
         );
       }
-      if (activeTab === 'SHIPPED') return ord.status === 'SHIPPED';
-      if (activeTab === 'COMPLETED') return ord.status === 'COMPLETED' || ord.status === 'DELIVERED';
-      if (activeTab === 'CANCELLED') return ord.status === 'CANCELLED';
+      if (activeTab === 'PREPARING') {
+        return (
+          effectiveStatus === 'CONFIRMED' ||
+          effectiveStatus === 'PREPARING' ||
+          effectiveStatus === 'PROCESSING'
+        );
+      }
+      if (activeTab === 'SHIPPED') {
+        return effectiveStatus === 'SHIPPED';
+      }
+      if (activeTab === 'COMPLETED') {
+        return effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
+      }
+      if (activeTab === 'CANCELLED') {
+        return effectiveStatus === 'CANCELLED';
+      }
 
       return true;
     });
@@ -196,9 +208,10 @@ export default function OrdersPage() {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
             {[
               { id: 'ALL', label: 'Tất cả', icon: 'receipt_long' },
-              { id: 'PROCESSING', label: 'Đang xử lý', icon: 'inventory_2' },
-              { id: 'SHIPPED', label: 'Đang giao', icon: 'local_shipping' },
-              { id: 'COMPLETED', label: 'Hoàn tất', icon: 'check_circle' },
+              { id: 'PENDING', label: 'Chờ xác nhận', icon: 'hourglass_top' },
+              { id: 'PREPARING', label: 'Đang chuẩn bị', icon: 'inventory_2' },
+              { id: 'SHIPPED', label: 'Đang vận chuyển', icon: 'local_shipping' },
+              { id: 'COMPLETED', label: 'Đã hoàn tất', icon: 'check_circle' },
               { id: 'CANCELLED', label: 'Đã hủy', icon: 'cancel' },
             ].map((tab) => (
               <button
@@ -290,7 +303,7 @@ export default function OrdersPage() {
           /* Orders Cards List */
           <div className="space-y-4">
             {filteredOrders.map((ord: any) => {
-              const badge = getStatusBadge(ord.status);
+              const badge = getStatusBadge(ord);
               const totalItems =
                 ord.sellerOrders?.reduce((sum: number, so: any) => sum + (so.items?.length || 0), 0) || 0;
 
