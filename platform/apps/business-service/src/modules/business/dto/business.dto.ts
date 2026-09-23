@@ -27,6 +27,20 @@ export class CreateBusinessDto {
   @IsEnum(BusinessType)
   businessType: BusinessType;
 
+  @ApiPropertyOptional({ example: 'Nhà Sách FAHASA Official' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  store_name?: string;
+
+  @ApiPropertyOptional({ example: 'Nhà Sách FAHASA Official' })
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  @MaxLength(255)
+  storeName?: string;
+
   @ApiPropertyOptional({ example: '0123456789' })
   @IsOptional()
   @IsString()

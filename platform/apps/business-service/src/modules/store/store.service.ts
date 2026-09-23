@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { CreateStoreDto, UpdateStoreDto } from './dto/store.dto';
 import { StoreStatus } from '../../../prisma/generated/client';
-import { throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
+import { throwNotFound, throwBadRequest, throwForbidden, throwConflict } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { BUSINESS_EVENTS } from '@huki/shared/events';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -23,6 +23,14 @@ export class StoreService {
     ]);
     if (!isMember) {
       throwForbidden(ErrorCode.AUTHZ_NOT_MEMBER);
+    }
+
+    // Check if business already has an active store (Strict 1-to-1 Model)
+    const existingStore = await this.prisma.store.findFirst({
+      where: { businessId, deletedAt: null },
+    });
+    if (existingStore) {
+      throwConflict(ErrorCode.BUSINESS_ALREADY_EXISTS, 'Mỗi tài khoản đối tác chỉ được phép sở hữu duy nhất 1 gian hàng trên sàn HUKI.');
     }
 
     // Check if slug is unique

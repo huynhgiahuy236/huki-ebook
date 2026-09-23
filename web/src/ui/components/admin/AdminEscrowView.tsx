@@ -175,6 +175,15 @@ function TruncatedCellWithTooltip({
   text: string;
   className?: string;
 }) {
+  if (text === 'Đang cập nhật') {
+    return (
+      <span className={`inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 px-2 py-0.5 rounded-md ${className}`}>
+        <span className="material-symbols-outlined text-xs animate-spin">sync</span>
+        <span>Đang cập nhật</span>
+      </span>
+    );
+  }
+
   const { text: displayText, isTruncated } = truncate10(text);
 
   return (
@@ -214,43 +223,82 @@ export function AdminEscrowView() {
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Fetch dữ liệu từ API và map chính xác Tên Cửa Hàng từ CSDL
+  // Fetch dữ liệu từ API và map chính xác Tên Cửa Hàng từ CSDL thật
   const fetchEscrowItems = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Lấy danh sách Store thật từ Business Database
-      let storeMap = new Map<string, string>();
+      // 1. Lấy danh sách Store & Business thật từ Database
+      const storeMap = new Map<string, string>();
       try {
-        const storeRes = await adminApi.getStores({ limit: 200 });
-        if (storeRes?.success && Array.isArray(storeRes.data)) {
-          storeRes.data.forEach((st: any) => {
-            if (st.id && st.name) {
-              storeMap.set(st.id, st.name);
-            }
-          });
-        }
+        const [storeRes, bizRes] = await Promise.all([
+          adminApi.getStores({ limit: 500 }),
+          adminApi.getBusinesses({ limit: 500 }),
+        ]);
+
+        const rawStores = Array.isArray(storeRes?.data)
+          ? storeRes.data
+          : Array.isArray((storeRes?.data as any)?.data)
+          ? (storeRes?.data as any).data
+          : [];
+
+        rawStores.forEach((st: any) => {
+          if (st.id && st.name) {
+            storeMap.set(st.id, st.name);
+          }
+          if (st.businessId && st.name) {
+            storeMap.set(st.businessId, st.name);
+          }
+          if (st.slug && st.name) {
+            storeMap.set(st.slug, st.name);
+          }
+        });
+
+        const rawBusinesses = Array.isArray(bizRes?.data)
+          ? bizRes.data
+          : Array.isArray((bizRes?.data as any)?.data)
+          ? (bizRes?.data as any).data
+          : [];
+
+        rawBusinesses.forEach((bz: any) => {
+          if (bz.id && bz.name && !storeMap.has(bz.id)) {
+            storeMap.set(bz.id, bz.name);
+          }
+          if (bz.slug && bz.name && !storeMap.has(bz.slug)) {
+            storeMap.set(bz.slug, bz.name);
+          }
+        });
       } catch (e) {
-        console.warn('Không thể tải danh mục Store:', e);
+        console.warn('Không thể tải danh mục Store / Business:', e);
       }
 
       // 2. Lấy dữ liệu Escrow Items
       if (adminApi && (adminApi as any).getEscrowItems) {
         const res = await (adminApi as any).getEscrowItems();
         if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-          const mappedItems: EscrowTableItem[] = res.data.map((it: any) => {
-            // Map tên gian hàng / doanh nghiệp chính xác theo storeId từ DB
-            const matchedStoreName = storeMap.get(it.storeId);
-            let resolvedStoreName = matchedStoreName;
+          const isUuid = (val?: string) =>
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val || '');
 
-            if (!resolvedStoreName) {
-              if (it.storeName && !it.storeName.startsWith('Gian Hàng ') && it.storeName.length > 3) {
-                resolvedStoreName = it.storeName;
-              } else if (it.storeId) {
-                // Hiển thị mã gian hàng rõ ràng nếu chưa map được, không gán cứng tên của bất kỳ công ty nào
-                resolvedStoreName = `Gian hàng #${it.storeId.slice(0, 8).toUpperCase()}`;
-              } else {
-                resolvedStoreName = 'Gian hàng đối tác';
-              }
+          const mappedItems: EscrowTableItem[] = res.data.map((it: any) => {
+            // Tìm tên cửa hàng thật từ storeId hoặc storeName
+            let resolvedStoreName: string | undefined;
+
+            if (it.storeId && storeMap.has(it.storeId)) {
+              resolvedStoreName = storeMap.get(it.storeId);
+            } else if (it.storeName && storeMap.has(it.storeName)) {
+              resolvedStoreName = storeMap.get(it.storeName);
+            } else if (
+              it.storeName &&
+              !isUuid(it.storeName) &&
+              !it.storeName.startsWith('Gian Hàng ') &&
+              !it.storeName.startsWith('Gian hàng #') &&
+              it.storeName.length > 3
+            ) {
+              resolvedStoreName = it.storeName;
+            }
+
+            // Nếu không tìm thấy hoặc bị lỗi ID thì hiển thị "Đang cập nhật"
+            if (!resolvedStoreName || isUuid(resolvedStoreName)) {
+              resolvedStoreName = 'Đang cập nhật';
             }
 
             return {

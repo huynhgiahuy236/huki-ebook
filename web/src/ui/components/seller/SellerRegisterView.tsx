@@ -21,9 +21,10 @@ export function SellerRegisterView() {
 
   // Form State cho 5 Collections
   const [formData, setFormData] = useState({
-    // 1. Collection: businesses (Pháp lý doanh nghiệp)
+    // 1. Collection: businesses (Pháp lý doanh nghiệp & Cửa hàng)
     businessType: 'LLC' as 'CORPORATION' | 'LLC' | 'INDIVIDUAL' | 'PARTNERSHIP',
     company_name: '',
+    store_name: '',
     international_name: '',
     short_name: '',
     tax_code: '',
@@ -92,6 +93,9 @@ export function SellerRegisterView() {
       const next = { ...prev, [field]: value };
       if (field === 'company_name' && typeof value === 'string') {
         next.account_holder_name = value.toUpperCase();
+        if (!prev.store_name || prev.store_name === prev.company_name) {
+          next.store_name = value;
+        }
       }
       return next;
     });
@@ -133,6 +137,7 @@ export function SellerRegisterView() {
         tax_code: data.tax_code,
         business_license_number: data.business_license_number,
         company_name: data.company_name,
+        store_name: prev.store_name || data.short_name || data.company_name,
         international_name: data.international_name || prev.international_name,
         short_name: data.short_name || prev.short_name,
         businessType: (data.business_type as any) || prev.businessType,
@@ -182,6 +187,10 @@ export function SellerRegisterView() {
     } else if (field === 'company_name') {
       if (!trimmed) error = 'Vui lòng nhập Tên chính thức của doanh nghiệp.';
       else if (trimmed.length < 5) error = 'Tên doanh nghiệp quá ngắn (tối thiểu 5 ký tự).';
+    } else if (field === 'store_name') {
+      if (!trimmed) error = 'Vui lòng nhập Tên Gian Hàng / Cửa Hàng hiển thị.';
+      else if (trimmed.length < 3) error = 'Tên gian hàng quá ngắn (tối thiểu 3 ký tự).';
+      else if (trimmed.length > 100) error = 'Tên gian hàng không được vượt quá 100 ký tự.';
     } else if (field === 'registered_street') {
       if (!trimmed) error = 'Vui lòng nhập địa chỉ trụ sở chính.';
     } else if (field === 'rep_full_name') {
@@ -238,6 +247,9 @@ export function SellerRegisterView() {
         errors.tax_code = 'Mã số thuế phải gồm 10 hoặc 13 chữ số (VD: 0318926410).';
       }
       if (!formData.company_name.trim()) errors.company_name = 'Vui lòng nhập Tên chính thức của doanh nghiệp.';
+      if (!formData.store_name.trim()) errors.store_name = 'Vui lòng nhập Tên Gian Hàng / Cửa Hàng hiển thị.';
+      else if (formData.store_name.trim().length < 3) errors.store_name = 'Tên gian hàng quá ngắn (tối thiểu 3 ký tự).';
+      else if (formData.store_name.trim().length > 100) errors.store_name = 'Tên gian hàng không được vượt quá 100 ký tự.';
       if (!formData.businessType) errors.businessType = 'Vui lòng chọn loại hình doanh nghiệp.';
       if (!formData.registered_street.trim()) errors.registered_street = 'Vui lòng nhập địa chỉ trụ sở chính.';
     } else if (step === 2) {
@@ -313,6 +325,7 @@ export function SellerRegisterView() {
 
     const payload: CreateBusinessPayload = {
       name: formData.company_name.trim(),
+      store_name: formData.store_name.trim() || formData.company_name.trim(),
       taxCode: formData.tax_code.trim(),
       address: fullRegisteredAddress,
       email: formData.operator_email.trim(),
@@ -323,6 +336,7 @@ export function SellerRegisterView() {
     const fullProfile = {
       tax_code: formData.tax_code.trim(),
       company_name: formData.company_name.trim(),
+      store_name: formData.store_name.trim() || formData.company_name.trim(),
       international_name: formData.international_name.trim(),
       short_name: formData.short_name.trim(),
       business_license_number: formData.business_license_number.trim() || formData.tax_code.trim(),
@@ -644,6 +658,36 @@ export function SellerRegisterView() {
                   />
                   {fieldErrors.company_name && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.company_name}</p>
+                  )}
+                </div>
+
+                {/* BỔ SUNG TRƯỜNG: TÊN GIAN HÀNG / CỬA HÀNG HIỂN THỊ (store_name) */}
+                <div className="md:col-span-2 bg-emerald-50/40 p-4 rounded-xl border border-emerald-200/80">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="material-symbols-outlined text-emerald-700 text-lg">storefront</span>
+                    <label className="block text-xs font-bold text-emerald-950">
+                      Tên Gian Hàng / Cửa Hàng Hiển Thị (store_name) <span className="text-red-500">*</span>
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={formData.store_name}
+                    onChange={(e) => handleChange('store_name', e.target.value)}
+                    onBlur={(e) => validateSingleField('store_name', e.target.value)}
+                    placeholder="Ví dụ: Nhà Sách FAHASA Official, Nhà Sách Tuổi Thơ, CÔNG TY TNHH KIEN SELLER 2..."
+                    className={`w-full h-12 bg-white border rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs ${
+                      fieldErrors.store_name
+                        ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
+                        : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
+                    }`}
+                  />
+                  {fieldErrors.store_name ? (
+                    <p className="mt-1.5 text-xs text-red-500 font-medium">{fieldErrors.store_name}</p>
+                  ) : (
+                    <p className="mt-1.5 text-[11px] text-emerald-800 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-xs text-emerald-600">info</span>
+                      Tên này sẽ là tên gian hàng chính thức hiển thị công khai cho độc giả và khách hàng nhìn thấy khi ghé thăm gian hàng hoặc mua sách trên sàn HUKI.
+                    </p>
                   )}
                 </div>
 
@@ -1283,10 +1327,11 @@ export function SellerRegisterView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                   <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
-                    <span>1. Pháp Lý Doanh Nghiệp</span>
+                    <span>1. Pháp Lý Doanh Nghiệp &amp; Gian Hàng</span>
                     <span className="text-emerald-700 font-semibold">{isTaxVerified ? '✓ Đã xác thực' : 'Khởi tạo'}</span>
                   </div>
-                  <div><span className="text-slate-500">Tên:</span> <strong className="text-slate-900">{formData.company_name || 'Chưa nhập'}</strong></div>
+                  <div><span className="text-slate-500">Tên DN:</span> <strong className="text-slate-900">{formData.company_name || 'Chưa nhập'}</strong></div>
+                  <div><span className="text-slate-500">Gian hàng:</span> <strong className="text-emerald-800 font-semibold">{formData.store_name || formData.company_name || 'Chưa nhập'}</strong></div>
                   <div><span className="text-slate-500">MST:</span> <span className="font-mono font-bold text-slate-900">{formData.tax_code || 'Chưa nhập'}</span></div>
                   <div><span className="text-slate-500">Loại hình:</span> <span className="text-slate-900">{formData.businessType}</span></div>
                   <div><span className="text-slate-500">Trụ sở:</span> <span className="text-slate-900">{formData.registered_street || 'Chưa nhập'}</span></div>

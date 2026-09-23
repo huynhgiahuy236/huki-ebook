@@ -70,6 +70,8 @@ export interface FollowedBusinessItem {
 
 export interface CreateBusinessPayload {
   name: string;
+  store_name?: string;
+  storeName?: string;
   taxCode?: string;
   address?: string;
   email?: string;

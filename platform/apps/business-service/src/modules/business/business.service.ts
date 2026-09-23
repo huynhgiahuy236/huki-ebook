@@ -82,7 +82,8 @@ export class BusinessService {
     }
 
     // Auto-create primary store for the business (1-to-1 unified model)
-    const normalizedSlug = dto.name
+    const storefrontName = (dto.store_name?.trim() || dto.storeName?.trim() || dto.name).trim();
+    const normalizedSlug = storefrontName
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
@@ -98,9 +99,11 @@ export class BusinessService {
 
     await this.prisma.store.create({
       data: {
-        name: dto.name,
+        name: storefrontName,
         slug,
-        description: `Gian hàng chính hãng phân phối sách của ${dto.name}`,
+        description: dto.store_name?.trim() 
+          ? `Gian hàng chính hãng ${storefrontName} của ${dto.name}` 
+          : `Gian hàng chính hãng phân phối sách của ${dto.name}`,
         email: dto.email,
         phone: dto.phone,
         address: dto.address,

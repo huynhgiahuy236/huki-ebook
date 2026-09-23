@@ -1,8 +1,15 @@
 "use client";
 
-import React from "react";
-import { SellerStoresView } from "@/ui/components/seller/SellerStoresView";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function SellerNewStorePage() {
-  return <SellerStoresView isCreating={true} />;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/seller/stores");
+  }, [router]);
+
+  return null;
 }
+
