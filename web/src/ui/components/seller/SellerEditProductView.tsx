@@ -72,7 +72,7 @@ export default function SellerEditProductView() {
                 Sản phẩm đã phát sinh giao dịch và cấp quyền đọc số. Không thể chuyển đổi hoặc xóa định dạng.
               </p>
             </div>
-            <Link className="font-label-sm text-xs text-tertiary hover:underline inline-flex items-center gap-1" href="/seller/edge-cases">
+            <Link className="font-label-sm text-xs text-tertiary hover:underline inline-flex items-center gap-1" href="/seller/chat">
               <span>Liên hệ hỗ trợ thay đổi mô hình</span>
               <span className="material-symbols-outlined text-xs">arrow_forward</span>
             </Link>

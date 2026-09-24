@@ -253,13 +253,25 @@ export class AuthService {
 
   async logout(refreshToken: string) {
     if (!refreshToken) return;
+    const tokenHash = this.hashToken(refreshToken);
     const token = await this.prisma.refreshToken.findFirst({
-      where: { tokenHash: this.hashToken(refreshToken), revokedAt: null },
+      where: { tokenHash, revokedAt: null },
     });
     if (token) {
-      await this.prisma.refreshToken.update({
-        where: { id: token.id },
-        data: { revokedAt: new Date(), revokedReason: "user_logout" },
+      await this.prisma.$transaction([
+        this.prisma.refreshToken.update({
+          where: { id: token.id },
+          data: { revokedAt: new Date(), revokedReason: "user_logout" },
+        }),
+        this.prisma.authSession.update({
+          where: { id: token.sessionId },
+          data: { revokedAt: new Date() },
+        }),
+      ]);
+    } else {
+      await this.prisma.authSession.updateMany({
+        where: { refreshTokenHash: tokenHash, revokedAt: null },
+        data: { revokedAt: new Date() },
       });
     }
   }

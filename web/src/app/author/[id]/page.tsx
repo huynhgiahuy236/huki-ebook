@@ -194,13 +194,6 @@ export default function AuthorPage() {
                 </span>
                 <span>{isFollowing ? 'Đang Theo Dõi' : '+ Theo Dõi Tác Giả'}</span>
               </button>
-              <Link
-                href="/community/club/lean-growth"
-                className="px-5 py-2.5 bg-theme-surface hover:bg-theme-bg border border-theme-border text-on-surface rounded-xl text-sm font-semibold transition-colors flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-[18px]">forum</span>
-                <span>Thảo Luận Salon</span>
-              </Link>
               <button
                 type="button"
                 onClick={() => {

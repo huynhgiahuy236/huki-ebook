@@ -20,7 +20,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Community Service')
-    .setDescription('Forum, Chat, Reviews API')
+    .setDescription('Chat, Reviews, Notifications, Moderation API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

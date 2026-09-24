@@ -2129,26 +2129,26 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================================
-          SECTION 12: MẠNG XÃ HỘI ĐỘC GIẢ & REVIEW THỰC TẾ
+          SECTION 12: ĐÁNH GIÁ THỰC TẾ TỪ NGƯỜI MUA
       ========================================================================= */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between pb-2 border-b border-outline-variant/30">
           <div>
             <div className="flex items-center gap-1.5 text-tertiary text-[11px] uppercase font-bold">
               <span className="material-symbols-outlined text-[16px]">
-                forum
+                verified
               </span>{" "}
-              Mạng Xã Hội Độc Giả HUKI
+              Đánh Giá Thực Tế Từ Người Mua
             </div>
             <h3 className="text-[15px] sm:text-[16px] font-bold text-on-surface mt-0.5">
-              Cộng Đồng Đang Đọc &amp; Thảo Luận Gì?
+              Cảm Nhận Từ Độc Giả Đã Mua Sách
             </h3>
           </div>
           <Link
-            href="/community"
+            href="/search?sort=rating"
             className="text-[12.5px] text-tertiary hover:underline font-semibold flex items-center gap-0.5"
           >
-            <span>Ghé thăm Diễn Đàn Đọc</span>
+            <span>Xem sách đánh giá cao</span>
             <span className="material-symbols-outlined text-[16px]">
               chevron_right
             </span>

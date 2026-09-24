@@ -11,10 +11,6 @@ import type { NextRequest } from "next/server";
  * Legacy path mappings to new App Router routes
  */
 const legacyMappings: Record<string, string> = {
-  "/reviews": "/community/reviews",
-  "/quotes": "/community/quotes",
-  "/clubs": "/community/clubs",
-  "/challenge": "/community/challenge",
   "/messenger": "/messages",
   "/addresses": "/profile/addresses",
   "/security": "/profile/security",
@@ -77,18 +73,6 @@ export function middleware(request: NextRequest) {
   const sellerProductEditMatch = pathname.match(/^\/seller\/product\/edit\/([^/]+)$/);
   if (sellerProductEditMatch) {
     return NextResponse.redirect(new URL(`/seller/products/${sellerProductEditMatch[1]}/edit`, request.url), 307);
-  }
-
-  // /club/:id -> /community/clubs/:id
-  const clubMatch = pathname.match(/^\/club\/([^/]+)$/);
-  if (clubMatch) {
-    return NextResponse.redirect(new URL(`/community/clubs/${clubMatch[1]}`, request.url), 307);
-  }
-
-  // /post/:id -> /community/posts/:id
-  const postMatch = pathname.match(/^\/post\/([^/]+)$/);
-  if (postMatch) {
-    return NextResponse.redirect(new URL(`/community/posts/${postMatch[1]}`, request.url), 307);
   }
 
   return NextResponse.next();

@@ -701,8 +701,8 @@ function OrderSuccessContent() {
                   Tham gia phòng đọc ảo cùng 48.000+ thành viên mê sách, trao đổi góc nhìn và nhận điểm thưởng cho mỗi bài review chất lượng.
                 </p>
               </div>
-              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/community">
-                Ghé Mạng Xã Hội Sách
+              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/account/orders">
+                Xem Đơn Hàng &amp; Đánh Giá
                 <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
               </Link>
             </div>

@@ -52,16 +52,15 @@ export class ShippingClientService {
    * Get user's address by ID (validates ownership)
    */
   async getAddress(addressId: string, userId: string): Promise<AddressValidationResult> {
-    const result = await this.request<{ data: AddressValidationResult }>(
-      `/addresses/${addressId}`,
-      { headers: this.internalHeaders() },
+    const result = await this.request<any>(
+      `/internal/addresses/${addressId}`,
+      { headers: this.internalHeaders(userId) },
     );
 
-    if (!result?.data) {
+    const addr = (result?.data || result) as AddressValidationResult;
+    if (!addr || !addr.id) {
       throwNotFound(ErrorCode.ADDRESS_NOT_FOUND);
     }
-
-    const addr = result.data;
 
     // Validate ownership
     if (addr.userId !== userId) {
@@ -76,10 +75,10 @@ export class ShippingClientService {
    */
   async listAddresses(userId: string): Promise<AddressValidationResult[]> {
     const result = await this.request<{ data: AddressValidationResult[] }>(
-      `/addresses?userId=${userId}`,
-      { headers: this.internalHeaders() },
+      `/internal/addresses?userId=${userId}`,
+      { headers: this.internalHeaders(userId) },
     );
-    return result?.data || [];
+    return result?.data || (Array.isArray(result) ? result : []);
   }
 
   /**
@@ -183,11 +182,12 @@ export class ShippingClientService {
     return (body.data || body) as T;
   }
 
-  private internalHeaders() {
+  private internalHeaders(userId?: string) {
     return {
       'x-internal-service-key':
         this.config.get<string>('INTERNAL_SERVICE_KEY') ||
         'huki-local-internal-service',
+      ...(userId ? { 'x-user-id': userId } : {}),
     };
   }
 }

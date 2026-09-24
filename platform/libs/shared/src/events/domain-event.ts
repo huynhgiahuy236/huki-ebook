@@ -104,17 +104,6 @@ export const REVIEW_EVENTS = {
 } as const;
 
 // ============================================
-// FORUM EVENTS
-// ============================================
-export const FORUM_EVENTS = {
-  POST_CREATED: 'FORUM_POST_CREATED',
-  POST_UPDATED: 'FORUM_POST_UPDATED',
-  POST_DELETED: 'FORUM_POST_DELETED',
-  COMMENT_CREATED: 'FORUM_COMMENT_CREATED',
-  COMMENT_DELETED: 'FORUM_COMMENT_DELETED',
-} as const;
-
-// ============================================
 // USER EVENTS
 // ============================================
 export const USER_EVENTS = {

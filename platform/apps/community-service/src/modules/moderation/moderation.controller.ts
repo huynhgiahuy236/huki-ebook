@@ -44,38 +44,6 @@ import { ModerationService } from './moderation.service';
 export class ContentReportsController {
   constructor(private readonly moderation: ModerationService) {}
 
-  @Post('forum/posts/:id/report')
-  @ApiOperation({ summary: 'Report a forum post' })
-  @ApiResponse({ status: 201, description: 'Report created' })
-  @ApiBadRequestResponse({ description: 'Invalid or duplicate report' })
-  @ApiNotFoundResponse({ description: 'Post not found' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
-  @ApiTooManyRequestsResponse({ description: 'Report rate limit exceeded' })
-  @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
-  reportPost(
-    @CurrentCommunityActor() actor: CommunityActor,
-    @Param() { id }: ModerationIdParamDto,
-    @Body() dto: CreateReportDto,
-  ) {
-    return this.moderation.report(actor, 'POST', id, dto);
-  }
-
-  @Post('forum/comments/:id/report')
-  @ApiOperation({ summary: 'Report a forum comment' })
-  @ApiResponse({ status: 201, description: 'Report created' })
-  @ApiBadRequestResponse({ description: 'Invalid or duplicate report' })
-  @ApiNotFoundResponse({ description: 'Comment not found' })
-  @ApiUnauthorizedResponse({ description: 'Authentication required' })
-  @ApiTooManyRequestsResponse({ description: 'Report rate limit exceeded' })
-  @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
-  reportComment(
-    @CurrentCommunityActor() actor: CommunityActor,
-    @Param() { id }: ModerationIdParamDto,
-    @Body() dto: CreateReportDto,
-  ) {
-    return this.moderation.report(actor, 'COMMENT', id, dto);
-  }
-
   @Post('reviews/:id/report')
   @ApiOperation({ summary: 'Report a review' })
   @ApiResponse({ status: 201, description: 'Report created' })

@@ -144,7 +144,6 @@ Most endpoints require JWT Bearer token authentication.
     .addTag('Payments', 'Payment and refund operations')
     .addTag('Shipping', 'Shipping fee calculation')
     .addTag('Shipments', 'Shipment tracking and management')
-    .addTag('Forum', 'Forum posts and comments')
     .addTag('Reviews', 'Book and store reviews')
     .addTag('Chat', 'Real-time chat')
     .addTag('Notifications', 'User notifications')

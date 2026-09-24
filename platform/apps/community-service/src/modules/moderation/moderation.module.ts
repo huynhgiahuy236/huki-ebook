@@ -2,14 +2,12 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { EventsModule } from '@huki/shared';
+import { Report, ReportSchema } from '../../entities/report.schema';
+import { Review, ReviewSchema } from '../../entities/review.schema';
 import {
   AuthenticatedCommunityGuard,
   PlatformAdminCommunityGuard,
 } from '../../common/community-auth.guard';
-import { Comment, CommentSchema } from '../../entities/comment.schema';
-import { Forum, ForumSchema } from '../../entities/forum.schema';
-import { Report, ReportSchema } from '../../entities/report.schema';
-import { Review, ReviewSchema } from '../../entities/review.schema';
 import { AutoModerationService } from './auto-moderation.service';
 import {
   AdminModerationController,
@@ -23,8 +21,6 @@ import { ModerationService } from './moderation.service';
     ThrottlerModule.forRoot([{ ttl: 60 * 60_000, limit: 10 }]),
     MongooseModule.forFeature([
       { name: Report.name, schema: ReportSchema },
-      { name: Forum.name, schema: ForumSchema },
-      { name: Comment.name, schema: CommentSchema },
       { name: Review.name, schema: ReviewSchema },
     ]),
   ],

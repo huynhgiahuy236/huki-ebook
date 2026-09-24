@@ -7,8 +7,6 @@ import { randomUUID } from 'crypto';
 import { Model, Types } from 'mongoose';
 import { RabbitMqEventBus } from '@huki/shared';
 import { CommunityActor } from '../../common/community-auth.guard';
-import { Comment, CommentDocument } from '../../entities/comment.schema';
-import { Forum, ForumDocument } from '../../entities/forum.schema';
 import {
   ModerationAction,
   Report,
@@ -26,8 +24,8 @@ import {
 import { throwConflict, throwNotFound, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
-type ContentType = Extract<ReportTargetType, 'POST' | 'COMMENT' | 'REVIEW'>;
-type ContentDocument = ForumDocument | CommentDocument | ReviewDocument;
+type ContentType = Extract<ReportTargetType, 'REVIEW'>;
+type ContentDocument = ReviewDocument;
 
 @Injectable()
 export class ModerationService {
@@ -36,10 +34,6 @@ export class ModerationService {
   constructor(
     @InjectModel(Report.name)
     private readonly reports: Model<ReportDocument>,
-    @InjectModel(Forum.name)
-    private readonly forums: Model<ForumDocument>,
-    @InjectModel(Comment.name)
-    private readonly comments: Model<CommentDocument>,
     @InjectModel(Review.name)
     private readonly reviews: Model<ReviewDocument>,
     private readonly eventBus: RabbitMqEventBus,
@@ -68,16 +62,10 @@ export class ModerationService {
         description: dto.description?.trim(),
         status: 'PENDING',
       });
-      const flagged = await this.model(targetType).updateOne(
+      await this.model(targetType).updateOne(
         { _id: target!._id, status: 'PUBLISHED' },
         { $set: { status: 'FLAGGED' } },
       );
-      if (targetType === 'COMMENT' && flagged.modifiedCount) {
-        await this.forums.updateOne(
-          { _id: (target! as CommentDocument).postId },
-          { $inc: { commentCount: -1 } },
-        );
-      }
       void this.publish('user.reported', report.id, {
         reportId: report.id,
         reporterId: actor.sub,
@@ -240,7 +228,7 @@ export class ModerationService {
   async queue(query: ModerationQueueQueryDto) {
     const types: ContentType[] = query.targetType
       ? [query.targetType]
-      : ['POST', 'COMMENT', 'REVIEW'];
+      : ['REVIEW'];
     const statuses = query.status
       ? [query.status]
       : ['PENDING_REVIEW', 'FLAGGED'];
@@ -331,7 +319,7 @@ export class ModerationService {
         : ['HIDE', 'BAN'].includes(action)
           ? 'HIDDEN'
           : 'PUBLISHED';
-    const result = await this.model(targetType).updateOne(
+    const result = await this.reviews.updateOne(
       { _id: new Types.ObjectId(targetId), status: { $ne: 'DELETED' } },
       {
         $set: {
@@ -343,29 +331,6 @@ export class ModerationService {
       },
     );
     if (!result.matchedCount) throwNotFound(ErrorCode.MODERATION_REPORT_NOT_FOUND);
-    if (targetType === 'COMMENT') {
-      const wasVisible = current!.status === 'PUBLISHED';
-      const isVisible = status === 'PUBLISHED';
-      if (wasVisible !== isVisible) {
-        await this.forums.updateOne(
-          { _id: (current! as CommentDocument).postId },
-          { $inc: { commentCount: isVisible ? 1 : -1 } },
-        );
-      }
-    }
-    if (targetType === 'POST' && status === 'DELETED') {
-      await this.comments.updateMany(
-        { postId: new Types.ObjectId(targetId), status: { $ne: 'DELETED' } },
-        {
-          $set: {
-            status: 'DELETED',
-            moderatedBy: adminId,
-            moderatedAt: new Date(),
-            moderationNote: note.trim(),
-          },
-        },
-      );
-    }
   }
 
   private async requireContent(
@@ -381,17 +346,15 @@ export class ModerationService {
   }
 
   private findContent(targetType: ContentType, targetId: string) {
-    return this.model(targetType).findById(new Types.ObjectId(targetId));
+    return this.reviews.findById(new Types.ObjectId(targetId));
   }
 
   private model(targetType: ContentType): Model<any> {
-    if (targetType === 'POST') return this.forums;
-    if (targetType === 'COMMENT') return this.comments;
     return this.reviews;
   }
 
   private isContentType(type: ReportTargetType): type is ContentType {
-    return ['POST', 'COMMENT', 'REVIEW'].includes(type);
+    return type === 'REVIEW';
   }
 
   private reportView(report: any) {

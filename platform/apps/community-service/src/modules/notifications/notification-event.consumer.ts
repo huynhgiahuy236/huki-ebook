@@ -31,7 +31,6 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
     SHIPPING_EVENTS.STAFF_ASSIGNED,
     "chat.message.sent",
     "review.created",
-    "forum.comment.created",
   ];
 
   constructor(
@@ -199,18 +198,6 @@ export class NotificationEventConsumer implements OnApplicationBootstrap {
             title: "Có đánh giá mới",
             message: `Khách hàng vừa gửi đánh giá ${payload.rating} sao.`,
             actionUrl: `/reviews/${payload.reviewId}`,
-          });
-        }
-        break;
-      case "forum.comment.created":
-        if (payload.recipientId && payload.recipientId !== payload.authorId) {
-          targets.push({
-            recipientId: payload.recipientId,
-            recipientType: "USER",
-            type: "FORUM_MENTION",
-            title: "Có phản hồi mới",
-            message: `${payload.authorName ?? "Một thành viên"} vừa phản hồi nội dung của bạn.`,
-            actionUrl: `/forum/posts/${payload.postId}`,
           });
         }
         break;

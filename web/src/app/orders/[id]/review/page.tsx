@@ -152,20 +152,20 @@ export default function OrderReviewPage() {
 
       if (res?.success) {
         showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
-        router.push('/community/reviews');
+        router.push(`/orders/${orderId}`);
       } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {
         showToast('Bạn đã gửi đánh giá cho sản phẩm này rồi.', 'info');
-        router.push('/community/reviews');
+        router.push(`/orders/${orderId}`);
       } else if (res?.error?.code === 'REVIEW_PURCHASE_REQUIRED') {
         showToast('Hệ thống chỉ cho phép đánh giá khi đơn hàng đã hoàn tất (POL-13).', 'error');
       } else {
         // Fallback demo toast if offline/mock
         showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
-        router.push('/community/reviews');
+        router.push(`/orders/${orderId}`);
       }
     } catch {
       showToast('Đã gửi đánh giá thành công! Bạn nhận được +50 HUKI Xu thưởng.', 'success');
-      router.push('/community/reviews');
+      router.push(`/orders/${orderId}`);
     } finally {
       setIsLoading(false);
     }

@@ -71,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div
             className={`
               flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out
-              ${isSidebarCollapsed ? 'lg:ml-[68px]' : 'lg:ml-[280px]'}
+              ${isSidebarCollapsed ? 'lg:ml-[64px]' : 'lg:ml-[240px]'}
               ml-0
             `}
           >

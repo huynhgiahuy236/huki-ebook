@@ -7,7 +7,7 @@ import SellerPortalLayout from '@/ui/components/layout/SellerPortalLayout';
 
 function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
-  const isPortalRoute = pathname === '/seller' || pathname.startsWith('/seller/register') || pathname.startsWith('/seller/edge-cases');
+  const isPortalRoute = pathname === '/seller' || pathname.startsWith('/seller/register');
 
   if (isPortalRoute) {
     return <SellerPortalLayout>{children}</SellerPortalLayout>;

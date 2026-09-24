@@ -33,9 +33,6 @@ export default function SellerPortalPage() {
                 Đăng Ký Bán Hàng Ngay
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </Link>
-              <Link className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg bg-white border border-[#E8E5DF] text-on-surface font-title-md text-[15px] hover:bg-surface-container transition-all" href="/seller/edge-cases">
-                Tìm Hiểu Quy Trình
-              </Link>
               <Link className="font-title-md text-[14px] text-primary hover:underline ml-2 flex items-center gap-1" href="/auth/login?redirect=/seller/dashboard">
                 Đã có tài khoản người bán? Đăng nhập →
               </Link>
@@ -318,10 +315,6 @@ export default function SellerPortalPage() {
                 <Link className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-tertiary font-title-md text-[15px] font-bold hover:bg-[#FAF8F5] transition-all shadow-md" href="/seller/register">
                   <span className="material-symbols-outlined text-[20px] fill-icon">add_business</span>
                   Đăng Ký Mở Gian Hàng Ngay
-                </Link>
-                <Link className="inline-flex items-center gap-2 px-6 py-4 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-title-md text-[15px] transition-all backdrop-blur-sm" href="/seller/edge-cases">
-                  <span className="material-symbols-outlined text-[20px]">help</span>
-                  Xem Hướng Dẫn Chi Tiết
                 </Link>
               </div>
               <div className="mt-8 pt-6 border-t border-white/15 flex flex-wrap items-center gap-4 sm:gap-6 text-[13px] text-[#ECF6F3]">

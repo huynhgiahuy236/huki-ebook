@@ -28,7 +28,6 @@ const ROUTES: Record<string, ServiceName> = {
   shipments: 'shipping',
   'delivery-staff': 'shipping',
   callbacks: 'shipping',
-  forum: 'community',
   chat: 'community',
   reviews: 'community',
   notifications: 'community',

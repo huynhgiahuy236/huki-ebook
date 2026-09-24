@@ -40,9 +40,9 @@ export class ModerationIdParamDto {
 }
 
 export class ModerationTargetParamDto extends ModerationIdParamDto {
-  @ApiProperty({ enum: ['POST', 'COMMENT', 'REVIEW'] })
-  @IsIn(['POST', 'COMMENT', 'REVIEW'])
-  targetType!: Extract<ReportTargetType, 'POST' | 'COMMENT' | 'REVIEW'>;
+  @ApiProperty({ enum: ['REVIEW'] })
+  @IsIn(['REVIEW'])
+  targetType!: Extract<ReportTargetType, 'REVIEW'>;
 }
 
 export class ReportListQueryDto {
@@ -79,8 +79,8 @@ export class ModerationQueueQueryDto {
   limit = 20;
 
   @IsOptional()
-  @IsIn(['POST', 'COMMENT', 'REVIEW'])
-  targetType?: Extract<ReportTargetType, 'POST' | 'COMMENT' | 'REVIEW'>;
+  @IsIn(['REVIEW'])
+  targetType?: Extract<ReportTargetType, 'REVIEW'>;
 
   @IsOptional()
   @IsIn(['PENDING_REVIEW', 'FLAGGED'])

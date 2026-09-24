@@ -40,9 +40,6 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
               <Link href="/seller/register" className={`hover:text-[#003B2B] transition-colors ${isRegisterPage ? 'text-[#003B2B] font-bold' : ''}`}>
                 Đăng Ký Đối Tác NXB
               </Link>
-              <Link href="/seller/edge-cases" className="hover:text-[#003B2B] transition-colors">
-                Thư Viện Trạng Thái Sách
-              </Link>
             </nav>
           </div>
 
