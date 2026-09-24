@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
+import { useSmartFormCollapse } from '../../utils/formHooks';
 
 // Seed initial users for fallback if API is not yet loaded
 const INITIAL_USERS = [
@@ -154,6 +155,7 @@ export function AdminAccountsView() {
     address: '',
     notes: '',
   });
+  const [newCustomerErrors, setNewCustomerErrors] = useState<Record<string, string>>({});
   const [showNewCustPassword, setShowNewCustPassword] = useState(false);
 
   // Form state for Edit User
@@ -167,7 +169,48 @@ export function AdminAccountsView() {
     storeName: '',
     status: 'ACTIVE',
   });
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Smart Form Collapse Hooks
+  const isNewCustomerDirty = Boolean(
+    newCustomerForm.fullName.trim() ||
+    newCustomerForm.email.trim() ||
+    newCustomerForm.phone.trim() ||
+    newCustomerForm.address.trim() ||
+    newCustomerForm.notes.trim() ||
+    (newCustomerForm.password && newCustomerForm.password !== 'Customer123!@#')
+  );
+
+  const isEditDirty = Boolean(
+    editingUser && (
+      editForm.fullName !== (editingUser.fullName || '') ||
+      editForm.email !== (editingUser.email || '') ||
+      editForm.phone !== (editingUser.phone || '') ||
+      editForm.password !== '' ||
+      editForm.role !== editingUser.role ||
+      editForm.storeName !== (editingUser.storeName || '') ||
+      editForm.status !== editingUser.status
+    )
+  );
+
+  const addCustomerRef = useSmartFormCollapse({
+    isOpen: showAddCustomerModal,
+    onClose: () => {
+      setShowAddCustomerModal(false);
+      setNewCustomerErrors({});
+    },
+    isDirty: isNewCustomerDirty,
+  });
+
+  const editUserRef = useSmartFormCollapse({
+    isOpen: Boolean(editingUser),
+    onClose: () => {
+      setEditingUser(null);
+      setEditErrors({});
+    },
+    isDirty: isEditDirty,
+  });
 
   // Load users from Real Backend Database API
   const loadUsers = useCallback(async () => {
@@ -258,13 +301,45 @@ export function AdminAccountsView() {
     return { total, customers, sellers, staff, locked };
   }, [users]);
 
+  const validateNewCustomer = () => {
+    const errs: Record<string, string> = {};
+    if (!newCustomerForm.fullName.trim()) {
+      errs.fullName = "Họ và tên khách hàng không được để trống.";
+    } else if (newCustomerForm.fullName.trim().length < 2) {
+      errs.fullName = "Họ và tên phải có ít nhất 2 ký tự.";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!newCustomerForm.email.trim()) {
+      errs.email = "Địa chỉ email không được để trống.";
+    } else if (!emailRegex.test(newCustomerForm.email.trim())) {
+      errs.email = "Định dạng email không hợp lệ (ví dụ: user@domain.com).";
+    }
+
+    const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/;
+    if (!newCustomerForm.phone.trim()) {
+      errs.phone = "Số điện thoại không được để trống.";
+    } else if (!phoneRegex.test(newCustomerForm.phone.trim().replace(/\s/g, ''))) {
+      errs.phone = "Số điện thoại Việt Nam không hợp lệ (10 số, bắt đầu bằng 03, 05, 07, 08, 09).";
+    }
+
+    if (!newCustomerForm.password.trim()) {
+      errs.password = "Mật khẩu ban đầu không được để trống.";
+    } else if (newCustomerForm.password.trim().length < 6) {
+      errs.password = "Mật khẩu ban đầu phải có tối thiểu 6 ký tự.";
+    }
+
+    setNewCustomerErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   // Add Customer Submit Handler
   const handleAddCustomerSubmit = async (e: any) => {
     e.preventDefault();
-    if (!newCustomerForm.fullName.trim() || !newCustomerForm.email.trim() || !newCustomerForm.phone.trim()) {
+    if (!validateNewCustomer()) {
       showToast?.({
-        title: 'Thiếu thông tin',
-        message: 'Vui lòng điền đầy đủ Họ tên, Email và Số điện thoại.',
+        title: 'Lỗi nhập liệu',
+        message: 'Vui lòng kiểm tra lại các trường báo đỏ bên dưới form.',
         type: 'warning',
       });
       return;
@@ -310,6 +385,7 @@ export function AdminAccountsView() {
       }
 
       setShowAddCustomerModal(false);
+      setNewCustomerErrors({});
       setNewCustomerForm({
         fullName: '',
         email: '',
@@ -333,6 +409,7 @@ export function AdminAccountsView() {
   // Open Edit Modal
   const handleOpenEdit = (user: any) => {
     setEditingUser(user);
+    setEditErrors({});
     setEditForm({
       id: user.id,
       fullName: user.fullName || '',
@@ -345,13 +422,47 @@ export function AdminAccountsView() {
     });
   };
 
+  const validateEditUser = () => {
+    const errs: Record<string, string> = {};
+    if (!editForm.fullName.trim()) {
+      errs.fullName = "Họ và tên không được để trống.";
+    } else if (editForm.fullName.trim().length < 2) {
+      errs.fullName = "Họ và tên phải có ít nhất 2 ký tự.";
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!editForm.email.trim()) {
+      errs.email = "Email không được để trống.";
+    } else if (!emailRegex.test(editForm.email.trim())) {
+      errs.email = "Định dạng email không hợp lệ (ví dụ: user@domain.com).";
+    }
+
+    if (editForm.phone.trim()) {
+      const phoneRegex = /(84|0[3|5|7|8|9])+([0-9]{8})\b/;
+      if (!phoneRegex.test(editForm.phone.trim().replace(/\s/g, ''))) {
+        errs.phone = "Số điện thoại Việt Nam không hợp lệ.";
+      }
+    }
+
+    if (editForm.password.trim() && editForm.password.trim().length < 6) {
+      errs.password = "Mật khẩu mới nếu đặt lại phải có ít nhất 6 ký tự.";
+    }
+
+    if ((editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') && !editForm.storeName.trim()) {
+      errs.storeName = "Vui lòng nhập tên cửa hàng / doanh nghiệp của người bán.";
+    }
+
+    setEditErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   // Save Edit User
   const handleSaveEditSubmit = async (e: any) => {
     e.preventDefault();
-    if (!editForm.fullName.trim() || !editForm.email.trim()) {
+    if (!validateEditUser()) {
       showToast?.({
         title: 'Lỗi nhập liệu',
-        message: 'Họ tên và Email không được để trống.',
+        message: 'Vui lòng kiểm tra lại các trường lỗi trên form chỉnh sửa.',
         type: 'warning',
       });
       return;
@@ -953,316 +1064,413 @@ export function AdminAccountsView() {
         </div>
       </main>
 
-      {/* ===================== MODAL 1: THÊM KHÁCH HÀNG (CHỈ DÀNH CHO CUSTOMER) ===================== */}
+      {/* ===================== IN-PAGE FORM 1: THÊM KHÁCH HÀNG MỚI ===================== */}
       {showAddCustomerModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 space-y-5 border border-slate-200 shadow-2xl animate-scaleIn">
-            
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5 text-[#003b2b]">
-                <div className="w-10 h-10 rounded-xl bg-[#003b2b]/10 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-2xl text-[#003b2b]">person_add</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Thêm Khách Hàng Mới</h3>
-                  <p className="text-xs text-slate-500">Lưu thông tin khách hàng mới vào cơ sở dữ liệu</p>
-                </div>
+        <div ref={addCustomerRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-[#003b2b]/30 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3 text-[#003b2b]">
+              <div className="w-10 h-10 rounded-2xl bg-[#003b2b]/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl text-[#003b2b]">person_add</span>
               </div>
-              <button
-                onClick={() => setShowAddCustomerModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Thêm Khách Hàng Mới</h3>
+                <p className="text-xs text-slate-500">Lưu thông tin khách hàng mới trực tiếp vào cơ sở dữ liệu hệ thống</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowAddCustomerModal(false);
+                setNewCustomerErrors({});
+              }}
+              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleAddCustomerSubmit} className="space-y-4 mt-5">
+            {/* Họ tên */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Họ và tên khách hàng <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={newCustomerForm.fullName}
+                onChange={(e: any) => {
+                  setNewCustomerForm({ ...newCustomerForm, fullName: e.target.value });
+                  if (newCustomerErrors.fullName) setNewCustomerErrors((prev) => ({ ...prev, fullName: "" }));
+                }}
+                placeholder="VD: Nguyễn Thị Lan Anh..."
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                  newCustomerErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                }`}
+              />
+              {newCustomerErrors.fullName && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{newCustomerErrors.fullName}</span>
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleAddCustomerSubmit} className="space-y-4">
-              {/* Họ tên */}
+            {/* Email & SĐT */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Họ và tên khách hàng <span className="text-red-500">*</span>
+                  Địa chỉ Email <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  required
-                  value={newCustomerForm.fullName}
-                  onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, fullName: e.target.value })}
-                  placeholder="VD: Nguyễn Thị Lan Anh..."
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
+                  type="email"
+                  value={newCustomerForm.email}
+                  onChange={(e: any) => {
+                    setNewCustomerForm({ ...newCustomerForm, email: e.target.value });
+                    if (newCustomerErrors.email) setNewCustomerErrors((prev) => ({ ...prev, email: "" }));
+                  }}
+                  placeholder="VD: lananh@gmail.com..."
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                    newCustomerErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
                 />
+                {newCustomerErrors.email && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{newCustomerErrors.email}</span>
+                  </p>
+                )}
               </div>
-
-              {/* Email & SĐT */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Địa chỉ Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={newCustomerForm.email}
-                    onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, email: e.target.value })}
-                    placeholder="VD: lananh@gmail.com..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Số điện thoại <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={newCustomerForm.phone}
-                    onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, phone: e.target.value })}
-                    placeholder="VD: 0988 123 456..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* Mật khẩu khởi tạo */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mật khẩu ban đầu <span className="text-red-500">*</span>
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type={showNewCustPassword ? 'text' : 'password'}
-                    required
-                    value={newCustomerForm.password}
-                    onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, password: e.target.value })}
-                    placeholder="Nhập mật khẩu..."
-                    className="w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-mono focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewCustPassword(!showNewCustPassword)}
-                    className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
-                    title={showNewCustPassword ? 'Ẩn' : 'Hiện'}
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {showNewCustPassword ? 'visibility_off' : 'visibility'}
-                    </span>
-                  </button>
-                </div>
-                <p className="text-[11px] text-slate-400 mt-1">Mật khẩu sẽ được mã hóa an toàn trong database.</p>
-              </div>
-
-              {/* Địa chỉ giao hàng mặc định */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Địa chỉ giao hàng mặc định (Tùy chọn)
+                  Số điện thoại <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={newCustomerForm.address}
-                  onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
-                  placeholder="VD: Số 12 Nguyễn Văn Bảo, Phường 5, Gò Vấp, TP.HCM"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
+                  type="tel"
+                  value={newCustomerForm.phone}
+                  onChange={(e: any) => {
+                    setNewCustomerForm({ ...newCustomerForm, phone: e.target.value });
+                    if (newCustomerErrors.phone) setNewCustomerErrors((prev) => ({ ...prev, phone: "" }));
+                  }}
+                  placeholder="VD: 0988 123 456..."
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                    newCustomerErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
                 />
+                {newCustomerErrors.phone && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{newCustomerErrors.phone}</span>
+                  </p>
+                )}
               </div>
+            </div>
 
-              {/* Notice note */}
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-2 text-xs text-blue-800">
-                <span className="material-symbols-outlined text-base text-blue-600 shrink-0 mt-0.5">info</span>
-                <span>Form này tạo người dùng với vai trò <strong>Khách hàng</strong> và lưu trực tiếp vào cơ sở dữ liệu.</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            {/* Mật khẩu khởi tạo */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mật khẩu ban đầu <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type={showNewCustPassword ? 'text' : 'password'}
+                  value={newCustomerForm.password}
+                  onChange={(e: any) => {
+                    setNewCustomerForm({ ...newCustomerForm, password: e.target.value });
+                    if (newCustomerErrors.password) setNewCustomerErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  placeholder="Nhập mật khẩu..."
+                  className={`w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 font-mono focus:outline-none transition-all ${
+                    newCustomerErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
+                />
                 <button
                   type="button"
-                  onClick={() => setShowAddCustomerModal(false)}
-                  className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                  onClick={() => setShowNewCustPassword(!showNewCustPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  title={showNewCustPassword ? 'Ẩn' : 'Hiện'}
                 >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
-                >
-                  {isSubmitting ? (
-                    <span>Đang lưu...</span>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-lg">check</span>
-                      <span>Lưu Vào Database</span>
-                    </>
-                  )}
+                  <span className="material-symbols-outlined text-lg">
+                    {showNewCustPassword ? 'visibility_off' : 'visibility'}
+                  </span>
                 </button>
               </div>
-            </form>
-          </div>
+              {newCustomerErrors.password ? (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{newCustomerErrors.password}</span>
+                </p>
+              ) : (
+                <p className="text-[11px] text-slate-400 mt-1">Mật khẩu sẽ được mã hóa an toàn trong database.</p>
+              )}
+            </div>
+
+            {/* Địa chỉ giao hàng mặc định */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Địa chỉ giao hàng mặc định (Tùy chọn)
+              </label>
+              <input
+                type="text"
+                value={newCustomerForm.address}
+                onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
+                placeholder="VD: Số 12 Nguyễn Văn Bảo, Phường 5, Gò Vấp, TP.HCM"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white transition-all"
+              />
+            </div>
+
+            {/* Notice note */}
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900">
+              <span className="material-symbols-outlined text-base text-emerald-700 shrink-0 mt-0.5">info</span>
+              <span>Tài khoản tạo mới sẽ tự động kích hoạt vai trò <strong>Khách hàng (CUSTOMER)</strong> và sẵn sàng đăng nhập ngay lập tức.</span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddCustomerModal(false);
+                  setNewCustomerErrors({});
+                }}
+                className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-slate-700"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+              >
+                {isSubmitting ? (
+                  <span>Đang lưu...</span>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">check</span>
+                    <span>Lưu Vào Database</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* ===================== MODAL 2: CHỈNH SỬA THÔNG TIN NGƯỜI DÙNG ===================== */}
+      {/* ===================== IN-PAGE FORM 2: CHỈNH SỬA THÔNG TIN NGƯỜI DÙNG ===================== */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 space-y-5 border border-slate-200 shadow-2xl animate-scaleIn">
-            
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-2.5 text-slate-900">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
-                  <span className="material-symbols-outlined text-2xl">edit_note</span>
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Chỉnh Sửa Người Dùng</h3>
-                  <p className="text-xs text-slate-500">Cập nhật hồ sơ và vai trò của tài khoản trong database</p>
-                </div>
+        <div ref={editUserRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-slate-300 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center gap-3 text-slate-900">
+              <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700">
+                <span className="material-symbols-outlined text-2xl">edit_note</span>
               </div>
-              <button
-                onClick={() => setEditingUser(null)}
-                className="text-slate-400 hover:text-slate-700 p-1.5 rounded-lg hover:bg-slate-100 transition-colors"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Chỉnh Sửa Thông Tin Người Dùng</h3>
+                <p className="text-xs text-slate-500">Cập nhật hồ sơ, phân quyền vai trò và trạng thái tài khoản: <strong>{editingUser.fullName}</strong></p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setEditingUser(null);
+                setEditErrors({});
+              }}
+              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleSaveEditSubmit} className="space-y-4 mt-5">
+            {/* Họ tên */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Họ và tên <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={editForm.fullName}
+                onChange={(e: any) => {
+                  setEditForm({ ...editForm, fullName: e.target.value });
+                  if (editErrors.fullName) setEditErrors((prev) => ({ ...prev, fullName: "" }));
+                }}
+                className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                  editErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                }`}
+              />
+              {editErrors.fullName && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{editErrors.fullName}</span>
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleSaveEditSubmit} className="space-y-4">
-              {/* Họ tên */}
+            {/* Email & SĐT */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Họ và tên <span className="text-red-500">*</span>
+                  Email <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e: any) => {
+                    setEditForm({ ...editForm, email: e.target.value });
+                    if (editErrors.email) setEditErrors((prev) => ({ ...prev, email: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                    editErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
+                />
+                {editErrors.email && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{editErrors.email}</span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại</label>
+                <input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={(e: any) => {
+                    setEditForm({ ...editForm, phone: e.target.value });
+                    if (editErrors.phone) setEditErrors((prev) => ({ ...prev, phone: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                    editErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
+                />
+                {editErrors.phone && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{editErrors.phone}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Mật khẩu */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mật khẩu mới (Nếu cần đặt lại)
+              </label>
+              <div className="relative flex items-center">
+                <input
+                  type={showEditPassword ? 'text' : 'password'}
+                  value={editForm.password}
+                  onChange={(e: any) => {
+                    setEditForm({ ...editForm, password: e.target.value });
+                    if (editErrors.password) setEditErrors((prev) => ({ ...prev, password: "" }));
+                  }}
+                  placeholder="Để trống nếu giữ nguyên mật khẩu..."
+                  className={`w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 font-mono focus:outline-none transition-all ${
+                    editErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowEditPassword(!showEditPassword)}
+                  className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">
+                    {showEditPassword ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+              </div>
+              {editErrors.password && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{editErrors.password}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Vai trò & Trạng thái */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Vai trò</label>
+                <select
+                  disabled={editingUser.role === 'PLATFORM_ADMIN'}
+                  value={editForm.role}
+                  onChange={(e: any) => setEditForm({ ...editForm, role: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="CUSTOMER">Khách hàng (CUSTOMER)</option>
+                  <option value="SELLER_ADMIN">Admin Seller (Chủ shop)</option>
+                  <option value="SELLER_STAFF">Nhân viên gian hàng (SELLER_STAFF)</option>
+                  {editingUser.role === 'PLATFORM_ADMIN' && <option value="PLATFORM_ADMIN">Admin Sàn</option>}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái</label>
+                <select
+                  disabled={editingUser.role === 'PLATFORM_ADMIN'}
+                  value={editForm.status}
+                  onChange={(e: any) => setEditForm({ ...editForm, status: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="ACTIVE">Hoạt động (Active)</option>
+                  <option value="LOCKED">Đã khóa (Locked)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Tên cửa hàng nếu là SELLER */}
+            {(editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Tên Cửa Hàng / Doanh Nghiệp <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  required
-                  value={editForm.fullName}
-                  onChange={(e: any) => setEditForm({ ...editForm, fullName: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
+                  value={editForm.storeName}
+                  onChange={(e: any) => {
+                    setEditForm({ ...editForm, storeName: e.target.value });
+                    if (editErrors.storeName) setEditErrors((prev) => ({ ...prev, storeName: "" }));
+                  }}
+                  placeholder="VD: Nhà Sách Nhã Nam Hà Nội..."
+                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
+                    editErrors.storeName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  }`}
                 />
-              </div>
-
-              {/* Email & SĐT */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={editForm.email}
-                    onChange={(e: any) => setEditForm({ ...editForm, email: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại</label>
-                  <input
-                    type="tel"
-                    value={editForm.phone}
-                    onChange={(e: any) => setEditForm({ ...editForm, phone: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                </div>
-              </div>
-
-              {/* Mật khẩu */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mật khẩu mới (Nếu cần đặt lại)
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type={showEditPassword ? 'text' : 'password'}
-                    value={editForm.password}
-                    onChange={(e: any) => setEditForm({ ...editForm, password: e.target.value })}
-                    placeholder="Để trống nếu giữ nguyên mật khẩu..."
-                    className="w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 font-mono focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditPassword(!showEditPassword)}
-                    className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-lg">
-                      {showEditPassword ? 'visibility_off' : 'visibility'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Vai trò & Trạng thái */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Vai trò</label>
-                  <select
-                    disabled={editingUser.role === 'PLATFORM_ADMIN'}
-                    value={editForm.role}
-                    onChange={(e: any) => setEditForm({ ...editForm, role: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="CUSTOMER">Khách hàng</option>
-                    <option value="SELLER_ADMIN">Admin Seller (Chủ shop)</option>
-                    <option value="SELLER_STAFF">Nhân viên gian hàng</option>
-                    {editingUser.role === 'PLATFORM_ADMIN' && <option value="PLATFORM_ADMIN">Admin Sàn</option>}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái</label>
-                  <select
-                    disabled={editingUser.role === 'PLATFORM_ADMIN'}
-                    value={editForm.status}
-                    onChange={(e: any) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    <option value="ACTIVE">Hoạt động (Active)</option>
-                    <option value="LOCKED">Đã khóa (Locked)</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Tên cửa hàng nếu là SELLER */}
-              {(editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') && (
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Tên Cửa Hàng / Doanh Nghiệp
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.storeName}
-                    onChange={(e: any) => setEditForm({ ...editForm, storeName: e.target.value })}
-                    placeholder="VD: Nhà Sách Nhã Nam Hà Nội..."
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    Nếu tên dài hơn 10 ký tự, hệ thống sẽ tự động hiển thị rút gọn kèm tooltip khi rê chuột.
+                {editErrors.storeName && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{editErrors.storeName}</span>
                   </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setEditingUser(null)}
-                  className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-5 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-colors flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
-                >
-                  {isSubmitting ? (
-                    <span>Đang lưu...</span>
-                  ) : (
-                    <>
-                      <span className="material-symbols-outlined text-lg">save</span>
-                      <span>Lưu Thay Đổi</span>
-                    </>
-                  )}
-                </button>
+                )}
               </div>
-            </form>
-          </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingUser(null);
+                  setEditErrors({});
+                }}
+                className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-slate-700"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-6 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+              >
+                {isSubmitting ? (
+                  <span>Đang lưu...</span>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-lg">save</span>
+                    <span>Lưu Thay Đổi</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
         </div>
       )}
 

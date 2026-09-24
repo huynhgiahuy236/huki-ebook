@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { taxRegistryService } from '../../services/taxRegistryService';
+import { useSmartFormCollapse } from '../../utils/formHooks';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -132,6 +133,18 @@ export function AdminBusinessesView() {
   const [previewImageTitle, setPreviewImageTitle] = useState('');
   const [rejectModalBiz, setRejectModalBiz] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState('');
+
+  const isRejectDirty = Boolean(rejectReason.trim());
+  const rejectFormRef = useSmartFormCollapse({
+    isOpen: Boolean(rejectModalBiz),
+    onClose: () => {
+      setRejectModalBiz(null);
+      setRejectReason('');
+      setRejectReasonError('');
+    },
+    isDirty: isRejectDirty,
+  });
 
   const fetchBusinesses = useCallback(async () => {
     setLoading(true);
@@ -241,7 +254,11 @@ export function AdminBusinessesView() {
   // Xử lý từ chối
   const handleConfirmReject = async () => {
     if (!rejectModalBiz || actionLoadingId) return;
-    const finalReason = rejectReason.trim() || 'Hồ sơ chưa đáp ứng tiêu chuẩn nền tảng';
+    if (!rejectReason.trim()) {
+      setRejectReasonError('Vui lòng nhập lý do từ chối hồ sơ doanh nghiệp.');
+      return;
+    }
+    const finalReason = rejectReason.trim();
     setActionLoadingId(rejectModalBiz.id);
     try {
       const res = await adminApi.rejectBusiness(rejectModalBiz.id, finalReason);
@@ -253,6 +270,7 @@ export function AdminBusinessesView() {
         });
         setRejectModalBiz(null);
         setRejectReason('');
+        setRejectReasonError('');
         fetchBusinesses();
         if (selectedBiz?.id === rejectModalBiz.id) {
           setSelectedBiz({ ...selectedBiz, status: 'REJECTED' });
@@ -1109,46 +1127,80 @@ export function AdminBusinessesView() {
         )}
       </div>
 
-      {/* 4. REJECT MODAL / DIALOG */}
+      {/* 4. REJECT IN-PAGE FORM */}
       {rejectModalBiz && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setRejectModalBiz(null)}
-          />
-          <div className="relative w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl z-10 flex flex-col gap-4 animate-scale-up">
+        <div
+          ref={rejectFormRef}
+          className="mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-rose-300 animate-in fade-in slide-in-from-top-4 duration-300"
+        >
+          <div className="flex items-center justify-between border-b border-rose-100 pb-4">
             <div className="flex items-center gap-3 text-rose-600">
-              <span className="material-symbols-outlined text-3xl">cancel</span>
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">cancel</span>
+              </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-900">Từ Chối Hồ Sơ Doanh Nghiệp</h3>
-                <p className="text-xs text-gray-500">Doanh nghiệp: {rejectModalBiz.name}</p>
+                <h3 className="text-base font-bold text-slate-900">Từ Chối Hồ Sơ Doanh Nghiệp</h3>
+                <p className="text-xs text-slate-500">Doanh nghiệp: <strong>{rejectModalBiz.name}</strong> (MST: {rejectModalBiz.taxCode || rejectModalBiz.id})</p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRejectModalBiz(null);
+                setRejectReason('');
+                setRejectReasonError('');
+              }}
+              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-bold text-gray-700">
-                Lý do từ chối <span className="text-rose-500">*</span>:
+          <div className="flex flex-col gap-3 mt-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                Lý do từ chối hồ sơ <span className="text-rose-500">*</span>:
               </label>
               <textarea
                 rows={3}
-                placeholder="Nhập lý do từ chối để thông báo cho doanh nghiệp chỉnh sửa lại..."
+                placeholder="Nhập chi tiết lý do từ chối để thông báo cho đối tác bổ sung/chỉnh sửa lại..."
                 value={rejectReason}
-                onChange={(e: any) => setRejectReason(e.target.value)}
-                className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 focus:outline-none focus:border-rose-500 focus:bg-white transition-all resize-none"
+                onChange={(e: any) => {
+                  setRejectReason(e.target.value);
+                  if (rejectReasonError) setRejectReasonError('');
+                }}
+                className={`w-full p-3.5 rounded-xl bg-slate-50 border text-sm text-slate-800 focus:outline-none transition-all resize-none ${
+                  rejectReasonError
+                    ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30'
+                    : 'border-slate-200 focus:border-rose-500 focus:bg-white'
+                }`}
               />
+              {rejectReasonError && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{rejectReasonError}</span>
+                </p>
+              )}
+            </div>
 
-              <div className="flex flex-wrap gap-1.5 mt-1">
+            <div>
+              <span className="text-xs text-slate-500 font-medium mb-1.5 block">Chọn mẫu lý do nhanh:</span>
+              <div className="flex flex-wrap gap-2">
                 {[
-                  'Mã số thuế không hợp lệ',
-                  'Thiếu giấy phép kinh doanh',
-                  'Thông tin liên hệ không chính xác',
-                  'Trùng lặp hồ sơ doanh nghiệp',
+                  'Mã số thuế không hợp lệ hoặc chưa kích hoạt trên Cổng Thuế Quốc Gia',
+                  'Thiếu giấy chứng nhận đăng ký kinh doanh (GPKD) hợp lệ',
+                  'Thông tin người đại diện pháp luật không khớp với CCCD',
+                  'Trùng lặp hồ sơ doanh nghiệp đã đăng ký trên hệ thống',
+                  'Chưa cung cấp giấy phép hoạt động xuất bản/phát hành hợp chuẩn',
                 ].map((preset) => (
                   <button
                     key={preset}
                     type="button"
-                    onClick={() => setRejectReason(preset)}
-                    className="text-[10px] px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
+                    onClick={() => {
+                      setRejectReason(preset);
+                      if (rejectReasonError) setRejectReasonError('');
+                    }}
+                    className="text-xs px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 border border-transparent text-slate-700 font-medium transition-all cursor-pointer"
                   >
                     {preset}
                   </button>
@@ -1156,11 +1208,15 @@ export function AdminBusinessesView() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 mt-2">
               <button
                 type="button"
-                onClick={() => setRejectModalBiz(null)}
-                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors"
+                onClick={() => {
+                  setRejectModalBiz(null);
+                  setRejectReason('');
+                  setRejectReasonError('');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm transition-colors cursor-pointer"
               >
                 Hủy bỏ
               </button>
@@ -1168,9 +1224,10 @@ export function AdminBusinessesView() {
                 type="button"
                 onClick={handleConfirmReject}
                 disabled={actionLoadingId === rejectModalBiz.id}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs"
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm transition-all shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                Xác nhận từ chối
+                <span className="material-symbols-outlined text-lg">cancel</span>
+                <span>{actionLoadingId === rejectModalBiz.id ? 'Đang xử lý...' : 'Xác Nhận Từ Chối Hồ Sơ'}</span>
               </button>
             </div>
           </div>

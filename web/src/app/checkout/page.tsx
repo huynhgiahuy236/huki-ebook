@@ -179,11 +179,11 @@ export default function CheckoutPage() {
             (v: any) => v.scope === "PLATFORM" && v.type !== "FREE_SHIPPING"
           );
           const shipping = res.data.filter((v: any) => v.type === "FREE_SHIPPING");
-          setAvailableVouchers({
+          setAvailableVouchers((prev) => ({
+            ...prev,
             platform,
-            stores: {},
             shipping,
-          });
+          }));
         }
       } catch {
         // ignore
@@ -193,6 +193,35 @@ export default function CheckoutPage() {
     };
     loadVouchers();
   }, [isLoggedIn]);
+
+  // Load store vouchers for all unique stores present in the cart
+  useEffect(() => {
+    if (!isLoggedIn || checkedItems.length === 0) return;
+    const storeIds = Array.from(
+      new Set(
+        checkedItems
+          .map((item: any) => item.storeId || item.book?.storeId || item.store?.id)
+          .filter(Boolean)
+      )
+    );
+
+    storeIds.forEach(async (sId: any) => {
+      try {
+        const res = await voucherApi.getVouchersByStore(sId);
+        if (res.success && Array.isArray(res.data)) {
+          setAvailableVouchers((prev) => ({
+            ...prev,
+            stores: {
+              ...prev.stores,
+              [sId]: res.data,
+            },
+          }));
+        }
+      } catch {
+        // ignore
+      }
+    });
+  }, [isLoggedIn, checkedItems]);
 
   // Apply platform voucher
   const handleApplyPlatformVoucher = async (voucher: any) => {
@@ -221,6 +250,61 @@ export default function CheckoutPage() {
     } catch {
       setVoucherError("Không thể áp dụng voucher");
     }
+  };
+
+  // Apply store voucher
+  const handleApplyStoreVoucher = async (storeId: string, voucher: any) => {
+    const storeItems = checkedItems.filter(
+      (item: any) => (item.storeId || item.book?.storeId || item.store?.id) === storeId
+    );
+    const storeSubtotal = storeItems.reduce(
+      (sum: number, item: any) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+      0
+    );
+
+    try {
+      const res = await voucherApi.validateVoucher({
+        code: voucher.code,
+        orderSubtotal: storeSubtotal,
+        storeId,
+      });
+      if (res.success && res.data?.valid) {
+        const discountVal = res.data.discount ?? 0;
+        setAppliedStoreVouchers((prev) => ({
+          ...prev,
+          [storeId]: {
+            code: voucher.code,
+            discount: discountVal,
+            name: voucher.name,
+          },
+        }));
+        showToast(
+          {
+            title: "Đã áp dụng Voucher Shop!",
+            message: `Giảm ${discountVal.toLocaleString("vi-VN")}đ cho gian hàng`,
+          },
+          "success"
+        );
+      } else {
+        showToast(
+          {
+            title: "Không thể áp dụng voucher shop",
+            message: res.data?.reason || "Voucher không hợp lệ cho gian hàng này",
+          },
+          "error"
+        );
+      }
+    } catch {
+      showToast({ title: "Lỗi", message: "Không thể xác thực voucher shop" }, "error");
+    }
+  };
+
+  const handleRemoveStoreVoucher = (storeId: string) => {
+    setAppliedStoreVouchers((prev) => {
+      const updated = { ...prev };
+      delete updated[storeId];
+      return updated;
+    });
   };
 
   // Apply shipping voucher
@@ -256,6 +340,10 @@ export default function CheckoutPage() {
   const handleRemovePlatformVoucher = () => {
     setAppliedPlatformVoucher(null);
     setVoucherError("");
+  };
+
+  const handleRemoveShippingVoucher = () => {
+    setAppliedShippingVoucher(null);
   };
 
   // Trigger checkout preview with vouchers
@@ -1390,9 +1478,19 @@ export default function CheckoutPage() {
                       </p>
                     )}
 
+                    {/* 1. Mã toàn sàn HUKI */}
                     <div className="space-y-1">
-                      <span className="text-[10px] font-bold text-[var(--theme-text-muted,#49454f)] block">
-                        Mã khuyến mãi có sẵn:
+                      <span className="text-[10px] font-bold text-[var(--theme-text-muted,#49454f)] block flex items-center justify-between">
+                        <span>Voucher Sàn HUKI:</span>
+                        {appliedPlatformVoucher && (
+                          <button
+                            type="button"
+                            onClick={handleRemovePlatformVoucher}
+                            className="text-red-500 hover:underline text-[9.5px] cursor-pointer"
+                          >
+                            Bỏ chọn
+                          </button>
+                        )}
                       </span>
                       {availableVouchers.platform.length > 0 ? (
                         availableVouchers.platform.map((v: any) => {
@@ -1428,19 +1526,117 @@ export default function CheckoutPage() {
                         })
                       ) : (
                         <p className="text-[10px] text-[var(--theme-text-muted,#49454f)] italic">
-                          Không có voucher nào khả dụng
+                          Không có voucher sàn khả dụng
                         </p>
                       )}
                     </div>
 
-                    {appliedPlatformVoucher && (
-                      <button
-                        type="button"
-                        onClick={handleRemovePlatformVoucher}
-                        className="w-full text-center text-red-500 text-[10.5px] font-semibold hover:underline cursor-pointer pt-0.5"
-                      >
-                        Hủy áp dụng mã giảm giá
-                      </button>
+                    {/* 2. Voucher riêng của từng Gian Hàng (Store Vouchers) */}
+                    {Object.keys(availableVouchers.stores).length > 0 && (
+                      <div className="space-y-2 pt-2 border-t border-[var(--theme-border,#e8e5df)]/50">
+                        <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 block">
+                          Voucher Của Gian Hàng:
+                        </span>
+                        {Object.entries(availableVouchers.stores).map(([sId, storeVList]: [string, any]) => {
+                          if (!Array.isArray(storeVList) || storeVList.length === 0) return null;
+                          const appliedForThisStore = appliedStoreVouchers[sId];
+
+                          return (
+                            <div key={sId} className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+                              <div className="flex items-center justify-between text-[10.5px]">
+                                <span className="font-bold text-slate-700 dark:text-slate-200">Shop ID: {sId.slice(0, 8)}...</span>
+                                {appliedForThisStore && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveStoreVoucher(sId)}
+                                    className="text-red-500 hover:underline text-[9.5px] cursor-pointer"
+                                  >
+                                    Bỏ chọn
+                                  </button>
+                                )}
+                              </div>
+                              <div className="space-y-1">
+                                {storeVList.map((sv: any) => {
+                                  const isSelected = appliedForThisStore?.code === sv.code;
+                                  return (
+                                    <div
+                                      key={sv.id || sv.code}
+                                      onClick={() => handleApplyStoreVoucher(sId, sv)}
+                                      className={`p-1.5 rounded-md border flex items-center justify-between cursor-pointer transition-all text-xs ${
+                                        isSelected
+                                          ? "border-amber-600 bg-amber-500/15 font-bold"
+                                          : "border-[var(--theme-border,#e8e5df)] hover:border-amber-500/50 bg-[var(--theme-surface,#ffffff)]"
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
+                                            {sv.code}
+                                          </span>
+                                          <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
+                                            ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                                        {isSelected ? "Đang dùng" : "Áp dụng"}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {/* 3. Mã Miễn Phí Vận Chuyển (Freeship) */}
+                    {hasPhysicalItems && availableVouchers.shipping.length > 0 && (
+                      <div className="space-y-1 pt-2 border-t border-[var(--theme-border,#e8e5df)]/50">
+                        <span className="text-[10px] font-bold text-teal-800 dark:text-teal-300 block flex items-center justify-between">
+                          <span>Mã Miễn Phí Vận Chuyển (Freeship):</span>
+                          {appliedShippingVoucher && (
+                            <button
+                              type="button"
+                              onClick={handleRemoveShippingVoucher}
+                              className="text-red-500 hover:underline text-[9.5px] cursor-pointer"
+                            >
+                              Bỏ chọn
+                            </button>
+                          )}
+                        </span>
+                        <div className="space-y-1">
+                          {availableVouchers.shipping.map((fv: any) => {
+                            const isSelected = appliedShippingVoucher?.code === fv.code;
+                            return (
+                              <div
+                                key={fv.code}
+                                onClick={() => handleApplyShippingVoucher(fv)}
+                                className={`p-1.5 rounded-md border flex items-center justify-between cursor-pointer transition-all text-xs ${
+                                  isSelected
+                                    ? "border-teal-600 bg-teal-500/15 font-bold"
+                                    : "border-[var(--theme-border,#e8e5df)] hover:border-teal-500/50 bg-[var(--theme-surface,#ffffff)]"
+                                }`}
+                              >
+                                <div>
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-bold text-[11px] text-teal-700 dark:text-teal-300">
+                                      {fv.code}
+                                    </span>
+                                    <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
+                                      (Freeship tối đa {Number(fv.value || 30000).toLocaleString("vi-VN")}đ)
+                                    </span>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300">
+                                  {isSelected ? "Đang dùng" : "Áp dụng"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}

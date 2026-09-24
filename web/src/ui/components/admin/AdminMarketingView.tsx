@@ -4,6 +4,7 @@ import { useToast } from "../../context/ToastContext";
 import { flashSaleApi } from "../../api/flashSaleApi";
 import { catalogApi } from "../../api/catalogApi";
 import { voucherApi, Voucher } from "../../api/voucherApi";
+import { useSmartFormCollapse } from "../../utils/formHooks";
 
 export function AdminMarketingView() {
   const { showToast } = useToast();
@@ -14,7 +15,7 @@ export function AdminMarketingView() {
   const [loadingFlashSales, setLoadingFlashSales] = useState(false);
   const [catalogBooks, setCatalogBooks] = useState<any[]>([]);
 
-  // Create Campaign Modal State
+  // Create Campaign In-Page Form State & Errors
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
     name: "",
@@ -23,8 +24,23 @@ export function AdminMarketingView() {
     startsAt: new Date().toISOString().slice(0, 16),
     endsAt: new Date(Date.now() + 3600000 * 4).toISOString().slice(0, 16),
   });
+  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
 
-  // Add Item to Slot Modal State
+  const isCreateDirty =
+    createForm.name.trim().length > 0 ||
+    createForm.description.trim().length > 0 ||
+    createForm.bannerUrl.trim().length > 0;
+
+  const createFormRef = useSmartFormCollapse<HTMLDivElement>({
+    isOpen: showCreateModal,
+    onClose: () => {
+      setShowCreateModal(false);
+      setCreateErrors({});
+    },
+    isDirty: isCreateDirty,
+  });
+
+  // Add Item to Slot In-Page Form State & Errors
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [selectedSlotForAdd, setSelectedSlotForAdd] = useState<any>(null);
   const [itemForm, setItemForm] = useState({
@@ -33,6 +49,18 @@ export function AdminMarketingView() {
     salePrice: 79000,
     stock: 20,
     maxPerUser: 1,
+  });
+  const [itemErrors, setItemErrors] = useState<Record<string, string>>({});
+
+  const isItemDirty = !!itemForm.bookId || itemForm.stock !== 20 || itemForm.maxPerUser !== 1;
+
+  const itemFormRef = useSmartFormCollapse<HTMLDivElement>({
+    isOpen: showAddItemModal && !!selectedSlotForAdd,
+    onClose: () => {
+      setShowAddItemModal(false);
+      setItemErrors({});
+    },
+    isDirty: isItemDirty,
   });
 
   const [banners, setBanners] = useState([
@@ -71,7 +99,7 @@ export function AdminMarketingView() {
     },
   ]);
 
-  // Real Voucher State
+  // Real Voucher State & Errors
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [showCreateVoucherModal, setShowCreateVoucherModal] = useState(false);
@@ -99,6 +127,21 @@ export function AdminMarketingView() {
     maxUsagePerUser: 1,
     startsAt: new Date().toISOString().slice(0, 16),
     expiresAt: new Date(Date.now() + 86400000 * 30).toISOString().slice(0, 16),
+  });
+  const [voucherErrors, setVoucherErrors] = useState<Record<string, string>>({});
+
+  const isVoucherDirty =
+    voucherForm.code.trim().length > 0 ||
+    voucherForm.name.trim().length > 0 ||
+    voucherForm.description.trim().length > 0;
+
+  const voucherFormRef = useSmartFormCollapse<HTMLDivElement>({
+    isOpen: showCreateVoucherModal,
+    onClose: () => {
+      setShowCreateVoucherModal(false);
+      setVoucherErrors({});
+    },
+    isDirty: isVoucherDirty,
   });
 
   useEffect(() => {
@@ -144,18 +187,53 @@ export function AdminMarketingView() {
     }
   };
 
+  const validateCreateForm = () => {
+    const errs: Record<string, string> = {};
+    if (!createForm.name.trim()) {
+      errs.name = "Tên sự kiện flash sale không được để trống.";
+    } else if (createForm.name.trim().length < 5) {
+      errs.name = "Tên sự kiện phải có ít nhất 5 ký tự.";
+    }
+
+    if (createForm.bannerUrl.trim()) {
+      try {
+        new URL(createForm.bannerUrl.trim());
+      } catch {
+        errs.bannerUrl = "URL banner không đúng định dạng hợp lệ (vd: https://...).";
+      }
+    }
+
+    if (!createForm.startsAt) {
+      errs.startsAt = "Vui lòng chọn thời gian bắt đầu.";
+    }
+    if (!createForm.endsAt) {
+      errs.endsAt = "Vui lòng chọn thời gian kết thúc.";
+    }
+
+    if (createForm.startsAt && createForm.endsAt) {
+      const s = new Date(createForm.startsAt).getTime();
+      const e = new Date(createForm.endsAt).getTime();
+      if (e <= s) {
+        errs.endsAt = "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu.";
+      }
+    }
+
+    setCreateErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleCreateCampaign = async (e: any) => {
     e.preventDefault();
-    if (!createForm.name.trim()) {
-      showToast?.("Vui lòng nhập tên khung giờ Flash Sale!", "warning");
+    if (!validateCreateForm()) {
+      showToast?.("Vui lòng kiểm tra lại các trường lỗi trên form!", "warning");
       return;
     }
 
     try {
       const res = await flashSaleApi.createFlashSale({
-        name: createForm.name,
-        description: createForm.description,
-        bannerUrl: createForm.bannerUrl || undefined,
+        name: createForm.name.trim(),
+        description: createForm.description.trim() || undefined,
+        bannerUrl: createForm.bannerUrl.trim() || undefined,
         startsAt: new Date(createForm.startsAt).toISOString(),
         endsAt: new Date(createForm.endsAt).toISOString(),
       });
@@ -166,6 +244,7 @@ export function AdminMarketingView() {
           "success",
         );
         setShowCreateModal(false);
+        setCreateErrors({});
         setCreateForm({
           name: "",
           description: "",
@@ -182,10 +261,43 @@ export function AdminMarketingView() {
     }
   };
 
+  const validateItemForm = () => {
+    const errs: Record<string, string> = {};
+    if (!itemForm.bookId) {
+      errs.bookId = "Vui lòng chọn một đầu sách từ danh mục hệ thống.";
+    }
+
+    if (!itemForm.originalPrice || itemForm.originalPrice <= 0) {
+      errs.originalPrice = "Giá gốc phải lớn hơn 0₫.";
+    }
+
+    if (!itemForm.salePrice || itemForm.salePrice <= 0) {
+      errs.salePrice = "Giá Flash Sale phải lớn hơn 0₫.";
+    } else if (itemForm.salePrice >= itemForm.originalPrice) {
+      errs.salePrice = "Giá Flash Sale phải nhỏ hơn giá gốc.";
+    }
+
+    const selBook = catalogBooks.find((b) => b.id === itemForm.bookId);
+    const availStock = selBook ? Number(selBook.available ?? selBook.stock ?? 0) : 0;
+
+    if (!itemForm.stock || itemForm.stock <= 0) {
+      errs.stock = "Số lượng bán phải lớn hơn 0.";
+    } else if (availStock > 0 && itemForm.stock > availStock) {
+      errs.stock = `Số lượng không được vượt quá tồn kho khả dụng (${availStock} cuốn).`;
+    }
+
+    if (!itemForm.maxPerUser || itemForm.maxPerUser <= 0) {
+      errs.maxPerUser = "Hạn mức mỗi người mua phải ít nhất là 1 cuốn.";
+    }
+
+    setItemErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleAddItemToSlot = async (e: any) => {
     e.preventDefault();
-    if (!selectedSlotForAdd || !itemForm.bookId) {
-      showToast?.("Vui lòng chọn sách để thêm vào Flash Sale!", "warning");
+    if (!validateItemForm()) {
+      showToast?.("Vui lòng kiểm tra lại các trường lỗi trên form thêm sách!", "warning");
       return;
     }
 
@@ -205,6 +317,7 @@ export function AdminMarketingView() {
           "success",
         );
         setShowAddItemModal(false);
+        setItemErrors({});
         setItemForm({
           bookId: "",
           originalPrice: 200000,
@@ -267,10 +380,69 @@ export function AdminMarketingView() {
     );
   };
 
+  const validateVoucherForm = () => {
+    const errs: Record<string, string> = {};
+    const codeRegex = /^[A-Z0-9_-]{3,20}$/;
+    if (!voucherForm.code.trim()) {
+      errs.code = "Mã voucher không được để trống.";
+    } else if (!codeRegex.test(voucherForm.code.trim().toUpperCase())) {
+      errs.code = "Mã voucher từ 3 - 20 ký tự, chỉ gồm chữ in hoa, số, gạch dưới (_) hoặc (-).";
+    }
+
+    if (!voucherForm.name.trim()) {
+      errs.name = "Tên chiến dịch voucher không được để trống.";
+    } else if (voucherForm.name.trim().length < 3) {
+      errs.name = "Tên chiến dịch voucher phải từ 3 ký tự trở lên.";
+    }
+
+    if (voucherForm.type === "PERCENTAGE") {
+      if (!voucherForm.value || voucherForm.value <= 0 || voucherForm.value > 100) {
+        errs.value = "Tỷ lệ giảm giá (%) phải nằm trong khoảng từ 1% đến 100%.";
+      }
+      if (voucherForm.maxDiscountAmount < 0) {
+        errs.maxDiscountAmount = "Mức giảm tối đa không được nhỏ hơn 0₫.";
+      }
+    } else if (voucherForm.type === "FIXED_AMOUNT") {
+      if (!voucherForm.value || voucherForm.value < 1000) {
+        errs.value = "Số tiền giảm cố định phải tối thiểu từ 1,000₫ trở lên.";
+      }
+    }
+
+    if (voucherForm.minOrderAmount < 0) {
+      errs.minOrderAmount = "Giá trị đơn tối thiểu không được âm.";
+    }
+
+    if (voucherForm.totalUsage <= 0) {
+      errs.totalUsage = "Tổng số lượt phát hành toàn sàn phải ít nhất là 1 lượt.";
+    }
+
+    if (voucherForm.maxUsagePerUser <= 0) {
+      errs.maxUsagePerUser = "Giới hạn mỗi khách hàng phải ít nhất là 1 lần.";
+    }
+
+    if (!voucherForm.startsAt) {
+      errs.startsAt = "Vui lòng chọn thời gian bắt đầu.";
+    }
+    if (!voucherForm.expiresAt) {
+      errs.expiresAt = "Vui lòng chọn thời gian hết hạn.";
+    }
+
+    if (voucherForm.startsAt && voucherForm.expiresAt) {
+      const s = new Date(voucherForm.startsAt).getTime();
+      const e = new Date(voucherForm.expiresAt).getTime();
+      if (e <= s) {
+        errs.expiresAt = "Thời gian hết hạn phải sau thời gian bắt đầu.";
+      }
+    }
+
+    setVoucherErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   const handleCreateVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!voucherForm.code.trim() || !voucherForm.name.trim()) {
-      showToast?.("Vui lòng nhập mã và tên voucher!", "warning");
+    if (!validateVoucherForm()) {
+      showToast?.("Vui lòng kiểm tra lại các trường lỗi trên form voucher!", "warning");
       return;
     }
     try {
@@ -291,6 +463,7 @@ export function AdminMarketingView() {
       if (res.success) {
         showToast?.(`⚡ Đã tạo voucher sàn ${voucherForm.code.toUpperCase()} thành công!`, "success");
         setShowCreateVoucherModal(false);
+        setVoucherErrors({});
         setVoucherForm({
           code: "",
           name: "",
@@ -700,368 +873,751 @@ export function AdminMarketingView() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
-          <table className="w-full text-left text-xs text-gray-600">
-            <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-              <tr>
-                <th className="py-3.5 px-4">Mã Voucher</th>
-                <th className="py-3.5 px-3">Mức Giảm Giá</th>
-                <th className="py-3.5 px-3">Đơn Tối Thiểu</th>
-                <th className="py-3.5 px-3">Tiến Độ Sử Dụng</th>
-                <th className="py-3.5 px-3">Hạn Dùng</th>
-                <th className="py-3.5 px-3">Trạng Thái</th>
-                <th className="py-3.5 px-4 text-right">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {vouchers.map((v) => (
-                <tr
-                  key={v.code}
-                  className="hover:bg-[#F9FAFB] transition-colors"
-                >
-                  <td className="py-3.5 px-4">
-                    <span className="font-mono font-extrabold text-[#00875A] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-                      {v.code}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-3 font-bold text-gray-900">
-                    {v.discount}
-                  </td>
-                  <td className="py-3.5 px-3 text-gray-600">{v.minOrder}</td>
-                  <td className="py-3.5 px-3">
-                    <div className="flex flex-col gap-1 max-w-[140px]">
-                      <span className="text-[11px] font-bold text-gray-800">
-                        {v.used} / {v.total} lượt
-                      </span>
-                      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-[#00875A] h-full rounded-full"
-                          style={{ width: `${(v.used / v.total) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-3 text-gray-500">{v.expiry}</td>
-                  <td className="py-3.5 px-3">
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
-                      Đang Hoạt Động
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() =>
-                        showToast?.(
-                          `Đã sao chép liên kết chia sẻ voucher ${v.code}`,
-                          "success",
-                        )
-                      }
-                      className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs cursor-pointer"
-                    >
-                      Chia Sẻ
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {loadingVouchers ? (
+            <div className="p-12 text-center text-xs text-gray-500">
+              <span className="material-symbols-outlined text-3xl animate-spin text-emerald-600 block mb-2">
+                progress_activity
+              </span>
+              Đang tải danh sách voucher sàn từ máy chủ...
+            </div>
+          ) : vouchers.length === 0 ? (
+            <div className="p-12 text-center text-xs text-gray-500">
+              <span className="material-symbols-outlined text-4xl text-gray-300 block mb-2">
+                confirmation_number
+              </span>
+              Chưa có voucher toàn sàn nào. Hãy bấm "Tạo Voucher Sàn Mới" để thêm mã khuyến mãi!
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-gray-600">
+                <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                  <tr>
+                    <th className="py-3.5 px-4">Mã Voucher</th>
+                    <th className="py-3.5 px-3">Tên & Loại Giảm Giá</th>
+                    <th className="py-3.5 px-3">Đơn Tối Thiểu</th>
+                    <th className="py-3.5 px-3">Tiến Độ Sử Dụng</th>
+                    <th className="py-3.5 px-3">Hạn Dùng</th>
+                    <th className="py-3.5 px-3">Trạng Thái</th>
+                    <th className="py-3.5 px-4 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {vouchers.map((v: any) => {
+                    const isPercentage = v.type === 'PERCENTAGE';
+                    const isFreeship = v.type === 'FREE_SHIPPING';
+                    const discountLabel = isPercentage
+                      ? `Giảm ${v.value}% (tối đa ${Number(v.maxDiscountAmount || 0).toLocaleString('vi-VN')}đ)`
+                      : isFreeship
+                      ? `Miễn phí vận chuyển (tối đa ${Number(v.value || 0).toLocaleString('vi-VN')}đ)`
+                      : `Giảm ${Number(v.value || 0).toLocaleString('vi-VN')}đ`;
+
+                    const usagePercent = v.totalUsage > 0 ? Math.min(100, Math.round(((v.currentUsage || 0) / v.totalUsage) * 100)) : 0;
+
+                    return (
+                      <tr
+                        key={v.id || v.code}
+                        className="hover:bg-[#F9FAFB] transition-colors"
+                      >
+                        <td className="py-3.5 px-4">
+                          <span className="font-mono font-extrabold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                            {v.code}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className="font-bold text-gray-900 block">{v.name}</span>
+                          <span className="text-[11px] text-gray-500">{discountLabel}</span>
+                        </td>
+                        <td className="py-3.5 px-3 text-gray-600">
+                          {Number(v.minOrderAmount || 0) > 0 ? `${Number(v.minOrderAmount).toLocaleString('vi-VN')}đ` : 'Không giới hạn'}
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <div className="flex flex-col gap-1 max-w-[140px]">
+                            <span className="text-[11px] font-bold text-gray-800">
+                              {v.currentUsage || 0} / {v.totalUsage > 0 ? `${v.totalUsage} lượt` : 'Không giới hạn'}
+                            </span>
+                            {v.totalUsage > 0 && (
+                              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                <div
+                                  className="bg-emerald-600 h-full rounded-full"
+                                  style={{ width: `${usagePercent}%` }}
+                                ></div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-3 text-gray-500">
+                          {v.expiresAt ? new Date(v.expiresAt).toLocaleDateString('vi-VN') : 'Vô thời hạn'}
+                        </td>
+                        <td className="py-3.5 px-3">
+                          <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                            v.status === 'ACTIVE'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-gray-100 text-gray-600 border-gray-200'
+                          }`}>
+                            {v.status === 'ACTIVE' ? 'Đang Hoạt Động' : 'Tạm Dừng'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => handleToggleVoucherStatus(v)}
+                              className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs cursor-pointer"
+                            >
+                              {v.status === 'ACTIVE' ? 'Tắt' : 'Bật'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteVoucher(v)}
+                              className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs cursor-pointer"
+                            >
+                              Xóa
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
-      {/* 4. MODAL: TẠO KHUNG GIỜ FLASH SALE MỚI (Tùy Chọn Tên & Thời Gian) */}
+      {/* IN-PAGE FORM: TẠO KHUNG GIỜ FLASH SALE MỚI */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-rose-600 text-2xl">
-                  bolt
-                </span>
-                <h3 className="font-extrabold text-slate-900 text-base">
-                  Tạo Khung Giờ Flash Sale Mới
-                </h3>
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-rose-200 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">bolt</span>
               </div>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Thiết Lập Khung Giờ Flash Sale Mới
+                </h3>
+                <p className="text-xs text-slate-500">Khởi tạo sự kiện khuyến mãi giờ vàng toàn sàn HUKI</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowCreateModal(false);
+                setCreateErrors({});
+              }}
+              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleCreateCampaign} className="space-y-4 mt-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Tên Khung Giờ / Sự Kiện Flash Sale <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={createForm.name}
+                onChange={(e: any) => {
+                  setCreateForm((prev: any) => ({ ...prev, name: e.target.value }));
+                  if (createErrors.name) setCreateErrors((prev) => ({ ...prev, name: "" }));
+                }}
+                placeholder="Ví dụ: Flash Sale Giáng Sinh 20H - 24H 🎄"
+                className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                  createErrors.name ? "border-rose-400 focus:border-rose-500 focus:bg-white bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                }`}
+              />
+              {createErrors.name && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{createErrors.name}</span>
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleCreateCampaign} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Tên Khung Giờ / Sự Kiện Flash Sale *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={createForm.name}
-                  onChange={(e: any) =>
-                    setCreateForm((prev: any) => ({ ...prev, name: e.target.value }))
-                  }
-                  placeholder="Ví dụ: Flash Sale Giáng Sinh 20H - 24H 🎄"
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Mô Tả Chiến Dịch
+              </label>
+              <input
+                type="text"
+                value={createForm.description}
+                onChange={(e: any) =>
+                  setCreateForm((prev: any) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                placeholder="Ví dụ: Giảm giá sốc đến 70% các đầu sách bán chạy"
+                className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-rose-500 focus:bg-white transition-all"
+              />
+            </div>
 
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Banner Tiếp Thị (URL)
+              </label>
+              <input
+                type="url"
+                value={createForm.bannerUrl}
+                onChange={(e: any) => {
+                  setCreateForm((prev: any) => ({
+                    ...prev,
+                    bannerUrl: e.target.value,
+                  }));
+                  if (createErrors.bannerUrl) setCreateErrors((prev) => ({ ...prev, bannerUrl: "" }));
+                }}
+                placeholder="https://cdn.example.com/flash-sale-banner.jpg"
+                className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                  createErrors.bannerUrl ? "border-rose-400 focus:border-rose-500 focus:bg-white bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                }`}
+              />
+              {createErrors.bannerUrl && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{createErrors.bannerUrl}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Mô Tả Chiến Dịch
+                  Thời Gian Bắt Đầu <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={createForm.description}
-                  onChange={(e: any) =>
+                  type="datetime-local"
+                  value={createForm.startsAt}
+                  onChange={(e: any) => {
                     setCreateForm((prev: any) => ({
                       ...prev,
-                      description: e.target.value,
-                    }))
-                  }
-                  placeholder="Ví dụ: Giảm giá sốc đến 70% các đầu sách bán chạy"
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      startsAt: e.target.value,
+                    }));
+                    if (createErrors.startsAt) setCreateErrors((prev) => ({ ...prev, startsAt: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    createErrors.startsAt ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
                 />
+                {createErrors.startsAt && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{createErrors.startsAt}</span>
+                  </p>
+                )}
               </div>
-
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Banner Tiếp Thị (URL)
+                  Thời Gian Kết Thúc <span className="text-rose-500">*</span>
                 </label>
                 <input
-                  type="url"
-                  value={createForm.bannerUrl}
-                  onChange={(e: any) =>
+                  type="datetime-local"
+                  value={createForm.endsAt}
+                  onChange={(e: any) => {
                     setCreateForm((prev: any) => ({
                       ...prev,
-                      bannerUrl: e.target.value,
-                    }))
-                  }
-                  placeholder="https://cdn.example.com/flash-sale-banner.jpg"
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      endsAt: e.target.value,
+                    }));
+                    if (createErrors.endsAt) setCreateErrors((prev) => ({ ...prev, endsAt: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    createErrors.endsAt ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
                 />
+                {createErrors.endsAt && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{createErrors.endsAt}</span>
+                  </p>
+                )}
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Thời Gian Bắt Đầu *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={createForm.startsAt}
-                    onChange={(e: any) =>
-                      setCreateForm((prev: any) => ({
-                        ...prev,
-                        startsAt: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Thời Gian Kết Thúc *
-                  </label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={createForm.endsAt}
-                    onChange={(e: any) =>
-                      setCreateForm((prev: any) => ({
-                        ...prev,
-                        endsAt: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 text-white font-bold text-xs shadow-sm hover:shadow-md cursor-pointer"
-                >
-                  Xác Nhận Tạo Khung Giờ
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreateErrors({});
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold text-xs shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">add_circle</span>
+                <span>Xác Nhận Tạo Khung Giờ</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* 5. MODAL: THÊM SÁCH VÀO KHUNG GIỜ FLASH SALE */}
+      {/* IN-PAGE FORM: THÊM SÁCH VÀO KHUNG GIỜ FLASH SALE */}
       {showAddItemModal && selectedSlotForAdd && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-rose-200 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">menu_book</span>
+              </div>
               <div>
                 <h3 className="font-extrabold text-slate-900 text-base">
-                  Thêm Sách Vào Flash Sale
+                  Thêm Sách Vào Khung Giờ Flash Sale
                 </h3>
                 <p className="text-xs text-rose-600 font-bold">
-                  {selectedSlotForAdd.name}
+                  Sự kiện: {selectedSlotForAdd.name}
                 </p>
               </div>
-              <button
-                onClick={() => setShowAddItemModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+            </div>
+            <button
+              onClick={() => {
+                setShowAddItemModal(false);
+                setItemErrors({});
+              }}
+              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleAddItemToSlot} className="space-y-4 mt-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Chọn Sách Từ Hệ Thống <span className="text-rose-500">*</span>
+              </label>
+              <select
+                value={itemForm.bookId}
+                onChange={(e: any) => {
+                  const selectedBook = catalogBooks.find(
+                    (b: any) => b.id === e.target.value,
+                  );
+                  const origPrice = selectedBook
+                    ? Number(selectedBook.price)
+                    : 200000;
+                  const availableStock = selectedBook
+                    ? Number(
+                        selectedBook.available ?? selectedBook.stock ?? 0,
+                      )
+                    : 0;
+                  setItemForm((prev: any) => ({
+                    ...prev,
+                    bookId: e.target.value,
+                    originalPrice: origPrice,
+                    salePrice: Math.floor(origPrice * 0.4),
+                    stock: Math.max(
+                      1,
+                      Math.min(prev.stock, availableStock || 1),
+                    ),
+                  }));
+                  if (itemErrors.bookId) setItemErrors((prev) => ({ ...prev, bookId: "" }));
+                }}
+                className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                  itemErrors.bookId ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                }`}
               >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
+                <option value="">-- Chọn đầu sách khuyến mãi --</option>
+                {catalogBooks
+                  .filter(
+                    (book) => Number(book.available ?? book.stock ?? 0) > 0,
+                  )
+                  .map((book) => (
+                    <option key={book.id} value={book.id}>
+                      {book.title} (
+                      {Number(book.price).toLocaleString("vi-VN")}₫ · còn{" "}
+                      {Number(book.available ?? book.stock ?? 0)} cuốn)
+                    </option>
+                  ))}
+              </select>
+              {itemErrors.bookId && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{itemErrors.bookId}</span>
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleAddItemToSlot} className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Chọn Sách Từ Hệ Thống *
+                  Giá Gốc (₫) <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  required
-                  value={itemForm.bookId}
+                <input
+                  type="number"
+                  value={itemForm.originalPrice}
                   onChange={(e: any) => {
-                    const selectedBook = catalogBooks.find(
-                      (b: any) => b.id === e.target.value,
-                    );
-                    const origPrice = selectedBook
-                      ? Number(selectedBook.price)
-                      : 200000;
-                    const availableStock = selectedBook
-                      ? Number(
-                          selectedBook.available ?? selectedBook.stock ?? 0,
-                        )
-                      : 0;
                     setItemForm((prev: any) => ({
                       ...prev,
-                      bookId: e.target.value,
-                      originalPrice: origPrice,
-                      salePrice: Math.floor(origPrice * 0.4),
-                      stock: Math.max(
-                        1,
-                        Math.min(prev.stock, availableStock || 1),
-                      ),
+                      originalPrice: Number(e.target.value),
                     }));
+                    if (itemErrors.originalPrice) setItemErrors((prev) => ({ ...prev, originalPrice: "" }));
                   }}
-                  className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    itemErrors.originalPrice ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
+                />
+                {itemErrors.originalPrice && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{itemErrors.originalPrice}</span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Giá Flash Sale (₫) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  value={itemForm.salePrice}
+                  onChange={(e: any) => {
+                    setItemForm((prev: any) => ({
+                      ...prev,
+                      salePrice: Number(e.target.value),
+                    }));
+                    if (itemErrors.salePrice) setItemErrors((prev) => ({ ...prev, salePrice: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 font-bold text-rose-600 focus:outline-none transition-all ${
+                    itemErrors.salePrice ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
+                />
+                {itemErrors.salePrice && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{itemErrors.salePrice}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Số Lượng Suất Bán (Stock) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={itemForm.stock}
+                  onChange={(e: any) => {
+                    setItemForm((prev: any) => ({
+                      ...prev,
+                      stock: Number(e.target.value),
+                    }));
+                    if (itemErrors.stock) setItemErrors((prev) => ({ ...prev, stock: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    itemErrors.stock ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
+                />
+                {itemErrors.stock && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{itemErrors.stock}</span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Hạn Mức/Khách Mua (Max Per User)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={itemForm.maxPerUser}
+                  onChange={(e: any) => {
+                    setItemForm((prev: any) => ({
+                      ...prev,
+                      maxPerUser: Number(e.target.value),
+                    }));
+                    if (itemErrors.maxPerUser) setItemErrors((prev) => ({ ...prev, maxPerUser: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 text-xs rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    itemErrors.maxPerUser ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-rose-500 focus:bg-white"
+                  }`}
+                />
+                {itemErrors.maxPerUser && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{itemErrors.maxPerUser}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddItemModal(false);
+                  setItemErrors({});
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer transition-colors"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-bold text-xs shadow-sm hover:shadow-md cursor-pointer transition-all flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">check</span>
+                <span>Xác Nhận Thêm Sách</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* IN-PAGE FORM: TẠO VOUCHER TOÀN SÀN MỚI */}
+      {showCreateVoucherModal && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-emerald-200 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+                <span className="material-symbols-outlined text-2xl">confirmation_number</span>
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base">
+                  Thiết Lập Voucher Khuyến Mãi Sàn Mới
+                </h3>
+                <p className="text-xs text-slate-500">Phát hành mã giảm giá áp dụng toàn sàn hoặc tài trợ vận chuyển</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setShowCreateVoucherModal(false);
+                setVoucherErrors({});
+              }}
+              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleCreateVoucher} className="space-y-4 pt-5 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Mã Voucher (Code) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: HUKIDISCOUNT20"
+                  value={voucherForm.code}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, code: e.target.value.toUpperCase() });
+                    if (voucherErrors.code) setVoucherErrors((prev) => ({ ...prev, code: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border font-mono uppercase bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.code ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.code && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.code}</span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  Loại Giảm Giá <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={voucherForm.type}
+                  onChange={(e: any) => setVoucherForm({ ...voucherForm, type: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all cursor-pointer"
                 >
-                  <option value="">-- Chọn đầu sách khuyến mãi --</option>
-                  {catalogBooks
-                    .filter(
-                      (book) => Number(book.available ?? book.stock ?? 0) > 0,
-                    )
-                    .map((book) => (
-                      <option key={book.id} value={book.id}>
-                        {book.title} (
-                        {Number(book.price).toLocaleString("vi-VN")}₫ · còn{" "}
-                        {Number(book.available ?? book.stock ?? 0)})
-                      </option>
-                    ))}
+                  <option value="PERCENTAGE">Giảm theo % (PERCENTAGE)</option>
+                  <option value="FIXED_AMOUNT">Giảm tiền mặt (FIXED_AMOUNT)</option>
+                  <option value="FREE_SHIPPING">Miễn phí vận chuyển (FREE_SHIPPING)</option>
                 </select>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Giá Gốc (₫) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={itemForm.originalPrice}
-                    onChange={(e: any) =>
-                      setItemForm((prev: any) => ({
-                        ...prev,
-                        originalPrice: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Giá Flash Sale (₫) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={itemForm.salePrice}
-                    onChange={(e: any) =>
-                      setItemForm((prev: any) => ({
-                        ...prev,
-                        salePrice: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500 font-bold text-rose-600"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">
+                Tên Hiển Thị Chiến Dịch <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="VD: Tri ân Độc giả Tháng 9 - Giảm 20%"
+                value={voucherForm.name}
+                onChange={(e) => {
+                  setVoucherForm({ ...voucherForm, name: e.target.value });
+                  if (voucherErrors.name) setVoucherErrors((prev) => ({ ...prev, name: "" }));
+                }}
+                className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                  voucherErrors.name ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                }`}
+              />
+              {voucherErrors.name && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{voucherErrors.name}</span>
+                </p>
+              )}
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Số Lượng Suất Bán (Stock) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={Number(
-                      catalogBooks.find((book) => book.id === itemForm.bookId)
-                        ?.available ?? Number.MAX_SAFE_INTEGER,
-                    )}
-                    value={itemForm.stock}
-                    onChange={(e: any) =>
-                      setItemForm((prev: any) => ({
-                        ...prev,
-                        stock: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Hạn Mức/Khách (Max Per User)
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={itemForm.maxPerUser}
-                    onChange={(e: any) =>
-                      setItemForm((prev: any) => ({
-                        ...prev,
-                        maxPerUser: Number(e.target.value),
-                      }))
-                    }
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-rose-500"
-                  />
-                </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  {voucherForm.type === 'PERCENTAGE' ? 'Tỷ lệ giảm (%) *' : 'Số tiền giảm (VNĐ) *'}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={voucherForm.value}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, value: Number(e.target.value) });
+                    if (voucherErrors.value) setVoucherErrors((prev) => ({ ...prev, value: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.value ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.value && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.value}</span>
+                  </p>
+                )}
               </div>
+              {voucherForm.type === 'PERCENTAGE' && (
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Giảm tối đa (VNĐ)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={voucherForm.maxDiscountAmount}
+                    onChange={(e) => {
+                      setVoucherForm({ ...voucherForm, maxDiscountAmount: Number(e.target.value) });
+                      if (voucherErrors.maxDiscountAmount) setVoucherErrors((prev) => ({ ...prev, maxDiscountAmount: "" }));
+                    }}
+                    className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                      voucherErrors.maxDiscountAmount ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                    }`}
+                  />
+                  {voucherErrors.maxDiscountAmount && (
+                    <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      <span>{voucherErrors.maxDiscountAmount}</span>
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
-                >
-                  Hủy Bỏ
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 text-white font-bold text-xs shadow-sm hover:shadow-md cursor-pointer"
-                >
-                  Xác Nhận Thêm Sách
-                </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Đơn tối thiểu (VNĐ)</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={voucherForm.minOrderAmount}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, minOrderAmount: Number(e.target.value) });
+                    if (voucherErrors.minOrderAmount) setVoucherErrors((prev) => ({ ...prev, minOrderAmount: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.minOrderAmount ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.minOrderAmount && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.minOrderAmount}</span>
+                  </p>
+                )}
               </div>
-            </form>
-          </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Tổng lượt dùng toàn sàn</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={voucherForm.totalUsage}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, totalUsage: Number(e.target.value) });
+                    if (voucherErrors.totalUsage) setVoucherErrors((prev) => ({ ...prev, totalUsage: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.totalUsage ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.totalUsage && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.totalUsage}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Bắt đầu từ</label>
+                <input
+                  type="datetime-local"
+                  value={voucherForm.startsAt}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, startsAt: e.target.value });
+                    if (voucherErrors.startsAt) setVoucherErrors((prev) => ({ ...prev, startsAt: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.startsAt ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.startsAt && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.startsAt}</span>
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Hết hạn vào</label>
+                <input
+                  type="datetime-local"
+                  value={voucherForm.expiresAt}
+                  onChange={(e) => {
+                    setVoucherForm({ ...voucherForm, expiresAt: e.target.value });
+                    if (voucherErrors.expiresAt) setVoucherErrors((prev) => ({ ...prev, expiresAt: "" }));
+                  }}
+                  className={`w-full px-3.5 py-2.5 rounded-xl border bg-slate-50 text-slate-900 focus:outline-none transition-all ${
+                    voucherErrors.expiresAt ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-emerald-600 focus:bg-white"
+                  }`}
+                />
+                {voucherErrors.expiresAt && (
+                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{voucherErrors.expiresAt}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateVoucherModal(false);
+                  setVoucherErrors({});
+                }}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 font-bold text-slate-700 cursor-pointer transition-colors"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold cursor-pointer transition-all shadow-sm flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                <span>Lưu &amp; Kích Hoạt Voucher Sàn</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

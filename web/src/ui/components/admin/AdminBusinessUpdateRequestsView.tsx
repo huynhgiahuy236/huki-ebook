@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { businessApi } from '../../api/businessApi';
 import { useToast } from '../../context/ToastContext';
+import { useSmartFormCollapse } from '../../utils/formHooks';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -31,13 +32,31 @@ export function AdminBusinessUpdateRequestsView() {
   // Read tracking state for Admin
   const [readMap, setReadMap] = useState<Record<string, any>>({});
 
-  // Review Modal State (Before vs After)
+  // Review State (Before vs After)
   const [selectedRequest, setSelectedRequest] = useState<any>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Reject Modal State
+  // Reject State
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState('');
+
+  const isRejectDirty = Boolean(rejectReason.trim());
+  const rejectFormRef = useSmartFormCollapse({
+    isOpen: isRejectModalOpen,
+    onClose: () => {
+      setIsRejectModalOpen(false);
+      setRejectReason('');
+      setRejectReasonError('');
+    },
+    isDirty: isRejectDirty,
+  });
+
+  const detailPanelRef = useSmartFormCollapse({
+    isOpen: Boolean(selectedRequest && !isRejectModalOpen),
+    onClose: () => setSelectedRequest(null),
+    isDirty: false,
+  });
 
   // Load readMap from localStorage
   useEffect(() => {
@@ -152,6 +171,7 @@ export function AdminBusinessUpdateRequestsView() {
     markAsRead(req.id);
     setSelectedRequest(req);
     setRejectReason('');
+    setRejectReasonError('');
     setIsRejectModalOpen(true);
   };
 
@@ -159,7 +179,7 @@ export function AdminBusinessUpdateRequestsView() {
   const handleConfirmReject = async (e: any) => {
     e.preventDefault();
     if (!rejectReason.trim()) {
-      showToast?.('Vui lòng nhập lý do từ chối để thông báo cho Seller.', 'warning');
+      setRejectReasonError('Vui lòng nhập lý do từ chối cụ thể để thông báo cho Seller.');
       return;
     }
 
@@ -174,6 +194,8 @@ export function AdminBusinessUpdateRequestsView() {
         showToast?.('Đã từ chối yêu cầu cập nhật và gửi lý do phản hồi cho Seller.', 'info');
         setIsRejectModalOpen(false);
         setSelectedRequest(null);
+        setRejectReason('');
+        setRejectReasonError('');
         await fetchRequests();
       } else {
         showToast?.(res.error?.message || 'Không thể từ chối yêu cầu.', 'error');
@@ -408,257 +430,267 @@ export function AdminBusinessUpdateRequestsView() {
                                 type="button"
                                 onClick={() => handleOpenReject(req)}
                                 disabled={actionLoading}
-                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border border-rose-200"
-                              >
-                                Từ chối
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* =========================================================================
-            MODAL SO SÁNH TRỰC QUAN BEFORE VS AFTER
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border      {/* =========================================================================
+            IN-PAGE PANEL: SO SÁNH TRỰC QUAN BEFORE VS AFTER
         ========================================================================= */}
       {selectedRequest && !isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-gray-200 max-w-4xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-[90vh] flex flex-col justify-between overflow-hidden">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-gray-200 pb-4 shrink-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-theme-primary text-2xl">compare</span>
-                  <h3 className="font-editorial text-xl font-bold text-gray-900">
-                    Đối Chiếu Yêu Cầu Cập Nhật Hồ Sơ
-                  </h3>
+        <div
+          ref={detailPanelRef}
+          className="mt-6 bg-white rounded-3xl border-2 border-slate-300 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in slide-in-from-top-4 duration-300"
+        >
+          {/* Panel Header */}
+          <div className="flex items-center justify-between border-b border-gray-200 pb-4 shrink-0">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[#003b2b] text-2xl">compare</span>
+                <h3 className="font-editorial text-xl font-bold text-gray-900">
+                  Đối Chiếu Yêu Cầu Cập Nhật Hồ Sơ
+                </h3>
+              </div>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Mã yêu cầu: #{selectedRequest.id} &bull; Gửi lúc: {new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedRequest(null)}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          {/* Panel Body: 2 Cột So sánh */}
+          <div className="space-y-6 text-xs">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* CỘT 1: THÔNG TIN HIỆN TẠI TRONG DB */}
+              <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
+                <h4 className="font-bold text-sm text-gray-700 pb-2 border-b border-gray-200 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base text-gray-500">history</span>
+                  1. Dữ liệu Hiện Tại (Trong DB)
+                </h4>
+
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-gray-500 font-medium">Tên pháp nhân:</span>
+                    <p className="font-bold text-gray-900 mt-0.5">{selectedRequest.business?.name || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Mã số thuế:</span>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5">{selectedRequest.business?.taxCode || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Loại hình:</span>
+                    <p className="font-semibold text-gray-900 mt-0.5">{selectedRequest.business?.businessType || 'N/A'}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Hotline &amp; Email:</span>
+                    <p className="text-gray-800 mt-0.5">
+                      {selectedRequest.business?.phone || 'Chưa có SĐT'} &bull; {selectedRequest.business?.email}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Địa chỉ trụ sở hiện tại:</span>
+                    <p className="text-gray-800 mt-0.5 leading-relaxed bg-white p-2.5 rounded-lg border border-gray-200">
+                      {selectedRequest.business?.address || 'Chưa cập nhật'}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Mã yêu cầu: #{selectedRequest.id} &bull; Gửi lúc: {new Date(selectedRequest.createdAt).toLocaleString('vi-VN')}
+              </div>
+
+              {/* CỘT 2: THÔNG TIN YÊU CẦU CẬP NHẬT (MỚI) */}
+              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-300 space-y-3">
+                <h4 className="font-bold text-sm text-amber-900 pb-2 border-b border-amber-200 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-base text-amber-600">new_releases</span>
+                  2. Đề Xuất Cập Nhật Mới
+                </h4>
+
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-gray-500 font-medium">Tên pháp nhân mới:</span>
+                    <p className="font-bold text-[#003b2b] mt-0.5 text-sm bg-white p-1.5 rounded-md border border-amber-200">
+                      {selectedRequest.requestedData?.name || selectedRequest.business?.name}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Mã số thuế:</span>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5">
+                      {selectedRequest.requestedData?.taxCode || selectedRequest.business?.taxCode}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Loại hình mới:</span>
+                    <p className="font-semibold text-gray-900 mt-0.5">
+                      {selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-medium">Hotline &amp; Email mới:</span>
+                    <p className="text-gray-800 mt-0.5">
+                      {selectedRequest.requestedData?.phone} &bull; {selectedRequest.requestedData?.email}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 font-bold">Danh sách Trụ sở &amp; Chi nhánh mới:</span>
+                    <div className="space-y-1.5 mt-1">
+                      {Array.isArray(selectedRequest.requestedData?.headquarters) ? (
+                        selectedRequest.requestedData.headquarters.map((hq: any, idx: any) => (
+                          <div
+                            key={idx}
+                            className="p-2 rounded-lg bg-white border border-amber-200 text-gray-900 flex items-start gap-2"
+                          >
+                            <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] shrink-0">
+                              Trụ sở {idx + 1}
+                            </span>
+                            <span className="font-medium leading-relaxed">{hq}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="p-2 rounded bg-white border border-amber-200">
+                          {selectedRequest.requestedData?.address || 'N/A'}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Thông tin phản hồi nếu đã bị từ chối */}
+            {selectedRequest.status === 'REJECTED' && (
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
+                <p className="font-bold flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm">cancel</span>
+                  Lý do đã từ chối yêu cầu này:
                 </p>
+                <p className="italic text-xs font-medium">"{selectedRequest.rejectionReason}"</p>
               </div>
+            )}
+          </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedRequest(null)}
-                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
-            </div>
+          {/* Panel Footer */}
+          <div className="pt-4 border-t border-gray-200 flex items-center justify-between shrink-0">
+            <button
+              type="button"
+              onClick={() => setSelectedRequest(null)}
+              className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Đóng
+            </button>
 
-            {/* Modal Body: 2 Cột So sánh */}
-            <div className="flex-1 overflow-y-auto space-y-6 pr-1 text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* CỘT 1: THÔNG TIN HIỆN TẠI TRONG DB */}
-                <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3">
-                  <h4 className="font-bold text-sm text-gray-700 pb-2 border-b border-gray-200 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-base text-gray-500">history</span>
-                    1. Dữ liệu Hiện Tại (Trong DB)
-                  </h4>
+            {selectedRequest.status === 'PENDING' && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleOpenReject(selectedRequest)}
+                  disabled={actionLoading}
+                  className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border border-rose-300"
+                >
+                  Từ chối yêu cầu
+                </button>
 
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-gray-500 font-medium">Tên pháp nhân:</span>
-                      <p className="font-bold text-gray-900 mt-0.5">{selectedRequest.business?.name || 'N/A'}</p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Mã số thuế:</span>
-                      <p className="font-mono font-bold text-gray-900 mt-0.5">{selectedRequest.business?.taxCode || 'N/A'}</p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Loại hình:</span>
-                      <p className="font-semibold text-gray-900 mt-0.5">{selectedRequest.business?.businessType || 'N/A'}</p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Hotline &amp; Email:</span>
-                      <p className="text-gray-800 mt-0.5">
-                        {selectedRequest.business?.phone || 'Chưa có SĐT'} &bull; {selectedRequest.business?.email}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Địa chỉ trụ sở hiện tại:</span>
-                      <p className="text-gray-800 mt-0.5 leading-relaxed bg-white p-2.5 rounded-lg border border-gray-200">
-                        {selectedRequest.business?.address || 'Chưa cập nhật'}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CỘT 2: THÔNG TIN YÊU CẦU CẬP NHẬT (MỚI) */}
-                <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-300 space-y-3">
-                  <h4 className="font-bold text-sm text-amber-900 pb-2 border-b border-amber-200 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-base text-amber-600">new_releases</span>
-                    2. Đề Xuất Cập Nhật Mới
-                  </h4>
-
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-gray-500 font-medium">Tên pháp nhân mới:</span>
-                      <p className="font-bold text-theme-primary mt-0.5 text-sm bg-white p-1.5 rounded-md border border-amber-200">
-                        {selectedRequest.requestedData?.name || selectedRequest.business?.name}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Mã số thuế:</span>
-                      <p className="font-mono font-bold text-gray-900 mt-0.5">
-                        {selectedRequest.requestedData?.taxCode || selectedRequest.business?.taxCode}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Loại hình mới:</span>
-                      <p className="font-semibold text-gray-900 mt-0.5">
-                        {selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-medium">Hotline &amp; Email mới:</span>
-                      <p className="text-gray-800 mt-0.5">
-                        {selectedRequest.requestedData?.phone} &bull; {selectedRequest.requestedData?.email}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-gray-500 font-bold">Danh sách Trụ sở &amp; Chi nhánh mới:</span>
-                      <div className="space-y-1.5 mt-1">
-                        {Array.isArray(selectedRequest.requestedData?.headquarters) ? (
-                          selectedRequest.requestedData.headquarters.map((hq: any, idx: any) => (
-                            <div
-                              key={idx}
-                              className="p-2 rounded-lg bg-white border border-amber-200 text-gray-900 flex items-start gap-2"
-                            >
-                              <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px] shrink-0">
-                                Trụ sở {idx + 1}
-                              </span>
-                              <span className="font-medium leading-relaxed">{hq}</span>
-                            </div>
-                          ))
-                        ) : (
-                          <p className="p-2 rounded bg-white border border-amber-200">
-                            {selectedRequest.requestedData?.address || 'N/A'}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handleApprove(selectedRequest.id)}
+                  disabled={actionLoading}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">check</span>
+                  <span>Chấp nhận &amp; Cập nhật DB</span>
+                </button>
               </div>
-
-              {/* Thông tin phản hồi nếu đã bị từ chối */}
-              {selectedRequest.status === 'REJECTED' && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 space-y-1">
-                  <p className="font-bold flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">cancel</span>
-                    Lý do đã từ chối yêu cầu này:
-                  </p>
-                  <p className="italic text-xs font-medium">"{selectedRequest.rejectionReason}"</p>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="pt-4 border-t border-gray-200 flex items-center justify-between shrink-0">
-              <button
-                type="button"
-                onClick={() => setSelectedRequest(null)}
-                className="px-4 py-2.5 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
-                Đóng
-              </button>
-
-              {selectedRequest.status === 'PENDING' && (
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleOpenReject(selectedRequest)}
-                    disabled={actionLoading}
-                    className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border border-rose-300"
-                  >
-                    Từ chối yêu cầu
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleApprove(selectedRequest.id)}
-                    disabled={actionLoading}
-                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
-                  >
-                    <span className="material-symbols-outlined text-sm">check</span>
-                    <span>Chấp nhận &amp; Cập nhật DB</span>
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
       )}
 
       {/* =========================================================================
-            MODAL NHẬP LÝ DO TỪ CHỐI
+            IN-PAGE FORM: NHẬP LÝ DO TỪ CHỐI
         ========================================================================= */}
       {isRejectModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl border border-gray-200 max-w-md w-full p-6 sm:p-8 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-              <h3 className="font-editorial text-lg font-bold text-gray-900">
-                Từ Chối Yêu Cầu Chỉnh Sửa
-              </h3>
-              <button
-                type="button"
-                onClick={() => setIsRejectModalOpen(false)}
-                className="p-1 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-xl">close</span>
-              </button>
+        <div
+          ref={rejectFormRef}
+          className="mt-6 bg-white rounded-3xl border-2 border-rose-300 max-w-2xl w-full p-6 sm:p-8 shadow-sm space-y-5 animate-in fade-in slide-in-from-top-4 duration-300"
+        >
+          <div className="flex items-center justify-between border-b border-rose-100 pb-3">
+            <div className="flex items-center gap-2.5 text-rose-700">
+              <span className="material-symbols-outlined text-2xl">cancel</span>
+              <div>
+                <h3 className="text-base font-bold text-gray-900">
+                  Từ Chối Yêu Cầu Chỉnh Sửa
+                </h3>
+                <p className="text-xs text-gray-500">Doanh nghiệp: {selectedRequest.business?.name}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsRejectModalOpen(false);
+                setRejectReason('');
+                setRejectReasonError('');
+              }}
+              className="p-1 rounded-lg text-gray-400 hover:text-gray-700 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xl">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleConfirmReject} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-bold text-gray-900 mb-1.5">
+                Lý do từ chối <span className="text-rose-500">*</span>:
+              </label>
+              <textarea
+                rows={4}
+                value={rejectReason}
+                onChange={(e: any) => {
+                  setRejectReason(e.target.value);
+                  if (rejectReasonError) setRejectReasonError('');
+                }}
+                placeholder="Nhập lý do cụ thể (VD: Tên pháp nhân không trùng khớp với Giấy phép ĐKKD, vui lòng gửi lại bản chụp rõ nét hơn...)"
+                className={`w-full p-3.5 rounded-xl border bg-slate-50 focus:bg-white focus:outline-none transition-all text-gray-900 font-sans ${
+                  rejectReasonError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-rose-500'
+                }`}
+              />
+              {rejectReasonError && (
+                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{rejectReasonError}</span>
+                </p>
+              )}
             </div>
 
-            <form onSubmit={handleConfirmReject} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-gray-900 mb-1.5">
-                  Lý do từ chối (Bắt buộc):
-                </label>
-                <textarea
-                  rows={4}
-                  required
-                  value={rejectReason}
-                  onChange={(e: any) => setRejectReason(e.target.value)}
-                  placeholder="Nhập lý do cụ thể (VD: Tên pháp nhân không trùng khớp với Giấy phép ĐKKD, vui lòng gửi lại bản chụp rõ nét hơn...)"
-                  className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:border-rose-500 outline-hidden text-gray-900 font-sans"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setIsRejectModalOpen(false)}
-                  className="px-4 py-2 rounded-xl border border-gray-300 font-bold text-gray-700 hover:bg-gray-100 cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading || !rejectReason.trim()}
-                  className="px-5 py-2 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  {actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRejectModalOpen(false);
+                  setRejectReason('');
+                  setRejectReasonError('');
+                }}
+                className="px-4 py-2.5 rounded-xl border border-gray-300 font-semibold text-gray-700 hover:bg-gray-100 cursor-pointer text-sm"
+              >
+                Hủy
+              </button>
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 text-white font-semibold hover:bg-rose-700 shadow-xs cursor-pointer disabled:opacity-50 text-sm flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-base">cancel</span>
+                <span>{actionLoading ? 'Đang xử lý...' : 'Xác Nhận Từ Chối'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
     </div>

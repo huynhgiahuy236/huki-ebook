@@ -361,7 +361,7 @@ export class CheckoutService {
 
     let flashSaleReservationOrderId: string | undefined;
     try {
-      const order = await this.prisma.$transaction(async (tx) => {
+      const orderData = await this.prisma.$transaction(async (tx) => {
         const rawSession = await tx.checkoutSession.findUnique({
           where: { id: dto.sessionId },
         });
@@ -718,10 +718,6 @@ export class CheckoutService {
         }
       }
     }
-  }
-
-    // Note: Shipping voucher is consumed differently - it reduces the shipping fee
-    // No separate voucher usage record needed
   }
 
   private code(prefix: string) {
