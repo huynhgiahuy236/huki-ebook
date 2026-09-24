@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         toggleSidebar,
       }}
     >
-      <div className="storefront-portal bg-background text-on-surface flex flex-col antialiased selection:bg-tertiary-fixed selection:text-on-tertiary-fixed font-sans min-h-screen pb-14 lg:pb-0">
+      <div className="storefront-portal bg-background text-on-surface flex flex-col antialiased selection:bg-tertiary-fixed selection:text-on-tertiary-fixed font-sans min-h-screen pb-12 lg:pb-0">
         {/* Unified E-Commerce Header */}
         <StoreHeader
           onToggleSidebar={toggleSidebar}
@@ -58,7 +58,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           isSidebarCollapsed={isSidebarCollapsed}
         />
 
-        <div className="flex-1 flex flex-row relative min-h-[calc(100vh-84px)]">
+        <div className="flex-1 flex flex-row relative min-h-[calc(100vh-80px)]">
           {/* Hierarchical Multi-Level Sidebar */}
           <HierarchicalSidebar
             isCollapsed={isSidebarCollapsed}
@@ -71,7 +71,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div
             className={`
               flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out
-              ${isSidebarCollapsed ? 'lg:ml-[64px]' : 'lg:ml-[240px]'}
+              ${isSidebarCollapsed ? 'lg:ml-[60px]' : 'lg:ml-[220px]'}
               ml-0
             `}
           >
@@ -85,43 +85,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Mobile Bottom Navigation Bar */}
-        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--theme-surface,#ffffff)] border-t border-[var(--theme-border,#e8e5df)] flex items-center justify-around h-14 px-2 lg:hidden shadow-lg">
+        <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[var(--theme-surface,#ffffff)] border-t border-[var(--theme-border,#e8e5df)] flex items-center justify-around h-12 px-2 lg:hidden shadow-md">
           <Link
             href="/"
-            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+            className={`flex flex-col items-center gap-0.5 text-[9.5px] font-bold ${
               pathname === '/' ? 'text-[#003b2b]' : 'text-[#6b7280]'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">home</span>
+            <span className="material-symbols-outlined text-[18px]">home</span>
             <span>Trang chủ</span>
           </Link>
           <Link
             href="/books"
-            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+            className={`flex flex-col items-center gap-0.5 text-[9.5px] font-bold ${
               pathname.startsWith('/books') ? 'text-[#003b2b]' : 'text-[#6b7280]'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">menu_book</span>
+            <span className="material-symbols-outlined text-[18px]">menu_book</span>
             <span>Khám phá</span>
           </Link>
           <Link
             href="/library"
-            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+            className={`flex flex-col items-center gap-0.5 text-[9.5px] font-bold ${
               pathname.startsWith('/library') ? 'text-[#003b2b]' : 'text-[#6b7280]'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">auto_stories</span>
+            <span className="material-symbols-outlined text-[18px]">auto_stories</span>
             <span>Tủ sách</span>
           </Link>
           <Link
             href="/cart"
-            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold relative ${
+            className={`flex flex-col items-center gap-0.5 text-[9.5px] font-bold relative ${
               pathname.startsWith('/cart') ? 'text-[#003b2b]' : 'text-[#6b7280]'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[18px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1 right-1 bg-[#ac2c19] text-white text-[8px] font-bold w-3.5 h-3.5 rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 right-1 bg-[#ac2c19] text-white text-[7.5px] font-bold w-3 h-3 rounded-full flex items-center justify-center">
                 {totalItemsCount}
               </span>
             )}
@@ -129,11 +129,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
           <Link
             href="/profile"
-            className={`flex flex-col items-center gap-0.5 text-[10px] font-bold ${
+            className={`flex flex-col items-center gap-0.5 text-[9.5px] font-bold ${
               pathname.startsWith('/profile') ? 'text-[#003b2b]' : 'text-[#6b7280]'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">account_circle</span>
+            <span className="material-symbols-outlined text-[18px]">account_circle</span>
             <span>Tài khoản</span>
           </Link>
         </nav>

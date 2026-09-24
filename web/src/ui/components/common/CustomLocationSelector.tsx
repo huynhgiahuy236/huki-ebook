@@ -80,7 +80,7 @@ function SearchableSelect({
 
   return (
     <div className="relative w-full flex flex-col gap-1 text-left" ref={containerRef}>
-      <label className="text-xs font-bold text-[var(--theme-text-muted,#49454f)] flex items-center gap-1">
+      <label className="text-[11px] font-semibold text-[var(--theme-text-muted,#49454f)] flex items-center gap-1">
         <span>{label}</span>
         {required && <span className="text-rose-500">*</span>}
       </label>
@@ -89,11 +89,11 @@ function SearchableSelect({
         type="button"
         onClick={handleToggle}
         disabled={disabled}
-        className={`w-full min-h-[42px] px-3.5 py-2 rounded-xl border text-xs sm:text-sm flex items-center justify-between gap-2 transition-all select-none cursor-pointer ${
+        className={`w-full min-h-[34px] px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-1.5 transition-all select-none cursor-pointer ${
           disabled
             ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-400 cursor-not-allowed opacity-60'
             : isOpen
-            ? 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-primary,#003B2B)] ring-2 ring-[var(--theme-primary,#003B2B)]/15 shadow-sm'
+            ? 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-primary,#003B2B)] ring-1 ring-[var(--theme-primary,#003B2B)]/15 shadow-2xs'
             : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003B2B)]/50'
         }`}
       >

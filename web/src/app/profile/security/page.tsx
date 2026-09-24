@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
+import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 export default function UserSecurityPage() {
   const { showToast } = useToast();
@@ -70,31 +71,15 @@ export default function UserSecurityPage() {
   };
 
   return (
-    <div className="min-h-screen bg-theme-bg py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-on-surface-variant mb-6">
-          <Link href="/profile" className="hover:text-theme-primary font-medium">Tài Khoản</Link>
-          <span>/</span>
-          <Link href="/settings" className="hover:text-theme-primary font-medium">Cài Đặt</Link>
-          <span>/</span>
-          <span className="text-on-surface font-semibold">Bảo Mật &amp; Phiên Đăng Nhập</span>
-        </div>
-
+    <AccountLayout>
+      <div className="p-6 sm:p-8 space-y-6">
         {/* Header Bar */}
-        <div 
-          style={{ background: 'linear-gradient(to right, var(--theme-hero-from, #003b2b), var(--theme-hero-via, #004D38), var(--theme-hero-to, #00271E))' }}
-          className="text-white rounded-3xl p-6 sm:p-8 shadow-lg mb-8 relative overflow-hidden">
-          <div className="flex items-center gap-2 text-[var(--theme-header-top-accent,#94f5d6)] text-xs font-bold uppercase tracking-wider mb-2">
-            <span className="material-symbols-outlined text-base">shield_person</span>
-            <span>Trung Tâm An Ninh &amp; DRM</span>
-          </div>
-          <h1 className="font-editorial text-2xl sm:text-3xl font-bold mb-1">
-            Bảo Mật Tài Khoản Độc Giả
+        <div className="border-b border-gray-100 pb-4">
+          <h1 className="text-lg font-bold text-gray-900">
+            Đổi Mật Khẩu &amp; Bảo Mật
           </h1>
-          <p className="text-white/80 text-xs sm:text-sm font-light">
-            Quản lý mật khẩu, xác thực 2 lớp (2FA) và bảo vệ bản quyền sách điện tử trên các thiết bị.
+          <p className="text-xs text-gray-500 mt-1">
+            Để bảo mật tài khoản, vui lòng không chia sẻ mật khẩu cho người khác
           </p>
         </div>
 
@@ -255,10 +240,8 @@ export default function UserSecurityPage() {
             </div>
 
           </div>
-
         </div>
-
       </div>
-    </div>
+    </AccountLayout>
   );
 }

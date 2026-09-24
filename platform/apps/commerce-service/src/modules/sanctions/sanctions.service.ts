@@ -264,14 +264,19 @@ export class SanctionsService {
    * Find effectively active sanction for a store
    */
   async findActiveSanction(storeId: string): Promise<Sanction | null> {
-    const now = new Date();
-    return this.prisma.sanction.findFirst({
-      where: {
-        storeId,
-        status: { in: [SanctionStatus.ACTIVE, SanctionStatus.APPEALED] },
-        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
-      },
-    });
+    try {
+      const now = new Date();
+      return await this.prisma.sanction.findFirst({
+        where: {
+          storeId,
+          status: { in: [SanctionStatus.ACTIVE, SanctionStatus.APPEALED] },
+          OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to query sanctions for store ${storeId}: ${err?.message}`);
+      return null;
+    }
   }
 
   /**

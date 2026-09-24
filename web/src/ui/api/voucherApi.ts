@@ -74,6 +74,64 @@ export const voucherApi = {
   },
 
   /**
+   * Get all vouchers with pagination and query
+   */
+  getAllVouchers: async (params?: { page?: number; limit?: number; scope?: string; status?: string }): Promise<ApiResponse<{ items: Voucher[]; pagination: any }>> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.scope) query.append('scope', params.scope);
+    if (params?.status) query.append('status', params.status);
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return apiClient<{ items: Voucher[]; pagination: any }>(`/vouchers${qs}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Create admin platform voucher
+   */
+  createAdminVoucher: async (payload: {
+    code: string;
+    name: string;
+    description?: string;
+    type: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
+    value: number;
+    minOrderAmount?: number;
+    maxDiscountAmount?: number;
+    scope: 'PLATFORM' | 'STORE';
+    storeId?: string;
+    totalUsage?: number;
+    maxUsagePerUser?: number;
+    startsAt: string;
+    expiresAt: string;
+  }): Promise<ApiResponse<Voucher>> => {
+    return apiClient<Voucher>('/vouchers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Update voucher
+   */
+  updateAdminVoucher: async (id: string, payload: Partial<Voucher>): Promise<ApiResponse<Voucher>> => {
+    return apiClient<Voucher>(`/vouchers/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Delete voucher
+   */
+  deleteAdminVoucher: async (id: string): Promise<ApiResponse<{ success: boolean }>> => {
+    return apiClient<{ success: boolean }>(`/vouchers/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
    * Get voucher by code
    */
   getVoucherByCode: async (code: string): Promise<ApiResponse<Voucher>> => {

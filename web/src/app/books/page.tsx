@@ -7,7 +7,7 @@ import BookCard from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 16;
 
 export interface CatalogBookItem {
   id: string;
@@ -188,118 +188,121 @@ function CatalogPageContent() {
   }, [filteredBooks, validCurrentPage]);
 
   return (
-    <div className="max-w-[1680px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1">
-      <nav className="flex items-center gap-2 text-xs text-on-surface-variant mb-4">
-        <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
-          <span className="material-symbols-outlined text-[15px]">home</span>Trang chủ
+    <div className="max-w-[1680px] w-full mx-auto px-3.5 sm:px-5 lg:px-6 py-3.5 flex-1">
+      {/* Compact Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-xs text-[var(--theme-text-muted,#6b7280)] mb-3">
+        <Link href="/" className="hover:text-[var(--theme-primary,#003b2b)] transition-colors flex items-center gap-1 font-medium">
+          <span className="material-symbols-outlined text-[14px]">home</span>Trang chủ
         </Link>
-        <span className="material-symbols-outlined text-[13px]">chevron_right</span>
-        <span className="text-on-surface font-semibold">Tất cả sách & Ebook</span>
+        <span className="opacity-40">/</span>
+        <span className="font-bold text-[var(--theme-text,#141d1c)]">Sàn Sách &amp; Ebook</span>
+        {selectedCat !== 'all' && (
+          <>
+            <span className="opacity-40">/</span>
+            <span className="text-[var(--theme-primary,#003b2b)] font-semibold capitalize">{selectedCat}</span>
+          </>
+        )}
       </nav>
 
-      <section className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-outline-variant/30">
-        <div>
-          <span className="text-primary font-bold text-xs tracking-widest uppercase mb-1 block">Khám phá kho tàng tri thức</span>
-          <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface tracking-tight flex items-baseline gap-3">
-            Tất Cả Sách & Ấn Phẩm Số
-            <span className="font-sans text-xs font-normal text-on-surface-variant">({filteredBooks.length} sản phẩm phù hợp)</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-on-surface-variant mt-1 max-w-2xl leading-relaxed">
-            Khám phá những đầu sách nổi bật từ các nhà xuất bản hàng đầu. Trải nghiệm kết hợp hoàn hảo giữa ấn bản Ebook DRM và Sách in cao cấp.
-          </p>
-        </div>
-        <div className="w-full md:w-[360px] shrink-0">
-          <div className="relative flex items-center">
-            <span className="material-symbols-outlined absolute left-3.5 text-on-surface-variant text-[18px]">search</span>
-            <input value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); updateParam('q', e.target.value); }} className="w-full h-10 pl-10 pr-4 rounded-xl bg-surface-container-lowest border border-outline-variant/50 text-xs text-on-surface placeholder:text-outline focus:outline-none focus:border-primary shadow-2xs transition-all" placeholder="Tìm theo tựa sách, tác giả..." type="text" />
-          </div>
-        </div>
-      </section>
-
-      <button type="button" onClick={() => setIsFilterOpen((value) => !value)} className="mb-4 flex min-h-11 w-full items-center justify-between rounded-xl border border-outline-variant bg-surface-container-lowest px-4 text-sm font-semibold text-on-surface lg:hidden" aria-expanded={isFilterOpen} aria-controls="catalog-filters">
-        <span className="flex items-center gap-2"><span className="material-symbols-outlined" aria-hidden="true">tune</span>Bộ lọc sách</span>
-        <span className="material-symbols-outlined" aria-hidden="true">{isFilterOpen ? 'expand_less' : 'expand_more'}</span>
+      {/* Mobile Filter Toggle */}
+      <button type="button" onClick={() => setIsFilterOpen((value) => !value)} className="mb-3 flex min-h-9 w-full items-center justify-between rounded-lg border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] px-3 text-xs font-semibold text-on-surface lg:hidden" aria-expanded={isFilterOpen} aria-controls="catalog-filters">
+        <span className="flex items-center gap-1.5"><span className="material-symbols-outlined text-base" aria-hidden="true">tune</span>Bộ lọc ({filteredBooks.length} sách)</span>
+        <span className="material-symbols-outlined text-base" aria-hidden="true">{isFilterOpen ? 'expand_less' : 'expand_more'}</span>
       </button>
 
-      <div className="grid grid-cols-12 gap-6 lg:gap-8 items-start">
-        <aside id="catalog-filters" className={`${isFilterOpen ? 'block' : 'hidden'} col-span-12 lg:col-span-4 xl:col-span-3 lg:block bg-surface-container-lowest border border-outline-variant/30 rounded-2xl p-4 sm:p-5 shadow-xs lg:sticky lg:top-28`}>
-          <div className="flex items-center justify-between pb-3.5 border-b border-outline-variant/20">
-            <div className="flex items-center gap-2 font-bold text-sm text-on-surface">
-              <span className="material-symbols-outlined text-primary text-[19px]">tune</span><span>Bộ Lọc Sách</span>
+      <div className="grid grid-cols-12 gap-4 lg:gap-5 items-start">
+        {/* Left Filter Sidebar */}
+        <aside id="catalog-filters" className={`${isFilterOpen ? 'block' : 'hidden'} col-span-12 lg:col-span-3 xl:col-span-2.5 lg:block bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-xl p-3.5 shadow-2xs lg:sticky lg:top-24`}>
+          <div className="flex items-center justify-between pb-2.5 border-b border-[var(--theme-border,#e8e5df)]">
+            <div className="flex items-center gap-1.5 font-bold text-xs text-[var(--theme-text,#141d1c)]">
+              <span className="material-symbols-outlined text-[var(--theme-primary,#003b2b)] text-[17px]">tune</span><span>Bộ Lọc</span>
             </div>
             {(selectedCat !== 'all' || selectedFormat !== 'all' || searchTerm) && (
-              <button onClick={() => router.push('/books')} className="text-[11px] font-semibold text-primary hover:underline px-2 py-0.5 rounded-md hover:bg-primary/10 transition-colors cursor-pointer">Xóa bộ lọc</button>
+              <button onClick={() => router.push('/books')} className="text-[10.5px] font-semibold text-[var(--theme-primary,#003b2b)] hover:underline px-1.5 py-0.2 rounded hover:bg-black/5 transition-colors cursor-pointer">Xóa lọc</button>
             )}
           </div>
 
-          <div className="py-3.5 border-b border-outline-variant/20">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-on-surface-variant">Định dạng</h3>
-              {selectedFormat !== 'all' && <button onClick={() => updateParam('format', 'all')} className="text-[10px] text-primary hover:underline cursor-pointer">Mặc định</button>}
+          {/* Format Filter */}
+          <div className="py-2.5 border-b border-[var(--theme-border,#e8e5df)]/60">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="font-bold text-[10.5px] uppercase tracking-wider text-[var(--theme-text-muted,#6b7280)]">Định dạng</h3>
+              {selectedFormat !== 'all' && <button onClick={() => updateParam('format', 'all')} className="text-[9.5px] text-[var(--theme-primary,#003b2b)] hover:underline cursor-pointer">Mặc định</button>}
             </div>
-            <div className="space-y-1 text-xs">
-              {[{ id: 'all', name: 'Tất cả định dạng', icon: 'apps' }, { id: 'ebook', name: 'Ebook DRM Bản Quyền', icon: 'bolt' }, { id: 'physical', name: 'Sách Giấy Bìa Mềm', icon: 'menu_book' }, { id: 'hybrid', name: 'Combo Hybrid (Giấy + Ebook)', icon: 'auto_stories' }].map((fmt) => (
-                <button key={fmt.id} type="button" onClick={() => updateParam('format', fmt.id)} className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl text-left transition-all duration-150 cursor-pointer ${selectedFormat === fmt.id ? 'bg-primary/10 text-primary font-bold border border-primary/25 shadow-2xs' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface border border-transparent'}`}>
-                  <span className="flex items-center gap-2"><span className={`material-symbols-outlined text-[17px] ${selectedFormat === fmt.id ? 'text-primary' : 'text-on-surface-variant'}`}>{fmt.icon}</span><span>{fmt.name}</span></span>
-                  {selectedFormat === fmt.id && <span className="material-symbols-outlined text-primary text-[15px]">check</span>}
+            <div className="space-y-0.5 text-xs">
+              {[{ id: 'all', name: 'Tất cả định dạng', icon: 'apps' }, { id: 'ebook', name: 'Ebook Bản Quyền DRM', icon: 'bolt' }, { id: 'physical', name: 'Sách Giấy In', icon: 'menu_book' }, { id: 'hybrid', name: 'Combo Giấy + Ebook', icon: 'auto_stories' }].map((fmt) => (
+                <button key={fmt.id} type="button" onClick={() => updateParam('format', fmt.id)} className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer ${selectedFormat === fmt.id ? 'bg-[var(--theme-primary,#003b2b)]/10 text-[var(--theme-primary,#003b2b)] font-bold border border-[var(--theme-primary,#003b2b)]/20 shadow-2xs' : 'text-[var(--theme-text,#141d1c)] hover:bg-black/5 border border-transparent'}`}>
+                  <span className="flex items-center gap-1.5 text-[11.5px]"><span className={`material-symbols-outlined text-[15px] ${selectedFormat === fmt.id ? 'text-[var(--theme-primary,#003b2b)]' : 'text-[var(--theme-text-muted,#6b7280)]'}`}>{fmt.icon}</span><span>{fmt.name}</span></span>
+                  {selectedFormat === fmt.id && <span className="material-symbols-outlined text-[var(--theme-primary,#003b2b)] text-[14px]">check</span>}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="py-3.5 border-b border-outline-variant/20">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-on-surface-variant">Chủ đề</h3>
-              {selectedCat !== 'all' && <button onClick={() => updateParam('cat', 'all')} className="text-[10px] text-primary hover:underline cursor-pointer">Mặc định</button>}
+          {/* Category Filter */}
+          <div className="py-2.5 border-b border-[var(--theme-border,#e8e5df)]/60">
+            <div className="flex items-center justify-between mb-1.5">
+              <h3 className="font-bold text-[10.5px] uppercase tracking-wider text-[var(--theme-text-muted,#6b7280)]">Chủ đề</h3>
+              {selectedCat !== 'all' && <button onClick={() => updateParam('cat', 'all')} className="text-[9.5px] text-[var(--theme-primary,#003b2b)] hover:underline cursor-pointer">Mặc định</button>}
             </div>
-            <div className="space-y-1 text-xs">
+            <div className="space-y-0.5 text-xs">
               {[{ id: 'all', name: 'Tất cả chủ đề', count: categoryCounts.all || 0 }, { id: 'selfhelp', name: 'Phát triển bản thân', count: categoryCounts.selfhelp || 0 }, { id: 'technology', name: 'Công nghệ & AI', count: categoryCounts.technology || 0 }, { id: 'business', name: 'Kinh doanh & Đầu tư', count: categoryCounts.business || 0 }, { id: 'literature', name: 'Văn học & Nghệ thuật', count: categoryCounts.literature || 0 }].map((cat) => (
-                <button key={cat.id} type="button" onClick={() => updateParam('cat', cat.id)} className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-left transition-all duration-150 cursor-pointer ${selectedCat === cat.id ? 'bg-primary/10 text-primary font-bold border border-primary/25 shadow-2xs' : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface border border-transparent'}`}>
-                  <span className="flex items-center gap-2"><span className={`w-1.5 h-1.5 rounded-full ${selectedCat === cat.id ? 'bg-primary scale-125' : 'bg-outline-variant'}`}></span><span>{cat.name}</span></span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-medium ${selectedCat === cat.id ? 'bg-primary/15 text-primary' : 'bg-surface-container text-on-surface-variant'}`}>{cat.count}</span>
+                <button key={cat.id} type="button" onClick={() => updateParam('cat', cat.id)} className={`w-full flex items-center justify-between px-2 py-1 rounded-lg text-left transition-all cursor-pointer ${selectedCat === cat.id ? 'bg-[var(--theme-primary,#003b2b)]/10 text-[var(--theme-primary,#003b2b)] font-bold border border-[var(--theme-primary,#003b2b)]/20 shadow-2xs' : 'text-[var(--theme-text,#141d1c)] hover:bg-black/5 border border-transparent'}`}>
+                  <span className="flex items-center gap-1.5 text-[11.5px]"><span className={`w-1.5 h-1.5 rounded-full ${selectedCat === cat.id ? 'bg-[var(--theme-primary,#003b2b)]' : 'bg-neutral-300'}`}></span><span>{cat.name}</span></span>
+                  <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-medium ${selectedCat === cat.id ? 'bg-[var(--theme-primary,#003b2b)]/15 text-[var(--theme-primary,#003b2b)]' : 'bg-neutral-100 text-[var(--theme-text-muted,#6b7280)]'}`}>{cat.count}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="pt-3.5">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-on-surface-variant mb-2">Nhà xuất bản</h3>
-            <div className="space-y-1 text-xs text-on-surface-variant">
+          {/* Publishers */}
+          <div className="pt-2.5">
+            <h3 className="font-bold text-[10.5px] uppercase tracking-wider text-[var(--theme-text-muted,#6b7280)] mb-1.5">Nhà xuất bản</h3>
+            <div className="space-y-0.5 text-xs text-[var(--theme-text,#141d1c)]">
               {[{ slug: 'alpha-books', name: 'Alpha Books', count: '420' }, { slug: 'nha-nam', name: 'Nhã Nam', count: '315' }, { slug: 'first-news', name: 'First News Trí Việt', count: '280' }, { slug: 'nxb-tre', name: 'NXB Trẻ', count: '190' }].map((pub) => (
-                <Link key={pub.slug} href={`/shop/${pub.slug}`} className="flex items-center justify-between px-2.5 py-1.5 rounded-xl hover:bg-surface-container-low hover:text-primary transition-all group">
+                <Link key={pub.slug} href={`/shop/${pub.slug}`} className="flex items-center justify-between px-2 py-1 rounded-lg hover:bg-black/5 hover:text-[var(--theme-primary,#003b2b)] transition-all text-[11.5px] group">
                   <span className="group-hover:translate-x-0.5 transition-transform">{pub.name}</span>
-                  <span className="text-[10px] font-semibold bg-surface-container group-hover:bg-primary/10 group-hover:text-primary px-1.5 py-0.2 rounded-full text-on-surface-variant transition-colors">{pub.count}</span>
+                  <span className="text-[9.5px] font-semibold bg-neutral-100 group-hover:bg-[var(--theme-primary,#003b2b)]/10 group-hover:text-[var(--theme-primary,#003b2b)] px-1.5 py-0.2 rounded-full text-[var(--theme-text-muted,#6b7280)] transition-colors">{pub.count}</span>
                 </Link>
               ))}
             </div>
           </div>
         </aside>
 
-        <section ref={topGridRef} className="col-span-12 lg:col-span-8 xl:col-span-9 flex flex-col">
-          <div className="bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-4 py-2.5 mb-5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        {/* Right Product Grid Column */}
+        <section ref={topGridRef} className="col-span-12 lg:col-span-9 xl:col-span-9.5 flex flex-col">
+          {/* Top Catalog Toolbar */}
+          <div className="bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-xl px-3.5 py-2 mb-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 text-xs">
             <div className="flex items-center flex-wrap gap-2">
-              <span className="font-semibold text-on-surface pr-2 border-r border-outline-variant/30">{filteredBooks.length} kết quả</span>
+              <span className="font-bold text-xs text-[var(--theme-text,#141d1c)] pr-2 border-r border-[var(--theme-border,#e8e5df)]">
+                {filteredBooks.length} tác phẩm
+              </span>
               {selectedCat !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[11px]">
-                  Chủ đề: {selectedCat}<button onClick={() => updateParam('cat', 'all')} aria-label="Xóa bộ lọc chủ đề"><span className="material-symbols-outlined text-[13px]">close</span></button>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-primary,#003b2b)]/10 text-[var(--theme-primary,#003b2b)] font-semibold text-[11px]">
+                  Chủ đề: {selectedCat}<button onClick={() => updateParam('cat', 'all')} aria-label="Xóa bộ lọc chủ đề"><span className="material-symbols-outlined text-[12px]">close</span></button>
                 </span>
               )}
               {selectedFormat !== 'all' && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold text-[11px]">
-                  Định dạng: {selectedFormat}<button onClick={() => updateParam('format', 'all')} aria-label="Xóa bộ lọc định dạng"><span className="material-symbols-outlined text-[13px]">close</span></button>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[var(--theme-primary,#003b2b)]/10 text-[var(--theme-primary,#003b2b)] font-semibold text-[11px]">
+                  Định dạng: {selectedFormat}<button onClick={() => updateParam('format', 'all')} aria-label="Xóa bộ lọc định dạng"><span className="material-symbols-outlined text-[12px]">close</span></button>
+                </span>
+              )}
+              {searchTerm && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 font-semibold text-[11px]">
+                  Tìm: &ldquo;{searchTerm}&rdquo;<button onClick={() => { setSearchTerm(''); updateParam('q', null); }} aria-label="Xóa tìm kiếm"><span className="material-symbols-outlined text-[12px]">close</span></button>
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-2.5 ml-auto">
               <div className="flex items-center gap-1.5">
-                <span className="text-on-surface-variant">Sắp xếp:</span>
-                <select value={selectedSort} onChange={(e) => updateParam('sort', e.target.value)} className="bg-surface-container-low border border-outline-variant/40 rounded-lg py-1 px-2 text-xs font-semibold text-on-surface focus:outline-none focus:border-primary cursor-pointer">
+                <span className="text-[11.5px] text-[var(--theme-text-muted,#6b7280)]">Sắp xếp:</span>
+                <select value={selectedSort} onChange={(e) => updateParam('sort', e.target.value)} className="bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-md py-1 px-2 text-[11.5px] font-semibold text-[var(--theme-text,#141d1c)] focus:outline-none focus:border-[var(--theme-primary,#003b2b)] cursor-pointer">
                   <option value="popular">Phổ biến nhất</option><option value="bestseller">Bán chạy nhất</option><option value="new">Mới phát hành</option><option value="price-low">Giá: Thấp đến Cao</option><option value="price-high">Giá: Cao đến Thấp</option>
                 </select>
               </div>
-              <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg border border-outline-variant/30">
-                <button onClick={() => setViewMode('grid')} className={`p-1 rounded cursor-pointer ${viewMode === 'grid' ? 'bg-white text-primary shadow-2xs font-bold' : 'text-on-surface-variant'}`} title="Hiển thị lưới" aria-label="Hiển thị lưới"><span className="material-symbols-outlined text-[16px]">grid_view</span></button>
-                <button onClick={() => setViewMode('list')} className={`p-1 rounded cursor-pointer ${viewMode === 'list' ? 'bg-white text-primary shadow-2xs font-bold' : 'text-on-surface-variant'}`} title="Hiển thị danh sách" aria-label="Hiển thị danh sách"><span className="material-symbols-outlined text-[16px]">view_list</span></button>
+              <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] p-0.5 rounded-md border border-[var(--theme-border,#e8e5df)]">
+                <button onClick={() => setViewMode('grid')} className={`p-1 rounded cursor-pointer ${viewMode === 'grid' ? 'bg-white text-[var(--theme-primary,#003b2b)] shadow-2xs font-bold' : 'text-[var(--theme-text-muted,#6b7280)]'}`} title="Hiển thị lưới" aria-label="Hiển thị lưới"><span className="material-symbols-outlined text-[15px]">grid_view</span></button>
+                <button onClick={() => setViewMode('list')} className={`p-1 rounded cursor-pointer ${viewMode === 'list' ? 'bg-white text-[var(--theme-primary,#003b2b)] shadow-2xs font-bold' : 'text-[var(--theme-text-muted,#6b7280)]'}`} title="Hiển thị danh sách" aria-label="Hiển thị danh sách"><span className="material-symbols-outlined text-[15px]">view_list</span></button>
               </div>
             </div>
           </div>
@@ -308,35 +311,26 @@ function CatalogPageContent() {
             <EmptyState icon="search_off" title="Không tìm thấy sách phù hợp" description="Hãy thử từ khóa khác hoặc xóa bớt bộ lọc đang chọn để tìm thêm nhiều đầu sách hấp dẫn." actionText="Xóa tất cả bộ lọc" actionLink="/books" actionIcon="tune" />
           ) : (
             <>
-              <div className={viewMode === 'grid' ? "grid grid-cols-2 min-[540px]:grid-cols-3 md:grid-cols-4 xl:grid-cols-4 gap-5" : "flex flex-col gap-3"}>
+              <div className={viewMode === 'grid' ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 gap-3 sm:gap-4" : "flex flex-col gap-2.5"}>
                 {paginatedBooks.map((book) => (
                   <BookCard key={book.id} book={book} variant={viewMode} isMock={book.isMock} />
                 ))}
               </div>
+
               {totalPages > 1 && (
-                <div className="mt-8 pt-5 border-t border-outline-variant/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-                  <div className="text-xs text-on-surface-variant">Hiển thị <span className="font-semibold text-on-surface">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-semibold text-on-surface">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredBooks.length)}</span> trong tổng số <span className="font-semibold text-on-surface">{filteredBooks.length}</span> sách</div>
-                  <div className="flex items-center gap-1.5">
-                    <button type="button" disabled={validCurrentPage <= 1} onClick={() => handlePageChange(validCurrentPage - 1)} className="w-8 h-8 rounded-xl border border-outline-variant/40 flex items-center justify-center text-on-surface hover:bg-surface-container-low disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer" aria-label="Trang trước"><span className="material-symbols-outlined text-sm">chevron_left</span></button>
+                <div className="mt-6 pt-4 border-t border-[var(--theme-border,#e8e5df)] flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-[11.5px] text-[var(--theme-text-muted,#6b7280)]">Hiển thị <span className="font-semibold text-[var(--theme-text,#141d1c)]">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> - <span className="font-semibold text-[var(--theme-text,#141d1c)]">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredBooks.length)}</span> / <span className="font-semibold text-[var(--theme-text,#141d1c)]">{filteredBooks.length}</span> tác phẩm</div>
+                  <div className="flex items-center gap-1">
+                    <button type="button" disabled={validCurrentPage <= 1} onClick={() => handlePageChange(validCurrentPage - 1)} className="w-7 h-7 rounded-lg border border-[var(--theme-border,#e8e5df)] flex items-center justify-center text-on-surface hover:bg-black/5 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer" aria-label="Trang trước"><span className="material-symbols-outlined text-xs">chevron_left</span></button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                      <button key={p} type="button" onClick={() => handlePageChange(p)} className={`w-8 h-8 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${p === validCurrentPage ? 'bg-primary text-white shadow-xs scale-105' : 'border border-outline-variant/40 text-on-surface hover:bg-surface-container-low'}`}>{p}</button>
+                      <button key={p} type="button" onClick={() => handlePageChange(p)} className={`w-7 h-7 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center ${p === validCurrentPage ? 'bg-[var(--theme-primary,#003b2b)] text-white shadow-2xs' : 'border border-[var(--theme-border,#e8e5df)] text-on-surface hover:bg-black/5'}`}>{p}</button>
                     ))}
-                    <button type="button" disabled={validCurrentPage >= totalPages} onClick={() => handlePageChange(validCurrentPage + 1)} className="w-8 h-8 rounded-xl border border-outline-variant/40 flex items-center justify-center text-on-surface hover:bg-surface-container-low disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer" aria-label="Trang sau"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
+                    <button type="button" disabled={validCurrentPage >= totalPages} onClick={() => handlePageChange(validCurrentPage + 1)} className="w-7 h-7 rounded-lg border border-[var(--theme-border,#e8e5df)] flex items-center justify-center text-on-surface hover:bg-black/5 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer" aria-label="Trang sau"><span className="material-symbols-outlined text-xs">chevron_right</span></button>
                   </div>
                 </div>
               )}
             </>
           )}
-
-          <div style={{ background: 'linear-gradient(to right, var(--theme-hero-from, #003B2B), var(--theme-hero-via, #006B4F), var(--theme-hero-to, #124E3F))' }} className="my-8 rounded-2xl p-6 text-white relative overflow-hidden shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="relative z-10 max-w-xl">
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/15 text-white border border-white/20 mb-2 uppercase"><span className="material-symbols-outlined text-[12px]">auto_awesome</span> Tuyển Chọn Tháng 2026</span>
-              <h3 className="font-editorial text-xl font-bold">Combo Tủ Sách Phát Triển Bản Thân & Kỷ Luật Thói Quen</h3>
-              <p className="text-xs opacity-85 mt-1 leading-relaxed">Nhận ngay Ebook bản quyền trọn đời + Sách in giấy ivory tặng kèm hộp quà HUKI Gift Box.</p>
-            </div>
-            <Link href="/book/atomic-habits" className="px-5 py-2.5 rounded-xl bg-white text-[var(--theme-primary,#003B2B)] font-bold text-xs shadow-xs hover:bg-surface-container transition-colors flex-shrink-0 z-10">Xem Chi Tiết Combo</Link>
-            <span className="material-symbols-outlined absolute -right-6 -bottom-6 text-[110px] text-white/10 pointer-events-none">auto_stories</span>
-          </div>
         </section>
       </div>
     </div>

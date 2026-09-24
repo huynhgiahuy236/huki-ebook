@@ -35,6 +35,7 @@ export default function StoreHeader({
   const userDisplayName = useMemo(() => {
     if (!user) return 'Khách';
     return (
+      (user as any).username ||
       user.fullName ||
       user.name ||
       (user as any).profile?.fullName ||
@@ -104,18 +105,18 @@ export default function StoreHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-sm shrink-0 transition-colors duration-200">
-      {/* Top Utility Bar (h-[30px]) */}
-      <div className="h-[30px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[11px] px-4 md:px-8 flex items-center justify-between font-medium shrink-0 transition-colors duration-200">
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[14px] text-[var(--theme-header-top-accent,#94f5d6)]">verified_user</span>
+    <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200">
+      {/* Top Utility Bar (h-[28px]) */}
+      <div className="h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 md:px-6 flex items-center justify-between font-medium shrink-0 transition-colors duration-200">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1">
+            <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">verified_user</span>
             <span className="hidden sm:inline">Hệ sinh thái đọc Sách Thật &amp; Bản quyền số HUKI</span>
             <span className="sm:hidden font-semibold">HUKI EBOOK</span>
           </span>
           <span className="hidden sm:inline-block opacity-40">|</span>
           <span className="hidden md:flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px] text-[var(--theme-header-top-accent,#94f5d6)]">support_agent</span>
+            <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">support_agent</span>
             Hotline: 1900 8866 (8:00 - 21:00)
           </span>
         </div>
@@ -124,7 +125,7 @@ export default function StoreHeader({
             href="/flash-sale"
             className="hover:text-amber-300 transition-colors flex items-center gap-1 font-extrabold text-amber-300 animate-pulse"
           >
-            <span className="material-symbols-outlined text-[14px]">bolt</span>
+            <span className="material-symbols-outlined text-[13px]">bolt</span>
             <span>⚡ Flash Sale</span>
           </Link>
           <span className="opacity-40">|</span>
@@ -132,12 +133,12 @@ export default function StoreHeader({
             href={hasRole('seller') ? '/seller/dashboard' : '/seller'}
             className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold"
           >
-            <span className="material-symbols-outlined text-[14px]">storefront</span>
+            <span className="material-symbols-outlined text-[13px]">storefront</span>
             <span>Kênh Người Bán</span>
           </Link>
           <span className="opacity-40">|</span>
           <div className="opacity-40 cursor-not-allowed pointer-events-none select-none hidden sm:flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">download</span>
+            <span className="material-symbols-outlined text-[13px]">download</span>
             <span>Tải App (Sắp ra mắt)</span>
           </div>
           <span className="opacity-40 hidden sm:inline">|</span>
@@ -145,12 +146,12 @@ export default function StoreHeader({
         </div>
       </div>
 
-      {/* Main Header Bar (h-[54px]) */}
-      <div className="h-[54px] w-full pr-4 md:pr-6 pl-0 flex items-center justify-between gap-3 lg:gap-5 shrink-0">
-        {/* Left: Sidebar Toggle & Brand Logo */}
+      {/* Main Header Bar (h-[52px]) */}
+      <div className="h-[52px] w-full flex items-center justify-between pr-3 md:pr-6 pl-0 shrink-0">
+        {/* Left: Sidebar Toggle & Brand Typography */}
         <div className="flex items-center">
-          {/* Hamburger / Sidebar Toggle Button Box (56px/60px width matches mini-rail center alignment) */}
-          <div className="w-[52px] lg:w-[60px] flex items-center justify-center shrink-0">
+          {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align with sidebar column */}
+          <div className="w-[60px] flex items-center justify-center shrink-0">
             <button
               onClick={() => {
                 if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -159,36 +160,31 @@ export default function StoreHeader({
                   if (onToggleSidebar) onToggleSidebar();
                 }
               }}
-              className="w-8 h-8 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-primary hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer"
-              title={isSidebarCollapsed ? 'Mở rộng menu điều hướng' : 'Thu gọn menu điều hướng'}
+              className="w-9 h-9 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer shadow-2xs"
+              title="Menu điều hướng"
               aria-label="Toggle Sidebar Navigation"
             >
-              <span className="material-symbols-outlined text-[18px] transition-transform duration-200">
-                {isSidebarCollapsed ? 'menu' : 'menu_open'}
+              <span className="material-symbols-outlined text-[20px] text-[var(--theme-primary,#003b2b)]">
+                menu
               </span>
             </button>
           </div>
 
-          <Link href="/" className="flex items-center gap-2 group pr-2">
-            <div className="w-8 h-8 rounded-xl bg-[var(--theme-primary,#003b2b)] flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform shrink-0">
-              <span className="material-symbols-outlined text-lg">menu_book</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="font-editorial text-lg md:text-xl font-bold tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
-                HUKI EBOOK
-              </span>
-              <span className="text-[8px] md:text-[9px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
-                Sách Số &amp; Sách In
-              </span>
-            </div>
+          <Link href="/" className="flex flex-col group pl-1.5 pr-2 select-none">
+            <span className="font-editorial text-lg md:text-xl font-black tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
+              HUKI EBOOK
+            </span>
+            <span className="text-[7.5px] md:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+              Sách Số &amp; Sách In
+            </span>
           </Link>
         </div>
 
-        {/* Global Semantic Search Bar (Lengthened & Centered) */}
-        <div ref={searchContainerRef} className="flex-1 max-w-2xl mx-2 lg:mx-4 relative hidden md:block">
+        {/* Global Semantic Search Bar */}
+        <div ref={searchContainerRef} className="flex-1 max-w-xl mx-2 lg:mx-4 relative hidden md:block">
           <form onSubmit={handleSearch}>
-            <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-xl px-3 py-1.5 focus-within:border-[var(--theme-primary,#003b2b)] focus-within:bg-[var(--theme-surface,#ffffff)] focus-within:ring-2 focus-within:ring-[var(--theme-primary,#003b2b)]/15 transition-all shadow-2xs">
-              <span className="material-symbols-outlined text-[var(--theme-text-muted,#6b7280)] text-base mr-2 shrink-0">search</span>
+            <div className="flex items-center bg-[var(--theme-surface-subtle,#f8f6f1)] border border-[var(--theme-border,#e8e5df)] rounded-lg px-2.5 py-1 focus-within:border-[var(--theme-primary,#003b2b)] focus-within:bg-[var(--theme-surface,#ffffff)] focus-within:ring-1 focus-within:ring-[var(--theme-primary,#003b2b)]/20 transition-all shadow-2xs">
+              <span className="material-symbols-outlined text-[var(--theme-text-muted,#6b7280)] text-sm mr-1.5 shrink-0">search</span>
               <input
                 type="text"
                 placeholder="Tìm tác phẩm, tác giả, ISBN, chủ đề..."
@@ -198,11 +194,11 @@ export default function StoreHeader({
                   setSearchQuery(e.target.value);
                   setShowSearchSuggestions(true);
                 }}
-                className="w-full bg-transparent border-none outline-none text-xs text-[var(--theme-text,#17201f)] placeholder-[var(--theme-text-muted,#6b7280)]"
+                className="w-full bg-transparent border-none outline-none text-[11.5px] text-[var(--theme-text,#17201f)] placeholder-[var(--theme-text-muted,#6b7280)]"
               />
               <button
                 type="submit"
-                className="bg-[var(--theme-accent,#ac2c19)] text-white px-3 py-1 rounded-lg text-xs font-semibold hover:bg-[var(--theme-accent-hover,#8e1404)] transition-colors ml-1.5 shrink-0 cursor-pointer shadow-xs"
+                className="bg-[var(--theme-accent,#ac2c19)] text-white px-2.5 py-0.5 rounded-md text-[11px] font-semibold hover:bg-[var(--theme-accent-hover,#8e1404)] transition-colors ml-1 shrink-0 cursor-pointer shadow-2xs"
               >
                 Tìm
               </button>
@@ -284,18 +280,14 @@ export default function StoreHeader({
             <div ref={userMenuRef} className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 p-1 pl-1.5 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer"
+                className="flex items-center gap-2 p-1.5 pl-1.5 pr-2.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group"
+                title="Tài khoản cá nhân"
               >
                 <UserAvatar user={user} size="sm" />
-                <div className="hidden lg:flex flex-col text-left leading-none max-w-[120px]">
-                  <span className="text-xs font-bold text-[var(--theme-text,#17201f)] truncate">
-                    {userDisplayName}
-                  </span>
-                  <span className="text-[10px] text-[var(--theme-primary,#003b2b)] font-semibold mt-0.5">
-                    {roleLabel}
-                  </span>
-                </div>
-                <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">
+                <span className="hidden sm:inline-block text-xs font-bold text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] max-w-[130px] truncate transition-colors">
+                  {userDisplayName}
+                </span>
+                <span className="material-symbols-outlined text-base text-[var(--theme-text-muted,#6b7280)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
                   arrow_drop_down
                 </span>
               </button>

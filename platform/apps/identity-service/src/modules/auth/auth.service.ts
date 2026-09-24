@@ -458,21 +458,32 @@ export class AuthService {
         // 1. Acquire row lock on the user to serialize concurrent session creations for the same user
         await tx.$executeRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
 
-        // 2. Enforce POL-04 / DRM-003 / DEC-007: active device limit
-        const activeSessionsCount = await tx.authSession.count({
+        // 2. Enforce POL-04 / DRM-003 / DEC-007: active device limit with auto-eviction (FIFO)
+        const activeSessions = await tx.authSession.findMany({
           where: {
             userId: user.id,
             revokedAt: null,
             expiresAt: { gt: new Date() },
           },
+          orderBy: { createdAt: 'asc' },
         });
 
         const maxAllowedDevices = policyConfig.drmMaxActiveDevices;
-        if (activeSessionsCount >= maxAllowedDevices) {
-          throwForbidden(
-            ErrorCode.AUTHZ_FORBIDDEN,
-            `Đã đạt giới hạn tối đa ${maxAllowedDevices} thiết bị hoạt động đồng thời (POL-04 / DEC-007). Vui lòng hủy kích hoạt một thiết bị cũ trước khi đăng nhập trên thiết bị mới.`,
-          );
+        if (activeSessions.length >= maxAllowedDevices) {
+          const evictCount = activeSessions.length - maxAllowedDevices + 1;
+          const toEvict = activeSessions.slice(0, evictCount);
+          const evictIds = toEvict.map((s) => s.id);
+          const now = new Date();
+
+          await tx.authSession.updateMany({
+            where: { id: { in: evictIds } },
+            data: { revokedAt: now },
+          });
+
+          await tx.refreshToken.updateMany({
+            where: { sessionId: { in: evictIds }, revokedAt: null },
+            data: { revokedAt: now, revokedReason: 'device_limit_auto_evicted' },
+          });
         }
 
         await tx.authSession.create({

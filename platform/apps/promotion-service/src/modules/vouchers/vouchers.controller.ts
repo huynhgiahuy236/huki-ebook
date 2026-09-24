@@ -206,6 +206,20 @@ export class VouchersController {
     return { success: true };
   }
 
+  @Post('rollback')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Rollback voucher usage',
+    description: 'Rolls back voucher usages for a cancelled or refunded order.',
+  })
+  async rollback(@Body() body: { orderId: string }) {
+    if (!body.orderId) {
+      throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'orderId is required');
+    }
+    return this.vouchers.rollbackByOrderId(body.orderId);
+  }
+
   private extractUserIdFromRequest(request: any): string {
     // Try to extract from JWT in Authorization header
     // This is a fallback for when x-user-id is not provided

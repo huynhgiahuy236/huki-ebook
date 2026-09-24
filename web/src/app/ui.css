@@ -563,49 +563,70 @@
 /* TIERED DENSITY & COMPACT DASHBOARD SCALING               */
 /* ========================================================= */
 
+:root {
+  --space-page-y: 1.125rem; /* 18px */
+  --space-page-x: 1rem;     /* 16px */
+  --space-section-gap: 1rem; /* 16px */
+  --space-card-p: 1rem;     /* 16px */
+  --control-height-sm: 1.875rem; /* 30px */
+  --control-height-md: 2.125rem; /* 34px */
+  --control-height-lg: 2.5rem;   /* 40px */
+  --sidebar-storefront-width: 220px;
+  --sidebar-seller-width: 228px;
+  --sidebar-admin-width: 224px;
+  --header-height-total: 80px;
+}
+
 .admin-portal,
 .seller-portal {
-  font-size: 0.875rem; /* 14px base for clean high density */
-  line-height: 1.45;
+  font-size: 0.8125rem; /* 13px base for clean high density */
+  line-height: 1.4;
   letter-spacing: -0.01em;
 }
 
 .admin-portal h1,
 .seller-portal h1 {
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
+  font-size: 1.25rem; /* 20px */
 }
 
 /* Compact Table Utility */
 .compact-table th {
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.4rem 0.625rem !important;
   font-size: 0.6875rem !important;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
 }
 
 .compact-table td {
-  padding: 0.5rem 0.75rem !important;
-  font-size: 0.8125rem !important;
+  padding: 0.45rem 0.625rem !important;
+  font-size: 0.78125rem !important;
 }
 
 /* Compact Form Utility */
 .compact-form label {
-  font-size: 0.75rem !important;
+  font-size: 0.71875rem !important;
   font-weight: 600;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.15rem;
 }
 
 .compact-form input,
 .compact-form select,
 .compact-form textarea {
-  font-size: 0.8125rem !important;
-  padding: 0.45rem 0.75rem !important;
-  border-radius: 0.625rem !important;
+  font-size: 0.78125rem !important;
+  padding: 0.35rem 0.625rem !important;
+  height: var(--control-height-md) !important;
+  border-radius: 0.5rem !important;
 }
 
 /* Storefront Optimized Density */
 .storefront-portal {
-  font-size: 0.9375rem; /* 15px base */
-  line-height: 1.5;
+  font-size: 0.875rem; /* 14px base */
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+}
+
+.storefront-portal h1 {
+  letter-spacing: -0.02em;
 }
 

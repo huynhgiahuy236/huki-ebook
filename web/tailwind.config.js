@@ -111,36 +111,36 @@ const config = {
         "label-sm": ["Be Vietnam Pro"]
       },
       fontSize: {
-        "body-lg": ["16px", { lineHeight: "26px", fontWeight: "400" }],
-        "body-sm": ["13px", { lineHeight: "20px", fontWeight: "400" }],
-        "body-md": ["14px", { lineHeight: "22px", fontWeight: "400" }],
-        "display-lg": ["48px", { lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "500" }],
-        "display-lg-mobile": ["34px", { lineHeight: "42px", letterSpacing: "-0.01em", fontWeight: "500" }],
-        "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.015em", fontWeight: "500" }],
-        "headline-md": ["26px", { lineHeight: "34px", letterSpacing: "-0.01em", fontWeight: "500" }],
-        "headline-sm": ["20px", { lineHeight: "28px", fontWeight: "600" }],
-        "title-lg": ["18px", { lineHeight: "26px", fontWeight: "600" }],
-        "title-md": ["16px", { lineHeight: "24px", fontWeight: "600" }],
-        "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.02em", fontWeight: "500" }],
-        "label-sm": ["11px", { lineHeight: "14px", letterSpacing: "0.04em", fontWeight: "600" }]
+        "body-lg": ["15px", { lineHeight: "22px", fontWeight: "400" }],
+        "body-sm": ["12px", { lineHeight: "17px", fontWeight: "400" }],
+        "body-md": ["13.5px", { lineHeight: "19px", fontWeight: "400" }],
+        "display-lg": ["38px", { lineHeight: "46px", letterSpacing: "-0.02em", fontWeight: "500" }],
+        "display-lg-mobile": ["28px", { lineHeight: "34px", letterSpacing: "-0.01em", fontWeight: "500" }],
+        "headline-lg": ["26px", { lineHeight: "32px", letterSpacing: "-0.015em", fontWeight: "500" }],
+        "headline-md": ["21px", { lineHeight: "27px", letterSpacing: "-0.01em", fontWeight: "500" }],
+        "headline-sm": ["17px", { lineHeight: "23px", fontWeight: "600" }],
+        "title-lg": ["16px", { lineHeight: "22px", fontWeight: "600" }],
+        "title-md": ["14px", { lineHeight: "20px", fontWeight: "600" }],
+        "label-md": ["11px", { lineHeight: "15px", letterSpacing: "0.02em", fontWeight: "500" }],
+        "label-sm": ["10px", { lineHeight: "13px", letterSpacing: "0.03em", fontWeight: "600" }]
       },
       spacing: {
         "4.5": "1.125rem",
         "space-2xs": "0.25rem",
-        "space-xs": "0.5rem",
-        "space-sm": "0.75rem",
-        "space-md": "1rem",
-        "space-lg": "1.5rem",
-        "space-xl": "2rem",
-        "space-2xl": "3rem",
-        "space-3xl": "4.5rem",
-        "gutter": "1.5rem",
-        "margin-desktop": "3rem",
-        "margin-tablet": "1.5rem",
-        "margin-mobile": "1rem"
+        "space-xs": "0.375rem",
+        "space-sm": "0.5rem",
+        "space-md": "0.75rem",
+        "space-lg": "1rem",
+        "space-xl": "1.5rem",
+        "space-2xl": "2rem",
+        "space-3xl": "3rem",
+        "gutter": "1rem",
+        "margin-desktop": "1.5rem",
+        "margin-tablet": "1rem",
+        "margin-mobile": "0.75rem"
       },
       borderRadius: {
-        'card': '18px'
+        'card': '12px'
       },
       boxShadow: {
         'book': '0 4px 20px -2px rgba(23, 32, 31, 0.04), 0 2px 6px -1px rgba(23, 32, 31, 0.02)',

@@ -326,6 +326,30 @@ export class VouchersService {
     return { success: true };
   }
 
+  /**
+   * Rollback voucher usages for a cancelled/refunded order
+   */
+  async rollbackByOrderId(orderId: string) {
+    const usages = await this.prisma.voucherUsage.findMany({
+      where: { orderId },
+    });
+    if (!usages.length) return { rolledBack: 0 };
+
+    return this.prisma.$transaction(async (tx) => {
+      for (const usage of usages) {
+        await tx.voucher.update({
+          where: { id: usage.voucherId },
+          data: {
+            currentUsage: { decrement: 1 },
+            status: 'ACTIVE',
+          },
+        });
+      }
+      await tx.voucherUsage.deleteMany({ where: { orderId } });
+      return { rolledBack: usages.length };
+    });
+  }
+
   // ========== SELLER VOUCHER METHODS ==========
 
   /**

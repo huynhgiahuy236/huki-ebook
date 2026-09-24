@@ -656,10 +656,14 @@ export class CheckoutService {
         // Clear cart items
         await tx.cartItem.deleteMany({ where: { cartId: session.cartId } });
 
-        return order;
+        return { order, snapshot: finalSnapshot };
       });
 
-      return this.confirmResponse(order, false);
+      if (orderData.snapshot) {
+        await this.consumeVouchers(userId, orderData.order.id, orderData.snapshot);
+      }
+
+      return this.confirmResponse(orderData.order, false);
     } catch (error) {
       if (flashSaleReservationOrderId) {
         await this.flashSales
@@ -681,37 +685,40 @@ export class CheckoutService {
    * Consume voucher usage within the order transaction
    */
   private async consumeVouchers(
-    tx: any,
     userId: string,
     orderId: string,
     snapshot: CheckoutSnapshot,
   ): Promise<void> {
     // Consume platform voucher
-    if (snapshot.vouchers.platform) {
+    if (snapshot.vouchers?.platform?.code) {
       try {
         await this.voucherClient.apply(userId, {
-          voucherId: '', // Will be resolved by voucher service
+          code: snapshot.vouchers.platform.code,
           orderId,
-          discountAmount: snapshot.platformDiscountTotal,
+          discountAmount: snapshot.platformDiscountTotal || 0,
         });
-      } catch (error) {
+      } catch (error: any) {
         // Log but don't fail - voucher may already be consumed or invalid
-        console.error('Failed to consume platform voucher:', error);
+        console.error('Failed to consume platform voucher:', error?.message || error);
       }
     }
 
     // Consume store vouchers
-    for (const storeVoucher of snapshot.vouchers.stores) {
-      try {
-        await this.voucherClient.apply(userId, {
-          voucherId: '', // Will be resolved by voucher service
-          orderId,
-          discountAmount: storeVoucher.discount,
-        });
-      } catch (error) {
-        console.error('Failed to consume store voucher:', error);
+    if (snapshot.vouchers?.stores?.length) {
+      for (const storeVoucher of snapshot.vouchers.stores) {
+        if (!storeVoucher?.code) continue;
+        try {
+          await this.voucherClient.apply(userId, {
+            code: storeVoucher.code,
+            orderId,
+            discountAmount: storeVoucher.discount || 0,
+          });
+        } catch (error: any) {
+          console.error('Failed to consume store voucher:', error?.message || error);
+        }
       }
     }
+  }
 
     // Note: Shipping voucher is consumed differently - it reduces the shipping fee
     // No separate voucher usage record needed

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
+import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 export default function WalletPage() {
   const { showToast } = useToast();
@@ -110,43 +111,35 @@ export default function WalletPage() {
   });
 
   return (
-    <div className="w-full max-w-[1240px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 font-body-md">
-      {/* Breadcrumbs & Title Bar */}
-      <div className="mb-8">
-        <nav className="flex items-center gap-2 text-body-sm text-on-surface-variant mb-2">
-          <Link href="/" className="hover:text-primary transition-colors">Trang chủ</Link>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <Link href="/profile" className="hover:text-primary transition-colors">Tài khoản</Link>
-          <span className="material-symbols-outlined text-xs">chevron_right</span>
-          <span className="text-theme-primary font-semibold">Ví & Điểm Thưởng</span>
-        </nav>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <AccountLayout>
+      <div className="p-6 sm:p-8 space-y-6">
+        {/* Title Bar */}
+        <div className="border-b border-gray-100 pb-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface">
-              Ví Điện Tử Huki & Trung Tâm Điểm Thưởng
+            <h1 className="text-lg font-bold text-gray-900">
+              Ví Điện Tử HUKI &amp; Trung Tâm Xu / Voucher
             </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
+            <p className="text-xs text-gray-500 mt-1">
               Quản lý số dư xu, điểm thưởng tích lũy, các gói nạp ưu đãi và lịch sử giao dịch minh bạch.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => showToast('Đang xuất sao kê giao dịch PDF...', 'info')}
-              className="px-4 py-2.5 bg-theme-surface border border-theme-border hover:border-theme-primary text-on-surface rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer"
+              className="px-3.5 py-2 bg-white border border-gray-200 hover:border-[#003B2B] text-gray-800 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">download</span>
               Xuất Sao Kê
             </button>
             <button
               onClick={() => setShowTopupModal(true)}
-              className="px-5 py-2.5 bg-theme-primary hover:bg-theme-primary-hover text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+              className="px-4 py-2 bg-[#003B2B] hover:bg-[#00241A] text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">add_card</span>
               Nạp Xu Nhanh
             </button>
           </div>
         </div>
-      </div>
 
       {/* Luxury Hero Wallet Balance & VIP Tier Card */}
       <div
@@ -421,7 +414,8 @@ export default function WalletPage() {
             </div>
           </div>
         </div>
-      )}
-    </div>
+        )}
+      </div>
+    </AccountLayout>
   );
 }

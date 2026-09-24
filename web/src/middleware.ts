@@ -11,7 +11,8 @@ import type { NextRequest } from "next/server";
  * Legacy path mappings to new App Router routes
  */
 const legacyMappings: Record<string, string> = {
-  "/messenger": "/messages",
+  "/messenger": "/account/messages",
+  "/messages": "/account/messages",
   "/addresses": "/profile/addresses",
   "/security": "/profile/security",
   "/wallet": "/profile/wallet",

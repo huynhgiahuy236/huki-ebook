@@ -14,13 +14,15 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     authSession: {
       count: jest.fn(),
       create: jest.fn(),
+      findMany: jest.fn(),
+      updateMany: jest.fn(),
     },
     $executeRaw: jest.fn().mockResolvedValue(1),
   };
   const prisma = {
     refreshToken: { findFirst: jest.fn() },
     user: { findUnique: jest.fn(), update: jest.fn(), findFirst: jest.fn() },
-    authSession: { count: jest.fn(), create: jest.fn() },
+    authSession: { count: jest.fn(), create: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },
     $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
       callback(tx),
     ),
@@ -199,7 +201,7 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     it("TEST 5 & 6: query excludes revoked and expired sessions", async () => {
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.user.update.mockResolvedValue(mockUser);
-      tx.authSession.count.mockResolvedValue(1);
+      tx.authSession.findMany.mockResolvedValue([{ id: "s-1" }]);
       tx.authSession.create.mockResolvedValue({ id: "session-new" });
 
       await service.login(
@@ -208,29 +210,42 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
         "127.0.0.1",
       );
 
-      expect(tx.authSession.count).toHaveBeenCalledWith({
+      expect(tx.authSession.findMany).toHaveBeenCalledWith({
         where: {
           userId: "user-uuid-1",
           revokedAt: null,
           expiresAt: { gt: expect.any(Date) },
         },
+        orderBy: { createdAt: "asc" },
       });
     });
 
-    it("TEST 8: concurrent attempts evaluated inside atomic transaction", async () => {
+    it("TEST 8: auto-evicts oldest active session when slot limit is reached", async () => {
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.user.update.mockResolvedValue(mockUser);
 
-      // Simulating when slot limit is reached during transaction execution
-      tx.authSession.count.mockResolvedValue(3);
+      // Simulating 3 active sessions (max limit)
+      tx.authSession.findMany.mockResolvedValue([
+        { id: "oldest-session" },
+        { id: "session-2" },
+        { id: "session-3" },
+      ]);
+      tx.authSession.updateMany.mockResolvedValue({ count: 1 });
+      tx.refreshToken.updateMany.mockResolvedValue({ count: 1 });
+      tx.authSession.create.mockResolvedValue({ id: "session-new" });
 
-      await expect(
-        service.login(
-          { email: "reader@huki.vn", password: "password123" },
-          "Concurrent Device",
-          "127.0.0.1",
-        ),
-      ).rejects.toThrow(ForbiddenException);
+      const res = await service.login(
+        { email: "reader@huki.vn", password: "password123" },
+        "Concurrent Device",
+        "127.0.0.1",
+      );
+
+      expect(res).toBeDefined();
+      expect(tx.authSession.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["oldest-session"] } },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(tx.authSession.create).toHaveBeenCalled();
     });
 
     it("TEST 10: token refresh rotates within same session without incrementing device count", async () => {

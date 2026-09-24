@@ -8,6 +8,7 @@ import { addressApi } from '@/ui/api/addressApi';
 import EmptyState from '@/ui/components/common/EmptyState';
 import CustomLocationSelector, { LocationChangePayload } from '@/ui/components/common/CustomLocationSelector';
 import AddressMapPreview from '@/ui/components/common/AddressMapPreview';
+import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 export default function UserAddressesPage() {
   const { showToast } = useToast();
@@ -256,34 +257,21 @@ export default function UserAddressesPage() {
   };
 
   return (
-    <div className="w-full min-h-screen bg-[var(--theme-background,#F2FBF9)] text-[var(--theme-text,#1c1b1f)] py-6 md:py-10 pb-20 transition-colors duration-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Navigation Breadcrumb */}
-        <div className="flex items-center gap-2 text-xs text-[var(--theme-text-muted,#49454f)] mb-6">
-          <Link href="/" className="hover:text-[var(--theme-primary,#003B2B)] font-medium">
-            Trang Chủ
-          </Link>
-          <span className="opacity-40">/</span>
-          <Link href="/profile" className="hover:text-[var(--theme-primary,#003B2B)] font-medium">
-            Tài Khoản
-          </Link>
-          <span className="opacity-40">/</span>
-          <span className="font-bold text-[var(--theme-text,#1c1b1f)]">Sổ Địa Chỉ Giao Hàng</span>
-        </div>
-
+    <AccountLayout>
+      <div className="p-6 sm:p-8 space-y-6">
         {/* Header Bar */}
-        <div className="bg-[var(--theme-surface,#ffffff)] rounded-3xl border border-[var(--theme-border,#e8e5df)] p-6 sm:p-8 shadow-xs mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="border-b border-gray-100 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="font-editorial text-2xl sm:text-3xl font-black text-[var(--theme-text,#1c1b1f)]">
-              Sổ Địa Chỉ Nhận Hàng
+            <h1 className="text-lg font-bold text-gray-900">
+              Địa Chỉ Của Tôi
             </h1>
-            <p className="text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] mt-1">
+            <p className="text-xs text-gray-500 mt-1">
               Quản lý các địa chỉ nhận sách giấy để việc giao nhận sách diễn ra chuẩn xác và nhanh chóng.
             </p>
           </div>
 
           {/* 2-Tab Navigation Switcher */}
-          <div className="flex items-center gap-1.5 p-1.5 bg-[var(--theme-background,#F2FBF9)] rounded-2xl border border-[var(--theme-border,#e8e5df)] shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-gray-100 rounded-xl border border-gray-200 shrink-0">
             <button
               type="button"
               onClick={() => {
@@ -595,6 +583,6 @@ export default function UserAddressesPage() {
           </div>
         )}
       </div>
-    </div>
+    </AccountLayout>
   );
 }

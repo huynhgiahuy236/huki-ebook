@@ -33,6 +33,7 @@ import {
 import { ErrorCode } from "@huki/shared/errors";
 import { FlashSaleClientService } from "./flash-sale-client.service";
 import { EscrowService } from "./escrow.service";
+import { VoucherClientService } from "../voucher/voucher-client.service";
 
 const IMMUTABLE = new Set<SellerOrderStatus>([
   SellerOrderStatus.COMPLETED,
@@ -55,6 +56,7 @@ export class OrdersService {
     private readonly flashSales: FlashSaleClientService,
     private readonly escrow: EscrowService,
     private readonly configService: ConfigService,
+    private readonly voucherClient: VoucherClientService,
   ) {}
 
   async buyerList(userId: string, query: OrderQueryDto) {
@@ -347,6 +349,9 @@ export class OrdersService {
     });
     await this.flashSales
       .releaseOrder(id, flashSaleBookIds)
+      .catch(() => undefined);
+    await this.voucherClient
+      .rollback(id)
       .catch(() => undefined);
     return result;
   }

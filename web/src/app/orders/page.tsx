@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { orderApi } from '@/ui/api/orderApi';
 import { useAuth } from '@/ui/context/AuthContext';
+import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 export default function OrdersPage() {
   const { user, isLoggedIn } = useAuth();
@@ -17,6 +18,7 @@ export default function OrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState('ALL');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paginationMeta, setPaginationMeta] = useState<any>({
@@ -86,7 +88,7 @@ export default function OrdersPage() {
     fetchReturnRequests();
   }, [fetchOrders, fetchReturnRequests]);
 
-  // Vietnamese Status Translator & Badge Styling (Đồng bộ 100% với trang chi tiết /orders/[id])
+  // Status Translator matching Shopee style
   const getStatusBadge = (orderOrStatus: any) => {
     let statusStr = '';
     let isPureEbook = false;
@@ -115,137 +117,61 @@ export default function OrdersPage() {
 
     if (s === 'CANCELLED') {
       return {
-        text: 'Đã hủy',
+        text: 'ĐÃ HỦY',
         icon: 'cancel',
-        className: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+        colorClass: 'text-red-600',
+        bgClass: 'bg-red-50 border-red-200 text-red-700',
       };
     }
     if (isPureEbook && isPaid && s !== 'PENDING_PAYMENT') {
       return {
-        text: 'Đã nhận sách',
+        text: 'ĐÃ NHẬN SÁCH',
         icon: 'check_circle',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+        colorClass: 'text-emerald-600',
+        bgClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       };
     }
     if (s === 'COMPLETED' || s === 'DELIVERED') {
       return {
-        text: isPureEbook ? 'Đã nhận sách' : 'Đã hoàn tất',
+        text: isPureEbook ? 'ĐÃ NHẬN SÁCH' : 'HOÀN THÀNH',
         icon: 'check_circle',
-        className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+        colorClass: 'text-emerald-600',
+        bgClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       };
     }
     if (s === 'SHIPPED') {
       return {
-        text: 'Đang vận chuyển',
+        text: 'ĐANG VẬN CHUYỂN',
         icon: 'local_shipping',
-        className: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900',
+        colorClass: 'text-purple-600',
+        bgClass: 'bg-purple-50 border-purple-200 text-purple-700',
       };
     }
     if (s === 'CONFIRMED' || s === 'PREPARING' || s === 'PROCESSING') {
       return {
-        text: 'Đang chuẩn bị hàng',
+        text: 'ĐANG CHUẨN BỊ',
         icon: 'inventory_2',
-        className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900',
+        colorClass: 'text-blue-600',
+        bgClass: 'bg-blue-50 border-blue-200 text-blue-700',
       };
     }
     if (s === 'PENDING_PAYMENT') {
       return {
-        text: 'Chờ thanh toán',
+        text: 'CHỜ THANH TOÁN',
         icon: 'pending',
-        className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+        colorClass: 'text-amber-600',
+        bgClass: 'bg-amber-50 border-amber-200 text-amber-700',
       };
     }
-    // Default: PENDING_CONFIRMATION / PENDING
     return {
-      text: 'Chờ xác nhận',
+      text: 'CHỜ XÁC NHẬN',
       icon: 'hourglass_top',
-      className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+      colorClass: 'text-amber-600',
+      bgClass: 'bg-amber-50 border-amber-200 text-amber-700',
     };
   };
 
-  // Return Request Status Badge
-  const getReturnStatusBadge = (ret: any) => {
-    const s = ret.status;
-    const isReplacement = ret.type === 'REPLACEMENT';
-
-    if (s === 'WAITING_FORWARD' || s === 'PENDING_REVIEW') {
-      return {
-        text: 'Đã gửi yêu cầu (Chờ duyệt)',
-        icon: 'hourglass_top',
-        className: 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300',
-      };
-    }
-    if (s === 'FORWARDED_TO_SELLER') {
-      return {
-        text: 'Đang xử lý (Chờ Shop phản hồi)',
-        icon: 'sync',
-        className: 'bg-blue-50 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300',
-      };
-    }
-    if (s === 'SELLER_ACCEPTED' || s === 'ARBITRATED_BUYER_WINS') {
-      return {
-        text: isReplacement ? 'Chấp nhận đổi hàng' : 'Chấp nhận hoàn tiền',
-        icon: 'check_circle',
-        className: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300',
-      };
-    }
-    if (s === 'SELLER_DISPUTED') {
-      return {
-        text: 'Shop phản biện (Đang tranh chấp)',
-        icon: 'gavel',
-        className: 'bg-orange-50 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300',
-      };
-    }
-    if (s === 'ARBITRATED_SELLER_WINS') {
-      return {
-        text: isReplacement ? 'Từ chối đổi hàng' : 'Từ chối hoàn tiền',
-        icon: 'cancel',
-        className: 'bg-red-50 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300',
-      };
-    }
-    if (s === 'REFUNDED') {
-      return {
-        text: 'Đã hoàn tiền',
-        icon: 'payments',
-        className: 'bg-purple-50 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300',
-      };
-    }
-    if (s === 'REPLACED' || s === 'COMPLETED') {
-      return {
-        text: 'Đã giao hàng đổi',
-        icon: 'verified',
-        className: 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300',
-      };
-    }
-
-    return {
-      text: s || 'Đang xử lý',
-      icon: 'info',
-      className: 'bg-gray-50 text-gray-700 border-gray-200',
-    };
-  };
-
-  // Filter Return Requests
-  const filteredReturnRequests = useMemo(() => {
-    return returnRequests.filter((ret: any) => {
-      // 1. Sub-tab filter
-      if (returnsSubTab === 'REPLACEMENT' && ret.type !== 'REPLACEMENT') return false;
-      if (returnsSubTab === 'REFUND' && ret.type !== 'REFUND') return false;
-
-      // 2. Search query filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchOrder = ret.orderId?.toLowerCase().includes(q) || ret.order?.code?.toLowerCase().includes(q);
-        const matchTitle = (ret.orderItem?.title || ret.bookTitle)?.toLowerCase().includes(q);
-        const matchReason = ret.reasonDetail?.toLowerCase().includes(q);
-        if (!matchOrder && !matchTitle && !matchReason) return false;
-      }
-
-      return true;
-    });
-  }, [returnRequests, returnsSubTab, searchQuery]);
-
-  // Filter Orders based on activeTab and searchQuery
+  // Filtered Orders List
   const filteredOrders = useMemo(() => {
     return orders.filter((ord: any) => {
       // 1. Search Query Filter
@@ -254,776 +180,508 @@ export default function OrdersPage() {
       const matchItems = ord.sellerOrders?.some((so: any) =>
         so.items?.some((it: any) => (it.bookTitle || it.title)?.toLowerCase().includes(search))
       );
-      if (search && !matchCode && !matchItems) {
+      const matchStore = ord.sellerOrders?.some((so: any) =>
+        (so.storeName || so.shopName || so.store?.name)?.toLowerCase().includes(search)
+      );
+
+      if (search && !matchCode && !matchItems && !matchStore) {
         return false;
       }
 
       // 2. Status Tab Filter
-      if (activeTab === 'ALL') return true;
-      if (activeTab === 'RETURNS') return true;
-      const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
+      if (activeTab !== 'ALL' && activeTab !== 'RETURNS') {
+        const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
 
-      if (activeTab === 'PENDING') {
-        return (
-          effectiveStatus === 'PENDING_CONFIRMATION' ||
-          effectiveStatus === 'PENDING_PAYMENT' ||
-          effectiveStatus === 'PENDING'
-        );
+        if (activeTab === 'PENDING') {
+          if (
+            effectiveStatus !== 'PENDING_CONFIRMATION' &&
+            effectiveStatus !== 'PENDING_PAYMENT' &&
+            effectiveStatus !== 'PENDING'
+          ) {
+            return false;
+          }
+        } else if (activeTab === 'PREPARING') {
+          if (
+            effectiveStatus !== 'CONFIRMED' &&
+            effectiveStatus !== 'PREPARING' &&
+            effectiveStatus !== 'PROCESSING'
+          ) {
+            return false;
+          }
+        } else if (activeTab === 'SHIPPED') {
+          if (effectiveStatus !== 'SHIPPED') return false;
+        } else if (activeTab === 'COMPLETED') {
+          if (effectiveStatus !== 'COMPLETED' && effectiveStatus !== 'DELIVERED') return false;
+        } else if (activeTab === 'CANCELLED') {
+          if (effectiveStatus !== 'CANCELLED') return false;
+        }
       }
-      if (activeTab === 'PREPARING') {
-        return (
-          effectiveStatus === 'CONFIRMED' ||
-          effectiveStatus === 'PREPARING' ||
-          effectiveStatus === 'PROCESSING'
-        );
-      }
-      if (activeTab === 'SHIPPED') {
-        return effectiveStatus === 'SHIPPED';
-      }
-      if (activeTab === 'COMPLETED') {
-        return effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
-      }
-      if (activeTab === 'CANCELLED') {
-        return effectiveStatus === 'CANCELLED';
+
+      // 3. Date Filter (Option on right)
+      if (dateFilter !== 'ALL') {
+        const ordDate = new Date(ord.createdAt || ord.created_at || Date.now());
+        const now = new Date();
+        if (dateFilter === 'THIS_MONTH') {
+          if (ordDate.getMonth() !== now.getMonth() || ordDate.getFullYear() !== now.getFullYear()) {
+            return false;
+          }
+        } else if (dateFilter === 'LAST_3_MONTHS') {
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(now.getMonth() - 3);
+          if (ordDate < threeMonthsAgo) return false;
+        } else if (dateFilter === 'THIS_YEAR') {
+          if (ordDate.getFullYear() !== now.getFullYear()) return false;
+        }
       }
 
       return true;
     });
-  }, [orders, activeTab, searchQuery]);
+  }, [orders, activeTab, searchQuery, dateFilter]);
+
+  // Group filtered orders by date (Shopee date grouping)
+  const groupedOrders = useMemo(() => {
+    const groupsMap: Record<string, { dateLabel: string; rawDate: Date; orders: any[] }> = {};
+
+    filteredOrders.forEach((ord: any) => {
+      const d = new Date(ord.createdAt || ord.created_at || Date.now());
+      const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      
+      const isToday = d.toDateString() === new Date().toDateString();
+      const dateLabel = isToday
+        ? `Hôm nay • ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        : `Ngày ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+      if (!groupsMap[dateKey]) {
+        groupsMap[dateKey] = {
+          dateLabel,
+          rawDate: d,
+          orders: [],
+        };
+      }
+      groupsMap[dateKey].orders.push(ord);
+    });
+
+    return Object.values(groupsMap).sort((a, b) => b.rawDate.getTime() - a.rawDate.getTime());
+  }, [filteredOrders]);
+
+  const filteredReturnRequests = useMemo(() => {
+    return returnRequests.filter((ret: any) => {
+      if (returnsSubTab === 'REPLACEMENT' && ret.type !== 'REPLACEMENT') return false;
+      if (returnsSubTab === 'REFUND' && ret.type !== 'REFUND') return false;
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchCode = ret.order?.code?.toLowerCase().includes(q) || ret.orderId?.toLowerCase().includes(q);
+        const matchTitle = ret.orderItem?.title?.toLowerCase().includes(q) || ret.bookTitle?.toLowerCase().includes(q);
+        const matchStore = ret.store?.name?.toLowerCase().includes(q);
+        return matchCode || matchTitle || matchStore;
+      }
+      return true;
+    });
+  }, [returnRequests, returnsSubTab, searchQuery]);
 
   return (
-    <div className="w-full min-h-screen flex flex-col font-sans text-on-surface bg-theme-bg py-6 md:py-8">
-      <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Breadcrumb Navigation */}
-        <nav className="flex items-center gap-2 text-xs font-medium text-on-surface-variant mb-6">
-          <Link href="/" className="hover:text-theme-primary transition-colors flex items-center gap-1">
-            <span className="material-symbols-outlined text-sm">home</span>
-            <span>Trang chủ</span>
-          </Link>
-          <span>/</span>
-          <Link href="/profile" className="hover:text-theme-primary transition-colors">
-            Tài khoản
-          </Link>
-          <span>/</span>
-          <span className="text-on-surface font-bold">Lịch sử đơn hàng</span>
-        </nav>
-
-        {/* Header Title & CTA */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-editorial font-bold text-on-surface tracking-tight">
-              Đơn Hàng Của Bạn
-            </h1>
-            <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
-              Theo dõi tiến trình vận chuyển, kiểm tra biên nhận và quản lý toàn bộ ấn phẩm đã đặt.
-            </p>
-          </div>
-          <Link
-            href="/books"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs w-fit"
-          >
-            <span className="material-symbols-outlined text-base">shopping_bag</span>
-            <span>Khám Phá Sách Mới</span>
-          </Link>
-        </div>
-
-        {/* Filter Tabs & Search Bar */}
-        <div className="bg-theme-surface rounded-2xl border border-theme-border p-4 mb-6 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          {/* Status Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none">
+    <AccountLayout>
+      <div className="p-4 sm:p-6 space-y-4">
+        
+        {/* ================= 1. SHOPEE STATUS TABS BAR ================= */}
+        <div className="bg-white border-b border-gray-200 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 px-4 sm:px-6 pt-2 overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-max">
             {[
-              { id: 'ALL', label: 'Tất cả', icon: 'receipt_long' },
-              { id: 'PENDING', label: 'Chờ xác nhận', icon: 'hourglass_top' },
-              { id: 'PREPARING', label: 'Đang chuẩn bị', icon: 'inventory_2' },
-              { id: 'SHIPPED', label: 'Đang vận chuyển', icon: 'local_shipping' },
-              { id: 'COMPLETED', label: 'Đã hoàn tất', icon: 'check_circle' },
-              { id: 'CANCELLED', label: 'Đã hủy', icon: 'cancel' },
+              { id: 'ALL', label: 'Tất cả' },
+              { id: 'PENDING', label: 'Chờ xác nhận' },
+              { id: 'PREPARING', label: 'Đang chuẩn bị' },
+              { id: 'SHIPPED', label: 'Đang vận chuyển' },
+              { id: 'COMPLETED', label: 'Đã hoàn tất' },
+              { id: 'CANCELLED', label: 'Đã hủy' },
               {
                 id: 'RETURNS',
-                label: 'Đổi trả & Hoàn tiền',
-                icon: 'sync_alt',
+                label: 'Trả hàng / Hoàn tiền',
                 badgeCount: returnRequests.length,
               },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  setActiveTab(tab.id);
-                  setCurrentPage(1);
-                }}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-theme-primary text-white shadow-xs'
-                    : 'bg-theme-surface-subtle text-on-surface-variant hover:text-on-surface border border-theme-border'
-                }`}
-              >
-                <span className="material-symbols-outlined text-base">{tab.icon}</span>
-                <span>{tab.label}</span>
-                {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      activeTab === tab.id
-                        ? 'bg-white text-theme-primary'
-                        : 'bg-theme-primary/15 text-theme-primary'
-                    }`}
-                  >
-                    {tab.badgeCount}
-                  </span>
-                )}
-              </button>
-            ))}
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-3 sm:px-4 py-3 text-xs sm:text-[13px] font-semibold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
+                    isActive
+                      ? 'border-[#003B2B] text-[#003B2B] font-bold'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span>{tab.label}</span>
+                  {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
+                    <span
+                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                        isActive ? 'bg-[#003B2B] text-white' : 'bg-gray-200 text-gray-700'
+                      }`}
+                    >
+                      {tab.badgeCount}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
+        </div>
 
-          {/* Search Box */}
-          <div className="relative w-full md:w-72">
-            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-base">
+        {/* ================= 2. SEARCH (LEFT WIDE) + SELECT FILTER (RIGHT) ================= */}
+        <div className="bg-gray-50/80 p-2.5 rounded-xl border border-gray-200/80 flex flex-col sm:flex-row items-center gap-2.5">
+          {/* Large Search Bar on Left */}
+          <div className="relative flex-1 w-full">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">
               search
             </span>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={activeTab === 'RETURNS' ? 'Tìm mã đơn, tên sách hoặc lý do...' : 'Tìm mã đơn hoặc tên sách...'}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-theme-surface border border-theme-border text-on-surface text-xs placeholder:text-on-surface-variant/60 focus:outline-none focus:ring-2 focus:ring-theme-primary transition-all"
+              placeholder="Bạn có thể tìm kiếm theo tên Shop, ID đơn hàng hoặc Tên Sách..."
+              className="w-full pl-9 pr-8 py-2 rounded-lg bg-white border border-gray-200 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] transition-all shadow-2xs"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-xs"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer p-0.5"
+                title="Xóa tìm kiếm"
               >
                 ✕
               </button>
             )}
           </div>
+
+          {/* Select Option on Right */}
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+            <select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="w-full sm:w-auto px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 focus:outline-none focus:border-[#003B2B] cursor-pointer shadow-2xs"
+            >
+              <option value="ALL">Tất cả thời gian</option>
+              <option value="THIS_MONTH">Tháng này ({new Date().getMonth() + 1}/{new Date().getFullYear()})</option>
+              <option value="LAST_3_MONTHS">3 tháng gần nhất</option>
+              <option value="THIS_YEAR">Năm {new Date().getFullYear()}</option>
+            </select>
+          </div>
         </div>
 
-        {/* SUB-TABS BAR FOR RETURNS & REFUNDS */}
+        {/* ================= 3. RETURNS / REFUNDS SUB-TABS (IF SELECTED) ================= */}
         {activeTab === 'RETURNS' && (
-          <div className="mb-6 flex flex-wrap items-center gap-2 p-2 bg-theme-surface rounded-2xl border border-theme-border shadow-2xs">
+          <div className="flex items-center gap-2 p-1.5 bg-gray-50 rounded-xl border border-gray-200 text-xs">
             {[
-              {
-                id: 'ALL',
-                label: 'Tất Cả Yêu Cầu',
-                icon: 'all_inclusive',
-                count: returnRequests.length,
-              },
-              {
-                id: 'REPLACEMENT',
-                label: 'Đơn Đổi Trả Hàng',
-                icon: 'swap_horiz',
-                count: returnRequests.filter((r: any) => r.type === 'REPLACEMENT').length,
-              },
-              {
-                id: 'REFUND',
-                label: 'Đơn Hoàn Tiền',
-                icon: 'account_balance_wallet',
-                count: returnRequests.filter((r: any) => r.type === 'REFUND').length,
-              },
-            ].map((subTab) => (
+              { id: 'ALL', label: 'Tất Cả Yêu Cầu', count: returnRequests.length },
+              { id: 'REPLACEMENT', label: 'Đổi Trả Hàng', count: returnRequests.filter((r: any) => r.type === 'REPLACEMENT').length },
+              { id: 'REFUND', label: 'Hoàn Tiền', count: returnRequests.filter((r: any) => r.type === 'REFUND').length },
+            ].map((sub) => (
               <button
-                key={subTab.id}
-                onClick={() => setReturnsSubTab(subTab.id as any)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                  returnsSubTab === subTab.id
-                    ? 'bg-theme-primary/10 text-theme-primary border border-theme-primary/30 shadow-xs'
-                    : 'bg-theme-surface hover:bg-theme-surface-subtle text-on-surface-variant border border-transparent'
+                key={sub.id}
+                onClick={() => setReturnsSubTab(sub.id as any)}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                  returnsSubTab === sub.id
+                    ? 'bg-[#003B2B] text-white shadow-2xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
                 }`}
               >
-                <span className="material-symbols-outlined text-base">{subTab.icon}</span>
-                <span>{subTab.label}</span>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    returnsSubTab === subTab.id
-                      ? 'bg-theme-primary text-white'
-                      : 'bg-theme-surface-subtle text-on-surface-variant'
-                  }`}
-                >
-                  {subTab.count}
-                </span>
+                <span>{sub.label}</span>
+                <span className="text-[10px] opacity-80">({sub.count})</span>
               </button>
             ))}
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* RETURNS & REFUNDS TAB CONTENT                             */}
-        {/* ========================================================= */}
-        {activeTab === 'RETURNS' ? (
-          loadingReturns ? (
-            /* Loading Skeleton */
-            <div className="space-y-4 animate-pulse">
-              {[1, 2].map((i) => (
-                <div key={i} className="bg-theme-surface rounded-2xl border border-theme-border p-6 shadow-2xs">
-                  <div className="flex justify-between items-center pb-4 border-b border-theme-border mb-4">
-                    <div className="h-4 bg-theme-surface-subtle rounded w-48"></div>
-                    <div className="h-6 bg-theme-surface-subtle rounded-full w-32"></div>
+        {/* ================= 4. ORDERS STREAM (GROUPED BY DATE - SHOPEE STYLE) ================= */}
+        {isLoading ? (
+          <div className="space-y-4 py-4 animate-pulse">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+                <div className="flex justify-between items-center pb-3 border-b border-gray-100">
+                  <div className="h-4 bg-gray-100 rounded w-48"></div>
+                  <div className="h-4 bg-gray-100 rounded w-24"></div>
+                </div>
+                <div className="flex gap-4">
+                  <div className="w-14 h-18 bg-gray-100 rounded-md"></div>
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-100 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-100 rounded w-1/4"></div>
                   </div>
-                  <div className="flex gap-4">
-                    <div className="w-16 h-20 bg-theme-surface-subtle rounded-lg"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-theme-surface-subtle rounded w-3/4"></div>
-                      <div className="h-3 bg-theme-surface-subtle rounded w-1/3"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : activeTab === 'RETURNS' ? (
+          /* Returns Requests List */
+          filteredReturnRequests.length === 0 ? (
+            <div className="p-12 text-center text-gray-500 bg-white rounded-xl border border-gray-200">
+              <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">sync_alt</span>
+              <p className="text-xs font-semibold text-gray-700">Chưa có yêu cầu đổi trả hoặc hoàn tiền nào</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredReturnRequests.map((ret: any) => (
+                <div key={ret.id} className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
+                  <div className="px-4 py-2.5 bg-gray-50/70 border-b border-gray-100 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-[#003B2B]">{ret.store?.name || 'HUKI Partner Store'}</span>
+                      <span className="text-gray-400">•</span>
+                      <span className="font-mono text-gray-600">Đơn #{ret.order?.code || ret.orderId?.slice(0, 8)}</span>
                     </div>
+                    <span className="font-bold text-amber-600 uppercase text-[11px]">{ret.status}</span>
+                  </div>
+                  <div className="p-4 flex items-center justify-between gap-4 text-xs">
+                    <div>
+                      <h4 className="font-bold text-gray-900">{ret.orderItem?.title || ret.bookTitle}</h4>
+                      <p className="text-gray-500 text-[11px] mt-0.5">Số lượng: {ret.quantity || 1} • Lý do: {ret.reason}</p>
+                    </div>
+                    <Link
+                      href={`/orders/${ret.orderId}`}
+                      className="px-3 py-1.5 rounded-lg bg-[#003B2B] text-white font-bold text-xs hover:bg-[#00241A] transition-colors"
+                    >
+                      Chi tiết
+                    </Link>
                   </div>
                 </div>
               ))}
             </div>
-          ) : filteredReturnRequests.length === 0 ? (
-            /* Empty State for Returns */
-            <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 sm:p-16 text-center shadow-xs">
-              <div className="w-16 h-16 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-3xl">sync_alt</span>
-              </div>
-              <h3 className="font-editorial text-xl font-bold text-on-surface mb-2">
-                {searchQuery || returnsSubTab !== 'ALL'
-                  ? 'Không Tìm Thấy Đơn Đổi Trả / Hoàn Tiền Nào Phù Hợp'
-                  : 'Bạn Chưa Có Yêu Cầu Đổi Trả Hoặc Hoàn Tiền Nào'}
-              </h3>
-              <p className="text-xs text-on-surface-variant max-w-md mx-auto mb-6">
-                {searchQuery || returnsSubTab !== 'ALL'
-                  ? 'Hãy thử thay đổi loại đơn lọc hoặc từ khóa tìm kiếm.'
-                  : 'Tất cả các sản phẩm mua trên HUKI Ebook đều được bảo lãnh đổi trả / hoàn tiền 100% khi phát sinh vấn đề.'}
-              </p>
-              <button
-                onClick={() => setActiveTab('ALL')}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-base">receipt_long</span>
-                <span>Xem Lịch Sử Mua Hàng</span>
-              </button>
-            </div>
-          ) : (
-            /* Return Requests Cards List */
-            <div className="space-y-4">
-              {filteredReturnRequests.map((ret: any) => {
-                const badge = getReturnStatusBadge(ret);
-                const isReplacement = ret.type === 'REPLACEMENT';
-
-                // Format reason text
-                const reasonText =
-                  ret.reason === 'NOT_AS_DESCRIBED'
-                    ? 'Hàng không đúng mô tả'
-                    : ret.reason === 'DAMAGED_TORN' || ret.reason === 'DAMAGED'
-                    ? 'Hàng bị hỏng, rách'
-                    : 'Lý do khác';
-
-                return (
-                  <div
-                    key={ret.id}
-                    className="bg-theme-surface rounded-2xl border border-theme-border shadow-2xs hover:shadow-xs transition-all overflow-hidden"
-                  >
-                    {/* Card Header */}
-                    <div className="p-4 sm:p-5 bg-theme-surface-subtle/50 border-b border-theme-border flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                        {/* Type Badge */}
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border ${
-                            isReplacement
-                              ? 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800'
-                              : 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-xs">
-                            {isReplacement ? 'swap_horiz' : 'account_balance_wallet'}
-                          </span>
-                          <span>{isReplacement ? 'ĐƠN ĐỔI TRẢ' : 'ĐƠN HOÀN TIỀN'}</span>
-                        </span>
-
-                        {/* Order Code */}
-                        <span className="font-mono text-xs font-bold text-on-surface bg-theme-surface px-2.5 py-1 rounded-lg border border-theme-border">
-                          Đơn: #{ret.order?.code || ret.orderId?.slice(0, 8)}
-                        </span>
-
-                        {/* Store Tag */}
-                        {ret.store?.name && (
-                          <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
-                            <span className="material-symbols-outlined text-xs">storefront</span>
-                            <span>{ret.store.name}</span>
-                          </span>
-                        )}
-
-                        {/* Date Created */}
-                        <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs">calendar_today</span>
-                          {new Date(ret.createdAt).toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
-
-                      {/* Processing Status Badge */}
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${badge.className}`}
-                        >
-                          <span className="material-symbols-outlined text-xs">{badge.icon}</span>
-                          <span>{badge.text}</span>
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Card Body: Product Item & Return Details */}
-                    <div className="p-4 sm:p-5 space-y-4">
-                      {/* Product Row */}
-                      <div className="flex items-center gap-4">
-                        {/* Book Cover */}
-                        <div className="w-14 h-18 sm:w-16 sm:h-20 rounded-lg bg-theme-surface-subtle border border-theme-border overflow-hidden shrink-0 flex items-center justify-center">
-                          {ret.orderItem?.coverUrl ? (
-                            <img
-                              src={ret.orderItem.coverUrl}
-                              alt={ret.orderItem.title}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span className="material-symbols-outlined text-2xl text-theme-primary/40">
-                              auto_stories
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Book Information */}
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-editorial text-xs sm:text-sm font-bold text-on-surface truncate">
-                            {ret.orderItem?.title || ret.bookTitle}
-                          </h4>
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <span className="text-xs text-on-surface-variant">
-                              Số lượng:{' '}
-                              <b className="text-on-surface">{ret.orderItem?.quantity || ret.quantity || 1}</b>
-                            </span>
-                            <span className="text-xs text-on-surface-variant">
-                              • Đơn giá:{' '}
-                              <b className="text-on-surface">
-                                {Number(ret.orderItem?.price || ret.amount || 0).toLocaleString('vi-VN')}đ
-                              </b>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Amount */}
-                        <div className="text-right shrink-0">
-                          <div className="text-[11px] text-on-surface-variant font-medium">
-                            {isReplacement ? 'Giá trị đổi' : 'Số tiền hoàn'}
-                          </div>
-                          <div className="font-bold text-xs sm:text-sm text-theme-primary">
-                            {Number(ret.amount || 0).toLocaleString('vi-VN')}đ
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Reason & Evidence Box */}
-                      <div className="p-3.5 rounded-xl bg-theme-surface-subtle border border-theme-border/70 text-xs space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 text-on-surface font-semibold">
-                            <span className="material-symbols-outlined text-sm text-amber-600">report_problem</span>
-                            <span>Lý do: {reasonText}</span>
-                          </div>
-                          {ret.reasonDetail && (
-                            <span className="text-on-surface-variant text-[11px] italic">
-                              &ldquo;{ret.reasonDetail}&rdquo;
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Evidence Files (Images, Videos, Documents/PDF) */}
-                        {((Array.isArray(ret.evidenceImages) && ret.evidenceImages.length > 0) ||
-                          (Array.isArray(ret.evidenceVideos) && ret.evidenceVideos.length > 0) ||
-                          (Array.isArray(ret.evidenceDocuments) && ret.evidenceDocuments.length > 0) ||
-                          (Array.isArray(ret.evidencePdfs) && ret.evidencePdfs.length > 0)) && (
-                          <div className="flex flex-wrap items-center gap-2 pt-1">
-                            <span className="text-[11px] text-on-surface-variant font-medium shrink-0">
-                              Minh chứng:
-                            </span>
-                            {/* Images */}
-                            {Array.isArray(ret.evidenceImages) &&
-                              ret.evidenceImages.map((imgUrl: string, idx: number) => (
-                                <a
-                                  key={`img-${idx}`}
-                                  href={imgUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="w-10 h-10 rounded-lg overflow-hidden border border-theme-border shrink-0 hover:opacity-80 transition-opacity"
-                                  title={`Ảnh minh chứng #${idx + 1}`}
-                                >
-                                  <img src={imgUrl} alt={`evidence-${idx}`} className="w-full h-full object-cover" />
-                                </a>
-                              ))}
-                            {/* Videos */}
-                            {Array.isArray(ret.evidenceVideos) &&
-                              ret.evidenceVideos.map((vidUrl: string, idx: number) => (
-                                <a
-                                  key={`vid-${idx}`}
-                                  href={vidUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="h-10 px-2 rounded-lg border border-theme-border bg-theme-surface-subtle flex items-center gap-1 text-[11px] font-bold text-on-surface hover:border-theme-primary transition-colors"
-                                  title={`Video minh chứng #${idx + 1}`}
-                                >
-                                  <span className="material-symbols-outlined text-sm text-theme-primary">play_circle</span>
-                                  <span>Video #{idx + 1}</span>
-                                </a>
-                              ))}
-                            {/* Documents / PDFs */}
-                            {(ret.evidenceDocuments || ret.evidencePdfs || []).map((docUrl: string, idx: number) => (
-                              <a
-                                key={`doc-${idx}`}
-                                href={docUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                download={`evidence-${idx + 1}.pdf`}
-                                className="h-10 px-2.5 rounded-lg border border-red-200 dark:border-red-900 bg-red-50/60 dark:bg-red-950/30 flex items-center gap-1.5 text-[11px] font-bold text-red-700 dark:text-red-300 hover:bg-red-100 transition-colors"
-                                title={`Tài liệu/PDF minh chứng #${idx + 1}`}
-                              >
-                                <span className="material-symbols-outlined text-base text-red-600">picture_as_pdf</span>
-                                <span>Tài liệu/PDF #{idx + 1}</span>
-                              </a>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Specific Logic for REPLACEMENT vs REFUND */}
-                      {isReplacement ? (
-                        /* ĐỔI TRẢ HÀNG: Replacement Shipping Status */
-                        <div className="p-3.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/70 dark:border-purple-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-base">local_shipping</span>
-                            </div>
-                            <div>
-                              <div className="font-bold text-on-surface flex items-center gap-2">
-                                <span>Trạng thái vận chuyển hàng đổi:</span>
-                                {ret.replacementTrackingCode ? (
-                                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-200 font-bold text-[11px]">
-                                    {ret.replacementStatus || 'Đang vận chuyển'}
-                                  </span>
-                                ) : ret.status === 'SELLER_ACCEPTED' || ret.status === 'ARBITRATED_BUYER_WINS' ? (
-                                  <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 font-bold text-[11px]">
-                                    Shop đang đóng gói hàng đổi mới
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 font-medium text-[11px]">
-                                    Chờ xác nhận yêu cầu đổi
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                {ret.replacementTrackingCode
-                                  ? `Đơn vị vận chuyển: ${ret.replacementCarrier || 'HUKI Express'} • Mã vận đơn: #${ret.replacementTrackingCode}`
-                                  : 'Shop sẽ gửi ấn phẩm đổi mới (0đ) ngay sau khi tiếp nhận và xác nhận.'}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        /* HOÀN TIỀN: Refund Escrow Status */
-                        <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
-                              <span className="material-symbols-outlined text-base">payments</span>
-                            </div>
-                            <div>
-                              <div className="font-bold text-on-surface flex items-center gap-2">
-                                <span>Trạng thái hoàn tiền:</span>
-                                {ret.status === 'REFUNDED' || ret.order?.paymentStatus === 'REFUNDED' ? (
-                                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200 font-bold text-[11px] flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-xs">check_circle</span>
-                                    <span>Đã hoàn tiền 100%</span>
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200 font-bold text-[11px] flex items-center gap-1">
-                                    <span className="material-symbols-outlined text-xs">lock</span>
-                                    <span>Chưa hoàn tiền (Đang bảo lãnh Escrow)</span>
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-on-surface-variant mt-0.5">
-                                {ret.status === 'REFUNDED' || ret.order?.paymentStatus === 'REFUNDED'
-                                  ? `Đã hoàn trả thành công ${Number(ret.amount || 0).toLocaleString('vi-VN')}đ về phương thức thanh toán gốc.`
-                                  : `Số tiền ${Number(ret.amount || 0).toLocaleString('vi-VN')}đ đang được bảo vệ an toàn tại Ký Quỹ Escrow HUKI và sẵn sàng hoàn lại ngay khi duyệt.`}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Store Dispute Banner if Shop Disputed */}
-                      {ret.status === 'SELLER_DISPUTED' && (
-                        <div className="p-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-900 text-xs flex items-start gap-2">
-                          <span className="material-symbols-outlined text-base text-orange-600 shrink-0">gavel</span>
-                          <div>
-                            <span className="font-bold">Cửa hàng đã gửi phản biện: </span>
-                            <span>{ret.sellerDisputeReason || 'Shop không đồng ý với yêu cầu đổi trả này.'}</span>
-                            <p className="text-[11px] text-orange-700 mt-0.5 font-medium">
-                              Platform Admin đang tiếp nhận trọng tài và sẽ ra phán quyết bảo vệ quyền lợi hợp lệ.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Admin Ruling Banner if Arbitrated */}
-                      {ret.adminRuling && (
-                        <div
-                          className={`p-3 rounded-xl border text-xs flex items-start gap-2 ${
-                            ret.adminRuling === 'BUYER_WINS'
-                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
-                              : 'bg-red-50 border-red-200 text-red-900'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-base shrink-0">
-                            {ret.adminRuling === 'BUYER_WINS' ? 'verified' : 'cancel'}
-                          </span>
-                          <div>
-                            <span className="font-bold">
-                              Phán quyết Trọng tài:{' '}
-                              {ret.adminRuling === 'BUYER_WINS'
-                                ? 'Chấp thuận yêu cầu của người mua'
-                                : 'Từ chối yêu cầu đổi trả'}
-                            </span>
-                            {ret.adminRulingReason && (
-                              <p className="text-[11px] mt-0.5">&ldquo;{ret.adminRulingReason}&rdquo;</p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Card Footer: Summary & Action Button */}
-                    <div className="p-4 sm:p-5 bg-theme-surface-subtle/30 border-t border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-on-surface-variant">
-                          {isReplacement ? 'Hình thức giải quyết:' : 'Tổng tiền hoàn dự kiến:'}
-                        </span>
-                        <span className="font-bold text-sm text-theme-primary">
-                          {isReplacement
-                            ? 'Đổi sản phẩm mới (0đ)'
-                            : `${Number(ret.amount || 0).toLocaleString('vi-VN')}đ (100%)`}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2.5">
-                        <Link
-                          href={`/orders/${ret.orderId}`}
-                          className="px-4 py-2 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-sm">visibility</span>
-                          <span>Xem Chi Tiết Đơn</span>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )
+        ) : filteredOrders.length === 0 ? (
+          /* Empty State */
+          <div className="p-12 text-center bg-white rounded-xl border border-gray-200/90 space-y-3">
+            <span className="material-symbols-outlined text-4xl text-gray-300">receipt_long</span>
+            <h3 className="font-bold text-sm text-gray-800">
+              {searchQuery ? 'Không tìm thấy đơn hàng nào khớp với từ khóa' : 'Chưa có đơn hàng nào'}
+            </h3>
+            <p className="text-xs text-gray-400 max-w-sm mx-auto">
+              Khám phá hàng ngàn tựa sách hay bản quyền trên HUKI Ebook và đặt mua ngay hôm nay.
+            </p>
+            <Link
+              href="/books"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#003B2B] text-white text-xs font-bold hover:bg-[#00241A] transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">explore</span>
+              <span>Khám Phá Sách</span>
+            </Link>
+          </div>
         ) : (
-          /* ========================================================= */
-          /* REGULAR ORDERS LIST CONTENT                               */
-          /* ========================================================= */
-          isLoading ? (
-            /* Loading Skeleton */
-            <div className="space-y-4 animate-pulse">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-theme-surface rounded-2xl border border-theme-border p-6 shadow-2xs">
-                  <div className="flex justify-between items-center pb-4 border-b border-theme-border mb-4">
-                    <div className="h-4 bg-theme-surface-subtle rounded w-40"></div>
-                    <div className="h-6 bg-theme-surface-subtle rounded-full w-28"></div>
-                  </div>
-                  <div className="flex gap-4">
-                    <div className="w-16 h-20 bg-theme-surface-subtle rounded-lg"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-theme-surface-subtle rounded w-3/4"></div>
-                      <div className="h-3 bg-theme-surface-subtle rounded w-1/4"></div>
-                    </div>
-                  </div>
+          /* GROUPED BY DATE SECTIONS */
+          <div className="space-y-6">
+            {groupedOrders.map((group) => (
+              <div key={group.dateLabel} className="space-y-3">
+                {/* Date Group Heading (Clean & sticky-friendly) */}
+                <div className="flex items-center gap-2 px-1">
+                  <span className="material-symbols-outlined text-base text-[#003B2B]">calendar_month</span>
+                  <h3 className="text-xs font-bold text-gray-700 tracking-tight">
+                    {group.dateLabel}
+                  </h3>
+                  <span className="text-[11px] text-gray-400 font-medium">({group.orders.length} đơn)</span>
+                  <div className="flex-1 h-px bg-gray-200/80 ml-2"></div>
                 </div>
-              ))}
-            </div>
-          ) : filteredOrders.length === 0 ? (
-            /* Empty State */
-            <div className="bg-theme-surface rounded-3xl border border-theme-border p-12 sm:p-16 text-center shadow-xs">
-              <div className="w-16 h-16 rounded-full bg-theme-primary/10 text-theme-primary flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-3xl">receipt_long</span>
-              </div>
-              <h3 className="font-editorial text-xl font-bold text-on-surface mb-2">
-                {searchQuery || activeTab !== 'ALL'
-                  ? 'Không Tìm Thấy Đơn Hàng Phù Hợp'
-                  : 'Bạn Chưa Có Đơn Hàng Nào'}
-              </h3>
-              <p className="text-xs text-on-surface-variant max-w-md mx-auto mb-6">
-                {searchQuery || activeTab !== 'ALL'
-                  ? 'Hãy thử thay đổi bộ lọc trạng thái hoặc từ khóa tìm kiếm để tra cứu lại.'
-                  : 'Khám phá hàng ngàn tựa sách hay bản quyền trên HUKI Ebook và đặt mua ngay hôm nay.'}
-              </p>
-              <Link
-                href="/books"
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-theme-primary text-white font-bold text-xs hover:bg-theme-primary-hover transition-all shadow-xs"
-              >
-                <span className="material-symbols-outlined text-base">explore</span>
-                <span>Khám Phá Sách Ngay</span>
-              </Link>
-            </div>
-          ) : (
-            /* Orders Cards List */
-            <div className="space-y-4">
-              {filteredOrders.map((ord: any) => {
-                const badge = getStatusBadge(ord);
-                const totalItems =
-                  ord.sellerOrders?.reduce((sum: number, so: any) => sum + (so.items?.length || 0), 0) || 0;
 
-                return (
-                  <div
-                    key={ord.id}
-                    className="bg-theme-surface rounded-2xl border border-theme-border shadow-2xs hover:shadow-xs transition-all overflow-hidden"
-                  >
-                    {/* Card Header */}
-                    <div className="p-4 sm:p-5 bg-theme-surface-subtle/50 border-b border-theme-border flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-3">
-                        <span className="font-mono text-xs font-bold text-on-surface bg-theme-surface px-2.5 py-1 rounded-lg border border-theme-border">
-                          #{ord.code}
-                        </span>
-                        <span className="text-[11px] text-on-surface-variant flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs">calendar_today</span>
-                          {new Date(ord.createdAt).toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </span>
-                      </div>
+                {/* Orders List inside this Date */}
+                <div className="space-y-3.5">
+                  {group.orders.map((ord: any) => {
+                    const badge = getStatusBadge(ord);
+                    const allItems = ord.sellerOrders?.flatMap((so: any) => so.items || []) || [];
+                    const totalItemsCount = allItems.reduce((sum: number, it: any) => sum + (it.quantity || 1), 0);
+                    const storeName = ord.sellerOrders?.[0]?.storeName || ord.sellerOrders?.[0]?.store?.name || 'Alpha Books Official';
+                    const storeId = ord.sellerOrders?.[0]?.storeId || ord.sellerOrders?.[0]?.store?.id || 'alpha-books';
 
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${badge.className}`}
-                        >
-                          <span className="material-symbols-outlined text-xs">{badge.icon}</span>
-                          <span>{badge.text}</span>
-                        </span>
-                      </div>
-                    </div>
+                    const ordTime = new Date(ord.createdAt || ord.created_at || Date.now()).toLocaleTimeString('vi-VN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
 
-                    {/* Card Body: Items List */}
-                    <div className="p-4 sm:p-5 divide-y divide-theme-border/60">
-                      {ord.sellerOrders?.flatMap((so: any) =>
-                        (so.items || []).map((item: any) => (
-                          <div key={item.id} className="py-3 first:pt-0 last:pb-0 flex items-center gap-4">
-                            {/* Book Cover */}
-                            <div className="w-14 h-18 sm:w-16 sm:h-20 rounded-lg bg-theme-surface-subtle border border-theme-border overflow-hidden shrink-0 flex items-center justify-center">
-                              {item.bookCoverUrl || item.coverUrl ? (
-                                <img
-                                  src={item.bookCoverUrl || item.coverUrl}
-                                  alt={item.bookTitle}
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <span className="material-symbols-outlined text-2xl text-theme-primary/40">
-                                  auto_stories
-                                </span>
-                              )}
-                            </div>
+                    return (
+                      <article
+                        key={ord.id}
+                        className="bg-white rounded-xl border border-gray-200/90 shadow-2xs hover:border-gray-300 transition-all overflow-hidden"
+                      >
+                        {/* ================= 1. CARD TOP BAR: SHOP NAME + CHAT + STATUS ================= */}
+                        <div className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-3 text-xs">
+                          {/* Left: Shop Branding & Quick Actions */}
+                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <span className="material-symbols-outlined text-[17px] text-[#003B2B] shrink-0">
+                              storefront
+                            </span>
+                            <span className="font-bold text-gray-900 truncate">
+                              {storeName}
+                            </span>
 
-                            {/* Book Information */}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-editorial text-xs sm:text-sm font-bold text-on-surface truncate">
-                                {item.bookTitle}
-                              </h4>
-                              <div className="flex flex-wrap items-center gap-2 mt-1">
-                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-theme-surface-subtle text-on-surface-variant border border-theme-border">
-                                  {item.format === 'DIGITAL' ? 'Sách Điện Tử (Ebook)' : 'Sách In Bìa Cứng'}
-                                </span>
-                                <span className="text-xs text-on-surface-variant">
-                                  SL: <b className="text-on-surface">{item.quantity}</b>
-                                </span>
-                              </div>
-                            </div>
+                            {/* Chat with Store Button */}
+                            <Link
+                              href={`/account/messages?shop=${encodeURIComponent(storeId)}`}
+                              className="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold border border-rose-200 flex items-center gap-1 transition-colors"
+                              title="Nhắn tin với Shop"
+                            >
+                              <span className="material-symbols-outlined text-[13px]">chat</span>
+                              <span>Chat</span>
+                            </Link>
 
-                            {/* Item Price */}
-                            <div className="text-right shrink-0">
-                              <div className="font-bold text-xs sm:text-sm text-theme-primary">
-                                {Number(item.subtotal || item.unitPrice * item.quantity).toLocaleString(
-                                  'vi-VN'
-                                )}
-                                đ
-                              </div>
-                              {item.quantity > 1 && (
-                                <div className="text-[10px] text-on-surface-variant">
-                                  {Number(item.unitPrice).toLocaleString('vi-VN')}đ/cuốn
+                            {/* View Shop Link */}
+                            <Link
+                              href={`/shop/${storeId}`}
+                              className="px-2 py-0.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 text-[11px] font-medium border border-gray-200 transition-colors hidden sm:inline-block"
+                            >
+                              Xem Shop
+                            </Link>
+
+                            <span className="text-gray-300 hidden sm:inline">|</span>
+
+                            <span className="font-mono text-[11px] text-gray-500 font-semibold">
+                              #{ord.code}
+                            </span>
+                          </div>
+
+                          {/* Right: Status */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className={`font-bold text-xs uppercase tracking-wider ${badge.colorClass}`}>
+                              {badge.text}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* ================= 2. CARD BODY: PRODUCT ITEMS ================= */}
+                        <div className="divide-y divide-gray-100">
+                          {allItems.map((item: any, idx: number) => {
+                            const coverSrc = item.bookCoverUrl || item.coverUrl || item.cover || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=150&q=80';
+                            const title = item.bookTitle || item.title || 'Tựa Sách HUKI';
+                            const formatLabel = item.format === 'DIGITAL' || item.format === 'EBOOK' ? 'Sách Điện Tử (Ebook DRM)' : 'Sách In Bìa Cứng';
+                            const itemPrice = Number(item.price || item.unitPrice || 0);
+                            const originalItemPrice = item.originalPrice ? Number(item.originalPrice) : (itemPrice > 0 ? Math.round(itemPrice * 1.3) : 0);
+
+                            return (
+                              <Link
+                                key={item.id || idx}
+                                href={`/orders/${ord.id}`}
+                                className="p-4 flex items-start gap-3.5 hover:bg-gray-50/50 transition-colors block cursor-pointer"
+                              >
+                                {/* Thumbnail */}
+                                <div className="w-14 h-18 rounded-md overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-2xs">
+                                  <img
+                                    src={coverSrc}
+                                    alt={title}
+                                    className="w-full h-full object-cover"
+                                  />
                                 </div>
-                              )}
+
+                                {/* Item Info */}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-semibold text-xs sm:text-sm text-gray-900 line-clamp-2 leading-snug">
+                                    {title}
+                                  </h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[11px] text-gray-500">
+                                      Phân loại: {formatLabel}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs text-gray-700 font-medium block mt-0.5">
+                                    x{item.quantity || 1}
+                                  </span>
+                                </div>
+
+                                {/* Item Price */}
+                                <div className="text-right shrink-0">
+                                  {originalItemPrice > itemPrice && (
+                                    <span className="text-[11px] text-gray-400 line-through block">
+                                      {originalItemPrice.toLocaleString('vi-VN')}₫
+                                    </span>
+                                  )}
+                                  <span className="text-xs sm:text-sm font-bold text-gray-900">
+                                    {itemPrice.toLocaleString('vi-VN')}₫
+                                  </span>
+                                </div>
+                              </Link>
+                            );
+                          })}
+                        </div>
+
+                        {/* ================= 3. CARD FOOTER: TOTAL & ACTION BUTTONS ================= */}
+                        <div className="px-4 py-3 bg-white border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          {/* Left: Timestamp & Payment Method */}
+                          <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                            <span className="material-symbols-outlined text-[15px] text-gray-400">schedule</span>
+                            <span>{ordTime}</span>
+                            <span>•</span>
+                            <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
+                              {ord.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng (COD)' : ord.paymentMethod || 'Đã thanh toán'}
+                            </span>
+                          </div>
+
+                          {/* Right: Grand Total & Action Buttons */}
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 shrink-0">
+                            <div className="flex items-center gap-1.5 sm:justify-end">
+                              <span className="text-xs text-gray-600 font-medium">
+                                Thành tiền ({totalItemsCount} món):
+                              </span>
+                              <span className="text-sm sm:text-base font-bold text-[#ac2c19]">
+                                {Number(ord.grandTotal || ord.totalAmount || 0).toLocaleString('vi-VN')} ₫
+                              </span>
+                            </div>
+
+                            {/* Buttons Group */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => router.push('/books')}
+                                className="px-3.5 py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white transition-colors text-xs font-semibold cursor-pointer"
+                              >
+                                Mua Lại
+                              </button>
+
+                              <Link
+                                href={`/account/messages?shop=${encodeURIComponent(storeId)}`}
+                                className="px-3.5 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors text-xs font-semibold cursor-pointer"
+                              >
+                                Liên Hệ Người Bán
+                              </Link>
+
+                              <Link
+                                href={`/orders/${ord.id}`}
+                                className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <span>Chi Tiết &amp; Tiến Trình</span>
+                                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                              </Link>
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-
-                    {/* Card Footer: Summary & CTA */}
-                    <div className="p-4 sm:p-5 bg-theme-surface-subtle/30 border-t border-theme-border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
-                        <span className="text-on-surface-variant">
-                          Tổng thanh toán ({totalItems} món):
-                        </span>
-                        <span className="font-bold text-base text-theme-primary">
-                          {Number(ord.grandTotal).toLocaleString('vi-VN')}đ
-                        </span>
-                        <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-medium">
-                          {ord.paymentMethod === 'COD' ? 'Thanh toán khi nhận hàng (COD)' : ord.paymentMethod}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2.5">
-                        <Link
-                          href="/books"
-                          className="px-4 py-2 rounded-xl bg-theme-surface hover:bg-theme-bg border border-theme-border text-on-surface text-xs font-semibold transition-all cursor-pointer shadow-2xs"
-                        >
-                          Mua Lại
-                        </Link>
-                        <Link
-                          href={`/orders/${ord.id}`}
-                          className="px-4 py-2 rounded-xl bg-theme-primary text-white text-xs font-bold hover:bg-theme-primary-hover transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <span>Chi Tiết & Tiến Trình</span>
-                          <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                        </Link>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
-        {/* Pagination Bar (For standard orders) */}
+        {/* ================= 5. PAGINATION ================= */}
         {activeTab !== 'RETURNS' && paginationMeta.totalPages > 1 && (
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl bg-theme-surface border border-theme-border text-xs text-on-surface-variant">
+          <div className="pt-4 flex items-center justify-between text-xs text-gray-500">
             <div>
-              Hiển thị <b className="text-on-surface">{filteredOrders.length}</b> trên tổng số{' '}
-              <b className="text-on-surface">{paginationMeta.total}</b> đơn hàng
+              Hiển thị <b>{filteredOrders.length}</b> đơn hàng
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage <= 1}
-                className="px-3 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-bg disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all cursor-pointer"
               >
                 Trước
               </button>
 
-              <span className="px-3 py-1.5 rounded-lg bg-theme-primary text-white font-bold">
+              <span className="px-3 py-1.5 rounded-lg bg-[#003B2B] text-white font-bold">
                 {currentPage} / {paginationMeta.totalPages}
               </span>
 
               <button
                 onClick={() => setCurrentPage((p) => Math.min(paginationMeta.totalPages, p + 1))}
                 disabled={currentPage >= paginationMeta.totalPages}
-                className="px-3 py-1.5 rounded-lg border border-theme-border bg-theme-surface hover:bg-theme-bg disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all"
+                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all cursor-pointer"
               >
                 Sau
               </button>
@@ -1031,6 +689,6 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
-    </div>
+    </AccountLayout>
   );
 }

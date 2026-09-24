@@ -31,12 +31,12 @@ export default function Button({
   onClick,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-bold rounded-xl transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none outline-none focus-visible:ring-2 focus-visible:ring-offset-1';
+  const baseStyles = 'inline-flex items-center justify-center font-bold transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none outline-none focus-visible:ring-2 focus-visible:ring-offset-1';
 
   const sizeStyles = {
-    sm: 'text-xs px-3 py-1.5 h-9 gap-1.5 shadow-2xs',
-    md: 'text-xs sm:text-sm px-4 py-2 h-10 gap-2 shadow-xs',
-    lg: 'text-sm sm:text-base px-6 py-2.5 h-12 gap-2.5 shadow-sm',
+    sm: 'text-[11px] px-2.5 py-1 h-7.5 gap-1 shadow-2xs rounded-lg',
+    md: 'text-xs px-3.5 py-1.5 h-8.5 gap-1.5 shadow-2xs rounded-lg',
+    lg: 'text-xs sm:text-sm px-4.5 py-2 h-10 gap-2 shadow-xs rounded-xl',
   };
 
   const variantStyles = {
@@ -57,14 +57,14 @@ export default function Button({
       {...props}
     >
       {loading && (
-        <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
+        <span className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin shrink-0" />
       )}
       {!loading && icon && iconPosition === 'left' && (
-        <span className="material-symbols-outlined text-[18px] shrink-0">{icon}</span>
+        <span className="material-symbols-outlined text-[16px] shrink-0">{icon}</span>
       )}
       {children}
       {!loading && icon && iconPosition === 'right' && (
-        <span className="material-symbols-outlined text-[18px] shrink-0">{icon}</span>
+        <span className="material-symbols-outlined text-[16px] shrink-0">{icon}</span>
       )}
     </button>
   );

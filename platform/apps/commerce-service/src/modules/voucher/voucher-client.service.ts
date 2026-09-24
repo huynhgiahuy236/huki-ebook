@@ -44,7 +44,7 @@ export interface VoucherValidationResult {
 }
 
 export interface VoucherUsageInput {
-  voucherId: string;
+  code: string;
   orderId: string;
   discountAmount: number;
 }
@@ -117,6 +117,24 @@ export class VoucherClientService {
 
     if (!result?.success) {
       throwBadRequest(ErrorCode.VOUCHER_USAGE_FAILED);
+    }
+  }
+
+  /**
+   * Rollback voucher usage for cancelled order
+   */
+  async rollback(orderId: string): Promise<void> {
+    try {
+      await this.request<{ rolledBack: number }>('/vouchers/rollback', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...this.internalHeaders(),
+        },
+        body: JSON.stringify({ orderId }),
+      });
+    } catch (error: any) {
+      this.logger.warn(`Failed to rollback vouchers for order ${orderId}: ${error.message}`);
     }
   }
 

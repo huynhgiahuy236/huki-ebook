@@ -154,10 +154,27 @@ export class PricingCalculatorService {
       voucherSelection.shippingVoucherCode,
     );
 
-    // Step 7: Calculate grand totals per group
-    for (const group of groups) {
-      const afterStoreDiscount = group.itemSubtotal - group.storeVoucherDiscount;
-      const afterPlatformDiscount = Math.max(0, afterStoreDiscount - this.allocatePlatformDiscount(group, platformDiscount));
+    // Step 7: Calculate grand totals per group with proportional platform discount allocation
+    const totalEligibleAllGroups = groups.reduce(
+      (sum, g) => sum + Math.max(0, g.itemSubtotal - g.storeVoucherDiscount),
+      0,
+    );
+
+    let remainingPlatformDiscount = platformDiscount;
+    for (let i = 0; i < groups.length; i++) {
+      const group = groups[i];
+      const afterStoreDiscount = Math.max(0, group.itemSubtotal - group.storeVoucherDiscount);
+      let groupPlatformDiscount = 0;
+      if (platformDiscount > 0 && totalEligibleAllGroups > 0) {
+        if (i === groups.length - 1) {
+          groupPlatformDiscount = Math.min(afterStoreDiscount, remainingPlatformDiscount);
+        } else {
+          const ratio = afterStoreDiscount / totalEligibleAllGroups;
+          groupPlatformDiscount = Math.min(afterStoreDiscount, Math.round(platformDiscount * ratio));
+          remainingPlatformDiscount = Math.max(0, remainingPlatformDiscount - groupPlatformDiscount);
+        }
+      }
+      const afterPlatformDiscount = Math.max(0, afterStoreDiscount - groupPlatformDiscount);
       const afterShippingDiscount = Math.max(0, group.shippingFee - group.shippingDiscount);
       group.grandTotal = afterPlatformDiscount + afterShippingDiscount;
     }
@@ -378,14 +395,22 @@ export class PricingCalculatorService {
   /**
    * Allocate platform discount proportionally to each store
    */
-  private allocatePlatformDiscount(group: PricingStoreGroup, totalPlatformDiscount: number): number {
+  private allocatePlatformDiscount(
+    group: PricingStoreGroup,
+    totalPlatformDiscount: number,
+    totalEligibleAllGroups?: number,
+  ): number {
     if (totalPlatformDiscount <= 0) return 0;
 
-    // Calculate total eligible for platform discount
-    const totalEligible = group.itemSubtotal - group.storeVoucherDiscount;
+    const totalEligible = Math.max(0, group.itemSubtotal - group.storeVoucherDiscount);
     if (totalEligible <= 0) return 0;
 
-    return totalPlatformDiscount; // Full platform discount applies to this store's eligible amount
+    if (totalEligibleAllGroups && totalEligibleAllGroups > 0) {
+      const ratio = totalEligible / totalEligibleAllGroups;
+      return Math.min(totalEligible, Math.round(totalPlatformDiscount * ratio));
+    }
+
+    return Math.min(totalEligible, totalPlatformDiscount);
   }
 
   /**

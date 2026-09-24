@@ -3,15 +3,16 @@ import React, { useState, useEffect } from "react";
 import { useToast } from "../../context/ToastContext";
 import { flashSaleApi } from "../../api/flashSaleApi";
 import { catalogApi } from "../../api/catalogApi";
+import { voucherApi, Voucher } from "../../api/voucherApi";
 
 export function AdminMarketingView() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState("flash_sales");
 
   // Flash Sale State
-  const [flashSales, setFlashSales] = useState<any[]>([]);;
+  const [flashSales, setFlashSales] = useState<any[]>([]);
   const [loadingFlashSales, setLoadingFlashSales] = useState(false);
-  const [catalogBooks, setCatalogBooks] = useState<any[]>([]);;
+  const [catalogBooks, setCatalogBooks] = useState<any[]>([]);
 
   // Create Campaign Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -70,38 +71,39 @@ export function AdminMarketingView() {
     },
   ]);
 
-  const [vouchers, setVouchers] = useState([
-    {
-      code: "HUKIFREESHIP",
-      discount: "Miễn phí giao hàng 2H (tối đa 30.000₫)",
-      minOrder: "150.000₫",
-      used: 3420,
-      total: 5000,
-      expiry: "30/06/2026",
-      status: "active",
-    },
-    {
-      code: "HUKIDRM20",
-      discount: "Giảm 20% Ebook DRM toàn sàn",
-      minOrder: "0₫",
-      used: 1290,
-      total: 2000,
-      expiry: "30/06/2026",
-      status: "active",
-    },
-    {
-      code: "WELCOME50K",
-      discount: "Giảm 50.000₫ cho đơn đầu tiên",
-      minOrder: "200.000₫",
-      used: 890,
-      total: 1000,
-      expiry: "15/07/2026",
-      status: "active",
-    },
-  ]);
+  // Real Voucher State
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
+  const [showCreateVoucherModal, setShowCreateVoucherModal] = useState(false);
+  const [voucherForm, setVoucherForm] = useState<{
+    code: string;
+    name: string;
+    description: string;
+    type: 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
+    value: number;
+    minOrderAmount: number;
+    maxDiscountAmount: number;
+    totalUsage: number;
+    maxUsagePerUser: number;
+    startsAt: string;
+    expiresAt: string;
+  }>({
+    code: "",
+    name: "",
+    description: "",
+    type: "PERCENTAGE",
+    value: 15,
+    minOrderAmount: 100000,
+    maxDiscountAmount: 50000,
+    totalUsage: 1000,
+    maxUsagePerUser: 1,
+    startsAt: new Date().toISOString().slice(0, 16),
+    expiresAt: new Date(Date.now() + 86400000 * 30).toISOString().slice(0, 16),
+  });
 
   useEffect(() => {
     fetchFlashSales();
+    fetchVouchers();
     catalogApi
       .getPublicBooks({ limit: 50 })
       .then((res) => {
@@ -113,6 +115,20 @@ export function AdminMarketingView() {
         console.warn("Could not load books for admin marketing:", err),
       );
   }, []);
+
+  const fetchVouchers = async () => {
+    try {
+      setLoadingVouchers(true);
+      const res = await voucherApi.getAllVouchers({ scope: 'PLATFORM' });
+      if (res.success && res.data) {
+        setVouchers(res.data.items || []);
+      }
+    } catch (err) {
+      console.error("Failed to load platform vouchers:", err);
+    } finally {
+      setLoadingVouchers(false);
+    }
+  };
 
   const fetchFlashSales = async () => {
     try {
@@ -251,6 +267,80 @@ export function AdminMarketingView() {
     );
   };
 
+  const handleCreateVoucher = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!voucherForm.code.trim() || !voucherForm.name.trim()) {
+      showToast?.("Vui lòng nhập mã và tên voucher!", "warning");
+      return;
+    }
+    try {
+      const res = await voucherApi.createAdminVoucher({
+        code: voucherForm.code.trim().toUpperCase(),
+        name: voucherForm.name.trim(),
+        description: voucherForm.description.trim() || undefined,
+        type: voucherForm.type,
+        value: Number(voucherForm.value),
+        minOrderAmount: Number(voucherForm.minOrderAmount || 0),
+        maxDiscountAmount: voucherForm.type === 'PERCENTAGE' ? Number(voucherForm.maxDiscountAmount || 0) : undefined,
+        totalUsage: Number(voucherForm.totalUsage || 0),
+        maxUsagePerUser: Number(voucherForm.maxUsagePerUser || 1),
+        scope: 'PLATFORM',
+        startsAt: new Date(voucherForm.startsAt).toISOString(),
+        expiresAt: new Date(voucherForm.expiresAt).toISOString(),
+      });
+      if (res.success) {
+        showToast?.(`⚡ Đã tạo voucher sàn ${voucherForm.code.toUpperCase()} thành công!`, "success");
+        setShowCreateVoucherModal(false);
+        setVoucherForm({
+          code: "",
+          name: "",
+          description: "",
+          type: "PERCENTAGE",
+          value: 15,
+          minOrderAmount: 100000,
+          maxDiscountAmount: 50000,
+          totalUsage: 1000,
+          maxUsagePerUser: 1,
+          startsAt: new Date().toISOString().slice(0, 16),
+          expiresAt: new Date(Date.now() + 86400000 * 30).toISOString().slice(0, 16),
+        });
+        fetchVouchers();
+      } else {
+        showToast?.((res as any)?.message || "Không thể tạo voucher!", "error");
+      }
+    } catch (err) {
+      showToast?.("Lỗi kết nối khi tạo voucher!", "error");
+    }
+  };
+
+  const handleToggleVoucherStatus = async (v: any) => {
+    const nextStatus = v.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    try {
+      const res = await voucherApi.updateAdminVoucher(v.id, { status: nextStatus });
+      if (res.success) {
+        showToast?.(`Đã chuyển trạng thái voucher ${v.code} thành ${nextStatus === 'ACTIVE' ? 'Đang hoạt động' : 'Tạm dừng'}`, "success");
+        fetchVouchers();
+      }
+    } catch {
+      showToast?.("Không thể cập nhật trạng thái voucher", "error");
+    }
+  };
+
+  const handleDeleteVoucher = async (v: any) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa voucher ${v.code}?`)) return;
+    try {
+      const res = await voucherApi.deleteAdminVoucher(v.id);
+      if (res.success) {
+        showToast?.(`Đã xóa voucher ${v.code}`, "success");
+        fetchVouchers();
+      } else {
+        showToast?.((res as any)?.message || "Không thể xóa voucher đã có lượt dùng!", "error");
+      }
+    } catch {
+      showToast?.("Không thể xóa voucher", "error");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 max-w-[1600px] mx-auto pb-12">
       {/* 1. TOP HEADER */}
@@ -283,6 +373,16 @@ export function AdminMarketingView() {
                 bolt
               </span>
               <span>Tạo Khung Giờ Flash Sale Mới</span>
+            </button>
+          ) : activeTab === "vouchers" ? (
+            <button
+              onClick={() => setShowCreateVoucherModal(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">
+                add_circle
+              </span>
+              <span>Tạo Voucher Sàn Mới</span>
             </button>
           ) : (
             <button
@@ -323,13 +423,14 @@ export function AdminMarketingView() {
         </button>
         <button
           onClick={() => setActiveTab("vouchers")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
             activeTab === "vouchers"
-              ? "bg-[#00875A] text-white shadow-xs"
+              ? "bg-amber-600 text-white shadow-xs"
               : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          Mã Giảm Giá Sàn ({vouchers.length})
+          <span className="material-symbols-outlined text-sm">confirmation_number</span>
+          <span>Mã Giảm Giá Sàn ({vouchers.length})</span>
         </button>
       </div>
 

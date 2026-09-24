@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/ui/context/CartContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { useLayout } from '@/ui/components/layout/AppLayout';
 
 interface TrackInfo {
   title: string;
@@ -17,6 +18,7 @@ interface TrackInfo {
 export default function AudiobooksPage() {
   const { addToCart } = useCart();
   const { showToast } = useToast();
+  const { isSidebarCollapsed } = useLayout();
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [isPlaying, setIsPlaying] = useState(false);
@@ -328,23 +330,27 @@ export default function AudiobooksPage() {
 
       {/* Floating Mini Audio Player Bar */}
       {showMiniPlayer && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-[90px] md:right-8 z-40 bg-theme-surface/95 backdrop-blur-md border border-theme-border rounded-3xl p-3.5 sm:p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <div className="w-12 h-12 rounded-xl bg-theme-primary text-white flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-2xl">headphones</span>
+        <div
+          className={`fixed bottom-4 z-40 bg-[var(--theme-surface,#ffffff)]/95 backdrop-blur-md border border-[var(--theme-border,#e8e5df)] rounded-2xl p-3 sm:p-3.5 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-all duration-300 left-4 right-4 ${
+            isSidebarCollapsed ? 'lg:left-[76px] lg:right-6' : 'lg:left-[236px] lg:right-6'
+          }`}
+        >
+          <div className="flex items-center gap-3 w-full sm:w-auto min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-xl bg-[var(--theme-primary,#003b2b)] text-[var(--theme-header-top-accent,#94f5d6)] flex items-center justify-center shrink-0 shadow-2xs">
+              <span className="material-symbols-outlined text-xl">headphones</span>
             </div>
             <div className="min-w-0 flex-1">
-              <h4 className="font-bold text-xs sm:text-sm text-on-surface truncate">{currentTrack.title}</h4>
-              <p className="text-[11px] text-on-surface-variant">{currentTrack.author} • Giọng đọc: {currentTrack.narrator}</p>
+              <h4 className="font-bold text-xs sm:text-[13px] text-[var(--theme-text,#141d1c)] truncate">{currentTrack.title}</h4>
+              <p className="text-[11px] text-[var(--theme-text-muted,#6b7280)] truncate">{currentTrack.author} • Giọng đọc: {currentTrack.narrator}</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-between sm:justify-end">
             {/* Speed toggle */}
             <button
               type="button"
               onClick={() => showToast('Chế độ tăng tốc: 1.25x (Giọng nói rõ ràng)', 'info')}
-              className="px-2.5 py-1 bg-theme-secondary-subtle hover:bg-theme-border rounded-lg text-xs font-bold text-on-surface cursor-pointer transition-colors"
+              className="px-2.5 py-1 bg-[var(--theme-secondary-subtle,#e6f4f0)] hover:bg-[var(--theme-border,#e8e5df)] rounded-lg text-xs font-bold text-[var(--theme-primary,#003b2b)] cursor-pointer transition-colors"
             >
               1.25x
             </button>
@@ -353,7 +359,7 @@ export default function AudiobooksPage() {
             <button
               type="button"
               onClick={() => togglePlay()}
-              className="w-10 h-10 rounded-full bg-theme-secondary hover:opacity-90 text-white flex items-center justify-center shadow-sm cursor-pointer transition-opacity"
+              className="w-9 h-9 rounded-full bg-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-primary-hover,#00281d)] text-white flex items-center justify-center shadow-xs cursor-pointer transition-colors"
             >
               <span className="material-symbols-outlined text-xl">
                 {isPlaying ? 'pause' : 'play_arrow'}
@@ -364,20 +370,20 @@ export default function AudiobooksPage() {
             <button
               type="button"
               onClick={() => showToast('Đã hẹn giờ tắt sau 30 phút ngủ!', 'success')}
-              className="p-2 hover:bg-theme-bg rounded-xl text-on-surface-variant cursor-pointer transition-colors"
+              className="p-1.5 hover:bg-[var(--theme-surface-subtle,#f8f6f1)] rounded-xl text-[var(--theme-text-muted,#6b7280)] cursor-pointer transition-colors"
               title="Hẹn giờ tắt"
             >
-              <span className="material-symbols-outlined text-lg">bedtime</span>
+              <span className="material-symbols-outlined text-[18px]">bedtime</span>
             </button>
 
             {/* Close */}
             <button
               type="button"
               onClick={() => setShowMiniPlayer(false)}
-              className="p-2 hover:bg-theme-bg rounded-xl text-slate-400 cursor-pointer transition-colors"
+              className="p-1.5 hover:bg-[var(--theme-surface-subtle,#f8f6f1)] rounded-xl text-[var(--theme-text-muted,#6b7280)] cursor-pointer transition-colors"
               title="Ẩn trình phát"
             >
-              <span className="material-symbols-outlined text-lg">close</span>
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
         </div>
