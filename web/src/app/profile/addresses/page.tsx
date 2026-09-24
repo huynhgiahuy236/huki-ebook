@@ -478,7 +478,7 @@ export default function UserAddressesPage() {
                       district={formData.district}
                       ward={formData.ward}
                       onChange={({ province, district, ward }: LocationChangePayload) =>
-                        setFormData((prev) => ({ ...prev, province, district, ward }))
+                        setFormData((prev) => ({ ...prev, province, district: district || ward || '', ward }))
                       }
                       required
                     />

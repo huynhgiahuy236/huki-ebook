@@ -1,10 +1,16 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useToast } from '../../context/ToastContext';
+import {
+  AdminPagination,
+  AdminTableContainer,
+} from './AdminUI';
 
 export function AdminSettingsView() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('general');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const [platformSettings, setPlatformSettings] = useState({
     platformName: 'HUKI Ebook & Sách Giấy Chính Hãng',
@@ -40,29 +46,26 @@ export function AdminSettingsView() {
     }
   ];
 
+  const totalPages = Math.ceil(auditLogs.length / pageSize) || 1;
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return auditLogs.slice(start, start + pageSize);
+  }, [auditLogs, currentPage, pageSize]);
+
   const handleSave = (e: any) => {
     e.preventDefault();
     showToast('Đã lưu toàn bộ cấu hình hệ thống Super Admin thành công!', 'success');
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1600px] mx-auto">
-      
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full font-sans">
       {/* 1. TOP HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-500">Thiết Lập &amp; Quản Trị</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-800 text-[11px] font-bold">
-              SUPER ADMIN GOVERNANCE • RBAC &amp; DRM POLICIES
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
-            Cài Đặt Hệ Thống &amp; Chính Sách Bản Quyền DRM
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+            Cài Đặt Hệ Thống &amp; Chính Sách DRM
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Điều chỉnh chính sách bảo mật DRM chống chụp màn hình, phân quyền đội ngũ ban quản trị và theo dõi nhật ký kiểm toán (Audit Logs).
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Thiết lập tham số bản quyền, phí hoa hồng sàn và theo dõi nhật ký kiểm toán</p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -179,30 +182,61 @@ export function AdminSettingsView() {
 
         </form>
       ) : (
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
-          <table className="w-full text-left text-xs text-gray-600">
-            <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-              <tr>
-                <th className="py-3.5 px-4">Mã Log</th>
-                <th className="py-3.5 px-3">Quản Trị Viên</th>
-                <th className="py-3.5 px-3">Hành Động Thực Hiện</th>
-                <th className="py-3.5 px-3">Thời Gian</th>
-                <th className="py-3.5 px-4 text-right">Địa Chỉ IP</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {auditLogs.map(log => (
-                <tr key={log.id} className="hover:bg-[#F9FAFB] transition-colors">
-                  <td className="py-3.5 px-4 font-mono font-bold text-gray-800">#{log.id}</td>
-                  <td className="py-3.5 px-3 font-bold text-gray-900">{log.admin}</td>
-                  <td className="py-3.5 px-3 font-medium text-gray-700">{log.action}</td>
-                  <td className="py-3.5 px-3 text-gray-500">{log.time}</td>
-                  <td className="py-3.5 px-4 text-right font-mono text-gray-500">{log.ip}</td>
+        <AdminTableContainer>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse min-w-[1200px]">
+              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mã Log</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Quản Trị Viên Thực Hiện</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Hành Động Hệ Thống</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Thời Gian Ghi Nhận</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-right pr-4">Địa Chỉ IP</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-100 font-normal">
+                {paginatedLogs.map((log, idx) => {
+                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                  return (
+                    <tr
+                      key={log.id}
+                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                    >
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400">
+                        {itemIndex}
+                      </td>
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-bold text-gray-800">
+                        #{log.id}
+                      </td>
+                      <td className="py-3 px-3.5 whitespace-nowrap font-bold text-gray-900">
+                        {log.admin}
+                      </td>
+                      <td className="py-3 px-3.5 whitespace-nowrap font-medium text-gray-700">
+                        {log.action}
+                      </td>
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
+                        {log.time}
+                      </td>
+                      <td className="py-3 px-3.5 whitespace-nowrap text-right pr-4 font-mono text-gray-500 text-[11px]">
+                        {log.ip}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={auditLogs.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            itemLabel="bản ghi nhật ký"
+          />
+        </AdminTableContainer>
       )}
 
     </div>

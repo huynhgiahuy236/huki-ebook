@@ -53,23 +53,13 @@ export function AdminCalendarView() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1600px] mx-auto">
-      
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
       {/* 1. TOP HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-500">Kế Hoạch &amp; Lịch Trình</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
-              LỊCH TRÌNH VẬN HÀNH TOÀN SÀN
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
-            Lịch Sự Kiện Xuất Bản &amp; Hoạt Động Hệ Thống
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+            Lịch Sự Kiện &amp; Hoạt Động Hệ Thống
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Theo dõi tiến độ hội sách offline, đợt mở bán sách bản quyền độc quyền, chu kỳ quyết toán và lịch bảo trì cụm máy chủ DRM.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

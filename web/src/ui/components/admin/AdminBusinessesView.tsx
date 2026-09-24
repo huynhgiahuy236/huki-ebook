@@ -5,6 +5,7 @@ import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { taxRegistryService } from '../../services/taxRegistryService';
 import { useSmartFormCollapse } from '../../utils/formHooks';
+import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -216,6 +217,19 @@ export function AdminBusinessesView() {
       REJECTED: businesses.filter((b) => b.status === 'REJECTED').length,
     };
   }, [businesses]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.ceil(filteredBusinesses.length / pageSize) || 1;
+  const paginatedBusinesses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredBusinesses.slice(start, start + pageSize);
+  }, [filteredBusinesses, currentPage]);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    setCurrentPage(1);
+  };
 
   // Xử lý phê duyệt
   const handleApprove = async (biz: any) => {
@@ -829,70 +843,98 @@ export function AdminBusinessesView() {
           </div>
         )}
 
-        {/* MODAL TỪ CHỐI */}
+        {/* FORM TỪ CHỐI IN-PAGE COLLAPSIBLE */}
         {rejectModalBiz && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-              onClick={() => setRejectModalBiz(null)}
-            />
-            <div className="relative w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl z-10 flex flex-col gap-4 animate-scale-up">
+          <div
+            ref={rejectFormRef}
+            className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-rose-300 animate-in fade-in slide-in-from-top-4 duration-300 space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-rose-100 pb-4">
               <div className="flex items-center gap-3 text-rose-600">
                 <span className="material-symbols-outlined text-3xl">cancel</span>
                 <div>
-                  <h3 className="text-sm font-bold text-gray-900">Từ Chối Hồ Sơ Doanh Nghiệp</h3>
+                  <h3 className="text-base font-bold text-gray-900">Từ Chối Hồ Sơ Doanh Nghiệp</h3>
                   <p className="text-xs text-gray-500">Doanh nghiệp: {rejectModalBiz.name}</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectModalBiz(null);
+                  setRejectReason('');
+                  setRejectReasonError('');
+                }}
+                className="text-gray-400 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-xl">close</span>
+              </button>
+            </div>
 
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-gray-700">
-                  Lý do từ chối <span className="text-rose-500">*</span>:
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Nhập lý do từ chối (VD: Mã số thuế không khớp CSDL Quốc gia, Thiếu bản scan GPKD có dấu mộc...)"
-                  value={rejectReason}
-                  onChange={(e: any) => setRejectReason(e.target.value)}
-                  className="w-full p-3 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 focus:outline-none focus:border-rose-500 focus:bg-white transition-all resize-none"
-                />
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-bold text-gray-700">
+                Lý do từ chối <span className="text-rose-500">*</span>:
+              </label>
+              <textarea
+                rows={3}
+                placeholder="Nhập lý do từ chối (VD: Mã số thuế không khớp CSDL Quốc gia, Thiếu bản scan GPKD có dấu mộc...)"
+                value={rejectReason}
+                onChange={(e: any) => {
+                  setRejectReason(e.target.value);
+                  if (rejectReasonError) setRejectReasonError('');
+                }}
+                className={`w-full p-3 rounded-xl bg-gray-50 border text-xs text-gray-800 focus:outline-none focus:border-rose-500 focus:bg-white transition-all resize-none ${
+                  rejectReasonError ? 'border-rose-500 ring-1 ring-rose-500' : 'border-gray-200'
+                }`}
+              />
+              {rejectReasonError && (
+                <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[14px]">error</span>
+                  <span>{rejectReasonError}</span>
+                </p>
+              )}
 
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {[
-                    'Mã số thuế không tồn tại trong CSDL',
-                    'Tên doanh nghiệp không khớp CSDL Thuế',
-                    'Thiếu bản scan GPKD dấu đỏ',
-                    'Tên chủ tài khoản không khớp tên DN',
-                  ].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setRejectReason(preset)}
-                      className="text-[10px] px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                {[
+                  'Mã số thuế không tồn tại trong CSDL',
+                  'Tên doanh nghiệp không khớp CSDL Thuế',
+                  'Thiếu bản scan GPKD dấu đỏ',
+                  'Tên chủ tài khoản không khớp tên DN',
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setRejectReason(preset);
+                      if (rejectReasonError) setRejectReasonError('');
+                    }}
+                    className="text-[10px] px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-rose-50 hover:text-rose-700 text-gray-700 font-medium transition-colors cursor-pointer"
+                  >
+                    {preset}
+                  </button>
+                ))}
               </div>
+            </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-                <button
-                  type="button"
-                  onClick={() => setRejectModalBiz(null)}
-                  className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmReject}
-                  disabled={actionLoadingId === rejectModalBiz.id}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs"
-                >
-                  Xác nhận từ chối
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-gray-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setRejectModalBiz(null);
+                  setRejectReason('');
+                  setRejectReasonError('');
+                }}
+                className="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReject}
+                disabled={actionLoadingId === rejectModalBiz.id}
+                className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-all shadow-xs"
+              >
+                Xác nhận từ chối
+              </button>
             </div>
           </div>
         )}
@@ -905,24 +947,13 @@ export function AdminBusinessesView() {
   // VIEW 2: BẢNG DANH SÁCH DOANH NGHIỆP TRUYỀN THỐNG
   // =========================================================================
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-      
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
       {/* 1. TOP HEADER & SUMMARY */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
-              XÉT DUYỆT ĐỐI TÁC
-            </span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 font-medium">Hệ thống thẩm định 33 trường CSDL Quốc Gia</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-1 font-editorial">
-            Hàng Chờ Xét Duyệt Doanh Nghiệp
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+            Quản Lý &amp; Xét Duyệt Doanh Nghiệp
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Xem xét, thẩm định 5 form đăng ký, đối chiếu CSDL Quốc Gia tự động và phê duyệt hồ sơ đối tác phát hành sách.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -949,38 +980,13 @@ export function AdminBusinessesView() {
 
       {/* 2. TABS & SEARCH BAR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
-        
         {/* Status Tabs */}
-        <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0">
-          {STATUS_TABS.map((tab) => {
-            const isSelected = activeTab === tab.key;
-            const count = (counts as any)[tab.key] || 0;
-            return (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer shrink-0 ${
-                  isSelected
-                    ? 'bg-[#00875A] text-white shadow-xs'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    isSelected
-                      ? 'bg-white/20 text-white'
-                      : tab.key === 'PENDING_APPROVAL' && count > 0
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <AdminFilterTabs
+          tabs={STATUS_TABS}
+          activeTab={activeTab}
+          onChange={handleTabChange}
+          counts={counts}
+        />
 
         {/* Search Box */}
         <div className="relative w-full md:w-80">
@@ -991,14 +997,17 @@ export function AdminBusinessesView() {
             type="text"
             placeholder="Tìm theo tên DN, MST, email, SĐT..."
             value={searchQuery}
-            onChange={(e: any) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
           />
         </div>
       </div>
 
       {/* 3. BUSINESSES TABLE / LIST */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+      <AdminTableContainer>
         {loading ? (
           <div className="py-16 text-center flex flex-col items-center justify-center gap-2 text-gray-400">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
@@ -1014,106 +1023,141 @@ export function AdminBusinessesView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4">Doanh Nghiệp</th>
-                  <th className="py-3 px-4">Mã Số Thuế</th>
-                  <th className="py-3 px-4">Thông Tin Liên Hệ</th>
-                  <th className="py-3 px-4">Ngày Đăng Ký</th>
-                  <th className="py-3 px-4">Trạng Thái</th>
-                  <th className="py-3 px-4 text-right">Thao Tác</th>
+            <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
+              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Doanh Nghiệp</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[150px]">Mã Định Danh / Slug</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Mã Số Thuế</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px]">Email Liên Hệ</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px]">Số Điện Thoại</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px]">Ngày Đăng Ký</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px] text-center">Trạng Thái</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px] text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredBusinesses.map((biz: any) => {
-                  const cfg = (STATUS_CONFIG as any)[biz.status] || STATUS_CONFIG.PENDING_APPROVAL;
+                {paginatedBusinesses.map((biz: any, idx: number) => {
                   const isPending = biz.status === 'PENDING_APPROVAL';
                   const isBusy = actionLoadingId === biz.id;
+                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+
+                  let statusVariant: any = 'neutral';
+                  let statusLabel = 'Không xác định';
+                  if (biz.status === 'APPROVED') {
+                    statusVariant = 'success';
+                    statusLabel = 'Đã phê duyệt';
+                  } else if (biz.status === 'PENDING_APPROVAL') {
+                    statusVariant = 'warning';
+                    statusLabel = 'Chờ xét duyệt';
+                  } else if (biz.status === 'REJECTED') {
+                    statusVariant = 'danger';
+                    statusLabel = 'Đã từ chối';
+                  } else if (biz.status === 'SUSPENDED') {
+                    statusVariant = 'neutral';
+                    statusLabel = 'Tạm ngưng';
+                  }
 
                   return (
-                    <tr key={biz.id} className="hover:bg-gray-50/60 transition-colors">
-                      
-                      {/* Name & Slug */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 border border-gray-300 flex items-center justify-center text-gray-700 font-extrabold text-sm shrink-0">
+                    <tr
+                      key={biz.id}
+                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                    >
+                      {/* STT */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400 font-semibold">
+                        {itemIndex}
+                      </td>
+
+                      {/* Name */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-xs shrink-0">
                             {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 max-w-[240px]">
                             <span
                               className="font-bold text-gray-900 block truncate hover:text-[#00875A] cursor-pointer"
                               onClick={() => setSelectedBiz(biz)}
+                              title={biz.name}
                             >
                               {biz.name}
                             </span>
-                            <span className="text-[11px] text-gray-400 block truncate">
-                              ID: {biz.id.slice(0, 8)}... • Slug: /{biz.slug || 'n-a'}
+                            <span className="text-[10px] text-gray-400 block truncate font-mono">
+                              ID: {biz.id}
                             </span>
                           </div>
                         </div>
                       </td>
 
-                      {/* Tax code */}
-                      <td className="py-3.5 px-4 font-mono font-medium text-gray-700">
-                        {biz.taxCode || <span className="text-gray-400 font-sans italic">Chưa cung cấp</span>}
-                      </td>
-
-                      {/* Contact */}
-                      <td className="py-3.5 px-4">
-                        <div className="text-gray-900 font-medium truncate">{biz.email || 'N/A'}</div>
-                        <div className="text-[11px] text-gray-500">{biz.phone || 'Chưa có SĐT'}</div>
-                      </td>
-
-                      {/* Created At */}
-                      <td className="py-3.5 px-4 text-gray-500">
-                        {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : 'N/A'}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${cfg.badge}`}>
-                          <span className="material-symbols-outlined text-[14px]">{cfg.icon}</span>
-                          <span>{cfg.label}</span>
+                      {/* Slug */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span className="font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
+                          /{biz.slug || 'n-a'}
                         </span>
                       </td>
 
+                      {/* Tax code */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-medium text-gray-800">
+                        {biz.taxCode || <span className="text-gray-400 font-sans italic text-[11px]">Chưa cung cấp</span>}
+                      </td>
+
+                      {/* Email */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700">
+                        {biz.email || <span className="text-gray-400 italic">Chưa có</span>}
+                      </td>
+
+                      {/* Phone */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-mono">
+                        {biz.phone || <span className="text-gray-400 font-sans italic text-[11px]">Chưa có</span>}
+                      </td>
+
+                      {/* Created At */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 font-mono text-[11px]">
+                        {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '—'}
+                      </td>
+
+                      {/* Status */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                        <AdminStatusBadge variant={statusVariant} label={statusLabel} />
+                      </td>
+
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-2.5 px-3.5 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
+                          <AdminActionButton
+                            variant="view"
+                            icon="visibility"
+                            label="Chi tiết"
+                            size="sm"
                             onClick={() => setSelectedBiz(biz)}
-                            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
                             title="Xem chi tiết toàn trang"
-                          >
-                            <span className="material-symbols-outlined text-[16px]">visibility</span>
-                            <span>Xem chi tiết</span>
-                          </button>
+                          />
 
                           {isPending && (
                             <>
-                              <button
+                              <AdminActionButton
+                                variant="success"
+                                icon="check"
+                                label="Duyệt"
+                                size="sm"
                                 onClick={() => handleApprove(biz)}
                                 disabled={isBusy}
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
                                 title="Phê duyệt doanh nghiệp"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">check</span>
-                                <span>Duyệt</span>
-                              </button>
+                              />
 
-                              <button
+                              <AdminActionButton
+                                variant="danger"
+                                icon="close"
+                                label="Từ chối"
+                                size="sm"
                                 onClick={() => {
                                   setRejectModalBiz(biz);
                                   setRejectReason('');
                                 }}
                                 disabled={isBusy}
-                                className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
                                 title="Từ chối hồ sơ"
-                              >
-                                <span className="material-symbols-outlined text-[14px]">close</span>
-                                <span>Từ chối</span>
-                              </button>
+                              />
                             </>
                           )}
                         </div>
@@ -1125,7 +1169,16 @@ export function AdminBusinessesView() {
             </table>
           </div>
         )}
-      </div>
+
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredBusinesses.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="doanh nghiệp"
+        />
+      </AdminTableContainer>
 
       {/* 4. REJECT IN-PAGE FORM */}
       {rejectModalBiz && (

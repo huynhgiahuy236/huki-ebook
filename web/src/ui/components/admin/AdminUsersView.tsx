@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { useSmartFormCollapse } from '../../utils/formHooks';
+import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
 
 interface DrmDevice {
   id: string;
@@ -34,8 +36,15 @@ export default function AdminUsersView() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTier] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const [inspectingUser, setInspectingUser] = useState<AdminUser | null>(null);
+
+  const userPanelRef = useSmartFormCollapse({
+    isOpen: Boolean(inspectingUser),
+    onClose: () => setInspectingUser(null),
+    isDirty: false,
+  });
 
   const [users, setUsers] = useState<AdminUser[]>([
     {
@@ -45,7 +54,7 @@ export default function AdminUsersView() {
       phone: '0912.345.678',
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
       tier: 'diamond',
-      tierLabel: 'Hội Viên Kim Cương',
+      tierLabel: 'Kim Cương',
       spent: 12450000,
       booksOwned: 84,
       ebooksCount: 52,
@@ -69,7 +78,7 @@ export default function AdminUsersView() {
       phone: '0988.765.432',
       avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80',
       tier: 'gold',
-      tierLabel: 'Hội Viên Vàng',
+      tierLabel: 'Vàng',
       spent: 8620000,
       booksOwned: 46,
       ebooksCount: 38,
@@ -91,7 +100,7 @@ export default function AdminUsersView() {
       phone: '0903.112.233',
       avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
       tier: 'silver',
-      tierLabel: 'Hội Viên Bạc',
+      tierLabel: 'Bạc',
       spent: 3450000,
       booksOwned: 19,
       ebooksCount: 14,
@@ -113,7 +122,7 @@ export default function AdminUsersView() {
       phone: '0977.889.900',
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
       tier: 'diamond',
-      tierLabel: 'Hội Viên Kim Cương',
+      tierLabel: 'Kim Cương',
       spent: 15800000,
       booksOwned: 112,
       ebooksCount: 90,
@@ -138,58 +147,100 @@ export default function AdminUsersView() {
       phone: '0933.445.566',
       avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
       tier: 'bronze',
-      tierLabel: 'Hội Viên Mới',
+      tierLabel: 'Đồng',
       spent: 450000,
       booksOwned: 3,
-      ebooksCount: 3,
-      physicalCount: 0,
-      devicesCount: 3,
+      ebooksCount: 2,
+      physicalCount: 1,
+      devicesCount: 1,
       devicesList: [
-        { name: 'Xiaomi 13 Pro', type: 'Android', lastActive: '1 ngày trước', id: 'DEV-14' },
-        { name: 'Asus ROG Ally', type: 'Windows Web', lastActive: '3 ngày trước', id: 'DEV-15' },
-        { name: 'Linux Reader App', type: 'Linux', lastActive: '4 ngày trước', id: 'DEV-16' }
+        { name: 'Xiaomi 13 Pro', type: 'Android', lastActive: '3 ngày trước', id: 'DEV-14' }
       ],
-      points: 40,
-      joinedDate: '01/06/2026',
+      points: 45,
+      joinedDate: '10/05/2024',
+      status: 'active',
+      statusLabel: 'Hoạt động tốt'
+    },
+    {
+      id: 'USR-9026',
+      name: 'Đặng Minh Triết',
+      email: 'triet.dang@studio.design',
+      phone: '0944.556.677',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
+      tier: 'gold',
+      tierLabel: 'Vàng',
+      spent: 7200000,
+      booksOwned: 34,
+      ebooksCount: 30,
+      physicalCount: 4,
+      devicesCount: 5,
+      devicesList: [
+        { name: 'MacBook Pro M2 Max', type: 'macOS', lastActive: '1 giờ trước', id: 'DEV-15' },
+        { name: 'iPad Pro 11 M1', type: 'iPadOS', lastActive: 'Hôm nay', id: 'DEV-16' },
+        { name: 'iPhone 13', type: 'iOS', lastActive: '2 ngày trước', id: 'DEV-17' },
+        { name: 'Windows PC Studio', type: 'Windows Web', lastActive: '4 ngày trước', id: 'DEV-18' },
+        { name: 'Kindle Oasis', type: 'E-Reader', lastActive: '1 tuần trước', id: 'DEV-19' }
+      ],
+      points: 710,
+      joinedDate: '14/01/2024',
       status: 'warning',
-      statusLabel: 'Đăng nhập đa IP'
+      statusLabel: 'Đạt tối đa 5 thiết bị'
     }
   ]);
 
   const handleRevokeDevice = (userId: string, deviceId: string) => {
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        const updatedList = u.devicesList.filter(d => d.id !== deviceId);
-        return { ...u, devicesList: updatedList, devicesCount: updatedList.length };
+        const nextList = u.devicesList.filter(d => d.id !== deviceId);
+        return {
+          ...u,
+          devicesList: nextList,
+          devicesCount: nextList.length,
+          status: nextList.length >= 5 ? 'warning' : 'active',
+          statusLabel: nextList.length >= 5 ? 'Đạt tối đa 5 thiết bị' : 'Hoạt động tốt'
+        };
       }
       return u;
     }));
+    showToast?.('Đã thu hồi giấy phép DRM trên thiết bị thành công.', 'success');
     if (inspectingUser && inspectingUser.id === userId) {
-      setInspectingUser(prev => prev ? ({
-        ...prev,
-        devicesList: prev.devicesList.filter(d => d.id !== deviceId),
-        devicesCount: prev.devicesCount - 1
-      }) : null);
+      setInspectingUser(prev => {
+        if (!prev) return null;
+        const nextList = prev.devicesList.filter(d => d.id !== deviceId);
+        return {
+          ...prev,
+          devicesList: nextList,
+          devicesCount: nextList.length,
+          status: nextList.length >= 5 ? 'warning' : 'active',
+          statusLabel: nextList.length >= 5 ? 'Đạt tối đa 5 thiết bị' : 'Hoạt động tốt'
+        };
+      });
     }
-    showToast?.('Đã thu hồi chứng chỉ DRM trên thiết bị thành công!', 'success');
   };
 
   const handleToggleLock = (userId: string) => {
     setUsers(prev => prev.map(u => {
       if (u.id === userId) {
-        const newStatus: 'active' | 'locked' = u.status === 'locked' ? 'active' : 'locked';
-        const newLabel = newStatus === 'locked' ? 'Đã khóa tài khoản' : 'Hoạt động tốt';
-        return { ...u, status: newStatus, statusLabel: newLabel };
+        const nextStatus = u.status === 'locked' ? 'active' : 'locked';
+        return {
+          ...u,
+          status: nextStatus,
+          statusLabel: nextStatus === 'locked' ? 'Đã bị khóa tài khoản' : 'Hoạt động tốt'
+        };
       }
       return u;
     }));
-    showToast?.('Đã cập nhật trạng thái tài khoản bạn đọc!', 'info');
+    showToast?.('Đã cập nhật trạng thái tài khoản người đọc.', 'info');
     if (inspectingUser && inspectingUser.id === userId) {
-      setInspectingUser(prev => prev ? ({
-        ...prev,
-        status: prev.status === 'locked' ? 'active' : 'locked',
-        statusLabel: prev.status === 'locked' ? 'Hoạt động tốt' : 'Đã khóa tài khoản'
-      }) : null);
+      setInspectingUser(prev => {
+        if (!prev) return null;
+        const nextStatus = prev.status === 'locked' ? 'active' : 'locked';
+        return {
+          ...prev,
+          status: nextStatus,
+          statusLabel: nextStatus === 'locked' ? 'Đã bị khóa tài khoản' : 'Hoạt động tốt'
+        };
+      });
     }
   };
 
@@ -206,41 +257,39 @@ export default function AdminUsersView() {
     }
   };
 
-  const filteredUsers = users.filter(user => {
-    if (activeTab === 'diamond' && user.tier !== 'diamond') return false;
-    if (activeTab === 'gold' && user.tier !== 'gold') return false;
-    if (activeTab === 'warning' && user.status !== 'warning') return false;
-    if (selectedTier !== 'all' && user.tier !== selectedTier) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        user.name.toLowerCase().includes(q) ||
-        user.email.toLowerCase().includes(q) ||
-        user.phone.includes(q) ||
-        user.id.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filteredUsers = useMemo(() => {
+    return users.filter(user => {
+      if (activeTab === 'diamond' && user.tier !== 'diamond') return false;
+      if (activeTab === 'gold' && user.tier !== 'gold') return false;
+      if (activeTab === 'warning' && user.status !== 'warning') return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          user.name.toLowerCase().includes(q) ||
+          user.email.toLowerCase().includes(q) ||
+          user.phone.includes(q) ||
+          user.id.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [users, activeTab, searchQuery]);
+
+  const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1480px] mx-auto">
-      
+    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
       {/* 1. TOP HEADER & INTRO */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-500">Quản Trị Bạn Đọc &amp; Hội Viên</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">
-              28.560 ĐỘC GIẢ TOÀN SÀN
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
-            Danh Sách Độc Giả &amp; Quản Lý Bản Quyền Thiết Bị
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+            Danh Sách Độc Giả &amp; Bản Quyền Thiết Bị
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Giám sát hạng hội viên VIP, lịch sử đọc sách, cấp phép thiết bị DRM đọc trực tuyến &amp; bảo vệ tài khoản bạn đọc.
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Quản lý độc giả, hạng hội viên VIP và cấp quyền thiết bị DRM đọc sách</p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
@@ -255,346 +304,323 @@ export default function AdminUsersView() {
       </div>
 
       {/* 2. STATS OVERVIEW CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Tổng Bạn Đọc Đã Đăng Ký</span>
-            <span className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">groups</span>
+            <span className="text-xs font-semibold text-gray-500">Tổng Bạn Đọc Đăng Ký</span>
+            <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px]">groups</span>
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">28.560</div>
-          <div className="mt-2 text-xs text-emerald-600 font-bold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">trending_up</span>
-            <span>+12.6% tăng trưởng tháng này</span>
+          <div className="text-xl font-extrabold text-gray-900 mt-1">28.560</div>
+          <div className="mt-1 text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+            <span className="material-symbols-outlined text-[13px]">trending_up</span>
+            <span>+12.6% tăng trưởng</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
+        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500">Hội Viên Kim Cương &amp; Vàng</span>
-            <span className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">diamond</span>
+            <span className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px]">diamond</span>
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">4.820 VIP</div>
-          <div className="mt-2 text-xs text-amber-700 font-bold flex items-center gap-1">
-            <span>Chiếm 62% tổng doanh thu sàn</span>
+          <div className="text-xl font-extrabold text-gray-900 mt-1">4.820 VIP</div>
+          <div className="mt-1 text-[11px] text-amber-700 font-bold">
+            <span>Chiếm 62% GMV sàn</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
+        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Thiết Bị Đọc DRM Đang Kết Nối</span>
-            <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">devices</span>
+            <span className="text-xs font-semibold text-gray-500">Thiết Bị DRM Đang Kết Nối</span>
+            <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px]">devices</span>
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">52.140</div>
-          <div className="mt-2 text-xs text-purple-700 font-bold flex items-center gap-1">
-            <span>Trung bình 1.8 thiết bị / tài khoản</span>
+          <div className="text-xl font-extrabold text-gray-900 mt-1">52.140</div>
+          <div className="mt-1 text-[11px] text-purple-700 font-bold">
+            <span>TB 1.8 máy / bạn đọc</span>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4.5 border border-[#E2E8F0] shadow-2xs">
+        <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500">Cảnh Báo Đăng Nhập Lạ</span>
-            <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">security</span>
+            <span className="text-xs font-semibold text-gray-500">Cảnh Báo Giới Hạn Máy</span>
+            <span className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <span className="material-symbols-outlined text-[16px]">security</span>
             </span>
           </div>
-          <div className="text-2xl font-extrabold text-gray-900 mt-2">3 Tài Khoản</div>
-          <div className="mt-2 text-xs text-rose-600 font-bold flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">warning</span>
-            <span>Tự động hạn chế tải Ebook</span>
+          <div className="text-xl font-extrabold text-gray-900 mt-1">3 Tài Khoản</div>
+          <div className="mt-1 text-[11px] text-rose-600 font-bold">
+            <span>Đạt 5/5 thiết bị DRM</span>
           </div>
         </div>
-
       </div>
 
       {/* 3. FILTERS & SEARCH */}
-      <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3.5">
-        
-        {/* Status Tabs */}
-        <div className="flex items-center gap-1.5 p-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl w-full md:w-auto overflow-x-auto">
-          {[
+      <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <AdminFilterTabs
+          tabs={[
             { key: 'all', label: 'Tất cả độc giả', count: users.length },
             { key: 'diamond', label: 'VIP Kim Cương', count: users.filter(u => u.tier === 'diamond').length },
             { key: 'gold', label: 'VIP Vàng', count: users.filter(u => u.tier === 'gold').length },
             { key: 'warning', label: 'Cần kiểm tra', count: users.filter(u => u.status === 'warning').length },
-          ].map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-                activeTab === tab.key
-                  ? 'bg-white text-gray-900 shadow-xs border border-gray-200'
-                  : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                activeTab === tab.key ? 'bg-gray-900 text-white' : 'bg-gray-200 text-gray-600'
-              }`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
+          ]}
+          activeTab={activeTab}
+          onChange={(tab) => {
+            setActiveTab(tab);
+            setCurrentPage(1);
+          }}
+        />
 
-        {/* Search */}
         <div className="relative w-full md:w-72">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
+          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
           <input
             type="text"
-            placeholder="Tìm tên, email, số điện thoại..."
+            placeholder="Tìm tên, email, SĐT..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
           />
         </div>
-
       </div>
 
-      {/* 4. USERS TABLE */}
-      <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
+      {/* 4. USERS TABLE CONTAINER */}
+      <AdminTableContainer>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-600">
-            <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+          <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
+            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
               <tr>
-                <th className="py-3.5 px-4">Độc Giả</th>
-                <th className="py-3.5 px-3">Hạng Hội Viên</th>
-                <th className="py-3.5 px-3">Tủ Sách Sở Hữu</th>
-                <th className="py-3.5 px-3">Tổng Chi Tiêu</th>
-                <th className="py-3.5 px-3">Thiết Bị DRM</th>
-                <th className="py-3.5 px-3">Trạng Thái</th>
-                <th className="py-3.5 px-4 text-right">Hành Động</th>
+                <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Độc Giả</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Email</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Số Điện Thoại &amp; ID</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-center">Hạng Hội Viên</th>
+                <th className="py-3 px-3.5 whitespace-nowrap">Tủ Sách Sở Hữu</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-right">Tổng Chi Tiêu</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-center">Thiết Bị DRM</th>
+                <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
+                <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-[#F9FAFB] transition-colors group">
-                  
-                  {/* Reader Profile */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-2xs shrink-0"
-                      />
-                      <div className="flex flex-col">
-                        <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors text-[13px]">
+              {paginatedUsers.map((user, idx) => {
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                return (
+                  <tr key={user.id} className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
+                    {/* 1. STT */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
+                      {itemIndex}
+                    </td>
+
+                    {/* 2. Độc Giả */}
+                    <td className="py-3 px-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <img
+                          src={user.avatar}
+                          alt={user.name}
+                          className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
+                        />
+                        <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
                           {user.name}
                         </span>
-                        <span className="text-[11px] text-gray-500">{user.email}</span>
-                        <span className="text-[10px] text-gray-400 font-mono mt-0.5">{user.phone} · #{user.id}</span>
                       </div>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Tier */}
-                  <td className="py-3.5 px-3">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                      user.tier === 'diamond' ? 'bg-cyan-50 text-cyan-800 border border-cyan-200' :
-                      user.tier === 'gold' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                      user.tier === 'silver' ? 'bg-slate-100 text-slate-800 border border-slate-200' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      <span className="material-symbols-outlined text-[13px]">
-                        {user.tier === 'diamond' ? 'diamond' : user.tier === 'gold' ? 'workspace_premium' : 'military_tech'}
+                    {/* 3. Email */}
+                    <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
+                      {user.email}
+                    </td>
+
+                    {/* 4. Số Điện Thoại & ID */}
+                    <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-700">
+                      {user.phone} <span className="text-gray-400">({user.id})</span>
+                    </td>
+
+                    {/* 5. Hạng Hội Viên */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                        user.tier === 'diamond' ? 'bg-cyan-50 text-cyan-800 border border-cyan-200' :
+                        user.tier === 'gold' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                        user.tier === 'silver' ? 'bg-slate-100 text-slate-800 border border-slate-200' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        <span className="material-symbols-outlined text-[13px]">
+                          {user.tier === 'diamond' ? 'diamond' : user.tier === 'gold' ? 'workspace_premium' : 'military_tech'}
+                        </span>
+                        <span>{user.tierLabel}</span>
                       </span>
-                      {user.tierLabel}
-                    </span>
-                  </td>
+                    </td>
 
-                  {/* Books owned */}
-                  <td className="py-3.5 px-3">
-                    <div className="flex flex-col">
-                      <span className="font-bold text-gray-900">{user.booksOwned} cuốn sách</span>
-                      <span className="text-[10px] text-gray-500">
-                        {user.ebooksCount} Ebook DRM · {user.physicalCount} Sách in
-                      </span>
-                    </div>
-                  </td>
+                    {/* 6. Tủ Sách Sở Hữu */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-gray-800">
+                      <span className="font-bold">{user.booksOwned} cuốn</span>{' '}
+                      <span className="text-[10.5px] text-gray-400">({user.ebooksCount} Ebook · {user.physicalCount} Sách in)</span>
+                    </td>
 
-                  {/* Spent */}
-                  <td className="py-3.5 px-3">
-                    <div className="flex flex-col">
-                      <span className="font-extrabold text-[#00875A] text-xs">
+                    {/* 7. Tổng Chi Tiêu */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-right">
+                      <span className="font-extrabold text-[#00875A] font-mono">
                         {user.spent.toLocaleString()}₫
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {user.points} HukiXu tích lũy
-                      </span>
-                    </div>
-                  </td>
+                      </span>{' '}
+                      <span className="text-[10px] text-gray-400">({user.points} xu)</span>
+                    </td>
 
-                  {/* DRM Devices */}
-                  <td className="py-3.5 px-3">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 rounded-lg bg-purple-50 text-purple-700 font-bold text-xs border border-purple-200">
+                    {/* 8. Thiết Bị DRM */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                      <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold text-[10.5px] border border-purple-200">
                         {user.devicesCount} / 5 máy
                       </span>
-                    </div>
-                  </td>
+                    </td>
 
-                  {/* Status */}
-                  <td className="py-3.5 px-3">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                      user.status === 'active' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                      user.status === 'warning' ? 'bg-rose-50 text-rose-800 border border-rose-200' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        user.status === 'active' ? 'bg-emerald-500' :
-                        user.status === 'warning' ? 'bg-rose-500 animate-pulse' : 'bg-gray-400'
-                      }`}></span>
-                      {user.statusLabel}
-                    </span>
-                  </td>
+                    {/* 9. Trạng Thái */}
+                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                      {user.status === 'active' && <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />}
+                      {user.status === 'warning' && <AdminStatusBadge status="warning" label="Cần chú ý" icon="warning" />}
+                      {user.status === 'locked' && <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />}
+                    </td>
 
-                  {/* Actions */}
-                  <td className="py-3.5 px-4 text-right">
-                    <button
-                      onClick={() => setInspectingUser(user)}
-                      className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-800 font-bold text-xs transition-colors cursor-pointer"
-                    >
-                      Chi Tiết
-                    </button>
-                  </td>
-
-                </tr>
-              ))}
+                    {/* 10. Thao Tác */}
+                    <td className="py-3 px-4 whitespace-nowrap text-right">
+                      <button
+                        onClick={() => setInspectingUser(user)}
+                        className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-800 font-bold text-[11px] transition-colors cursor-pointer"
+                      >
+                        Chi Tiết
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      </div>
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredUsers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="độc giả"
+        />
+      </AdminTableContainer>
 
-      {/* 5. USER INSPECTOR DRAWER */}
+      {/* 5. USER INSPECTOR IN-PAGE COLLAPSIBLE PANEL */}
       {inspectingUser && (
-        <div className="fixed inset-0 z-50 overflow-hidden">
-          <div 
-            className="absolute inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-            onClick={() => setInspectingUser(null)}
-          ></div>
+        <div ref={userPanelRef} className="mt-4 bg-white rounded-3xl border border-gray-200 shadow-sm p-6 sm:p-8 space-y-5 animate-in fade-in slide-in-from-top-4 duration-300">
+          {/* Header */}
+          <div className="pb-3 border-b border-gray-200 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img
+                src={inspectingUser.avatar}
+                alt={inspectingUser.name}
+                className="w-11 h-11 rounded-2xl object-cover border-2 border-emerald-500 shadow-2xs"
+              />
+              <div>
+                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  {inspectingUser.name}
+                </h2>
+                <span className="text-xs text-gray-500 font-mono">{inspectingUser.email} · {inspectingUser.tierLabel}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setInspectingUser(null)}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
+            >
+              Đóng bảng
+            </button>
+          </div>
 
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-            <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col border-l border-gray-200 animate-in slide-in-from-right duration-300">
+          {/* Body */}
+          <div className="space-y-5 text-xs text-gray-700">
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-center">
+              <div className="p-1">
+                <span className="text-gray-400 text-[10.5px] block font-medium">Tổng Chi Tiêu</span>
+                <span className="font-extrabold text-sm text-[#00875A] mt-0.5 block font-mono">{inspectingUser.spent.toLocaleString()}₫</span>
+              </div>
+              <div className="p-1 border-t sm:border-t-0 sm:border-x border-gray-200">
+                <span className="text-gray-400 text-[10.5px] block font-medium">Tủ Sách</span>
+                <span className="font-extrabold text-sm text-gray-900 mt-0.5 block">{inspectingUser.booksOwned} cuốn</span>
+              </div>
+              <div className="p-1 border-t sm:border-t-0 border-gray-200">
+                <span className="text-gray-400 text-[10.5px] block font-medium">Điểm HukiXu</span>
+                <span className="font-extrabold text-sm text-amber-600 mt-0.5 block">{inspectingUser.points} xu</span>
+              </div>
+            </div>
+
+            {/* DRM Linked Devices List */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
+                  <span className="material-symbols-outlined text-[16px] text-purple-600">devices</span>
+                  Thiết Bị Đọc DRM Đã Cấp Quyền ({inspectingUser.devicesList.length}/5)
+                </h4>
+              </div>
               
-              {/* Header */}
-              <div className="px-6 py-5 bg-[#F8FAFC] border-b border-gray-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img
-                    src={inspectingUser.avatar}
-                    alt={inspectingUser.name}
-                    className="w-12 h-12 rounded-full object-cover border-2 border-emerald-500"
-                  />
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900">{inspectingUser.name}</h2>
-                    <span className="text-xs text-gray-500 font-mono">{inspectingUser.email} · {inspectingUser.tierLabel}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {inspectingUser.devicesList.map((device) => (
+                  <div key={device.id} className="p-3 rounded-2xl border border-gray-200 bg-gray-50/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                        <span className="material-symbols-outlined text-[16px]">
+                          {device.type.includes('iOS') || device.type.includes('Android') ? 'smartphone' : 'laptop'}
+                        </span>
+                      </div>
+                      <div>
+                        <div className="font-bold text-gray-900 text-xs">{device.name}</div>
+                        <span className="text-[10px] text-gray-400">
+                          HĐH: {device.type} · {device.lastActive}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleRevokeDevice(inspectingUser.id, device.id)}
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] transition-colors cursor-pointer border border-rose-200 shadow-2xs"
+                      title="Hủy liên kết thiết bị để bạn đọc đổi máy mới"
+                    >
+                      Thu Hồi DRM
+                    </button>
                   </div>
-                </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-3 border-t border-gray-200 space-y-2">
+              <div className="font-bold text-gray-900 text-xs">Thao Tác Quản Trị Bạn Đọc:</div>
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={() => setInspectingUser(null)}
-                  className="w-8 h-8 rounded-full hover:bg-gray-200 text-gray-500 flex items-center justify-center cursor-pointer"
+                  onClick={() => handleRewardPoints(inspectingUser.id)}
+                  className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 cursor-pointer flex items-center gap-1 shadow-2xs"
                 >
-                  <span className="material-symbols-outlined text-[20px]">close</span>
+                  <span className="material-symbols-outlined text-[15px]">stars</span>
+                  <span>Thưởng +200 HukiXu</span>
+                </button>
+                <button
+                  onClick={() => handleToggleLock(inspectingUser.id)}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
+                    inspectingUser.status === 'locked'
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                      : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[15px]">
+                    {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
+                  </span>
+                  <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản' : 'Khóa Tạm Thời'}</span>
                 </button>
               </div>
-
-              {/* Body */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 text-xs text-gray-700">
-                
-                {/* Summary Metrics */}
-                <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-center">
-                  <div>
-                    <span className="text-gray-400 text-[11px] block">Tổng Chi Tiêu</span>
-                    <span className="font-extrabold text-sm text-[#00875A]">{inspectingUser.spent.toLocaleString()}₫</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 text-[11px] block">Tủ Sách</span>
-                    <span className="font-extrabold text-sm text-gray-900">{inspectingUser.booksOwned} cuốn</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 text-[11px] block">Điểm HukiXu</span>
-                    <span className="font-extrabold text-sm text-amber-600">{inspectingUser.points} xu</span>
-                  </div>
-                </div>
-
-                {/* DRM Linked Devices List */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[18px] text-purple-600">devices</span>
-                      Thiết Bị Đọc DRM Đã Cấp Quyền ({inspectingUser.devicesList.length}/5)
-                    </h4>
-                  </div>
-                  
-                  <div className="space-y-2.5">
-                    {inspectingUser.devicesList.map((device) => (
-                      <div key={device.id} className="p-3 rounded-xl border border-gray-200 bg-white flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                            <span className="material-symbols-outlined text-[18px]">
-                              {device.type.includes('iOS') || device.type.includes('Android') ? 'smartphone' : 'laptop'}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="font-bold text-gray-900">{device.name}</div>
-                            <span className="text-[10px] text-gray-400">
-                              HĐH: {device.type} · Hoạt động: {device.lastActive}
-                            </span>
-                          </div>
-                        </div>
-
-                        <button
-                          onClick={() => handleRevokeDevice(inspectingUser.id, device.id)}
-                          className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition-colors cursor-pointer border border-rose-200"
-                          title="Hủy liên kết thiết bị để bạn đọc đổi máy mới"
-                        >
-                          Thu Hồi DRM
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="pt-4 border-t border-gray-200 space-y-2">
-                  <div className="font-bold text-gray-900 mb-2">Thao Tác Quản Trị Bạn Đọc:</div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handleRewardPoints(inspectingUser.id)}
-                      className="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 cursor-pointer flex items-center gap-1"
-                    >
-                      <span className="material-symbols-outlined text-[16px]">stars</span>
-                      <span>Thưởng +200 HukiXu</span>
-                    </button>
-                    <button
-                      onClick={() => handleToggleLock(inspectingUser.id)}
-                      className={`px-3 py-2 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 ${
-                        inspectingUser.status === 'locked'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[16px]">
-                        {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
-                      </span>
-                      <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản' : 'Khóa Tạm Thời'}</span>
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

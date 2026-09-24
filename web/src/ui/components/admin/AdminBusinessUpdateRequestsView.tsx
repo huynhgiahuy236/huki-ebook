@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { businessApi } from '../../api/businessApi';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
+import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -208,16 +209,24 @@ export function AdminBusinessUpdateRequestsView() {
     }
   };
 
+  // Phân trang 10 mục / trang
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  const totalPages = Math.ceil(filteredRequests.length / pageSize) || 1;
+  const paginatedRequests = filteredRequests.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const handleTabChange = (tabId: string) => {
+    setActiveStatusTab(tabId);
+    setCurrentPage(1);
+  };
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-fade-in font-sans">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-fade-in font-sans">
       {/* 1. Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-3">
         <div>
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-theme-primary mb-1">
-            <span className="material-symbols-outlined text-sm">edit_attributes</span>
-            <span>Ban Quản Trị Sàn &bull; Thẩm Định Hồ Sơ</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-bold font-editorial text-gray-900 flex items-center gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900 flex items-center gap-3">
             <span>Yêu Cầu Chỉnh Sửa Thông Tin Doanh Nghiệp</span>
             {counts.UNREAD_PENDING > 0 && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-bold shadow-xs animate-pulse">
@@ -226,9 +235,6 @@ export function AdminBusinessUpdateRequestsView() {
               </span>
             )}
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Xét duyệt các yêu cầu thay đổi tên pháp nhân, mã số thuế, hotline, danh sách trụ sở chi nhánh từ các Nhà bán hàng.
-          </p>
         </div>
 
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
@@ -255,60 +261,41 @@ export function AdminBusinessUpdateRequestsView() {
       </div>
 
       {/* 2. Filter Tabs & Search */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Status Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
-          {[
-            { key: 'ALL', label: 'Tất Cả', count: counts.ALL },
-            { 
-              key: 'PENDING', 
-              label: 'Chờ Xét Duyệt', 
-              count: counts.PENDING, 
-              badgeBg: counts.UNREAD_PENDING > 0 ? 'bg-rose-600 text-white animate-pulse' : 'bg-amber-500 text-white' 
-            },
-            { key: 'APPROVED', label: 'Đã Phê Duyệt', count: counts.APPROVED, badgeBg: 'bg-emerald-600 text-white' },
-            { key: 'REJECTED', label: 'Đã Từ Chối', count: counts.REJECTED, badgeBg: 'bg-rose-600 text-white' },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveStatusTab(tab.key)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
-                activeStatusTab === tab.key
-                  ? 'bg-gray-900 text-white shadow-xs'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded-full font-extrabold ${
-                  activeStatusTab === tab.key
-                    ? 'bg-white/20 text-white'
-                    : tab.badgeBg || 'bg-gray-200 text-gray-700'
-                }`}
-              >
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
+      <div className="bg-white rounded-2xl border border-gray-200 p-3.5 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
+        {/* Status Tabs chuẩn AdminFilterTabs */}
+        <AdminFilterTabs
+          tabs={[
+            { id: 'ALL', label: 'Tất Cả', count: counts.ALL },
+            { id: 'PENDING', label: 'Chờ Xét Duyệt', count: counts.PENDING },
+            { id: 'APPROVED', label: 'Đã Phê Duyệt', count: counts.APPROVED },
+            { id: 'REJECTED', label: 'Đã Từ Chối', count: counts.REJECTED },
+          ]}
+          activeTab={activeStatusTab}
+          onChange={handleTabChange}
+        />
 
         {/* Search Input */}
-        <div className="relative min-w-[260px] sm:min-w-[300px]">
+        <div className="relative min-w-[240px] sm:min-w-[280px]">
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
             search
           </span>
           <input
             type="text"
             value={searchQuery}
-            onChange={(e: any) => setSearchQuery(e.target.value)}
+            onChange={(e: any) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Tìm theo tên doanh nghiệp, MST..."
-            className="w-full pl-9 pr-8 py-2 text-xs bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-theme-primary outline-hidden text-gray-900"
+            className="w-full pl-9 pr-8 py-1.5 text-xs bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-[#00875A] outline-hidden text-gray-900"
           />
           {searchQuery && (
             <button
               type="button"
-              onClick={() => setSearchQuery('')}
+              onClick={() => {
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
             >
               ✕
@@ -317,120 +304,162 @@ export function AdminBusinessUpdateRequestsView() {
         </div>
       </div>
 
-      {/* 3. Requests Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
+      {/* 3. Requests Table - Tách cột riêng, không rớt dòng, cuộn ngang, zebra striping */}
+      <AdminTableContainer>
         {loading ? (
           <div className="py-20 text-center text-gray-500">
-            <span className="material-symbols-outlined text-4xl text-theme-primary animate-spin mb-2">
+            <span className="material-symbols-outlined text-4xl text-[#00875A] animate-spin mb-2">
               progress_activity
             </span>
             <p className="text-xs font-semibold">Đang tải danh sách yêu cầu chỉnh sửa...</p>
           </div>
-        ) : filteredRequests.length === 0 ? (
+        ) : paginatedRequests.length === 0 ? (
           <div className="py-16 text-center text-gray-500 space-y-2">
             <span className="material-symbols-outlined text-5xl text-gray-300">fact_check</span>
-            <h3 className="font-bold text-sm text-gray-700">Không có yêu cầu chỉnh sửa nào phù hợp</h3>
-            <p className="text-xs text-gray-400">
+            <h3 className="font-bold text-xs text-gray-700">Không có yêu cầu chỉnh sửa nào phù hợp</h3>
+            <p className="text-[11px] text-gray-400">
               {activeStatusTab === 'PENDING'
-                ? 'Tuyệt vời! Hiện không có yêu cầu cập nhật nào đang chờ duyệt.'
+                ? 'Hiện không có yêu cầu cập nhật nào đang chờ duyệt.'
                 : 'Thử tìm kiếm với từ khóa khác hoặc chuyển tab bộ lọc.'}
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-600">
-              <thead className="bg-gray-50/80 text-gray-700 font-bold border-b border-gray-200 uppercase tracking-wider text-[11px]">
-                <tr>
-                  <th className="py-3.5 px-4">Thời Gian</th>
-                  <th className="py-3.5 px-4">Doanh Nghiệp (Hiện Tại)</th>
-                  <th className="py-3.5 px-4">Thông Tin Đề Xuất Mới</th>
-                  <th className="py-3.5 px-4">Trạng Thái</th>
-                  <th className="py-3.5 px-4 text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredRequests.map((req: any) => {
-                  const cfg = (STATUS_CONFIG as any)[req.status] || STATUS_CONFIG.PENDING;
-                  const data = req.requestedData || {};
-                  const isPending = req.status === 'PENDING';
-                  const isUnread = isPending && !readMap[req.id];
+          <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
+            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+              <tr>
+                <th className="py-3 px-4 whitespace-nowrap">Thời Gian Gửi</th>
+                <th className="py-3 px-3 whitespace-nowrap">Tên Doanh Nghiệp (Hiện Tại)</th>
+                <th className="py-3 px-3 whitespace-nowrap">Mã Số Thuế</th>
+                <th className="py-3 px-3 whitespace-nowrap">Tên Đề Xuất Mới</th>
+                <th className="py-3 px-3 whitespace-nowrap">Trụ Sở / Chi Nhánh Mới</th>
+                <th className="py-3 px-3 whitespace-nowrap text-center">Trạng Thái</th>
+                <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {paginatedRequests.map((req: any, idx: number) => {
+                const data = req.requestedData || {};
+                const isPending = req.status === 'PENDING';
+                const isUnread = isPending && !readMap[req.id];
 
-                  return (
-                    <tr
-                      key={req.id}
-                      onClick={() => handleOpenDetail(req)}
-                      className={`transition-all cursor-pointer ${
-                        isUnread
-                          ? 'border-l-4 border-l-rose-500 bg-rose-500/[0.04] hover:bg-rose-500/[0.08] font-medium'
-                          : 'hover:bg-gray-50/70'
-                      }`}
-                    >
-                      <td className="py-3.5 px-4 font-mono text-gray-500 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {isUnread && (
-                            <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span>
-                          )}
-                          <span>{new Date(req.createdAt).toLocaleString('vi-VN')}</span>
-                        </div>
-                      </td>
+                return (
+                  <tr
+                    key={req.id}
+                    onClick={() => handleOpenDetail(req)}
+                    className={`transition-colors cursor-pointer group ${
+                      idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                    } hover:bg-emerald-50/40 ${isUnread ? 'border-l-4 border-l-rose-500' : ''}`}
+                  >
+                    {/* Thời Gian Gửi */}
+                    <td className="py-3 px-4 font-mono text-gray-500 text-[11px] whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        {isUnread && (
+                          <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse"></span>
+                        )}
+                        <span>{new Date(req.createdAt).toLocaleString('vi-VN')}</span>
+                      </div>
+                    </td>
 
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="font-bold text-gray-900">{req.business?.name || 'Chưa đặt tên'}</div>
-                          {isUnread && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full bg-rose-600 text-white text-[9.5px] font-extrabold animate-pulse shrink-0 shadow-2xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                              MỚI
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-gray-500 font-mono">MST: {req.business?.taxCode || 'N/A'}</div>
-                      </td>
-
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-theme-primary">{data.name || req.business?.name}</div>
-                        <div className="text-[11px] text-gray-500">
-                          {Array.isArray(data.headquarters)
-                            ? `${data.headquarters.length} Trụ sở chi nhánh`
-                            : data.address || 'Không đổi địa chỉ'}
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[10px] border ${cfg.badge}`}
-                        >
-                          <span className="material-symbols-outlined text-xs">{cfg.icon}</span>
-                          {cfg.label}
+                    {/* Tên Doanh Nghiệp (Hiện Tại) */}
+                    <td className="py-3 px-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
+                          {req.business?.name || 'Chưa đặt tên'}
                         </span>
-                      </td>
+                        {isUnread && (
+                          <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold animate-pulse shrink-0">
+                            MỚI
+                          </span>
+                        )}
+                      </div>
+                    </td>
 
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5" onClick={(e: any) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetail(req)}
-                            className="px-3 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
-                          >
-                            Xem so sánh
-                          </button>
+                    {/* Mã Số Thuế */}
+                    <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-gray-600 font-semibold">
+                      {req.business?.taxCode || 'N/A'}
+                    </td>
 
-                          {isPending && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleApprove(req.id)}
-                                disabled={actionLoading}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-2xs"
-                              >
-                                Duyệt
-                              </button>
+                    {/* Tên Đề Xuất Mới */}
+                    <td className="py-3 px-3 whitespace-nowrap font-semibold text-[#00875A]">
+                      {data.name || req.business?.name || '-'}
+                    </td>
 
-                              <button
-                                type="button"
-                                onClick={() => handleOpenReject(req)}
-                                disabled={actionLoading}
-                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border      {/* =========================================================================
+                    {/* Trụ Sở / Chi Nhánh Mới */}
+                    <td className="py-3 px-3 whitespace-nowrap text-gray-600 text-[11px]">
+                      {Array.isArray(data.headquarters)
+                        ? `${data.headquarters.length} Trụ sở / chi nhánh`
+                        : data.address || 'Không đổi địa chỉ'}
+                    </td>
+
+                    {/* Trạng Thái */}
+                    <td className="py-3 px-3 whitespace-nowrap text-center">
+                      <AdminStatusBadge
+                        variant={
+                          req.status === 'APPROVED' ? 'success' :
+                          req.status === 'PENDING' ? 'warning' :
+                          req.status === 'REJECTED' ? 'danger' : 'neutral'
+                        }
+                        label={
+                          req.status === 'APPROVED' ? 'Đã phê duyệt' :
+                          req.status === 'PENDING' ? 'Chờ xét duyệt' :
+                          req.status === 'REJECTED' ? 'Đã từ chối' : req.status
+                        }
+                      />
+                    </td>
+
+                    {/* Thao Tác */}
+                    <td className="py-3 px-4 whitespace-nowrap text-right" onClick={(e: any) => e.stopPropagation()}>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetail(req)}
+                          className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                        >
+                          Xem so sánh
+                        </button>
+
+                        {isPending && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleApprove(req.id)}
+                              disabled={actionLoading}
+                              className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+                            >
+                              Duyệt
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenReject(req)}
+                              disabled={actionLoading}
+                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border border-rose-200"
+                            >
+                              Từ chối
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        {/* Luôn hiển thị thanh phân trang mặc định */}
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredRequests.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="yêu cầu chỉnh sửa"
+        />
+      </AdminTableContainer>
+
+      {/* =========================================================================
             IN-PAGE PANEL: SO SÁNH TRỰC QUAN BEFORE VS AFTER
         ========================================================================= */}
       {selectedRequest && !isRejectModalOpen && (

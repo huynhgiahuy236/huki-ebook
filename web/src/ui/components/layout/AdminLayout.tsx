@@ -249,48 +249,46 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="admin-portal h-screen w-full bg-white text-[#1E293B] flex flex-col font-sans antialiased overflow-hidden selection:bg-[#00875A] selection:text-white">
       {/* 1. TOP APP BAR / HEADER */}
-      <header className="h-13.5 min-h-[54px] border-b border-[#E2E8F0] px-3.5 sm:px-5 lg:px-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30">
-        {/* Left: Brand Identity, Collapse Button & Search */}
-        <div className="flex items-center gap-2.5 sm:gap-3.5">
-          {/* Desktop Sidebar Collapse Toggle Button */}
-          <button
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="hidden lg:flex w-8 h-8 items-center justify-center rounded-xl text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0]"
-            title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
-            aria-label="Toggle sidebar"
-          >
-            <span className="material-symbols-outlined text-[18px] transition-transform duration-300">
-              {isSidebarCollapsed ? 'menu' : 'menu_open'}
-            </span>
-          </button>
+      <header className="h-[54px] min-h-[54px] border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between gap-3 shrink-0 bg-white z-30">
+        {/* Left: Sidebar Toggle & Brand Identity */}
+        <div className="flex items-center">
+          {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align perfectly with collapsed sidebar */}
+          <div className="w-[60px] flex items-center justify-center shrink-0">
+            {/* Desktop Sidebar Collapse Toggle Button */}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
+              title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
+              aria-label="Toggle sidebar"
+            >
+              <span className="material-symbols-outlined text-[20px] text-[#003B2B] transition-transform duration-300">
+                {isSidebarCollapsed ? 'menu' : 'menu_open'}
+              </span>
+            </button>
 
-          {/* Mobile Menu Toggle */}
-          <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="lg:hidden p-1.5 rounded-xl text-gray-500 hover:bg-gray-100 cursor-pointer"
-            aria-label="Toggle mobile menu"
-          >
-            <span className="material-symbols-outlined text-[20px]">menu</span>
-          </button>
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+              aria-label="Toggle mobile menu"
+            >
+              <span className="material-symbols-outlined text-[20px] text-[#003B2B]">menu</span>
+            </button>
+          </div>
 
-          {/* Logo & Portal Identity */}
-          <Link href="/admin/dashboard" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#003B2B] to-[#00875A] flex items-center justify-center text-white shadow-xs font-black text-sm shrink-0">
-              H
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="font-editorial text-sm sm:text-base font-bold text-gray-900 leading-tight tracking-tight">
-                  HUKI ADMIN PORTAL
-                </span>
-                <span className="bg-[#00875A] text-white text-[8px] font-extrabold uppercase px-1.5 py-0.2 rounded tracking-wide">
-                  PLATFORM
-                </span>
-              </div>
-              <span className="text-[9px] text-gray-400 font-semibold tracking-wider uppercase hidden sm:block">
-                Ban Quản Trị Trung Ương Nền Tảng HUKI
+          {/* Logo & Portal Identity - Chuẩn nhận diện Home (Không dùng logo icon chữ H) */}
+          <Link href="/admin/dashboard" className="flex flex-col group select-none pl-1 pr-3">
+            <div className="flex items-center gap-1.5">
+              <span className="font-editorial text-base sm:text-lg font-black tracking-tight text-[#003B2B] leading-none">
+                HUKI EBOOK
+              </span>
+              <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider">
+                ADMIN
               </span>
             </div>
+            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+              Ban Quản Trị Hệ Thống
+            </span>
           </Link>
 
           {/* Global Search Bar */}
@@ -301,7 +299,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               placeholder="Tìm sách, doanh nghiệp, ISBN..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#003B2B] focus:bg-white transition-all shadow-2xs"
             />
           </form>
         </div>
@@ -311,10 +309,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           {/* Health quick status badge */}
           <Link
             href="/admin/health"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-colors"
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-xs font-semibold text-gray-700 transition-colors shadow-2xs"
           >
             <span className={`w-2 h-2 rounded-full ${stats.healthStatus === 'ok' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-            <span className="text-gray-600">Hệ Thống:</span>
+            <span className="text-gray-500">Hệ Thống:</span>
             <span className={stats.healthStatus === 'ok' ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
               {stats.healthStatus === 'ok' ? 'Ổn định' : 'Cảnh báo'}
             </span>
@@ -338,7 +336,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               title="Đăng xuất"
               aria-label="Đăng xuất"
             >
-              <span className="material-symbols-outlined text-[16px]">logout</span>
+              <span className="material-symbols-outlined text-[17px]">logout</span>
             </button>
           </div>
         </div>
@@ -346,36 +344,46 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* 2. BODY CONTAINER: SIDEBAR + MAIN CONTENT */}
       <div className="flex-1 flex overflow-hidden">
-        {/* DESKTOP SIDEBAR */}
-        <aside className={`${isSidebarCollapsed ? 'w-18' : 'w-64'} hidden lg:flex flex-col border-r border-[#E2E8F0] bg-[#F8FAFC] shrink-0 transition-all duration-300 select-none`}>
-          <div className="flex-1 overflow-y-auto py-3.5 px-2.5 flex flex-col gap-4 custom-scrollbar">
+        {/* DESKTOP SIDEBAR - Chuẩn Home HierarchicalSidebar (#003B2B) không bị lệch và ẩn thanh cuộn */}
+        <aside
+          className={`
+            hidden lg:flex flex-col
+            bg-[#003B2B] text-white border-r border-[#00281D]
+            shrink-0 transition-all duration-300 select-none shadow-md
+            ${isSidebarCollapsed ? 'w-[60px]' : 'w-[235px]'}
+          `}
+        >
+          <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 flex flex-col gap-3.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {menuSections.map((sec, sIdx) => (
-              <div key={sIdx} className="flex flex-col gap-0.5">
+              <div key={sIdx} className="flex flex-col gap-1">
                 {!isSidebarCollapsed && (
-                  <div className="px-2.5 pb-1 text-[9.5px] font-extrabold uppercase tracking-wider text-gray-400">
+                  <div className="px-2.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-widest text-white/50">
                     {sec.group}
                   </div>
                 )}
                 {sec.items.map((item, iIdx) => {
                   if ((item as any).isDeferred) {
                     return (
-                      <div
-                        key={iIdx}
-                        title={isSidebarCollapsed ? `${item.label} (Sắp ra mắt)` : undefined}
-                        className={`flex items-center relative ${isSidebarCollapsed ? 'justify-center px-0 py-2' : 'justify-between px-2.5 py-1.5'} rounded-xl text-xs font-semibold opacity-45 cursor-not-allowed pointer-events-none select-none text-gray-400 bg-black/[0.02]`}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <span className="material-symbols-outlined text-[18px] shrink-0 text-gray-400">
-                            {item.icon}
-                          </span>
-                          {!isSidebarCollapsed && (
-                            <span className="truncate">{item.label}</span>
-                          )}
-                        </div>
-                        {!isSidebarCollapsed && (
-                          <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-gray-400 bg-gray-100 border border-gray-200 whitespace-nowrap shrink-0 ml-1.5">
-                            Sắp ra mắt
-                          </span>
+                      <div key={iIdx} className="relative group">
+                        {isSidebarCollapsed ? (
+                          <div className="flex items-center justify-center py-0.5">
+                            <div className="flex items-center justify-center w-9 h-9 rounded-xl opacity-40 text-white/50 cursor-not-allowed">
+                              <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
+                            </div>
+                            <div className="opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50">
+                              {item.label} (Sắp ra mắt)
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between px-2.5 h-9 rounded-xl text-[12.5px] font-medium opacity-40 text-white/50 cursor-not-allowed">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
+                              <span className="truncate">{item.label}</span>
+                            </div>
+                            <span className="text-[8px] px-1 py-0.2 rounded font-bold text-white/60 bg-white/10 border border-white/10 whitespace-nowrap shrink-0 ml-1">
+                              Sớm
+                            </span>
+                          </div>
                         )}
                       </div>
                     );
@@ -383,33 +391,68 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
                   const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
                   return (
-                    <Link
-                      key={iIdx}
-                      href={item.to}
-                      title={isSidebarCollapsed ? `${item.label} (${item.count || 0})` : undefined}
-                      className={`flex items-center relative ${isSidebarCollapsed ? 'justify-center px-0 py-2' : 'justify-between px-2.5 py-1.5'} rounded-xl text-xs font-semibold transition-all group ${
-                        isActive
-                          ? 'bg-[#00875A] text-white shadow-xs font-bold'
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-gray-200/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                        <span className={`material-symbols-outlined text-[18px] shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-700'}`}>
-                          {item.icon}
-                        </span>
-                        {!isSidebarCollapsed && (
-                          <span className="truncate">{item.label}</span>
-                        )}
-                      </div>
-                      {!isSidebarCollapsed && item.count && (
-                        <span className={`text-[9px] px-1.5 py-0.2 rounded-full whitespace-nowrap shrink-0 ml-1.5 ${item.badgeColor || (isActive ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700')}`}>
-                          {item.count}
-                        </span>
+                    <div key={iIdx} className="relative group">
+                      {isSidebarCollapsed ? (
+                        /* Collapsed Icon-Only View - Căn giữa chuẩn w-9 h-9 với floating tooltip */
+                        <div className="flex items-center justify-center py-0.5">
+                          <Link
+                            href={item.to}
+                            className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-150 relative shrink-0 ${
+                              isActive
+                                ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
+                                : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                            {item.count && (
+                              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-400 ring-2 ring-[#003B2B] animate-pulse" />
+                            )}
+                          </Link>
+
+                          {/* Floating Tooltip khi hover */}
+                          <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-2.5 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50 flex items-center gap-1.5">
+                            <span>{item.label}</span>
+                            {item.count && (
+                              <span className="px-1.5 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black">
+                                {item.count}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Expanded Clean Item View */
+                        <Link
+                          href={item.to}
+                          className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 ${
+                            isActive
+                              ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
+                              : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span
+                              className={`material-symbols-outlined text-[18px] shrink-0 ${
+                                isActive ? 'text-[#003B2B] font-bold' : 'text-white/75 group-hover:text-white'
+                              }`}
+                            >
+                              {item.icon}
+                            </span>
+                            <span className="truncate leading-none min-w-0">{item.label}</span>
+                          </div>
+                          {item.count && (
+                            <span
+                              className={`text-[9px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${
+                                isActive
+                                  ? 'bg-[#003B2B]/15 text-[#003B2B]'
+                                  : 'bg-rose-500 text-white animate-pulse'
+                              }`}
+                            >
+                              {item.count}
+                            </span>
+                          )}
+                        </Link>
                       )}
-                      {isSidebarCollapsed && item.count && (
-                        <span className="absolute top-1 right-2 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white animate-pulse"></span>
-                      )}
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -417,14 +460,14 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           {/* Sidebar Footer */}
-          <div className="p-2.5 border-t border-[#E2E8F0] bg-[#F1F5F9]/70 flex flex-col gap-1.5 shrink-0">
+          <div className="p-2.5 border-t border-white/10 bg-black/15 flex flex-col gap-1 shrink-0">
             {!isSidebarCollapsed ? (
-              <div className="flex items-center justify-between text-[10px] text-gray-500 px-1.5 py-0.5">
-                <span className="font-semibold text-gray-700">HUKI v2.0 Platform</span>
-                <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[8px] font-bold">PROD</span>
+              <div className="flex items-center justify-between text-[10px] text-white/60 px-1 py-0.5">
+                <span className="font-semibold text-white/80">HUKI v2.0 Platform</span>
+                <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[8px] font-bold">PROD</span>
               </div>
             ) : (
-              <div className="flex justify-center text-[9px] text-emerald-700 font-bold">
+              <div className="flex justify-center text-[8.5px] text-emerald-400 font-bold">
                 PROD
               </div>
             )}
@@ -435,29 +478,36 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
             <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative w-64 max-w-[80vw] bg-white h-full flex flex-col shadow-2xl z-10 animate-slide-right">
-              <div className="p-3.5 border-b border-[#E2E8F0] flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[#00875A] flex items-center justify-center text-white font-black text-xs">
-                    H
+            <div className="relative w-64 max-w-[80vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
+              <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/10">
+                <div className="flex flex-col select-none">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-editorial text-base font-black tracking-tight text-white leading-none">
+                      HUKI EBOOK
+                    </span>
+                    <span className="bg-white/20 text-white text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded">
+                      ADMIN
+                    </span>
                   </div>
-                  <span className="font-bold text-xs text-gray-900 font-editorial">HUKI ADMIN</span>
+                  <span className="text-[7.5px] uppercase tracking-widest text-emerald-300 font-bold mt-0.5">
+                    Ban Quản Trị Hệ Thống
+                  </span>
                 </div>
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="p-1 rounded-lg text-gray-400 hover:bg-gray-100"
+                  className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
                 >
                   <span className="material-symbols-outlined text-[18px]">close</span>
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-4">
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3.5 custom-scrollbar">
                 {menuSections.map((sec, sIdx) => (
-                  <div key={sIdx} className="flex flex-col gap-0.5">
-                    <div className="px-2.5 pb-1 text-[9px] font-extrabold uppercase tracking-wider text-gray-400">
+                  <div key={sIdx} className="flex flex-col gap-1">
+                    <div className="px-2.5 pb-0.5 text-[9px] font-extrabold uppercase tracking-widest text-white/50">
                       {sec.group}
                     </div>
                     {sec.items.map((item, iIdx) => {
@@ -465,41 +515,38 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                         return (
                           <div
                             key={iIdx}
-                            className="flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold opacity-45 cursor-not-allowed pointer-events-none select-none text-gray-400 bg-black/[0.02]"
+                            className="flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold opacity-40 text-white/50 cursor-not-allowed"
                           >
-                            <div className="flex items-center gap-2.5">
-                              <span className="material-symbols-outlined text-[16px] text-gray-400">
-                                {item.icon}
-                              </span>
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
                               <span>{item.label}</span>
                             </div>
-                            <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-gray-400 bg-gray-100 border border-gray-200">
-                              Sắp ra mắt
+                            <span className="text-[8px] px-1.5 py-0.2 rounded font-bold text-white/60 bg-white/10">
+                              Sớm
                             </span>
                           </div>
                         );
                       }
-
-                      const isActive = pathname === item.to;
+                      const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
                       return (
                         <Link
                           key={iIdx}
                           href={item.to}
                           onClick={() => setIsMobileMenuOpen(false)}
-                          className={`flex items-center justify-between px-2.5 py-2 rounded-xl text-xs font-semibold ${
+                          className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${
                             isActive
-                              ? 'bg-[#00875A] text-white font-bold'
-                              : 'text-gray-600 hover:bg-gray-100'
+                              ? 'bg-white text-[#003B2B] shadow-xs font-bold'
+                              : 'text-white/80 hover:bg-white/10 hover:text-white'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5">
-                            <span className="material-symbols-outlined text-[16px]">
+                          <div className="flex items-center gap-2">
+                            <span className={`material-symbols-outlined text-[17px] ${isActive ? 'text-[#003B2B]' : 'text-white/70'}`}>
                               {item.icon}
                             </span>
                             <span>{item.label}</span>
                           </div>
                           {item.count && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-gray-100 text-gray-700">
+                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-black bg-rose-500 text-white">
                               {item.count}
                             </span>
                           )}

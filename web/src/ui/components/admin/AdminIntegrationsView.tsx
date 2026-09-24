@@ -80,22 +80,13 @@ export function AdminIntegrationsView() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-[1600px] mx-auto">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
       {/* 1. TOP HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-500">Cổng Kết Nối &amp; API Kỹ Thuật</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800 text-[11px] font-bold">
-              HẠ TẦNG INTEGRATIONS • CLUSTER STATUS
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight font-editorial mt-1">
-            Kết Nối Dịch Vụ Đối Tác (Third-Party Integrations)
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+            Kết Nối Dịch Vụ Đối Tác
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1 max-w-3xl">
-            Kiểm tra trạng thái kết nối Webhook, API Gateway ngân hàng, đơn vị vận chuyển và hệ thống xuất hóa đơn điện tử tự động.
-          </p>
         </div>
       </div>
 

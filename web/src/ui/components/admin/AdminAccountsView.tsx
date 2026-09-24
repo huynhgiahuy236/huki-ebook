@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
+import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 
 // Seed initial users for fallback if API is not yet loaded
 const INITIAL_USERS = [
@@ -133,11 +134,15 @@ export function AdminAccountsView() {
   const [users, setUsers] = useState(INITIAL_USERS);
   const [loading, setLoading] = useState(true);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   // UI States
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
-  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, any>>({}); // { [userId]: boolean }
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, any>>({});
 
   // Modals state
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -223,7 +228,6 @@ export function AdminAccountsView() {
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(res.data));
         }
       } else {
-        // Check localStorage cache or fallback to initial
         if (typeof window !== 'undefined') {
           const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
           if (saved) setUsers(JSON.parse(saved));
@@ -267,15 +271,12 @@ export function AdminAccountsView() {
   // Filtered users calculation
   const filteredUsers = useMemo(() => {
     return users.filter((u: any) => {
-      // Role filter
       if (selectedRole !== 'ALL' && u.role !== selectedRole) {
         return false;
       }
-      // Status filter
       if (selectedStatus !== 'ALL' && u.status !== selectedStatus) {
         return false;
       }
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const nameMatch = u.fullName?.toLowerCase().includes(q);
@@ -290,6 +291,13 @@ export function AdminAccountsView() {
       return true;
     });
   }, [users, selectedRole, selectedStatus, searchQuery]);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, currentPage, pageSize]);
 
   // Statistics KPI calculation
   const stats = useMemo(() => {
@@ -320,7 +328,7 @@ export function AdminAccountsView() {
     if (!newCustomerForm.phone.trim()) {
       errs.phone = "Số điện thoại không được để trống.";
     } else if (!phoneRegex.test(newCustomerForm.phone.trim().replace(/\s/g, ''))) {
-      errs.phone = "Số điện thoại Việt Nam không hợp lệ (10 số, bắt đầu bằng 03, 05, 07, 08, 09).";
+      errs.phone = "Số điện thoại Việt Nam không hợp lệ.";
     }
 
     if (!newCustomerForm.password.trim()) {
@@ -362,7 +370,6 @@ export function AdminAccountsView() {
           type: 'success',
         });
       } else {
-        // Local fallback
         const newUser = {
           id: `USR-${Date.now().toString().slice(-4)}`,
           fullName: newCustomerForm.fullName.trim(),
@@ -593,488 +600,368 @@ export function AdminAccountsView() {
     }
   };
 
-  // Helper format store name with tooltip truncation
+  // Helper format store name
   const renderRoleBadge = (user: any) => {
     const role = user.role;
     const store = user.storeName;
 
     if (role === 'PLATFORM_ADMIN') {
-      return (
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 shadow-2xs">
-          <span className="material-symbols-outlined text-[15px] text-purple-600">shield_person</span>
-          <span>Admin Sàn</span>
-        </span>
-      );
+      return <AdminStatusBadge status="purple" label="Admin Sàn" icon="shield_person" />;
     }
-
     if (role === 'SELLER_ADMIN') {
-      const isLong = store && store.length > 10;
-      const displayStore = isLong ? `${store.slice(0, 10)}...` : store;
       return (
         <span
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-300 group relative cursor-help transition-all hover:bg-emerald-100"
-          title={store ? `Cửa hàng: ${store}` : 'Admin Seller'}
+          title={store ? `Doanh nghiệp / Gian hàng: ${store}` : 'Admin Gian Hàng'}
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-help transition-all hover:bg-emerald-100"
         >
-          <span className="material-symbols-outlined text-[14px] text-emerald-600">store</span>
+          <span className="material-symbols-outlined text-[13px] text-emerald-600">store</span>
           <span>Admin Seller</span>
           {store && (
-            <>
-              <span className="text-emerald-500 font-normal">-</span>
-              <span className="font-bold underline decoration-dotted decoration-emerald-500">
-                {displayStore}
-              </span>
-              {isLong && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 hidden group-hover:block z-30 px-2.5 py-1 text-[11px] font-medium text-white bg-slate-900 rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
-                  {store}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900"></div>
-                </div>
-              )}
-            </>
+            <span className="material-symbols-outlined text-[12px] text-emerald-500">info</span>
           )}
         </span>
       );
     }
-
     if (role === 'SELLER_STAFF') {
-      const isLong = store && store.length > 10;
-      const displayStore = isLong ? `${store.slice(0, 10)}...` : store;
       return (
         <span
-          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-800 border border-blue-300 group relative cursor-help transition-all hover:bg-blue-100"
-          title={store ? `Nhân viên tại: ${store}` : 'Nhân viên'}
+          title={store ? `Doanh nghiệp / Gian hàng: ${store}` : 'Nhân viên Gian Hàng'}
+          className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 cursor-help transition-all hover:bg-blue-100"
         >
-          <span className="material-symbols-outlined text-[14px] text-blue-600">badge</span>
+          <span className="material-symbols-outlined text-[13px] text-blue-600">badge</span>
           <span>Nhân viên</span>
           {store && (
-            <>
-              <span className="text-blue-400 font-normal">-</span>
-              <span className="font-bold underline decoration-dotted decoration-blue-400">
-                {displayStore}
-              </span>
-              {isLong && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-1 hidden group-hover:block z-30 px-2.5 py-1 text-[11px] font-medium text-white bg-slate-900 rounded-lg shadow-lg whitespace-nowrap pointer-events-none">
-                  {store}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-slate-900"></div>
-                </div>
-              )}
-            </>
+            <span className="material-symbols-outlined text-[12px] text-blue-500">info</span>
           )}
         </span>
       );
     }
-
-    // Default: CUSTOMER
-    return (
-      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-300">
-        <span className="material-symbols-outlined text-[14px] text-slate-500">person</span>
-        <span>Khách hàng</span>
-      </span>
-    );
+    return <AdminStatusBadge status="neutral" label="Khách hàng" icon="person" />;
   };
 
   return (
-    <div className="w-full bg-[#f8fafc] text-slate-900 min-h-screen py-6 sm:py-8 font-sans antialiased">
-      <main className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        
-        {/* 1. Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2">
+    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
+      {/* 1. Header Section */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-200">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-gray-900 tracking-tight">
+            Quản Lý Tài Khoản &amp; Người Dùng
+          </h1>
+          <p className="text-xs text-gray-500 mt-0.5">Quản trị toàn bộ tài khoản khách hàng, chủ shop và phân quyền hệ thống</p>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={loadUsers}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl border border-[#E2E8F0] bg-white hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Làm mới dữ liệu từ Database"
+          >
+            <span className={`material-symbols-outlined text-base ${loading ? 'animate-spin text-[#00875A]' : ''}`}>
+              refresh
+            </span>
+            <span>Làm mới</span>
+          </button>
+
+          <button
+            onClick={() => setShowAddCustomerModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-semibold text-xs transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-base">person_add</span>
+            <span>Thêm Khách Hàng</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 2. KPI Metrics Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#003b2b]/10 text-[#003b2b] uppercase tracking-wider">
-                Quản Trị Toàn Sàn (Database Live)
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-bold font-editorial text-slate-900 mt-1 tracking-tight">
-              Quản Lý Người Dùng
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Tra cứu, quản trị tài khoản, phân quyền vai trò và quản lý bảo mật mật khẩu trực tiếp từ cơ sở dữ liệu.
-            </p>
+            <p className="text-xs font-semibold text-gray-500">Tổng Người Dùng</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-gray-900 mt-1">{stats.total}</h3>
+            <p className="text-[10.5px] text-gray-400 mt-0.5">Toàn bộ tài khoản</p>
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={loadUsers}
-              disabled={loading}
-              className="px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
-              title="Làm mới dữ liệu từ Database"
-            >
-              <span className={`material-symbols-outlined text-lg ${loading ? 'animate-spin text-[#003b2b]' : ''}`}>
-                refresh
-              </span>
-              <span>Làm mới</span>
-            </button>
-
-            <button
-              onClick={() => setShowAddCustomerModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-[#003b2b] hover:bg-[#002b1f] text-white font-semibold text-sm transition-all duration-200 shadow-sm flex items-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-lg">person_add</span>
-              <span>Thêm Khách Hàng</span>
-            </button>
+          <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-xl">groups</span>
           </div>
         </div>
 
-        {/* 2. KPI Metrics Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Card 1: Tổng Người Dùng */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Tổng Người Dùng</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1">{stats.total}</h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">Toàn bộ tài khoản trên sàn</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">groups</span>
-            </div>
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-gray-500">Khách Hàng</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-[#00875A] mt-1">{stats.customers}</h3>
+            <p className="text-[10.5px] text-emerald-600 font-medium mt-0.5">Độc giả mua sách</p>
           </div>
-
-          {/* Card 2: Khách Hàng */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Khách Hàng</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-emerald-700 mt-1">{stats.customers}</h3>
-              <p className="text-[11px] text-emerald-600 font-medium mt-0.5">Độc giả mua sách</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">shopping_bag</span>
-            </div>
-          </div>
-
-          {/* Card 3: Sellers & Staff */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Gian Hàng &amp; Nhân Sự</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-indigo-700 mt-1">{stats.sellers + stats.staff}</h3>
-              <p className="text-[11px] text-indigo-600 font-medium mt-0.5">{stats.sellers} chủ shop · {stats.staff} nhân viên</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">storefront</span>
-            </div>
-          </div>
-
-          {/* Card 4: Bị Khóa */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Đang Bị Khóa</p>
-              <h3 className="text-2xl sm:text-3xl font-bold text-red-600 mt-1">{stats.locked}</h3>
-              <p className="text-[11px] text-red-500 font-medium mt-0.5">{stats.locked > 0 ? 'Cần kiểm tra vi phạm' : 'Hệ thống an toàn'}</p>
-            </div>
-            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">lock_person</span>
-            </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-xl">shopping_bag</span>
           </div>
         </div>
 
-        {/* 3. Main Table Card */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
-          
-          {/* Navigation Role Filter Tabs */}
-          <div className="flex items-center gap-1 px-5 pt-3 border-b border-slate-200 overflow-x-auto bg-slate-50/50">
-            {[
-              { key: 'ALL', label: 'Tất Cả Người Dùng', count: stats.total },
-              { key: 'CUSTOMER', label: 'Khách Hàng', count: stats.customers },
-              { key: 'SELLER_ADMIN', label: 'Admin Seller', count: stats.sellers },
-              { key: 'SELLER_STAFF', label: 'Nhân Viên Gian Hàng', count: stats.staff },
-              { key: 'PLATFORM_ADMIN', label: 'Admin Sàn', count: users.filter(u => u.role === 'PLATFORM_ADMIN').length },
-            ].map((tab) => {
-              const isActive = selectedRole === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setSelectedRole(tab.key)}
-                  className={`px-4 py-3 text-xs sm:text-sm font-semibold border-b-2 flex items-center gap-2 whitespace-nowrap transition-colors cursor-pointer ${
-                    isActive
-                      ? 'border-[#003b2b] text-[#003b2b] bg-white rounded-t-xl'
-                      : 'border-transparent text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  <span
-                    className={`text-[11px] px-2 py-0.5 rounded-full font-bold ${
-                      isActive ? 'bg-[#003b2b]/10 text-[#003b2b]' : 'bg-slate-200 text-slate-600'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                </button>
-              );
-            })}
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-gray-500">Gian Hàng &amp; Nhân Sự</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-indigo-700 mt-1">{stats.sellers + stats.staff}</h3>
+            <p className="text-[10.5px] text-indigo-600 font-medium mt-0.5">{stats.sellers} chủ shop · {stats.staff} nhân viên</p>
           </div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-xl">storefront</span>
+          </div>
+        </div>
 
-          {/* Search & Status Filters */}
-          <div className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 bg-slate-50/30 border-b border-slate-200">
-            <div className="flex flex-wrap items-center gap-3 flex-1">
-              {/* Search input */}
-              <div className="relative min-w-[280px] sm:min-w-[340px] flex-1 max-w-md">
-                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-                  search
-                </span>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e: any) => setSearchQuery(e.target.value)}
-                  placeholder="Tìm theo tên, email, SĐT, tên cửa hàng..."
-                  className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/10 transition-all"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
-                  >
-                    <span className="material-symbols-outlined text-base">close</span>
-                  </button>
-                )}
-              </div>
+        <div className="bg-white border border-[#E2E8F0] rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold text-gray-500">Đang Bị Khóa</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-red-600 mt-1">{stats.locked}</h3>
+            <p className="text-[10.5px] text-red-500 font-medium mt-0.5">{stats.locked > 0 ? 'Cần kiểm tra' : 'An toàn'}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-xl">lock_person</span>
+          </div>
+        </div>
+      </div>
 
-              {/* Status filter */}
-              <div className="relative">
-                <select
-                  value={selectedStatus}
-                  onChange={(e: any) => setSelectedStatus(e.target.value)}
-                  className="appearance-none bg-white border border-slate-200 text-slate-700 rounded-xl pl-3.5 pr-9 py-2.5 text-xs sm:text-sm cursor-pointer hover:border-slate-300 focus:outline-none focus:border-[#003b2b]"
-                >
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="ACTIVE">Đang hoạt động</option>
-                  <option value="LOCKED">Đã bị khóa</option>
-                </select>
-                <span className="material-symbols-outlined pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-lg text-slate-400">
-                  expand_more
-                </span>
-              </div>
-            </div>
+      {/* Filter Tabs & Search Bar */}
+      <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <AdminFilterTabs
+          tabs={[
+            { key: 'ALL', label: 'Tất Cả', count: stats.total },
+            { key: 'CUSTOMER', label: 'Khách Hàng', count: stats.customers },
+            { key: 'SELLER_ADMIN', label: 'Admin Seller', count: stats.sellers },
+            { key: 'SELLER_STAFF', label: 'Nhân Viên', count: stats.staff },
+            { key: 'PLATFORM_ADMIN', label: 'Admin Sàn', count: users.filter(u => u.role === 'PLATFORM_ADMIN').length },
+          ]}
+          activeTab={selectedRole}
+          onChange={(tab) => {
+            setSelectedRole(tab);
+            setCurrentPage(1);
+          }}
+        />
 
-            {(searchQuery || selectedRole !== 'ALL' || selectedStatus !== 'ALL') && (
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <select
+            value={selectedStatus}
+            onChange={(e) => {
+              setSelectedStatus(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-700"
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="LOCKED">Đã bị khóa</option>
+          </select>
+
+          <div className="relative w-full md:w-64">
+            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">
+              search
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Tìm tên, email, SĐT..."
+              className="w-full pl-8 pr-7 py-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] transition-all"
+            />
+            {searchQuery && (
               <button
                 onClick={() => {
                   setSearchQuery('');
-                  setSelectedRole('ALL');
-                  setSelectedStatus('ALL');
+                  setCurrentPage(1);
                 }}
-                className="px-3 py-2 text-xs font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors flex items-center gap-1 cursor-pointer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
-                <span className="material-symbols-outlined text-base">restart_alt</span>
-                <span>Đặt lại bộ lọc</span>
+                <span className="material-symbols-outlined text-xs">close</span>
               </button>
             )}
           </div>
+        </div>
+      </div>
 
-          {/* Table Container */}
-          <div className="overflow-x-auto">
-            {loading ? (
-              <div className="py-20 text-center space-y-3">
-                <div className="w-10 h-10 border-4 border-[#003b2b] border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium">Đang tải dữ liệu người dùng từ Database...</p>
-              </div>
-            ) : (
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 font-semibold text-xs uppercase tracking-wider">
-                    <th className="py-4 pl-6 pr-4 min-w-[240px]">Người Dùng</th>
-                    <th className="py-4 px-4 min-w-[140px]">Số Điện Thoại</th>
-                    <th className="py-4 px-4 min-w-[180px]">Mật Khẩu</th>
-                    <th className="py-4 px-4 min-w-[200px]">Vai Trò</th>
-                    <th className="py-4 px-4 min-w-[130px]">Trạng Thái</th>
-                    <th className="py-4 px-4 min-w-[130px]">Ngày Tham Gia</th>
-                    <th className="py-4 pr-6 pl-4 text-right min-w-[150px]">Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs sm:text-sm">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="py-16 text-center text-slate-500">
-                        <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400 mb-3">
-                          <span className="material-symbols-outlined text-3xl">person_search</span>
-                        </div>
-                        <p className="font-semibold text-base text-slate-800">Không tìm thấy người dùng nào</p>
-                        <p className="text-xs text-slate-400 mt-1">Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc.</p>
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((u: any) => {
-                      const isPasswordVisible = visiblePasswords[u.id] || false;
-                      const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
-
-                      return (
-                        <tr key={u.id} className="hover:bg-slate-50/70 transition-colors">
-                          
-                          {/* 1. Người dùng: Avatar + Name + Email */}
-                          <td className="py-4 pl-6 pr-4 align-middle">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-sm">
-                                {u.avatar ? (
-                                  <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
-                                ) : (
-                                  u.fullName?.charAt(0)?.toUpperCase() || 'U'
-                                )}
-                              </div>
-                              <div className="min-w-0">
-                                <span className="font-bold text-slate-900 block truncate hover:text-[#003b2b]">
-                                  {u.fullName}
-                                </span>
-                                <span className="text-xs text-slate-500 block truncate">{u.email}</span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* 2. Số điện thoại */}
-                          <td className="py-4 px-4 align-middle font-mono text-xs sm:text-sm text-slate-800 whitespace-nowrap">
-                            {u.phone ? (
-                              <span>{u.phone}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">Chưa cập nhật</span>
-                            )}
-                          </td>
-
-                          {/* 3. Mật khẩu (Cột ẩn/hiện mật khẩu) */}
-                          <td className="py-4 px-4 align-middle whitespace-nowrap">
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-xs font-mono">
-                              <span className="font-medium text-slate-800 select-all min-w-[75px]">
-                                {isPasswordVisible ? u.password || '••••••••' : '••••••••'}
-                              </span>
-                              
-                              {/* Toggle Eye Button */}
-                              <button
-                                type="button"
-                                onClick={() => togglePasswordVisibility(u.id)}
-                                className="p-1 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
-                                title={isPasswordVisible ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                                aria-label="Ẩn hiện mật khẩu"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">
-                                  {isPasswordVisible ? 'visibility_off' : 'visibility'}
-                                </span>
-                              </button>
-
-                              {/* Copy button */}
-                              <button
-                                type="button"
-                                onClick={() => handleCopyPassword(u.password, u.fullName)}
-                                className="p-1 rounded-lg text-slate-500 hover:text-[#003b2b] hover:bg-slate-200 transition-colors cursor-pointer"
-                                title="Sao chép mật khẩu"
-                                aria-label="Sao chép mật khẩu"
-                              >
-                                <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                              </button>
-                            </div>
-                          </td>
-
-                          {/* 4. Vai trò (Role + Store Tooltip) */}
-                          <td className="py-4 px-4 align-middle whitespace-nowrap">
-                            {renderRoleBadge(u)}
-                          </td>
-
-                          {/* 5. Trạng thái */}
-                          <td className="py-4 px-4 align-middle whitespace-nowrap">
-                            {u.status === 'ACTIVE' ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span>Hoạt động</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                                <span>Đã khóa</span>
-                              </span>
-                            )}
-                          </td>
-
-                          {/* 6. Ngày tham gia */}
-                          <td className="py-4 px-4 align-middle text-slate-500 whitespace-nowrap text-xs">
-                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}
-                          </td>
-
-                          {/* 7. Thao tác (Sửa, Khóa, Xóa) */}
-                          <td className="py-4 pr-6 pl-4 align-middle text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1.5">
-                              
-                              {/* Nút Sửa */}
-                              <button
-                                onClick={() => handleOpenEdit(u)}
-                                className="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
-                                title="Chỉnh sửa thông tin"
-                              >
-                                <span className="material-symbols-outlined text-[17px]">edit</span>
-                              </button>
-
-                              {/* Nút Khóa / Mở khóa (Admin Sàn bị vô hiệu hóa) */}
-                              {isPlatformAdmin ? (
-                                <button
-                                  disabled
-                                  className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
-                                  title="Tài khoản Admin Sàn không thể bị khóa"
-                                >
-                                  <span className="material-symbols-outlined text-[17px]">lock</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => setLockingUser(u)}
-                                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer shadow-2xs ${
-                                    u.status === 'LOCKED' || u.status === 'BLOCKED'
-                                      ? 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'
-                                      : 'border-amber-200 text-amber-600 hover:bg-amber-50'
-                                  }`}
-                                  title={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
-                                >
-                                  <span className="material-symbols-outlined text-[17px]">
-                                    {u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'lock_open' : 'lock'}
-                                  </span>
-                                </button>
-                              )}
-
-                              {/* Nút Xóa (Admin Sàn bị vô hiệu hóa) */}
-                              {isPlatformAdmin ? (
-                                <button
-                                  disabled
-                                  className="p-1.5 rounded-lg border border-slate-100 text-slate-300 opacity-40 cursor-not-allowed"
-                                  title="Tài khoản Admin Sàn không thể bị xóa"
-                                >
-                                  <span className="material-symbols-outlined text-[17px]">delete</span>
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => setDeletingUser(u)}
-                                  className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors cursor-pointer shadow-2xs"
-                                  title="Xóa tài khoản"
-                                >
-                                  <span className="material-symbols-outlined text-[17px]">delete</span>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            )}
+      {/* Main Table Container */}
+      <AdminTableContainer>
+        {loading ? (
+          <div className="p-8 space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
+            ))}
           </div>
-
-          {/* Table Footer / Info bar */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
-            <span>
-              Hiển thị <strong className="text-slate-800">{filteredUsers.length}</strong> trên tổng số <strong className="text-slate-800">{users.length}</strong> người dùng từ cơ sở dữ liệu
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              <span>Đồng bộ dữ liệu thời gian thực</span>
+        ) : filteredUsers.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">person_search</span>
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">Không Tìm Thấy Người Dùng Nào</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc.</p>
             </div>
           </div>
-        </div>
-      </main>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
+              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Người Dùng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Email</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Số Điện Thoại</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mật Khẩu</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Vai Trò</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày Tham Gia</th>
+                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedUsers.map((u: any, idx: number) => {
+                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                  const isPasswordVisible = visiblePasswords[u.id] || false;
+                  const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
+
+                  return (
+                    <tr
+                      key={u.id}
+                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                    >
+                      {/* 1. STT */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
+                        {itemIndex}
+                      </td>
+
+                      {/* 2. Người Dùng: Avatar + Name */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-xs">
+                            {u.avatar ? (
+                              <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
+                            ) : (
+                              u.fullName?.charAt(0)?.toUpperCase() || 'U'
+                            )}
+                          </div>
+                          <div className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
+                            {u.fullName}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 3. Email */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
+                        {u.email}
+                      </td>
+
+                      {/* 4. Số điện thoại */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-700">
+                        {u.phone || <span className="text-gray-400 italic">Chưa cập nhật</span>}
+                      </td>
+
+                      {/* 5. Mật khẩu */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        <span
+                          title="Mật khẩu người dùng được băm bảo mật 1 chiều bằng Bcrypt trong database, không thể giải mã xem trực tiếp. Có thể đặt lại mật khẩu mới khi bấm Sửa."
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-mono text-gray-600 shadow-2xs cursor-help"
+                        >
+                          <span className="material-symbols-outlined text-[13px] text-emerald-600">lock</span>
+                          <span>Đã mã hóa Bcrypt</span>
+                        </span>
+                      </td>
+
+                      {/* 6. Vai trò */}
+                      <td className="py-3 px-3.5 whitespace-nowrap">
+                        {renderRoleBadge(u)}
+                      </td>
+
+                      {/* 7. Trạng thái */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                        {u.status === 'ACTIVE' ? (
+                          <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
+                        ) : (
+                          <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
+                        )}
+                      </td>
+
+                      {/* 8. Ngày tham gia */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
+                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}
+                      </td>
+
+                      {/* 9. Thao tác */}
+                      <td className="py-2.5 px-4 whitespace-nowrap text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <AdminActionButton
+                            variant="edit"
+                            icon="edit"
+                            size="sm"
+                            onClick={() => handleOpenEdit(u)}
+                            title="Chỉnh sửa thông tin"
+                          />
+
+                          {isPlatformAdmin ? (
+                            <AdminActionButton
+                              variant="neutral"
+                              icon="lock"
+                              size="sm"
+                              disabled
+                              title="Tài khoản Admin Sàn không thể bị khóa"
+                            />
+                          ) : (
+                            <AdminActionButton
+                              variant={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'unlock' : 'lock'}
+                              icon={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'lock_open' : 'lock'}
+                              size="sm"
+                              onClick={() => setLockingUser(u)}
+                              title={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                            />
+                          )}
+
+                          {isPlatformAdmin ? (
+                            <AdminActionButton
+                              variant="neutral"
+                              icon="delete"
+                              size="sm"
+                              disabled
+                              title="Tài khoản Admin Sàn không thể bị xóa"
+                            />
+                          ) : (
+                            <AdminActionButton
+                              variant="danger"
+                              icon="delete"
+                              size="sm"
+                              onClick={() => setDeletingUser(u)}
+                              title="Xóa tài khoản"
+                            />
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={filteredUsers.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="tài khoản"
+        />
+      </AdminTableContainer>
 
       {/* ===================== IN-PAGE FORM 1: THÊM KHÁCH HÀNG MỚI ===================== */}
       {showAddCustomerModal && (
-        <div ref={addCustomerRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-[#003b2b]/30 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3 text-[#003b2b]">
-              <div className="w-10 h-10 rounded-2xl bg-[#003b2b]/10 flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl text-[#003b2b]">person_add</span>
+        <div ref={addCustomerRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00875A] flex items-center justify-center font-bold border border-emerald-200">
+                <span className="material-symbols-outlined text-xl">person_add</span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Thêm Khách Hàng Mới</h3>
-                <p className="text-xs text-slate-500">Lưu thông tin khách hàng mới trực tiếp vào cơ sở dữ liệu hệ thống</p>
+                <h3 className="text-base font-bold text-gray-900">Thêm Khách Hàng Mới</h3>
+                <p className="text-xs text-gray-500">Lưu thông tin khách hàng mới trực tiếp vào cơ sở dữ liệu hệ thống</p>
               </div>
             </div>
             <button
@@ -1082,16 +969,15 @@ export function AdminAccountsView() {
                 setShowAddCustomerModal(false);
                 setNewCustomerErrors({});
               }}
-              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-xl">close</span>
+              <span className="material-symbols-outlined text-lg">close</span>
             </button>
           </div>
 
-          <form onSubmit={handleAddCustomerSubmit} className="space-y-4 mt-5">
-            {/* Họ tên */}
+          <form onSubmit={handleAddCustomerSubmit} className="space-y-4 mt-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">
                 Họ và tên khách hàng <span className="text-rose-500">*</span>
               </label>
               <input
@@ -1102,22 +988,21 @@ export function AdminAccountsView() {
                   if (newCustomerErrors.fullName) setNewCustomerErrors((prev) => ({ ...prev, fullName: "" }));
                 }}
                 placeholder="VD: Nguyễn Thị Lan Anh..."
-                className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                  newCustomerErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                  newCustomerErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                 }`}
               />
               {newCustomerErrors.fullName && (
-                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
+                <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                  <span className="material-symbols-outlined text-[13px]">error</span>
                   <span>{newCustomerErrors.fullName}</span>
                 </p>
               )}
             </div>
 
-            {/* Email & SĐT */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
                   Địa chỉ Email <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1128,19 +1013,19 @@ export function AdminAccountsView() {
                     if (newCustomerErrors.email) setNewCustomerErrors((prev) => ({ ...prev, email: "" }));
                   }}
                   placeholder="VD: lananh@gmail.com..."
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                    newCustomerErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                    newCustomerErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
                 {newCustomerErrors.email && (
-                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
+                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
                     <span>{newCustomerErrors.email}</span>
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
                   Số điện thoại <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1151,22 +1036,21 @@ export function AdminAccountsView() {
                     if (newCustomerErrors.phone) setNewCustomerErrors((prev) => ({ ...prev, phone: "" }));
                   }}
                   placeholder="VD: 0988 123 456..."
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                    newCustomerErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                    newCustomerErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
                 {newCustomerErrors.phone && (
-                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
+                  <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                    <span className="material-symbols-outlined text-[13px]">error</span>
                     <span>{newCustomerErrors.phone}</span>
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Mật khẩu khởi tạo */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">
                 Mật khẩu ban đầu <span className="text-rose-500">*</span>
               </label>
               <div className="relative flex items-center">
@@ -1178,34 +1062,25 @@ export function AdminAccountsView() {
                     if (newCustomerErrors.password) setNewCustomerErrors((prev) => ({ ...prev, password: "" }));
                   }}
                   placeholder="Nhập mật khẩu..."
-                  className={`w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 font-mono focus:outline-none transition-all ${
-                    newCustomerErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full pl-3.5 pr-10 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 font-mono focus:outline-none transition-all ${
+                    newCustomerErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowNewCustPassword(!showNewCustPassword)}
-                  className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  className="absolute right-2.5 text-gray-400 hover:text-gray-700 p-1 cursor-pointer"
                   title={showNewCustPassword ? 'Ẩn' : 'Hiện'}
                 >
-                  <span className="material-symbols-outlined text-lg">
+                  <span className="material-symbols-outlined text-base">
                     {showNewCustPassword ? 'visibility_off' : 'visibility'}
                   </span>
                 </button>
               </div>
-              {newCustomerErrors.password ? (
-                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  <span>{newCustomerErrors.password}</span>
-                </p>
-              ) : (
-                <p className="text-[11px] text-slate-400 mt-1">Mật khẩu sẽ được mã hóa an toàn trong database.</p>
-              )}
             </div>
 
-            {/* Địa chỉ giao hàng mặc định */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">
                 Địa chỉ giao hàng mặc định (Tùy chọn)
               </label>
               <input
@@ -1213,38 +1088,31 @@ export function AdminAccountsView() {
                 value={newCustomerForm.address}
                 onChange={(e: any) => setNewCustomerForm({ ...newCustomerForm, address: e.target.value })}
                 placeholder="VD: Số 12 Nguyễn Văn Bảo, Phường 5, Gò Vấp, TP.HCM"
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white transition-all"
+                className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
               />
             </div>
 
-            {/* Notice note */}
-            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-2.5 text-xs text-emerald-900">
-              <span className="material-symbols-outlined text-base text-emerald-700 shrink-0 mt-0.5">info</span>
-              <span>Tài khoản tạo mới sẽ tự động kích hoạt vai trò <strong>Khách hàng (CUSTOMER)</strong> và sẵn sàng đăng nhập ngay lập tức.</span>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => {
                   setShowAddCustomerModal(false);
                   setNewCustomerErrors({});
                 }}
-                className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-slate-700"
+                className="px-4 py-2 text-xs font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer text-gray-700"
               >
                 Hủy Bỏ
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+                className="px-5 py-2 text-xs font-semibold bg-[#00875A] hover:bg-[#00734c] text-white rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <span>Đang lưu...</span>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-lg">check</span>
+                    <span className="material-symbols-outlined text-[16px]">check</span>
                     <span>Lưu Vào Database</span>
                   </>
                 )}
@@ -1256,15 +1124,15 @@ export function AdminAccountsView() {
 
       {/* ===================== IN-PAGE FORM 2: CHỈNH SỬA THÔNG TIN NGƯỜI DÙNG ===================== */}
       {editingUser && (
-        <div ref={editUserRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-slate-300 animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-3 text-slate-900">
-              <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-700">
-                <span className="material-symbols-outlined text-2xl">edit_note</span>
+        <div ref={editUserRef} className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center text-gray-700">
+                <span className="material-symbols-outlined text-xl">edit_note</span>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-slate-900">Chỉnh Sửa Thông Tin Người Dùng</h3>
-                <p className="text-xs text-slate-500">Cập nhật hồ sơ, phân quyền vai trò và trạng thái tài khoản: <strong>{editingUser.fullName}</strong></p>
+                <h3 className="text-base font-bold text-gray-900">Chỉnh Sửa Thông Tin Người Dùng</h3>
+                <p className="text-xs text-gray-500">Tài khoản: <strong>{editingUser.fullName}</strong></p>
               </div>
             </div>
             <button
@@ -1272,16 +1140,15 @@ export function AdminAccountsView() {
                 setEditingUser(null);
                 setEditErrors({});
               }}
-              className="text-slate-400 hover:text-slate-700 p-2 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+              className="text-gray-400 hover:text-gray-700 p-1.5 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-xl">close</span>
+              <span className="material-symbols-outlined text-lg">close</span>
             </button>
           </div>
 
-          <form onSubmit={handleSaveEditSubmit} className="space-y-4 mt-5">
-            {/* Họ tên */}
+          <form onSubmit={handleSaveEditSubmit} className="space-y-4 mt-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">
                 Họ và tên <span className="text-rose-500">*</span>
               </label>
               <input
@@ -1291,22 +1158,15 @@ export function AdminAccountsView() {
                   setEditForm({ ...editForm, fullName: e.target.value });
                   if (editErrors.fullName) setEditErrors((prev) => ({ ...prev, fullName: "" }));
                 }}
-                className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                  editErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                  editErrors.fullName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                 }`}
               />
-              {editErrors.fullName && (
-                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  <span>{editErrors.fullName}</span>
-                </p>
-              )}
             </div>
 
-            {/* Email & SĐT */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
                   Email <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1316,19 +1176,13 @@ export function AdminAccountsView() {
                     setEditForm({ ...editForm, email: e.target.value });
                     if (editErrors.email) setEditErrors((prev) => ({ ...prev, email: "" }));
                   }}
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                    editErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                    editErrors.email ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
-                {editErrors.email && (
-                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
-                    <span>{editErrors.email}</span>
-                  </p>
-                )}
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Số điện thoại</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Số điện thoại</label>
                 <input
                   type="tel"
                   value={editForm.phone}
@@ -1336,22 +1190,15 @@ export function AdminAccountsView() {
                     setEditForm({ ...editForm, phone: e.target.value });
                     if (editErrors.phone) setEditErrors((prev) => ({ ...prev, phone: "" }));
                   }}
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                    editErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                    editErrors.phone ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
-                {editErrors.phone && (
-                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
-                    <span>{editErrors.phone}</span>
-                  </p>
-                )}
               </div>
             </div>
 
-            {/* Mật khẩu */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
+              <label className="block text-xs font-bold text-gray-700 mb-1">
                 Mật khẩu mới (Nếu cần đặt lại)
               </label>
               <div className="relative flex items-center">
@@ -1363,37 +1210,31 @@ export function AdminAccountsView() {
                     if (editErrors.password) setEditErrors((prev) => ({ ...prev, password: "" }));
                   }}
                   placeholder="Để trống nếu giữ nguyên mật khẩu..."
-                  className={`w-full pl-3.5 pr-11 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 font-mono focus:outline-none transition-all ${
-                    editErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full pl-3.5 pr-10 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 font-mono focus:outline-none transition-all ${
+                    editErrors.password ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowEditPassword(!showEditPassword)}
-                  className="absolute right-3 text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+                  className="absolute right-2.5 text-gray-400 hover:text-gray-700 p-1 cursor-pointer"
+                  title={showEditPassword ? 'Ẩn' : 'Hiện'}
                 >
-                  <span className="material-symbols-outlined text-lg">
+                  <span className="material-symbols-outlined text-base">
                     {showEditPassword ? 'visibility_off' : 'visibility'}
                   </span>
                 </button>
               </div>
-              {editErrors.password && (
-                <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                  <span className="material-symbols-outlined text-[14px]">error</span>
-                  <span>{editErrors.password}</span>
-                </p>
-              )}
             </div>
 
-            {/* Vai trò & Trạng thái */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Vai trò</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Vai trò</label>
                 <select
                   disabled={editingUser.role === 'PLATFORM_ADMIN'}
                   value={editForm.role}
                   onChange={(e: any) => setEditForm({ ...editForm, role: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:border-[#00875A] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="CUSTOMER">Khách hàng (CUSTOMER)</option>
                   <option value="SELLER_ADMIN">Admin Seller (Chủ shop)</option>
@@ -1403,12 +1244,12 @@ export function AdminAccountsView() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái</label>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Trạng thái</label>
                 <select
                   disabled={editingUser.role === 'PLATFORM_ADMIN'}
                   value={editForm.status}
                   onChange={(e: any) => setEditForm({ ...editForm, status: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:border-[#003b2b] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="w-full px-3.5 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-900 focus:outline-none focus:border-[#00875A] focus:bg-white cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <option value="ACTIVE">Hoạt động (Active)</option>
                   <option value="LOCKED">Đã khóa (Locked)</option>
@@ -1416,10 +1257,9 @@ export function AdminAccountsView() {
               </div>
             </div>
 
-            {/* Tên cửa hàng nếu là SELLER */}
             {(editForm.role === 'SELLER_ADMIN' || editForm.role === 'SELLER_STAFF') && (
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-gray-700 mb-1">
                   Tên Cửa Hàng / Doanh Nghiệp <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -1430,41 +1270,34 @@ export function AdminAccountsView() {
                     if (editErrors.storeName) setEditErrors((prev) => ({ ...prev, storeName: "" }));
                   }}
                   placeholder="VD: Nhà Sách Nhã Nam Hà Nội..."
-                  className={`w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl text-sm text-slate-900 focus:outline-none transition-all ${
-                    editErrors.storeName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-slate-200 focus:border-[#003b2b] focus:bg-white"
+                  className={`w-full px-3.5 py-2 bg-gray-50 border rounded-xl text-xs text-gray-900 focus:outline-none transition-all ${
+                    editErrors.storeName ? "border-rose-400 focus:border-rose-500 bg-rose-50/30" : "border-gray-200 focus:border-[#00875A] focus:bg-white"
                   }`}
                 />
-                {editErrors.storeName && (
-                  <p className="text-xs text-rose-500 mt-1.5 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span className="material-symbols-outlined text-[14px]">error</span>
-                    <span>{editErrors.storeName}</span>
-                  </p>
-                )}
               </div>
             )}
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => {
                   setEditingUser(null);
                   setEditErrors({});
                 }}
-                className="px-4 py-2.5 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-slate-700"
+                className="px-4 py-2 text-xs font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer text-gray-700"
               >
                 Hủy Bỏ
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2.5 text-sm font-semibold bg-[#003b2b] hover:bg-[#002b1f] text-white rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-60"
+                className="px-5 py-2 text-xs font-semibold bg-[#00875A] hover:bg-[#00734c] text-white rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <span>Đang lưu...</span>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-lg">save</span>
+                    <span className="material-symbols-outlined text-[16px]">save</span>
                     <span>Lưu Thay Đổi</span>
                   </>
                 )}
@@ -1474,92 +1307,87 @@ export function AdminAccountsView() {
         </div>
       )}
 
-      {/* ===================== MODAL 3: XÁC NHẬN KHÓA / MỞ KHÓA ===================== */}
+      {/* ===================== IN-PAGE CONFIRMATION 3: XÁC NHẬN KHÓA / MỞ KHÓA ===================== */}
       {lockingUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl animate-scaleIn">
-            <div className="flex items-center gap-3">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
-                lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
-              }`}>
-                <span className="material-symbols-outlined text-2xl">
-                  {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'lock_open' : 'lock'}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Mở Khóa Tài Khoản?' : 'Khóa Tài Khoản Người Dùng?'}
-                </h3>
-                <p className="text-xs text-slate-500">{lockingUser.fullName} ({lockingUser.email})</p>
-              </div>
+        <div className="mt-4 bg-amber-50 border border-amber-200 rounded-3xl p-6 sm:p-8 space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+              lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+            }`}>
+              <span className="material-symbols-outlined text-xl">
+                {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'lock_open' : 'lock'}
+              </span>
             </div>
-
-            <p className="text-sm text-slate-600">
-              {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED'
-                ? 'Sau khi mở khóa trong database, người dùng này có thể đăng nhập và tiếp tục sử dụng tất cả dịch vụ trên sàn HUKI.'
-                : 'Khi bị khóa, tài khoản này sẽ bị thu hồi phiên đăng nhập ngay lập tức và không thể thực hiện các giao dịch trên sàn.'}
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setLockingUser(null)}
-                className="px-4 py-2 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmLock}
-                className={`px-4 py-2 text-sm font-semibold text-white rounded-xl transition-colors cursor-pointer shadow-sm ${
-                  lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
-                }`}
-              >
-                {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa tài khoản'}
-              </button>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">
+                {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Mở Khóa Tài Khoản?' : 'Khóa Tài Khoản Người Dùng?'}
+              </h3>
+              <p className="text-xs text-gray-500">{lockingUser.fullName} ({lockingUser.email})</p>
             </div>
+          </div>
+
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED'
+              ? 'Sau khi mở khóa trong database, người dùng này có thể đăng nhập và tiếp tục sử dụng tất cả dịch vụ trên sàn HUKI.'
+              : 'Khi bị khóa, tài khoản này sẽ bị thu hồi phiên đăng nhập ngay lập tức và không thể thực hiện các giao dịch trên sàn.'}
+          </p>
+
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-amber-200/60">
+            <button
+              type="button"
+              onClick={() => setLockingUser(null)}
+              className="px-4 py-2 text-xs font-semibold bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmLock}
+              className={`px-4 py-2 text-xs font-bold text-white rounded-xl transition-colors cursor-pointer shadow-xs ${
+                lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'
+              }`}
+            >
+              {lockingUser.status === 'LOCKED' || lockingUser.status === 'BLOCKED' ? 'Xác nhận Mở khóa' : 'Xác nhận Khóa'}
+            </button>
           </div>
         </div>
       )}
 
-      {/* ===================== MODAL 4: XÁC NHẬN XÓA TÀI KHOẢN ===================== */}
+      {/* ===================== IN-PAGE CONFIRMATION 4: XÁC NHẬN XÓA TÀI KHOẢN ===================== */}
       {deletingUser && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-2xl animate-scaleIn">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">delete_forever</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">Xóa Tài Khoản Người Dùng?</h3>
-                <p className="text-xs text-slate-500">{deletingUser.fullName} ({deletingUser.email})</p>
-              </div>
+        <div className="mt-4 bg-rose-50 border border-rose-200 rounded-3xl p-6 sm:p-8 space-y-3 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-xl">delete_forever</span>
             </div>
-
-            <p className="text-sm text-slate-600">
-              Bạn có chắc chắn muốn xóa tài khoản này khỏi database không? Hành động này sẽ vô hiệu hóa hoàn toàn thông tin người dùng khỏi hệ thống.
-            </p>
-
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeletingUser(null)}
-                className="px-4 py-2 text-sm font-semibold border border-slate-200 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmDelete}
-                className="px-4 py-2 text-sm font-semibold bg-red-600 hover:bg-red-700 text-white rounded-xl transition-colors cursor-pointer shadow-sm"
-              >
-                Xác nhận Xóa
-              </button>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Xóa Tài Khoản Người Dùng?</h3>
+              <p className="text-xs text-gray-500">{deletingUser.fullName} ({deletingUser.email})</p>
             </div>
+          </div>
+
+          <p className="text-xs text-gray-600 leading-relaxed">
+            Bạn có chắc chắn muốn xóa tài khoản này khỏi database không? Hành động này sẽ vô hiệu hóa hoàn toàn thông tin người dùng khỏi hệ thống.
+          </p>
+
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-rose-200/60">
+            <button
+              type="button"
+              onClick={() => setDeletingUser(null)}
+              className="px-4 py-2 text-xs font-semibold bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Hủy
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmDelete}
+              className="px-4 py-2 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-xl transition-colors cursor-pointer shadow-xs"
+            >
+              Xác nhận Xóa
+            </button>
           </div>
         </div>
       )}
-
     </div>
   );
 }

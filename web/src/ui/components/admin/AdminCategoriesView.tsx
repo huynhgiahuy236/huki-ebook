@@ -70,24 +70,13 @@ export function AdminCategoriesView() {
   });
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto">
-      
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-purple-800 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
-              QUẢN TRỊ TAXONOMY
-            </span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 font-medium">Cây danh mục, Tác giả &amp; Nhà xuất bản</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-1 font-editorial">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Danh Mục &amp; Tác Giả Toàn Sàn
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
-            Quản lý cấu trúc thể loại sách, danh sách tác giả uy tín và đơn vị nhà xuất bản trên sàn HUKI.
-          </p>
         </div>
 
         <button

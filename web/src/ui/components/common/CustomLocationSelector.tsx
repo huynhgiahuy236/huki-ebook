@@ -1,11 +1,21 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { VIETNAM_LOCATIONS, ProvinceItem, DistrictItem, WardItem } from '../../data/vietnamLocations';
+import {
+  VIETNAM_LOCATIONS,
+  getProvinces,
+  getWardsByProvince,
+  findProvince,
+  findWard,
+  Province,
+  Ward,
+} from '../../data/vietnam-locations';
 
 interface SearchableSelectOption {
   code?: string;
   name: string;
   isPopular?: boolean;
-  zone?: string;
+  region?: string;
+  type?: string;
+  slug?: string;
   legacyAliases?: string[];
 }
 
@@ -42,9 +52,11 @@ function SearchableSelect({
     if (!search.trim()) return options;
     const q = search.toLowerCase().trim();
     return options.filter((opt: SearchableSelectOption) => {
-      const matchName = opt.name.toLowerCase().includes(q);
+      const matchName = opt.name?.toLowerCase().includes(q);
+      const matchCode = opt.code?.toLowerCase().includes(q);
+      const matchSlug = opt.slug?.toLowerCase().includes(q);
       const matchAliases = opt.legacyAliases && opt.legacyAliases.some((alias) => alias.toLowerCase().includes(q));
-      return matchName || matchAliases;
+      return matchName || matchCode || matchSlug || matchAliases;
     });
   }, [options, search]);
 
@@ -89,12 +101,12 @@ function SearchableSelect({
         type="button"
         onClick={handleToggle}
         disabled={disabled}
-        className={`w-full min-h-[34px] px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-1.5 transition-all select-none cursor-pointer ${
+        className={`w-full min-h-[36px] px-3 py-2 rounded-xl border text-xs flex items-center justify-between gap-1.5 transition-all select-none cursor-pointer ${
           disabled
             ? 'bg-neutral-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-400 cursor-not-allowed opacity-60'
             : isOpen
-            ? 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-primary,#003B2B)] ring-1 ring-[var(--theme-primary,#003B2B)]/15 shadow-2xs'
-            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003B2B)]/50'
+            ? 'bg-[var(--theme-surface,#ffffff)] border-[#00875A] ring-2 ring-[#00875A]/15 shadow-2xs'
+            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] hover:border-[#00875A]/50'
         }`}
       >
         <span className={`truncate font-medium ${value ? 'text-[var(--theme-text,#1c1b1f)]' : 'text-[var(--theme-text-muted,#49454f)]/70'}`}>
@@ -102,7 +114,7 @@ function SearchableSelect({
         </span>
         <span
           className={`material-symbols-outlined text-[18px] text-[var(--theme-text-muted,#49454f)] shrink-0 transition-transform duration-200 ${
-            isOpen ? 'rotate-180 text-[var(--theme-primary,#003B2B)]' : ''
+            isOpen ? 'rotate-180 text-[#00875A]' : ''
           }`}
         >
           expand_more
@@ -117,7 +129,7 @@ function SearchableSelect({
 
       {/* Floating Options Popup */}
       {isOpen && (
-        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-50 bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-2xl shadow-xl p-2 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1.5 min-w-[220px]">
+        <div className="absolute top-[calc(100%+4px)] left-0 right-0 z-50 bg-[var(--theme-surface,#ffffff)] border border-[var(--theme-border,#e8e5df)] rounded-2xl shadow-xl p-2 animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1.5 min-w-[240px]">
           {/* Search Box */}
           <div className="relative flex items-center px-2 py-1 bg-[var(--theme-background,#F2FBF9)]/60 rounded-xl border border-[var(--theme-border,#e8e5df)]/60">
             <span className="material-symbols-outlined text-[16px] text-[var(--theme-text-muted,#49454f)] mr-1.5 shrink-0">
@@ -143,21 +155,21 @@ function SearchableSelect({
           </div>
 
           {/* Options List */}
-          <div className="max-h-52 overflow-y-auto pr-1 space-y-0.5 scrollbar-thin">
+          <div className="max-h-56 overflow-y-auto pr-1 space-y-0.5 scrollbar-thin">
             {filteredOptions.length === 0 ? (
               <div className="p-3 text-center text-xs text-[var(--theme-text-muted,#49454f)]">
                 Không tìm thấy kết quả phù hợp
               </div>
             ) : (
               filteredOptions.map((opt: any) => {
-                const isSelected = value === opt.name;
+                const isSelected = value === opt.name || value === opt.code;
                 return (
                   <div
                     key={opt.code || opt.name}
                     onClick={() => handleSelect(opt)}
                     className={`px-3 py-2 rounded-xl text-xs flex items-center justify-between cursor-pointer transition-all ${
                       isSelected
-                        ? 'bg-[var(--theme-primary,#003B2B)]/10 text-[var(--theme-primary,#003B2B)] font-bold'
+                        ? 'bg-emerald-50 text-[#00875A] font-bold border border-emerald-200/50'
                         : 'text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]/80'
                     }`}
                   >
@@ -165,13 +177,18 @@ function SearchableSelect({
                       <div className="flex items-center gap-1.5 truncate">
                         <span className="truncate font-medium">{opt.name}</span>
                         {opt.isPopular && (
-                          <span className="bg-[var(--theme-primary,#003B2B)]/15 text-[var(--theme-primary,#003B2B)] text-[9px] px-1.5 py-0.2 rounded font-bold shrink-0">
+                          <span className="bg-emerald-100 text-[#00875A] text-[9px] px-1.5 py-0.2 rounded font-bold shrink-0">
                             Phổ biến
                           </span>
                         )}
-                        {opt.zone && (
+                        {opt.type && opt.type !== 'ward' && (
+                          <span className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.2 rounded shrink-0">
+                            {opt.type === 'special_zone' ? 'Đặc khu' : opt.type === 'town' ? 'Thị trấn' : opt.type}
+                          </span>
+                        )}
+                        {opt.region && (
                           <span className="text-[9px] text-[var(--theme-text-muted,#49454f)]/80 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.2 rounded shrink-0">
-                            {opt.zone === 'NORTH' ? 'Miền Bắc' : opt.zone === 'CENTRAL' ? 'Miền Trung' : 'Miền Nam'}
+                            {opt.region === 'NORTH' ? 'Miền Bắc' : opt.region === 'CENTRAL' ? 'Miền Trung' : 'Miền Nam'}
                           </span>
                         )}
                       </div>
@@ -182,7 +199,7 @@ function SearchableSelect({
                       )}
                     </div>
                     {isSelected && (
-                      <span className="material-symbols-outlined text-[16px] text-[var(--theme-primary,#003B2B)] shrink-0">
+                      <span className="material-symbols-outlined text-[16px] text-[#00875A] shrink-0">
                         check
                       </span>
                     )}
@@ -200,116 +217,101 @@ function SearchableSelect({
 export interface LocationChangePayload {
   province: string;
   provinceCode?: string;
-  district: string;
-  districtCode?: string;
   ward: string;
   wardCode?: string;
+  district?: string; // Backward compatibility for legacy DTOs
+  districtCode?: string;
 }
 
 export interface CustomLocationSelectorProps {
   province?: string;
-  district?: string;
+  provinceCode?: string;
+  district?: string; // Legacy prop (ignored in new UI)
+  districtCode?: string;
   ward?: string;
+  wardCode?: string;
   onChange: (payload: LocationChangePayload) => void;
   required?: boolean;
 }
 
 /**
- * Custom Vietnam Location Cascader (Province -> District -> Ward)
+ * Standardized 2-Level Vietnam Location Cascader (34 Provinces -> 3,321 Wards/Communes/Special Zones)
  */
 export default function CustomLocationSelector({
   province = '',
-  district = '',
+  provinceCode = '',
   ward = '',
+  wardCode = '',
   onChange,
   required = true,
 }: CustomLocationSelectorProps) {
+  // Find currently selected province object
   const currentProvinceObj = useMemo(() => {
-    return VIETNAM_LOCATIONS.find((p) => p.name === province || (p as any).code === province);
-  }, [province]);
+    if (provinceCode) {
+      const byCode = VIETNAM_LOCATIONS.find((p) => p.code === provinceCode);
+      if (byCode) return byCode;
+    }
+    if (province) {
+      return findProvince(province);
+    }
+    return null;
+  }, [province, provinceCode]);
 
-  const currentDistrictObj = useMemo(() => {
-    if (!currentProvinceObj) return null;
-    return (currentProvinceObj as any).districts?.find(
-      (d: any) => d.name === district || d.code === district
-    );
-  }, [currentProvinceObj, district]);
-
-  const districtOptions = useMemo(() => {
-    return (currentProvinceObj as any)?.districts || [];
+  // Available ward options for the selected province
+  const wardOptions = useMemo(() => {
+    if (!currentProvinceObj) return [];
+    return currentProvinceObj.wards || [];
   }, [currentProvinceObj]);
 
-  const wardOptions = useMemo(() => {
-    return currentDistrictObj?.wards || [];
-  }, [currentDistrictObj]);
-
-  const handleProvinceChange = (opt: any) => {
+  // Handle Province selection
+  const handleProvinceChange = (opt: Province) => {
     onChange({
       province: opt.name,
       provinceCode: opt.code,
-      district: '',
+      ward: '',
+      wardCode: '',
+      district: '', // Reset legacy district
       districtCode: '',
-      ward: '',
-      wardCode: '',
     });
   };
 
-  const handleDistrictChange = (opt: any) => {
+  // Handle Ward selection
+  const handleWardChange = (opt: Ward) => {
+    const selectedProvince = currentProvinceObj?.name || province;
+    const selectedProvCode = currentProvinceObj?.code || provinceCode;
     onChange({
-      province: province || currentProvinceObj?.name || '',
-      district: opt.name,
-      districtCode: opt.code,
-      ward: '',
-      wardCode: '',
-    });
-  };
-
-  const handleWardChange = (opt: any) => {
-    onChange({
-      province: province || currentProvinceObj?.name || '',
-      district: district || currentDistrictObj?.name || '',
+      province: selectedProvince,
+      provinceCode: selectedProvCode,
       ward: opt.name,
       wardCode: opt.code,
+      district: opt.name, // Fallback for backward compatibility with backend DTOs
+      districtCode: opt.code,
     });
   };
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
-      {/* Tỉnh / Thành Phố */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full">
+      {/* 1. Tỉnh / Thành Phố (34 Tỉnh/Thành) */}
       <SearchableSelect
         label="Tỉnh / Thành phố"
-        placeholder="Chọn Tỉnh / Thành phố"
-        value={province}
+        placeholder="Chọn Tỉnh / Thành phố (34 tỉnh thành)"
+        value={currentProvinceObj?.name || province}
         onChange={handleProvinceChange}
         options={VIETNAM_LOCATIONS}
         required={required}
       />
 
-      {/* Quận / Huyện */}
+      {/* 2. Xã / Phường / Đặc Khu (Trực thuộc Tỉnh/Thành) */}
       <SearchableSelect
-        label="Quận / Huyện"
-        placeholder="Chọn Quận / Huyện"
-        value={district}
-        onChange={handleDistrictChange}
-        options={districtOptions}
-        disabled={!province}
-        disabledHint="Vui lòng chọn Tỉnh/Thành trước"
+        label="Xã / Phường / Đặc khu"
+        placeholder={currentProvinceObj ? 'Chọn Xã / Phường / Đặc khu' : 'Vui lòng chọn Tỉnh/Thành trước'}
+        value={ward}
+        onChange={handleWardChange}
+        options={wardOptions}
+        disabled={!currentProvinceObj && !province}
+        disabledHint="Vui lòng chọn Tỉnh/Thành phố trước"
         required={required}
       />
-
-      {/* Phường / Xã */}
-      <div className="sm:col-span-2">
-        <SearchableSelect
-          label="Phường / Xã"
-          placeholder="Chọn Phường / Xã"
-          value={ward}
-          onChange={handleWardChange}
-          options={wardOptions}
-          disabled={!district}
-          disabledHint="Vui lòng chọn Quận/Huyện trước"
-          required={required}
-        />
-      </div>
     </div>
   );
 }

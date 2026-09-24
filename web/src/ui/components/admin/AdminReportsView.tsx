@@ -228,22 +228,13 @@ export function AdminReportsView() {
   }
 
   return (
-    <div className="flex flex-col gap-5 max-w-[1600px] mx-auto print:w-full print:p-0">
+    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full print:w-full print:p-0">
       {/* 1. TOP EXECUTIVE HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-500">Trung Tâm Dữ Liệu &amp; Phân Tích</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-200">
-              BÁO CÁO GMV TOÀN SÀN
-            </span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 tracking-tight mt-0.5 font-editorial">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Báo Cáo Phân Tích &amp; GMV Toàn Sàn
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Tổng hợp dữ liệu doanh số tổng (Gross Merchandise Value), số đơn hàng hoàn tất &amp; xếp hạng gian hàng.
-          </p>
         </div>
 
         {/* Action Toolbar */}

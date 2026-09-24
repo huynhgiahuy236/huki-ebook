@@ -59,23 +59,13 @@ export function AdminDashboardView() {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-w-7xl mx-auto">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
       {/* 1. TOP EXECUTIVE HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-              PLATFORM ADMIN CONSOLE
-            </span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 font-medium">Trung tâm điều hành sàn HUKI</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight mt-1 font-editorial">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Bảng Điều Hành Toàn Sàn
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Giám sát hồ sơ đối tác doanh nghiệp chờ duyệt, kiểm soát catalog sách toàn hệ thống &amp; tình trạng microservices.
-          </p>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">

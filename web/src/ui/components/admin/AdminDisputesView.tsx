@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi, type DisputeItem, type DisputeDetailData, type ArbitrationRuling } from '@/ui/api/adminApi';
 import { useToast } from '@/ui/context/ToastContext';
+import { useSmartFormCollapse } from '@/ui/utils/formHooks';
+import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
 
 const DISPUTE_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   NOT_AS_DESCRIBED: { label: 'Sai mô tả', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -51,12 +53,27 @@ export function AdminDisputesView() {
   const [selectedDispute, setSelectedDispute] = useState<DisputeDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   // Arbitration form state
   const [selectedRuling, setSelectedRuling] = useState<ArbitrationRuling>('BUYER_WINS');
   const [rulingNotes, setRulingNotes] = useState('');
+  const [rulingNotesError, setRulingNotesError] = useState('');
   const [refundPercentage, setRefundPercentage] = useState<number>(50);
   const [submittingRuling, setSubmittingRuling] = useState(false);
-  const [zoomImage, setZoomImage] = useState<string | null>(null);
+
+  const isRulingDirty = Boolean(rulingNotes.trim());
+  const disputePanelRef = useSmartFormCollapse({
+    isOpen: Boolean(selectedDispute),
+    onClose: () => {
+      setSelectedDispute(null);
+      setRulingNotes('');
+      setRulingNotesError('');
+    },
+    isDirty: isRulingDirty,
+  });
 
   const fetchDisputes = useCallback(async () => {
     try {
@@ -109,8 +126,13 @@ export function AdminDisputesView() {
     e.preventDefault();
     if (!selectedDispute) return;
 
-    if (!rulingNotes.trim() || rulingNotes.trim().length < 10) {
-      showToast('Vui lòng nhập căn cứ phán quyết chi tiết (tối thiểu 10 ký tự)', 'error');
+    if (!rulingNotes.trim()) {
+      setRulingNotesError('Vui lòng nhập căn cứ pháp lý & ghi chú thẩm định đối soát.');
+      return;
+    }
+
+    if (rulingNotes.trim().length < 10) {
+      setRulingNotesError('Căn cứ phán quyết phải có tối thiểu 10 ký tự giải trình.');
       return;
     }
 
@@ -132,6 +154,7 @@ export function AdminDisputesView() {
 
       if (res && res.success) {
         showToast('Ban hành phán quyết trọng tài thành công!', 'success');
+        setRulingNotesError('');
         await handleOpenDetail(selectedDispute.disputeId);
         fetchDisputes();
       } else {
@@ -146,223 +169,253 @@ export function AdminDisputesView() {
 
   // Metrics
   const totalCount = disputes.length;
-  const pendingCount = disputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length;
-  const buyerWinsCount = disputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length;
-  const sellerWinsCount = disputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length;
+  const pendingCount = useMemo(() => disputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length, [disputes]);
+  const buyerWinsCount = useMemo(() => disputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length, [disputes]);
+  const sellerWinsCount = useMemo(() => disputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length, [disputes]);
+
+  const totalPages = Math.ceil(disputes.length / pageSize) || 1;
+  const paginatedDisputes = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return disputes.slice(start, start + pageSize);
+  }, [disputes, currentPage, pageSize]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-2">
         <div>
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-emerald-600 text-3xl">gavel</span>
-            <h1 className="text-2xl font-bold text-gray-900">Trọng Tài Khiếu Nại & Tranh Chấp</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+              Trọng Tài Khiếu Nại &amp; Tranh Chấp
+            </h1>
           </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Cổng thẩm định chứng cứ đối chất và ban hành phán quyết trọng tài Escrow theo chính sách POL-12
-          </p>
+          <p className="text-xs text-gray-500 mt-0.5">Thẩm định chứng cứ, ban hành phán quyết trọng tài và giải ngân Escrow</p>
         </div>
         <button
           onClick={fetchDisputes}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition shadow-sm"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-[#E2E8F0] rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition shadow-2xs cursor-pointer"
         >
-          <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
-          Làm mới
+          <span className={`material-symbols-outlined text-[15px] ${loading ? 'animate-spin' : ''}`}>refresh</span>
+          <span>Làm Mới</span>
         </button>
       </div>
 
       {/* Summary Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-gray-500">Tổng Hồ Sơ</div>
-          <div className="text-2xl font-bold text-gray-900 mt-1">{totalCount}</div>
-          <div className="text-xs text-gray-400 mt-0.5">Tất cả khiếu nại đã mở</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-2xs">
+          <div className="text-xs font-semibold text-gray-500">Tổng Hồ Sơ</div>
+          <div className="text-xl font-extrabold text-gray-900 mt-1">{totalCount}</div>
+          <div className="text-[11px] text-gray-400 mt-0.5">Tất cả khiếu nại đã mở</div>
         </div>
-        <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-amber-700">Chờ Sàn Phân Xử</div>
-          <div className="text-2xl font-bold text-amber-800 mt-1">{pendingCount}</div>
-          <div className="text-xs text-amber-600 mt-0.5">Thời hạn SLA: 48h làm việc</div>
+        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-2xs">
+          <div className="text-xs font-semibold text-amber-700">Chờ Sàn Phân Xử</div>
+          <div className="text-xl font-extrabold text-amber-600 mt-1">{pendingCount}</div>
+          <div className="text-[11px] text-amber-700 mt-0.5">Thời hạn SLA: 48h làm việc</div>
         </div>
-        <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Người Mua Thắng</div>
-          <div className="text-2xl font-bold text-emerald-800 mt-1">{buyerWinsCount}</div>
-          <div className="text-xs text-emerald-600 mt-0.5">Đã ra lệnh hoàn tiền</div>
+        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-2xs">
+          <div className="text-xs font-semibold text-emerald-700">Người Mua Thắng</div>
+          <div className="text-xl font-extrabold text-[#00875A] mt-1">{buyerWinsCount}</div>
+          <div className="text-[11px] text-emerald-700 mt-0.5">Đã ra lệnh hoàn tiền</div>
         </div>
-        <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-200 shadow-sm">
-          <div className="text-xs font-semibold uppercase tracking-wider text-blue-700">Người Bán Thắng</div>
-          <div className="text-2xl font-bold text-blue-800 mt-1">{sellerWinsCount}</div>
-          <div className="text-xs text-blue-600 mt-0.5">Đã giải ngân Escrow</div>
+        <div className="bg-white p-4 rounded-2xl border border-[#E2E8F0] shadow-2xs">
+          <div className="text-xs font-semibold text-blue-700">Người Bán Thắng</div>
+          <div className="text-xl font-extrabold text-blue-600 mt-1">{sellerWinsCount}</div>
+          <div className="text-[11px] text-blue-600 mt-0.5">Đã giải ngân Escrow</div>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Trạng thái</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-emerald-500 focus:border-emerald-500"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="DISPUTE_OPENED">Chờ xử lý (Mới mở)</option>
-              <option value="RULING_BUYER_WINS">Người mua thắng (Buyer Wins)</option>
-              <option value="RULING_SELLER_WINS">Người bán thắng (Seller Wins)</option>
-              <option value="RULING_PARTIAL_SETTLEMENT">Hòa giải / Một phần</option>
-              <option value="RULING_CARRIER_AT_FAULT">Lỗi vận chuyển</option>
-            </select>
-          </div>
+      <div className="bg-white p-3.5 rounded-2xl border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
+        <AdminFilterTabs
+          tabs={[
+            { key: 'ALL', label: 'Tất cả', count: totalCount },
+            { key: 'DISPUTE_OPENED', label: 'Chờ xử lý', count: pendingCount },
+            { key: 'RULING_BUYER_WINS', label: 'Khách thắng', count: buyerWinsCount },
+            { key: 'RULING_SELLER_WINS', label: 'Shop thắng', count: sellerWinsCount },
+          ]}
+          activeTab={filterStatus}
+          onChange={(tab) => {
+            setFilterStatus(tab);
+            setCurrentPage(1);
+          }}
+        />
 
-          <div>
-            <label className="text-xs font-medium text-gray-500 block mb-1">Loại khiếu nại</label>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="text-sm bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 focus:ring-emerald-500 focus:border-emerald-500"
-            >
-              <option value="ALL">Tất cả phân loại</option>
-              <option value="DAMAGED">Hư hỏng / Rách vỡ</option>
-              <option value="WRONG_PRODUCT">Giao sai sản phẩm</option>
-              <option value="NOT_AS_DESCRIBED">Sai mô tả</option>
-              <option value="NOT_RECEIVED">Chưa nhận hàng</option>
-              <option value="COUNTERFEIT">Nghi vấn sách giả</option>
-              <option value="OTHER">Khác</option>
-            </select>
-          </div>
-        </div>
+        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          <select
+            value={filterType}
+            onChange={(e) => {
+              setFilterType(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-700"
+          >
+            <option value="ALL">Tất cả phân loại</option>
+            <option value="DAMAGED">Hư hỏng / Rách vỡ</option>
+            <option value="WRONG_PRODUCT">Giao sai sản phẩm</option>
+            <option value="NOT_AS_DESCRIBED">Sai mô tả</option>
+            <option value="NOT_RECEIVED">Chưa nhận hàng</option>
+            <option value="COUNTERFEIT">Nghi vấn sách giả</option>
+            <option value="OTHER">Khác</option>
+          </select>
 
-        <div className="w-full md:w-80">
-          <label className="text-xs font-medium text-gray-500 block mb-1">Tìm kiếm</label>
-          <div className="relative">
+          <div className="relative w-full md:w-60">
+            <span className="material-symbols-outlined text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px]">search</span>
             <input
               type="text"
               placeholder="Mã đơn, ID tranh chấp..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full text-sm bg-gray-50 border border-gray-300 rounded-lg pl-9 pr-3 py-1.5 focus:ring-emerald-500 focus:border-emerald-500"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-8 pr-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-800 placeholder:text-gray-400 transition-all"
             />
-            <span className="material-symbols-outlined text-gray-400 absolute left-2.5 top-2 text-[18px]">search</span>
           </div>
         </div>
       </div>
 
-      {/* Dispute Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Dispute Table Container */}
+      <AdminTableContainer>
         {loading ? (
-          <div className="py-20 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent"></div>
-            <p className="text-sm text-gray-500 mt-2">Đang tải hồ sơ khiếu nại...</p>
+          <div className="p-8 space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
+            ))}
           </div>
         ) : disputes.length === 0 ? (
-          <div className="py-16 text-center">
-            <span className="material-symbols-outlined text-gray-300 text-5xl">task_alt</span>
-            <p className="text-base font-medium text-gray-700 mt-2">Không có hồ sơ khiếu nại nào</p>
-            <p className="text-sm text-gray-400 mt-0.5">Không tìm thấy khiếu nại phù hợp với bộ lọc hiện tại</p>
+          <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
+              <span className="material-symbols-outlined text-xl">gavel</span>
+            </div>
+            <div>
+              <p className="font-bold text-gray-900">Không Có Hồ Sơ Khiếu Nại Nào</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Không tìm thấy khiếu nại phù hợp với bộ lọc hiện tại.</p>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-700 min-w-[1000px]">
-              <thead className="bg-gray-50/80 text-xs font-semibold uppercase text-gray-500 border-b border-gray-200">
+            <table className="w-full text-left text-xs border-collapse min-w-[1450px]">
+              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                 <tr>
-                  <th className="px-6 py-4 whitespace-nowrap text-left">Mã Khiếu Nại / Đơn Hàng</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-left">Phân Loại</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-left">Mô Tả Vấn Đề</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-left">Giải Pháp Mong Muốn</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-center">Bằng Chứng</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-center">Trạng Thái / Phán Quyết</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-left">Ngày Mở</th>
-                  <th className="px-6 py-4 whitespace-nowrap text-right">Thao Tác</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mã Đơn Hàng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Tên Sản Phẩm</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Cửa Hàng / Shop</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Khách Hàng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Giá Trị Đơn</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Phân Loại</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mô Tả Vấn Đề</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Giải Pháp</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Bằng Chứng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái / Phán Quyết</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày Mở</th>
+                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {disputes.map((item) => {
+                {paginatedDisputes.map((item, idx) => {
+                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
                   const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;
                   const isPending = item.status === 'DISPUTE_OPENED' || item.status === 'UNDER_PLATFORM_REVIEW';
                   const rulingKey = item.ruling || item.status.replace('RULING_', '');
                   const rulingMeta = RULING_LABELS[rulingKey];
 
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50/80 transition group">
-                      {/* Cột 1: Mã Khiếu Nại / Đơn Hàng - Cho phép xuống dòng */}
-                      <td className="px-6 py-4 align-top">
-                        <div className="font-semibold text-gray-900 font-mono text-sm">{item.orderCode}</div>
-                        {item.bookTitle && (
-                          <div className="text-xs font-medium text-emerald-700 truncate max-w-[220px] mt-0.5" title={item.bookTitle}>
-                            📚 {item.bookTitle}
-                          </div>
-                        )}
-                        <div className="text-xs text-gray-600 mt-1 font-semibold">
-                          {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal)}
-                        </div>
-                        {(item.storeName || item.customerName) && (
-                          <div className="text-[11px] text-gray-400 mt-1 flex flex-wrap items-center gap-1.5">
-                            {item.storeName && <span>Shop: <strong className="text-gray-600">{item.storeName}</strong></span>}
-                            {item.customerName && <span>• Khách: <strong className="text-gray-600">{item.customerName}</strong></span>}
-                          </div>
-                        )}
+                    <tr
+                      key={item.id}
+                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                    >
+                      {/* 1. STT */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
+                        {itemIndex}
                       </td>
 
-                      {/* Cột 2: Phân Loại - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle">
-                        <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium border ${typeMeta.color}`}>
+                      {/* 2. Mã Đơn Hàng */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-bold text-gray-900">
+                        #{item.orderCode}
+                      </td>
+
+                      {/* 3. Tên Sản Phẩm */}
+                      <td className="py-3 px-3.5 whitespace-nowrap font-semibold text-gray-900 max-w-[200px] truncate" title={item.bookTitle || ''}>
+                        {item.bookTitle ? `📚 ${item.bookTitle}` : '—'}
+                      </td>
+
+                      {/* 4. Cửa Hàng */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-medium max-w-[150px] truncate" title={item.storeName || ''}>
+                        {item.storeName || 'Shop'}
+                      </td>
+
+                      {/* 5. Khách Hàng */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-mono text-[11px] max-w-[140px] truncate" title={item.customerName || ''}>
+                        {item.customerName || 'Khách'}
+                      </td>
+
+                      {/* 6. Giá Trị Đơn */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-bold text-[#00875A] font-mono">
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal)}
+                      </td>
+
+                      {/* 7. Phân Loại */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeMeta.color}`}>
                           {typeMeta.label}
                         </span>
                       </td>
 
-                      {/* Cột 3: Mô Tả Vấn Đề - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap max-w-sm truncate align-middle text-gray-700 text-sm" title={item.description}>
+                      {/* 8. Mô Tả Vấn Đề */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-600 text-[11px] max-w-[180px] truncate" title={item.description}>
                         {item.description}
                       </td>
 
-                      {/* Cột 4: Giải Pháp Mong Muốn - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle">
-                        <span className="font-medium text-gray-900">
-                          {item.resolution === 'REFUND' ? 'Hoàn tiền' : item.resolution === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'}
-                        </span>
+                      {/* 9. Giải Pháp Mong Muốn */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-bold text-gray-800 text-[11px]">
+                        {item.resolution === 'REFUND' ? 'Hoàn tiền' : item.resolution === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'}
                       </td>
 
-                      {/* Cột 5: Bằng Chứng - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle text-center">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-100 text-gray-600 text-xs font-medium">
-                          <span className="material-symbols-outlined text-[15px]">attach_file</span>
+                      {/* 10. Bằng Chứng */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10.5px] font-bold">
+                          <span className="material-symbols-outlined text-[13px]">attach_file</span>
                           <span>{item.evidence?.length || 0} tệp</span>
                         </div>
                       </td>
 
-                      {/* Cột 6: Trạng Thái / Phán Quyết - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle text-center">
+                      {/* 11. Trạng Thái / Phán Quyết */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
                         {isPending ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                            Chờ Sàn Phân Xử
-                          </span>
+                          <AdminStatusBadge status="warning" label="Chờ Sàn Phân Xử" icon="hourglass_top" />
                         ) : rulingMeta ? (
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${rulingMeta.badge}`}>
-                            {rulingMeta.label.split('(')[0].trim()}
-                          </span>
+                          <AdminStatusBadge
+                            status={
+                              rulingKey === 'BUYER_WINS'
+                                ? 'success'
+                                : rulingKey === 'SELLER_WINS'
+                                ? 'info'
+                                : rulingKey === 'PARTIAL_SETTLEMENT'
+                                ? 'purple'
+                                : 'warning'
+                            }
+                            label={rulingMeta.label.split('(')[0].trim()}
+                          />
                         ) : (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                            {item.status}
-                          </span>
+                          <AdminStatusBadge status="neutral" label={item.status} />
                         )}
                       </td>
 
-                      {/* Cột 7: Ngày Mở - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle text-xs text-gray-500 font-medium">
+                      {/* 12. Ngày Mở */}
+                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
                         {new Date(item.createdAt).toLocaleString('vi-VN')}
                       </td>
 
-                      {/* Cột 8: Thao Tác - không xuống dòng */}
-                      <td className="px-6 py-4 whitespace-nowrap align-middle text-right">
+                      {/* 13. Thao Tác */}
+                      <td className="py-3 px-4 whitespace-nowrap text-right">
                         <button
                           onClick={() => handleOpenDetail(item.id)}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition shadow-sm hover:shadow active:scale-95"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00875A] hover:bg-[#00734c] text-white rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer"
                         >
-                          <span className="material-symbols-outlined text-[16px]">visibility</span>
-                          Thẩm định
+                          <span className="material-symbols-outlined text-[13px]">visibility</span>
+                          <span>Thẩm định</span>
                         </button>
                       </td>
                     </tr>
@@ -372,420 +425,208 @@ export function AdminDisputesView() {
             </table>
           </div>
         )}
-      </div>
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={disputes.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="hồ sơ khiếu nại"
+        />
+      </AdminTableContainer>
 
-      {/* Dispute Detail & Arbitration Modal */}
+      {/* Dispute Detail & Arbitration In-Page Panel */}
       {(selectedDispute || loadingDetail) && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                  <span className="material-symbols-outlined">balance</span>
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">
-                    Hồ Sơ Trọng Tài Khiếu Nại — {selectedDispute?.orderCode || '...'}
-                  </h2>
-                  <p className="text-xs text-gray-500">Mã tranh chấp: {selectedDispute?.disputeId}</p>
-                </div>
+        <div
+          ref={disputePanelRef}
+          className="mt-4 bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-in fade-in slide-in-from-top-4 duration-300"
+        >
+          {/* Panel Header */}
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gray-50">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00875A] flex items-center justify-center font-bold border border-emerald-200">
+                <span className="material-symbols-outlined text-[18px]">balance</span>
               </div>
-              <button
-                onClick={() => setSelectedDispute(null)}
-                className="w-8 h-8 rounded-full bg-gray-200/70 hover:bg-gray-300 flex items-center justify-center text-gray-600 transition"
-              >
-                <span className="material-symbols-outlined text-[18px]">close</span>
-              </button>
+              <div>
+                <h2 className="text-base font-bold text-gray-900">
+                  Hồ Sơ Trọng Tài Khiếu Nại — {selectedDispute?.orderCode || '...'}
+                </h2>
+                <p className="text-xs text-gray-500">Mã tranh chấp: #{selectedDispute?.disputeId}</p>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                setSelectedDispute(null);
+                setRulingNotes('');
+                setRulingNotesError('');
+              }}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer"
+            >
+              Đóng bảng
+            </button>
+          </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {loadingDetail ? (
-                <div className="py-20 text-center">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-emerald-500 border-t-transparent"></div>
-                  <p className="text-sm text-gray-500 mt-2">Đang tải chi tiết hồ sơ đối soát...</p>
+          {/* Panel Body */}
+          <div className="p-6 space-y-5">
+            {loadingDetail ? (
+              <div className="py-16 text-center">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-[#00875A] border-t-transparent"></div>
+                <p className="text-xs text-gray-500 mt-2">Đang tải chi tiết hồ sơ đối soát...</p>
+              </div>
+            ) : selectedDispute ? (
+              <>
+                {/* Status Banner */}
+                <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+                  selectedDispute.isFinalized
+                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                    : 'bg-amber-50/80 border-amber-200 text-amber-900'
+                }`}>
+                  <span className="material-symbols-outlined text-xl shrink-0 mt-0.5">
+                    {selectedDispute.isFinalized ? 'verified' : 'hourglass_top'}
+                  </span>
+                  <div>
+                    <div className="font-bold text-xs">
+                      {selectedDispute.isFinalized
+                        ? `ĐÃ CÓ PHÁN QUYẾT TRỌNG TÀI: ${RULING_LABELS[selectedDispute.ruling || '']?.label || selectedDispute.currentStatus}`
+                        : 'ĐANG CHỜ PHÁN QUYẾT TRỌNG TÀI CỦA SÀN (POL-12)'}
+                    </div>
+                    <p className="text-[11px] mt-0.5 opacity-90">
+                      {selectedDispute.isFinalized
+                        ? `Phán quyết đã ban hành lúc ${new Date(selectedDispute.resolvedAt || '').toLocaleString('vi-VN')} bởi ${selectedDispute.adminEmail || 'Platform Admin'}.`
+                        : 'Căn cứ vào video mở hộp và chứng từ giao nhận, Platform Admin có toàn quyền quyết định phân bổ nguồn tiền Escrow theo điều lệ DSP-002.'}
+                    </p>
+                    {selectedDispute.rulingNotes && (
+                      <div className="mt-2 p-2.5 bg-white/80 rounded-lg text-xs font-mono border border-emerald-200/50">
+                        <strong>Căn cứ phán quyết:</strong> {selectedDispute.rulingNotes}
+                        {selectedDispute.refundPercentage && (
+                          <div className="mt-1 font-semibold text-purple-700">
+                            Tỷ lệ hoàn tiền: {selectedDispute.refundPercentage}% cho người mua / {100 - selectedDispute.refundPercentage}% cho người bán
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : selectedDispute ? (
-                <>
-                  {/* Status Banner */}
-                  <div className={`p-4 rounded-xl border flex items-start gap-3 ${
-                    selectedDispute.isFinalized
-                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
-                      : 'bg-amber-50/80 border-amber-200 text-amber-900'
-                  }`}>
-                    <span className="material-symbols-outlined text-2xl shrink-0 mt-0.5">
-                      {selectedDispute.isFinalized ? 'verified' : 'hourglass_top'}
-                    </span>
-                    <div>
-                      <div className="font-bold text-sm">
-                        {selectedDispute.isFinalized
-                          ? `ĐÃ CÓ PHÁN QUYẾT TRỌNG TÀI: ${RULING_LABELS[selectedDispute.ruling || '']?.label || selectedDispute.currentStatus}`
-                          : 'ĐANG CHỜ PHÁN QUYẾT TRỌNG TÀI CỦA SÀN (POL-12)'}
-                      </div>
-                      <p className="text-xs mt-1 opacity-90">
-                        {selectedDispute.isFinalized
-                          ? `Phán quyết đã ban hành lúc ${new Date(selectedDispute.resolvedAt || '').toLocaleString('vi-VN')} bởi ${selectedDispute.adminEmail || 'Platform Admin'}.`
-                          : 'Căn cứ vào video mở hộp và chứng từ giao nhận, Platform Admin có toàn quyền quyết định phân bổ nguồn tiền Escrow theo điều lệ DSP-002.'}
-                      </p>
-                      {selectedDispute.rulingNotes && (
-                        <div className="mt-2.5 p-2.5 bg-white/80 rounded-lg text-xs font-mono border border-emerald-200/50">
-                          <strong>Căn cứ phán quyết:</strong> {selectedDispute.rulingNotes}
-                          {selectedDispute.refundPercentage && (
-                            <div className="mt-1 font-semibold text-purple-700">
-                              Tỷ lệ hoàn tiền: {selectedDispute.refundPercentage}% cho người mua / {100 - selectedDispute.refundPercentage}% cho người bán
-                            </div>
-                          )}
+
+                {/* Product & Store info */}
+                {(selectedDispute.bookTitle || selectedDispute.storeName) && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      {selectedDispute.bookCoverUrl ? (
+                        <img
+                          src={selectedDispute.bookCoverUrl}
+                          alt={selectedDispute.bookTitle || 'Book cover'}
+                          className="w-12 h-16 object-cover rounded-lg border border-gray-200 shadow-2xs"
+                        />
+                      ) : (
+                        <div className="w-12 h-16 bg-emerald-50 rounded-lg flex items-center justify-center text-[#00875A]">
+                          <span className="material-symbols-outlined text-2xl">menu_book</span>
                         </div>
                       )}
+                      <div>
+                        <div className="text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">Sản Phẩm Tranh Chấp</div>
+                        <div className="text-sm font-bold text-gray-900">{selectedDispute.bookTitle || 'Sách'}</div>
+                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
+                          <span>Gian hàng: <strong className="text-gray-700">{selectedDispute.storeName || selectedDispute.targetSellerOrder?.storeId || 'Shop'}</strong></span>
+                          <span>•</span>
+                          <span>Khách hàng: <strong className="text-gray-700">{selectedDispute.customerName || selectedDispute.buyerId || 'N/A'}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-800 border border-gray-200 shadow-2xs">
+                        {selectedDispute.resolution === 'REFUND' ? 'Hình thức: Hoàn tiền 100%' : 'Hình thức: Đổi hàng mới (0đ)'}
+                      </span>
                     </div>
                   </div>
+                )}
 
-                  {/* Product & Store info (Flow Return v1 Support) */}
-                  {(selectedDispute.bookTitle || selectedDispute.storeName) && (
-                    <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
-                      <div className="flex items-center gap-3">
-                        {selectedDispute.bookCoverUrl ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img
-                            src={selectedDispute.bookCoverUrl}
-                            alt={selectedDispute.bookTitle || 'Book cover'}
-                            className="w-12 h-16 object-cover rounded-lg border border-emerald-300 shadow-xs"
-                          />
-                        ) : (
-                          <div className="w-12 h-16 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700">
-                            <span className="material-symbols-outlined text-2xl">menu_book</span>
-                          </div>
-                        )}
-                        <div>
-                          <div className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">Sản Phẩm Tranh Chấp</div>
-                          <div className="text-base font-bold text-gray-900">{selectedDispute.bookTitle || 'Sách'}</div>
-                          <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-3">
-                            <span>Gian hàng: <strong className="text-gray-700">{selectedDispute.storeName || selectedDispute.targetSellerOrder?.storeId || 'Shop'}</strong></span>
-                            <span>•</span>
-                            <span>Khách hàng: <strong className="text-gray-700">{selectedDispute.customerName || selectedDispute.buyerId || 'N/A'}</strong></span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs">
-                          {selectedDispute.resolution === 'REFUND' ? 'Hình thức: Hoàn tiền 100%' : 'Hình thức: Đổi hàng mới (0đ)'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 2-Column Grid: Buyer Claim & Seller Counter-Evidence */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Buyer Claim */}
-                    <div className="bg-amber-50/40 p-4 rounded-xl border border-amber-200/80 space-y-3 shadow-xs">
-                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-amber-900 border-b border-amber-200/60 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[18px] text-amber-700">person</span>
-                          Chứng Cứ Từ Người Mua
-                        </div>
-                        <span className="text-[11px] font-normal text-amber-700">
-                          {selectedDispute.customerName ? `Khách: ${selectedDispute.customerName}` : ''}
-                        </span>
-                      </div>
-                      
-                      <div>
-                        <div className="text-xs text-gray-500">Lý do khiếu nại</div>
-                        <div className="text-sm font-bold text-gray-900 mt-0.5">
-                          {DISPUTE_TYPE_LABELS[selectedDispute.type]?.label || selectedDispute.type}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500">Nội dung chi tiết từ khách hàng</div>
-                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-amber-200/60 mt-1 whitespace-pre-wrap min-h-[60px]">
-                          {selectedDispute.description || 'Không có mô tả chi tiết'}
-                        </p>
-                      </div>
-
-                      {/* Customer Evidence (Images & Videos) */}
-                      <div className="space-y-2 pt-1">
-                        <div className="text-xs font-semibold text-gray-700">
-                          Hình ảnh minh chứng của Khách ({selectedDispute.customerEvidence?.images?.length || selectedDispute.evidence?.length || 0})
-                        </div>
-                        {((selectedDispute.customerEvidence?.images && selectedDispute.customerEvidence.images.length > 0) || (selectedDispute.evidence && selectedDispute.evidence.length > 0)) ? (
-                          <div className="grid grid-cols-3 gap-2">
-                            {(selectedDispute.customerEvidence?.images || selectedDispute.evidence || []).map((url, idx) => (
-                              <div
-                                key={idx}
-                                className="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-100 aspect-video flex items-center justify-center shadow-xs"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => setZoomImage(url)}
-                                  className="w-full h-full cursor-zoom-in"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={url}
-                                    alt={`Buyer evidence ${idx + 1}`}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
-                                  />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400 italic bg-white/60 p-2 rounded border border-gray-200">
-                            Không có hình ảnh đính kèm
-                          </div>
-                        )}
-
-                        {/* Customer Videos if any */}
-                        {selectedDispute.customerEvidence?.videos && selectedDispute.customerEvidence.videos.length > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <div className="text-xs font-semibold text-gray-700">Video của Khách:</div>
-                            <div className="space-y-1">
-                              {selectedDispute.customerEvidence.videos.map((vidUrl, vIdx) => (
-                                <video
-                                  key={vIdx}
-                                  controls
-                                  className="w-full max-h-40 rounded-lg border border-gray-200 bg-black"
-                                >
-                                  <source src={vidUrl} />
-                                  Trình duyệt không hỗ trợ xem video trực tiếp.
-                                </video>
-                              ))}
-                            </div>
-                          </div>
-                        )}
+                {/* Arbitration form if not finalized */}
+                {!selectedDispute.isFinalized && (
+                  <form onSubmit={handleArbitrate} className="space-y-4 pt-2 border-t border-gray-200">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-gray-900 block">
+                        Chọn Phán Quyết Trọng Tài <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                        {Object.entries(RULING_LABELS).map(([key, meta]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedRuling(key as ArbitrationRuling)}
+                            className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                              selectedRuling === key
+                                ? 'border-[#00875A] bg-emerald-50/60 ring-2 ring-[#00875A] font-bold text-gray-900'
+                                : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                            }`}
+                          >
+                            <div className="font-bold text-xs">{meta.label}</div>
+                            <div className="text-[10.5px] text-gray-500 mt-0.5 font-normal">{meta.desc}</div>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    {/* Seller Counter-Evidence */}
-                    <div className="bg-blue-50/40 p-4 rounded-xl border border-blue-200/80 space-y-3 shadow-xs">
-                      <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-blue-900 border-b border-blue-200/60 pb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-[18px] text-blue-700">storefront</span>
-                          Chứng Cứ Phản Biện Từ Cửa Hàng
-                        </div>
-                        <span className="text-[11px] font-normal text-blue-700">
-                          {selectedDispute.storeName ? `Shop: ${selectedDispute.storeName}` : ''}
-                        </span>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500">Mã đơn / Gói hàng</div>
-                        <div className="text-sm font-semibold text-gray-800 font-mono mt-0.5">
-                          {selectedDispute.targetSellerOrder?.code || selectedDispute.orderCode}
-                        </div>
-                      </div>
-
-                      <div>
-                        <div className="text-xs text-gray-500">Lý do phản biện & đối chất của Shop</div>
-                        <p className="text-sm text-gray-800 bg-white p-3 rounded-lg border border-blue-200/60 mt-1 whitespace-pre-wrap min-h-[60px]">
-                          {selectedDispute.sellerEvidence?.note || 'Shop chưa gửi thêm ghi chú phản biện'}
-                        </p>
-                      </div>
-
-                      {/* Seller Evidence (Images & Videos) */}
-                      <div className="space-y-2 pt-1">
-                        <div className="text-xs font-semibold text-gray-700">
-                          Hình ảnh đối chất của Shop ({selectedDispute.sellerEvidence?.images?.length || 0})
-                        </div>
-                        {selectedDispute.sellerEvidence?.images && selectedDispute.sellerEvidence.images.length > 0 ? (
-                          <div className="grid grid-cols-3 gap-2">
-                            {selectedDispute.sellerEvidence.images.map((url, idx) => (
-                              <div
-                                key={idx}
-                                className="group relative rounded-lg border border-gray-200 overflow-hidden bg-gray-100 aspect-video flex items-center justify-center shadow-xs"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => setZoomImage(url)}
-                                  className="w-full h-full cursor-zoom-in"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={url}
-                                    alt={`Seller evidence ${idx + 1}`}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
-                                  />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-400 italic bg-white/60 p-2 rounded border border-gray-200">
-                            Shop không đính kèm hình ảnh
-                          </div>
-                        )}
-
-                        {/* Seller Videos if any */}
-                        {selectedDispute.sellerEvidence?.videos && selectedDispute.sellerEvidence.videos.length > 0 && (
-                          <div className="space-y-1 pt-1">
-                            <div className="text-xs font-semibold text-gray-700">Video đối chất của Shop:</div>
-                            <div className="space-y-1">
-                              {selectedDispute.sellerEvidence.videos.map((vidUrl, vIdx) => (
-                                <video
-                                  key={vIdx}
-                                  controls
-                                  className="w-full max-h-40 rounded-lg border border-gray-200 bg-black"
-                                >
-                                  <source src={vidUrl} />
-                                  Trình duyệt không hỗ trợ xem video trực tiếp.
-                                </video>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* History Timeline */}
-                  <div className="space-y-2">
-                    <div className="text-xs font-bold uppercase tracking-wider text-gray-700 flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-purple-600">history</span>
-                      Nhật Ký Thẩm Định & Lịch Sử Trạng Thái (Audit Trail)
-                    </div>
-                    <div className="bg-gray-50 rounded-xl p-3 border border-gray-200 max-h-40 overflow-y-auto space-y-2">
-                      {selectedDispute.timeline?.map((ev) => (
-                        <div key={ev.id} className="text-xs flex items-start justify-between border-b border-gray-100 pb-1.5 last:border-0 last:pb-0">
-                          <div>
-                            <span className="font-semibold text-gray-800">{ev.title}</span>
-                            {ev.description && <span className="text-gray-500 ml-1.5">— {ev.description}</span>}
-                            <span className="text-gray-400 ml-1 text-[11px]">({ev.actorType})</span>
-                          </div>
-                          <div className="text-[11px] text-gray-400 whitespace-nowrap ml-2">
-                            {new Date(ev.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{' '}
-                            {new Date(ev.createdAt).toLocaleDateString('vi-VN')}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Arbitration Ruling Decision Form */}
-                  {!selectedDispute.isFinalized && (
-                    <form onSubmit={handleArbitrate} className="bg-emerald-50/50 border-2 border-emerald-200 rounded-2xl p-5 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-emerald-700 text-xl">gavel</span>
-                        <h3 className="text-base font-bold text-gray-900">Ban Hành Phán Quyết Trọng Tài (Binding Ruling)</h3>
-                      </div>
-
-                      {/* Ruling Selector */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        {Object.entries(RULING_LABELS).map(([key, info]) => {
-                          const isSelected = selectedRuling === key;
-                          return (
-                            <label
-                              key={key}
-                              className={`p-3 rounded-xl border cursor-pointer transition flex items-start gap-2.5 ${
-                                isSelected
-                                  ? 'bg-emerald-100/80 border-emerald-500 shadow-xs'
-                                  : 'bg-white border-gray-200 hover:bg-gray-50'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                name="ruling"
-                                value={key}
-                                checked={isSelected}
-                                onChange={() => setSelectedRuling(key as ArbitrationRuling)}
-                                className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
-                              />
-                              <div>
-                                <div className="text-xs font-bold text-gray-900">{info.label}</div>
-                                <div className="text-[11px] text-gray-500 mt-0.5">{info.desc}</div>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      {/* Partial refund slider if PARTIAL_SETTLEMENT selected */}
-                      {selectedRuling === 'PARTIAL_SETTLEMENT' && (
-                        <div className="p-3 bg-white rounded-xl border border-purple-200 space-y-2">
-                          <div className="flex justify-between items-center text-xs font-semibold text-purple-900">
-                            <span>Tỷ lệ hoàn tiền cho Người mua:</span>
-                            <span className="text-sm font-bold text-purple-700">{refundPercentage}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={1}
-                            max={99}
-                            value={refundPercentage}
-                            onChange={(e) => setRefundPercentage(Number(e.target.value))}
-                            className="w-full accent-purple-600 cursor-pointer"
-                          />
-                          <div className="flex justify-between text-[11px] text-gray-500">
-                            <span>1% (Tối thiểu)</span>
-                            <span>Người bán nhận: {100 - refundPercentage}%</span>
-                            <span>99% (Tối đa)</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Ruling notes */}
-                      <div>
-                        <label className="text-xs font-bold text-gray-700 block mb-1">
-                          Căn cứ pháp lý & ghi chú thẩm định đối soát (Bắt buộc, tối thiểu 10 ký tự) *
+                    {selectedRuling === 'PARTIAL_SETTLEMENT' && (
+                      <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl space-y-2 text-xs">
+                        <label className="font-bold text-purple-900 block">
+                          Tỷ lệ hoàn tiền cho người mua: {refundPercentage}% (Người bán nhận {100 - refundPercentage}%)
                         </label>
-                        <textarea
-                          rows={3}
-                          value={rulingNotes}
-                          onChange={(e) => setRulingNotes(e.target.value)}
-                          placeholder="Ví dụ: Đã đối soát video mở hộp của người mua: kiện hàng còn nguyên niêm phong nhưng sách bên trong bị rách bìa. Chấp thuận yêu cầu hoàn tiền 100%."
-                          className="w-full text-sm bg-white border border-gray-300 rounded-xl p-3 focus:ring-emerald-500 focus:border-emerald-500"
+                        <input
+                          type="range"
+                          min={1}
+                          max={99}
+                          value={refundPercentage}
+                          onChange={(e) => setRefundPercentage(Number(e.target.value))}
+                          className="w-full accent-purple-600"
                         />
                       </div>
+                    )}
 
-                      <div className="flex items-center justify-end gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDispute(null)}
-                          className="px-4 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100 transition"
-                        >
-                          Hủy bỏ
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={submittingRuling}
-                          className="inline-flex items-center gap-2 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition shadow-md disabled:opacity-50"
-                        >
-                          {submittingRuling ? (
-                            <>
-                              <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
-                              Đang ghi nhận phán quyết...
-                            </>
-                          ) : (
-                            <>
-                              <span className="material-symbols-outlined text-[18px]">gavel</span>
-                              Xác Nhận Ban Hành Phán Quyết
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-gray-700 block">
+                        Căn Cứ Pháp Lý &amp; Ghi Chú Thẩm Định <span className="text-rose-500">*</span>
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={rulingNotes}
+                        onChange={(e) => {
+                          setRulingNotes(e.target.value);
+                          if (rulingNotesError) setRulingNotesError('');
+                        }}
+                        placeholder="Nhập căn cứ chứng cứ, đối soát video unbox hoặc kết luận thẩm định..."
+                        className={`w-full p-3 rounded-xl border text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all ${
+                          rulingNotesError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-[#00875A]'
+                        }`}
+                      />
+                      {rulingNotesError && (
+                        <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                          <span className="material-symbols-outlined text-[14px]">error</span>
+                          <span>{rulingNotesError}</span>
+                        </p>
+                      )}
+                    </div>
 
-      {/* Image Zoom Modal */}
-      {zoomImage && (
-        <div
-          className="fixed inset-0 z-60 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-zoom-out"
-          onClick={() => setZoomImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={zoomImage} alt="Zoomed Evidence" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" />
-            <button
-              onClick={() => setZoomImage(null)}
-              className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/60 text-white flex items-center justify-center"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
+                    <div className="flex items-center justify-end gap-3 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDispute(null)}
+                        className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold text-xs cursor-pointer"
+                      >
+                        Hủy Bỏ
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submittingRuling}
+                        className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {submittingRuling ? 'Đang Xử Lý...' : 'Ban Hành Phán Quyết'}
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       )}
