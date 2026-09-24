@@ -155,6 +155,7 @@ export default function CheckoutPage() {
   const [appliedStoreVouchers, setAppliedStoreVouchers] = useState<Record<string, any>>({}); // { storeId: { code, discount } }
   const [appliedShippingVoucher, setAppliedShippingVoucher] = useState<any>(null);
   const [showVoucherDrawer, setShowVoucherDrawer] = useState<boolean>(false);
+  const [expandedVoucherCode, setExpandedVoucherCode] = useState<string | null>(null);
   const [voucherError, setVoucherError] = useState<string>("");
   const [availableVouchers, setAvailableVouchers] = useState<{
     platform: any[];
@@ -1496,31 +1497,85 @@ export default function CheckoutPage() {
                         availableVouchers.platform.map((v: any) => {
                           const isSelected = appliedPlatformVoucher?.code === v.code;
                           const isEligible = rawSubtotal >= (v.minOrderAmount || 0);
+                          const isExpanded = expandedVoucherCode === v.code;
+
                           return (
                             <div
                               key={v.code}
-                              onClick={() => isEligible && handleApplyPlatformVoucher(v)}
-                              className={`p-1.5 rounded-md border flex items-center justify-between cursor-pointer transition-all text-xs ${
+                              className={`rounded-lg border transition-all text-xs overflow-hidden ${
                                 isSelected
                                   ? "border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold"
                                   : isEligible
-                                    ? "border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003B2B)]/50 bg-[var(--theme-surface,#ffffff)]"
+                                    ? "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/50"
                                     : "opacity-40 cursor-not-allowed bg-black/5"
                               }`}
                             >
-                              <div>
-                                <div className="flex items-center gap-1">
-                                  <span className="font-bold text-[11px] text-[var(--theme-primary,#003B2B)]">
-                                    {v.code}
-                                  </span>
-                                  <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)] font-medium">
-                                    ({v.type === "PERCENTAGE" ? `Giảm ${v.value}%` : `Giảm ${v.value?.toLocaleString("vi-VN")}đ`})
-                                  </span>
+                              <div className="p-2 flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="font-bold text-[11.5px] text-[var(--theme-primary,#003B2B)]">
+                                      {v.code}
+                                    </span>
+                                    <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                                      ({v.type === "PERCENTAGE" ? `Giảm ${v.value}%` : `Giảm ${v.value?.toLocaleString("vi-VN")}đ`})
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedVoucherCode(isExpanded ? null : v.code);
+                                    }}
+                                    className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
+                                    title="Xem chi tiết điều kiện áp dụng"
+                                  >
+                                    <span>Điều kiện</span>
+                                    <span className="material-symbols-outlined text-[13px]">
+                                      {isExpanded ? "expand_less" : "expand_more"}
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!isEligible}
+                                    onClick={() => isEligible && handleApplyPlatformVoucher(v)}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                      isSelected
+                                        ? "bg-emerald-600 text-white"
+                                        : "bg-[var(--theme-primary,#003B2B)] text-white hover:opacity-90"
+                                    }`}
+                                  >
+                                    {isSelected ? "Đang dùng" : "Dùng"}
+                                  </button>
                                 </div>
                               </div>
-                              <span className="text-[10.5px] font-bold text-emerald-600">
-                                {isSelected ? "Đang dùng" : "Dùng"}
-                              </span>
+
+                              {/* Accordion Điều Kiện Chi Tiết */}
+                              {isExpanded && (
+                                <div className="px-2.5 py-2 bg-slate-50/90 border-t border-slate-200/70 text-[10.5px] text-slate-600 space-y-1 animate-in fade-in duration-150">
+                                  <div className="flex items-center gap-1.5 font-medium">
+                                    <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
+                                    <span>Đơn tối thiểu: <strong>{Number(v.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
+                                  </div>
+                                  {v.maxDiscountAmount && (
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
+                                      <span>Giảm tối đa: <strong>{Number(v.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="material-symbols-outlined text-[13px] text-purple-600">public</span>
+                                    <span>Đối tượng: <strong>Mọi khách hàng trên sàn HUKI</strong></span>
+                                  </div>
+                                  {v.expiresAt && (
+                                    <div className="flex items-center gap-1.5 text-slate-400">
+                                      <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                      <span>HSD: {new Date(v.expiresAt).toLocaleDateString("vi-VN")}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })
@@ -1542,7 +1597,7 @@ export default function CheckoutPage() {
                           const appliedForThisStore = appliedStoreVouchers[sId];
 
                           return (
-                            <div key={sId} className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1">
+                            <div key={sId} className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5">
                               <div className="flex items-center justify-between text-[10.5px]">
                                 <span className="font-bold text-slate-700 dark:text-slate-200">Shop ID: {sId.slice(0, 8)}...</span>
                                 {appliedForThisStore && (
@@ -1555,32 +1610,106 @@ export default function CheckoutPage() {
                                   </button>
                                 )}
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1.5">
                                 {storeVList.map((sv: any) => {
                                   const isSelected = appliedForThisStore?.code === sv.code;
+                                  const isExpanded = expandedVoucherCode === sv.code;
+
+                                  let audienceLabel = "Tất cả khách hàng";
+                                  let audienceIcon = "public";
+                                  if (sv.targetAudience === "FOLLOWERS_ONLY") {
+                                    if (sv.minFollowDays >= 365) {
+                                      audienceLabel = "💎 Tri Ân Kim Cương (Theo dõi ≥ 1 năm)";
+                                      audienceIcon = "diamond";
+                                    } else if (sv.minFollowDays >= 90) {
+                                      audienceLabel = "🥇 Fan Vàng (Theo dõi ≥ 90 ngày)";
+                                      audienceIcon = "workspace_premium";
+                                    } else if (sv.minFollowDays >= 30) {
+                                      audienceLabel = "🥈 Fan Bạc (Theo dõi ≥ 30 ngày)";
+                                      audienceIcon = "military_tech";
+                                    } else {
+                                      audienceLabel = "💖 Người theo dõi gian hàng";
+                                      audienceIcon = "favorite";
+                                    }
+                                  } else if (sv.targetAudience === "NEW_CUSTOMERS_ONLY") {
+                                    audienceLabel = "🆕 Khách hàng mới (Đơn hàng đầu tiên)";
+                                    audienceIcon = "person_add";
+                                  }
+
                                   return (
                                     <div
                                       key={sv.id || sv.code}
-                                      onClick={() => handleApplyStoreVoucher(sId, sv)}
-                                      className={`p-1.5 rounded-md border flex items-center justify-between cursor-pointer transition-all text-xs ${
+                                      className={`rounded-lg border transition-all text-xs overflow-hidden ${
                                         isSelected
                                           ? "border-amber-600 bg-amber-500/15 font-bold"
-                                          : "border-[var(--theme-border,#e8e5df)] hover:border-amber-500/50 bg-[var(--theme-surface,#ffffff)]"
+                                          : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-amber-500/50"
                                       }`}
                                     >
-                                      <div>
-                                        <div className="flex items-center gap-1">
-                                          <span className="font-bold text-[11px] text-amber-800 dark:text-amber-300">
-                                            {sv.code}
-                                          </span>
-                                          <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
-                                            ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
-                                          </span>
+                                      <div className="p-2 flex items-center justify-between gap-2">
+                                        <div className="flex-1 min-w-0">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="font-bold text-[11.5px] text-amber-800 dark:text-amber-300 font-mono">
+                                              {sv.code}
+                                            </span>
+                                            <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                                              ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedVoucherCode(isExpanded ? null : sv.code);
+                                            }}
+                                            className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
+                                            title="Xem chi tiết điều kiện áp dụng"
+                                          >
+                                            <span>Điều kiện</span>
+                                            <span className="material-symbols-outlined text-[13px]">
+                                              {isExpanded ? "expand_less" : "expand_more"}
+                                            </span>
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleApplyStoreVoucher(sId, sv)}
+                                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                              isSelected
+                                                ? "bg-amber-600 text-white"
+                                                : "bg-[#ac2c19] text-white hover:bg-[#8e2414]"
+                                            }`}
+                                          >
+                                            {isSelected ? "Đang dùng" : "Áp dụng"}
+                                          </button>
                                         </div>
                                       </div>
-                                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">
-                                        {isSelected ? "Đang dùng" : "Áp dụng"}
-                                      </span>
+
+                                      {/* Accordion Điều Kiện Chi Tiết */}
+                                      {isExpanded && (
+                                        <div className="px-2.5 py-2 bg-amber-50/50 border-t border-amber-200/50 text-[10.5px] text-slate-700 space-y-1 animate-in fade-in duration-150">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
+                                            <span>Đơn tối thiểu: <strong>{Number(sv.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
+                                          </div>
+                                          {sv.maxDiscountAmount && (
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
+                                              <span>Giảm tối đa: <strong>{Number(sv.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
+                                            </div>
+                                          )}
+                                          <div className="flex items-center gap-1.5 font-medium">
+                                            <span className="material-symbols-outlined text-[13px] text-pink-600">{audienceIcon}</span>
+                                            <span>Đối tượng: <strong className="text-pink-800">{audienceLabel}</strong></span>
+                                          </div>
+                                          {sv.expiresAt && (
+                                            <div className="flex items-center gap-1.5 text-slate-400">
+                                              <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                              <span>HSD: {new Date(sv.expiresAt).toLocaleDateString("vi-VN")}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   );
                                 })}
@@ -1606,32 +1735,78 @@ export default function CheckoutPage() {
                             </button>
                           )}
                         </span>
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {availableVouchers.shipping.map((fv: any) => {
                             const isSelected = appliedShippingVoucher?.code === fv.code;
+                            const isExpanded = expandedVoucherCode === fv.code;
+
                             return (
                               <div
                                 key={fv.code}
-                                onClick={() => handleApplyShippingVoucher(fv)}
-                                className={`p-1.5 rounded-md border flex items-center justify-between cursor-pointer transition-all text-xs ${
+                                className={`rounded-lg border transition-all text-xs overflow-hidden ${
                                   isSelected
                                     ? "border-teal-600 bg-teal-500/15 font-bold"
-                                    : "border-[var(--theme-border,#e8e5df)] hover:border-teal-500/50 bg-[var(--theme-surface,#ffffff)]"
+                                    : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-teal-500/50"
                                 }`}
                               >
-                                <div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-bold text-[11px] text-teal-700 dark:text-teal-300">
-                                      {fv.code}
-                                    </span>
-                                    <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
-                                      (Freeship tối đa {Number(fv.value || 30000).toLocaleString("vi-VN")}đ)
-                                    </span>
+                                <div className="p-2 flex items-center justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="font-bold text-[11.5px] text-teal-700 dark:text-teal-300 font-mono">
+                                        {fv.code}
+                                      </span>
+                                      <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                                        (Freeship tối đa {Number(fv.value || 30000).toLocaleString("vi-VN")}đ)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedVoucherCode(isExpanded ? null : fv.code);
+                                      }}
+                                      className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
+                                      title="Xem chi tiết điều kiện áp dụng"
+                                    >
+                                      <span>Điều kiện</span>
+                                      <span className="material-symbols-outlined text-[13px]">
+                                        {isExpanded ? "expand_less" : "expand_more"}
+                                      </span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplyShippingVoucher(fv)}
+                                      className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                        isSelected
+                                          ? "bg-teal-600 text-white"
+                                          : "bg-teal-700 text-white hover:bg-teal-800"
+                                      }`}
+                                    >
+                                      {isSelected ? "Đang dùng" : "Áp dụng"}
+                                    </button>
                                   </div>
                                 </div>
-                                <span className="text-[10px] font-bold text-teal-700 dark:text-teal-300">
-                                  {isSelected ? "Đang dùng" : "Áp dụng"}
-                                </span>
+
+                                {isExpanded && (
+                                  <div className="px-2.5 py-2 bg-teal-50/50 border-t border-teal-200/50 text-[10.5px] text-slate-700 space-y-1 animate-in fade-in duration-150">
+                                    <div className="flex items-center gap-1.5 font-medium">
+                                      <span className="material-symbols-outlined text-[13px] text-emerald-600">local_shipping</span>
+                                      <span>Đơn tối thiểu: <strong>{Number(fv.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-[13px] text-teal-600">public</span>
+                                      <span>Phạm vi: <strong>Toàn quốc (Sách giấy / Vật lý)</strong></span>
+                                    </div>
+                                    {fv.expiresAt && (
+                                      <div className="flex items-center gap-1.5 text-slate-400">
+                                        <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                        <span>HSD: {new Date(fv.expiresAt).toLocaleDateString("vi-VN")}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

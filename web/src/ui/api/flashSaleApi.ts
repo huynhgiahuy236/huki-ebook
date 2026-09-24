@@ -154,4 +154,71 @@ export const flashSaleApi = {
       method: "DELETE",
     });
   },
+
+  // SELLER APIS
+  getSellerSlots: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    return apiClient<FlashSaleSlot[]>("/flash-sales/seller/slots", {
+      method: "GET",
+    });
+  },
+
+  getSellerMyItems: async (): Promise<ApiResponse<any[]>> => {
+    return apiClient<any[]>("/flash-sales/seller/my-items", {
+      method: "GET",
+    });
+  },
+
+  sellerRegisterItem: async (payload: {
+    flashSaleId: string;
+    bookId: string;
+    salePrice: number;
+    stock: number;
+    maxPerUser?: number;
+  }): Promise<ApiResponse<any>> => {
+    return apiClient<any>("/flash-sales/seller/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  sellerRegisterBatch: async (payload: {
+    flashSaleId: string;
+    items: Array<{
+      bookId: string;
+      salePrice: number;
+      stock: number;
+      maxPerUser?: number;
+    }>;
+  }): Promise<ApiResponse<any>> => {
+    return apiClient<any>("/flash-sales/seller/register-batch", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  sellerCancelItem: async (
+    itemId: string,
+  ): Promise<ApiResponse<{ success: boolean; message: string }>> => {
+    return apiClient<{ success: boolean; message: string }>(
+      `/flash-sales/seller/items/${itemId}`,
+      {
+        method: "DELETE",
+      },
+    );
+  },
+
+  sellerUpdateItem: async (
+    itemId: string,
+    payload: {
+      salePrice?: number;
+      stock?: number;
+      maxPerUser?: number;
+    },
+  ): Promise<ApiResponse<any>> => {
+    return apiClient<any>(`/flash-sales/seller/items/${itemId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
 };
+

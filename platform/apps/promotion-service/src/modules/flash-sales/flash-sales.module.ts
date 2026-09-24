@@ -2,12 +2,13 @@ import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import Redis from "ioredis";
 import { FlashSalesController } from "./flash-sales.controller";
+import { SellerFlashSalesController } from "./seller-flash-sales.controller";
 import { FlashSalesService } from "./flash-sales.service";
 
 export const FLASH_SALE_REDIS = "FLASH_SALE_REDIS";
 
 @Module({
-  controllers: [FlashSalesController],
+  controllers: [FlashSalesController, SellerFlashSalesController],
   providers: [
     {
       provide: FLASH_SALE_REDIS,

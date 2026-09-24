@@ -32,7 +32,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
                              pathname.includes('/seller/product/correction');
 
   return (
-    <div className={`seller-portal bg-background text-on-surface flex flex-col ${isChatPage ? 'h-screen max-h-screen overflow-hidden' : 'min-h-dvh'}`}>
+    <div className={`seller-portal bg-[#F8FAFC] text-slate-800 flex flex-col font-sans antialiased ${isChatPage ? 'h-screen max-h-screen overflow-hidden' : 'min-h-dvh'}`}>
       <SellerHeader 
         isSidebarCollapsed={isSidebarCollapsed} 
         toggleSidebar={toggleSidebar} 
@@ -60,7 +60,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
               aria-hidden="true"
             />
             {/* Drawer Content */}
-            <div className="relative z-10 w-72 bg-theme-surface shadow-2xl h-full flex flex-col">
+            <div className="relative z-10 w-72 bg-white shadow-2xl h-full flex flex-col">
               <SellerSidebar 
                 isCollapsed={false} 
                 toggleSidebar={closeMobileSidebar}
@@ -73,7 +73,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
 
         {/* Main Content Area */}
         <div className={`min-w-0 flex-1 flex flex-col transition-all duration-300 ${isChatPage ? 'overflow-hidden min-h-0' : ''}`}>
-          <main id="main-content" className={`flex-1 min-w-0 ${isChatPage ? 'overflow-hidden min-h-0 flex flex-col' : ''}`}>
+          <main id="main-content" className={`flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 ${isChatPage ? 'overflow-hidden min-h-0 flex flex-col' : ''}`}>
             {children}
           </main>
           {!isChatPage && !isProductFormPage && <SellerFooter />}
@@ -82,3 +82,4 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
     </div>
   );
 }
+

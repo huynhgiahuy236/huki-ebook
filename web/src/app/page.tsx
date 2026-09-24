@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/ui/context/CartContext";
 import { useToast } from "@/ui/context/ToastContext";
-import BookCard from "@/ui/components/common/BookCard";
 import { catalogApi, type BookData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
+import { voucherApi } from "@/ui/api/voucherApi";
+import BookCard from "@/ui/components/common/BookCard";
 
 export default function HomePage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function HomePage() {
 
   // Real Books from Backend Commerce Database
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [realVouchers, setRealVouchers] = useState<any[]>([]);
   const [activeFlashSale, setActiveFlashSale] = useState<FlashSaleSlot | null>(null);
   const [flashSeconds, setFlashSeconds] = useState(0);
 
@@ -28,6 +30,15 @@ export default function HomePage() {
         }
       })
       .catch((err) => console.warn("Could not fetch real books:", err));
+
+    voucherApi
+      .getAvailableVouchers()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          setRealVouchers(res.data);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -148,44 +159,91 @@ export default function HomePage() {
   );
   const [newsletterEmail, setNewsletterEmail] = useState("");
 
-  // 1. VOUCHER LIST
-  const voucherList = useMemo(
-    () => [
+  // 1. VOUCHER LIST (Real from Backend Promotion Service + Demo items)
+  const voucherList = useMemo(() => {
+    const list: Array<{
+      code: string;
+      badge: string;
+      title: string;
+      condition: string;
+      exp: string;
+      icon: string;
+      isMock: boolean;
+    }> = [];
+
+    // Real active vouchers
+    if (realVouchers && realVouchers.length > 0) {
+      realVouchers.slice(0, 4).forEach((v) => {
+        let badge = v.type === 'PERCENTAGE' ? `GIẢM ${v.value}%` : v.type === 'FREE_SHIPPING' ? 'FREESHIP' : `GIẢM ${Number(v.value).toLocaleString('vi-VN')}Đ`;
+        let icon = v.type === 'FREE_SHIPPING' ? 'local_shipping' : v.type === 'PERCENTAGE' ? 'percent' : 'redeem';
+        let condition = v.minOrderAmount ? `Đơn từ ${Number(v.minOrderAmount).toLocaleString('vi-VN')}₫` : 'Mọi đơn hàng';
+        if (v.targetAudience === 'FOLLOWERS_ONLY') {
+          condition += ' • Dành cho Người theo dõi';
+          icon = 'favorite';
+        } else if (v.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+          condition += ' • Khách mới';
+        }
+
+        list.push({
+          code: v.code,
+          badge,
+          title: v.name || `Voucher ${v.code}`,
+          condition,
+          exp: v.expiresAt ? `HSD: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}` : 'HSD: Dài hạn',
+          icon,
+          isMock: false,
+        });
+      });
+    }
+
+    // Fallback demo/mock items to ensure rich banner layout
+    const fallbackMocks = [
       {
         code: "HUKIFREESHIP",
         badge: "FREESHIP",
         title: "Miễn phí vận chuyển 100%",
         condition: "Đơn từ 150.000₫ • Toàn quốc",
-        exp: "HSD: 31/12/2026",
+        exp: "Sắp mở lượt mới",
         icon: "local_shipping",
+        isMock: true,
       },
       {
         code: "HUKINEW25",
         badge: "GIẢM 25K",
         title: "Giảm 25.000₫ đơn đầu tiên",
         condition: "Đơn từ 120.000₫ • Khách mới",
-        exp: "HSD: Còn 5 ngày",
+        exp: "Demo",
         icon: "redeem",
+        isMock: true,
       },
       {
         code: "HUKICOMBO60",
         badge: "GIẢM 60K",
         title: "Giảm 60.000₫ khi mua Combo",
         condition: "Áp dụng cho Combo từ 300k",
-        exp: "HSD: 15/10/2026",
+        exp: "Demo",
         icon: "auto_awesome",
+        isMock: true,
       },
       {
         code: "EBOOK50",
         badge: "EBOOK 50%",
         title: "Giảm 50% mọi Ebook bản quyền",
         condition: "Tối đa 40.000₫ • Mọi đơn Ebook",
-        exp: "HSD: Còn 2 ngày",
+        exp: "Demo",
         icon: "menu_book",
+        isMock: true,
       },
-    ],
-    [],
-  );
+    ];
+
+    for (const mock of fallbackMocks) {
+      if (list.length < 4 && !list.some((it) => it.code === mock.code)) {
+        list.push(mock);
+      }
+    }
+
+    return list;
+  }, [realVouchers]);
 
   // 2. FLASH SALE (With real items or mock fallback with isMock: true)
   const allFlashSale = useMemo(() => {
@@ -1480,44 +1538,59 @@ export default function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           {voucherList.map((v) => {
             const isSaved = savedVouchers.includes(v.code);
+            const isMock = v.isMock;
+
             return (
               <div
                 key={v.code}
-                className="bg-white rounded-xl p-2.5 border border-dashed border-gray-300 flex items-center justify-between gap-2 shadow-2xs hover:border-[#ac2c19]/60 transition-all"
+                className={`rounded-xl p-2.5 border flex items-center justify-between gap-2 shadow-2xs transition-all ${
+                  isMock
+                    ? "bg-gray-100/60 border-dashed border-gray-300 opacity-65"
+                    : "bg-white border-dashed border-emerald-700/20 hover:border-[#ac2c19]/60 shadow-2xs"
+                }`}
               >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-rose-50 text-[#ac2c19] flex items-center justify-center shrink-0">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isMock ? 'bg-gray-200 text-gray-500' : 'bg-rose-50 text-[#ac2c19]'}`}>
                     <span className="material-symbols-outlined text-[18px]">
                       {v.icon}
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[12px] font-bold text-[#ac2c19]">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[12px] font-bold ${isMock ? 'text-gray-600' : 'text-[#ac2c19]'}`}>
                         {v.badge}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-mono bg-gray-100 px-1 py-0.2 rounded">
+                      <span className="text-[10px] text-gray-500 font-mono bg-gray-100 px-1 py-0.2 rounded border border-gray-200/60">
                         {v.code}
                       </span>
+                      {isMock && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-gray-200 text-gray-500 font-bold uppercase">
+                          Sắp mở
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] text-gray-800 font-medium truncate mt-0.5">
                       {v.title}
                     </p>
-                    <span className="text-[9.5px] text-gray-400 block">
+                    <span className="text-[9.5px] text-gray-400 block truncate">
                       {v.condition}
                     </span>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => handleSaveVoucher(v.code)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
-                    isSaved
-                      ? "bg-gray-100 text-gray-500"
-                      : "bg-[#ac2c19] text-white hover:bg-[#8e2414] shadow-2xs"
+                  type="button"
+                  disabled={isMock}
+                  onClick={() => !isMock && handleSaveVoucher(v.code)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all ${
+                    isMock
+                      ? "bg-gray-200 text-gray-400 cursor-not-allowed select-none"
+                      : isSaved
+                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                        : "bg-[#ac2c19] text-white hover:bg-[#8e2414] shadow-2xs cursor-pointer"
                   }`}
                 >
-                  {isSaved ? "Đã lưu" : "Lưu mã"}
+                  {isMock ? "Chưa mở" : isSaved ? "Đã lưu" : "Lưu mã"}
                 </button>
               </div>
             );

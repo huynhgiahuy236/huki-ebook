@@ -44,6 +44,10 @@ model Voucher {
 
   status VoucherStatus @default(ACTIVE)
 
+  // Target Audience & Loyalty Tier
+  targetAudience VoucherTargetAudience @default(ALL) @map("target_audience")
+  minFollowDays  Int?                  @default(0) @map("min_follow_days")
+
   // Relations
   usages VoucherUsage[]
 
@@ -53,6 +57,7 @@ model Voucher {
   @@index([code])
   @@index([status])
   @@index([expiresAt])
+  @@index([targetAudience])
   @@map("vouchers")
 }
 
@@ -65,6 +70,12 @@ enum VoucherType {
 enum VoucherScope {
   PLATFORM
   STORE
+}
+
+enum VoucherTargetAudience {
+  ALL
+  FOLLOWERS_ONLY
+  NEW_CUSTOMERS_ONLY
 }
 
 enum VoucherStatus {

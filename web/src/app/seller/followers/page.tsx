@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, type FollowerItem } from '@/ui/api/businessApi';
+import { getFollowerBadge } from '@/ui/api/sellerVoucherApi';
 
 function SellerFollowersContent() {
   const { user, activeBusinessId } = useAuth();
@@ -200,6 +201,8 @@ function SellerFollowersContent() {
                 <th className="py-3.5 px-5 whitespace-nowrap">Mã Khách Hàng</th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Tên Khách Hàng</th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Số Điện Thoại</th>
+                <th className="py-3.5 px-5 whitespace-nowrap">Huy Hiệu Gắn Bó</th>
+                <th className="py-3.5 px-5 whitespace-nowrap">Thời Gian Theo Dõi</th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Trạng Thái</th>
                 <th className="py-3.5 px-5 whitespace-nowrap text-right">Thao Tác</th>
               </tr>
@@ -207,14 +210,14 @@ function SellerFollowersContent() {
             <tbody className="divide-y divide-gray-100 text-xs">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <span className="inline-block w-7 h-7 border-3 border-[#006953]/20 border-t-[#006953] rounded-full animate-spin mb-2"></span>
                     <p className="text-xs text-gray-500 font-medium">Đang tải danh sách người theo dõi...</p>
                   </td>
                 </tr>
               ) : followers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="w-12 h-12 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
                       <span className="material-symbols-outlined text-2xl">group_off</span>
                     </div>
@@ -233,6 +236,15 @@ function SellerFollowersContent() {
                   const fullName = item.fullName || 'Khách Hàng';
                   const isLongName = fullName.length > 10;
                   const displayName = isLongName ? `${fullName.slice(0, 10)}...` : fullName;
+                  const badgeInfo = getFollowerBadge(item.createdAt);
+                  const followDate = new Date(item.createdAt);
+                  const formattedDate = isNaN(followDate.getTime())
+                    ? 'Chưa xác định'
+                    : followDate.toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      });
 
                   return (
                     <tr
@@ -286,7 +298,27 @@ function SellerFollowersContent() {
                         )}
                       </td>
 
-                      {/* Cột 4: Trạng thái */}
+                      {/* Cột 4: Huy hiệu Gắn Bó */}
+                      <td className="py-3.5 px-5 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-2xs ${badgeInfo.bgClass} ${badgeInfo.borderClass}`}>
+                          <span className="material-symbols-outlined text-[14px]">{badgeInfo.icon}</span>
+                          <span>{badgeInfo.badge}</span>
+                        </span>
+                      </td>
+
+                      {/* Cột 5: Thời gian theo dõi */}
+                      <td className="py-3.5 px-5 whitespace-nowrap">
+                        <div className="flex flex-col">
+                          <span className="font-mono font-medium text-gray-800 text-xs">
+                            {formattedDate}
+                          </span>
+                          <span className="text-[10px] text-gray-500">
+                            {badgeInfo.days === 0 ? 'Mới theo dõi hôm nay' : `Đã theo dõi ${badgeInfo.days} ngày`}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Cột 6: Trạng thái */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
                         {item.status === 'ACTIVE' ? (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -301,9 +333,17 @@ function SellerFollowersContent() {
                         )}
                       </td>
 
-                      {/* Cột 5: Thao tác (Nhắn tin - Tạm thời disabled) */}
+                      {/* Cột 7: Thao tác (Nhắn tin - Tạm thời disabled) */}
                       <td className="py-3.5 px-5 whitespace-nowrap text-right">
                         <div className="inline-flex items-center gap-1.5">
+                          <Link
+                            href="/seller/promotions/vouchers"
+                            className="px-2.5 py-1.5 rounded-lg border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100 font-bold text-xs flex items-center gap-1 transition-colors"
+                            title="Tạo Voucher tri ân người theo dõi"
+                          >
+                            <span className="material-symbols-outlined text-sm">loyalty</span>
+                            <span>Tặng Voucher</span>
+                          </Link>
                           <button
                             type="button"
                             disabled

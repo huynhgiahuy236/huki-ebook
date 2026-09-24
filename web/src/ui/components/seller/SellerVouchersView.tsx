@@ -1,8 +1,15 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * HUKI EBOOK - Seller Vouchers View (Quản Lý Voucher Gian Hàng)
+ * 100% In-Page Expansion (No Popup Modal)
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { businessApi, type StoreData } from '@/ui/api/businessApi';
 import {
   getSellerVouchers,
   createSellerVoucher,
@@ -10,633 +17,1308 @@ import {
   activateSellerVoucher,
   deactivateSellerVoucher,
   deleteSellerVoucher,
+  getSellerVoucherUsage,
   formatVoucherType,
-  formatVoucherStatus,
   formatDiscountValue,
+  formatTargetAudience,
+  formatFollowerRequirement,
+  type Voucher,
+  type VoucherType,
+  type VoucherStatus,
+  type VoucherTargetAudience,
+  type VoucherUsageStats,
+  type CreateVoucherPayload,
+  type UpdateVoucherPayload,
 } from '@/ui/api/sellerVoucherApi';
-import type { Voucher, CreateVoucherPayload } from '@/ui/api/sellerVoucherApi';
+import {
+  SellerTableContainer,
+  SellerStatusBadge,
+  SellerActionButton,
+  SellerFilterTabs,
+  SellerPagination,
+} from '@/ui/components/seller/SellerUI';
 
-/**
- * HUKI EBOOK - Seller Shop Voucher Management Page
- * Create, Edit, Activate/Deactivate Shop Vouchers
- */
 export function SellerVouchersView() {
+  const { user, activeBusinessId } = useAuth();
   const { showToast } = useToast();
 
-  // State
-  const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
-  const [actionLoading, setActionLoading] = useState<string | null>(null);
-
-  // Filter state
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [vouchers, setVouchers] = useState<Voucher[]>([]);
+  const [stores, setStores] = useState<StoreData[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
-  // Load vouchers
-  const loadVouchers = useCallback(async () => {
+  // In-Page Form State (CREATE / EDIT) - NO POPUP
+  const [formMode, setFormMode] = useState<'NONE' | 'CREATE' | 'EDIT'>('NONE');
+  const [editingVoucher, setEditingVoucher] = useState<Voucher | null>(null);
+
+  // Form Fields
+  const [code, setCode] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [type, setType] = useState<VoucherType>('PERCENTAGE');
+  const [targetAudience, setTargetAudience] = useState<VoucherTargetAudience>('ALL');
+  const [minFollowDays, setMinFollowDays] = useState<number>(0);
+  const [customDaysInput, setCustomDaysInput] = useState<string>('30');
+  const [value, setValue] = useState('');
+  const [minOrderAmount, setMinOrderAmount] = useState('0');
+  const [maxDiscountAmount, setMaxDiscountAmount] = useState('');
+  const [formStoreId, setFormStoreId] = useState<string>('');
+  const [totalUsage, setTotalUsage] = useState('100');
+  const [maxUsagePerUser, setMaxUsagePerUser] = useState('1');
+  const [startsAt, setStartsAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // In-Page Usage Stats State (NO POPUP)
+  const [statsVoucherId, setStatsVoucherId] = useState<string | null>(null);
+  const [usageStats, setUsageStats] = useState<VoucherUsageStats | null>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  // Action Loading states
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+
+  const toLocalDatetimeString = (date: Date): string => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const yyyy = date.getFullYear();
+    const mm = pad(date.getMonth() + 1);
+    const dd = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const mi = pad(date.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+  };
+
+  const formatVND = (num?: number | string | null) => {
+    const val = Number(num) || 0;
+    return val.toLocaleString('vi-VN') + 'đ';
+  };
+
+  // Load vouchers & stores from API
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await getSellerVouchers({
-        status: filterStatus !== 'ALL' ? (filterStatus as any) : undefined,
-      });
-      if (res.success && res.data) {
-        setVouchers(res.data.items || []);
-      } else {
-        showToast?.(
-          { title: 'Lỗi', message: res.error?.message || 'Không thể tải danh sách voucher' },
-          'error'
-        );
+      const bizId = user?.business?.id || activeBusinessId;
+      if (bizId) {
+        try {
+          const storesRes = await businessApi.getMyStores(bizId);
+          if (storesRes.success && Array.isArray(storesRes.data)) {
+            setStores(storesRes.data);
+            if (storesRes.data.length > 0 && !selectedStoreId) {
+              setSelectedStoreId(storesRes.data[0].id);
+            }
+          }
+        } catch {
+          // ignore
+        }
       }
-    } catch (err) {
-      console.error('Failed to load vouchers:', err);
-      showToast?.(
-        { title: 'Lỗi kết nối', message: 'Không thể tải danh sách voucher' },
-        'error'
-      );
+
+      const res = await getSellerVouchers({ limit: 100 });
+      if (res.success && res.data) {
+        let items: Voucher[] = [];
+        if (Array.isArray(res.data)) {
+          items = res.data;
+        } else if (Array.isArray((res.data as any).items)) {
+          items = (res.data as any).items;
+        } else if (Array.isArray((res.data as any).data)) {
+          items = (res.data as any).data;
+        }
+        setVouchers(items);
+      } else {
+        setVouchers([]);
+      }
+    } catch (err: any) {
+      console.warn('Failed to load seller vouchers:', err);
+      showToast({ title: 'Lỗi', message: 'Không thể tải danh sách voucher.' }, 'error');
+      setVouchers([]);
     } finally {
       setLoading(false);
     }
-  }, [filterStatus, showToast]);
+  }, [user, activeBusinessId, selectedStoreId, showToast]);
 
   useEffect(() => {
-    loadVouchers();
-  }, [loadVouchers]);
+    loadData();
+  }, [loadData]);
 
-  // Filter vouchers
-  const filteredVouchers = vouchers.filter((v) => {
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      return (
-        v.code.toLowerCase().includes(q) ||
-        v.name.toLowerCase().includes(q)
-      );
+  // Open Create Form
+  const handleOpenCreate = () => {
+    setFormMode('CREATE');
+    setEditingVoucher(null);
+    setStatsVoucherId(null);
+    setUsageStats(null);
+
+    // Default form values
+    setCode('');
+    setName('');
+    setDescription('');
+    setType('PERCENTAGE');
+    setTargetAudience('ALL');
+    setMinFollowDays(0);
+    setCustomDaysInput('30');
+    setValue('10');
+    setMinOrderAmount('100000');
+    setMaxDiscountAmount('30000');
+    setFormStoreId(stores[0]?.id || selectedStoreId || '');
+    setTotalUsage('50');
+    setMaxUsagePerUser('1');
+
+    const now = new Date();
+    const nextMonth = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    setStartsAt(toLocalDatetimeString(now));
+    setExpiresAt(toLocalDatetimeString(nextMonth));
+  };
+
+  // Open Edit Form
+  const handleOpenEdit = (voucher: Voucher) => {
+    setFormMode('EDIT');
+    setEditingVoucher(voucher);
+    setStatsVoucherId(null);
+    setUsageStats(null);
+
+    setCode(voucher.code);
+    setName(voucher.name);
+    setDescription(voucher.description || '');
+    setType(voucher.type);
+    setTargetAudience(voucher.targetAudience || 'ALL');
+    const initialMinDays = voucher.minFollowDays || 0;
+    setMinFollowDays(initialMinDays);
+    setCustomDaysInput(initialMinDays > 0 ? initialMinDays.toString() : '30');
+    setValue(voucher.value.toString());
+    setMinOrderAmount((voucher.minOrderAmount || 0).toString());
+    setMaxDiscountAmount(voucher.maxDiscountAmount ? voucher.maxDiscountAmount.toString() : '');
+    setFormStoreId(voucher.storeId || stores[0]?.id || selectedStoreId || '');
+    setTotalUsage((voucher.totalUsage || 0).toString());
+    setMaxUsagePerUser((voucher.maxUsagePerUser || 1).toString());
+    setStartsAt(toLocalDatetimeString(new Date(voucher.startsAt)));
+    setExpiresAt(toLocalDatetimeString(new Date(voucher.expiresAt)));
+  };
+
+  // Close Form
+  const handleCloseForm = () => {
+    setFormMode('NONE');
+    setEditingVoucher(null);
+  };
+
+  // Open Stats
+  const handleOpenStats = async (voucher: Voucher) => {
+    if (statsVoucherId === voucher.id) {
+      setStatsVoucherId(null);
+      setUsageStats(null);
+      return;
     }
-    return true;
-  });
-
-  // Handle activate/deactivate
-  const handleToggleStatus = async (voucher: Voucher) => {
-    setActionLoading(voucher.id);
+    setFormMode('NONE');
+    setStatsVoucherId(voucher.id);
+    setLoadingStats(true);
     try {
-      const res =
-        voucher.status === 'ACTIVE'
-          ? await deactivateSellerVoucher(voucher.id)
-          : await activateSellerVoucher(voucher.id);
-
-      if (res.success) {
-        showToast?.(
-          {
-            title: 'Thành công',
-            message:
-              voucher.status === 'ACTIVE'
-                ? `Đã tắt voucher ${voucher.code}`
-                : `Đã bật voucher ${voucher.code}`,
-          },
-          'success'
-        );
-        await loadVouchers();
+      const res = await getSellerVoucherUsage(voucher.id);
+      if (res.success && res.data) {
+        setUsageStats(res.data);
       } else {
-        showToast?.(
-          { title: 'Lỗi', message: res.error?.message || 'Không thể cập nhật trạng thái' },
-          'error'
-        );
+        showToast({ title: 'Thông báo', message: 'Chưa có dữ liệu thống kê sử dụng.' }, 'info');
       }
     } catch {
-      showToast?.(
-        { title: 'Lỗi', message: 'Không thể cập nhật trạng thái voucher' },
-        'error'
-      );
+      showToast({ title: 'Lỗi', message: 'Không thể tải thống kê sử dụng voucher.' }, 'error');
     } finally {
-      setActionLoading(null);
+      setLoadingStats(false);
     }
   };
 
-  // Handle delete
-  const handleDelete = async (voucher: Voucher) => {
-    if (!confirm(`Bạn có chắc muốn xóa voucher "${voucher.code}"?\nKhông thể hoàn tác.`)) {
+  // Toggle Active / Deactive
+  const handleToggleStatus = async (voucher: Voucher) => {
+    setActionLoadingId(voucher.id);
+    try {
+      if (voucher.status === 'ACTIVE') {
+        const res = await deactivateSellerVoucher(voucher.id);
+        if (res.success) {
+          showToast({ title: 'Thành công', message: `Đã tạm tắt voucher ${voucher.code}` }, 'success');
+          setVouchers((prev) => prev.map((v) => v.id === voucher.id ? { ...v, status: 'INACTIVE' } : v));
+          await loadData();
+        } else {
+          showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể tạm tắt voucher' }, 'error');
+        }
+      } else {
+        const res = await activateSellerVoucher(voucher.id);
+        if (res.success) {
+          showToast({ title: 'Thành công', message: `Đã kích hoạt voucher ${voucher.code}` }, 'success');
+          setVouchers((prev) => prev.map((v) => v.id === voucher.id ? { ...v, status: 'ACTIVE' } : v));
+          await loadData();
+        } else {
+          showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể kích hoạt voucher' }, 'error');
+        }
+      }
+    } catch {
+      showToast({ title: 'Lỗi kết nối', message: 'Không thể kết nối máy chủ.' }, 'error');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Delete Voucher
+  const handleDeleteVoucher = async (voucher: Voucher) => {
+    if (voucher.currentUsage > 0) {
+      showToast({ title: 'Không thể xóa', message: 'Voucher đã có lượt sử dụng thực tế. Bạn chỉ có thể Tạm Tắt voucher.' }, 'warning');
+      return;
+    }
+    if (!window.confirm(`Bạn có chắc muốn xóa mã voucher "${voucher.code}" không?`)) {
       return;
     }
 
-    setActionLoading(voucher.id);
+    setActionLoadingId(voucher.id);
     try {
       const res = await deleteSellerVoucher(voucher.id);
       if (res.success) {
-        showToast?.(
-          { title: 'Thành công', message: `Đã xóa voucher ${voucher.code}` },
-          'success'
-        );
-        await loadVouchers();
+        showToast({ title: 'Thành công', message: `Đã xóa voucher ${voucher.code}` }, 'success');
+        setVouchers((prev) => prev.filter((v) => v.id !== voucher.id));
+        if (editingVoucher?.id === voucher.id) setFormMode('NONE');
+        if (statsVoucherId === voucher.id) setStatsVoucherId(null);
+        await loadData();
       } else {
-        showToast?.(
-          { title: 'Lỗi', message: res.error?.message || 'Không thể xóa voucher' },
-          'error'
-        );
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xóa voucher' }, 'error');
       }
     } catch {
-      showToast?.(
-        { title: 'Lỗi', message: 'Không thể xóa voucher' },
-        'error'
-      );
+      showToast({ title: 'Lỗi kết nối', message: 'Lỗi kết nối khi xóa voucher.' }, 'error');
     } finally {
-      setActionLoading(null);
+      setActionLoadingId(null);
     }
   };
 
-  // Status badge helper
-  const getStatusBadge = (status: string) => {
-    const cfg = formatVoucherStatus(status as any);
-    const colorMap: Record<string, string> = {
-      emerald: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300',
-      gray: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
-      red: 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300',
-      orange: 'bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-300',
-    };
-    return (
-      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold ${colorMap[cfg.color] || colorMap.gray}`}>
-        {cfg.label}
-      </span>
-    );
-  };
-
-  return (
-    <div className="w-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-editorial text-2xl sm:text-3xl font-black text-[var(--theme-text,#1c1b1f)]">
-            Shop Voucher
-          </h1>
-          <p className="text-xs sm:text-sm text-[var(--theme-text-muted,#49454f)] mt-1">
-            Tạo và quản lý mã giảm giá cho Gian hàng của bạn
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="px-5 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs sm:text-sm font-bold hover:opacity-95 shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-[18px]">add</span>
-          <span>Tạo Voucher Mới</span>
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Status Filter */}
-        <div className="flex items-center gap-2">
-          {['ALL', 'ACTIVE', 'INACTIVE', 'EXPIRED', 'USED_UP'].map((status) => (
-            <button
-              key={status}
-              type="button"
-              onClick={() => setFilterStatus(status)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                filterStatus === status
-                  ? 'bg-[var(--theme-primary,#003B2B)] text-white'
-                  : 'bg-white dark:bg-gray-800 border border-[var(--theme-border,#e8e5df)] text-[var(--theme-text-muted,#49454f)] hover:border-[var(--theme-primary,#003B2B)]'
-              }`}
-            >
-              {status === 'ALL' ? 'Tất cả' :
-               status === 'ACTIVE' ? 'Đang hoạt động' :
-               status === 'INACTIVE' ? 'Tạm tắt' :
-               status === 'EXPIRED' ? 'Hết hạn' : 'Hết lượt'}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <div className="flex-1">
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[var(--theme-text-muted,#49454f)] text-[20px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo mã hoặc tên voucher..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-xs sm:text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Voucher List */}
-      {loading ? (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-[var(--theme-border,#e8e5df)] p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-[var(--theme-text-muted,#49454f)] animate-spin">
-            progress_activity
-          </span>
-          <p className="text-sm text-[var(--theme-text-muted,#49454f)] mt-2">Đang tải...</p>
-        </div>
-      ) : filteredVouchers.length === 0 ? (
-        <div className="bg-white dark:bg-gray-900 rounded-2xl border border-[var(--theme-border,#e8e5df)] p-12 text-center">
-          <span className="material-symbols-outlined text-5xl text-[var(--theme-text-muted,#49454f)]">
-            local_activity
-          </span>
-          <h3 className="text-lg font-bold text-[var(--theme-text,#1c1b1f)] mt-4">
-            Chưa có Voucher nào
-          </h3>
-          <p className="text-sm text-[var(--theme-text-muted,#49454f)] mt-2 mb-6">
-            Tạo voucher để thu hút khách hàng với ưu đãi hấp dẫn
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="px-5 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-sm font-bold hover:opacity-95 shadow-sm transition-all cursor-pointer"
-          >
-            Tạo Voucher Đầu Tiên
-          </button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredVouchers.map((voucher) => (
-            <div
-              key={voucher.id}
-              className="bg-white dark:bg-gray-900 rounded-2xl border border-[var(--theme-border,#e8e5df)] p-5 flex flex-col justify-between gap-4 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
-            >
-              {/* Discount Tag */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-[var(--theme-primary,#003B2B)]/10 flex items-center justify-center text-[var(--theme-primary,#003B2B)] shrink-0">
-                    <span className="material-symbols-outlined text-2xl">
-                      {voucher.type === 'FREE_SHIPPING' ? 'local_shipping' : 'percent'}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="font-mono font-black text-base text-[var(--theme-text,#1c1b1f)] tracking-wider">
-                      {voucher.code}
-                    </div>
-                    <div className="text-xs text-[var(--theme-text-muted,#49454f)] line-clamp-1">
-                      {voucher.name}
-                    </div>
-                  </div>
-                </div>
-                {getStatusBadge(voucher.status)}
-              </div>
-
-              {/* Voucher Details */}
-              <div className="flex flex-col gap-1.5 text-xs text-[var(--theme-text-muted,#49454f)] py-2 border-y border-[var(--theme-border,#e8e5df)]/50">
-                <div className="flex items-center justify-between">
-                  <span>Giảm giá:</span>
-                  <span className="font-bold text-[var(--theme-text,#1c1b1f)]">
-                    {formatDiscountValue(voucher.type, voucher.value)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Đơn tối thiểu:</span>
-                  <span className="font-medium text-[var(--theme-text,#1c1b1f)]">
-                    {voucher.minOrderAmount > 0
-                      ? `${voucher.minOrderAmount.toLocaleString('vi-VN')}đ`
-                      : 'Không giới hạn'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Lượt dùng:</span>
-                  <span className="font-medium text-[var(--theme-text,#1c1b1f)]">
-                    {voucher.currentUsage} / {voucher.totalUsage && voucher.totalUsage > 0 ? voucher.totalUsage : '∞'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Hiệu lực:</span>
-                  <span className="font-medium text-[var(--theme-text,#1c1b1f)]">
-                    {new Date(voucher.startsAt).toLocaleDateString('vi-VN')} -{' '}
-                    {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-between gap-2 pt-1">
-                <button
-                  type="button"
-                  disabled={actionLoading === voucher.id}
-                  onClick={() => handleToggleStatus(voucher)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                    voucher.status === 'ACTIVE'
-                      ? 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-950/50 dark:text-amber-300'
-                      : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300'
-                  }`}
-                >
-                  {voucher.status === 'ACTIVE' ? 'Tắt voucher' : 'Bật voucher'}
-                </button>
-
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setEditingVoucher(voucher)}
-                    className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-[var(--theme-text-muted,#49454f)] transition-colors cursor-pointer"
-                    title="Chỉnh sửa"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">edit</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionLoading === voucher.id}
-                    onClick={() => handleDelete(voucher)}
-                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600 transition-colors cursor-pointer"
-                    title="Xóa"
-                  >
-                    <span className="material-symbols-outlined text-[18px]">delete</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Create / Edit Modal */}
-      {(showCreateModal || editingVoucher) && (
-        <VoucherFormModal
-          voucher={editingVoucher}
-          onClose={() => {
-            setShowCreateModal(false);
-            setEditingVoucher(null);
-          }}
-          onSuccess={async () => {
-            setShowCreateModal(false);
-            setEditingVoucher(null);
-            await loadVouchers();
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ==========================================
-// VOUCHER FORM MODAL (CREATE / EDIT)
-// ==========================================
-interface VoucherFormModalProps {
-  voucher?: Voucher | null;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function VoucherFormModal({ voucher, onClose, onSuccess }: VoucherFormModalProps) {
-  const { showToast } = useToast();
-  const isEditing = !!voucher;
-
-  const [form, setForm] = useState<CreateVoucherPayload>({
-    code: voucher?.code || '',
-    name: voucher?.name || '',
-    type: voucher?.type || 'PERCENTAGE',
-    value: voucher?.value || 10,
-    maxDiscountAmount: voucher?.maxDiscountAmount || 0,
-    minOrderAmount: voucher?.minOrderAmount || 0,
-    totalUsage: voucher?.totalUsage || 100,
-    maxUsagePerUser: voucher?.maxUsagePerUser || 1,
-    startsAt: voucher?.startsAt ? new Date(voucher.startsAt).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
-    expiresAt: voucher?.expiresAt ? new Date(voucher.expiresAt).toISOString().slice(0, 16) : new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 16),
-    description: voucher?.description || '',
-  });
-
-  const [saving, setSaving] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Submit Form (Create / Edit)
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!form.code.trim()) {
-      showToast?.({ title: 'Lỗi', message: 'Vui lòng nhập mã voucher' }, 'error');
+    const cleanCode = code.trim().toUpperCase();
+    if (!cleanCode) {
+      showToast({ title: 'Thiếu thông tin', message: 'Vui lòng nhập mã voucher.' }, 'warning');
       return;
     }
-    if (!form.name.trim()) {
-      showToast?.({ title: 'Lỗi', message: 'Vui lòng nhập tên voucher' }, 'error');
+    const numValue = Number(value) || 0;
+    if (type !== 'FREE_SHIPPING' && numValue <= 0) {
+      showToast({ title: 'Lỗi giá trị', message: 'Mức giảm giá phải lớn hơn 0.' }, 'warning');
+      return;
+    }
+    if (type === 'PERCENTAGE' && (numValue < 1 || numValue > 90)) {
+      showToast({ title: 'Lỗi giá trị', message: 'Mức giảm % phải từ 1% đến 90%.' }, 'warning');
+      return;
+    }
+    if (!startsAt || !expiresAt) {
+      showToast({ title: 'Thiếu thời gian', message: 'Vui lòng chọn ngày bắt đầu và kết thúc.' }, 'warning');
+      return;
+    }
+    if (new Date(expiresAt) <= new Date(startsAt)) {
+      showToast({ title: 'Lỗi thời gian', message: 'Thời gian kết thúc phải sau thời gian bắt đầu.' }, 'warning');
       return;
     }
 
-    setSaving(true);
+    const storeIdToUse = formStoreId || selectedStoreId || stores[0]?.id;
+
+    setSubmitting(true);
     try {
-      const res = isEditing
-        ? await updateSellerVoucher(voucher!.id, form)
-        : await createSellerVoucher(form);
+      if (formMode === 'CREATE') {
+        const payload: CreateVoucherPayload = {
+          code: cleanCode,
+          name: name.trim() || cleanCode,
+          description: description.trim() || undefined,
+          type,
+          value: numValue,
+          minOrderAmount: Number(minOrderAmount) || 0,
+          maxDiscountAmount: type === 'PERCENTAGE' && maxDiscountAmount ? Number(maxDiscountAmount) : undefined,
+          scope: 'STORE',
+          storeId: storeIdToUse || undefined,
+          targetAudience,
+          minFollowDays: targetAudience === 'FOLLOWERS_ONLY' ? Number(minFollowDays) : 0,
+          totalUsage: Number(totalUsage) || 0,
+          maxUsagePerUser: Number(maxUsagePerUser) || 1,
+          startsAt: new Date(startsAt).toISOString(),
+          expiresAt: new Date(expiresAt).toISOString(),
+        };
 
-      if (res.success) {
-        showToast?.(
-          {
-            title: 'Thành công',
-            message: isEditing
-              ? `Đã cập nhật voucher ${form.code}`
-              : `Đã tạo voucher mới ${form.code}`,
-          },
-          'success'
-        );
-        onSuccess();
-      } else {
-        showToast?.(
-          { title: 'Lỗi', message: res.error?.message || 'Không thể lưu voucher' },
-          'error'
-        );
+        const res = await createSellerVoucher(payload);
+        if (res.success) {
+          showToast({ title: 'Thành công', message: `Đã tạo mới mã voucher ${cleanCode} thành công!` }, 'success');
+          setFormMode('NONE');
+          const createdVoucher = res.data as Voucher | undefined;
+          if (createdVoucher && createdVoucher.id) {
+            setVouchers((prev) => [createdVoucher, ...prev.filter((v) => v.id !== createdVoucher.id)]);
+          }
+          await loadData();
+        } else {
+          showToast({ title: 'Lỗi tạo voucher', message: res.error?.message || 'Không thể tạo voucher' }, 'error');
+        }
+      } else if (formMode === 'EDIT' && editingVoucher) {
+        const payload: UpdateVoucherPayload = {
+          name: name.trim() || editingVoucher.name,
+          description: description.trim() || undefined,
+          type,
+          value: numValue,
+          minOrderAmount: Number(minOrderAmount) || 0,
+          maxDiscountAmount: type === 'PERCENTAGE' && maxDiscountAmount ? Number(maxDiscountAmount) : undefined,
+          scope: 'STORE',
+          storeId: storeIdToUse || undefined,
+          targetAudience,
+          minFollowDays: targetAudience === 'FOLLOWERS_ONLY' ? Number(minFollowDays) : 0,
+          totalUsage: Number(totalUsage) || 0,
+          maxUsagePerUser: Number(maxUsagePerUser) || 1,
+          startsAt: new Date(startsAt).toISOString(),
+          expiresAt: new Date(expiresAt).toISOString(),
+        };
+
+        const res = await updateSellerVoucher(editingVoucher.id, payload);
+        if (res.success) {
+          showToast({ title: 'Thành công', message: `Đã cập nhật voucher ${editingVoucher.code} thành công!` }, 'success');
+          setFormMode('NONE');
+          const updatedVoucher = res.data as Voucher | undefined;
+          if (updatedVoucher && updatedVoucher.id) {
+            setVouchers((prev) => prev.map((v) => v.id === editingVoucher.id ? updatedVoucher : v));
+          }
+          await loadData();
+        } else {
+          showToast({ title: 'Lỗi cập nhật', message: res.error?.message || 'Không thể cập nhật voucher' }, 'error');
+        }
       }
     } catch {
-      showToast?.({ title: 'Lỗi', message: 'Có lỗi xảy ra khi lưu voucher' }, 'error');
+      showToast({ title: 'Lỗi kết nối', message: 'Lỗi kết nối máy chủ khi lưu voucher.' }, 'error');
     } finally {
-      setSaving(false);
+      setSubmitting(false);
     }
   };
 
+  // Counts for tabs
+  const counts = useMemo(() => {
+    const total = vouchers.length;
+    const now = new Date();
+    let active = 0;
+    let inactive = 0;
+    let expired = 0;
+    let usedUp = 0;
+
+    vouchers.forEach((v) => {
+      const isExpired = new Date(v.expiresAt) < now;
+      const isUsedUp = v.totalUsage > 0 && v.currentUsage >= v.totalUsage;
+      if (isExpired || v.status === 'EXPIRED') expired++;
+      else if (isUsedUp || v.status === 'USED_UP') usedUp++;
+      else if (v.status === 'INACTIVE') inactive++;
+      else if (v.status === 'ACTIVE') active++;
+    });
+
+    return { total, active, inactive, expired, usedUp };
+  }, [vouchers]);
+
+  // Filtered Vouchers
+  const filteredVouchers = useMemo(() => {
+    const now = new Date();
+    return vouchers.filter((v) => {
+      const isExpired = new Date(v.expiresAt) < now || v.status === 'EXPIRED';
+      const isUsedUp = (v.totalUsage > 0 && v.currentUsage >= v.totalUsage) || v.status === 'USED_UP';
+
+      // Tab filter
+      if (activeTab === 'ACTIVE') {
+        if (v.status !== 'ACTIVE' || isExpired || isUsedUp) return false;
+      } else if (activeTab === 'INACTIVE') {
+        if (v.status !== 'INACTIVE' || isExpired) return false;
+      } else if (activeTab === 'EXPIRED') {
+        if (!isExpired) return false;
+      } else if (activeTab === 'USED_UP') {
+        if (!isUsedUp) return false;
+      }
+
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const codeMatch = v.code.toLowerCase().includes(q);
+        const nameMatch = v.name?.toLowerCase().includes(q);
+        if (!codeMatch && !nameMatch) return false;
+      }
+
+      return true;
+    });
+  }, [vouchers, activeTab, searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
+
+  const totalItems = filteredVouchers.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validPage = Math.min(currentPage, totalPages);
+
+  const paginatedVouchers = useMemo(() => {
+    const start = (validPage - 1) * pageSize;
+    return filteredVouchers.slice(start, start + pageSize);
+  }, [filteredVouchers, validPage, pageSize]);
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-[var(--theme-border,#e8e5df)] max-w-lg w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-[var(--theme-border,#e8e5df)]">
-          <h2 className="font-editorial text-xl font-bold text-[var(--theme-text,#1c1b1f)]">
-            {isEditing ? 'Chỉnh Sửa Voucher' : 'Tạo Shop Voucher Mới'}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 text-[var(--theme-text-muted,#49454f)] cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[20px]">close</span>
-          </button>
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
+      {/* 1. Header & Quick Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Voucher Giảm Giá Gian Hàng</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Tạo và quản lý các mã giảm giá riêng của shop (giảm %, giảm tiền mặt, freeship) để kích cầu người mua.
+          </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-4">
-          {/* Code & Name */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Mã Voucher *
-              </label>
-              <input
-                type="text"
-                required
-                disabled={isEditing}
-                value={form.code}
-                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                placeholder="VD: SHOP2026"
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm font-mono uppercase focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors disabled:opacity-50"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Tên hiển thị *
-              </label>
-              <input
-                type="text"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="VD: Giảm 20k đơn từ 200k"
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-          </div>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={loadData}
+            disabled={loading}
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <span className={`material-symbols-outlined text-[16px] text-slate-500 ${loading ? 'animate-spin text-[#00875A]' : ''}`}>
+              refresh
+            </span>
+            <span>Làm mới</span>
+          </button>
 
-          {/* Voucher Type */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-              Loại giảm giá *
-            </label>
-            <select
-              value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value as any })}
-              className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-            >
-              <option value="PERCENTAGE">Giảm theo phần trăm (%)</option>
-              <option value="FIXED_AMOUNT">Giảm số tiền cố định (VNĐ)</option>
-              <option value="FREE_SHIPPING">Miễn phí vận chuyển (Freeship)</option>
-            </select>
-          </div>
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="px-4 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-semibold text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
+          >
+            <span className="material-symbols-outlined text-[17px]">add_circle</span>
+            <span>Tạo Voucher Mới</span>
+          </button>
+        </div>
+      </div>
 
-          {/* Discount Value & Max Discount */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                {form.type === 'PERCENTAGE'
-                  ? 'Phần trăm giảm (%) *'
-                  : 'Số tiền giảm (VNĐ) *'}
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={form.type === 'PERCENTAGE' ? 100 : undefined}
-                required
-                value={form.value}
-                onChange={(e) => setForm({ ...form, value: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-
-            {form.type === 'PERCENTAGE' && (
+      {/* 2. In-Page Collapsible Form (CREATE / EDIT) */}
+      {formMode !== 'NONE' && (
+        <div className="bg-white rounded-2xl p-5 border-2 border-emerald-500/40 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00875A] flex items-center justify-center font-bold">
+                <span className="material-symbols-outlined text-[20px]">
+                  {formMode === 'CREATE' ? 'confirmation_number' : 'edit_square'}
+                </span>
+              </div>
               <div>
-                <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                  Giảm tối đa (VNĐ, 0 = không giới hạn)
+                <h3 className="font-bold text-sm text-slate-900">
+                  {formMode === 'CREATE' ? 'Thiết Lập Voucher Gian Hàng Mới' : `Chỉnh Sửa Voucher #${editingVoucher?.code}`}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {formMode === 'CREATE'
+                    ? 'Nhập các thông số mã giảm giá để áp dụng cho khách mua hàng của Shop'
+                    : 'Cập nhật lại hạn mức hoặc thời gian hiệu lực của mã'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCloseForm}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Đóng form"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmitForm} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Code */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Mã Voucher <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  disabled={formMode === 'EDIT'}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''))}
+                  placeholder="VD: HUKIBOOK20, VIP50K..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 uppercase focus:outline-none focus:border-[#00875A] focus:bg-white disabled:bg-slate-100 disabled:text-slate-500"
+                />
+                <span className="text-[10.5px] text-slate-400 mt-1 block">Chỉ gồm chữ in hoa và chữ số (không dấu).</span>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Tên Chương Trình <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="VD: Tri ân độc giả tháng 9..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+
+              {/* Store selection if seller has multiple stores */}
+              {stores.length > 1 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Áp Dụng Cho Gian Hàng <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={formStoreId}
+                    onChange={(e) => setFormStoreId(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                  >
+                    {stores.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Loại Ưu Đãi <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as VoucherType)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                >
+                  <option value="PERCENTAGE">Giảm theo % (PERCENTAGE)</option>
+                  <option value="FIXED_AMOUNT">Giảm số tiền cố định (FIXED AMOUNT)</option>
+                  <option value="FREE_SHIPPING">Miễn phí vận chuyển (FREE SHIPPING)</option>
+                </select>
+              </div>
+
+              {/* Value */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {type === 'PERCENTAGE'
+                    ? 'Mức Giảm (%) *'
+                    : type === 'FIXED_AMOUNT'
+                    ? 'Số Tiền Giảm (VNĐ) *'
+                    : 'Mức Hỗ Trợ Ship (VNĐ)'}
                 </label>
                 <input
                   type="number"
-                  min={0}
-                  step={1000}
-                  value={form.maxDiscountAmount || 0}
-                  onChange={(e) => setForm({ ...form, maxDiscountAmount: Number(e.target.value) })}
-                  className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
+                  min="0"
+                  max={type === 'PERCENTAGE' ? 90 : 10000000}
+                  required={type !== 'FREE_SHIPPING'}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  placeholder={type === 'PERCENTAGE' ? 'VD: 15 (15%)' : 'VD: 20000'}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
                 />
+              </div>
+
+              {/* Max Discount Amount (Only for percentage) */}
+              {type === 'PERCENTAGE' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Mức Giảm Tối Đa (VNĐ)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={maxDiscountAmount}
+                    onChange={(e) => setMaxDiscountAmount(e.target.value)}
+                    placeholder="VD: 50000 (Không giới hạn để trống)"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                  />
+                  <span className="text-[10.5px] text-slate-400 mt-1 block">Chặn trần để tránh thâm hụt với đơn giá trị cao.</span>
+                </div>
+              )}
+
+              {/* Min Order Amount */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Giá Trị Đơn Tối Thiểu (VNĐ)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={minOrderAmount}
+                  onChange={(e) => setMinOrderAmount(e.target.value)}
+                  placeholder="VD: 150000 (0đ là áp dụng mọi đơn)"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+
+              {/* Total Usage */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Tổng Lượt Sử Dụng
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={totalUsage}
+                  onChange={(e) => setTotalUsage(e.target.value)}
+                  placeholder="VD: 100 (0 là không giới hạn)"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+
+              {/* Max Per User */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Lượt Dùng / Khách Hàng
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={maxUsagePerUser}
+                  onChange={(e) => setMaxUsagePerUser(e.target.value)}
+                  placeholder="Mặc định: 1"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+
+              {/* StartsAt */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Thời Gian Bắt Đầu <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+
+              {/* ExpiresAt */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Thời Gian Kết Thúc <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="datetime-local"
+                  required
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Target Audience Segment Selector */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[17px] text-[#00875A]">group</span>
+                  <span>Đối Tượng Khách Hàng Áp Dụng</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <Link
+                  href="/seller/followers"
+                  target="_blank"
+                  className="text-[11px] text-[#00875A] hover:underline font-medium inline-flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[13px]">favorite</span>
+                  <span>Xem danh sách Người theo dõi ({stores[0]?.name || 'Shop'})</span>
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. ALL */}
+                <div
+                  onClick={() => setTargetAudience('ALL')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    targetAudience === 'ALL'
+                      ? 'border-[#00875A] bg-emerald-50/40 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${targetAudience === 'ALL' ? 'bg-[#00875A] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className="material-symbols-outlined text-[16px]">public</span>
+                      </div>
+                      <span className="font-bold text-xs text-slate-900">Tất Cả Khách Hàng</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${targetAudience === 'ALL' ? 'border-[#00875A] bg-[#00875A]' : 'border-slate-300'}`}>
+                      {targetAudience === 'ALL' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Công khai cho mọi độc giả mua sách của gian hàng.
+                  </p>
+                </div>
+
+                {/* 2. FOLLOWERS ONLY */}
+                <div
+                  onClick={() => setTargetAudience('FOLLOWERS_ONLY')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    targetAudience === 'FOLLOWERS_ONLY'
+                      ? 'border-pink-500 bg-pink-50/40 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${targetAudience === 'FOLLOWERS_ONLY' ? 'bg-pink-600 text-white' : 'bg-pink-50 text-pink-600'}`}>
+                        <span className="material-symbols-outlined text-[16px]">favorite</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-xs text-slate-900">Người Theo Dõi Shop</span>
+                        <span className="ml-1.5 text-[9.5px] px-1.5 py-0.2 rounded-full bg-pink-100 text-pink-700 font-bold uppercase">Độc quyền</span>
+                      </div>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${targetAudience === 'FOLLOWERS_ONLY' ? 'border-pink-600 bg-pink-600' : 'border-slate-300'}`}>
+                      {targetAudience === 'FOLLOWERS_ONLY' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Chỉ khách đã nhấn <strong>Theo dõi (Follow)</strong> mới có thể lưu &amp; áp mã giảm giá này.
+                  </p>
+                </div>
+
+                {/* 3. NEW CUSTOMERS ONLY */}
+                <div
+                  onClick={() => setTargetAudience('NEW_CUSTOMERS_ONLY')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    targetAudience === 'NEW_CUSTOMERS_ONLY'
+                      ? 'border-amber-500 bg-amber-50/40 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${targetAudience === 'NEW_CUSTOMERS_ONLY' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-[16px]">person_add</span>
+                      </div>
+                      <span className="font-bold text-xs text-slate-900">Khách Hàng Mới</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${targetAudience === 'NEW_CUSTOMERS_ONLY' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'}`}>
+                      {targetAudience === 'NEW_CUSTOMERS_ONLY' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Chỉ áp dụng cho đơn hàng đầu tiên của khách mua tại gian hàng.
+                  </p>
+                </div>
+              </div>
+
+              {/* Sub-panel: Loyalty Milestone / Follower Tenure Badges */}
+              {targetAudience === 'FOLLOWERS_ONLY' && (
+                <div className="mt-4 p-4 rounded-2xl bg-gradient-to-r from-pink-50/80 via-purple-50/40 to-cyan-50/60 border border-pink-200/80 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-pink-600 text-lg">workspace_premium</span>
+                      <span className="font-bold text-xs text-slate-900">Huy Hiệu Gắn Bó &amp; Thời Gian Theo Dõi Tối Thiểu:</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 italic">
+                      Áp dụng cho khách đạt mốc số ngày theo dõi
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
+                    {/* Option 1: All Followers (0 days) */}
+                    <button
+                      type="button"
+                      onClick={() => setMinFollowDays(0)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        minFollowDays === 0
+                          ? 'bg-white border-pink-500 shadow-2xs ring-1 ring-pink-500'
+                          : 'bg-white/70 border-slate-200 hover:border-pink-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                          <span>🌟</span>
+                          <span>Mọi Follower</span>
+                        </span>
+                        {minFollowDays === 0 && <span className="w-2 h-2 rounded-full bg-pink-500"></span>}
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Bất kỳ thời điểm nào</span>
+                    </button>
+
+                    {/* Option 2: Silver Fan (>= 30 days) */}
+                    <button
+                      type="button"
+                      onClick={() => setMinFollowDays(30)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        minFollowDays === 30
+                          ? 'bg-white border-slate-600 shadow-2xs ring-1 ring-slate-600'
+                          : 'bg-white/70 border-slate-200 hover:border-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
+                          <span>🥈</span>
+                          <span>Fan Bạc (30N+)</span>
+                        </span>
+                        {minFollowDays === 30 && <span className="w-2 h-2 rounded-full bg-slate-600"></span>}
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Gắn bó từ 1 tháng trở lên</span>
+                    </button>
+
+                    {/* Option 3: Gold Fan (>= 90 days) */}
+                    <button
+                      type="button"
+                      onClick={() => setMinFollowDays(90)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        minFollowDays === 90
+                          ? 'bg-white border-amber-500 shadow-2xs ring-1 ring-amber-500'
+                          : 'bg-white/70 border-slate-200 hover:border-amber-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                          <span>🥇</span>
+                          <span>Fan Vàng (90N+)</span>
+                        </span>
+                        {minFollowDays === 90 && <span className="w-2 h-2 rounded-full bg-amber-500"></span>}
+                      </div>
+                      <span className="text-[10.5px] text-slate-500">Thân thiết từ 3 tháng trở lên</span>
+                    </button>
+
+                    {/* Option 4: Diamond Fan (>= 365 days / 1 year) */}
+                    <button
+                      type="button"
+                      onClick={() => setMinFollowDays(365)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                        minFollowDays === 365
+                          ? 'bg-white border-cyan-600 shadow-2xs ring-1 ring-cyan-600'
+                          : 'bg-white/70 border-slate-200 hover:border-cyan-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs font-bold text-cyan-900 flex items-center gap-1">
+                          <span>💎</span>
+                          <span>Kim Cương (1 Năm+)</span>
+                        </span>
+                        {minFollowDays === 365 && <span className="w-2 h-2 rounded-full bg-cyan-600"></span>}
+                      </div>
+                      <span className="text-[10.5px] text-cyan-700 font-medium">Tri ân fan cứng 1 năm</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Live Preview Ticket */}
+            <div className="bg-emerald-50/50 border border-emerald-200/60 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-2xl text-[#00875A]">sell</span>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono font-black text-sm text-[#00875A]">{code || 'MA_VOUCHER'}</span>
+                    <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                      {formatVoucherType(type)}
+                    </span>
+                    {targetAudience === 'FOLLOWERS_ONLY' && (
+                      <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-800 font-bold flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">favorite</span>
+                        <span>{formatFollowerRequirement(minFollowDays).badge}</span>
+                      </span>
+                    )}
+                    {targetAudience === 'NEW_CUSTOMERS_ONLY' && (
+                      <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]">person_add</span>
+                        <span>Khách hàng mới</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {type === 'PERCENTAGE'
+                      ? `Giảm ${value || 0}% (Tối đa ${maxDiscountAmount ? formatVND(maxDiscountAmount) : 'không giới hạn'}) cho đơn từ ${formatVND(minOrderAmount)}`
+                      : type === 'FIXED_AMOUNT'
+                      ? `Giảm ${formatVND(value)} cho đơn từ ${formatVND(minOrderAmount)}`
+                      : `Miễn phí vận chuyển cho đơn từ ${formatVND(minOrderAmount)}`}
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 self-end sm:self-center">
+                Số lượng: <strong className="text-slate-800">{totalUsage || '∞'}</strong> lượt
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <SellerActionButton
+                variant="neutral"
+                label="Hủy bỏ"
+                onClick={handleCloseForm}
+              />
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl text-xs font-semibold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.96]"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {submitting ? 'sync' : 'check_circle'}
+                </span>
+                <span>{submitting ? 'Đang lưu...' : formMode === 'CREATE' ? 'Tạo Voucher' : 'Lưu Thay Đổi'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 3. In-Page Usage Stats Box */}
+      {statsVoucherId && usageStats && (
+        <div className="bg-white rounded-2xl p-5 border-2 border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                <span className="material-symbols-outlined text-[20px]">analytics</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-slate-900">
+                  Thống Kê Hiệu Quả Voucher #{usageStats.voucher.code}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  Theo dõi số lượng đơn hàng và tổng giá trị giảm giá đã kích cầu
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setStatsVoucherId(null)}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Đóng thống kê"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[10.5px] uppercase font-bold text-slate-400">Đã Sử Dụng</span>
+              <div className="text-xl font-bold font-mono text-slate-800 mt-1">
+                {usageStats.voucher.currentUsage} <span className="text-xs font-normal text-slate-400">/ {usageStats.voucher.totalUsage || '∞'}</span>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[10.5px] uppercase font-bold text-slate-400">Lượt Còn Lại</span>
+              <div className="text-xl font-bold font-mono text-emerald-600 mt-1">
+                {usageStats.voucher.totalUsage > 0 ? usageStats.voucher.remainingUsage : 'Không giới hạn'}
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
+              <span className="text-[10.5px] uppercase font-bold text-slate-400">Tổng Tiền Đã Giảm</span>
+              <div className="text-xl font-bold font-mono text-[#00875A] mt-1">
+                {formatVND(usageStats.statistics.totalDiscount)}
+              </div>
+            </div>
+          </div>
+
+          {/* Recent 10 Usages */}
+          <div>
+            <h4 className="text-xs font-bold text-slate-700 mb-2">Đơn Hàng Gần Đây Đã Áp Dụng Mã:</h4>
+            {usageStats.recentUsages.length === 0 ? (
+              <p className="text-xs text-slate-400 py-3 text-center bg-slate-50 rounded-xl">Chưa có đơn hàng nào áp dụng mã này.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                      <th className="py-2 px-3">Mã Đơn</th>
+                      <th className="py-2 px-3">Khách Hàng</th>
+                      <th className="py-2 px-3 text-right">Tổng Tiền Đơn</th>
+                      <th className="py-2 px-3 text-right">Số Tiền Giảm</th>
+                      <th className="py-2 px-3 text-center">Thời Gian</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {usageStats.recentUsages.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50/50">
+                        <td className="py-2 px-3 font-mono font-bold text-slate-800">#{u.order?.code || u.order?.id}</td>
+                        <td className="py-2 px-3 text-slate-600">{u.user?.email || 'Khách hàng'}</td>
+                        <td className="py-2 px-3 text-right font-mono">{formatVND(u.order?.grandTotal)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600">-{formatVND(u.discount)}</td>
+                        <td className="py-2 px-3 text-center text-slate-400 text-[11px]">{new Date(u.createdAt).toLocaleString('vi-VN')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {/* Min Order & Usage Limit */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Đơn hàng tối thiểu (VNĐ)
-              </label>
-              <input
-                type="number"
-                min={0}
-                step={1000}
-                value={form.minOrderAmount || 0}
-                onChange={(e) => setForm({ ...form, minOrderAmount: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Tổng lượt sử dụng (0 = vô hạn)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={form.totalUsage || 0}
-                onChange={(e) => setForm({ ...form, totalUsage: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-          </div>
+      {/* 4. Filter Tabs & Search */}
+      <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+        <SellerFilterTabs
+          tabs={[
+            { id: 'ALL', label: 'Tất Cả', count: counts.total },
+            { id: 'ACTIVE', label: 'Đang Hoạt Động', count: counts.active },
+            { id: 'INACTIVE', label: 'Tạm Tắt', count: counts.inactive },
+            { id: 'EXPIRED', label: 'Hết Hạn', count: counts.expired },
+            { id: 'USED_UP', label: 'Hết Lượt Dùng', count: counts.usedUp },
+          ]}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+        />
 
-          {/* Date Range */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Bắt đầu
-              </label>
-              <input
-                type="datetime-local"
-                value={form.startsAt}
-                onChange={(e) => setForm({ ...form, startsAt: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-                Hết hạn
-              </label>
-              <input
-                type="datetime-local"
-                value={form.expiresAt}
-                onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors"
-              />
-            </div>
-          </div>
-
-          {/* Description */}
-          <div>
-            <label className="block text-xs font-bold text-[var(--theme-text,#1c1b1f)] mb-1.5">
-              Mô tả (tùy chọn)
-            </label>
-            <textarea
-              value={form.description || ''}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
-              placeholder="VD: Áp dụng cho đơn hàng từ 200.000đ trở lên"
-              rows={2}
-              className="w-full px-4 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-white dark:bg-gray-800 text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] transition-colors resize-none"
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center gap-3 pt-2">
+        <div className="relative w-full md:w-72 shrink-0">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
+            search
+          </span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm theo mã hoặc tên voucher..."
+            className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+          />
+          {searchQuery && (
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] text-sm font-semibold text-[var(--theme-text,#1c1b1f)] hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
             >
-              Hủy
+              <span className="material-symbols-outlined text-xs">close</span>
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-sm font-bold hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {saving ? (
-                <>
-                  <span className="material-symbols-outlined text-[16px] animate-spin">progress_activity</span>
-                  <span>Đang lưu...</span>
-                </>
-              ) : (
-                <span>{isEditing ? 'Cập Nhật' : 'Tạo Voucher'}</span>
-              )}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       </div>
+
+      {/* 5. Vouchers Table */}
+      <SellerTableContainer minWidth="min-w-[1200px]">
+        {loading ? (
+          <div className="py-16 text-center text-slate-500">
+            <div className="w-9 h-9 border-3 border-[#00875A] border-t-transparent rounded-full animate-spin mx-auto"></div>
+            <p className="font-medium text-xs mt-2.5">Đang tải danh sách voucher...</p>
+          </div>
+        ) : filteredVouchers.length === 0 ? (
+          <div className="py-16 text-center text-slate-400 text-xs">
+            <div className="flex flex-col items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-3xl text-slate-300">
+                confirmation_number
+              </span>
+              <p className="font-semibold text-slate-700">Chưa có voucher nào</p>
+              <p className="text-[11.5px] text-slate-400">
+                {vouchers.length === 0
+                  ? 'Gian hàng chưa tạo mã giảm giá nào. Hãy bấm "Tạo Voucher Mới" để bắt đầu!'
+                  : 'Không tìm thấy voucher nào phù hợp với bộ lọc.'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                <th className="py-3.5 pl-5 pr-3 w-40">Mã Voucher</th>
+                <th className="py-3.5 px-3 min-w-[220px]">Chương Trình &amp; Loại</th>
+                <th className="py-3.5 px-3 w-48">Mức Giảm &amp; Điều Kiện</th>
+                <th className="py-3.5 px-3 w-36 text-center">Lượt Sử Dụng</th>
+                <th className="py-3.5 px-3 w-48 text-center">Thời Gian Áp Dụng</th>
+                <th className="py-3.5 px-3 w-32 text-center">Trạng Thái</th>
+                <th className="py-3.5 pl-3 pr-5 w-48 text-center">Thao Tác</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {paginatedVouchers.map((voucher) => {
+                const now = new Date();
+                const isExpired = new Date(voucher.expiresAt) < now;
+                const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
+                const isActionLoading = actionLoadingId === voucher.id;
+
+                let statusBadgeVariant: any = 'success';
+                let statusLabel = 'Đang Bán';
+
+                if (isExpired || voucher.status === 'EXPIRED') {
+                  statusBadgeVariant = 'danger';
+                  statusLabel = 'Hết Hạn';
+                } else if (isUsedUp || voucher.status === 'USED_UP') {
+                  statusBadgeVariant = 'warning';
+                  statusLabel = 'Hết Lượt';
+                } else if (voucher.status === 'INACTIVE') {
+                  statusBadgeVariant = 'neutral';
+                  statusLabel = 'Tạm Tắt';
+                } else {
+                  statusBadgeVariant = 'success';
+                  statusLabel = 'Hoạt Động';
+                }
+
+                return (
+                  <tr key={voucher.id} className="hover:bg-slate-50/60 transition-colors">
+                    {/* Code */}
+                    <td className="py-3.5 pl-5 pr-3">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-[#00875A] border border-emerald-200 font-mono font-black text-xs">
+                        <span className="material-symbols-outlined text-[14px]">sell</span>
+                        <span>{voucher.code}</span>
+                      </div>
+                    </td>
+
+                    {/* Name & Type & Target Audience */}
+                    <td className="py-3.5 px-3">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-800 line-clamp-1">{voucher.name}</span>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium border border-slate-200">
+                            {formatVoucherType(voucher.type)}
+                          </span>
+
+                          {/* Audience Badge */}
+                          {voucher.targetAudience === 'FOLLOWERS_ONLY' ? (
+                            <Link
+                              href="/seller/followers"
+                              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full bg-pink-50 text-pink-700 font-bold border border-pink-200 hover:bg-pink-100 transition-colors"
+                              title={`Voucher độc quyền cho ${formatFollowerRequirement(voucher.minFollowDays).label}. Nhấp để xem danh sách Followers`}
+                            >
+                              <span className="material-symbols-outlined text-[12px] text-pink-600">
+                                {voucher.minFollowDays && voucher.minFollowDays >= 365
+                                  ? 'diamond'
+                                  : voucher.minFollowDays && voucher.minFollowDays >= 90
+                                  ? 'workspace_premium'
+                                  : voucher.minFollowDays && voucher.minFollowDays >= 30
+                                  ? 'military_tech'
+                                  : 'favorite'}
+                              </span>
+                              <span>{formatFollowerRequirement(voucher.minFollowDays).badge}</span>
+                            </Link>
+                          ) : voucher.targetAudience === 'NEW_CUSTOMERS_ONLY' ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200"
+                              title="Áp dụng cho đơn hàng đầu tiên của khách mua"
+                            >
+                              <span className="material-symbols-outlined text-[12px] text-amber-600">person_add</span>
+                              <span>Khách mới</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-slate-50 text-slate-500 font-normal border border-slate-200/60">
+                              <span className="material-symbols-outlined text-[11px] text-slate-400">public</span>
+                              <span>Tất cả</span>
+                            </span>
+                          )}
+
+                          {voucher.maxUsagePerUser && (
+                            <span className="text-[10px] text-slate-400">
+                              (Tối đa {voucher.maxUsagePerUser} lần/khách)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Value & Min Order */}
+                    <td className="py-3.5 px-3">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-[#00875A]">
+                          {formatDiscountValue(voucher.type, voucher.value)}
+                        </span>
+                        <span className="text-[11px] text-slate-500 mt-0.5">
+                          Đơn từ {formatVND(voucher.minOrderAmount)}
+                        </span>
+                        {voucher.type === 'PERCENTAGE' && voucher.maxDiscountAmount && (
+                          <span className="text-[10px] text-slate-400">
+                            Tối đa: {formatVND(voucher.maxDiscountAmount)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Usage Count */}
+                    <td className="py-3.5 px-3 text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="font-mono font-bold text-slate-800">
+                          {voucher.currentUsage} / {voucher.totalUsage || '∞'}
+                        </span>
+                        {voucher.totalUsage > 0 && (
+                          <div className="w-16 h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                isUsedUp ? 'bg-amber-500' : 'bg-[#00875A]'
+                              }`}
+                              style={{
+                                width: `${Math.min(100, (voucher.currentUsage / voucher.totalUsage) * 100)}%`,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Validity */}
+                    <td className="py-3.5 px-3 text-center">
+                      <div className="flex flex-col text-[11px] text-slate-600">
+                        <span>{new Date(voucher.startsAt).toLocaleDateString('vi-VN')}</span>
+                        <span className="text-slate-400 text-[10px]">đến</span>
+                        <span className={isExpired ? 'text-rose-600 font-bold' : 'font-medium'}>
+                          {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* Status */}
+                    <td className="py-3.5 px-3 text-center">
+                      <SellerStatusBadge variant={statusBadgeVariant} label={statusLabel} />
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 pl-3 pr-5 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        {/* Toggle Activate / Deactivate */}
+                        {!isExpired && (
+                          <SellerActionButton
+                            size="sm"
+                            variant={voucher.status === 'ACTIVE' ? 'warning' : 'success'}
+                            icon={voucher.status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
+                            title={voucher.status === 'ACTIVE' ? 'Tạm tắt voucher' : 'Kích hoạt voucher'}
+                            loading={isActionLoading}
+                            onClick={() => handleToggleStatus(voucher)}
+                          />
+                        )}
+
+                        {/* View Stats */}
+                        <SellerActionButton
+                          size="sm"
+                          variant="info"
+                          icon="analytics"
+                          title="Xem thống kê sử dụng"
+                          onClick={() => handleOpenStats(voucher)}
+                        />
+
+                        {/* Edit */}
+                        <SellerActionButton
+                          size="sm"
+                          variant="edit"
+                          icon="edit"
+                          title="Chỉnh sửa voucher"
+                          onClick={() => handleOpenEdit(voucher)}
+                        />
+
+                        {/* Delete (only if currentUsage === 0) */}
+                        {voucher.currentUsage === 0 && (
+                          <SellerActionButton
+                            size="sm"
+                            variant="danger"
+                            icon="delete"
+                            title="Xóa voucher"
+                            loading={isActionLoading}
+                            onClick={() => handleDeleteVoucher(voucher)}
+                          />
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        <SellerPagination
+          currentPage={validPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          itemLabel="voucher"
+        />
+      </SellerTableContainer>
     </div>
   );
 }
-
-export default SellerVouchersView;

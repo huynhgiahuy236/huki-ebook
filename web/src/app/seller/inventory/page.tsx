@@ -1,12 +1,17 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { catalogApi, InventoryReason, BookFormat } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
-import { InventoryLogsModal } from '@/ui/components/seller/InventoryLogsModal';
+import {
+  SellerTableContainer,
+  SellerStatusBadge,
+  SellerActionButton,
+  SellerFilterTabs,
+  SellerPagination,
+} from '@/ui/components/seller/SellerUI';
 
 interface InventoryBook {
   id: string;
@@ -25,8 +30,17 @@ interface InventoryBook {
   };
 }
 
-interface AdjustModalState {
-  isOpen: boolean;
+interface InventoryLogItem {
+  id: string;
+  change?: number;
+  reason?: InventoryReason | string;
+  createdAt?: string;
+  note?: string;
+  previousStock?: number;
+  newStock?: number;
+}
+
+interface AdjustState {
   book: InventoryBook | null;
   operation: 'ADD' | 'SUBTRACT' | 'SET';
   quantity: number;
@@ -42,35 +56,18 @@ export default function SellerInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
-  const [selectedBookForLogs, setSelectedBookForLogs] = useState<InventoryBook | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // In-Page Adjust State (NO POPUP)
+  const [adjustState, setAdjustState] = useState<AdjustState | null>(null);
 
-  // Modal State for Restock / Adjust
-  const [adjustModal, setAdjustModal] = useState<AdjustModalState>({
-    isOpen: false,
-    book: null,
-    operation: 'ADD',
-    quantity: 10,
-    reason: 'RESTOCK' as any,
-    note: '',
-    submitting: false,
-  });
-
-  // ESC key listener to close adjust modal
-  useEffect(() => {
-    if (!adjustModal.isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setAdjustModal((p) => ({ ...p, isOpen: false }));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [adjustModal.isOpen]);
+  // In-Page Logs State (NO POPUP)
+  const [logBook, setLogBook] = useState<InventoryBook | null>(null);
+  const [logs, setLogs] = useState<InventoryLogItem[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+  const [logPage, setLogPage] = useState(1);
+  const [logTotalPages, setLogTotalPages] = useState(1);
 
   const fetchInventory = useCallback(async () => {
     try {
@@ -93,7 +90,6 @@ export default function SellerInventoryPage() {
           bookList = Array.isArray(res.data) ? res.data : (res.data as any).data || (res.data as any).items || [];
         }
       } catch {
-        // Fallback to public books if seller endpoint not accessible
         const pubRes = await catalogApi.getPublicBooks({ limit: 100 });
         if (pubRes.data) {
           bookList = Array.isArray(pubRes.data) ? pubRes.data : (pubRes.data as any).data || (pubRes.data as any).items || [];
@@ -166,9 +162,15 @@ export default function SellerInventoryPage() {
     });
   }, [books, search, filterStatus]);
 
+  const totalPages = Math.ceil(filteredBooks.length / pageSize) || 1;
+  const paginatedBooks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredBooks.slice(start, start + pageSize);
+  }, [filteredBooks, currentPage, pageSize]);
+
   const handleOpenAdjust = (book: InventoryBook, operation: 'ADD' | 'SUBTRACT' | 'SET' = 'ADD') => {
-    setAdjustModal({
-      isOpen: true,
+    setLogBook(null); // Close log if open
+    setAdjustState({
       book,
       operation,
       quantity: operation === 'ADD' ? 10 : 1,
@@ -180,323 +182,182 @@ export default function SellerInventoryPage() {
 
   const handleSaveAdjust = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!adjustModal.book) return;
+    if (!adjustState?.book) return;
 
     try {
-      setAdjustModal((prev) => ({ ...prev, submitting: true }));
-      await catalogApi.updateInventory(adjustModal.book.id, {
-        operation: adjustModal.operation,
-        quantity: Number(adjustModal.quantity),
-        reason: adjustModal.reason,
-        note: adjustModal.note,
+      setAdjustState((prev) => (prev ? { ...prev, submitting: true } : null));
+      await catalogApi.updateInventory(adjustState.book.id, {
+        operation: adjustState.operation,
+        quantity: Number(adjustState.quantity),
+        reason: adjustState.reason,
+        note: adjustState.note,
       });
 
       showToast?.(
-        `Đã cập nhật tồn kho cho "${adjustModal.book.title}" thành công!`,
+        `Đã cập nhật tồn kho cho "${adjustState.book.title}" thành công!`,
         'success'
       );
-      setAdjustModal((prev) => ({ ...prev, isOpen: false }));
+      setAdjustState(null);
       await fetchInventory();
     } catch (err: any) {
       console.error('Failed to update inventory', err);
       showToast?.(err?.message || 'Cập nhật tồn kho thất bại', 'error');
-      setAdjustModal((prev) => ({ ...prev, submitting: false }));
+      setAdjustState((prev) => (prev ? { ...prev, submitting: false } : null));
     }
   };
 
+  // Fetch In-Page History Logs
+  const fetchLogs = async (book: InventoryBook, pageNum = 1) => {
+    setAdjustState(null); // Close adjust form if open
+    setLogBook(book);
+    try {
+      setLoadingLogs(true);
+      const res = await catalogApi.getInventoryLogs(book.id, { page: pageNum, limit: 8 });
+      if (res) {
+        const payload = (res.data as any)?.data || (res.data as any)?.items || res.data || [];
+        const logList = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+        const meta = (res.data as any)?.meta || (res as any).meta || {};
+        setLogs(Array.isArray(logList) ? logList : []);
+        setLogPage(meta.page || pageNum);
+        setLogTotalPages(meta.totalPages || 1);
+      }
+    } catch (err) {
+      console.error('Failed to load inventory logs', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const tabs = [
+    { key: 'ALL', label: 'Tất cả', count: metrics.totalTitles },
+    { key: 'IN_STOCK', label: 'Còn hàng', count: metrics.totalTitles - metrics.outOfStockCount - metrics.lowStockCount },
+    { key: 'LOW_STOCK', label: 'Sắp hết (≤ 5)', count: metrics.lowStockCount },
+    { key: 'OUT_OF_STOCK', label: 'Hết hàng (0)', count: metrics.outOfStockCount },
+  ];
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-[1600px] mx-auto space-y-5">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-2xl">inventory</span>
-            Quản Lý Tồn Kho 3 Tầng (3-Tier Inventory)
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-200/60">
+              <span className="material-symbols-outlined text-[20px]">warehouse</span>
+            </span>
+            <span>Quản Lý Tồn Kho 3 Tầng</span>
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Kiểm soát chính xác Tồn thực tế (On-Hand), Tạm giữ (Reserved), và Khả dụng (Available) với cơ chế khóa nguyên tử chống Race Condition.
+          <p className="text-xs text-slate-500 mt-1">
+            Kiểm soát Tồn thực tế (On-Hand), Tạm giữ (Reserved) và Khả dụng (Available) với cơ chế khóa nguyên tử
           </p>
         </div>
-        <button
+        <SellerActionButton
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon="refresh"
+          loading={loading}
           onClick={fetchInventory}
-          className="px-3.5 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-800 hover:bg-gray-50 text-gray-700 dark:text-gray-200 text-xs font-semibold flex items-center gap-1.5 shadow-2xs self-start cursor-pointer"
         >
-          <span className="material-symbols-outlined text-base">refresh</span>
-          Làm mới
-        </button>
+          Làm Mới
+        </SellerActionButton>
       </div>
 
       {/* 4 Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-semibold">Đầu Sách Vật Lý</span>
-            <span className="material-symbols-outlined text-blue-600 bg-blue-50 p-1.5 rounded-lg text-lg">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold">Đầu Sách Vật Lý</span>
+            <span className="material-symbols-outlined text-slate-500 bg-slate-100 p-1.5 rounded-lg text-base">
               menu_book
             </span>
           </div>
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.totalTitles}</div>
-          <span className="text-[11px] text-gray-400">Ấn bản sách giấy</span>
+          <div className="text-xl font-bold text-slate-900">{metrics.totalTitles}</div>
+          <span className="text-[11px] text-slate-400">Ấn bản sách giấy</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-semibold">Tổng Tồn Thực (On-Hand)</span>
-            <span className="material-symbols-outlined text-primary bg-primary/10 p-1.5 rounded-lg text-lg">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold">Tồn Thực (On-Hand)</span>
+            <span className="material-symbols-outlined text-indigo-600 bg-indigo-50 p-1.5 rounded-lg text-base">
               warehouse
             </span>
           </div>
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{metrics.totalOnHand}</div>
-          <span className="text-[11px] text-gray-400">Hiện có trong kho</span>
+          <div className="text-xl font-bold text-indigo-600">{metrics.totalOnHand}</div>
+          <span className="text-[11px] text-slate-400">Hiện có trong kho</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-semibold">Đang Tạm Giữ (Reserved)</span>
-            <span className="material-symbols-outlined text-amber-600 bg-amber-50 p-1.5 rounded-lg text-lg">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold">Tạm Giữ (Reserved)</span>
+            <span className="material-symbols-outlined text-amber-600 bg-amber-50 p-1.5 rounded-lg text-base">
               lock_clock
             </span>
           </div>
-          <div className="text-2xl font-bold text-amber-600">{metrics.totalReserved}</div>
-          <span className="text-[11px] text-gray-400">Đơn chờ thanh toán</span>
+          <div className="text-xl font-bold text-amber-600">{metrics.totalReserved}</div>
+          <span className="text-[11px] text-slate-400">Đơn chờ thanh toán</span>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between text-gray-500 mb-2">
-            <span className="text-xs font-semibold">Sẵn Sàng Bán (Available)</span>
-            <span className="material-symbols-outlined text-emerald-600 bg-emerald-50 p-1.5 rounded-lg text-lg">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[11px] font-semibold">Khả Dụng (Available)</span>
+            <span className="material-symbols-outlined text-emerald-600 bg-emerald-50 p-1.5 rounded-lg text-base">
               check_circle
             </span>
           </div>
-          <div className="text-2xl font-bold text-emerald-600">{metrics.totalAvailable}</div>
-          <span className="text-[11px] text-gray-400">Người mua có thể đặt</span>
+          <div className="text-xl font-bold text-emerald-600">{metrics.totalAvailable}</div>
+          <span className="text-[11px] text-slate-400">Người mua có thể đặt</span>
         </div>
       </div>
 
-      {/* Filter & Search Bar */}
-      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row gap-3 items-center justify-between">
-        <div className="relative w-full sm:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-lg">
-            search
-          </span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo tên sách hoặc ISBN..."
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary"
-          />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          {[
-            { id: 'ALL', label: 'Tất cả' },
-            { id: 'IN_STOCK', label: 'Còn hàng' },
-            { id: 'LOW_STOCK', label: 'Sắp hết (≤ 5)' },
-            { id: 'OUT_OF_STOCK', label: 'Hết hàng (0)' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterStatus(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
-                filterStatus === tab.id
-                  ? 'bg-primary text-white shadow-2xs'
-                  : 'bg-gray-50 dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Inventory Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-xs overflow-hidden">
-        {loading ? (
-          <div className="py-16 flex flex-col items-center justify-center gap-2 text-gray-400">
-            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs">Đang tải bảng tồn kho...</span>
-          </div>
-        ) : filteredBooks.length === 0 ? (
-          <div className="py-16 text-center text-gray-400">
-            <span className="material-symbols-outlined text-4xl block mb-2 opacity-40">search_off</span>
-            <p className="text-sm">Không tìm thấy sách nào phù hợp với bộ lọc.</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-600 dark:text-gray-300">
-              <thead className="bg-gray-50/70 dark:bg-slate-800/60 border-b border-gray-100 dark:border-slate-800 text-gray-500 dark:text-gray-400 font-bold uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-3.5 px-4">Sách & Thông Tin</th>
-                  <th className="py-3.5 px-3 text-center">Tồn Thực (On-Hand)</th>
-                  <th className="py-3.5 px-3 text-center">Tạm Giữ (Reserved)</th>
-                  <th className="py-3.5 px-3 text-center">Khả Dụng (Available)</th>
-                  <th className="py-3.5 px-3 text-center">Trạng Thái Kho</th>
-                  <th className="py-3.5 px-4 text-right min-w-[240px] whitespace-nowrap">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-slate-800 font-medium">
-                {filteredBooks.map((book) => {
-                  const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
-                  const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
-                  const available = Math.max(0, stock - reserved);
-
-                  return (
-                    <tr key={book.id} className="hover:bg-gray-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      {/* Book info */}
-                      <td className="py-3.5 px-4 flex items-center gap-3">
-                        <div className="w-10 h-14 rounded-lg bg-gray-100 dark:bg-slate-800 overflow-hidden shrink-0 border border-gray-200 dark:border-slate-700">
-                          <img
-                            src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
-                            alt={book.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0 max-w-xs">
-                          <span className="font-bold text-gray-900 dark:text-white block truncate">{book.title}</span>
-                          <span className="text-[11px] text-gray-400 block truncate">
-                            ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {typeof book.author === 'object' ? book.author?.name : book.author || 'N/A'}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* On-hand */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="font-bold text-gray-800 dark:text-gray-200 text-sm">{stock}</span>
-                      </td>
-
-                      {/* Reserved */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span className={`font-bold text-sm ${reserved > 0 ? 'text-amber-600' : 'text-gray-400'}`}>
-                          {reserved}
-                        </span>
-                      </td>
-
-                      {/* Available */}
-                      <td className="py-3.5 px-3 text-center">
-                        <span
-                          className={`font-bold text-sm ${
-                            available === 0
-                              ? 'text-red-600'
-                              : available <= 5
-                              ? 'text-amber-600'
-                              : 'text-emerald-700 dark:text-emerald-400'
-                          }`}
-                        >
-                          {available}
-                        </span>
-                      </td>
-
-                      {/* Status Badge */}
-                      <td className="py-3.5 px-3 text-center">
-                        {available === 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-400">
-                            Hết hàng
-                          </span>
-                        ) : available <= 5 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 animate-pulse">
-                            Sắp hết ({available})
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
-                            Còn hàng
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right min-w-[240px] whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5 flex-nowrap">
-                          <button
-                            onClick={() => handleOpenAdjust(book, 'ADD')}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 hover:bg-emerald-100 font-semibold text-[11px] flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                            title="Nhập thêm hàng vào kho"
-                          >
-                            <span className="material-symbols-outlined text-sm">add_box</span>
-                            Nhập kho
-                          </button>
-
-                          <button
-                            onClick={() => handleOpenAdjust(book, 'SET')}
-                            className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-slate-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 font-semibold text-[11px] flex items-center gap-1 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                            title="Điều chỉnh hoặc kiểm kê tồn kho"
-                          >
-                            <span className="material-symbols-outlined text-sm">tune</span>
-                            Điều chỉnh
-                          </button>
-
-                          <button
-                            onClick={() => setSelectedBookForLogs(book)}
-                            className="p-1 rounded-lg text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors shrink-0 cursor-pointer"
-                            title="Xem lịch sử biến động kho"
-                          >
-                            <span className="material-symbols-outlined text-base">history</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* Adjust / Restock Modal via Portal */}
-      {adjustModal.isOpen && mounted && typeof document !== 'undefined' && createPortal(
-        <div
-          onClick={() => setAdjustModal((p) => ({ ...p, isOpen: false }))}
-          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn"
-          style={{ margin: 0, top: 0, left: 0, right: 0, bottom: 0 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full shadow-2xl p-6 border border-gray-100 dark:border-slate-800 animate-scaleIn"
-          >
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-slate-800 mb-4">
-              <h3 className="font-bold text-gray-900 dark:text-white text-base flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary">
-                  {adjustModal.operation === 'ADD' ? 'add_box' : 'tune'}
-                </span>
-                {adjustModal.operation === 'ADD' ? 'Nhập Thêm Tồn Kho' : 'Điều Chỉnh Tồn Kho'}
+      {/* In-Page Collapsible Adjust Box (NO POPUP) */}
+      {adjustState?.book && (
+        <div className="p-5 rounded-2xl bg-white border-2 border-indigo-200 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+            <div className="flex items-center gap-2 text-indigo-700">
+              <span className="material-symbols-outlined text-lg">
+                {adjustState.operation === 'ADD' ? 'add_box' : 'tune'}
+              </span>
+              <h3 className="font-bold text-sm text-slate-900">
+                {adjustState.operation === 'ADD' ? 'Nhập Thêm Tồn Kho' : 'Điều Chỉnh / Kiểm Kê Tồn Kho'} · {adjustState.book.title}
               </h3>
-              <button
-                onClick={() => setAdjustModal((p) => ({ ...p, isOpen: false }))}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setAdjustState(null)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
 
-            <p className="text-xs text-gray-600 dark:text-gray-300 mb-4">
-              Sách: <strong className="text-gray-900 dark:text-white">{adjustModal.book?.title}</strong>
-            </p>
-
-            <form onSubmit={handleSaveAdjust} className="space-y-4">
-              {/* Operation type */}
+          <form onSubmit={handleSaveAdjust} className="space-y-4 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Phương thức:</label>
-                <div className="grid grid-cols-3 gap-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Phương thức thay đổi:</label>
+                <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { id: 'ADD', label: 'Cộng thêm (+)' },
-                    { id: 'SUBTRACT', label: 'Trừ bớt (-)' },
-                    { id: 'SET', label: 'Đặt lại (=)' },
+                    { id: 'ADD', label: '+ Thêm' },
+                    { id: 'SUBTRACT', label: '- Trừ' },
+                    { id: 'SET', label: '= Đặt lại' },
                   ].map((op) => (
                     <button
                       key={op.id}
                       type="button"
                       onClick={() =>
-                        setAdjustModal((p) => ({
-                          ...p,
-                          operation: op.id as any,
-                          reason: (op.id === 'ADD' ? 'RESTOCK' : op.id === 'SUBTRACT' ? 'DAMAGED' : 'MANUAL_ADJUSTMENT') as any,
-                        }))
+                        setAdjustState((p) =>
+                          p
+                            ? {
+                                ...p,
+                                operation: op.id as any,
+                                reason: (op.id === 'ADD' ? 'RESTOCK' : op.id === 'SUBTRACT' ? 'DAMAGED' : 'MANUAL_ADJUSTMENT') as any,
+                              }
+                            : null
+                        )
                       }
                       className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-                        adjustModal.operation === op.id
-                          ? 'border-primary bg-primary/10 text-primary'
-                          : 'border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50'
+                        adjustState.operation === op.id
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
                       }`}
                     >
                       {op.label}
@@ -505,28 +366,26 @@ export default function SellerInventoryPage() {
                 </div>
               </div>
 
-              {/* Quantity */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                  {adjustModal.operation === 'SET' ? 'Số lượng tồn mới sau kiểm kê:' : 'Số lượng thay đổi:'}
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  {adjustState.operation === 'SET' ? 'Tồn mới sau kiểm kê:' : 'Số lượng thay đổi:'}
                 </label>
                 <input
                   type="number"
                   min="1"
                   required
-                  value={adjustModal.quantity}
-                  onChange={(e) => setAdjustModal((p) => ({ ...p, quantity: Math.max(0, parseInt(e.target.value) || 0) }))}
-                  className="w-full px-3 py-2 text-sm rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary font-bold"
+                  value={adjustState.quantity}
+                  onChange={(e) => setAdjustState((p) => p ? { ...p, quantity: Math.max(0, parseInt(e.target.value) || 0) } : null)}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
                 />
               </div>
 
-              {/* Reason */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Lý do:</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">Lý do điều chỉnh:</label>
                 <select
-                  value={adjustModal.reason}
-                  onChange={(e) => setAdjustModal((p) => ({ ...p, reason: e.target.value as any }))}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-slate-700 focus:outline-none focus:border-primary bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+                  value={adjustState.reason}
+                  onChange={(e) => setAdjustState((p) => p ? { ...p, reason: e.target.value as any } : null)}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
                 >
                   <option value="RESTOCK">Nhập thêm hàng từ NXB (RESTOCK)</option>
                   <option value="MANUAL_ADJUSTMENT">Kiểm kê định kỳ (MANUAL_ADJUSTMENT)</option>
@@ -535,48 +394,316 @@ export default function SellerInventoryPage() {
                   <option value="CORRECTION">Sửa sai lệch số liệu (CORRECTION)</option>
                 </select>
               </div>
+            </div>
 
-              {/* Note */}
-              <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">Ghi chú (Tùy chọn):</label>
-                <input
-                  type="text"
-                  placeholder="Ví dụ: Nhập 50 cuốn từ đợt in mới..."
-                  value={adjustModal.note}
-                  onChange={(e) => setAdjustModal((p) => ({ ...p, note: e.target.value }))}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-900 dark:text-white focus:outline-none focus:border-primary"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú (Tùy chọn):</label>
+              <input
+                type="text"
+                placeholder="Ví dụ: Nhập 50 cuốn từ đợt in mới..."
+                value={adjustState.note}
+                onChange={(e) => setAdjustState((p) => p ? { ...p, note: e.target.value } : null)}
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
 
-              {/* Actions */}
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setAdjustModal((p) => ({ ...p, isOpen: false }))}
-                  className="w-1/2 py-2 rounded-xl border border-gray-200 dark:border-slate-700 font-semibold text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 cursor-pointer"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
-                  disabled={adjustModal.submitting}
-                  className="w-1/2 py-2 rounded-xl bg-primary hover:bg-primary-hover font-semibold text-xs text-white shadow-2xs disabled:opacity-50 cursor-pointer"
-                >
-                  {adjustModal.submitting ? 'Đang lưu...' : 'Xác nhận'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <SellerActionButton
+                type="button"
+                variant="neutral"
+                size="sm"
+                onClick={() => setAdjustState(null)}
+              >
+                Hủy
+              </SellerActionButton>
+              <SellerActionButton
+                type="submit"
+                variant="primary"
+                size="sm"
+                loading={adjustState.submitting}
+                icon="check"
+              >
+                Xác Nhận Cập Nhật
+              </SellerActionButton>
+            </div>
+          </form>
+        </div>
       )}
 
-      {/* History Log Modal */}
-      <InventoryLogsModal
-        book={selectedBookForLogs}
-        isOpen={Boolean(selectedBookForLogs)}
-        onClose={() => setSelectedBookForLogs(null)}
-      />
+      {/* In-Page Collapsible History Log Box (NO POPUP) */}
+      {logBook && (
+        <div className="p-5 rounded-2xl bg-white border-2 border-slate-300 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2 text-slate-800">
+              <span className="material-symbols-outlined text-lg text-emerald-600">history</span>
+              <h3 className="font-bold text-sm text-slate-900">
+                Lịch Sử Biến Động Tồn Kho · {logBook.title}
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setLogBook(null)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+
+          {loadingLogs ? (
+            <div className="py-8 text-center text-slate-400">
+              <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+              <p className="text-xs mt-1">Đang tải lịch sử...</p>
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="py-6 text-center text-slate-400 text-xs">
+              Chưa có ghi nhận biến động nào cho đầu sách này.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-semibold text-[11px] border-b border-slate-100">
+                    <th className="py-2 px-3">Thời Gian</th>
+                    <th className="py-2 px-3">Lý Do</th>
+                    <th className="py-2 px-3 text-center">Biến Động</th>
+                    <th className="py-2 px-3 text-center">Tồn Trước</th>
+                    <th className="py-2 px-3 text-center">Tồn Sau</th>
+                    <th className="py-2 px-3">Ghi Chú</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {logs.map((log) => {
+                    const changeNum = Number(log.change || 0);
+                    return (
+                      <tr key={log.id} className="hover:bg-slate-50/60">
+                        <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">
+                          {log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : '—'}
+                        </td>
+                        <td className="py-2 px-3 font-semibold text-slate-700">
+                          {log.reason || 'Điều chỉnh'}
+                        </td>
+                        <td className="py-2 px-3 text-center font-bold">
+                          <span className={changeNum > 0 ? 'text-emerald-600' : changeNum < 0 ? 'text-rose-600' : 'text-slate-600'}>
+                            {changeNum > 0 ? `+${changeNum}` : changeNum}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-center text-slate-500 font-mono">
+                          {log.previousStock ?? '—'}
+                        </td>
+                        <td className="py-2 px-3 text-center font-bold text-slate-800 font-mono">
+                          {log.newStock ?? '—'}
+                        </td>
+                        <td className="py-2 px-3 text-slate-500 max-w-[200px] truncate">
+                          {log.note || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {logTotalPages > 1 && (
+                <div className="pt-3 flex items-center justify-end gap-2">
+                  <button
+                    disabled={logPage <= 1}
+                    onClick={() => fetchLogs(logBook, logPage - 1)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs disabled:opacity-40"
+                  >
+                    Trang trước
+                  </button>
+                  <span className="text-xs text-slate-500">{logPage} / {logTotalPages}</span>
+                  <button
+                    disabled={logPage >= logTotalPages}
+                    onClick={() => fetchLogs(logBook, logPage + 1)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 text-xs disabled:opacity-40"
+                  >
+                    Trang sau
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Filter & Search Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+        <SellerFilterTabs
+          tabs={tabs}
+          activeTab={filterStatus}
+          onChange={(key) => {
+            setFilterStatus(key as any);
+            setCurrentPage(1);
+          }}
+        />
+
+        <div className="relative min-w-[200px] sm:min-w-[260px]">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder="Tìm theo tên sách hoặc ISBN..."
+            className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xs">close</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Inventory Table Container */}
+      <SellerTableContainer minWidth="min-w-[1280px]">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
+              <th className="py-3.5 px-4">Sách & Thông Tin</th>
+              <th className="py-3.5 px-3 text-center">Tồn Thực (On-Hand)</th>
+              <th className="py-3.5 px-3 text-center">Tạm Giữ (Reserved)</th>
+              <th className="py-3.5 px-3 text-center">Khả Dụng (Available)</th>
+              <th className="py-3.5 px-3 text-center">Trạng Thái Kho</th>
+              <th className="py-3.5 px-4 text-right">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 font-medium">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
+                    <span className="text-xs">Đang tải dữ liệu kho...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredBooks.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                    <span className="material-symbols-outlined text-4xl text-slate-300">inventory_2</span>
+                    <p className="font-medium text-slate-600">Không tìm thấy sách nào phù hợp.</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              paginatedBooks.map((book) => {
+                const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+                const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+                const available = Math.max(0, stock - reserved);
+
+                return (
+                  <tr key={book.id} className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
+                    {/* Book info */}
+                    <td className="py-3.5 px-4 flex items-center gap-3">
+                      <div className="w-10 h-14 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                        <img
+                          src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
+                          alt={book.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0 max-w-xs sm:max-w-md">
+                        <span className="font-bold text-slate-900 block truncate">{book.title}</span>
+                        <span className="text-[11px] text-slate-400 block truncate mt-0.5">
+                          ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {typeof book.author === 'object' ? book.author?.name : book.author || 'N/A'}
+                        </span>
+                      </div>
+                    </td>
+
+                    {/* On-hand */}
+                    <td className="py-3.5 px-3 text-center">
+                      <span className="font-bold text-slate-900 text-sm">{stock}</span>
+                    </td>
+
+                    {/* Reserved */}
+                    <td className="py-3.5 px-3 text-center">
+                      <span className={`font-bold text-sm ${reserved > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                        {reserved}
+                      </span>
+                    </td>
+
+                    {/* Available */}
+                    <td className="py-3.5 px-3 text-center">
+                      <span
+                        className={`font-bold text-sm ${
+                          available === 0
+                            ? 'text-rose-600'
+                            : available <= 5
+                            ? 'text-amber-600'
+                            : 'text-emerald-600'
+                        }`}
+                      >
+                        {available}
+                      </span>
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="py-3.5 px-3 text-center">
+                      {available === 0 ? (
+                        <SellerStatusBadge variant="danger" dot text="Hết hàng (0)" />
+                      ) : available <= 5 ? (
+                        <SellerStatusBadge variant="warning" dot text={`Sắp hết (${available})`} />
+                      ) : (
+                        <SellerStatusBadge variant="success" dot text="Còn hàng" />
+                      )}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <SellerActionButton
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          icon="add_box"
+                          onClick={() => handleOpenAdjust(book, 'ADD')}
+                        >
+                          Nhập Kho
+                        </SellerActionButton>
+
+                        <SellerActionButton
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          icon="tune"
+                          onClick={() => handleOpenAdjust(book, 'SET')}
+                        >
+                          Điều Chỉnh
+                        </SellerActionButton>
+
+                        <SellerActionButton
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          icon="history"
+                          onClick={() => fetchLogs(book, 1)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </SellerTableContainer>
+
+      {/* Pagination */}
+      {!loading && filteredBooks.length > 0 && (
+        <SellerPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
     </div>
   );
 }

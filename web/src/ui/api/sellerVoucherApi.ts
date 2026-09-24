@@ -10,6 +10,7 @@ import type { ApiResponse } from './types';
 
 export type VoucherType = 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
 export type VoucherStatus = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'USED_UP';
+export type VoucherTargetAudience = 'ALL' | 'FOLLOWERS_ONLY' | 'NEW_CUSTOMERS_ONLY';
 
 export interface Voucher {
   id: string;
@@ -23,6 +24,8 @@ export interface Voucher {
   scope: string;
   storeId?: string;
   store?: { id: string; name: string };
+  targetAudience?: VoucherTargetAudience;
+  minFollowDays?: number;
   totalUsage: number;
   maxUsagePerUser?: number;
   currentUsage: number;
@@ -41,7 +44,10 @@ export interface CreateVoucherPayload {
   value: number;
   minOrderAmount?: number;
   maxDiscountAmount?: number;
+  scope?: 'PLATFORM' | 'STORE';
   storeId?: string;
+  targetAudience?: VoucherTargetAudience;
+  minFollowDays?: number;
   totalUsage?: number;
   maxUsagePerUser?: number;
   startsAt: string;
@@ -55,6 +61,10 @@ export interface UpdateVoucherPayload {
   value?: number;
   minOrderAmount?: number;
   maxDiscountAmount?: number;
+  scope?: 'PLATFORM' | 'STORE';
+  storeId?: string;
+  targetAudience?: VoucherTargetAudience;
+  minFollowDays?: number;
   totalUsage?: number;
   maxUsagePerUser?: number;
   startsAt?: string;
@@ -245,3 +255,145 @@ export function formatDiscountValue(type: VoucherType, value: number): string {
       return `${value}`;
   }
 }
+
+/**
+ * Format target audience for display
+ */
+export function formatTargetAudience(targetAudience?: VoucherTargetAudience): { label: string; icon: string; description: string } {
+  switch (targetAudience) {
+    case 'FOLLOWERS_ONLY':
+      return {
+        label: 'Người theo dõi Shop',
+        icon: 'favorite',
+        description: 'Chỉ khách hàng đã nhấn Theo dõi gian hàng mới dùng được mã',
+      };
+    case 'NEW_CUSTOMERS_ONLY':
+      return {
+        label: 'Khách hàng mới',
+        icon: 'person_add',
+        description: 'Chỉ khách hàng chưa từng mua hàng tại Shop',
+      };
+    case 'ALL':
+    default:
+      return {
+        label: 'Tất cả khách hàng',
+        icon: 'public',
+        description: 'Bất kỳ người mua nào cũng có thể áp dụng mã',
+      };
+  }
+}
+
+/**
+ * Helper to calculate loyalty tier from follow days
+ */
+export function getFollowerBadge(daysOrDate: number | string | Date): {
+  tier: 'BRONZE' | 'SILVER' | 'GOLD' | 'DIAMOND';
+  label: string;
+  badge: string;
+  icon: string;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+  days: number;
+} {
+  let days = 0;
+  if (typeof daysOrDate === 'number') {
+    days = daysOrDate;
+  } else {
+    const d = new Date(daysOrDate);
+    const now = new Date();
+    days = Math.max(0, Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24)));
+  }
+
+  if (days >= 365) {
+    return {
+      tier: 'DIAMOND',
+      label: 'Fan Kim Cương (Tri Ân 1 Năm+)',
+      badge: '💎 Kim Cương (1 Năm+)',
+      icon: 'diamond',
+      colorClass: 'text-cyan-700',
+      bgClass: 'bg-gradient-to-r from-cyan-50 to-blue-50',
+      borderClass: 'border-cyan-300 text-cyan-800',
+      days,
+    };
+  }
+  if (days >= 90) {
+    return {
+      tier: 'GOLD',
+      label: 'Fan Vàng (Thân Thiết 3 Tháng+)',
+      badge: '🥇 Fan Vàng (3 Tháng+)',
+      icon: 'workspace_premium',
+      colorClass: 'text-amber-700',
+      bgClass: 'bg-gradient-to-r from-amber-50 to-yellow-50',
+      borderClass: 'border-amber-300 text-amber-800',
+      days,
+    };
+  }
+  if (days >= 30) {
+    return {
+      tier: 'SILVER',
+      label: 'Fan Bạc (Gắn Bó 1 Tháng+)',
+      badge: '🥈 Fan Bạc (1 Tháng+)',
+      icon: 'military_tech',
+      colorClass: 'text-slate-700',
+      bgClass: 'bg-gradient-to-r from-slate-100 to-gray-100',
+      borderClass: 'border-slate-300 text-slate-800',
+      days,
+    };
+  }
+  return {
+    tier: 'BRONZE',
+    label: 'Fan Đồng (Mới Theo Dõi)',
+    badge: '🥉 Fan Đồng (< 1 Tháng)',
+    icon: 'star',
+    colorClass: 'text-orange-700',
+    bgClass: 'bg-orange-50',
+    borderClass: 'border-orange-200 text-orange-800',
+    days,
+  };
+}
+
+/**
+ * Format follower tier requirement for vouchers
+ */
+export function formatFollowerRequirement(minFollowDays?: number): {
+  label: string;
+  badge: string;
+  icon: string;
+} {
+  const days = minFollowDays || 0;
+  if (days >= 365) {
+    return {
+      label: `Tri ân Fan Kim Cương (Theo dõi ≥ ${days} ngày / 1 năm)`,
+      badge: '💎 Fan Kim Cương (1 Năm+)',
+      icon: 'diamond',
+    };
+  }
+  if (days >= 90) {
+    return {
+      label: `Dành cho Fan Vàng (Theo dõi ≥ ${days} ngày / 3 tháng)`,
+      badge: '🥇 Fan Vàng (90 Ngày+)',
+      icon: 'workspace_premium',
+    };
+  }
+  if (days >= 30) {
+    return {
+      label: `Dành cho Fan Bạc (Theo dõi ≥ ${days} ngày / 1 tháng)`,
+      badge: '🥈 Fan Bạc (30 Ngày+)',
+      icon: 'military_tech',
+    };
+  }
+  if (days > 0) {
+    return {
+      label: `Người theo dõi gắn bó ≥ ${days} ngày`,
+      badge: `⭐ Theo dõi ≥ ${days} ngày`,
+      icon: 'verified',
+    };
+  }
+  return {
+    label: 'Tất cả người theo dõi Shop',
+    badge: 'Mọi Người Theo Dõi',
+    icon: 'favorite',
+  };
+}
+

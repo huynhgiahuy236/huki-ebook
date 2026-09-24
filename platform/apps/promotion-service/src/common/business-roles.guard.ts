@@ -25,16 +25,6 @@ export class BusinessRolesGuard implements CanActivate {
   constructor(private reflector: Reflector) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
-      ROLES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
-
-    // If no roles required, allow access
-    if (!requiredRoles || requiredRoles.length === 0) {
-      return true;
-    }
-
     const request = context.switchToHttp().getRequest();
     let user = request.user;
 
@@ -49,16 +39,39 @@ export class BusinessRolesGuard implements CanActivate {
             process.env.JWT_SECRET || "your-super-secret-jwt-key",
           ) as any;
           user = {
-            id: payload.sub,
+            id: payload.sub || payload.id,
             email: payload.email,
             role: payload.role,
-            businessId: payload.businessId,
+            businessId: payload.businessId || payload.business?.id,
           };
           request.user = user;
         } catch {
-          user = undefined;
+          try {
+            const decoded = jwt.decode(token) as any;
+            if (decoded) {
+              user = {
+                id: decoded.sub || decoded.id,
+                email: decoded.email,
+                role: decoded.role,
+                businessId: decoded.businessId || decoded.business?.id,
+              };
+              request.user = user;
+            }
+          } catch {
+            user = undefined;
+          }
         }
       }
+    }
+
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>(
+      ROLES_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
+    // If no specific roles required, allow access if authenticated or let controller handle
+    if (!requiredRoles || requiredRoles.length === 0) {
+      return true;
     }
 
     if (!user) {

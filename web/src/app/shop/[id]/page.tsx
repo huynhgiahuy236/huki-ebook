@@ -9,6 +9,8 @@ import BookCard, { type BookCardData } from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { businessApi, type BusinessData } from '@/ui/api/businessApi';
 import { catalogApi, toCatalogBook, type BookData } from '@/ui/api/catalogApi';
+import { voucherApi } from '@/ui/api/voucherApi';
+import { formatFollowerRequirement } from '@/ui/api/sellerVoucherApi';
 
 export default function ShopPage() {
   const params = useParams();
@@ -18,6 +20,8 @@ export default function ShopPage() {
 
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [shopVouchers, setShopVouchers] = useState<any[]>([]);
+  const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
   const [isLoadingStore, setIsLoadingStore] = useState(true);
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'new' | 'bestseller' | 'ebook' | 'physical' | 'hybrid'
   const [activeCategory, setActiveCategory] = useState('all');
@@ -259,7 +263,29 @@ export default function ShopPage() {
         }
       })
       .catch(() => setRealBooks([]));
+
+    // Fetch store vouchers from backend promotion service
+    const sId = business.stores?.[0]?.id;
+    if (sId) {
+      voucherApi
+        .getVouchersByStore(sId)
+        .then((res) => {
+          if (res.success && Array.isArray(res.data)) {
+            setShopVouchers(res.data.filter((v: any) => v.status === 'ACTIVE'));
+          }
+        })
+        .catch(() => setShopVouchers([]));
+    }
   }, [business]);
+
+  const handleSaveShopVoucher = (code: string) => {
+    if (savedVouchers.includes(code)) {
+      showToast(`Mã ${code} đã có trong ví của bạn!`, 'info');
+      return;
+    }
+    setSavedVouchers((prev) => [...prev, code]);
+    showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+  };
 
   const handleFollow = () => {
     setIsFollowed(prev => {
@@ -720,6 +746,105 @@ export default function ShopPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Shop Vouchers Showcase Banner */}
+      {shopVouchers.length > 0 && (
+        <section className="bg-gradient-to-r from-amber-500/10 via-pink-500/5 to-emerald-500/10 rounded-3xl p-5 border border-amber-500/20 mb-8 shadow-xs">
+          <div className="flex items-center justify-between mb-3.5">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-pink-600 text-white flex items-center justify-center shadow-xs">
+                <span className="material-symbols-outlined text-lg">loyalty</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                  <span>Mã Giảm Giá Gian Hàng</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-pink-100 text-pink-700 font-bold uppercase">
+                    Độc Quyền
+                  </span>
+                </h3>
+                <p className="text-[11px] text-gray-500">
+                  Thu thập voucher ưu đãi từ {business.name} trước khi mua sách
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {shopVouchers.map((v) => {
+              const isSaved = savedVouchers.includes(v.code);
+              const isFollowerVoucher = v.targetAudience === 'FOLLOWERS_ONLY';
+              const req = formatFollowerRequirement(v.minFollowDays);
+
+              return (
+                <div
+                  key={v.id || v.code}
+                  className={`bg-white rounded-2xl p-3.5 border border-dashed flex items-center justify-between gap-3 shadow-2xs transition-all hover:shadow-sm ${
+                    isFollowerVoucher ? 'border-pink-300 hover:border-pink-500' : 'border-amber-300 hover:border-amber-500'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-sm text-[#006953]">
+                        {v.type === 'PERCENTAGE' ? `Giảm ${v.value}%` : `Giảm ${Number(v.value).toLocaleString('vi-VN')}đ`}
+                      </span>
+                      <span className="font-mono text-[10px] bg-gray-100 px-1.5 py-0.2 rounded font-bold text-gray-700 border border-gray-200">
+                        {v.code}
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-gray-800 font-medium truncate mt-0.5">
+                      {v.name || `Voucher ${v.code}`}
+                    </p>
+
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-gray-500">
+                      <span>Đơn từ {Number(v.minOrderAmount || 0).toLocaleString('vi-VN')}đ</span>
+                      {isFollowerVoucher && (
+                        <>
+                          <span>•</span>
+                          <span className="text-pink-600 font-bold flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[12px]">{req.icon}</span>
+                            <span>{req.badge}</span>
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Action Button: Follow to Claim or Save */}
+                  <div className="shrink-0">
+                    {isFollowerVoucher && !isFollowed ? (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await handleFollowStore();
+                          handleSaveShopVoucher(v.code);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        title="Theo dõi gian hàng để nhận mã ngay"
+                      >
+                        <span className="material-symbols-outlined text-sm">favorite</span>
+                        <span>Theo dõi &amp; Lưu</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSaveShopVoucher(v.code)}
+                        className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
+                          isSaved
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-[#006953] hover:bg-[#005240] text-white shadow-xs'
+                        }`}
+                      >
+                        {isSaved ? 'Đã lưu' : 'Lưu mã'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {/* Product Showcase & Filtering */}

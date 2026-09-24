@@ -440,146 +440,146 @@ export default function UserAddressesPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-              {/* Form Bên Trái (7 Cols): Rộng Rãi, Thoáng Mắt */}
-              <form onSubmit={handleSaveAddress} className="lg:col-span-7 space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
-                      Họ và tên người nhận <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Ví dụ: Nguyễn Văn An"
-                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
-                      Số điện thoại liên hệ <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="Ví dụ: 0912345678"
-                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <CustomLocationSelector
-                      province={formData.province}
-                      district={formData.district}
-                      ward={formData.ward}
-                      onChange={({ province, district, ward }: LocationChangePayload) =>
-                        setFormData((prev) => ({ ...prev, province, district: district || ward || '', ward }))
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
-                      Số nhà, tên đường chi tiết <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="Ví dụ: 123 Đường Nguyễn Huệ"
-                      className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
-                    />
-                  </div>
-
-                  {/* Loại Địa Chỉ: Nhà Riêng vs Văn Phòng */}
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
-                      Loại địa chỉ nhận hàng
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, addressType: 'HOME' })}
-                        className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          formData.addressType === 'HOME'
-                            ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
-                            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">home</span>
-                        <span>Nhà Riêng / Nhà Trọ</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, addressType: 'OFFICE' })}
-                        className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                          formData.addressType === 'OFFICE'
-                            ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
-                            : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">domain</span>
-                        <span>Văn Phòng / Công Ty</span>
-                      </button>
-                    </div>
-                    <span className="text-[10px] text-[var(--theme-text-muted,#49454f)]/70 italic mt-1 block">
-                      {formData.addressType === 'HOME' ? '• Giao hàng tất cả các ngày trong tuần (kể cả Thứ 7 & CN)' : '• Chỉ giao hàng trong giờ hành chính từ Thứ 2 đến Thứ 6'}
-                    </span>
-                  </div>
+            <form onSubmit={handleSaveAddress} className="w-full space-y-6">
+              {/* Top Section: Address Input Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                    Họ và tên người nhận <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Ví dụ: Nguyễn Văn An"
+                    className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
+                  />
                 </div>
 
-                <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-[var(--theme-border,#e8e5df)]/80">
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-medium text-[var(--theme-text,#1c1b1f)] select-none">
-                    <input
-                      type="checkbox"
-                      checked={formData.isDefault}
-                      onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                      className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
-                    />
-                    <span>Đặt làm địa chỉ giao sách mặc định</span>
+                <div>
+                  <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                    Số điện thoại liên hệ <span className="text-rose-500">*</span>
                   </label>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    placeholder="Ví dụ: 0912345678"
+                    className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
+                  />
+                </div>
 
-                  <div className="flex items-center gap-3">
-                    {addresses.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('list');
-                          setEditingAddressId(null);
-                        }}
-                        className="px-5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs sm:text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
-                      >
-                        Hủy Bỏ
-                      </button>
-                    )}
+                <div className="sm:col-span-2">
+                  <CustomLocationSelector
+                    province={formData.province}
+                    district={formData.district}
+                    ward={formData.ward}
+                    onChange={({ province, district, ward }: LocationChangePayload) =>
+                      setFormData((prev) => ({ ...prev, province, district: district || ward || '', ward }))
+                    }
+                    required
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                    Số nhà, tên đường chi tiết <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Ví dụ: 123 Đường Nguyễn Huệ"
+                    className="w-full px-4 py-3 rounded-xl border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] text-sm focus:outline-none focus:border-[var(--theme-primary,#003B2B)] focus:ring-2 focus:ring-[var(--theme-primary,#003B2B)]/10 transition-all shadow-xs"
+                  />
+                </div>
+
+                {/* Loại Địa Chỉ: Nhà Riêng vs Văn Phòng */}
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-[var(--theme-text-muted,#49454f)] mb-1.5">
+                    Loại địa chỉ nhận hàng
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
                     <button
-                      type="submit"
-                      className="px-6 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs sm:text-sm font-bold hover:opacity-95 shadow-sm transition-all cursor-pointer"
+                      type="button"
+                      onClick={() => setFormData({ ...formData, addressType: 'HOME' })}
+                      className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        formData.addressType === 'HOME'
+                          ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
+                          : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
+                      }`}
                     >
-                      {editingAddressId ? 'Cập Nhật Địa Chỉ' : 'Lưu Địa Chỉ Mới'}
+                      <span className="material-symbols-outlined text-[18px]">home</span>
+                      <span>Nhà Riêng / Nhà Trọ</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, addressType: 'OFFICE' })}
+                      className={`px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        formData.addressType === 'OFFICE'
+                          ? 'bg-[var(--theme-primary,#003B2B)] text-white border-[var(--theme-primary,#003B2B)] shadow-sm'
+                          : 'bg-[var(--theme-surface,#ffffff)] border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] hover:bg-[var(--theme-background,#F2FBF9)]'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">domain</span>
+                      <span>Văn Phòng / Công Ty</span>
                     </button>
                   </div>
+                  <span className="text-[10px] text-[var(--theme-text-muted,#49454f)]/70 italic mt-1 block">
+                    {formData.addressType === 'HOME' ? '• Giao hàng tất cả các ngày trong tuần (kể cả Thứ 7 & CN)' : '• Chỉ giao hàng trong giờ hành chính từ Thứ 2 đến Thứ 6'}
+                  </span>
                 </div>
-              </form>
+              </div>
 
-              {/* Bản Đồ Bên Phải (5 Cols): Live GPS Map Preview */}
-              <div className="lg:col-span-5 h-full min-h-[380px]">
+              {/* Bản Đồ Rộng Full Chiều Ngang: 1 Col Layout, Vuông Vức Không Border */}
+              <div className="w-full">
                 <AddressMapPreview
                   province={formData.province}
                   district={formData.district}
                   ward={formData.ward}
                   address={formData.address}
+                  minHeight="min-h-[380px] sm:min-h-[460px]"
                 />
               </div>
-            </div>
+
+              {/* Bottom Actions Footer */}
+              <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-t border-[var(--theme-border,#e8e5df)]/80">
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs sm:text-sm font-medium text-[var(--theme-text,#1c1b1f)] select-none">
+                  <input
+                    type="checkbox"
+                    checked={formData.isDefault}
+                    onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
+                    className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
+                  />
+                  <span>Đặt làm địa chỉ giao sách mặc định</span>
+                </label>
+
+                <div className="flex items-center gap-3">
+                  {addresses.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('list');
+                        setEditingAddressId(null);
+                      }}
+                      className="px-5 py-2.5 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs sm:text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/5 transition-all cursor-pointer"
+                    >
+                      Hủy Bỏ
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 rounded-xl bg-[var(--theme-primary,#003B2B)] text-white text-xs sm:text-sm font-bold hover:opacity-95 shadow-sm transition-all cursor-pointer"
+                  >
+                    {editingAddressId ? 'Cập Nhật Địa Chỉ' : 'Lưu Địa Chỉ Mới'}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         )}
       </div>

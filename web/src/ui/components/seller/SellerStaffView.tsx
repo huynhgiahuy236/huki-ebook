@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useMemo, Suspense } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { memberApi, BusinessMemberItem } from '@/ui/api/memberApi';
@@ -8,6 +8,12 @@ import { businessApi } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { PERMISSION_GROUPS, ROLE_PRESETS, PermissionKey } from '@/ui/utils/permissions';
+import {
+  SellerTableContainer,
+  SellerStatusBadge,
+  SellerActionButton,
+  SellerPagination,
+} from '@/ui/components/seller/SellerUI';
 
 const initialForm = {
   fullName: '',
@@ -18,7 +24,7 @@ const initialForm = {
   permissions: ['DASHBOARD_VIEW', 'ORDER_VIEW', 'ORDER_PROCESS', 'ORDER_CANCEL', 'PRODUCT_VIEW'],
 };
 
-function SellerStaffContent() {
+export function SellerStaffView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
@@ -28,11 +34,11 @@ function SellerStaffContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Form State (Direct Provisioning)
+  // In-Page Add Form State (Direct Provisioning)
   const [showAddForm, setShowAddForm] = useState(false);
 
   useEffect(() => {
-    if (searchParams.get('action') === 'provision' || searchParams.get('action') === 'new') {
+    if (searchParams?.get('action') === 'provision' || searchParams?.get('action') === 'new') {
       setShowAddForm(true);
     }
   }, [searchParams]);
@@ -41,26 +47,26 @@ function SellerStaffContent() {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Edit Permissions State
+  // In-Page Edit Permissions State
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [editPreset, setEditPreset] = useState('CUSTOM');
   const [savingEdit, setSavingEdit] = useState(false);
 
-  // Reset Password State
+  // In-Page Reset Password State
   const [resetPasswordMemberId, setResetPasswordMemberId] = useState<string | null>(null);
   const [newPasswordValue, setNewPasswordValue] = useState('NewStaffPassword123!');
   const [resettingPassword, setResettingPassword] = useState(false);
 
-  // Status Action State
+  // Action Loading States
   const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
-
-  // Delete Action State
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Load Members
   const loadMembers = useCallback(async () => {
@@ -93,7 +99,7 @@ function SellerStaffContent() {
       } else {
         setError(res.error?.message || 'Không thể tải danh sách nhân viên.');
       }
-    } catch (err) {
+    } catch {
       setError('Lỗi kết nối khi tải danh sách nhân viên.');
     } finally {
       setLoading(false);
@@ -104,289 +110,242 @@ function SellerStaffContent() {
     loadMembers();
   }, [loadMembers]);
 
-  // Handle Preset Change for Add Form
+  // Handle Select Role Preset
   const handleSelectPreset = (presetId: string) => {
-    if (presetId === 'CUSTOM') {
-      setFormData((prev) => ({ ...prev, selectedPreset: 'CUSTOM' }));
-      return;
-    }
-
-    const preset = ROLE_PRESETS.find((p) => p.id === presetId);
-    if (preset) {
+    const found = ROLE_PRESETS.find((p) => p.id === presetId);
+    if (found) {
       setFormData((prev) => ({
         ...prev,
         selectedPreset: presetId,
-        permissions: [...preset.permissions],
+        permissions: [...found.permissions],
       }));
     }
   };
 
-  // Handle Permission Checkbox Toggle for Add Form
   const handleTogglePermission = (permKey: string) => {
     setFormData((prev) => {
-      const current = prev.permissions;
-      const next = current.includes(permKey)
-        ? current.filter((k) => k !== permKey)
-        : [...current, permKey];
-
-      const matchingPreset = ROLE_PRESETS.find(
-        (p) =>
-          p.permissions.length === next.length &&
-          p.permissions.every((k) => next.includes(k))
-      );
-
+      const exists = prev.permissions.includes(permKey);
+      const newPerms = exists
+        ? prev.permissions.filter((k) => k !== permKey)
+        : [...prev.permissions, permKey];
       return {
         ...prev,
-        selectedPreset: matchingPreset ? matchingPreset.id : 'CUSTOM',
-        permissions: next,
+        selectedPreset: 'CUSTOM',
+        permissions: newPerms,
       };
     });
   };
 
-  // Handle Group Select/Deselect All for Add Form
-  const handleToggleGroup = (group: any) => {
-    const groupPermKeys = group.permissions.map((p: any) => p.key);
-    const allSelected = groupPermKeys.every((k: string) => formData.permissions.includes(k));
+  const handleToggleGroup = (group: (typeof PERMISSION_GROUPS)[0]) => {
+    const groupPermKeys = group.permissions.map((p) => p.key);
+    const isAllSelected = groupPermKeys.every((k) => formData.permissions.includes(k));
 
     setFormData((prev) => {
-      let next;
-      if (allSelected) {
-        next = prev.permissions.filter((k) => !groupPermKeys.includes(k));
+      let newPerms: string[];
+      if (isAllSelected) {
+        newPerms = prev.permissions.filter((k) => !groupPermKeys.includes(k as PermissionKey));
       } else {
-        next = Array.from(new Set([...prev.permissions, ...groupPermKeys]));
+        const set = new Set([...prev.permissions, ...groupPermKeys]);
+        newPerms = Array.from(set);
       }
-
-      const matchingPreset = ROLE_PRESETS.find(
-        (p) =>
-          p.permissions.length === next.length &&
-          p.permissions.every((k) => next.includes(k))
-      );
-
       return {
         ...prev,
-        selectedPreset: matchingPreset ? matchingPreset.id : 'CUSTOM',
-        permissions: next,
+        selectedPreset: 'CUSTOM',
+        permissions: newPerms,
       };
     });
   };
 
-  // Submit Direct Provisioning
+  // Submit Provisioning
   const handleProvisionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fullName.trim()) {
-      showToast?.('Vui lòng nhập họ và tên nhân viên.', 'error');
-      return;
-    }
-
-    if (!formData.email.trim()) {
-      showToast?.('Vui lòng nhập địa chỉ email nhân viên.', 'error');
+    if (!formData.fullName.trim() || !formData.email.trim() || !formData.initialPassword.trim()) {
+      showToast({ title: 'Thiếu thông tin', message: 'Vui lòng điền đầy đủ họ tên, email và mật khẩu.' }, 'error');
       return;
     }
 
     if (formData.permissions.length === 0) {
-      showToast?.('Vui lòng tích chọn ít nhất 1 quyền cho nhân viên.', 'error');
+      showToast({ title: 'Chưa phân quyền', message: 'Nhân viên cần được cấp ít nhất 1 quyền chức năng.' }, 'error');
       return;
     }
 
     setSubmitting(true);
     try {
-      const currentBizId = (businessId || user?.business?.id)!;
+      const currentBizId = businessId || user?.business?.id || activeBusinessId;
+      if (!currentBizId) {
+        showToast({ title: 'Lỗi', message: 'Không xác định được mã doanh nghiệp.' }, 'error');
+        return;
+      }
+
       const res = await memberApi.provisionMember(currentBizId, {
         fullName: formData.fullName.trim(),
-        email: formData.email.trim().toLowerCase(),
+        email: formData.email.trim(),
         phone: formData.phone.trim() || undefined,
-        initialPassword: formData.initialPassword.trim() || 'StaffPassword123!',
+        initialPassword: formData.initialPassword.trim(),
+        role: 'ORDER_STAFF',
         permissions: formData.permissions,
       });
 
       if (res.success) {
-        showToast?.(`Đã tạo tài khoản cho nhân viên ${formData.fullName} với ${formData.permissions.length} quyền.`, 'success');
+        showToast({
+          title: 'Cấp tài khoản thành công',
+          message: `Nhân viên ${formData.fullName} (${formData.email}) đã được tạo và kích hoạt ngay.`,
+        }, 'success');
         setFormData(initialForm);
         setShowAddForm(false);
-        loadMembers();
+        await loadMembers();
       } else {
-        showToast?.(res.error?.message || 'Có lỗi xảy ra khi tạo tài khoản nhân viên.', 'error');
+        showToast({ title: 'Cấp tài khoản thất bại', message: res.error?.message || 'Có lỗi xảy ra.' }, 'error');
       }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ. Vui lòng thử lại.', 'error');
+    } catch (err: any) {
+      showToast({ title: 'Lỗi kết nối', message: err?.message || 'Không thể kết nối đến máy chủ.' }, 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Open Edit Permissions Drawer
+  // Open Edit Permissions
   const handleOpenEdit = (member: BusinessMemberItem) => {
-    if (member.role === 'OWNER') return;
-    const perms = Array.isArray(member.permissions) ? member.permissions : [];
     setEditingMemberId(member.id);
-    setEditPermissions([...perms]);
-    const matchingPreset = ROLE_PRESETS.find(
-      (p) =>
-        p.permissions.length === perms.length &&
-        p.permissions.every((k) => perms.includes(k))
-    );
-    setEditPreset(matchingPreset ? matchingPreset.id : 'CUSTOM');
+    setEditPermissions(member.permissions || []);
+    setEditPreset('CUSTOM');
   };
 
-  // Select Preset in Edit Drawer
   const handleSelectEditPreset = (presetId: string) => {
-    if (presetId === 'CUSTOM') {
-      setEditPreset('CUSTOM');
-      return;
-    }
-    const preset = ROLE_PRESETS.find((p) => p.id === presetId);
-    if (preset) {
+    const found = ROLE_PRESETS.find((p) => p.id === presetId);
+    if (found) {
       setEditPreset(presetId);
-      setEditPermissions([...preset.permissions]);
+      setEditPermissions([...found.permissions]);
     }
   };
 
-  // Toggle Single Permission in Edit Drawer
   const handleToggleEditPermission = (permKey: string) => {
     setEditPermissions((prev) => {
-      const next = prev.includes(permKey)
-        ? prev.filter((k) => k !== permKey)
-        : [...prev, permKey];
-
-      const matchingPreset = ROLE_PRESETS.find(
-        (p) =>
-          p.permissions.length === next.length &&
-          p.permissions.every((k) => next.includes(k))
-      );
-      setEditPreset(matchingPreset ? matchingPreset.id : 'CUSTOM');
-      return next;
+      const exists = prev.includes(permKey);
+      return exists ? prev.filter((k) => k !== permKey) : [...prev, permKey];
     });
+    setEditPreset('CUSTOM');
   };
 
-  // Toggle Group in Edit Drawer
-  const handleToggleEditGroup = (group: any) => {
-    const groupPermKeys = group.permissions.map((p: any) => p.key);
-    const allSelected = groupPermKeys.every((k: string) => editPermissions.includes(k));
-
-    setEditPermissions((prev) => {
-      let next;
-      if (allSelected) {
-        next = prev.filter((k) => !groupPermKeys.includes(k));
-      } else {
-        next = Array.from(new Set([...prev, ...groupPermKeys]));
-      }
-
-      const matchingPreset = ROLE_PRESETS.find(
-        (p) =>
-          p.permissions.length === next.length &&
-          p.permissions.every((k) => next.includes(k))
-      );
-      setEditPreset(matchingPreset ? matchingPreset.id : 'CUSTOM');
-      return next;
-    });
+  const handleToggleEditGroup = (group: (typeof PERMISSION_GROUPS)[0]) => {
+    const groupKeys = group.permissions.map((p) => p.key);
+    const isAllSelected = groupKeys.every((k) => editPermissions.includes(k));
+    if (isAllSelected) {
+      setEditPermissions((prev) => prev.filter((k) => !groupKeys.includes(k as PermissionKey)));
+    } else {
+      setEditPermissions((prev) => Array.from(new Set([...prev, ...groupKeys])));
+    }
+    setEditPreset('CUSTOM');
   };
 
-  // Save Permissions
   const handleSavePermissions = async (memberId: string) => {
+    const currentBizId = businessId || user?.business?.id || activeBusinessId;
+    if (!currentBizId) return;
+
     if (editPermissions.length === 0) {
-      showToast?.('Nhân viên phải có ít nhất 1 quyền để truy cập hệ thống.', 'error');
+      showToast({ title: 'Lỗi phân quyền', message: 'Nhân viên phải có ít nhất 1 quyền chức năng.' }, 'error');
       return;
     }
 
     setSavingEdit(true);
     try {
-      const currentBizId = (businessId || user?.business?.id)!;
       const res = await memberApi.updateMemberPermissions(currentBizId, memberId, editPermissions);
       if (res.success) {
-        showToast?.(`Đã cấp ${editPermissions.length} quyền cho nhân viên.`, 'success');
+        showToast({ title: 'Thành công', message: 'Đã cập nhật phân quyền nhân viên.' }, 'success');
         setEditingMemberId(null);
-        loadMembers();
+        await loadMembers();
       } else {
-        showToast?.(res.error?.message || 'Không thể cập nhật phân quyền cho nhân viên.', 'error');
+        showToast({ title: 'Thất bại', message: res.error?.message || 'Không thể lưu phân quyền.' }, 'error');
       }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ.', 'error');
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật quyền.' }, 'error');
     } finally {
       setSavingEdit(false);
     }
   };
 
-  // Toggle Suspend / Active Status
-  const handleToggleStatus = async (member: BusinessMemberItem) => {
-    if (member.role === 'OWNER') return;
-    const nextStatus = member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    setTogglingStatusId(member.id);
+  // Reset Password
+  const handleResetPassword = async (memberId: string) => {
+    const currentBizId = businessId || user?.business?.id || activeBusinessId;
+    if (!currentBizId) return;
 
-    try {
-      const currentBizId = (businessId || user?.business?.id)!;
-      const res = await memberApi.updateMemberStatus(currentBizId, member.id, nextStatus);
-      if (res.success) {
-        showToast?.(`Nhân viên ${member.user?.fullName || ''} đã được chuyển sang trạng thái ${
-          nextStatus === 'ACTIVE' ? 'Đang hoạt động' : 'Tạm khóa'
-        }.`, 'success');
-        loadMembers();
-      } else {
-        showToast?.(res.error?.message || 'Không thể thay đổi trạng thái nhân viên.', 'error');
-      }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ.', 'error');
-    } finally {
-      setTogglingStatusId(null);
-    }
-  };
-
-  // Submit Password Reset
-  const handleResetPasswordSubmit = async (memberId: string) => {
-    if (!newPasswordValue.trim()) {
-      showToast?.('Vui lòng nhập mật khẩu mới.', 'error');
+    if (!newPasswordValue.trim() || newPasswordValue.length < 6) {
+      showToast({ title: 'Mật khẩu yếu', message: 'Mật khẩu mới phải có tối thiểu 6 ký tự.' }, 'error');
       return;
     }
 
     setResettingPassword(true);
     try {
-      const currentBizId = (businessId || user?.business?.id)!;
-      const res = await memberApi.resetMemberPassword(
-        currentBizId,
-        memberId,
-        newPasswordValue.trim()
-      );
+      const res = await memberApi.resetMemberPassword(currentBizId, memberId, newPasswordValue.trim());
       if (res.success) {
-        showToast?.(`Mật khẩu mới đã được cập nhật: "${newPasswordValue.trim()}". Vui lòng bàn giao cho nhân viên.`, 'success');
+        showToast({
+          title: 'Đặt lại mật khẩu thành công',
+          message: `Mật khẩu mới đã được áp dụng. Vui lòng thông báo cho nhân viên.`,
+        }, 'success');
         setResetPasswordMemberId(null);
         setNewPasswordValue('NewStaffPassword123!');
       } else {
-        showToast?.(res.error?.message || 'Không thể đặt lại mật khẩu.', 'error');
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể đặt lại mật khẩu.' }, 'error');
       }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ.', 'error');
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi đặt lại mật khẩu.' }, 'error');
     } finally {
       setResettingPassword(false);
     }
   };
 
+  // Toggle Status
+  const handleToggleStatus = async (member: BusinessMemberItem) => {
+    const currentBizId = businessId || user?.business?.id || activeBusinessId;
+    if (!currentBizId) return;
+
+    const newStatus = member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    setTogglingStatusId(member.id);
+    try {
+      const res = await memberApi.updateMemberStatus(currentBizId, member.id, newStatus);
+      if (res.success) {
+        showToast({
+          title: 'Cập nhật trạng thái',
+          message: `Đã ${newStatus === 'ACTIVE' ? 'mở khóa' : 'tạm khóa'} tài khoản nhân viên.`,
+        }, 'info');
+        await loadMembers();
+      } else {
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể cập nhật trạng thái.' }, 'error');
+      }
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật trạng thái.' }, 'error');
+    } finally {
+      setTogglingStatusId(null);
+    }
+  };
+
   // Remove Member
   const handleRemoveMember = async (member: BusinessMemberItem) => {
-    if (member.role === 'OWNER') return;
-    if (typeof window !== 'undefined') {
-      const confirmDelete = window.confirm(
-        `Bạn có chắc chắn muốn xóa nhân viên "${member.user?.fullName || member.user?.email}" khỏi Doanh nghiệp không?`
-      );
-      if (!confirmDelete) return;
+    const currentBizId = businessId || user?.business?.id || activeBusinessId;
+    if (!currentBizId) return;
+
+    const confirmName = member.user?.fullName || member.user?.email || 'nhân viên này';
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên "${confirmName}" khỏi doanh nghiệp? Hành động này sẽ thu hồi toàn bộ quyền truy cập.`)) {
+      return;
     }
 
     setDeletingMemberId(member.id);
     try {
-      const currentBizId = (businessId || user?.business?.id)!;
       const res = await memberApi.removeMember(currentBizId, member.id);
       if (res.success) {
-        showToast?.(`Nhân viên ${member.user?.fullName || ''} đã được xóa thành công.`, 'success');
-        loadMembers();
+        showToast({ title: 'Đã xóa nhân viên', message: `Nhân viên ${confirmName} đã được xóa khỏi hệ thống.` }, 'success');
+        await loadMembers();
       } else {
-        showToast?.(res.error?.message || 'Không thể xóa nhân viên.', 'error');
+        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xóa nhân viên.' }, 'error');
       }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ.', 'error');
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi xóa nhân viên.' }, 'error');
     } finally {
       setDeletingMemberId(null);
     }
   };
 
-  // Filtered members list
+  // Filtered members
   const filteredMembers = useMemo(() => {
     return members.filter((member) => {
       const name = member.user?.fullName || '';
@@ -407,63 +366,80 @@ function SellerStaffContent() {
     });
   }, [members, searchQuery, statusFilter]);
 
+  const totalPages = Math.ceil(filteredMembers.length / pageSize) || 1;
+  const paginatedMembers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredMembers.slice(start, start + pageSize);
+  }, [filteredMembers, currentPage, pageSize]);
+
   return (
-    <div className="w-full flex flex-col gap-6 p-4 sm:p-6 lg:p-8 animate-in fade-in duration-200">
-      {/* Header & Quick Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-container-lowest p-6 rounded-3xl border border-theme-border shadow-xs">
+    <div className="w-full max-w-[1600px] mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link href="/seller/dashboard" className="text-xs text-on-surface-variant hover:text-primary transition-colors flex items-center gap-1">
-              <span className="material-symbols-outlined text-sm">dashboard</span>
-              <span>Kênh Người Bán</span>
-            </Link>
-            <span className="text-xs text-outline-variant">/</span>
-            <span className="text-xs font-bold text-primary">Phân Quyền Nhân Viên</span>
-          </div>
-          <h1 className="font-editorial text-2xl sm:text-3xl font-black text-on-surface">
-            Quản Lý & Phân Quyền Nhân Viên
+          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
+            <span className="w-9 h-9 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200">
+              <span className="material-symbols-outlined text-[20px]">group</span>
+            </span>
+            <span>Phân Quyền & Quản Lý Nhân Sự</span>
           </h1>
-          <p className="text-xs sm:text-sm text-on-surface-variant mt-1">
-            Cấp tài khoản nhân sự tức thì (Direct Provisioning), phân quyền granular theo 17 chức năng độc lập.
+          <p className="text-xs text-slate-500 mt-1">
+            Cấp tài khoản nhân sự tức thì (Direct Provisioning) và phân quyền chi tiết theo 17 chức năng độc lập
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowAddForm(!showAddForm)}
-          className="px-5 py-2.5 rounded-xl bg-primary text-white text-xs sm:text-sm font-bold hover:opacity-95 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0"
-        >
-          <span className="material-symbols-outlined text-[18px]">
-            {showAddForm ? 'close' : 'person_add'}
-          </span>
-          <span>{showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          <SellerActionButton
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon="refresh"
+            loading={loading}
+            onClick={loadMembers}
+          >
+            Làm Mới
+          </SellerActionButton>
+
+          <SellerActionButton
+            type="button"
+            variant={showAddForm ? 'neutral' : 'primary'}
+            size="sm"
+            icon={showAddForm ? 'close' : 'person_add'}
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
+          </SellerActionButton>
+        </div>
       </div>
 
-      {/* Direct Provisioning Form */}
+      {/* Direct Provisioning Form (In-Page Collapsible) */}
       {showAddForm && (
-        <div className="bg-surface-container-lowest rounded-3xl border-2 border-primary/40 p-6 sm:p-8 shadow-md animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center justify-between pb-4 border-b border-theme-border mb-6">
-            <div className="flex items-center gap-2.5">
-              <span className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                <span className="material-symbols-outlined text-2xl">how_to_reg</span>
-              </span>
+        <div className="bg-white rounded-2xl border-2 border-slate-300 p-6 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2 text-slate-900">
+              <span className="material-symbols-outlined text-lg text-emerald-600">how_to_reg</span>
               <div>
-                <h2 className="text-base sm:text-lg font-bold text-on-surface">
+                <h2 className="text-sm font-bold text-slate-900">
                   Cấp Tài Khoản Nhân Viên Trực Tiếp (Direct Provisioning)
                 </h2>
-                <p className="text-xs text-on-surface-variant">
-                  Tài khoản có hiệu lực ngay lập tức. Nhân viên đăng nhập bằng Email và Mật khẩu khởi tạo được cấp.
+                <p className="text-[11px] text-slate-400">
+                  Tài khoản có hiệu lực ngay lập tức sau khi tạo
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowAddForm(false)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
           </div>
 
-          <form onSubmit={handleProvisionSubmit} className="space-y-6">
-            {/* User Basic Info Fields */}
+          <form onSubmit={handleProvisionSubmit} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Họ và tên nhân viên <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -472,12 +448,12 @@ function SellerStaffContent() {
                   value={formData.fullName}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   placeholder="Ví dụ: Nguyễn Văn An"
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Địa chỉ Email (Tên đăng nhập) <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -486,12 +462,12 @@ function SellerStaffContent() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="nhanvien@example.com"
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary font-mono"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-on-surface mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 mb-1">
                   Số điện thoại
                 </label>
                 <input
@@ -499,22 +475,22 @@ function SellerStaffContent() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="0912345678"
-                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400"
                 />
               </div>
             </div>
 
-            {/* Initial Password Field */}
-            <div className="p-4 rounded-2xl bg-surface-container-low border border-theme-border space-y-2">
+            {/* Initial Password */}
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-primary">key</span>
+                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-slate-500">key</span>
                   <span>Mật Khẩu Khởi Tạo Mặc Định</span>
                 </label>
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                  className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer"
                 >
                   {showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                 </button>
@@ -524,22 +500,16 @@ function SellerStaffContent() {
                 required
                 value={formData.initialPassword}
                 onChange={(e) => setFormData({ ...formData, initialPassword: e.target.value })}
-                className="w-full px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary font-mono font-bold"
+                className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono font-bold"
               />
             </div>
 
-            {/* Role Preset Selector */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold uppercase tracking-wider text-on-surface">
-                  Chọn Mẫu Phân Quyền Nhanh (Role Presets)
-                </label>
-                <span className="text-xs text-on-surface-variant font-semibold">
-                  Đã chọn: <strong className="text-primary">{formData.permissions.length}</strong> quyền
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {/* Role Presets */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Mẫu Phân Quyền Nhanh (Role Presets)
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {ROLE_PRESETS.map((preset) => {
                   const isSelected = formData.selectedPreset === preset.id;
                   return (
@@ -547,17 +517,17 @@ function SellerStaffContent() {
                       key={preset.id}
                       type="button"
                       onClick={() => handleSelectPreset(preset.id)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-1 ${
                         isSelected
-                          ? 'border-primary bg-primary/10 shadow-xs ring-2 ring-primary/20'
-                          : 'border-theme-border bg-surface-container-lowest hover:bg-surface-container'
+                          ? 'border-slate-900 bg-slate-900 text-white shadow-xs'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <div className="font-bold text-xs text-on-surface flex items-center justify-between">
+                      <div className="font-bold text-xs flex items-center justify-between">
                         <span>{preset.name}</span>
-                        {isSelected && <span className="material-symbols-outlined text-sm text-primary">check_circle</span>}
+                        {isSelected && <span className="material-symbols-outlined text-sm text-emerald-400">check_circle</span>}
                       </div>
-                      <p className="text-[11px] text-on-surface-variant leading-relaxed">
+                      <p className={`text-[10px] leading-tight ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
                         {preset.description}
                       </p>
                     </button>
@@ -567,46 +537,44 @@ function SellerStaffContent() {
             </div>
 
             {/* Granular Permissions Checklist */}
-            <div className="space-y-4 pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-on-surface">
-                Chi Tiết 17 Quyền Chức Năng (Tùy Biến Granular)
+            <div className="space-y-2.5 pt-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Chi Tiết 17 Quyền Chức Năng ({formData.permissions.length} quyền đã chọn)
               </label>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {PERMISSION_GROUPS.map((group) => {
                   const groupPermKeys = group.permissions.map((p) => p.key);
                   const isAllGroupSelected = groupPermKeys.every((k) => formData.permissions.includes(k));
 
                   return (
-                    <div key={group.name} className="p-4 rounded-2xl bg-surface-container-lowest border border-theme-border shadow-xs space-y-3">
-                      <div className="flex items-center justify-between pb-2 border-b border-theme-border">
-                        <span className="font-bold text-xs text-on-surface flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-sm text-primary">{group.icon}</span>
+                    <div key={group.name} className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-2">
+                      <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60">
+                        <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-sm text-slate-500">{group.icon}</span>
                           <span>{group.name}</span>
                         </span>
                         <button
                           type="button"
                           onClick={() => handleToggleGroup(group)}
-                          className="text-[11px] font-bold text-primary hover:underline cursor-pointer"
+                          className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
                         >
-                          {isAllGroupSelected ? 'Bỏ chọn hết' : 'Chọn hết'}
+                          {isAllGroupSelected ? 'Bỏ chọn' : 'Chọn hết'}
                         </button>
                       </div>
 
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         {group.permissions.map((perm) => {
                           const isChecked = formData.permissions.includes(perm.key);
                           return (
-                            <label key={perm.key} className="flex items-start gap-2.5 text-xs text-on-surface cursor-pointer select-none">
+                            <label key={perm.key} className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer select-none">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleTogglePermission(perm.key)}
-                                className="mt-0.5 rounded text-primary focus:ring-primary accent-primary cursor-pointer"
+                                className="mt-0.5 rounded text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
                               />
                               <div>
-                                <p className="font-semibold leading-tight">{perm.label}</p>
-                                <p className="text-[10px] text-on-surface-variant">{perm.description}</p>
+                                <p className="font-medium text-[11px] leading-tight">{perm.label}</p>
                               </div>
                             </label>
                           );
@@ -618,360 +586,372 @@ function SellerStaffContent() {
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-theme-border">
-              <button
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2.5">
+              <SellerActionButton
                 type="button"
+                variant="neutral"
+                size="sm"
                 onClick={() => setShowAddForm(false)}
-                className="px-4 py-2.5 rounded-xl border border-theme-border text-xs font-bold text-on-surface hover:bg-surface-container transition-colors cursor-pointer"
               >
-                Hủy Bỏ
-              </button>
-              <button
+                Hủy
+              </SellerActionButton>
+              <SellerActionButton
                 type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl bg-primary text-white text-xs font-bold hover:opacity-95 disabled:opacity-50 shadow-md transition-all cursor-pointer flex items-center gap-2"
+                variant="primary"
+                size="sm"
+                loading={submitting}
+                icon="how_to_reg"
               >
-                {submitting ? (
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                ) : (
-                  <span className="material-symbols-outlined text-base">save</span>
-                )}
-                <span>Cấp Tài Khoản Ngay</span>
-              </button>
+                Cấp Tài Khoản Ngay
+              </SellerActionButton>
             </div>
           </form>
         </div>
       )}
 
-      {/* Staff Members List & Filter */}
-      <div className="bg-surface-container-lowest rounded-3xl border border-theme-border p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-primary text-xl">group</span>
-            <h2 className="text-base font-bold text-on-surface">
-              Danh Sách Nhân Viên ({filteredMembers.length})
-            </h2>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm tên, email, sđt..."
-                className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary w-48 sm:w-64"
-              />
-              <span className="material-symbols-outlined text-sm text-outline-variant absolute left-2.5 top-2">search</span>
-            </div>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-primary cursor-pointer"
-            >
-              <option value="ALL">Tất cả trạng thái</option>
-              <option value="ACTIVE">Đang hoạt động</option>
-              <option value="SUSPENDED">Tạm khóa</option>
-            </select>
-          </div>
+      {/* Filter and Search */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-slate-400 cursor-pointer font-medium"
+          >
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="ACTIVE">Đang hoạt động</option>
+            <option value="SUSPENDED">Tạm khóa</option>
+          </select>
+          <span className="text-xs text-slate-400">
+            Tổng: <b className="text-slate-700">{filteredMembers.length}</b> nhân sự
+          </span>
         </div>
 
-        {error && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">error</span>
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Table */}
-        <div className="overflow-x-auto">
-          {loading ? (
-            <div className="py-16 text-center text-on-surface-variant space-y-2">
-              <span className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
-              <p className="text-xs">Đang tải danh sách nhân sự...</p>
-            </div>
-          ) : filteredMembers.length === 0 ? (
-            <div className="py-16 text-center text-on-surface-variant space-y-2">
-              <span className="material-symbols-outlined text-4xl text-outline-variant">person_search</span>
-              <p className="text-xs">Không tìm thấy nhân viên phù hợp.</p>
-            </div>
-          ) : (
-            <table className="w-full text-left text-xs">
-              <thead className="text-[11px] uppercase font-bold text-on-surface-variant border-b border-theme-border">
-                <tr>
-                  <th className="py-3 px-3">Nhân Viên</th>
-                  <th className="py-3 px-3">Email & SĐT</th>
-                  <th className="py-3 px-3">Vai Trò</th>
-                  <th className="py-3 px-3">Phân Quyền</th>
-                  <th className="py-3 px-3 text-center">Trạng Thái</th>
-                  <th className="py-3 px-3 text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-theme-border/60">
-                {filteredMembers.map((member) => {
-                  const isOwner = member.role === 'OWNER';
-                  const isEditingThis = editingMemberId === member.id;
-                  const isResettingPassThis = resetPasswordMemberId === member.id;
-
-                  return (
-                    <React.Fragment key={member.id}>
-                      <tr className="hover:bg-surface-container-low transition-colors">
-                        <td className="py-3.5 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs uppercase">
-                              {(member.user?.fullName || member.user?.email || 'U').charAt(0)}
-                            </div>
-                            <div>
-                              <span className="font-bold text-on-surface block">{member.user?.fullName || 'Chưa cập nhật'}</span>
-                              {isOwner && (
-                                <span className="text-[10px] font-bold text-primary uppercase tracking-wider">Chủ gian hàng</span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-3.5 px-3 font-mono">
-                          <span className="block text-on-surface">{member.user?.email}</span>
-                          <span className="text-[11px] text-on-surface-variant">{member.user?.phone || '—'}</span>
-                        </td>
-
-                        <td className="py-3.5 px-3 font-semibold">
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-surface-container border border-theme-border font-bold text-on-surface">
-                            {member.role}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-3">
-                          {isOwner ? (
-                            <span className="text-emerald-600 font-bold flex items-center gap-1">
-                              <span className="material-symbols-outlined text-sm">all_inclusive</span>
-                              <span>Toàn quyền Master</span>
-                            </span>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(member)}
-                              className="text-primary hover:underline font-bold flex items-center gap-1 cursor-pointer"
-                            >
-                              <span>{member.permissions?.length || 0} quyền</span>
-                              <span className="material-symbols-outlined text-xs">edit</span>
-                            </button>
-                          )}
-                        </td>
-
-                        <td className="py-3.5 px-3 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            member.status === 'ACTIVE'
-                              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'
-                          }`}>
-                            {member.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm khóa'}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-3 text-right">
-                          {!isOwner && (
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => setResetPasswordMemberId(isResettingPassThis ? null : member.id)}
-                                title="Đặt lại mật khẩu"
-                                className="p-1.5 rounded-lg text-on-surface-variant hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-base">key</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleToggleStatus(member)}
-                                title={member.status === 'ACTIVE' ? 'Tạm khóa tài khoản' : 'Mở khóa tài khoản'}
-                                disabled={togglingStatusId === member.id}
-                                className="p-1.5 rounded-lg text-on-surface-variant hover:text-primary hover:bg-surface-container cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-base">
-                                  {member.status === 'ACTIVE' ? 'block' : 'lock_open'}
-                                </span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveMember(member)}
-                                title="Xóa nhân viên"
-                                disabled={deletingMemberId === member.id}
-                                className="p-1.5 rounded-lg text-on-surface-variant hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-base">delete</span>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-
-                      {/* Expandable Edit Permissions Drawer */}
-                      {isEditingThis && (
-                        <tr className="bg-primary/5 border-b border-theme-border">
-                          <td colSpan={6} className="p-4 sm:p-6">
-                            <div className="bg-surface-container-lowest rounded-2xl p-5 border border-primary/30 space-y-4 shadow-sm">
-                              <div className="flex items-center justify-between pb-3 border-b border-theme-border">
-                                <h4 className="font-bold text-xs uppercase tracking-wider text-primary">
-                                  Chỉnh sửa phân quyền cho: <u>{member.user?.fullName}</u> ({editPermissions.length} quyền)
-                                </h4>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingMemberId(null)}
-                                  className="text-on-surface-variant hover:text-on-surface cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-base">close</span>
-                                </button>
-                              </div>
-
-                              {/* Presets in edit */}
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                {ROLE_PRESETS.map((p) => (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => handleSelectEditPreset(p.id)}
-                                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                                      editPreset === p.id
-                                        ? 'bg-primary text-white border-primary shadow-xs'
-                                        : 'bg-surface-container border-theme-border text-on-surface hover:bg-surface-container-high'
-                                    }`}
-                                  >
-                                    {p.name}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Groups checklist */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                {PERMISSION_GROUPS.map((group) => {
-                                  const groupKeys = group.permissions.map((p) => p.key);
-                                  const isAllSelected = groupKeys.every((k) => editPermissions.includes(k));
-
-                                  return (
-                                    <div key={group.name} className="p-3 rounded-xl bg-surface-container border border-theme-border space-y-2">
-                                      <div className="flex items-center justify-between pb-1.5 border-b border-theme-border/60">
-                                        <span className="font-bold text-[11px] text-on-surface flex items-center gap-1">
-                                          <span className="material-symbols-outlined text-xs text-primary">{group.icon}</span>
-                                          <span>{group.name}</span>
-                                        </span>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleToggleEditGroup(group)}
-                                          className="text-[10px] font-bold text-primary hover:underline cursor-pointer"
-                                        >
-                                          {isAllSelected ? 'Bỏ hết' : 'Chọn hết'}
-                                        </button>
-                                      </div>
-
-                                      <div className="space-y-1.5">
-                                        {group.permissions.map((perm) => (
-                                          <label key={perm.key} className="flex items-center gap-2 text-xs text-on-surface cursor-pointer select-none">
-                                            <input
-                                              type="checkbox"
-                                              checked={editPermissions.includes(perm.key)}
-                                              onChange={() => handleToggleEditPermission(perm.key)}
-                                              className="rounded text-primary focus:ring-primary accent-primary cursor-pointer"
-                                            />
-                                            <span className="leading-tight text-[11px] font-medium">{perm.label}</span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              <div className="flex items-center justify-end gap-2 pt-3 border-t border-theme-border">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingMemberId(null)}
-                                  className="px-3.5 py-1.5 rounded-xl border border-theme-border text-xs font-bold text-on-surface hover:bg-surface-container cursor-pointer"
-                                >
-                                  Đóng
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={savingEdit}
-                                  onClick={() => handleSavePermissions(member.id)}
-                                  className="px-5 py-1.5 rounded-xl bg-primary text-white text-xs font-bold hover:opacity-95 cursor-pointer flex items-center gap-1.5"
-                                >
-                                  {savingEdit && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
-                                  <span>Lưu Thay Đổi Phân Quyền</span>
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      {/* Expandable Reset Password Drawer */}
-                      {isResettingPassThis && (
-                        <tr className="bg-amber-500/5 border-b border-theme-border">
-                          <td colSpan={6} className="p-4 sm:p-6">
-                            <div className="bg-surface-container-lowest rounded-2xl p-5 border border-amber-500/30 space-y-3 shadow-sm">
-                              <div className="flex items-center justify-between pb-2 border-b border-theme-border">
-                                <span className="font-bold text-xs text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-sm">key</span>
-                                  <span>Đặt lại mật khẩu cho: <u>{member.user?.fullName}</u> ({member.user?.email})</span>
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setResetPasswordMemberId(null)}
-                                  className="text-on-surface-variant hover:text-on-surface cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-base">close</span>
-                                </button>
-                              </div>
-
-                              <div className="flex flex-col sm:flex-row items-center gap-3">
-                                <input
-                                  type="text"
-                                  value={newPasswordValue}
-                                  onChange={(e) => setNewPasswordValue(e.target.value)}
-                                  placeholder="Nhập mật khẩu mới..."
-                                  className="w-full flex-1 px-3.5 py-2 text-xs rounded-xl border border-theme-border bg-surface-container-lowest text-on-surface focus:outline-none focus:border-amber-500 font-mono font-bold"
-                                />
-                                <button
-                                  type="button"
-                                  disabled={resettingPassword}
-                                  onClick={() => handleResetPasswordSubmit(member.id)}
-                                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 cursor-pointer flex items-center justify-center gap-1.5"
-                                >
-                                  {resettingPassword && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
-                                  <span>Xác Nhận Đặt Lại</span>
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="relative min-w-[200px] sm:min-w-[260px]">
+          <span className="material-symbols-outlined text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 text-sm">search</span>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder="Tìm tên, email, sđt..."
+            className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-slate-400"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-xs">close</span>
+            </button>
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
+          <span className="material-symbols-outlined text-base">error</span>
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Staff Table */}
+      <SellerTableContainer minWidth="min-w-[1280px]">
+        <table className="w-full text-left border-collapse text-xs">
+          <thead>
+            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
+              <th className="py-3.5 px-4">Nhân Viên</th>
+              <th className="py-3.5 px-3">Email & SĐT</th>
+              <th className="py-3.5 px-3 text-center">Vai Trò</th>
+              <th className="py-3.5 px-3">Phân Quyền</th>
+              <th className="py-3.5 px-3 text-center">Trạng Thái</th>
+              <th className="py-3.5 px-4 text-right">Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? (
+              <tr>
+                <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
+                    <span className="text-xs">Đang tải danh sách nhân sự...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : filteredMembers.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+                    <span className="material-symbols-outlined text-4xl text-slate-300">group</span>
+                    <p className="font-medium text-slate-600">Không tìm thấy nhân viên phù hợp.</p>
+                  </div>
+                </td>
+              </tr>
+            ) : (
+              paginatedMembers.map((member) => {
+                const isOwner = member.role === 'OWNER';
+                const isEditingThis = editingMemberId === member.id;
+                const isResettingPassThis = resetPasswordMemberId === member.id;
+
+                return (
+                  <React.Fragment key={member.id}>
+                    <tr className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs uppercase border border-slate-200">
+                            {(member.user?.fullName || member.user?.email || 'U').charAt(0)}
+                          </div>
+                          <div>
+                            <span className="font-bold text-slate-900 block">{member.user?.fullName || 'Chưa cập nhật'}</span>
+                            {isOwner && (
+                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chủ gian hàng</span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3.5 px-3 font-mono">
+                        <span className="block text-slate-800 font-medium">{member.user?.email}</span>
+                        <span className="text-[11px] text-slate-400">{member.user?.phone || '—'}</span>
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-slate-100 border border-slate-200 font-bold text-slate-700">
+                          {member.role}
+                        </span>
+                      </td>
+
+                      <td className="py-3.5 px-3">
+                        {isOwner ? (
+                          <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                            <span className="material-symbols-outlined text-sm">all_inclusive</span>
+                            <span>Toàn quyền Master</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(member)}
+                            className="text-slate-800 hover:text-blue-600 font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            <span>{member.permissions?.length || 0} quyền</span>
+                            <span className="material-symbols-outlined text-xs">edit</span>
+                          </button>
+                        )}
+                      </td>
+
+                      <td className="py-3.5 px-3 text-center">
+                        <SellerStatusBadge
+                          variant={member.status === 'ACTIVE' ? 'success' : 'danger'}
+                          dot
+                          text={member.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm khóa'}
+                        />
+                      </td>
+
+                      <td className="py-3.5 px-4 text-right">
+                        {!isOwner && (
+                          <div className="flex items-center justify-end gap-1">
+                            <SellerActionButton
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              icon="key"
+                              title="Đặt lại mật khẩu"
+                              onClick={() => setResetPasswordMemberId(isResettingPassThis ? null : member.id)}
+                            />
+
+                            <SellerActionButton
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              icon={member.status === 'ACTIVE' ? 'block' : 'lock_open'}
+                              title={member.status === 'ACTIVE' ? 'Tạm khóa' : 'Mở khóa'}
+                              loading={togglingStatusId === member.id}
+                              onClick={() => handleToggleStatus(member)}
+                            />
+
+                            <SellerActionButton
+                              type="button"
+                              variant="danger"
+                              size="sm"
+                              icon="delete"
+                              title="Xóa nhân viên"
+                              loading={deletingMemberId === member.id}
+                              onClick={() => handleRemoveMember(member)}
+                            />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+
+                    {/* In-Page Expandable Edit Permissions Drawer */}
+                    {isEditingThis && (
+                      <tr className="bg-slate-50/70 border-y border-slate-200">
+                        <td colSpan={6} className="p-4 sm:p-5">
+                          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-4 shadow-xs">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">
+                                Chỉnh sửa phân quyền: <u>{member.user?.fullName}</u> ({editPermissions.length} quyền)
+                              </h4>
+                              <button
+                                type="button"
+                                onClick={() => setEditingMemberId(null)}
+                                className="text-slate-400 hover:text-slate-700 cursor-pointer"
+                              >
+                                <span className="material-symbols-outlined text-base">close</span>
+                              </button>
+                            </div>
+
+                            {/* Presets */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                              {ROLE_PRESETS.map((p) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => handleSelectEditPreset(p.id)}
+                                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                                    editPreset === p.id
+                                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  {p.name}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Groups */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                              {PERMISSION_GROUPS.map((group) => {
+                                const groupKeys = group.permissions.map((p) => p.key);
+                                const isAllSelected = groupKeys.every((k) => editPermissions.includes(k));
+
+                                return (
+                                  <div key={group.name} className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
+                                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
+                                      <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-xs text-slate-500">{group.icon}</span>
+                                        <span>{group.name}</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleEditGroup(group)}
+                                        className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
+                                      >
+                                        {isAllSelected ? 'Bỏ hết' : 'Chọn hết'}
+                                      </button>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      {group.permissions.map((perm) => (
+                                        <label key={perm.key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
+                                          <input
+                                            type="checkbox"
+                                            checked={editPermissions.includes(perm.key)}
+                                            onChange={() => handleToggleEditPermission(perm.key)}
+                                            className="rounded text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
+                                          />
+                                          <span className="leading-tight text-[11px] font-medium">{perm.label}</span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                              <SellerActionButton
+                                type="button"
+                                variant="neutral"
+                                size="sm"
+                                onClick={() => setEditingMemberId(null)}
+                              >
+                                Đóng
+                              </SellerActionButton>
+                              <SellerActionButton
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                loading={savingEdit}
+                                icon="check"
+                                onClick={() => handleSavePermissions(member.id)}
+                              >
+                                Lưu Quyền
+                              </SellerActionButton>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
+                    {/* In-Page Reset Password Row */}
+                    {isResettingPassThis && (
+                      <tr className="bg-amber-50/40 border-y border-amber-200">
+                        <td colSpan={6} className="p-4">
+                          <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="material-symbols-outlined text-amber-600">key</span>
+                              <div>
+                                <p className="font-bold text-xs text-slate-900">
+                                  Đặt Lại Mật Khẩu Khởi Tạo Cho: {member.user?.fullName} ({member.user?.email})
+                                </p>
+                                <p className="text-[11px] text-slate-400">
+                                  Mật khẩu mới sẽ có hiệu lực ngay lập tức
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={newPasswordValue}
+                                onChange={(e) => setNewPasswordValue(e.target.value)}
+                                className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-500 w-48 sm:w-60"
+                              />
+                              <SellerActionButton
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                loading={resettingPassword}
+                                icon="check"
+                                onClick={() => handleResetPassword(member.id)}
+                              >
+                                Xác Nhận Đổi
+                              </SellerActionButton>
+                              <SellerActionButton
+                                type="button"
+                                variant="neutral"
+                                size="sm"
+                                onClick={() => setResetPasswordMemberId(null)}
+                              >
+                                Hủy
+                              </SellerActionButton>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </SellerTableContainer>
+
+      {/* Pagination */}
+      {!loading && filteredMembers.length > 0 && (
+        <SellerPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+        />
+      )}
     </div>
   );
 }
-
-export function SellerStaffView() {
-  return (
-    <Suspense fallback={
-      <div className="py-24 text-center">
-        <span className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin inline-block"></span>
-        <p className="mt-2 text-xs text-on-surface-variant">Đang tải phân quyền nhân sự...</p>
-      </div>
-    }>
-      <SellerStaffContent />
-    </Suspense>
-  );
-}
-
-export default SellerStaffView;

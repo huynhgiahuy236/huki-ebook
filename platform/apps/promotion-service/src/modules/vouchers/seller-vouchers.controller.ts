@@ -65,7 +65,7 @@ export class SellerVouchersController {
     const storeId = query.storeId;
 
     // Get vouchers for this seller's stores
-    const result = await this.vouchers.findAllForSeller(business.id, storeId);
+    const result = await this.vouchers.findAllForSeller(business?.id, storeId);
     return result;
   }
 
@@ -87,7 +87,7 @@ export class SellerVouchersController {
     const voucher = await this.vouchers.findOne(id);
 
     // Validate ownership
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
 
     return voucher;
   }
@@ -113,10 +113,10 @@ export class SellerVouchersController {
 
     // Validate store ownership if storeId is provided
     if (dto.storeId) {
-      await this.vouchers.validateStoreOwnership(business.id, dto.storeId);
+      await this.vouchers.validateStoreOwnership(business?.id, dto.storeId);
     }
 
-    return this.vouchers.createForSeller(business.id, dto);
+    return this.vouchers.createForSeller(business?.id, dto);
   }
 
   @Patch(':id')
@@ -136,7 +136,7 @@ export class SellerVouchersController {
     @Body() dto: UpdateVoucherDto,
   ) {
     // Validate ownership
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
 
     return this.vouchers.updateForSeller(id, dto);
   }
@@ -154,7 +154,7 @@ export class SellerVouchersController {
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
     return this.vouchers.updateStatus(id, 'ACTIVE');
   }
 
@@ -171,7 +171,7 @@ export class SellerVouchersController {
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
     return this.vouchers.updateStatus(id, 'INACTIVE');
   }
 
@@ -190,7 +190,7 @@ export class SellerVouchersController {
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
     return this.vouchers.deleteForSeller(id);
   }
 
@@ -207,7 +207,7 @@ export class SellerVouchersController {
     @CurrentBusiness() business: any,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    await this.vouchers.validateSellerOwnership(business.id, id);
+    await this.vouchers.validateSellerOwnership(business?.id, id);
     return this.vouchers.getUsageStats(id);
   }
 }

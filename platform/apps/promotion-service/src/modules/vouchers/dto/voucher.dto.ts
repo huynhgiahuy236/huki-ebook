@@ -9,6 +9,7 @@ import {
   Min,
   MaxLength,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum VoucherType {
@@ -20,6 +21,12 @@ export enum VoucherType {
 export enum VoucherScope {
   PLATFORM = 'PLATFORM',
   STORE = 'STORE',
+}
+
+export enum VoucherTargetAudience {
+  ALL = 'ALL',
+  FOLLOWERS_ONLY = 'FOLLOWERS_ONLY',
+  NEW_CUSTOMERS_ONLY = 'NEW_CUSTOMERS_ONLY',
 }
 
 export enum VoucherStatus {
@@ -74,6 +81,17 @@ export class CreateVoucherDto {
   @IsUUID()
   @IsOptional()
   storeId?: string;
+
+  @ApiPropertyOptional({ enum: VoucherTargetAudience, default: VoucherTargetAudience.ALL, description: 'ALL | FOLLOWERS_ONLY | NEW_CUSTOMERS_ONLY' })
+  @IsEnum(VoucherTargetAudience)
+  @IsOptional()
+  targetAudience?: VoucherTargetAudience = VoucherTargetAudience.ALL;
+
+  @ApiPropertyOptional({ example: 30, description: 'Minimum days user must follow the store (0 = any follower, 30 = Bronze, 90 = Gold, 365 = Diamond)' })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  minFollowDays?: number = 0;
 
   @ApiPropertyOptional({ example: 100, description: 'Total usage limit' })
   @IsNumber()
@@ -136,6 +154,17 @@ export class UpdateVoucherDto {
   @IsOptional()
   scope?: VoucherScope;
 
+  @ApiPropertyOptional({ enum: VoucherTargetAudience })
+  @IsEnum(VoucherTargetAudience)
+  @IsOptional()
+  targetAudience?: VoucherTargetAudience;
+
+  @ApiPropertyOptional({ example: 30, description: 'Minimum days user must follow the store' })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  minFollowDays?: number;
+
   @ApiPropertyOptional()
   @IsNumber()
   @IsOptional()
@@ -166,11 +195,13 @@ export class UpdateVoucherDto {
 
 export class VoucherQueryDto {
   @ApiPropertyOptional({ default: 1 })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   page?: number = 1;
 
   @ApiPropertyOptional({ default: 20 })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   limit?: number = 20;

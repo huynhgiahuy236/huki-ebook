@@ -13,42 +13,49 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-theme-border px-3 sm:px-4 lg:px-5 py-1.5 flex items-center justify-between shadow-2xs min-h-[52px] h-13.5 gap-2 sm:gap-3">
-      {/* Left: Hamburger & Brand & Shop Identity */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        {/* Desktop Collapse Toggle */}
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="hidden lg:flex w-8 h-8 shrink-0 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-secondary-subtle text-on-surface items-center justify-center transition-all cursor-pointer shadow-2xs hover:border-theme-primary/40"
-          title={isSidebarCollapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
-          aria-label="Toggle Sidebar"
-        >
-          <span className="material-symbols-outlined text-[18px] text-on-surface">
-            {isSidebarCollapsed ? 'menu_open' : 'menu'}
+    <header className="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between shadow-2xs min-h-[54px] h-[54px] gap-2 sm:gap-3">
+      {/* Left: Sidebar Toggle & Brand Identity */}
+      <div className="flex items-center min-w-0">
+        {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align with collapsed sidebar */}
+        <div className="w-[60px] flex items-center justify-center shrink-0">
+          {/* Desktop Sidebar Collapse Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
+            title={isSidebarCollapsed ? 'Mở rộng thanh menu (Sidebar)' : 'Thu gọn thanh menu (Sidebar)'}
+            aria-label="Toggle Sidebar"
+          >
+            <span className="material-symbols-outlined text-[20px] text-[#003B2B] transition-transform duration-300">
+              {isSidebarCollapsed ? 'menu' : 'menu_open'}
+            </span>
+          </button>
+
+          {/* Mobile Menu Toggle */}
+          <button
+            type="button"
+            onClick={toggleMobileSidebar}
+            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+            title="Mở menu"
+            aria-label="Open Mobile Menu"
+          >
+            <span className="material-symbols-outlined text-[20px] text-[#003B2B]">menu</span>
+          </button>
+        </div>
+
+        {/* Brand - Chuẩn nhận diện Home & Admin (Không icon thừa) */}
+        <Link href="/seller/dashboard" className="flex flex-col group select-none pl-1 pr-3 shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span className="font-editorial text-base sm:text-lg font-black tracking-tight text-[#003B2B] leading-none">
+              HUKI EBOOK
+            </span>
+            <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider">
+              SELLER
+            </span>
+          </div>
+          <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+            Kênh NXB &amp; Tác Giả
           </span>
-        </button>
-
-        {/* Mobile Drawer Toggle */}
-        <button
-          type="button"
-          onClick={toggleMobileSidebar}
-          className="lg:hidden flex w-8 h-8 shrink-0 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-secondary-subtle text-on-surface items-center justify-center transition-all cursor-pointer shadow-2xs"
-          title="Mở menu"
-          aria-label="Open Mobile Menu"
-        >
-          <span className="material-symbols-outlined text-[18px] text-on-surface">menu</span>
-        </button>
-
-        {/* Brand */}
-        <Link href="/seller/dashboard" className="flex items-center gap-2 shrink-0 group">
-          <div className="w-8 h-8 rounded-xl bg-theme-primary flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
-            <span className="material-symbols-outlined text-lg">store</span>
-          </div>
-          <div className="flex flex-col">
-            <span className="font-editorial text-sm sm:text-base font-bold text-theme-primary leading-tight">HUKI SELLER</span>
-            <span className="text-[7.5px] uppercase tracking-wider text-theme-secondary font-bold">Kênh NXB &amp; Tác Giả</span>
-          </div>
         </Link>
 
         {/* Shop Badge (Auto-truncated) */}

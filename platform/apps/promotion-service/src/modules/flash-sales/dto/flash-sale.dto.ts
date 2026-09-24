@@ -174,3 +174,79 @@ export class UpdateFlashSaleStatusDto {
   @IsEnum(FlashSaleStatus)
   status: FlashSaleStatus;
 }
+
+export class SellerRegisterFlashSaleItemDto {
+  @ApiProperty({ description: "Khung giờ Flash Sale ID" })
+  @IsUUID()
+  flashSaleId: string;
+
+  @ApiProperty({ description: "Book ID thuộc quyền sở hữu của gian hàng" })
+  @IsUUID()
+  bookId: string;
+
+  @ApiProperty({ example: 149000, description: "Giá khuyến mãi Flash Sale (phải nhỏ hơn giá niêm yết hiện tại)" })
+  @IsInt()
+  @Min(1000)
+  salePrice: number;
+
+  @ApiProperty({ example: 20, description: "Số lượng tham gia Flash Sale (không vượt tồn khả dụng)" })
+  @IsInt()
+  @Min(1)
+  stock: number;
+
+  @ApiPropertyOptional({ example: 1, description: "Giới hạn mua mỗi khách hàng" })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxPerUser?: number = 1;
+}
+
+export class SellerBatchItemDto {
+  @IsUUID()
+  bookId: string;
+
+  @IsInt()
+  @Min(1000)
+  salePrice: number;
+
+  @IsInt()
+  @Min(1)
+  stock: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxPerUser?: number = 1;
+}
+
+export class SellerBatchRegisterFlashSaleItemsDto {
+  @ApiProperty({ description: "Khung giờ Flash Sale ID" })
+  @IsUUID()
+  flashSaleId: string;
+
+  @ApiProperty({ description: "Danh sách sản phẩm đăng ký", type: [SellerBatchItemDto] })
+  @IsArray()
+  items: SellerBatchItemDto[];
+}
+
+export class SellerUpdateFlashSaleItemDto {
+  @ApiPropertyOptional({ example: 45000, description: "Giá khuyến mãi Flash Sale mới (VNĐ)" })
+  @IsOptional()
+  @IsInt()
+  @Min(1000)
+  salePrice?: number;
+
+  @ApiPropertyOptional({ example: 15, description: "Số lượng tham gia Flash Sale mới" })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  stock?: number;
+
+  @ApiPropertyOptional({ example: 2, description: "Giới hạn mua mỗi khách hàng" })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxPerUser?: number;
+}
+
+

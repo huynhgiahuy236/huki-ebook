@@ -33,6 +33,13 @@ export async function apiClient<T = unknown>(
     }
   }
 
+  if (typeof window !== 'undefined') {
+    const activeBiz = localStorage.getItem('huki_active_business_id');
+    if (activeBiz && !headers['x-business-id']) {
+      headers['x-business-id'] = activeBiz;
+    }
+  }
+
   try {
     const response = await fetch(url, {
       ...restOptions,

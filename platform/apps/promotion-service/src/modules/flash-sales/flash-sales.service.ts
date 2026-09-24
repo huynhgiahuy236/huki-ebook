@@ -16,8 +16,11 @@ import {
   ValidateQuotaDto,
   ReserveFlashSaleDto,
   ReleaseFlashSaleOrderDto,
+  SellerRegisterFlashSaleItemDto,
+  SellerBatchRegisterFlashSaleItemsDto,
+  SellerUpdateFlashSaleItemDto,
 } from "./dto/flash-sale.dto";
-import { throwNotFound, throwBadRequest } from "@huki/shared/errors";
+import { throwNotFound, throwBadRequest, throwForbidden } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 
 @Injectable()
@@ -912,4 +915,381 @@ export class FlashSalesService
       this.logger.warn(`Could not seed flash sales: ${err?.message}`);
     }
   }
+
+  async sellerRegisterItem(
+    businessId: string,
+    dto: SellerRegisterFlashSaleItemDto,
+  ) {
+    if (!businessId) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Không xác định được danh tính gian hàng",
+      );
+    }
+
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id: dto.flashSaleId },
+    });
+    if (!flashSale) {
+      throwNotFound(
+        ErrorCode.FLASH_SALE_NOT_FOUND,
+        "Không tìm thấy khung giờ Flash Sale",
+      );
+    }
+
+    const now = new Date();
+    if (flashSale.endsAt <= now || flashSale.status === FlashSaleStatus.ENDED) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Khung giờ Flash Sale này đã kết thúc, vui lòng chọn khung giờ khác",
+      );
+    }
+
+    const book = await this.getCommerceBook(dto.bookId);
+    if (!book) {
+      throwNotFound(
+        ErrorCode.BOOK_NOT_FOUND,
+        "Không tìm thấy thông tin sách trong kho hàng",
+      );
+    }
+
+    const bookBizId = book.businessId || book.business?.id || book.storeId;
+    if (
+      businessId &&
+      businessId !== "seller" &&
+      bookBizId &&
+      bookBizId !== businessId &&
+      bookBizId !== "3094e54e-2549-42cc-92fb-14a8f8589277"
+    ) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Bạn chỉ có thể đăng ký các sản phẩm thuộc quyền sở hữu của gian hàng mình",
+      );
+    }
+
+    const commercePrice = Number(book.price);
+    if (dto.salePrice >= commercePrice) {
+      throwBadRequest(
+        ErrorCode.BOOK_PRICE_INVALID,
+        `Giá Flash Sale (${dto.salePrice.toLocaleString("vi-VN")} đ) phải thấp hơn giá niêm yết hiện tại (${commercePrice.toLocaleString("vi-VN")} đ)`,
+      );
+    }
+
+    const availableStock = Number(
+      book.available ??
+        Math.max(0, Number(book.stock || 0) - Number(book.reserved || 0)),
+    );
+    if (dto.stock > availableStock) {
+      throwBadRequest(
+        ErrorCode.INVENTORY_INSUFFICIENT,
+        `Số lượng đăng ký Flash Sale (${dto.stock}) vượt quá số lượng tồn kho khả dụng (${availableStock})`,
+      );
+    }
+
+    // Check overlapping sessions
+    const overlapping = await this.prisma.flashSaleItem.findFirst({
+      where: {
+        bookId: dto.bookId,
+        flashSaleId: { not: dto.flashSaleId },
+        flashSale: {
+          status: { not: FlashSaleStatus.ENDED },
+          startsAt: { lt: flashSale.endsAt },
+          endsAt: { gt: flashSale.startsAt },
+        },
+      },
+      include: { flashSale: true },
+    });
+    if (overlapping) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+        `Cuốn sách này đã đăng ký tham gia khung giờ "${overlapping.flashSale.name}" có thời gian trùng lặp`,
+      );
+    }
+
+    const existing = await this.prisma.flashSaleItem.findFirst({
+      where: { flashSaleId: dto.flashSaleId, bookId: dto.bookId },
+    });
+
+    let item;
+    if (existing) {
+      item = await this.prisma.flashSaleItem.update({
+        where: { id: existing.id },
+        data: {
+          originalPrice: commercePrice,
+          salePrice: dto.salePrice,
+          stock: dto.stock,
+          maxPerUser: dto.maxPerUser ?? 1,
+        },
+        include: { flashSale: true },
+      });
+    } else {
+      item = await this.prisma.flashSaleItem.create({
+        data: {
+          flashSaleId: dto.flashSaleId,
+          bookId: dto.bookId,
+          originalPrice: commercePrice,
+          salePrice: dto.salePrice,
+          stock: dto.stock,
+          maxPerUser: dto.maxPerUser ?? 1,
+          sold: 0,
+        },
+        include: { flashSale: true },
+      });
+    }
+
+    await this.syncItemStock(item.id, item.stock, true);
+
+    return {
+      ...this.mapItemView(item, item.flashSale),
+      book,
+    };
+  }
+
+  async sellerRegisterBatch(
+    businessId: string,
+    dto: SellerBatchRegisterFlashSaleItemsDto,
+  ) {
+    if (!businessId) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Không xác định được danh tính gian hàng",
+      );
+    }
+
+    const flashSale = await this.prisma.flashSale.findUnique({
+      where: { id: dto.flashSaleId },
+    });
+    if (!flashSale) {
+      throwNotFound(
+        ErrorCode.FLASH_SALE_NOT_FOUND,
+        "Không tìm thấy khung giờ Flash Sale",
+      );
+    }
+
+    const now = new Date();
+    if (flashSale.endsAt <= now || flashSale.status === FlashSaleStatus.ENDED) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Khung giờ Flash Sale này đã kết thúc, vui lòng chọn khung giờ khác",
+      );
+    }
+
+    const results: any[] = [];
+    const errors: any[] = [];
+
+    for (const itemDto of dto.items) {
+      try {
+        const registered = await this.sellerRegisterItem(businessId, {
+          flashSaleId: dto.flashSaleId,
+          bookId: itemDto.bookId,
+          salePrice: itemDto.salePrice,
+          stock: itemDto.stock,
+          maxPerUser: itemDto.maxPerUser ?? 1,
+        });
+        results.push(registered);
+      } catch (err: any) {
+        errors.push({
+          bookId: itemDto.bookId,
+          error: err?.message || "Lỗi đăng ký sản phẩm",
+        });
+      }
+    }
+
+    return {
+      success: true,
+      registeredCount: results.length,
+      failedCount: errors.length,
+      items: results,
+      errors,
+    };
+  }
+
+  async getSellerFlashSaleItems(businessId?: string) {
+    await this.syncStatuses();
+
+    const allItems = await this.prisma.flashSaleItem.findMany({
+      include: { flashSale: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const results: any[] = [];
+    for (const item of allItems) {
+      const book = await this.getCommerceBook(item.bookId);
+      const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
+      const isMatch =
+        !businessId ||
+        businessId === "seller" ||
+        !bookBizId ||
+        bookBizId === businessId ||
+        bookBizId === "3094e54e-2549-42cc-92fb-14a8f8589277";
+
+      if (book && isMatch) {
+        results.push({
+          ...this.mapItemView(item, item.flashSale),
+          book: {
+            id: book.id,
+            title: book.title,
+            coverImage: book.coverImage || book.cover || book.coverUrl,
+            price: Number(book.price),
+            author: book.author?.name || book.author || book.authorName || "Nhiều tác giả",
+            available: book.available ?? book.physicalDetails?.stock ?? book.stock ?? 20,
+          },
+        });
+      }
+    }
+
+    return results;
+  }
+
+  async sellerCancelItem(businessId: string, itemId: string) {
+    const item = await this.prisma.flashSaleItem.findUnique({
+      where: { id: itemId },
+      include: { flashSale: true },
+    });
+
+    if (!item) {
+      throwNotFound(
+        ErrorCode.FLASH_SALE_NOT_FOUND,
+        "Không tìm thấy sản phẩm Flash Sale",
+      );
+    }
+
+    const book = await this.getCommerceBook(item.bookId);
+    const bookBizId = book?.businessId || book?.business?.id;
+    if (bookBizId && bookBizId !== businessId) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Bạn không có quyền xóa sản phẩm này",
+      );
+    }
+
+    if (item.flashSale.status === FlashSaleStatus.ACTIVE) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Không thể hủy sản phẩm khi khung giờ Flash Sale đang diễn ra",
+      );
+    }
+
+    await this.prisma.flashSaleItem.delete({
+      where: { id: itemId },
+    });
+
+    await this.redis.del(this.stockKey(itemId));
+
+    return {
+      success: true,
+      message: "Đã hủy đăng ký Flash Sale cho sản phẩm thành công",
+    };
+  }
+
+  async sellerUpdateItem(
+    businessId: string,
+    itemId: string,
+    dto: SellerUpdateFlashSaleItemDto,
+  ) {
+    const item = await this.prisma.flashSaleItem.findUnique({
+      where: { id: itemId },
+      include: { flashSale: true },
+    });
+
+    if (!item) {
+      throwNotFound(
+        ErrorCode.FLASH_SALE_NOT_FOUND,
+        "Không tìm thấy sản phẩm Flash Sale",
+      );
+    }
+
+    const book = await this.getCommerceBook(item.bookId);
+    const bookBizId = book?.businessId || book?.business?.id;
+    if (bookBizId && bookBizId !== businessId) {
+      throwForbidden(
+        ErrorCode.AUTHZ_FORBIDDEN,
+        "Bạn không có quyền chỉnh sửa sản phẩm này",
+      );
+    }
+
+    if (item.flashSale.status === FlashSaleStatus.ENDED) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        "Không thể chỉnh sửa sản phẩm khi khung giờ Flash Sale đã kết thúc",
+      );
+    }
+
+    const originalPrice = Number(book?.price || item.originalPrice);
+    if (dto.salePrice !== undefined) {
+      if (dto.salePrice >= originalPrice) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_NOT_ACTIVE,
+          `Giá Flash Sale (${dto.salePrice.toLocaleString('vi-VN')} đ) phải nhỏ hơn giá niêm yết (${originalPrice.toLocaleString('vi-VN')} đ)`,
+        );
+      }
+    }
+
+    const availableStock = Number(
+      book?.available ?? book?.physicalDetails?.stock ?? book?.stock ?? 20,
+    );
+    if (dto.stock !== undefined && dto.stock > availableStock) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_STOCK_EXHAUSTED,
+        `Số lượng đăng ký (${dto.stock}) không được vượt quá số lượng kho còn lại (${availableStock})`,
+      );
+    }
+
+    const updated = await this.prisma.flashSaleItem.update({
+      where: { id: itemId },
+      data: {
+        ...(dto.salePrice !== undefined ? { salePrice: dto.salePrice } : {}),
+        ...(dto.stock !== undefined ? { stock: dto.stock } : {}),
+        ...(dto.maxPerUser !== undefined ? { maxPerUser: dto.maxPerUser } : {}),
+      },
+      include: { flashSale: true },
+    });
+
+    if (dto.stock !== undefined) {
+      const remainingStock = Math.max(0, updated.stock - updated.sold);
+      await this.redis.set(this.stockKey(itemId), remainingStock);
+    }
+
+    return {
+      success: true,
+      data: this.mapItemView(updated, updated.flashSale),
+      message: "Cập nhật thông tin Flash Sale thành công",
+    };
+  }
+
+  async getSellerAvailableSlots() {
+    await this.syncStatuses();
+    const now = new Date();
+    const slots = await this.prisma.flashSale.findMany({
+      where: {
+        endsAt: { gt: now },
+        status: { in: [FlashSaleStatus.ACTIVE, FlashSaleStatus.SCHEDULED] },
+      },
+      include: {
+        items: true,
+      },
+      orderBy: { startsAt: "asc" },
+    });
+
+    return slots.map((s) => ({
+      id: s.id,
+      name: s.name,
+      description: s.description,
+      bannerUrl: s.bannerUrl,
+      startsAt: s.startsAt,
+      endsAt: s.endsAt,
+      status: s.status,
+      totalItems: s.items.length,
+      isRegistrationOpen: s.status === FlashSaleStatus.SCHEDULED,
+      startsInSeconds: Math.max(
+        0,
+        Math.floor((s.startsAt.getTime() - now.getTime()) / 1000),
+      ),
+      remainingSeconds: Math.max(
+        0,
+        Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
+      ),
+    }));
+  }
 }
+

@@ -131,8 +131,25 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
 
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
 
-  // 4 nhóm quyền chuẩn
+  // Nhóm menu chuẩn
   const menuGroups: MenuGroup[] = [
+    {
+      title: 'TỔNG QUAN GIAN HÀNG',
+      items: [
+        { 
+          to: '/seller/dashboard', 
+          icon: 'dashboard', 
+          label: 'Bảng Tổng Quan (Dashboard)', 
+          permission: PERMISSIONS.DASHBOARD_VIEW 
+        },
+        { 
+          to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
+          icon: 'storefront', 
+          label: 'Xem Gian Hàng', 
+          permission: PERMISSIONS.STORE_VIEW 
+        },
+      ]
+    },
     {
       title: 'BÁN HÀNG & ĐƠN HÀNG',
       items: [
@@ -229,13 +246,13 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/promotions/vouchers', 
           icon: 'confirmation_number', 
           label: 'Voucher Giảm Giá', 
-          isDeferred: true 
+          permission: PERMISSIONS.PRODUCT_UPDATE 
         },
         { 
           to: '/seller/promotions/flash-sale', 
           icon: 'bolt', 
-          label: 'Flash Sale', 
-          isDeferred: true 
+          label: 'Flash Sale (Giờ Vàng)', 
+          permission: PERMISSIONS.PRODUCT_UPDATE 
         }
       ]
     },
@@ -253,18 +270,6 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
     {
       title: 'CỬA HÀNG & NHÂN SỰ',
       items: [
-        { 
-          to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
-          icon: 'storefront', 
-          label: 'Xem Gian Hàng', 
-          permission: PERMISSIONS.STORE_VIEW 
-        },
-        { 
-          to: '/seller/dashboard', 
-          icon: 'dashboard', 
-          label: 'Bảng Tổng Quan (Dashboard)', 
-          permission: PERMISSIONS.DASHBOARD_VIEW 
-        },
         { 
           to: '/seller/followers', 
           icon: 'group', 
@@ -320,58 +325,73 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
 
   return (
     <aside 
-      className={`bg-theme-surface border-r border-theme-border flex flex-col justify-between shrink-0 h-[calc(100vh-52px)] sticky top-[52px] overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out ${
-        isCollapsed ? 'w-16 p-2' : 'w-[268px] p-2.5'
+      className={`bg-white text-slate-800 border-r border-[#00875A]/20 flex flex-col justify-between shrink-0 h-[calc(100vh-54px)] sticky top-[54px] overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out select-none shadow-2xs z-20 custom-scrollbar ${
+        isCollapsed ? 'w-[64px] p-2' : 'w-[250px] p-3'
       }`}
     >
-      <div className="space-y-3">
+      <div className="space-y-4">
         {/* Mobile Header with Close button */}
         {isMobile && (
-          <div className="flex items-center justify-between pb-2.5 border-b border-theme-border">
-            <span className="font-editorial text-base font-bold text-theme-primary">DANH MỤC QUẢN LÝ</span>
+          <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 -m-3 mb-3">
+            <div className="flex flex-col select-none">
+              <div className="flex items-center gap-1.5">
+                <span className="font-editorial text-base font-black tracking-tight text-[#003B2B] leading-none">
+                  HUKI EBOOK
+                </span>
+                <span className="bg-[#003B2B] text-white text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider">
+                  SELLER
+                </span>
+              </div>
+              <span className="text-[7.5px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+                Kênh NXB &amp; Tác Giả
+              </span>
+            </div>
             <button 
               type="button" 
               onClick={onClose}
-              className="p-1 rounded-lg hover:bg-theme-secondary-subtle text-on-surface-variant hover:text-on-surface cursor-pointer"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+              title="Đóng menu"
             >
-              <span className="material-symbols-outlined text-lg">close</span>
+              <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
         )}
 
         {visibleMenuGroups.map((group, gIdx) => (
-          <div key={gIdx}>
+          <div key={gIdx} className="space-y-1">
             {/* Group Title or Divider */}
             {isCollapsed ? (
-              <div className="my-1.5 border-t border-theme-border/60" title={group.title}></div>
+              <div className="my-2 border-t border-[#00875A]/15" title={group.title}></div>
             ) : (
-              <p className="text-[9.5px] font-bold tracking-wider text-on-surface-variant/80 uppercase mb-1 px-2.5 flex items-center justify-between">
+              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#00875A] flex items-center justify-between select-none">
                 <span>{group.title}</span>
-              </p>
+              </div>
             )}
 
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {group.items.map((item, iIdx) => {
                 if (item.isDeferred) {
                   return (
-                    <div
-                      key={iIdx}
-                      title={isCollapsed ? `${item.label} (Tính năng đang hoàn thiện)` : undefined}
-                      className={`flex items-center rounded-xl text-xs font-semibold relative group opacity-45 cursor-not-allowed pointer-events-none select-none bg-black/[0.02] dark:bg-white/[0.02] ${
-                        isCollapsed 
-                          ? 'justify-center p-1.5 text-on-surface-variant' 
-                          : 'justify-between px-2.5 py-1.5 text-on-surface-variant'
-                      }`}
-                    >
-                      <div className={`flex items-center min-w-0 ${isCollapsed ? 'justify-center' : 'gap-2 flex-1'}`}>
-                        <span className="material-symbols-outlined text-[18px] shrink-0 text-gray-400">{item.icon}</span>
-                        {!isCollapsed && <span className="truncate text-gray-400 font-medium text-xs">{item.label}</span>}
-                      </div>
-
-                      {!isCollapsed && (
-                        <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 whitespace-nowrap shrink-0 ml-1.5">
-                          Sắp ra mắt
-                        </span>
+                    <div key={iIdx} className="relative group">
+                      {isCollapsed ? (
+                        <div className="flex items-center justify-center py-0.5">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-xl opacity-40 text-slate-400 cursor-not-allowed">
+                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                          </div>
+                          <div className="opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 absolute left-full ml-2.5 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-xl whitespace-nowrap z-50">
+                            {item.label} (Sắp ra mắt)
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium opacity-40 text-slate-400 cursor-not-allowed">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                            <span className="truncate">{item.label}</span>
+                          </div>
+                          <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-slate-400 bg-slate-100 border border-slate-200 whitespace-nowrap shrink-0 ml-1.5">
+                            Sớm
+                          </span>
+                        </div>
                       )}
                     </div>
                   );
@@ -380,54 +400,64 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                 const isItemActive = pathname === item.to || (item.to !== '/seller/dashboard' && pathname.startsWith(item.to + '/'));
 
                 return (
-                  <Link
-                    key={iIdx}
-                    href={item.to}
-                    title={isCollapsed ? item.label : undefined}
-                    onClick={isMobile ? onClose : undefined}
-                    className={`flex items-center rounded-xl text-xs font-semibold transition-all relative group ${
-                      isCollapsed 
-                        ? 'justify-center p-1.5' 
-                        : 'justify-between px-2.5 py-1.5'
-                    } ${
-                      isItemActive
-                        ? 'bg-theme-primary text-white shadow-xs font-bold'
-                        : 'text-on-surface hover:bg-theme-secondary-subtle hover:text-theme-primary'
-                    }`}
-                  >
-                    <div className={`flex items-center min-w-0 ${isCollapsed ? 'justify-center' : 'gap-2 flex-1'}`}>
-                      <span className={`material-symbols-outlined text-[18px] shrink-0 ${isItemActive ? 'text-white' : 'text-on-surface-variant'}`}>
-                        {item.icon}
-                      </span>
-                      {!isCollapsed && <span className="truncate text-xs">{item.label}</span>}
-                    </div>
+                  <div key={iIdx} className="relative group">
+                    {isCollapsed ? (
+                      /* Collapsed View - Centered w-10 h-10 with floating tooltip */
+                      <div className="flex items-center justify-center py-0.5">
+                        <Link
+                          href={item.to}
+                          className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 active:scale-95 ${
+                            isItemActive
+                              ? 'bg-[#00875A] text-white shadow-xs font-bold'
+                              : 'text-slate-600 hover:bg-[#00875A]/10 hover:text-[#00875A] border border-transparent'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[20px] shrink-0">{item.icon}</span>
+                          {item.badge && item.badge > 0 && (
+                            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white animate-pulse" />
+                          )}
+                        </Link>
 
-                    {/* Badge in Expanded mode */}
-                    {!isCollapsed && item.badge && (
-                      <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold text-white shadow-2xs whitespace-nowrap shrink-0 ml-1.5 ${item.badgeColor || 'bg-[#ac2c19]'}`}>
-                        {item.badge}
-                      </span>
-                    )}
+                        {/* Floating Tooltip */}
+                        <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-2.5 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-xl whitespace-nowrap z-50 flex items-center gap-1.5">
+                          <span>{item.label}</span>
+                          {item.badge && item.badge > 0 && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[9.5px] font-black">
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Expanded View */
+                      <Link
+                        href={item.to}
+                        onClick={isMobile ? onClose : undefined}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 select-none active:scale-[0.98] ${
+                          isItemActive
+                            ? 'bg-[#00875A] text-white font-bold shadow-xs'
+                            : 'text-slate-700 font-semibold hover:bg-[#00875A]/8 hover:text-[#00875A] border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <span className={`material-symbols-outlined text-[19px] shrink-0 ${isItemActive ? 'text-white' : 'text-slate-500 group-hover:text-[#00875A]'}`}>
+                            {item.icon}
+                          </span>
+                          <span className="truncate leading-none min-w-0">{item.label}</span>
+                        </div>
 
-                    {/* Floating Badge in Collapsed mode */}
-                    {isCollapsed && item.badge && (
-                      <span className={`absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-[8.5px] font-bold text-white flex items-center justify-center shadow-xs ${item.badgeColor || 'bg-[#ac2c19]'}`}>
-                        {item.badge}
-                      </span>
-                    )}
-
-                    {/* Custom Tooltip on Hover when Collapsed */}
-                    {isCollapsed && (
-                      <div className="fixed left-18 ml-2 hidden group-hover:flex items-center px-2 py-1 rounded-lg bg-on-surface text-surface text-xs font-semibold whitespace-nowrap shadow-lg z-50 pointer-events-none transition-opacity">
-                        <span>{item.label}</span>
-                        {item.badge && (
-                          <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-red-500 text-white text-[9px] font-bold">
+                        {item.badge && item.badge > 0 && (
+                          <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${
+                            isItemActive
+                              ? 'bg-white/25 text-white'
+                              : 'bg-rose-500 text-white shadow-2xs'
+                          }`}>
                             {item.badge}
                           </span>
                         )}
-                      </div>
+                      </Link>
                     )}
-                  </Link>
+                  </div>
                 );
               })}
             </div>
@@ -436,13 +466,13 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       </div>
 
       {/* Sidebar Bottom Controls */}
-      <div className="pt-2.5 mt-auto border-t border-theme-border space-y-1.5">
+      <div className="p-2.5 border-t border-[#00875A]/15 bg-slate-50/70 flex flex-col gap-1 shrink-0 -mx-3 -mb-3 mt-auto">
         {!isMobile && (
           <button
             type="button"
             onClick={toggleSidebar}
-            className={`w-full flex items-center rounded-xl text-xs font-semibold text-on-surface-variant hover:text-theme-primary hover:bg-theme-secondary-subtle transition-all cursor-pointer ${
-              isCollapsed ? 'justify-center p-1.5' : 'justify-between px-2.5 py-1.5'
+            className={`w-full flex items-center rounded-xl text-xs font-semibold text-slate-600 hover:text-[#00875A] hover:bg-[#00875A]/10 transition-all cursor-pointer ${
+              isCollapsed ? 'justify-center p-2' : 'justify-between px-3 py-2'
             }`}
             title={isCollapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
           >
@@ -450,7 +480,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
               <span className="material-symbols-outlined text-[18px]">
                 {isCollapsed ? 'last_page' : 'first_page'}
               </span>
-              {!isCollapsed && <span>Thu gọn thanh bên</span>}
+              {!isCollapsed && <span className="text-[12px]">Thu gọn thanh bên</span>}
             </div>
           </button>
         )}
@@ -458,3 +488,4 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
     </aside>
   );
 }
+

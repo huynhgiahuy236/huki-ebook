@@ -240,8 +240,8 @@ export default function CartPage() {
                         <div key={item.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group">
                           <div className="flex items-start gap-2.5 flex-1 min-w-0">
                             <input type="checkbox" checked={item.checked} onChange={() => toggleCheckItem(item.id)} className="w-4 h-4 rounded text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] mt-1 cursor-pointer" />
-                            <Link href={bookPath} className="w-13 h-18 aspect-[2/3] rounded-md overflow-hidden shrink-0 bg-neutral-100 border border-[var(--theme-border,#e8e5df)] shadow-2xs group-hover:opacity-90 transition-opacity">
-                              <img className="w-full h-full object-cover" alt={item.title} src={item.cover} loading="lazy" />
+                            <Link href={bookPath} className="w-14 h-20 min-w-[56px] max-w-[56px] aspect-[2/3] rounded-md overflow-hidden shrink-0 bg-neutral-100 border border-[var(--theme-border,#e8e5df)] shadow-2xs group-hover:opacity-90 transition-opacity block">
+                              <img className="w-full h-full object-cover shrink-0" alt={item.title} src={item.cover} loading="lazy" />
                             </Link>
                             <div className="flex flex-col gap-0.5 min-w-0 pr-2">
                               {hasProductDiscount && (
@@ -309,8 +309,8 @@ export default function CartPage() {
                       <div key={item.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 opacity-60 hover:opacity-80 transition-opacity">
                         <div className="flex items-start gap-2.5 flex-1 min-w-0">
                           <input type="checkbox" disabled checked={false} className="w-4 h-4 rounded border-slate-300 bg-slate-200 mt-1 cursor-not-allowed opacity-50" />
-                          <div className="w-13 h-18 aspect-[2/3] rounded-md overflow-hidden shrink-0 bg-neutral-200 border border-slate-300 grayscale">
-                            <img className="w-full h-full object-cover" alt={item.title} src={item.cover} loading="lazy" />
+                          <div className="w-14 h-20 min-w-[56px] max-w-[56px] aspect-[2/3] rounded-md overflow-hidden shrink-0 bg-neutral-200 border border-slate-300 grayscale">
+                            <img className="w-full h-full object-cover shrink-0" alt={item.title} src={item.cover} loading="lazy" />
                           </div>
                           <div className="flex flex-col gap-0.5 min-w-0">
                             <span className="inline-flex items-center gap-1 text-[9.5px] font-black px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 w-fit">TẠM HẾT HÀNG</span>

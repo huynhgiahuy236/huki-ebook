@@ -51,6 +51,8 @@ export class VouchersService {
         maxDiscountAmount: dto.maxDiscountAmount,
         scope: dto.scope as any,
         storeId: dto.storeId,
+        targetAudience: (dto.targetAudience as any) ?? 'ALL',
+        minFollowDays: dto.minFollowDays ?? 0,
         totalUsage: dto.totalUsage ?? 0,
         maxUsagePerUser: dto.maxUsagePerUser,
         currentUsage: 0,
@@ -178,6 +180,41 @@ export class VouchersService {
     // Check scope
     if (voucher.scope === 'STORE' && dto.storeId && voucher.storeId !== dto.storeId) {
       return { valid: false, reason: 'Voucher is not valid for this store' };
+    }
+
+    // Check Target Audience (ALL | FOLLOWERS_ONLY | NEW_CUSTOMERS_ONLY)
+    if (voucher.targetAudience === 'FOLLOWERS_ONLY') {
+      if (!userId) {
+        return { valid: false, reason: 'Mã giảm giá chỉ dành cho Người theo dõi Shop. Vui lòng đăng nhập và nhấn Theo dõi Shop!' };
+      }
+      const followInfo = await this.checkUserFollowsStore(userId, voucher.storeId);
+      if (!followInfo.isFollower) {
+        return { valid: false, reason: 'Mã voucher độc quyền dành cho Người theo dõi Shop. Hãy nhấn "Theo dõi" Shop để áp dụng!' };
+      }
+
+      // Check minFollowDays (Tri ân 1 năm / 90 ngày / 30 ngày / mốc gắn bó)
+      if (voucher.minFollowDays && voucher.minFollowDays > 0) {
+        if (followInfo.daysFollowed < voucher.minFollowDays) {
+          let tierName = '';
+          if (voucher.minFollowDays >= 365) tierName = '💎 Tri Ân Kim Cương (1 Năm+)';
+          else if (voucher.minFollowDays >= 90) tierName = '🥇 Fan Vàng (90 Ngày+)';
+          else if (voucher.minFollowDays >= 30) tierName = '🥈 Fan Bạc (30 Ngày+)';
+          else tierName = `Gắn bó ${voucher.minFollowDays} ngày+`;
+
+          return {
+            valid: false,
+            reason: `Voucher ${tierName} yêu cầu theo dõi Shop tối thiểu ${voucher.minFollowDays} ngày. Bạn đã theo dõi được ${followInfo.daysFollowed} ngày.`,
+          };
+        }
+      }
+    } else if (voucher.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+      if (!userId) {
+        return { valid: false, reason: 'Mã giảm giá chỉ áp dụng cho Khách hàng mới chưa từng mua hàng.' };
+      }
+      const isNewCustomer = await this.checkIsNewCustomer(userId, voucher.storeId);
+      if (!isNewCustomer) {
+        return { valid: false, reason: 'Mã giảm giá này chỉ áp dụng cho đơn hàng đầu tiên của Khách hàng mới.' };
+      }
     }
 
     // Calculate discount
@@ -439,6 +476,8 @@ export class VouchersService {
         maxDiscountAmount: dto.maxDiscountAmount,
         scope: 'STORE',
         storeId: dto.storeId,
+        targetAudience: (dto.targetAudience as any) ?? 'ALL',
+        minFollowDays: dto.minFollowDays ?? 0,
         totalUsage: dto.totalUsage ?? 0,
         maxUsagePerUser: dto.maxUsagePerUser,
         currentUsage: 0,
@@ -463,6 +502,8 @@ export class VouchersService {
     if (dto.value !== undefined) data.value = dto.value;
     if (dto.minOrderAmount !== undefined) data.minOrderAmount = dto.minOrderAmount;
     if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = dto.maxDiscountAmount;
+    if (dto.targetAudience !== undefined) data.targetAudience = dto.targetAudience as any;
+    if (dto.minFollowDays !== undefined) data.minFollowDays = dto.minFollowDays;
     if (dto.totalUsage !== undefined) data.totalUsage = dto.totalUsage;
     if (dto.maxUsagePerUser !== undefined) data.maxUsagePerUser = dto.maxUsagePerUser;
     if (dto.status !== undefined) data.status = dto.status as any;
@@ -478,6 +519,60 @@ export class VouchersService {
       where: { id },
       data,
     });
+  }
+
+  private async checkUserFollowsStore(userId: string, storeId?: string | null): Promise<{ isFollower: boolean; daysFollowed: number; createdAt?: Date }> {
+    if (!userId || !storeId) return { isFollower: false, daysFollowed: 0 };
+    try {
+      const { Client } = require('pg');
+      const bizDbUrl =
+        process.env.BUSINESS_DATABASE_URL ||
+        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      const pgClient = new Client({ connectionString: bizDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
+        `SELECT bf.id, bf.created_at FROM business_followers bf
+         JOIN stores s ON s.business_id = bf.business_id
+         WHERE s.id = $1 AND bf.user_id = $2
+         LIMIT 1`,
+        [storeId, userId],
+      );
+      await pgClient.end();
+
+      if (res.rows && res.rows.length > 0) {
+        const createdAt = new Date(res.rows[0].created_at);
+        const now = new Date();
+        const diffMs = Math.max(0, now.getTime() - createdAt.getTime());
+        const daysFollowed = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        return { isFollower: true, daysFollowed, createdAt };
+      }
+      return { isFollower: false, daysFollowed: 0 };
+    } catch (e) {
+      console.warn('Could not check follower status:', e);
+      return { isFollower: true, daysFollowed: 999 }; // Fallback to allow if business service is unreachable
+    }
+  }
+
+  private async checkIsNewCustomer(userId: string, storeId?: string | null): Promise<boolean> {
+    if (!userId) return false;
+    try {
+      const { Client } = require('pg');
+      const commerceDbUrl =
+        process.env.COMMERCE_DATABASE_URL ||
+        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_commerce') ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_commerce';
+      const pgClient = new Client({ connectionString: commerceDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
+        `SELECT id FROM orders WHERE user_id = $1 ${storeId ? 'AND store_id = $2' : ''} AND status NOT IN ('CANCELLED', 'PAYMENT_FAILED') LIMIT 1`,
+        storeId ? [userId, storeId] : [userId],
+      );
+      await pgClient.end();
+      return res.rows.length === 0;
+    } catch {
+      return true;
+    }
   }
 
   /**

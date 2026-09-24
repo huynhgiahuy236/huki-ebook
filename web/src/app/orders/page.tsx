@@ -404,7 +404,7 @@ export default function OrdersPage() {
                   <div className="h-4 bg-gray-100 rounded w-24"></div>
                 </div>
                 <div className="flex gap-4">
-                  <div className="w-14 h-18 bg-gray-100 rounded-md"></div>
+                  <div className="w-14 h-20 bg-gray-100 rounded-md shrink-0"></div>
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-gray-100 rounded w-3/4"></div>
                     <div className="h-3 bg-gray-100 rounded w-1/4"></div>
@@ -560,11 +560,11 @@ export default function OrdersPage() {
                                 className="p-4 flex items-start gap-3.5 hover:bg-gray-50/50 transition-colors block cursor-pointer"
                               >
                                 {/* Thumbnail */}
-                                <div className="w-14 h-18 rounded-md overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-2xs">
+                                <div className="w-14 h-20 min-w-[56px] max-w-[56px] rounded-md overflow-hidden bg-gray-100 border border-gray-200 shrink-0 shadow-2xs">
                                   <img
                                     src={coverSrc}
                                     alt={title}
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-cover shrink-0"
                                   />
                                 </div>
 
