@@ -73,17 +73,48 @@ export default function CheckoutPage() {
     isDefault: true,
   });
 
-  const checkedItems = (cartItems || []).filter((i: any) => i.checked);
+  const [directItem, setDirectItem] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = sessionStorage.getItem("huki_direct_checkout_item");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setDirectItem(parsed);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, []);
+
+  const isDirectMode = Boolean(directItem);
+  const checkedItems = useMemo(() => {
+    if (isDirectMode && directItem) {
+      return [
+        {
+          ...directItem,
+          checked: true,
+          type: directItem.type || (directItem.format === "DIGITAL" ? "ebook" : "physical"),
+        },
+      ];
+    }
+    return (cartItems || []).filter((i: any) => i.checked);
+  }, [isDirectMode, directItem, cartItems]);
+
   const ebookItems = checkedItems.filter((i: any) => i.type === "ebook");
   const physicalItems = checkedItems.filter((i: any) => i.type === "physical");
+  const effectiveHasPhysical = isDirectMode
+    ? physicalItems.length > 0
+    : hasPhysicalItems;
 
-  const rawSubtotal =
-    checkedSubtotal ||
-    checkedItems.reduce(
-      (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
-      0
-    );
-  const shippingFee = hasPhysicalItems ? 30000 : 0;
+  const rawSubtotal = checkedItems.reduce(
+    (sum: number, i: any) =>
+      sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+    0
+  );
+  const shippingFee = effectiveHasPhysical ? 30000 : 0;
   const grandTotal = rawSubtotal + shippingFee;
 
   // Load user addresses if logged in
@@ -171,21 +202,27 @@ export default function CheckoutPage() {
   // Load available vouchers from backend
   useEffect(() => {
     const loadVouchers = async () => {
-      if (!isLoggedIn) return;
       setIsLoadingVouchers(true);
       try {
+        let list: any[] = [];
         const res = await voucherApi.getAvailableVouchers();
-        if (res.success && Array.isArray(res.data)) {
-          const platform = res.data.filter(
-            (v: any) => v.scope === "PLATFORM" && v.type !== "FREE_SHIPPING"
-          );
-          const shipping = res.data.filter((v: any) => v.type === "FREE_SHIPPING");
-          setAvailableVouchers((prev) => ({
-            ...prev,
-            platform,
-            shipping,
-          }));
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          list = res.data;
+        } else {
+          const fallbackRes = await voucherApi.getPlatformVouchers();
+          if (fallbackRes.success && Array.isArray(fallbackRes.data)) {
+            list = fallbackRes.data;
+          }
         }
+        const platform = list.filter(
+          (v: any) => v.scope === "PLATFORM" && v.type !== "FREE_SHIPPING"
+        );
+        const shipping = list.filter((v: any) => v.type === "FREE_SHIPPING");
+        setAvailableVouchers((prev) => ({
+          ...prev,
+          platform,
+          shipping,
+        }));
       } catch {
         // ignore
       } finally {
@@ -195,9 +232,9 @@ export default function CheckoutPage() {
     loadVouchers();
   }, [isLoggedIn]);
 
-  // Load store vouchers for all unique stores present in the cart
+  // Load store vouchers for all unique stores present in checkedItems
   useEffect(() => {
-    if (!isLoggedIn || checkedItems.length === 0) return;
+    if (checkedItems.length === 0) return;
     const storeIds = Array.from(
       new Set(
         checkedItems
@@ -693,7 +730,11 @@ export default function CheckoutPage() {
             return;
           }
 
-          clearCart();
+          if (isDirectMode && typeof window !== "undefined") {
+            sessionStorage.removeItem("huki_direct_checkout_item");
+          } else {
+            clearCart();
+          }
           showToast(
             {
               title: "Đặt hàng thành công!",
@@ -750,7 +791,11 @@ export default function CheckoutPage() {
         setCurrentOrderCode(fallbackCode);
         setCurrentOrderGrandTotal(grandTotal);
         setShowPaymentModal(true);
-        clearCart();
+        if (isDirectMode && typeof window !== "undefined") {
+          sessionStorage.removeItem("huki_direct_checkout_item");
+        } else {
+          clearCart();
+        }
         showToast(
           {
             title: "Đã tạo đơn hàng thành công!",
@@ -762,7 +807,11 @@ export default function CheckoutPage() {
         return;
       }
 
-      clearCart();
+      if (isDirectMode && typeof window !== "undefined") {
+        sessionStorage.removeItem("huki_direct_checkout_item");
+      } else {
+        clearCart();
+      }
       showToast(
         {
           title: "Đặt hàng thành công!",

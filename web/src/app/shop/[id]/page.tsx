@@ -278,7 +278,26 @@ export default function ShopPage() {
     }
   }, [business]);
 
-  const handleSaveShopVoucher = (code: string) => {
+  const handleSaveShopVoucher = (voucher: any) => {
+    if (!user) {
+      showToast('Vui lòng đăng nhập để thu thập voucher ưu đãi!', 'warning');
+      return;
+    }
+
+    const code = voucher.code || voucher;
+
+    // Check Fan Tier (minFollowDays) requirement
+    if (voucher.targetAudience === 'FOLLOWERS_ONLY') {
+      if (!isFollowed) {
+        showToast('Mã voucher độc quyền dành cho Người theo dõi Shop. Hãy nhấn "Theo dõi & Lưu" để nhận mã!', 'warning');
+        return;
+      }
+      if (voucher.minFollowDays && voucher.minFollowDays > 0) {
+        const req = formatFollowerRequirement(voucher.minFollowDays);
+        showToast(`Lưu ý: Voucher ${req.badge} yêu cầu theo dõi Shop đủ ${voucher.minFollowDays} ngày khi thanh toán đơn hàng.`, 'info');
+      }
+    }
+
     if (savedVouchers.includes(code)) {
       showToast(`Mã ${code} đã có trong ví của bạn!`, 'info');
       return;
@@ -818,7 +837,7 @@ export default function ShopPage() {
                         type="button"
                         onClick={async () => {
                           await handleFollowStore();
-                          handleSaveShopVoucher(v.code);
+                          handleSaveShopVoucher(v);
                         }}
                         className="px-3 py-2 rounded-xl bg-pink-600 hover:bg-pink-700 text-white font-bold text-[11px] flex items-center gap-1 shadow-xs transition-all cursor-pointer"
                         title="Theo dõi gian hàng để nhận mã ngay"
@@ -829,7 +848,7 @@ export default function ShopPage() {
                     ) : (
                       <button
                         type="button"
-                        onClick={() => handleSaveShopVoucher(v.code)}
+                        onClick={() => handleSaveShopVoucher(v)}
                         className={`px-3 py-2 rounded-xl font-bold text-[11px] transition-all cursor-pointer ${
                           isSaved
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'

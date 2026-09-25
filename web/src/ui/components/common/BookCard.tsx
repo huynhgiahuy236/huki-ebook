@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../../context/CartContext';
+import { flashSaleApi, getCachedFlashSale, preloadActiveFlashSales } from '../../api/flashSaleApi';
 import BookCover from './BookCover';
 
 export interface BookCardData {
@@ -33,6 +34,14 @@ export interface BookCardData {
   cover?: string;
   coverUrl?: string;
   isMock?: boolean;
+  isFlashSale?: boolean;
+  flashSaleInfo?: {
+    salePrice: number;
+    originalPrice: number;
+    discountPercent: number;
+    flashSaleId?: string;
+    endsAt?: string;
+  } | null;
 }
 
 export interface BookCardProps {
@@ -44,7 +53,7 @@ export interface BookCardProps {
 
 /**
  * Compact, modern BookCard Component for HUKI EBOOK
- * Optimized to match Shopee/Tiki ecommerce product cards (Screenshot 1)
+ * Optimized to match Shopee/Tiki ecommerce product cards with full Flash Sale support
  */
 export default function BookCard({
   book,
@@ -55,15 +64,55 @@ export default function BookCard({
   const router = useRouter();
   const { addToCart } = useCart();
 
+  const isMock = explicitMock !== undefined ? explicitMock : (book?.isMock ?? false);
+  const cachedInitial = book?.flashSaleInfo !== undefined ? book.flashSaleInfo : (book?.id ? getCachedFlashSale(book.id) : null);
+  const [flashSale, setFlashSale] = useState<any>(cachedInitial);
+
+  // Auto-detect active Flash Sale price for the book
+  useEffect(() => {
+    if (book?.flashSaleInfo !== undefined) {
+      setFlashSale(book.flashSaleInfo);
+      return;
+    }
+    if (!book?.id || isMock || String(book.id).startsWith('mock-')) return;
+
+    const hit = getCachedFlashSale(book.id);
+    if (hit) {
+      setFlashSale(hit);
+      return;
+    }
+
+    let isMounted = true;
+    preloadActiveFlashSales().then((map) => {
+      if (isMounted) {
+        const found = map.get(book.id);
+        if (found) {
+          setFlashSale(found);
+        }
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [book?.id, book?.flashSaleInfo, isMock]);
+
   if (!book) return null;
 
-  const isMock = explicitMock !== undefined ? explicitMock : (book.isMock ?? false);
+  const isFlashSale = Boolean(flashSale?.salePrice);
+  const basePrice = book.price ?? book.priceEbook ?? 0;
+  const baseOriginalPrice = book.originalPrice ?? book.originalPriceEbook ?? (basePrice > 0 ? Math.round(basePrice * 1.35) : undefined);
 
-  // Normalized book properties
-  const price = book.price ?? book.priceEbook ?? 0;
-  const originalPrice = book.originalPrice ?? book.originalPriceEbook ?? (price > 0 ? Math.round(price * 1.35) : undefined);
-  const discountPercent = book.discountPercent ?? (originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : null);
-  const discountLabel = book.discount ?? (discountPercent ? `-${discountPercent}%` : null);
+  // Normalized book properties (with Flash Sale priority)
+  const price = isFlashSale ? flashSale.salePrice : basePrice;
+  const originalPrice = isFlashSale ? (flashSale.originalPrice || basePrice) : baseOriginalPrice;
+  const discountPercent = isFlashSale
+    ? flashSale.discountPercent
+    : (book.discountPercent ?? (originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : null));
+  const discountLabel = isFlashSale
+    ? `-${flashSale.discountPercent}%`
+    : (book.discount ?? (discountPercent ? `-${discountPercent}%` : null));
+
   const rating = book.rating ?? 5.0;
   const salesCount = book.sales ?? book.reviewCount ?? book.reviews ?? '1.2k';
   const publisher = (typeof book.publisher === 'object' && book.publisher !== null)
@@ -92,7 +141,7 @@ export default function BookCard({
     e.stopPropagation();
     addToCart(
       {
-        id: book.id,
+        id: isFlashSale ? `${book.id}-flash-sale` : book.id,
         title: book.title,
         price: price,
         priceEbook: book.priceEbook ?? price,
@@ -109,6 +158,34 @@ export default function BookCard({
       formatType === 'physical' ? 'paper' : 'ebook',
       1
     );
+  };
+
+  const handleDirectBuy = (e: React.MouseEvent) => {
+    if (isMock) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const directItem = {
+      id: `${book.id}-direct-flash-sale`,
+      bookId: book.id,
+      title: book.title,
+      author: typeof book.author === 'string' ? book.author : authorName,
+      price: price,
+      originalPrice: originalPrice,
+      cover: book.cover || book.coverUrl,
+      quantity: 1,
+      format: formatType === 'ebook' ? 'DIGITAL' : 'PHYSICAL',
+      type: formatType === 'ebook' ? 'ebook' : 'physical',
+      storeId: typeof book.publisher === 'string' ? book.publisher : (book.shop || 'huki-official'),
+      flashSaleId: flashSale?.flashSaleId,
+      isFlashSale: isFlashSale,
+    };
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('huki_direct_checkout_item', JSON.stringify(directItem));
+    }
+
+    router.push('/checkout?direct=1');
   };
 
   const mockClasses = isMock
@@ -135,6 +212,11 @@ export default function BookCard({
               author={authorName}
               className="group-hover:scale-105 transition-transform duration-300"
             />
+            {isFlashSale && (
+              <span className="absolute top-1 left-1 bg-gradient-to-r from-amber-500 to-rose-600 text-white font-black text-[8px] px-1 py-0.2 rounded shadow-xs flex items-center gap-0.5">
+                ⚡ SALE
+              </span>
+            )}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -144,11 +226,11 @@ export default function BookCard({
             <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
 
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs font-bold text-[#ac2c19]">
+              <span className={`text-xs font-bold ${isFlashSale ? 'text-rose-600 font-extrabold' : 'text-[#ac2c19]'}`}>
                 {price.toLocaleString('vi-VN')} đ
               </span>
               {discountLabel && (
-                <span className="bg-[#ac2c19] text-white text-[9px] font-bold px-1 py-0.2 rounded">
+                <span className={`${isFlashSale ? 'bg-rose-600' : 'bg-[#ac2c19]'} text-white text-[9px] font-bold px-1 py-0.2 rounded`}>
                   {discountLabel}
                 </span>
               )}
@@ -156,18 +238,39 @@ export default function BookCard({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          className="px-3 py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white text-xs font-semibold transition-colors shrink-0"
-        >
-          Thêm giỏ hàng
-        </button>
+        {isFlashSale ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={handleDirectBuy}
+              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[13px]">bolt</span>
+              <span>Mua Ngay</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              title="Thêm vào giỏ"
+              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className="px-3 py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+          >
+            Thêm giỏ hàng
+          </button>
+        )}
       </article>
     );
   }
 
-  // 2. STANDARD / COMPACT / GRID VARIANT (Compact Ecommerce Card - Exactly like Screenshot 1)
+  // 2. STANDARD / COMPACT / GRID VARIANT (Compact Ecommerce Card)
   return (
     <article
       onClick={handleCardClick}
@@ -188,6 +291,13 @@ export default function BookCard({
             author={authorName}
             className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
           />
+
+          {isFlashSale && (
+            <div className="absolute top-1.5 left-1.5 z-20 bg-gradient-to-r from-rose-600 to-amber-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-md shadow-md flex items-center gap-0.5 animate-pulse">
+              <span className="material-symbols-outlined text-[11px]">bolt</span>
+              <span>FLASH SALE</span>
+            </div>
+          )}
         </div>
 
         {/* Book Title (2 lines clamp, compact font) */}
@@ -200,11 +310,11 @@ export default function BookCard({
 
         {/* Pricing Row: Red Price + Discount Badge */}
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[13px] sm:text-[14px] font-bold text-[#ac2c19]">
+          <span className={`text-[13px] sm:text-[14px] font-bold ${isFlashSale ? 'text-rose-600 font-extrabold' : 'text-[#ac2c19]'}`}>
             {price.toLocaleString('vi-VN')} đ
           </span>
           {discountLabel && (
-            <span className="bg-[#ac2c19] text-white text-[9px] sm:text-[10px] font-bold px-1 py-0.2 rounded">
+            <span className={`${isFlashSale ? 'bg-rose-600' : 'bg-[#ac2c19]'} text-white text-[9px] sm:text-[10px] font-bold px-1 py-0.2 rounded shadow-2xs`}>
               {discountLabel}
             </span>
           )}
@@ -218,20 +328,47 @@ export default function BookCard({
         )}
 
         {/* Sales count */}
-        <div className="text-[10.5px] text-gray-500 mt-1">
-          Đã bán {salesCount}
+        <div className="text-[10.5px] text-gray-500 mt-1 flex items-center justify-between">
+          <span>Đã bán {salesCount}</span>
+          {isFlashSale && (
+            <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5">
+              <span className="material-symbols-outlined text-[12px]">local_fire_department</span>
+              <span>Giá sốc</span>
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Full-width "Thêm giỏ hàng" button (Red outline button matching Screenshot 1) */}
+      {/* Action Buttons: If Flash Sale, show Mua Ngay + Cart Icon, else Thêm giỏ hàng */}
       <div className="mt-2.5 pt-1">
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          className="w-full py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white transition-colors text-xs font-semibold text-center flex items-center justify-center gap-1 cursor-pointer"
-        >
-          Thêm giỏ hàng
-        </button>
+        {isFlashSale ? (
+          <div className="flex items-center gap-1.5 w-full">
+            <button
+              type="button"
+              onClick={handleDirectBuy}
+              className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-[11px] transition-all shadow-2xs hover:shadow-sm flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider"
+            >
+              <span className="material-symbols-outlined text-[13px]">bolt</span>
+              <span>Mua Ngay</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              title="Thêm vào giỏ hàng với giá Flash Sale"
+              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            className="w-full py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white transition-colors text-xs font-semibold text-center flex items-center justify-center gap-1 cursor-pointer"
+          >
+            Thêm giỏ hàng
+          </button>
+        )}
       </div>
     </article>
   );

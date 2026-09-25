@@ -43,6 +43,7 @@ import {
 import { RolesGuard, Roles } from '../../common/roles.guard';
 import { throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
+import * as jwt from 'jsonwebtoken';
 
 @ApiTags('Vouchers')
 @Controller('vouchers')
@@ -89,11 +90,11 @@ export class VouchersController {
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   async getAvailableVouchers(
     @Headers('x-user-id') userId: string,
+    @Req() req: Request,
   ) {
-    // Use header if available (internal service call), otherwise extract from request
-    const effectiveUserId = userId || this.extractUserIdFromRequest(arguments[0]);
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
     const vouchers = await this.vouchers.getUserVouchers(effectiveUserId);
-    return { data: vouchers };
+    return { data: vouchers, success: true };
   }
 
   @Get(':id')
@@ -173,11 +174,12 @@ export class VouchersController {
   @ApiBadRequestResponse({ description: 'Invalid voucher code or conditions not met' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   validate(
+    @Req() req: Request,
     @Headers('x-user-id') userIdHeader: string,
     @Body() dto: ValidateVoucherDto,
   ) {
-    // Use header if available (internal service call)
-    const userId = userIdHeader || 'anonymous';
+    // Use header if available (internal service call) or extract from JWT
+    const userId = userIdHeader || this.extractUserIdFromRequest(req);
     return this.vouchers.validate(userId, dto);
   }
 
@@ -221,8 +223,18 @@ export class VouchersController {
   }
 
   private extractUserIdFromRequest(request: any): string {
-    // Try to extract from JWT in Authorization header
-    // This is a fallback for when x-user-id is not provided
+    if (request?.headers?.['x-user-id']) return request.headers['x-user-id'];
+    const authHeader = request?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      try {
+        const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key') as any;
+        return payload.sub || payload.id || payload.userId || 'anonymous';
+      } catch {
+        const decoded = jwt.decode(token) as any;
+        return decoded?.sub || decoded?.id || decoded?.userId || 'anonymous';
+      }
+    }
     return request?.user?.sub || request?.user?.id || 'anonymous';
   }
 }

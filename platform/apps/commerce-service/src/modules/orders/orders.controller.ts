@@ -30,7 +30,7 @@ import {
   ApiForbiddenResponse,
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
-import { AuthenticatedGuard, BookActor } from '../../common/book-auth.guard';
+import { AuthenticatedGuard, BookActor, OptionalBookAuthGuard } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
 import { CancelOrderDto } from './dto/checkout.dto';
 import {
@@ -43,7 +43,7 @@ import { OrdersService } from './orders.service';
 
 @ApiTags('Orders')
 @ApiBearerAuth()
-@UseGuards(AuthenticatedGuard)
+@UseGuards(OptionalBookAuthGuard)
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly orders: OrdersService) {}
@@ -162,14 +162,14 @@ export class OrdersController {
   }
 
   @Get('seller/escrow/items')
+  @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({
     summary: 'List all escrow holding items for Seller (Task update_proceed_money_flow_v1)',
     description: 'Seller reviews all item-level payments in intermediate escrow holding with 4 statuses, 5% fee and 95% net revenue.',
   })
   @ApiResponse({ status: 200, description: 'List of seller escrow items' })
-  @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   sellerListEscrowItems(
-    @CurrentBookActor() actor: BookActor,
+    @CurrentBookActor() actor?: BookActor,
     @Query('status') status?: string,
     @Query('search') search?: string,
   ) {

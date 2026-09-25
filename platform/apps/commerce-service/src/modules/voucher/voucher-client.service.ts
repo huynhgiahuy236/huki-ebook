@@ -62,7 +62,7 @@ export class VoucherClientService {
     userId: string,
     input: VoucherValidationInput,
   ): Promise<VoucherValidationResult> {
-    const result = await this.request<{ data: VoucherValidationResult }>(
+    const result = await this.request<any>(
       '/vouchers/validate',
       {
         method: 'POST',
@@ -75,7 +75,7 @@ export class VoucherClientService {
       },
     );
 
-    return result?.data;
+    return result?.data ?? result;
   }
 
   /**

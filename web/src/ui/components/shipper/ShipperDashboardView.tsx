@@ -348,7 +348,11 @@ export default function ShipperDashboardView() {
               </div>
               <div className="p-2 bg-[#F8FAFC] rounded-lg border border-[#E2E8F0]">
                 <span className="text-gray-400 text-[10px] block uppercase">Tỷ lệ hoàn thành</span>
-                <strong className="text-sm font-bold text-emerald-600">99.2%</strong>
+                <strong className="text-sm font-bold text-emerald-600">
+                  {historyOrders.length > 0
+                    ? `${Math.round((historyOrders.filter((o) => o.status === 'DELIVERED').length / historyOrders.length) * 100)}%`
+                    : '100%'}
+                </strong>
               </div>
             </div>
           </div>

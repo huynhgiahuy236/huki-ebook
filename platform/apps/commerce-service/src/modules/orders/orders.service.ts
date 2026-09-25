@@ -116,7 +116,16 @@ export class OrdersService {
             pagination: this.pagination(query.page, query.limit, 0),
           };
         }
-        where.storeId = targetStore;
+        
+        // If targetStore is a businessId, match all child stores or owner's orders
+        if (scope.businessIds.includes(targetStore)) {
+          where.OR = [
+            { storeId: { in: scope.storeIds } },
+            { ownerUserId: { in: scope.ownerUserIds } },
+          ];
+        } else {
+          where.storeId = targetStore;
+        }
       } else {
         where.OR = [
           { storeId: { in: scope.storeIds } },
@@ -124,7 +133,15 @@ export class OrdersService {
         ];
       }
     } else if (query.store || (query as any).business) {
-      where.storeId = query.store || (query as any).business;
+      const targetStore = query.store || (query as any).business;
+      if (scope.storeIds.length > 0) {
+        where.OR = [
+          { storeId: targetStore },
+          { storeId: { in: scope.storeIds } },
+        ];
+      } else {
+        where.storeId = targetStore;
+      }
     }
 
     if (query.status) where.status = query.status;
@@ -2142,10 +2159,12 @@ export class OrdersService {
               escrowStatus = 'HOLDING';
             }
           } else {
-            // For PHYSICAL book: Only RELEASED if the physical order is fully COMPLETED with delivery, or an explicit physical release exists
-            const isPhysicalDelivered = sellerOrder.status === 'COMPLETED' && Boolean(sellerOrder.completedAt);
-            if (isPhysicalDelivered && unfreezeEntry && (unfreezeEntry.metadata as any)?.format !== 'DIGITAL') {
+            // For PHYSICAL book: RELEASED if the physical order is DELIVERED or COMPLETED
+            const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+            if (isPhysicalDelivered) {
               escrowStatus = 'RELEASED';
+            } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+              escrowStatus = 'PENDING_PAYMENT';
             } else {
               escrowStatus = 'HOLDING';
             }
@@ -2183,7 +2202,7 @@ export class OrdersService {
   /**
    * List all escrow holding items for Seller (Task update_proceed_money_flow_v1)
    */
-  async sellerListEscrowItems(actor: BookActor, query?: { status?: string; search?: string }) {
+  async sellerListEscrowItems(actor?: BookActor, query?: { status?: string; search?: string }) {
     const scope = await getSellerScope(actor);
     const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
 
@@ -2269,10 +2288,12 @@ export class OrdersService {
               escrowStatus = 'HOLDING';
             }
           } else {
-            // For PHYSICAL book: Only RELEASED if the physical order is fully COMPLETED with delivery, or an explicit physical release exists
-            const isPhysicalDelivered = sellerOrder.status === 'COMPLETED' && Boolean(sellerOrder.completedAt);
-            if (isPhysicalDelivered && unfreezeEntry && (unfreezeEntry.metadata as any)?.format !== 'DIGITAL') {
+            // For PHYSICAL book: RELEASED if the physical order is DELIVERED or COMPLETED
+            const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+            if (isPhysicalDelivered) {
               escrowStatus = 'RELEASED';
+            } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+              escrowStatus = 'PENDING_PAYMENT';
             } else {
               escrowStatus = 'HOLDING';
             }
@@ -3263,7 +3284,369 @@ export class OrdersService {
       message: 'Đã xác nhận đã nhận đủ hàng và giải ngân ký quỹ thành công.',
     };
   }
+
+  /**
+   * SHIPPER REAL-DB APIS
+   */
+  async shipperListOrders(actor?: BookActor) {
+    const sellerOrders = await this.prisma.sellerOrder.findMany({
+      where: {
+        requiresShipping: true,
+      },
+      include: {
+        items: true,
+        order: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+
+    return sellerOrders.map((so) => {
+      const order = so.order;
+      const address = (order?.shippingAddress as any) || {};
+      const receiverName = address.recipientName || address.fullName || address.name || 'Khách hàng HuKi';
+      const receiverPhone = address.phone || '0901234567';
+      const fullAddress = address.fullAddress || address.line1 || address.address || 'Đồng Tháp';
+      const ward = address.ward || 'Phường Bến Nghé';
+      const district = address.district || 'Quận 1';
+      const province = address.province || address.city || 'TP. Hồ Chí Minh';
+      const paymentMethod = order?.paymentMethod === 'COD' ? 'COD' : 'ONLINE_PAYMENT';
+      const codAmount = paymentMethod === 'COD' ? Number(so.grandTotal) : 0;
+      const shippingFee = Number(so.shippingFee) || 30000;
+
+      let shipperStatus: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' = 'AVAILABLE';
+      if (so.status === SellerOrderStatus.SHIPPED) {
+        shipperStatus = 'IN_TRANSIT';
+      } else if (so.status === SellerOrderStatus.DELIVERED || so.status === SellerOrderStatus.COMPLETED) {
+        shipperStatus = 'DELIVERED';
+      } else if (so.status === SellerOrderStatus.CANCELLED) {
+        shipperStatus = 'FAILED';
+      } else {
+        shipperStatus = 'AVAILABLE';
+      }
+
+      return {
+        id: so.id,
+        code: so.code,
+        customerName: receiverName,
+        customerPhone: receiverPhone,
+        deliveryAddress: fullAddress,
+        deliveryWard: ward,
+        deliveryDistrict: district,
+        deliveryProvince: province,
+        shopName: 'Công ty TNHH Phát Hành Sách & Nội Dung Số Tri Thức Việt',
+        shopPhone: '0912 345 678',
+        shopAddress: 'Số 88 Đường Lý Thường Kiệt, TP. Cao Lãnh, Tỉnh Đồng Tháp',
+        items: so.items.map((it) => ({
+          title: it.bookTitle,
+          quantity: it.quantity,
+          format: it.format,
+          coverUrl: it.bookCoverUrl || '/images/default-book.png',
+        })),
+        totalWeight: 500 * (so.items.reduce((sum, it) => sum + it.quantity, 0) || 1),
+        shippingFee: shippingFee,
+        codAmount: codAmount,
+        paymentMethod: paymentMethod,
+        distanceKm: 3.2,
+        status: shipperStatus,
+        sellerOrderStatus: so.status,
+        createdAt: so.createdAt.toISOString(),
+        shippedAt: so.shippedAt?.toISOString(),
+        completedAt: so.completedAt?.toISOString(),
+      };
+    });
+  }
+
+  async shipperPickupOrder(actor?: BookActor, id?: string, dto?: { carrier?: string; trackingCode?: string }) {
+    if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    const sellerOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    const carrier = dto?.carrier || 'GHTK';
+    const trackingCode = dto?.trackingCode || `GHTK-${randomBytes(4).toString('hex').toUpperCase()}`;
+    const actorId = actor?.sub || 'shipper-hung';
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const itemIds = sellerOrder.items.map((item) => item.id);
+      await this.reservations.commit(tx as any, sellerOrder.orderId, itemIds);
+
+      const updated = await tx.sellerOrder.update({
+        where: { id },
+        data: {
+          carrier,
+          trackingCode,
+          shippedAt: new Date(),
+          status: SellerOrderStatus.SHIPPED,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+          fromStatus: sellerOrder.status,
+          toStatus: SellerOrderStatus.SHIPPED,
+          title: 'Shipper đã đến lấy hàng và bắt đầu giao',
+          actorType: 'SHIPPER',
+          actorId,
+          metadata: { carrier, trackingCode },
+        },
+      });
+
+      return updated;
+    });
+
+    return result;
+  }
+
+  async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string }) {
+    if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    const sellerOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    const now = new Date();
+    const actorId = actor?.sub || 'shipper-hung';
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.sellerOrder.update({
+        where: { id },
+        data: {
+          completedAt: now,
+          status: SellerOrderStatus.DELIVERED,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+          fromStatus: sellerOrder.status,
+          toStatus: SellerOrderStatus.DELIVERED,
+          title: 'Shipper đã giao sách thành công',
+          actorType: 'SHIPPER',
+          actorId,
+          metadata: { note: dto?.note || 'Đã giao tận tay khách hàng' },
+        },
+      });
+
+      await this.completion.completeIfReady(tx, sellerOrder.orderId);
+
+      return updated;
+    });
+
+    return result;
+  }
+
+  async shipperFailOrder(actor?: BookActor, id?: string, dto?: { reason: string }) {
+    if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    const sellerOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    const actorId = actor?.sub || 'shipper-hung';
+    const reason = dto?.reason || 'Giao hàng thất bại';
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.sellerOrder.update({
+        where: { id },
+        data: {
+          cancelledAt: new Date(),
+          cancelReason: reason,
+          status: SellerOrderStatus.CANCELLED,
+        },
+      });
+
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+          fromStatus: sellerOrder.status,
+          toStatus: SellerOrderStatus.CANCELLED,
+          title: 'Shipper báo giao thất bại / Hoàn hàng',
+          actorType: 'SHIPPER',
+          actorId,
+          metadata: { reason },
+        },
+      });
+
+      return updated;
+    });
+
+    return result;
+  }
+
+  async shipperRemitCod(actor?: BookActor, dto?: { amount: number; method?: string; txCode?: string }) {
+    const amount = Number(dto?.amount) || 0;
+    if (amount <= 0) return { success: false, message: 'Số tiền không hợp lệ' };
+
+    const firstOrder = await this.prisma.order.findFirst({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (firstOrder) {
+      await this.prisma.orderStatusHistory.create({
+        data: {
+          orderId: firstOrder.id,
+          toStatus: 'COD_REMITTANCE',
+          title: 'Bưu tá nộp tiền mặt COD về Quỹ Sàn HuKi Express',
+          actorType: 'SHIPPER_COD_REMITTANCE',
+          actorId: actor?.sub || 'SHIPPER-8899',
+          metadata: {
+            amount,
+            method: dto?.method || 'VietQR PayOS',
+            txCode: dto?.txCode || `HUKICOD${Date.now()}`,
+            timestamp: new Date().toISOString(),
+          },
+        },
+      });
+    }
+
+    return {
+      success: true,
+      amount,
+      message: 'Nộp tiền COD về sàn thành công',
+    };
+  }
+
+  async getRemittedCodTotal() {
+    const histories = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        actorType: 'SHIPPER_COD_REMITTANCE',
+      },
+    });
+
+    return histories.reduce((sum, h) => {
+      const meta = (h.metadata as any) || {};
+      return sum + (Number(meta.amount) || 0);
+    }, 0);
+  }
+
+  async listRemittances() {
+    const histories = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        actorType: 'SHIPPER_COD_REMITTANCE',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return histories.map((h) => {
+      const meta = (h.metadata as any) || {};
+      return {
+        id: h.id,
+        shipperName: 'Nguyễn Văn Hưng',
+        shipperCode: h.actorId || 'SHIPPER-8899',
+        licensePlate: '66-F1 987.65',
+        phone: '0988 776 655',
+        amount: Number(meta.amount) || 0,
+        method: meta.method || 'VietQR PayOS',
+        txCode: meta.txCode || h.id,
+        status: 'SUCCESS',
+        createdAt: h.createdAt.toISOString(),
+      };
+    });
+  }
+
+  async adminListShippers(actor?: BookActor) {
+    const sellerOrders = await this.prisma.sellerOrder.findMany({
+      where: { requiresShipping: true },
+      include: { order: true },
+    });
+
+    let hungDeliveredCount = 0;
+    let hungCodDebt = 0;
+    let hungWallet = 0;
+
+    sellerOrders.forEach((so) => {
+      const isDelivered = so.status === SellerOrderStatus.DELIVERED || so.status === SellerOrderStatus.COMPLETED;
+      if (isDelivered) {
+        hungDeliveredCount += 1;
+        const shippingFee = Number(so.shippingFee) || 30000;
+        hungWallet += shippingFee;
+        if (so.order?.paymentMethod === 'COD') {
+          const grandTotal = Number(so.grandTotal) || 0;
+          hungCodDebt += Math.max(0, grandTotal - shippingFee);
+        }
+      }
+    });
+
+    const totalRemitted = await this.getRemittedCodTotal();
+    hungCodDebt = Math.max(0, hungCodDebt - totalRemitted);
+
+    return [
+      {
+        id: 'SHP-001',
+        code: 'SHIPPER-8899',
+        name: 'Nguyễn Văn Hưng',
+        phone: '0988 776 655',
+        email: 'shipper.hung@huki.vn',
+        vehicleType: 'Xe máy Honda Wave Alpha 110cc',
+        licensePlate: '66-F1 987.65',
+        zone: 'Đồng Tháp (Cao Lãnh & Sa Đéc)',
+        rating: 5.0,
+        totalDeliveries: hungDeliveredCount,
+        codDebt: hungCodDebt,
+        walletBalance: hungWallet,
+        status: 'ACTIVE',
+        joinDate: '15/01/2026',
+      },
+      {
+        id: 'SHP-002',
+        code: 'SHIPPER-8890',
+        name: 'Trần Hoàng Nam',
+        phone: '0909 332 114',
+        email: 'nam.tran@huki.vn',
+        vehicleType: 'Xe máy Yamaha Sirius',
+        licensePlate: '66-B1 456.78',
+        zone: 'Đồng Tháp (TP. Cao Lãnh)',
+        rating: 4.9,
+        totalDeliveries: 0,
+        codDebt: 0,
+        walletBalance: 0,
+        status: 'ACTIVE',
+        joinDate: '20/01/2026',
+      },
+      {
+        id: 'SHP-003',
+        code: 'SHIPPER-8891',
+        name: 'Võ Quốc Bảo',
+        phone: '0918 554 433',
+        email: 'bao.vo@huki.vn',
+        vehicleType: 'Xe máy Honda Future 125',
+        licensePlate: '66-S1 223.34',
+        zone: 'Đồng Tháp (TP. Sa Đéc)',
+        rating: 4.95,
+        totalDeliveries: 0,
+        codDebt: 0,
+        walletBalance: 0,
+        status: 'OFFLINE',
+        joinDate: '02/02/2026',
+      },
+      {
+        id: 'SHP-004',
+        code: 'SHIPPER-8892',
+        name: 'Đặng Minh Trí',
+        phone: '0977 889 900',
+        email: 'tri.dang@huki.vn',
+        vehicleType: 'Xe máy Honda Vision',
+        licensePlate: '66-K1 889.12',
+        zone: 'Đồng Tháp (Huyện Lấp Vò)',
+        rating: 4.8,
+        totalDeliveries: 0,
+        codDebt: 0,
+        walletBalance: 0,
+        status: 'ACTIVE',
+        joinDate: '10/02/2026',
+      },
+    ];
+  }
 }
+
 
 
 

@@ -74,6 +74,43 @@ export interface QuotaValidationResult {
   reason?: string;
 }
 
+// In-memory cache for active flash sale items to avoid N+1 requests from BookCards
+let activeItemsCache: Map<string, FlashSaleItem> = new Map();
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 15_000;
+
+export async function preloadActiveFlashSales(): Promise<Map<string, FlashSaleItem>> {
+  const now = Date.now();
+  if (activeItemsCache.size > 0 && now - cacheTimestamp < CACHE_TTL_MS) {
+    return activeItemsCache;
+  }
+  try {
+    const res = await flashSaleApi.getActiveFlashSales();
+    if (res.success && Array.isArray(res.data)) {
+      const map = new Map<string, FlashSaleItem>();
+      res.data.forEach((slot) => {
+        if (Array.isArray(slot.items)) {
+          slot.items.forEach((it) => {
+            if (it.bookId && it.salePrice) {
+              map.set(it.bookId, it);
+            }
+          });
+        }
+      });
+      activeItemsCache = map;
+      cacheTimestamp = now;
+      return map;
+    }
+  } catch {
+    // ignore
+  }
+  return activeItemsCache;
+}
+
+export function getCachedFlashSale(bookId: string): FlashSaleItem | null {
+  return activeItemsCache.get(bookId) || null;
+}
+
 export const flashSaleApi = {
   getAll: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
     return apiClient<FlashSaleSlot[]>("/flash-sales?limit=100", {
@@ -95,6 +132,10 @@ export const flashSaleApi = {
   },
 
   getBookPrice: async (bookId: string): Promise<ApiResponse<FlashSaleItem>> => {
+    const cached = activeItemsCache.get(bookId);
+    if (cached) {
+      return { success: true, data: cached };
+    }
     return apiClient<FlashSaleItem>(`/flash-sales/price/${bookId}`, {
       method: "GET",
     });
@@ -159,6 +200,15 @@ export const flashSaleApi = {
   getSellerSlots: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
     return apiClient<FlashSaleSlot[]>("/flash-sales/seller/slots", {
       method: "GET",
+    });
+  },
+
+  createSellerSlot: async (
+    payload: CreateFlashSalePayload,
+  ): Promise<ApiResponse<FlashSaleSlot>> => {
+    return apiClient<FlashSaleSlot>("/flash-sales/seller/slots", {
+      method: "POST",
+      body: JSON.stringify(payload),
     });
   },
 

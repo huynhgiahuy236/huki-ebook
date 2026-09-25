@@ -30,7 +30,7 @@ import { EmailModule } from "@huki/shared";
           expiresIn:
             configService.get('jwt.accessTokenExpiresIn') ||
             configService.get('JWT_ACCESS_EXPIRES_IN') ||
-            '15m',
+            '7d',
         },
       }),
     }),

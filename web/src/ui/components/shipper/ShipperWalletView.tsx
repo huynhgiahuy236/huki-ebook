@@ -87,15 +87,15 @@ export default function ShipperWalletView() {
             </div>
 
             <div>
-              <span className="text-xs text-gray-500 block">Tiền mặt đang tạm giữ cần nộp:</span>
+              <span className="text-xs text-gray-500 block">Tiền mặt COD tạm giữ cần nộp (đã trừ cước):</span>
               <strong className={`text-3xl font-black block tracking-tight mt-0.5 ${wallet.codDebt > 0 ? 'text-amber-700' : 'text-gray-800'}`}>
                 {wallet.codDebt.toLocaleString('vi-VN')}đ
               </strong>
             </div>
 
             <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-950 space-y-1">
-              <p>• Hạn mức giữ COD an toàn: <strong>2.000.000đ</strong></p>
-              <p>• Quét mã VietQR PayOS để nộp trực tiếp vào quỹ Sàn HuKi Express theo ca.</p>
+              <p>• <strong>Cơ chế bóc tách COD:</strong> Tiền thu khách - Cước ship giữ lại = Tiền nộp sàn.</p>
+              <p>• Bưu tá giữ lại tiền cước ship cho mình, chỉ chuyển nộp phần tiền sách về quỹ HuKi.</p>
             </div>
           </div>
 
@@ -244,7 +244,7 @@ export default function ShipperWalletView() {
                         {isEarning
                           ? 'Tiền công ship'
                           : isCodCollect
-                          ? 'Thu tiền COD'
+                          ? 'Nợ COD sàn (đã trừ ship)'
                           : isRemittance
                           ? 'Nộp COD về Sàn'
                           : 'Rút tiền về NH'}

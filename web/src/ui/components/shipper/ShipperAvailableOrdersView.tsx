@@ -7,7 +7,7 @@ import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
 type GroupByMode = 'SHOP' | 'ZONE' | 'PAYMENT' | 'NONE';
 
 export default function ShipperAvailableOrdersView() {
-  const { isOnline, setIsOnline, availableOrders, acceptOrder } = useShipper();
+  const { isOnline, setIsOnline, availableOrders, acceptOrder, refreshOrders, isLoading } = useShipper();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'COD' | 'PREPAID'>('ALL');
@@ -284,6 +284,16 @@ export default function ShipperAvailableOrdersView() {
               }`}
             >
               Đã Trả Online
+            </button>
+            <button
+              type="button"
+              onClick={() => refreshOrders()}
+              disabled={isLoading}
+              className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 flex items-center gap-1 font-semibold transition-all cursor-pointer text-xs ml-1"
+              title="Làm mới từ CSDL thật"
+            >
+              <span className={`material-symbols-outlined text-[15px] ${isLoading ? 'animate-spin' : ''}`}>sync</span>
+              <span>{isLoading ? 'Đang tải...' : 'Làm mới CSDL'}</span>
             </button>
           </div>
 

@@ -51,6 +51,9 @@ interface SellerOrderDetailData {
   requiresShipping?: boolean;
   carrier?: string;
   trackingCode?: string;
+  deliveredAt?: string;
+  completedAt?: string;
+  updatedAt?: string;
   note?: string;
   customerNote?: string;
   cancelReason?: string;
@@ -424,7 +427,7 @@ export default function SellerOrderDetailPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {canCancelOrders && ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING'].includes(order.status) && (
+          {canCancelOrders && order.status === 'PENDING_CONFIRMATION' && (
             <SellerActionButton
               variant="danger"
               label="Hủy Đơn Hàng"
@@ -446,30 +449,58 @@ export default function SellerOrderDetailPage() {
           {canProcessOrders && order.status === 'CONFIRMED' && (
             <SellerActionButton
               variant="info"
-              label="Chuẩn Bị Đóng Gói"
+              label="Đóng Gói Xong"
               icon="inventory_2"
               onClick={handlePrepare}
               loading={actionLoading}
             />
           )}
 
-          {canProcessOrders && order.status === 'PREPARING' && (
-            <SellerActionButton
-              variant="purple"
-              label="Bàn Giao Vận Chuyển"
-              icon="local_shipping"
-              onClick={() => setActiveActionBox('SHIP')}
-            />
+          {order.status === 'PREPARING' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-purple-50 text-purple-800 border border-purple-200 shadow-2xs">
+              <span className="material-symbols-outlined text-[16px] text-purple-600 animate-pulse">two_wheeler</span>
+              <span>Đã đóng gói — Chờ Shipper đến lấy hàng</span>
+            </span>
           )}
 
-          {canProcessOrders && order.status === 'SHIPPED' && (
-            <SellerActionButton
-              variant="success"
-              label="Xác Nhận Đã Giao"
-              icon="task_alt"
-              onClick={handleDeliver}
-              loading={actionLoading}
-            />
+          {order.status === 'SHIPPED' && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-sky-50 text-sky-800 border border-sky-200 shadow-2xs">
+              <span className="material-symbols-outlined text-[16px] text-sky-600">local_shipping</span>
+              <span>Bưu tá đang giao hàng tận tay khách</span>
+            </span>
+          )}
+
+          {(order.status === 'DELIVERED' || order.status === 'COMPLETED') && (
+            <div className="inline-flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="material-symbols-outlined text-[16px] text-emerald-600">check_circle</span>
+                <span>Giao hàng thành công</span>
+              </span>
+              {(() => {
+                const rawTime = (order as any).deliveredAt || order.completedAt || (order as any).updatedAt;
+                const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999;
+                if (elapsed < 120) {
+                  return (
+                    <span
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse"
+                      title="Đang trong thời hạn đổi trả 2 phút demo (Ký quỹ Escrow bảo vệ)"
+                    >
+                      <span className="material-symbols-outlined text-[15px] text-amber-700 font-black">priority_high</span>
+                      <span>Hạn Đổi Trả (2 phút demo)</span>
+                    </span>
+                  );
+                }
+                return (
+                  <span
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200"
+                    title="Đã hết hạn đổi trả, tiền đã giải ngân vào Ví Gian Hàng"
+                  >
+                    <span className="material-symbols-outlined text-[14px] text-emerald-600">account_balance_wallet</span>
+                    <span>Đã giải ngân Quỹ Sàn</span>
+                  </span>
+                );
+              })()}
+            </div>
           )}
 
           {hasVatInvoice && (

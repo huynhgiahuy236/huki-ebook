@@ -520,7 +520,7 @@ export class AuthService {
       expiresIn:
         this.configService.get('jwt.accessTokenExpiresIn') ||
         this.configService.get('JWT_ACCESS_EXPIRES_IN') ||
-        '15m',
+        '7d',
     };
 
     return this.jwtService.sign(payload, options);

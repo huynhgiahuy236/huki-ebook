@@ -38,7 +38,25 @@ export function SellerFlashSaleView() {
 
   // In-Page Multi-Book Registration Studio State
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [slotMode, setSlotMode] = useState<'CUSTOM' | 'EXISTING'>('CUSTOM');
   const [selectedSlotId, setSelectedSlotId] = useState<string>('');
+  const [customSlotName, setCustomSlotName] = useState<string>('Flash Sale Giờ Vàng Shop');
+  const [customDescription, setCustomDescription] = useState<string>('');
+
+  const getInitialTimes = () => {
+    const now = new Date();
+    const start = new Date(now.getTime() + 5 * 60 * 1000);
+    const end = new Date(start.getTime() + 3 * 60 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+      startsAt: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}T${pad(start.getHours())}:${pad(start.getMinutes())}`,
+      endsAt: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}`,
+    };
+  };
+
+  const [customStartsAt, setCustomStartsAt] = useState<string>(() => getInitialTimes().startsAt);
+  const [customEndsAt, setCustomEndsAt] = useState<string>(() => getInitialTimes().endsAt);
+
   const [bookConfigMap, setBookConfigMap] = useState<Record<string, ConfiguredBookItem>>({});
   const [bookSearchQuery, setBookSearchQuery] = useState('');
   const [bookCategoryFilter, setBookCategoryFilter] = useState<string>('ALL');
@@ -112,7 +130,11 @@ export function SellerFlashSaleView() {
       ]);
 
       if (slotsRes.success && Array.isArray(slotsRes.data)) {
-        setSlots(slotsRes.data);
+        const slotsData = slotsRes.data;
+        setSlots(slotsData);
+        if (slotsData.length > 0) {
+          setSelectedSlotId((prev) => prev || slotsData[0].id);
+        }
       }
       if (itemsRes.success && Array.isArray(itemsRes.data)) {
         setMyItems(itemsRes.data);
@@ -314,6 +336,7 @@ export function SellerFlashSaleView() {
 
   // Quick Open Form with preselected Slot
   const handleOpenRegisterForSlot = (slotId: string) => {
+    setSlotMode('EXISTING');
     setSelectedSlotId(slotId);
     setIsFormOpen(true);
     window.scrollTo({ top: 380, behavior: 'smooth' });
@@ -323,9 +346,36 @@ export function SellerFlashSaleView() {
   const handleSubmitBatch = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!selectedSlotId) {
-      showToast('Vui lòng chọn khung giờ Flash Sale', 'warning');
-      return;
+    let targetSlotId = selectedSlotId;
+
+    if (slotMode === 'CUSTOM') {
+      if (!customSlotName.trim()) {
+        showToast('Vui lòng nhập tên chương trình Flash Sale', 'warning');
+        return;
+      }
+      if (!customStartsAt) {
+        showToast('Vui lòng chọn ngày giờ bắt đầu', 'warning');
+        return;
+      }
+      if (!customEndsAt) {
+        showToast('Vui lòng chọn ngày giờ kết thúc', 'warning');
+        return;
+      }
+      const startDate = new Date(customStartsAt);
+      const endDate = new Date(customEndsAt);
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        showToast('Định dạng ngày giờ không hợp lệ', 'error');
+        return;
+      }
+      if (endDate <= startDate) {
+        showToast('Thời gian kết thúc phải sau thời gian bắt đầu', 'warning');
+        return;
+      }
+    } else {
+      if (!selectedSlotId) {
+        showToast('Vui lòng chọn khung giờ Flash Sale từ danh sách', 'warning');
+        return;
+      }
     }
 
     if (selectedBooksList.length === 0) {
@@ -350,8 +400,24 @@ export function SellerFlashSaleView() {
 
     try {
       setSubmitting(true);
+
+      if (slotMode === 'CUSTOM') {
+        const slotRes = await flashSaleApi.createSellerSlot({
+          name: customSlotName.trim(),
+          description: customDescription.trim() || undefined,
+          startsAt: new Date(customStartsAt).toISOString(),
+          endsAt: new Date(customEndsAt).toISOString(),
+        });
+
+        if (!slotRes.success || !slotRes.data?.id) {
+          showToast((slotRes as any)?.message || 'Không thể tạo chương trình Flash Sale mới', 'error');
+          return;
+        }
+        targetSlotId = slotRes.data.id;
+      }
+
       const payload = {
-        flashSaleId: selectedSlotId,
+        flashSaleId: targetSlotId,
         items: selectedBooksList.map((item) => ({
           bookId: item.book.id,
           salePrice: item.salePrice,
@@ -515,7 +581,18 @@ export function SellerFlashSaleView() {
     const sessionList: Array<{ slot: FlashSaleSlot | any; items: any[] }> = [];
 
     slotMap.forEach((entry) => {
-      const slotStatus = entry.slot?.status || 'SCHEDULED';
+      const now = Date.now();
+      const startsAt = new Date(entry.slot?.startsAt || 0).getTime();
+      const endsAt = new Date(entry.slot?.endsAt || 0).getTime();
+      let slotStatus = entry.slot?.status || 'SCHEDULED';
+
+      if (endsAt > 0 && endsAt < now) {
+        slotStatus = 'ENDED';
+      } else if (now >= startsAt && now <= endsAt) {
+        slotStatus = 'ACTIVE';
+      } else if (slotStatus === 'ACTIVE' && endsAt < now) {
+        slotStatus = 'ENDED';
+      }
       
       // Tab filter
       if (activeTab === 'ACTIVE' && slotStatus !== 'ACTIVE') return;
@@ -536,7 +613,7 @@ export function SellerFlashSaleView() {
       // Show session if it has matching items OR if search query is empty and session is active/scheduled
       if (matchingItems.length > 0 || (!searchQuery && entry.slot)) {
         sessionList.push({
-          slot: entry.slot,
+          slot: { ...entry.slot, status: slotStatus },
           items: matchingItems,
         });
       }
@@ -570,7 +647,7 @@ export function SellerFlashSaleView() {
               </span>
             </h1>
             <p className="text-xs sm:text-sm text-gray-600 mt-0.5">
-              Đăng ký nhiều sách cùng lúc vào khung giờ vàng của Sàn HuKi để tăng vọt lượt truy cập và đơn hàng
+              Thiết lập khung giờ Flash Sale riêng của Shop hoặc tham gia khung giờ vàng của Sàn để bùng nổ doanh số
             </p>
           </div>
         </div>
@@ -590,9 +667,9 @@ export function SellerFlashSaleView() {
           }`}
         >
           <span className="material-symbols-outlined text-lg">
-            {isFormOpen ? 'close' : 'playlist_add_check'}
+            {isFormOpen ? 'close' : 'bolt'}
           </span>
-          <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Đăng Ký Sách Hàng Loạt'}</span>
+          <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
         </button>
       </div>
 
@@ -798,27 +875,162 @@ export function SellerFlashSaleView() {
           </div>
 
           <form onSubmit={handleSubmitBatch} className="space-y-6">
-            {/* 1. Chọn Khung Giờ */}
-            <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-amber-600 text-xl">schedule</span>
-                <span className="text-xs font-bold text-gray-800 uppercase tracking-wider">
-                  Khung Giờ Đăng Ký:
-                </span>
+            {/* 1. Thiết Lập Khung Giờ & Thông Tin Flash Sale */}
+            <div className="p-5 rounded-3xl bg-gradient-to-br from-amber-50/80 via-orange-50/40 to-white border-2 border-amber-200/80 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200/60 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-xs">
+                    <span className="material-symbols-outlined text-lg">schedule</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-black text-gray-900 uppercase tracking-wider">
+                      1. Thông Tin & Khung Giờ Flash Sale
+                    </h3>
+                    <p className="text-[11px] text-gray-500">
+                      Tự thiết lập khung giờ riêng của Shop hoặc chọn khung giờ có sẵn từ Sàn
+                    </p>
+                  </div>
+                </div>
+
+                {/* Mode Selector Switch */}
+                <div className="inline-flex p-1 bg-amber-100/70 rounded-2xl border border-amber-200/80 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setSlotMode('CUSTOM')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      slotMode === 'CUSTOM'
+                        ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">tune</span>
+                    <span>Tự Tạo Giờ Riêng</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSlotMode('EXISTING')}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      slotMode === 'EXISTING'
+                        ? 'bg-white text-orange-600 shadow-xs ring-1 ring-orange-400/30'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">event_available</span>
+                    <span>Chọn Khung Giờ Sàn ({slots.length})</span>
+                  </button>
+                </div>
               </div>
-              <select
-                value={selectedSlotId}
-                onChange={(e) => setSelectedSlotId(e.target.value)}
-                required
-                className="px-4 py-2 bg-white border border-amber-300 rounded-xl text-xs sm:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none min-w-[280px]"
-              >
-                <option value="">-- Chọn khung giờ Flash Sale --</option>
-                {slots.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({new Date(s.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(s.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
-                  </option>
-                ))}
-              </select>
+
+              {slotMode === 'CUSTOM' ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Tên chương trình */}
+                    <div className="space-y-1.5 md:col-span-1">
+                      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs text-orange-600">campaign</span>
+                        <span>Tên Chương Trình Flash Sale</span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={customSlotName}
+                        onChange={(e) => setCustomSlotName(e.target.value)}
+                        placeholder="VD: Flash Sale Đêm Săn Deal..."
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Ngày giờ bắt đầu */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs text-emerald-600">play_circle</span>
+                        <span>Thời Gian Bắt Đầu</span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={customStartsAt}
+                        onChange={(e) => setCustomStartsAt(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                      />
+                    </div>
+
+                    {/* Ngày giờ kết thúc */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
+                        <span className="material-symbols-outlined text-xs text-red-600">stop_circle</span>
+                        <span>Thời Gian Kết Thúc</span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={customEndsAt}
+                        onChange={(e) => setCustomEndsAt(e.target.value)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Duration Presets & Description */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2 border-t border-amber-100">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-gray-500 mr-1">Chọn nhanh thời lượng:</span>
+                      {[
+                        { label: '+1 Giờ', hours: 1 },
+                        { label: '+2 Giờ', hours: 2 },
+                        { label: '+4 Giờ', hours: 4 },
+                        { label: '+8 Giờ', hours: 8 },
+                        { label: '+24 Giờ (1 Ngày)', hours: 24 },
+                        { label: '+3 Ngày', hours: 72 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => {
+                            const start = customStartsAt ? new Date(customStartsAt) : new Date();
+                            const newEnd = new Date(start.getTime() + preset.hours * 60 * 60 * 1000);
+                            const pad = (n: number) => String(n).padStart(2, '0');
+                            const toInput = (d: Date) =>
+                              `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                            setCustomEndsAt(toInput(newEnd));
+                          }}
+                          className="text-[10px] px-2.5 py-1 rounded-lg bg-white hover:bg-orange-100 text-gray-700 hover:text-orange-800 font-bold border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="flex-1 max-w-md">
+                      <input
+                        type="text"
+                        value={customDescription}
+                        onChange={(e) => setCustomDescription(e.target.value)}
+                        placeholder="Mô tả chương trình (tùy chọn)..."
+                        className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 outline-none focus:border-orange-400"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                  <div className="text-xs text-gray-600 font-medium">
+                    Chọn một trong các khung giờ do Ban Quản Trị Sàn mở:
+                  </div>
+                  <select
+                    value={selectedSlotId}
+                    onChange={(e) => setSelectedSlotId(e.target.value)}
+                    className="px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs sm:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none min-w-[280px]"
+                  >
+                    <option value="">-- Chọn khung giờ Flash Sale của Sàn --</option>
+                    {slots.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({new Date(s.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(s.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* 2. Bulk Smart Tools Toolbar */}
@@ -1245,9 +1457,12 @@ export function SellerFlashSaleView() {
           </div>
         ) : (
           groupedSessions.map(({ slot, items }) => {
-            const isActive = slot.status === 'ACTIVE';
-            const isScheduled = slot.status === 'SCHEDULED';
-            const isEnded = slot.status === 'ENDED';
+            const now = Date.now();
+            const startsAt = new Date(slot.startsAt || 0).getTime();
+            const endsAt = new Date(slot.endsAt || 0).getTime();
+            const isEnded = (endsAt > 0 && endsAt < now) || slot.status === 'ENDED';
+            const isActive = !isEnded && ((now >= startsAt && now <= endsAt) || slot.status === 'ACTIVE');
+            const isScheduled = !isEnded && !isActive;
 
             const startTimeStr = new Date(slot.startsAt).toLocaleTimeString('vi-VN', {
               hour: '2-digit',

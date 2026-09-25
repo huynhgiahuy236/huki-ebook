@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { Decimal } from '@prisma/client/runtime/library';
 import { RedisService } from '../redis/redis.service';
 import { EmailService } from '@huki/shared';
 import * as bcrypt from 'bcrypt';
@@ -62,12 +63,31 @@ export class WalletSecurityService {
    * Helper: Get or initialize WalletSecurity record for a store
    */
   private async getOrCreateWalletSecurity(storeId: string) {
-    const wallet = await this.prisma.wallet.findUnique({
+    let wallet = await this.prisma.wallet.findUnique({
       where: { storeId },
     });
 
     if (!wallet) {
-      throw new NotFoundException(`Không tìm thấy ví cho gian hàng ${storeId}`);
+      try {
+        wallet = await this.prisma.wallet.create({
+          data: {
+            storeId,
+            ownerUserId: storeId,
+            availableBalance: new Decimal(0),
+            pendingBalance: new Decimal(0),
+            frozenBalance: new Decimal(0),
+            currency: 'VND',
+            version: 1,
+          },
+        });
+      } catch (err) {
+        wallet = await this.prisma.wallet.findUnique({
+          where: { storeId },
+        });
+        if (!wallet) {
+          throw new NotFoundException(`Không tìm thấy ví cho gian hàng ${storeId}`);
+        }
+      }
     }
 
     let security = await this.prisma.walletSecurity.findUnique({

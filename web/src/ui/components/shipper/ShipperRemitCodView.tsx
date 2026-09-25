@@ -9,8 +9,8 @@ export default function ShipperRemitCodView() {
   const router = useRouter();
   const { profile, wallet, remitCodDebt } = useShipper();
 
-  // Default amount is the total codDebt or fallback
-  const defaultAmount = wallet.codDebt > 0 ? wallet.codDebt : 120000;
+  // Default amount is the total codDebt
+  const defaultAmount = wallet.codDebt;
   const [amount, setAmount] = useState<number>(defaultAmount);
   const [customAmountStr, setCustomAmountStr] = useState<string>(defaultAmount.toString());
   const [isPaid, setIsPaid] = useState<boolean>(false);
@@ -18,6 +18,13 @@ export default function ShipperRemitCodView() {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [txCode, setTxCode] = useState<string>('HUKICOD88998822');
   const [paidTime, setPaidTime] = useState<string>('');
+
+  useEffect(() => {
+    if (wallet.codDebt >= 0 && !isPaid) {
+      setAmount(wallet.codDebt);
+      setCustomAmountStr(wallet.codDebt.toString());
+    }
+  }, [wallet.codDebt, isPaid]);
 
   useEffect(() => {
     // Generate deterministic code on client mount

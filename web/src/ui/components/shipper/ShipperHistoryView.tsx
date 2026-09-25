@@ -129,15 +129,33 @@ export default function ShipperHistoryView() {
                   )}
                 </div>
 
-                <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--theme-border,#e8e5df)]/40">
+                <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--theme-border,#e8e5df)]/40 space-y-1">
                   {isDelivered ? (
                     <>
-                      <span className="font-black text-sm text-[#00875A] block">
-                        +{order.shippingFee.toLocaleString('vi-VN')}đ cước
-                      </span>
-                      <span className="text-[11px] text-amber-700 font-semibold block">
-                        {order.codAmount > 0 ? `Đã thu COD: ${order.codAmount.toLocaleString('vi-VN')}đ` : 'Đơn Online (0đ COD)'}
-                      </span>
+                      <div className="flex items-center justify-start sm:justify-end gap-1.5">
+                        <span className="text-[11px] text-gray-500 font-medium">Tiền công bưu tá:</span>
+                        <strong className="font-black text-sm text-[#00875A]">
+                          +{order.shippingFee.toLocaleString('vi-VN')}đ
+                        </strong>
+                      </div>
+
+                      {order.codAmount > 0 ? (
+                        <div className="text-[11px] space-y-0.5">
+                          <div className="text-gray-600">
+                            Thu khách: <strong className="text-gray-900">{order.codAmount.toLocaleString('vi-VN')}đ</strong>
+                          </div>
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                            <span>COD nộp Sàn (đã trừ cước):</span>
+                            <span className="text-amber-950 font-black">
+                              {Math.max(0, order.codAmount - order.shippingFee).toLocaleString('vi-VN')}đ
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                          Đơn Online (0đ COD)
+                        </span>
+                      )}
                     </>
                   ) : (
                     <span className="text-rose-600 font-bold block">0đ (Đã hoàn về Shop)</span>

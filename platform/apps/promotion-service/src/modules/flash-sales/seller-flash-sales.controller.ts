@@ -54,6 +54,21 @@ export class SellerFlashSalesController {
     return { data: slots };
   }
 
+  @Post("slots")
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: "Create a custom Flash Sale slot for Seller",
+    description: "Allows seller to create their own custom Flash Sale time window",
+  })
+  @ApiResponse({ status: 201, description: "Custom Flash Sale slot created successfully" })
+  async createSlot(
+    @CurrentBusiness() business: any,
+    @Body() dto: any,
+  ) {
+    const created = await this.flashSales.create(dto);
+    return { data: created, success: true, message: "Tạo khung giờ Flash Sale thành công" };
+  }
+
   @Get("my-items")
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

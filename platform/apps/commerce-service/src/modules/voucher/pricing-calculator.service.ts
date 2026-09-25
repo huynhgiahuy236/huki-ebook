@@ -275,7 +275,7 @@ export class PricingCalculatorService {
           storeId: group.storeId,
         });
 
-        if (result.valid && result.voucher) {
+        if (result?.valid && result?.voucher) {
           // Check scope
           if (result.voucher.scope !== VoucherScope.STORE) {
             throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại voucher cửa hàng');
@@ -290,7 +290,7 @@ export class PricingCalculatorService {
           group.storeVoucherCode = voucherCode;
           group.storeVoucherType = result.voucher.type;
         } else {
-          throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result.reason || 'Voucher không hợp lệ');
+          throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result?.reason || 'Voucher không hợp lệ');
         }
       } catch (error: any) {
         if (error.status === 400 || error.status === 404) {
@@ -323,7 +323,7 @@ export class PricingCalculatorService {
         orderSubtotal: totalAfterStoreDiscount,
       });
 
-      if (result.valid && result.voucher) {
+      if (result?.valid && result?.voucher) {
         // Check scope
         if (result.voucher.scope !== VoucherScope.PLATFORM) {
           throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại voucher nền tảng');
@@ -331,7 +331,7 @@ export class PricingCalculatorService {
 
         return result.discount ?? 0;
       } else {
-        throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result.reason || 'Voucher không hợp lệ');
+        throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result?.reason || 'Voucher không hợp lệ');
       }
     } catch (error: any) {
       if (error.status === 400 || error.status === 404) {
@@ -362,7 +362,7 @@ export class PricingCalculatorService {
         orderSubtotal: totalShipping,
       });
 
-      if (result.valid && result.voucher) {
+      if (result?.valid && result?.voucher) {
         // Check type
         if (result.voucher.type !== VoucherType.FREE_SHIPPING) {
           throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại miễn phí vận chuyển');

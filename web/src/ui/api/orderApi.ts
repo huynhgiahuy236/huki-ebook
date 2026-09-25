@@ -444,6 +444,76 @@ export const orderApi = {
   getSellerReplacements: async (): Promise<ApiResponse<ReturnRequestData[]>> => {
     return apiClient<ReturnRequestData[]>('/orders/seller/replacements', { method: 'GET' });
   },
+
+  /**
+   * Shipper lấy danh sách đơn hàng thực tế từ CSDL
+   */
+  getShipperOrders: async (): Promise<ApiResponse<any[]>> => {
+    return apiClient<any[]>('/orders/shipper/orders', { method: 'GET' });
+  },
+
+  /**
+   * Shipper xác nhận đã lấy hàng từ kho/shop
+   */
+  shipperPickup: async (
+    id: string,
+    payload?: { carrier?: string; trackingCode?: string }
+  ): Promise<ApiResponse<any>> => {
+    return apiClient(`/orders/shipper/orders/${id}/pickup`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
+  /**
+   * Shipper xác nhận giao hàng thành công
+   */
+  shipperDeliver: async (
+    id: string,
+    payload?: { note?: string }
+  ): Promise<ApiResponse<any>> => {
+    return apiClient(`/orders/shipper/orders/${id}/deliver`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload || {}),
+    });
+  },
+
+  /**
+   * Shipper báo giao thất bại
+   */
+  shipperFail: async (
+    id: string,
+    payload: { reason: string }
+  ): Promise<ApiResponse<any>> => {
+    return apiClient(`/orders/shipper/orders/${id}/fail`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Admin lấy danh sách đội ngũ bưu tá và số liệu thực tế từ DB
+   */
+  getAdminShippers: async (): Promise<ApiResponse<any[]>> => {
+    return apiClient<any[]>('/orders/shipper/admin/shippers', { method: 'GET' });
+  },
+
+  /**
+   * Shipper nộp tiền COD về quỹ sàn
+   */
+  remitShipperCod: async (payload: { amount: number; method?: string; txCode?: string }): Promise<ApiResponse<any>> => {
+    return apiClient<any>('/orders/shipper/remit-cod', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * Lấy lịch sử nộp tiền COD
+   */
+  getShipperRemittances: async (): Promise<ApiResponse<any[]>> => {
+    return apiClient<any[]>('/orders/shipper/remittances', { method: 'GET' });
+  },
 };
 
 export interface ReturnRequestData {

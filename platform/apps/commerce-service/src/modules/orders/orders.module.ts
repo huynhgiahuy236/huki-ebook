@@ -6,6 +6,7 @@ import { InventoryReservationService } from "./inventory-reservation.service";
 import { OrdersController } from "./orders.controller";
 import { OrdersService } from "./orders.service";
 import { SellerOrdersController } from "./seller-orders.controller";
+import { ShipperOrdersController } from "./shipper-orders.controller";
 import { OrderCompletionService } from "./order-completion.service";
 import { FlashSaleClientService } from "./flash-sale-client.service";
 import { EscrowService } from "./escrow.service";
@@ -18,7 +19,7 @@ import { PolicyConfigService } from "../../../../../libs/shared/src/config/polic
 
 @Module({
   imports: [CartModule, ShippingModule, VoucherModule, WalletModule, LedgerModule],
-  controllers: [CheckoutController, OrdersController, SellerOrdersController],
+  controllers: [CheckoutController, OrdersController, SellerOrdersController, ShipperOrdersController],
   providers: [
     CheckoutService,
     OrdersService,

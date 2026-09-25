@@ -19,7 +19,7 @@ import { CatalogAdminGuard } from './catalog-admin.guard';
           configService.get<string>('JWT_SECRET') ||
           process.env.JWT_SECRET ||
           'your-super-secret-jwt-key',
-        signOptions: { expiresIn: '15m' },
+        signOptions: { expiresIn: configService.get<string>('JWT_ACCESS_EXPIRES_IN') || '7d' },
       }),
       inject: [ConfigService],
     }),

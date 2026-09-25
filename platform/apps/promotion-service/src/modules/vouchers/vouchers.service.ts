@@ -26,6 +26,99 @@ export interface VoucherValidationResult {
 export class VouchersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async onApplicationBootstrap() {
+    await this.seedDefaultVouchersIfEmpty();
+  }
+
+  private async seedDefaultVouchersIfEmpty() {
+    try {
+      const count = await this.prisma.voucher.count();
+      if (count > 0) return;
+
+      const now = new Date();
+      const nextYear = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+      await this.prisma.voucher.createMany({
+        data: [
+          {
+            code: 'FREESHIP',
+            name: 'Miễn Phí Vận Chuyển Toàn Sàn',
+            description: 'Giảm 30.000đ phí vận chuyển cho tất cả đơn hàng từ 0đ',
+            type: 'FREE_SHIPPING' as any,
+            value: 30000,
+            minOrderAmount: 0,
+            maxDiscountAmount: 30000,
+            scope: 'PLATFORM' as any,
+            targetAudience: 'ALL' as any,
+            minFollowDays: 0,
+            totalUsage: 10000,
+            maxUsagePerUser: 5,
+            currentUsage: 0,
+            startsAt: now,
+            expiresAt: nextYear,
+            status: 'ACTIVE' as any,
+          },
+          {
+            code: 'HUKISALE10',
+            name: 'Giảm 10% Đơn Từ 50K',
+            description: 'Giảm 10% tối đa 30.000đ cho đơn hàng sách bất kỳ',
+            type: 'PERCENTAGE' as any,
+            value: 10,
+            minOrderAmount: 50000,
+            maxDiscountAmount: 30000,
+            scope: 'PLATFORM' as any,
+            targetAudience: 'ALL' as any,
+            minFollowDays: 0,
+            totalUsage: 5000,
+            maxUsagePerUser: 3,
+            currentUsage: 0,
+            startsAt: now,
+            expiresAt: nextYear,
+            status: 'ACTIVE' as any,
+          },
+          {
+            code: 'HUKINEW20',
+            name: 'Chào Bạn Mới 20K',
+            description: 'Giảm ngay 20.000đ cho đơn hàng đầu tiên của bạn',
+            type: 'FIXED_AMOUNT' as any,
+            value: 20000,
+            minOrderAmount: 0,
+            maxDiscountAmount: 20000,
+            scope: 'PLATFORM' as any,
+            targetAudience: 'ALL' as any,
+            minFollowDays: 0,
+            totalUsage: 5000,
+            maxUsagePerUser: 1,
+            currentUsage: 0,
+            startsAt: now,
+            expiresAt: nextYear,
+            status: 'ACTIVE' as any,
+          },
+          {
+            code: 'HUKIVIP50',
+            name: 'Đại Tiệc Tri Ân 50K',
+            description: 'Giảm 50.000đ cho đơn hàng từ 200.000đ',
+            type: 'FIXED_AMOUNT' as any,
+            value: 50000,
+            minOrderAmount: 200000,
+            maxDiscountAmount: 50000,
+            scope: 'PLATFORM' as any,
+            targetAudience: 'ALL' as any,
+            minFollowDays: 0,
+            totalUsage: 2000,
+            maxUsagePerUser: 2,
+            currentUsage: 0,
+            startsAt: now,
+            expiresAt: nextYear,
+            status: 'ACTIVE' as any,
+          },
+        ],
+      });
+    } catch (e: any) {
+      console.warn('Could not seed default vouchers:', e?.message);
+    }
+  }
+
   async create(dto: CreateVoucherDto) {
     const existing = await this.prisma.voucher.findUnique({
       where: { code: dto.code },
@@ -288,19 +381,15 @@ export class VouchersService {
     });
   }
 
-  async getUserVouchers(userId: string) {
+  async getUserVouchers(userId?: string) {
     const now = new Date();
     return this.prisma.voucher.findMany({
       where: {
         status: 'ACTIVE',
         startsAt: { lte: now },
         expiresAt: { gte: now },
-        OR: [
-          { scope: 'PLATFORM' },
-          { scope: 'STORE' },
-        ],
       },
-      orderBy: { expiresAt: 'asc' },
+      orderBy: [{ value: 'desc' }, { expiresAt: 'asc' }],
     });
   }
 
@@ -522,19 +611,18 @@ export class VouchersService {
   }
 
   private async checkUserFollowsStore(userId: string, storeId?: string | null): Promise<{ isFollower: boolean; daysFollowed: number; createdAt?: Date }> {
-    if (!userId || !storeId) return { isFollower: false, daysFollowed: 0 };
+    if (!userId || userId === 'anonymous' || !storeId) return { isFollower: false, daysFollowed: 0 };
     try {
       const { Client } = require('pg');
       const bizDbUrl =
         process.env.BUSINESS_DATABASE_URL ||
-        process.env.DATABASE_URL?.replace(/\/[^\/]+$/, '/huki_business') ||
         'postgresql://postgres:postgres123@localhost:5432/huki_business';
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
         `SELECT bf.id, bf.created_at FROM business_followers bf
-         JOIN stores s ON s.business_id = bf.business_id
-         WHERE s.id = $1 AND bf.user_id = $2
+         LEFT JOIN stores s ON s.business_id = bf.business_id
+         WHERE (bf.business_id = $1 OR s.id = $1) AND bf.user_id = $2
          LIMIT 1`,
         [storeId, userId],
       );
@@ -550,7 +638,7 @@ export class VouchersService {
       return { isFollower: false, daysFollowed: 0 };
     } catch (e) {
       console.warn('Could not check follower status:', e);
-      return { isFollower: true, daysFollowed: 999 }; // Fallback to allow if business service is unreachable
+      return { isFollower: false, daysFollowed: 0 };
     }
   }
 

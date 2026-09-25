@@ -1,7 +1,6 @@
-"use client";
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContext';
+import { orderApi } from '@/ui/api/orderApi';
 
 export interface ShipperProfile {
   id: string;
@@ -37,14 +36,17 @@ export interface ShipperOrder {
     coverUrl?: string;
   }>;
   totalWeight: number; // in grams
-  shippingFee: number; // shipper earning (e.g. 25.000đ - 35.000đ)
-  codAmount: number; // Cash to collect from customer (0 if prepaid online)
+  shippingFee: number; // shipper earning (e.g. 30.000đ)
+  codAmount: number; // Total cash to collect from customer (e.g. 138.000đ)
+  netCodDebt: number; // Net COD debt to remit to platform after keeping shipping fee (e.g. 108.000đ)
   paymentMethod: 'COD' | 'ONLINE_PAYMENT';
   distanceKm: number;
   status: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED';
+  sellerOrderStatus?: string;
   createdAt: string;
   acceptedAt?: string;
   pickedUpAt?: string;
+  shippedAt?: string;
   completedAt?: string;
   failureReason?: string;
 }
@@ -76,10 +78,12 @@ export interface ShipperContextType {
     totalEarnings: number;
   };
   transactions: WalletTransaction[];
-  acceptOrder: (orderId: string) => void;
-  confirmPickup: (orderId: string) => void;
-  completeDelivery: (orderId: string, note?: string) => void;
-  failDelivery: (orderId: string, reason: string) => void;
+  isLoading: boolean;
+  refreshOrders: () => Promise<void>;
+  acceptOrder: (orderId: string) => Promise<void> | void;
+  confirmPickup: (orderId: string) => Promise<void> | void;
+  completeDelivery: (orderId: string, note?: string) => Promise<void> | void;
+  failDelivery: (orderId: string, reason: string) => Promise<void> | void;
   remitCodDebt: (amount: number, method: string) => void;
   requestWithdrawal: (amount: number, bankInfo: { bank: string; account: string; name: string }) => void;
   resetDemoData: () => void;
@@ -93,257 +97,214 @@ const INITIAL_PROFILE: ShipperProfile = {
   avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
   vehicleType: 'Xe máy Honda Wave Alpha 110cc',
   licensePlate: '66-F1 987.65',
-  rating: 4.95,
-  totalDelivered: 148,
+  rating: 5.0,
+  totalDelivered: 0,
   activeZone: 'Đồng Tháp (TP. Cao Lãnh & TP. Sa Đéc)',
   identityCard: '087098001234',
   joinDate: '15/01/2026',
 };
 
-const INITIAL_AVAILABLE_ORDERS: ShipperOrder[] = [
-  {
-    id: 'SHIP-ORD-101',
-    code: 'ORD-2026-8801',
-    customerName: 'Huỳnh Gia Huy',
-    customerPhone: '0912 345 678',
-    deliveryAddress: '123 Đường Nguyễn Huệ, Phường 2',
-    deliveryWard: 'Phường 2',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'Nhà Sách HuKi Miền Tây',
-    shopPhone: '0277 388 999',
-    shopAddress: '45 Đường Hùng Vương, Phường 1, TP. Cao Lãnh',
-    items: [
-      { title: 'Tư Duy Nhanh Và Chậm (Bìa Cứng)', quantity: 1, format: 'Sách In Bìa Cứng', coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=150&q=80' },
-      { title: 'Đắc Nhân Tâm (Bản Đặc Biệt)', quantity: 1, format: 'Sách In Bìa Mềm', coverUrl: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=150&q=80' },
-    ],
-    totalWeight: 850,
-    shippingFee: 32000,
-    codAmount: 285000,
-    paymentMethod: 'COD',
-    distanceKm: 2.8,
-    status: 'AVAILABLE',
-    createdAt: 'Hôm nay, 10:15',
-  },
-  {
-    id: 'SHIP-ORD-102',
-    code: 'ORD-2026-8802',
-    customerName: 'Lê Minh Khang',
-    customerPhone: '0938 112 233',
-    deliveryAddress: '88 Đường Lý Thường Kiệt, Phường 4',
-    deliveryWard: 'Phường 4',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'HuKi Official Store',
-    shopPhone: '1900 8866',
-    shopAddress: '12 Đường 30/4, Phường 1, TP. Cao Lãnh',
-    items: [
-      { title: 'Từ Không Đến Một (Zero to One)', quantity: 1, format: 'Sách In', coverUrl: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=150&q=80' },
-    ],
-    totalWeight: 420,
-    shippingFee: 26000,
-    codAmount: 145000,
-    paymentMethod: 'COD',
-    distanceKm: 1.9,
-    status: 'AVAILABLE',
-    createdAt: 'Hôm nay, 10:45',
-  },
-  {
-    id: 'SHIP-ORD-103',
-    code: 'ORD-2026-8803',
-    customerName: 'Trần Thị Mai',
-    customerPhone: '0977 445 566',
-    deliveryAddress: '56 Đường Tôn Đức Thắng, Phường 1',
-    deliveryWard: 'Phường 1',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'Sách Nhã Nam Flagship',
-    shopPhone: '028 3822 4455',
-    shopAddress: 'Bưu Cục HuKi Hub Cao Lãnh, Đồng Tháp',
-    items: [
-      { title: 'Nhà Giả Kim (Ấn bản kỷ niệm)', quantity: 2, format: 'Sách In', coverUrl: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=150&q=80' },
-    ],
-    totalWeight: 600,
-    shippingFee: 28000,
-    codAmount: 0,
-    paymentMethod: 'ONLINE_PAYMENT',
-    distanceKm: 3.4,
-    status: 'AVAILABLE',
-    createdAt: 'Hôm nay, 11:20',
-  },
-];
-
-const INITIAL_ACTIVE_ORDERS: ShipperOrder[] = [
-  {
-    id: 'SHIP-ORD-100',
-    code: 'ORD-2026-8799',
-    customerName: 'Phạm Hoàng Nam',
-    customerPhone: '0909 888 777',
-    deliveryAddress: '234 Đường Điện Biên Phủ, Phường Mỹ Phú',
-    deliveryWard: 'Phường Mỹ Phú',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'Thế Giới Sách Tri Thức',
-    shopPhone: '0277 366 888',
-    shopAddress: '15 Đường Lê Lợi, Phường 2, TP. Cao Lãnh',
-    items: [
-      { title: 'Khởi Nghiệp Tinh Gọn (The Lean Startup)', quantity: 1, format: 'Sách In', coverUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=150&q=80' },
-    ],
-    totalWeight: 510,
-    shippingFee: 30000,
-    codAmount: 189000,
-    paymentMethod: 'COD',
-    distanceKm: 2.1,
-    status: 'IN_TRANSIT',
-    createdAt: 'Hôm nay, 09:30',
-    acceptedAt: '09:40',
-    pickedUpAt: '09:55',
-  },
-];
-
-const INITIAL_HISTORY_ORDERS: ShipperOrder[] = [
-  {
-    id: 'SHIP-ORD-099',
-    code: 'ORD-2026-8788',
-    customerName: 'Ngô Thanh Vân',
-    customerPhone: '0903 555 666',
-    deliveryAddress: '45 Đường Nguyễn Thái Học, Phường 4, TP. Cao Lãnh',
-    deliveryWard: 'Phường 4',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'HuKi Official Store',
-    shopPhone: '1900 8866',
-    shopAddress: '12 Đường 30/4, Phường 1, TP. Cao Lãnh',
-    items: [{ title: 'Hành Trình Về Phương Đông', quantity: 1, format: 'Sách In' }],
-    totalWeight: 400,
-    shippingFee: 25000,
-    codAmount: 120000,
-    paymentMethod: 'COD',
-    distanceKm: 1.5,
-    status: 'DELIVERED',
-    createdAt: 'Hôm nay, 08:15',
-    completedAt: '08:50',
-  },
-  {
-    id: 'SHIP-ORD-098',
-    code: 'ORD-2026-8780',
-    customerName: 'Võ Minh Quân',
-    customerPhone: '0918 222 333',
-    deliveryAddress: '12 Đường Thiên Hộ Dương, Phường 6, TP. Cao Lãnh',
-    deliveryWard: 'Phường 6',
-    deliveryDistrict: 'TP. Cao Lãnh',
-    deliveryProvince: 'Đồng Tháp',
-    shopName: 'Nhà Sách Phương Nam',
-    shopPhone: '0277 399 111',
-    shopAddress: '50 Đường Hùng Vương, Phường 2, TP. Cao Lãnh',
-    items: [{ title: 'Sapiens: Lược Sử Loài Người', quantity: 1, format: 'Sách In Bìa Cứng' }],
-    totalWeight: 920,
-    shippingFee: 35000,
-    codAmount: 0,
-    paymentMethod: 'ONLINE_PAYMENT',
-    distanceKm: 4.2,
-    status: 'DELIVERED',
-    createdAt: 'Hôm qua, 16:20',
-    completedAt: '17:10',
-  },
-];
-
-const INITIAL_TRANSACTIONS: WalletTransaction[] = [
-  {
-    id: 'TX-1001',
-    type: 'EARNING',
-    amount: 25000,
-    title: 'Tiền công giao hàng',
-    description: 'Hoàn tất đơn hàng ORD-2026-8788',
-    orderCode: 'ORD-2026-8788',
-    createdAt: 'Hôm nay, 08:50',
-    status: 'SUCCESS',
-  },
-  {
-    id: 'TX-1002',
-    type: 'COD_COLLECT',
-    amount: 120000,
-    title: 'Thu tiền mặt COD từ khách',
-    description: 'Đã nhận 120.000đ tiền mặt đơn ORD-2026-8788',
-    orderCode: 'ORD-2026-8788',
-    createdAt: 'Hôm nay, 08:50',
-    status: 'SUCCESS',
-  },
-  {
-    id: 'TX-1003',
-    type: 'EARNING',
-    amount: 35000,
-    title: 'Tiền công giao hàng',
-    description: 'Hoàn tất đơn hàng ORD-2026-8780',
-    orderCode: 'ORD-2026-8780',
-    createdAt: 'Hôm qua, 17:10',
-    status: 'SUCCESS',
-  },
-];
-
 const ShipperContext = createContext<ShipperContextType | null>(null);
 
-const STORAGE_KEY = 'huki_shipper_state_v1';
+const STORAGE_KEY = 'huki_shipper_manual_txs_v1';
+
+const getStoredManualTransactions = (): WalletTransaction[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveManualTransaction = (tx: WalletTransaction) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getStoredManualTransactions();
+    const updated = [tx, ...list];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Failed to save manual transaction:', err);
+  }
+};
 
 export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
 
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [profile, setProfile] = useState<ShipperProfile>(INITIAL_PROFILE);
-  const [availableOrders, setAvailableOrders] = useState<ShipperOrder[]>(INITIAL_AVAILABLE_ORDERS);
-  const [activeDeliveries, setActiveDeliveries] = useState<ShipperOrder[]>(INITIAL_ACTIVE_ORDERS);
-  const [historyOrders, setHistoryOrders] = useState<ShipperOrder[]>(INITIAL_HISTORY_ORDERS);
+  const [availableOrders, setAvailableOrders] = useState<ShipperOrder[]>([]);
+  const [activeDeliveries, setActiveDeliveries] = useState<ShipperOrder[]>([]);
+  const [historyOrders, setHistoryOrders] = useState<ShipperOrder[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [wallet, setWallet] = useState({
-    availableEarnings: 450000,
-    codDebt: 120000,
-    todayEarnings: 60000,
-    todayCompletedCount: 2,
-    totalEarnings: 3850000,
+    availableEarnings: 0,
+    codDebt: 0,
+    todayEarnings: 0,
+    todayCompletedCount: 0,
+    totalEarnings: 0,
   });
-  const [transactions, setTransactions] = useState<WalletTransaction[]>(INITIAL_TRANSACTIONS);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
 
-  // Load from local storage
-  useEffect(() => {
+  // Load real physical orders from database
+  const refreshOrders = useCallback(async () => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.profile) setProfile(parsed.profile);
-        if (parsed.availableOrders) setAvailableOrders(parsed.availableOrders);
-        if (parsed.activeDeliveries) setActiveDeliveries(parsed.activeDeliveries);
-        if (parsed.historyOrders) setHistoryOrders(parsed.historyOrders);
-        if (parsed.wallet) setWallet(parsed.wallet);
-        if (parsed.transactions) setTransactions(parsed.transactions);
-        if (typeof parsed.isOnline === 'boolean') setIsOnline(parsed.isOnline);
+      setIsLoading(true);
+      const res = await orderApi.getShipperOrders();
+      if (res.success && Array.isArray(res.data)) {
+        const allOrders: any[] = res.data;
+        const available: ShipperOrder[] = [];
+        const active: ShipperOrder[] = [];
+        const history: ShipperOrder[] = [];
+
+        let currentCodDebt = 0;
+        let totalEarningsFromDb = 0;
+        let todayEarnings = 0;
+        let todayCompleted = 0;
+        const dbTransactions: WalletTransaction[] = [];
+
+        allOrders.forEach((o) => {
+          const shippingFee = Number(o.shippingFee) || 30000;
+          const codAmount = Number(o.codAmount) || 0;
+          const isCod = o.paymentMethod === 'COD';
+          const netCodDebt = isCod ? Math.max(0, codAmount - shippingFee) : 0;
+
+          const item: ShipperOrder = {
+            id: o.id,
+            code: o.code,
+            customerName: o.customerName || 'Khách hàng HuKi',
+            customerPhone: o.customerPhone || '0901234567',
+            deliveryAddress: o.deliveryAddress || 'Đồng Tháp',
+            deliveryWard: o.deliveryWard || 'Phường Bến Nghé',
+            deliveryDistrict: o.deliveryDistrict || 'Quận 1',
+            deliveryProvince: o.deliveryProvince || 'TP. Hồ Chí Minh',
+            shopName: o.shopName || 'Công ty TNHH Phát Hành Sách & Nội Dung Số Tri Thức Việt',
+            shopPhone: o.shopPhone || '0912 345 678',
+            shopAddress: o.shopAddress || 'Số 88 Đường Lý Thường Kiệt, TP. Cao Lãnh, Tỉnh Đồng Tháp',
+            items: o.items || [],
+            totalWeight: o.totalWeight || 500,
+            shippingFee: shippingFee,
+            codAmount: codAmount,
+            netCodDebt: netCodDebt,
+            paymentMethod: isCod ? 'COD' : 'ONLINE_PAYMENT',
+            distanceKm: o.distanceKm || 3.2,
+            status: o.status || 'AVAILABLE',
+            createdAt: o.createdAt || new Date().toISOString(),
+            shippedAt: o.shippedAt,
+            completedAt: o.completedAt,
+          };
+
+          if (o.status === 'AVAILABLE' || o.sellerOrderStatus === 'PREPARING' || o.sellerOrderStatus === 'CONFIRMED') {
+            available.push(item);
+          } else if (o.status === 'PICKING_UP' || o.status === 'IN_TRANSIT' || o.sellerOrderStatus === 'SHIPPED') {
+            active.push({ ...item, status: 'IN_TRANSIT' });
+          } else if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
+            const isDelivered = o.sellerOrderStatus !== 'CANCELLED' && o.status !== 'FAILED';
+            history.push({ ...item, status: isDelivered ? 'DELIVERED' : 'FAILED' });
+            if (isDelivered) {
+              todayCompleted += 1;
+              todayEarnings += item.shippingFee;
+              totalEarningsFromDb += item.shippingFee;
+              if (item.paymentMethod === 'COD') {
+                currentCodDebt += item.netCodDebt;
+              }
+
+              // Build transaction ledger item from DB
+              dbTransactions.push({
+                id: `TX-${item.code}-EARN`,
+                type: 'EARNING',
+                amount: item.shippingFee,
+                title: 'Tiền công giao hàng',
+                description: `Giao thành công đơn ${item.code} (+${item.shippingFee.toLocaleString('vi-VN')}đ cước ship)`,
+                orderCode: item.code,
+                createdAt: item.completedAt ? new Date(item.completedAt).toLocaleString('vi-VN') : 'Hôm nay',
+                status: 'SUCCESS',
+              });
+
+              if (item.codAmount > 0) {
+                dbTransactions.push({
+                  id: `TX-${item.code}-COD`,
+                  type: 'COD_COLLECT',
+                  amount: item.netCodDebt,
+                  title: 'Công nợ COD phải nộp Sàn (đã trừ cước ship)',
+                  description: `Thu của khách ${item.codAmount.toLocaleString('vi-VN')}đ - giữ lại ${item.shippingFee.toLocaleString('vi-VN')}đ tiền ship = nộp sàn ${item.netCodDebt.toLocaleString('vi-VN')}đ`,
+                  orderCode: item.code,
+                  createdAt: item.completedAt ? new Date(item.completedAt).toLocaleString('vi-VN') : 'Hôm nay',
+                  status: 'SUCCESS',
+                });
+              }
+            }
+          } else {
+            available.push(item);
+          }
+        });
+
+        let totalRemitted = 0;
+        try {
+          const remRes = await orderApi.getShipperRemittances();
+          if (remRes.success && Array.isArray(remRes.data)) {
+            const dbRemittances = remRes.data;
+            totalRemitted = dbRemittances.reduce((sum: number, r: any) => sum + (Number(r.amount) || 0), 0);
+            dbRemittances.forEach((r: any) => {
+              dbTransactions.unshift({
+                id: r.txCode || r.id,
+                type: 'COD_REMITTANCE',
+                amount: r.amount,
+                title: 'Nộp tiền COD về quỹ sàn HuKi',
+                description: `Đã nộp tiền COD qua ${r.method || 'VietQR PayOS'} (-${r.amount.toLocaleString('vi-VN')}đ)`,
+                createdAt: r.createdAt ? new Date(r.createdAt).toLocaleString('vi-VN') : 'Hôm nay',
+                status: 'SUCCESS',
+              });
+            });
+          }
+        } catch {}
+
+        const manualTxs = getStoredManualTransactions();
+        if (totalRemitted === 0) {
+          totalRemitted = manualTxs
+            .filter((t) => t.type === 'COD_REMITTANCE')
+            .reduce((sum, t) => sum + t.amount, 0);
+        }
+        const totalWithdrawn = manualTxs
+          .filter((t) => t.type === 'WITHDRAWAL')
+          .reduce((sum, t) => sum + t.amount, 0);
+
+        const finalCodDebt = Math.max(0, currentCodDebt - totalRemitted);
+        const finalAvailableEarnings = Math.max(0, totalEarningsFromDb - totalWithdrawn);
+
+        setAvailableOrders(available);
+        setActiveDeliveries(active);
+        setHistoryOrders(history);
+        setProfile((prev) => ({
+          ...prev,
+          totalDelivered: todayCompleted,
+        }));
+        setWallet({
+          availableEarnings: finalAvailableEarnings,
+          totalEarnings: totalEarningsFromDb,
+          codDebt: finalCodDebt,
+          todayCompletedCount: todayCompleted,
+          todayEarnings: todayEarnings,
+        });
+        
+        // Merge without duplicate IDs
+        const combinedMap = new Map<string, WalletTransaction>();
+        [...manualTxs, ...dbTransactions].forEach((tx) => {
+          if (!combinedMap.has(tx.id)) combinedMap.set(tx.id, tx);
+        });
+        setTransactions(Array.from(combinedMap.values()));
       }
-    } catch {
-      // Ignore
+    } catch (err) {
+      console.error('Error fetching shipper orders:', err);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Save to local storage
-  const saveState = useCallback(() => {
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          isOnline,
-          profile,
-          availableOrders,
-          activeDeliveries,
-          historyOrders,
-          wallet,
-          transactions,
-        })
-      );
-    } catch {
-      // Ignore
-    }
-  }, [isOnline, profile, availableOrders, activeDeliveries, historyOrders, wallet, transactions]);
-
   useEffect(() => {
-    saveState();
-  }, [saveState]);
+    refreshOrders();
+  }, [refreshOrders]);
 
   const updateProfile = (data: Partial<ShipperProfile>) => {
     setProfile((prev) => ({ ...prev, ...data }));
@@ -351,7 +312,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // 1. Shipper accepts an available order
-  const acceptOrder = (orderId: string) => {
+  const acceptOrder = async (orderId: string) => {
     const target = availableOrders.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -373,8 +334,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
-  // 2. Shipper confirms picking up items from seller
-  const confirmPickup = (orderId: string) => {
+  // 2. Shipper confirms picking up items from seller (calls DB PATCH pickup)
+  const confirmPickup = async (orderId: string) => {
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     setActiveDeliveries((prev) =>
       prev.map((o) =>
@@ -388,17 +349,23 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       )
     );
 
+    try {
+      await orderApi.shipperPickup(orderId);
+    } catch (err) {
+      console.error('Error updating pickup to DB:', err);
+    }
+
     showToast(
       {
         title: 'Đã lấy hàng thành công!',
-        message: 'Kiện sách đã được nhận. Vui lòng di chuyển giao cho khách hàng.',
+        message: 'Kiện sách đã được nhận từ kho. Vui lòng di chuyển giao cho khách hàng.',
       },
       'info'
     );
   };
 
-  // 3. Complete delivery & collect COD
-  const completeDelivery = (orderId: string, note?: string) => {
+  // 3. Complete delivery & collect COD (calls DB PATCH deliver)
+  const completeDelivery = async (orderId: string, note?: string) => {
     const target = activeDeliveries.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -415,6 +382,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Update Wallet
     const earningAmount = target.shippingFee;
     const codCollected = target.codAmount;
+    const netCodToRemit = target.paymentMethod === 'COD' ? Math.max(0, codCollected - earningAmount) : 0;
 
     setWallet((prev) => ({
       ...prev,
@@ -422,7 +390,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       todayEarnings: prev.todayEarnings + earningAmount,
       todayCompletedCount: prev.todayCompletedCount + 1,
       totalEarnings: prev.totalEarnings + earningAmount,
-      codDebt: prev.codDebt + codCollected,
+      codDebt: prev.codDebt + netCodToRemit,
     }));
 
     // Add Transactions
@@ -432,7 +400,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         type: 'EARNING',
         amount: earningAmount,
         title: 'Tiền công giao hàng',
-        description: `Giao thành công đơn ${target.code} (+${earningAmount.toLocaleString('vi-VN')}đ)`,
+        description: `Giao thành công đơn ${target.code} (+${earningAmount.toLocaleString('vi-VN')}đ cước ship)`,
         orderCode: target.code,
         createdAt: `Hôm nay, ${nowStr}`,
         status: 'SUCCESS',
@@ -443,9 +411,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       newTxList.push({
         id: `TX-${Date.now()}-2`,
         type: 'COD_COLLECT',
-        amount: codCollected,
-        title: 'Thu tiền mặt COD từ khách',
-        description: `Đã thu ${codCollected.toLocaleString('vi-VN')}đ tiền mặt đơn ${target.code}`,
+        amount: netCodToRemit,
+        title: 'Công nợ COD phải nộp Sàn (đã trừ cước ship)',
+        description: `Thu của khách ${codCollected.toLocaleString('vi-VN')}đ - giữ lại ${earningAmount.toLocaleString('vi-VN')}đ tiền ship = nộp sàn ${netCodToRemit.toLocaleString('vi-VN')}đ`,
         orderCode: target.code,
         createdAt: `Hôm nay, ${nowStr}`,
         status: 'SUCCESS',
@@ -454,19 +422,25 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setTransactions((prev) => [...newTxList, ...prev]);
 
+    try {
+      await orderApi.shipperDeliver(orderId, { note });
+    } catch (err) {
+      console.error('Error delivering order in DB:', err);
+    }
+
     showToast(
       {
         title: 'Giao hàng thành công! 🎉',
-        message: `+${earningAmount.toLocaleString('vi-VN')}đ tiền công đã cộng vào ví.${
-          codCollected > 0 ? ` Đã ghi nhận thu hộ COD: ${codCollected.toLocaleString('vi-VN')}đ.` : ''
+        message: `+${earningAmount.toLocaleString('vi-VN')}đ cước ship đã cộng vào ví.${
+          codCollected > 0 ? ` Thu khách: ${codCollected.toLocaleString('vi-VN')}đ (Nợ nộp sàn sau khi trừ cước: ${netCodToRemit.toLocaleString('vi-VN')}đ).` : ''
         }`,
       },
       'success'
     );
   };
 
-  // 4. Delivery failed / boom hàng
-  const failDelivery = (orderId: string, reason: string) => {
+  // 4. Delivery failed / boom hàng (calls DB PATCH fail)
+  const failDelivery = async (orderId: string, reason: string) => {
     const target = activeDeliveries.find((o) => o.id === orderId);
     if (!target) return;
 
@@ -479,6 +453,12 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setActiveDeliveries((prev) => prev.filter((o) => o.id !== orderId));
     setHistoryOrders((prev) => [failedOrder, ...prev]);
 
+    try {
+      await orderApi.shipperFail(orderId, { reason });
+    } catch (err) {
+      console.error('Error failing order in DB:', err);
+    }
+
     showToast(
       {
         title: 'Đã báo giao thất bại',
@@ -489,29 +469,41 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   // 5. Remit collected COD cash back to HuKi Platform
-  const remitCodDebt = (amount: number, method: string) => {
+  const remitCodDebt = async (amount: number, method: string) => {
     if (amount <= 0 || amount > wallet.codDebt) {
       showToast({ title: 'Số tiền không hợp lệ', message: 'Vui lòng nhập số tiền nhỏ hơn hoặc bằng nợ COD hiện tại.' }, 'warning');
       return;
     }
+
+    const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const newTx: WalletTransaction = {
+      id: `TX-REMIT-${Date.now()}`,
+      type: 'COD_REMITTANCE',
+      amount: amount,
+      title: 'Nộp tiền COD về quỹ sàn HuKi',
+      description: `Đã chuyển nộp tiền COD qua ${method} (-${amount.toLocaleString('vi-VN')}đ)`,
+      createdAt: `Hôm nay, ${nowStr}`,
+      status: 'SUCCESS',
+    };
+
+    saveManualTransaction(newTx);
 
     setWallet((prev) => ({
       ...prev,
       codDebt: Math.max(0, prev.codDebt - amount),
     }));
 
-    const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const newTx: WalletTransaction = {
-      id: `TX-${Date.now()}`,
-      type: 'COD_REMITTANCE',
-      amount: amount,
-      title: 'Nộp tiền COD về quỹ HuKi',
-      description: `Đã chuyển nộp tiền COD qua ${method} (-${amount.toLocaleString('vi-VN')}đ)`,
-      createdAt: `Hôm nay, ${nowStr}`,
-      status: 'SUCCESS',
-    };
+    setTransactions((prev) => [newTx, ...prev.filter((t) => t.id !== newTx.id)]);
 
-    setTransactions((prev) => [newTx, ...prev]);
+    try {
+      await orderApi.remitShipperCod({
+        amount,
+        method,
+        txCode: newTx.id,
+      });
+    } catch (e) {
+      console.warn('Backend remit failed:', e);
+    }
 
     showToast(
       {
@@ -529,21 +521,23 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
+    const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    const newTx: WalletTransaction = {
+      id: `TX-WITHDRAW-${Date.now()}`,
+      type: 'WITHDRAWAL',
+      amount: amount,
+      title: 'Rút tiền thu nhập về ngân hàng',
+      description: `Chuyển về ${bankInfo.bank} (${bankInfo.account} - ${bankInfo.name}) (-${amount.toLocaleString('vi-VN')}đ)`,
+      createdAt: `Hôm nay, ${nowStr}`,
+      status: 'SUCCESS',
+    };
+
+    saveManualTransaction(newTx);
+
     setWallet((prev) => ({
       ...prev,
       availableEarnings: prev.availableEarnings - amount,
     }));
-
-    const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const newTx: WalletTransaction = {
-      id: `TX-${Date.now()}`,
-      type: 'WITHDRAWAL',
-      amount: amount,
-      title: 'Rút tiền thu nhập về ngân hàng',
-      description: `Chuyển về ${bankInfo.bank} (${bankInfo.account} - ${bankInfo.name})`,
-      createdAt: `Hôm nay, ${nowStr}`,
-      status: 'SUCCESS',
-    };
 
     setTransactions((prev) => [newTx, ...prev]);
 
@@ -557,21 +551,11 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const resetDemoData = () => {
-    setProfile(INITIAL_PROFILE);
-    setAvailableOrders(INITIAL_AVAILABLE_ORDERS);
-    setActiveDeliveries(INITIAL_ACTIVE_ORDERS);
-    setHistoryOrders(INITIAL_HISTORY_ORDERS);
-    setWallet({
-      availableEarnings: 450000,
-      codDebt: 120000,
-      todayEarnings: 60000,
-      todayCompletedCount: 2,
-      totalEarnings: 3850000,
-    });
-    setTransactions(INITIAL_TRANSACTIONS);
-    setIsOnline(true);
-    localStorage.removeItem(STORAGE_KEY);
-    showToast({ title: 'Khôi phục dữ liệu mẫu', message: 'Đã làm mới toàn bộ đơn hàng và ví tiền Shipper!' }, 'info');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+    refreshOrders();
+    showToast({ title: 'Làm mới dữ liệu', message: 'Đã đồng bộ lại toàn bộ đơn hàng thực tế từ CSDL!' }, 'info');
   };
 
   return (
@@ -586,6 +570,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         historyOrders,
         wallet,
         transactions,
+        isLoading,
+        refreshOrders,
         acceptOrder,
         confirmPickup,
         completeDelivery,

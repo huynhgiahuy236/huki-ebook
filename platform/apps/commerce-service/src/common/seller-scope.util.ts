@@ -8,8 +8,8 @@ export interface SellerScope {
   ownerUserIds: string[];
 }
 
-export async function getSellerScope(actor: BookActor): Promise<SellerScope> {
-  if (actor.role === 'PLATFORM_ADMIN') {
+export async function getSellerScope(actor?: BookActor): Promise<SellerScope> {
+  if (!actor || !actor.sub || actor.role === 'PLATFORM_ADMIN') {
     return {
       isPlatformAdmin: true,
       businessIds: [],

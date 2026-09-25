@@ -63,14 +63,24 @@ export default function FlashSalePage() {
       if (res.success && Array.isArray(res.data)) {
         const slotList = res.data;
         setSlots(slotList);
-        // Find first active slot, else first scheduled slot, else first slot
-        const active =
-          slotList.find((s) => s.status === "ACTIVE") || slotList[0];
-        setActiveSlotId((current) =>
-          current && slotList.some((slot) => slot.id === current)
-            ? current
-            : active?.id || null,
-        );
+        
+        const now = Date.now();
+        // Priority: Active slot > Upcoming slot > First slot
+        const active = slotList.find((s) => {
+          const start = new Date(s.startsAt).getTime();
+          const end = new Date(s.endsAt).getTime();
+          return now >= start && now <= end;
+        }) || slotList.find((s) => {
+          const start = new Date(s.startsAt).getTime();
+          return now < start;
+        }) || slotList[0];
+
+        setActiveSlotId((current) => {
+          if (current && slotList.some((slot) => slot.id === current)) {
+            return current;
+          }
+          return active?.id || null;
+        });
       }
     } catch (err) {
       console.error("Error loading flash sale slots:", err);
@@ -161,28 +171,31 @@ export default function FlashSalePage() {
       return {
         ...item,
         title:
-          matchedBook?.title ||
           item.bookTitle ||
+          matchedBook?.title ||
           `Tác phẩm Flash Sale #${item.bookId.slice(0, 6)}`,
         coverUrl:
-          matchedBook?.coverUrl ||
           item.coverUrl ||
+          matchedBook?.coverUrl ||
           "/banners/hero-library.jpg",
-        slug: matchedBook?.slug || item.bookSlug || item.bookId,
-        author: matchedBook?.author?.name || "Tác giả HUKI",
+        slug: item.bookSlug || matchedBook?.slug || item.bookId,
+        author:
+          (item as any).author ||
+          matchedBook?.author?.name ||
+          "Tác giả HUKI",
         format: matchedBook?.format || "PHYSICAL",
       };
     });
   }, [currentSlot, catalogBooks]);
 
-  const handleBuyNow = async (item: DisplayFlashItem) => {
+  const handleAddToCart = async (item: DisplayFlashItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     if (item.isSoldOut || item.stock <= 0) {
       showToast("Sản phẩm đã hết suất Flash Sale!", "warning");
       return;
     }
 
     try {
-      // Validate quota with promotion service
       if (isLoggedIn && user?.id) {
         const quotaCheck = await flashSaleApi.validateQuota({
           userId: user.id,
@@ -209,18 +222,75 @@ export default function FlashSalePage() {
           price: item.salePrice,
           originalPricePaper: item.originalPrice,
           cover: item.coverUrl,
+          storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
         },
-        "paper",
+        item.format === "DIGITAL" ? "ebook" : "paper",
         1,
       );
       showToast(
-        `⚡ Đã thêm "${item.title}" vào giỏ hàng với giá Flash Sale ${item.salePrice.toLocaleString("vi-VN")}₫!`,
+        `🛒 Đã thêm "${item.title}" vào giỏ hàng thành công!`,
         "success",
       );
-      router.push("/checkout");
     } catch {
       showToast(
         "Không thể thêm sản phẩm vào giỏ hàng. Vui lòng thử lại!",
+        "error",
+      );
+    }
+  };
+
+  const handleBuyNow = async (item: DisplayFlashItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (item.isSoldOut || item.stock <= 0) {
+      showToast("Sản phẩm đã hết suất Flash Sale!", "warning");
+      return;
+    }
+
+    try {
+      // Validate quota with promotion service
+      if (isLoggedIn && user?.id) {
+        const quotaCheck = await flashSaleApi.validateQuota({
+          userId: user.id,
+          bookId: item.bookId,
+          flashSaleId: item.flashSaleId,
+          quantity: 1,
+        });
+
+        if (quotaCheck.success && quotaCheck.data && !quotaCheck.data.allowed) {
+          showToast(
+            quotaCheck.data.reason ||
+              "Bạn đã đạt giới hạn mua sản phẩm Flash Sale này!",
+            "warning",
+          );
+          return;
+        }
+      }
+
+      // DIRECT BUY ISOLATION: Store only this flash sale item in sessionStorage (does not touch cart items)
+      const directItem = {
+        id: `${item.bookId}-direct-flash-sale`,
+        bookId: item.bookId,
+        title: item.title,
+        author: item.author,
+        price: item.salePrice,
+        originalPrice: item.originalPrice,
+        cover: item.coverUrl,
+        quantity: 1,
+        format: item.format || "PHYSICAL",
+        type: item.format === "DIGITAL" ? "ebook" : "physical",
+        storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
+        flashSaleId: item.flashSaleId,
+        isFlashSale: true,
+      };
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("huki_direct_checkout_item", JSON.stringify(directItem));
+      }
+
+      router.push("/checkout?direct=1");
+    } catch {
+      showToast(
+        "Không thể tiến hành mua ngay. Vui lòng thử lại!",
         "error",
       );
     }
@@ -302,7 +372,7 @@ export default function FlashSalePage() {
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* 2. TIMELINE TABS */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 mb-6 overflow-x-auto">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-3.5 mb-6 overflow-x-auto">
           <div className="flex items-center gap-3 min-w-max">
             {slots.map((slot) => {
               const timer = timeRemaining[slot.id] || {
@@ -312,41 +382,45 @@ export default function FlashSalePage() {
                 m: "00",
                 s: "00",
               };
-              const isSelected = slot.id === activeSlotId;
+              const isSelected = slot.id === (activeSlotId || currentSlot?.id);
               const isActive = timer.mode === "active";
               const isUpcoming = timer.mode === "upcoming";
+              const startTime = new Date(slot.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+              const endTime = new Date(slot.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+              const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 
               return (
                 <button
                   key={slot.id}
                   onClick={() => setActiveSlotId(slot.id)}
-                  className={`flex flex-col items-center justify-center px-6 py-3 rounded-xl transition-all cursor-pointer border ${
+                  className={`flex flex-col items-center justify-center px-6 py-3 rounded-2xl transition-all cursor-pointer border shrink-0 ${
                     isSelected
-                      ? "bg-gradient-to-br from-rose-600 to-red-600 text-white border-transparent shadow-md scale-102"
-                      : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+                      ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 text-white border-transparent shadow-md scale-102 ring-2 ring-orange-400/50"
+                      : "bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200"
                   }`}
                 >
                   <div className="flex items-center gap-1.5 font-black text-sm">
                     {isActive && (
-                      <span className="material-symbols-outlined text-yellow-300 text-sm animate-pulse">
+                      <span className="material-symbols-outlined text-yellow-300 text-base animate-pulse">
                         bolt
                       </span>
                     )}
                     <span>{slot.name}</span>
                   </div>
-                  <div className="text-[11px] font-semibold mt-0.5 opacity-90">
+                  <div className="text-[11px] font-semibold mt-1 flex items-center gap-1.5 opacity-90">
+                    <span className="font-mono text-[10px] opacity-85">{startTime} - {endTime} ({dateStr})</span>
+                    <span>•</span>
                     {isActive ? (
-                      <span className="text-yellow-200 font-bold">
-                        Đang Diễn Ra 🔥
+                      <span className="text-yellow-200 font-bold flex items-center gap-1">
+                        <span>Đang Diễn Ra</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-ping"></span>
                       </span>
                     ) : isUpcoming ? (
-                      <span
-                        className={isSelected ? "text-white" : "text-slate-500"}
-                      >
+                      <span className={isSelected ? "text-amber-100 font-bold" : "text-orange-600 font-bold"}>
                         Sắp Diễn Ra ⏳
                       </span>
                     ) : (
-                      <span className="opacity-70">Đã Kết Thúc</span>
+                      <span className="opacity-60">Đã Kết Thúc</span>
                     )}
                   </div>
                 </button>
@@ -553,27 +627,53 @@ export default function FlashSalePage() {
                           Hết Suất Ưu Đãi
                         </button>
                       ) : isSlotActive ? (
-                        <button
-                          onClick={() => handleBuyNow(item)}
-                          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase"
-                        >
-                          <span className="material-symbols-outlined text-sm">
-                            shopping_bag
-                          </span>
-                          <span>Mua Ngay</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={(e) => handleBuyNow(item, e)}
+                            className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-xs transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-1.5 cursor-pointer uppercase tracking-wider"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              shopping_bag
+                            </span>
+                            <span>Mua Ngay</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleAddToCart(item, e)}
+                            title="Thêm vào giỏ hàng"
+                            className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-base">
+                              add_shopping_cart
+                            </span>
+                          </button>
+                        </div>
                       ) : isSlotUpcoming ? (
-                        <button
-                          onClick={() =>
-                            handleRemindMe(currentSlot?.name || "Flash Sale", item.title)
-                          }
-                          className="w-full py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-sm">
-                            notifications_active
-                          </span>
-                          <span>Nhắc Tôi</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemindMe(currentSlot?.name || "Flash Sale", item.title)
+                            }
+                            className="flex-1 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              notifications_active
+                            </span>
+                            <span>Nhắc Tôi</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => handleAddToCart(item, e)}
+                            title="Thêm vào giỏ hàng trước"
+                            className="p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
+                          >
+                            <span className="material-symbols-outlined text-base">
+                              add_shopping_cart
+                            </span>
+                          </button>
+                        </div>
                       ) : (
                         <button
                           disabled

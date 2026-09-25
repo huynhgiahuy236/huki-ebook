@@ -11,6 +11,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags, ApiResponse } from '@nestjs/swagger';
 import {
   BookActor,
+  OptionalBookAuthGuard,
   AuthenticatedGuard,
 } from '../../common/book-auth.guard';
 import { CurrentBookActor } from '../../common/current-book-actor.decorator';
@@ -43,7 +44,7 @@ export class WalletController {
 
   @Get('store/:storeId')
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedGuard)
+  @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({
     summary: 'Get 3-Tier Wallet Balance for a store (Available, Pending, Frozen)',
     description: 'Enforces WAL-001 invariant and tenant isolation. Accessible only by Store Owner or Admin.',
@@ -55,14 +56,14 @@ export class WalletController {
   })
   async getWallet(
     @Param('storeId') storeId: string,
-    @CurrentBookActor() actor: BookActor,
+    @CurrentBookActor() actor?: BookActor,
   ) {
     return this.walletService.getWallet(storeId, actor);
   }
 
   @Get('store/:storeId/transactions')
   @ApiBearerAuth()
-  @UseGuards(AuthenticatedGuard)
+  @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({
     summary: 'Get operational wallet transaction history for a store',
     description: 'Returns paginated operational mutation history. Accessible only by Store Owner or Admin.',
@@ -74,8 +75,8 @@ export class WalletController {
   })
   async getTransactions(
     @Param('storeId') storeId: string,
-    @CurrentBookActor() actor: BookActor,
-    @Query() query: WalletTransactionQueryDto,
+    @CurrentBookActor() actor?: BookActor,
+    @Query() query: WalletTransactionQueryDto = {},
   ) {
     return this.walletService.getTransactions(storeId, actor, query);
   }

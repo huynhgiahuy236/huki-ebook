@@ -34,8 +34,14 @@ export default function HomePage() {
     voucherApi
       .getAvailableVouchers()
       .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
           setRealVouchers(res.data);
+        } else {
+          voucherApi.getPlatformVouchers().then((pRes) => {
+            if (pRes.success && Array.isArray(pRes.data)) {
+              setRealVouchers(pRes.data);
+            }
+          }).catch(() => {});
         }
       })
       .catch(() => {});

@@ -253,15 +253,34 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    return campaigns.map((c) => ({
-      ...c,
-      status: FlashSaleStatus.ACTIVE,
-      remainingSeconds: Math.max(
-        0,
-        Math.floor((c.endsAt.getTime() - now.getTime()) / 1000),
-      ),
-      items: c.items.map((item) => this.mapItemView(item, c)),
-    }));
+    return Promise.all(
+      campaigns.map(async (c) => {
+        const itemsWithBooks = await Promise.all(
+          c.items.map(async (item) => {
+            const mapped = this.mapItemView(item, c);
+            const book = await this.getCommerceBook(item.bookId);
+            if (book) {
+              mapped.bookTitle = book.title;
+              mapped.bookSlug = book.slug || book.id;
+              mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
+              (mapped as any).author =
+                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+            }
+            return mapped;
+          }),
+        );
+
+        return {
+          ...c,
+          status: FlashSaleStatus.ACTIVE,
+          remainingSeconds: Math.max(
+            0,
+            Math.floor((c.endsAt.getTime() - now.getTime()) / 1000),
+          ),
+          items: itemsWithBooks,
+        };
+      }),
+    );
   }
 
   async getUpcomingFlashSales() {
@@ -278,57 +297,111 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    return campaigns.map((c) => ({
-      ...c,
-      status: FlashSaleStatus.SCHEDULED,
-      startsInSeconds: Math.max(
-        0,
-        Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
-      ),
-      items: c.items.map((item) => this.mapItemView(item, c)),
-    }));
+    return Promise.all(
+      campaigns.map(async (c) => {
+        const itemsWithBooks = await Promise.all(
+          c.items.map(async (item) => {
+            const mapped = this.mapItemView(item, c);
+            const book = await this.getCommerceBook(item.bookId);
+            if (book) {
+              mapped.bookTitle = book.title;
+              mapped.bookSlug = book.slug || book.id;
+              mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
+              (mapped as any).author =
+                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+            }
+            return mapped;
+          }),
+        );
+
+        return {
+          ...c,
+          status: FlashSaleStatus.SCHEDULED,
+          startsInSeconds: Math.max(
+            0,
+            Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
+          ),
+          items: itemsWithBooks,
+        };
+      }),
+    );
   }
 
   async getTimeSlots() {
     await this.syncStatuses();
     const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
+    const past48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    const future14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
     const allCampaigns = await this.prisma.flashSale.findMany({
       where: {
-        startsAt: { lt: endOfDay },
-        endsAt: { gte: startOfDay },
+        OR: [
+          { status: FlashSaleStatus.ACTIVE },
+          { status: FlashSaleStatus.SCHEDULED, startsAt: { lte: future14d } },
+          { status: FlashSaleStatus.ENDED, endsAt: { gte: past48h } },
+          { endsAt: { gte: past48h }, startsAt: { lte: future14d } },
+        ],
       },
       orderBy: { startsAt: "asc" },
       include: { items: true },
     });
 
-    return allCampaigns.map((c) => {
-      const status = c.status;
-      const remainingSeconds =
-        status === FlashSaleStatus.ACTIVE
-          ? Math.max(0, Math.floor((c.endsAt.getTime() - now.getTime()) / 1000))
-          : status === FlashSaleStatus.SCHEDULED
-            ? Math.max(
-                0,
-                Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
-              )
-            : 0;
+    const mapped = await Promise.all(
+      allCampaigns.map(async (c) => {
+        const status = this.calculateStatus(c.startsAt, c.endsAt);
+        const remainingSeconds =
+          status === FlashSaleStatus.ACTIVE
+            ? Math.max(0, Math.floor((c.endsAt.getTime() - now.getTime()) / 1000))
+            : status === FlashSaleStatus.SCHEDULED
+              ? Math.max(
+                  0,
+                  Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
+                )
+              : 0;
 
-      return {
-        id: c.id,
-        name: c.name,
-        description: c.description,
-        bannerUrl: c.bannerUrl,
-        startsAt: c.startsAt,
-        endsAt: c.endsAt,
-        status,
-        remainingSeconds,
-        totalItems: c.items.length,
-        items: c.items.map((item) => this.mapItemView(item, c)),
+        const itemsWithBooks = await Promise.all(
+          c.items.map(async (item) => {
+            const itemView = this.mapItemView(item, c);
+            const book = await this.getCommerceBook(item.bookId);
+            if (book) {
+              itemView.bookTitle = book.title;
+              itemView.bookSlug = book.slug || book.id;
+              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
+              (itemView as any).author =
+                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+            }
+            return itemView;
+          }),
+        );
+
+        return {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          bannerUrl: c.bannerUrl,
+          startsAt: c.startsAt,
+          endsAt: c.endsAt,
+          status,
+          remainingSeconds,
+          totalItems: c.items.length,
+          items: itemsWithBooks,
+        };
+      }),
+    );
+
+    // Sort: ACTIVE first, then SCHEDULED ascending by startsAt, then ENDED descending by endsAt
+    return mapped.sort((a, b) => {
+      const order: Record<string, number> = {
+        ACTIVE: 1,
+        SCHEDULED: 2,
+        ENDED: 3,
       };
+      const diff = (order[a.status] || 99) - (order[b.status] || 99);
+      if (diff !== 0) return diff;
+      if (a.status === FlashSaleStatus.SCHEDULED) {
+        return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
+      }
+      return new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime();
     });
   }
 
@@ -626,6 +699,10 @@ export class FlashSalesService
       flashSaleId: item.flashSaleId,
       flashSaleName: flashSale?.name ?? "Flash Sale Giờ Vàng",
       bookId: item.bookId,
+      bookTitle: item.bookTitle ?? null,
+      bookSlug: item.bookSlug ?? null,
+      coverUrl: item.coverUrl ?? null,
+      author: item.author ?? null,
       originalPrice: item.originalPrice,
       salePrice: item.salePrice,
       discount,
@@ -676,9 +753,9 @@ export class FlashSalesService
         bookId,
         ...(flashSaleId && { flashSaleId }),
         flashSale: {
-          status: FlashSaleStatus.ACTIVE,
           startsAt: { lte: now },
           endsAt: { gte: now },
+          status: { not: FlashSaleStatus.ENDED },
         },
         stock: { gt: 0 },
       },

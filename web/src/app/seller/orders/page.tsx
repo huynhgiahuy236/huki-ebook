@@ -50,6 +50,9 @@ interface SellerOrder {
   requiresShipping?: boolean;
   carrier?: string;
   trackingCode?: string;
+  deliveredAt?: string;
+  completedAt?: string;
+  updatedAt?: string;
   items?: OrderItemProduct[];
   order?: {
     shippingAddress?: {
@@ -861,13 +864,13 @@ function SellerOrdersContent() {
                             />
                           </Link>
 
-                          {/* Xác nhận */}
-                          {order.status === 'PENDING_CONFIRMATION' && hasPhysical && (
+                          {/* 1. Chờ Xác nhận (Áp dụng cho cả Sách In & Ebook) */}
+                          {order.status === 'PENDING_CONFIRMATION' && (
                             <>
                               <SellerActionButton
                                 variant="success"
-                                label="Xác nhận"
-                                icon="check"
+                                label={hasPhysical ? "Xác nhận" : "Kích hoạt Ebook"}
+                                icon={hasPhysical ? "check" : "bolt"}
                                 size="sm"
                                 onClick={() => handleConfirm(order.id)}
                                 loading={actionLoading}
@@ -881,7 +884,7 @@ function SellerOrdersContent() {
                             </>
                           )}
 
-                          {/* Đóng gói */}
+                          {/* 2. Đã tiếp nhận -> Shop bấm Đóng gói */}
                           {order.status === 'CONFIRMED' && hasPhysical && (
                             <SellerActionButton
                               variant="info"
@@ -893,27 +896,61 @@ function SellerOrdersContent() {
                             />
                           )}
 
-                          {/* Giao bưu tá */}
+                          {/* 3. Đang chuẩn bị -> Chờ Shipper đến lấy hàng */}
                           {order.status === 'PREPARING' && hasPhysical && (
-                            <SellerActionButton
-                              variant="purple"
-                              label="Giao bưu tá"
-                              icon="local_shipping"
-                              size="sm"
-                              onClick={() => setActiveActionBox({ type: 'SHIP', order })}
-                            />
+                            <span
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/80 shadow-2xs"
+                              title="Kiện hàng đã đóng gói, hệ thống đã phát thông tin sang Bưu Tá (Shipper) đến nhận"
+                            >
+                              <span className="material-symbols-outlined text-[14px] text-purple-600 animate-pulse">two_wheeler</span>
+                              <span>Chờ Shipper lấy hàng</span>
+                            </span>
                           )}
 
-                          {/* Đã giao */}
+                          {/* 4. Đang vận chuyển -> Bưu tá đang giao */}
                           {order.status === 'SHIPPED' && (
-                            <SellerActionButton
-                              variant="success"
-                              label="Đã giao"
-                              icon="task_alt"
-                              size="sm"
-                              onClick={() => handleDeliver(order.id)}
-                              loading={actionLoading}
-                            />
+                            <span
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/80 shadow-2xs"
+                              title="Shipper đã nhận hàng và đang trên đường giao đến khách"
+                            >
+                              <span className="material-symbols-outlined text-[14px] text-sky-600">local_shipping</span>
+                              <span>Đang vận chuyển</span>
+                            </span>
+                          )}
+
+                          {/* 5. Đã giao / Hoàn tất */}
+                          {(order.status === 'DELIVERED' || order.status === 'COMPLETED') && (
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                                <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
+                                <span>Đã giao</span>
+                              </span>
+                              {/* Dấu chấm than ! trong thời hạn đổi trả 2 phút */}
+                              {(() => {
+                                const rawTime = (order as any).deliveredAt || order.completedAt || (order as any).updatedAt;
+                                const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999;
+                                if (elapsed < 120) {
+                                  return (
+                                    <span
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse"
+                                      title="Đang trong thời hạn đổi trả 2 phút demo (Ký quỹ Escrow bảo vệ)"
+                                    >
+                                      <span className="material-symbols-outlined text-[13px] text-amber-700 font-black">priority_high</span>
+                                      <span>Hạn Đổi Trả (2m)</span>
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80"
+                                    title="Đã hết hạn đổi trả, ký quỹ Escrow đã tự động giải ngân vào Ví Gian Hàng"
+                                  >
+                                    <span className="material-symbols-outlined text-[12px] text-emerald-600">account_balance_wallet</span>
+                                    <span>Đã giải ngân</span>
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           )}
                         </div>
                       </td>
