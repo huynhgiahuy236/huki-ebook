@@ -575,37 +575,37 @@ function OrderSuccessContent() {
             <div className="bg-surface-container-lowest border border-outline-variant/70 rounded-xl p-6 shadow-sm flex flex-col gap-4">
               <div className="flex items-center justify-between text-body-md">
                 <span className="text-on-surface-variant">Tổng tiền hàng:</span>
-                <span className="font-body-md text-on-surface">
+                <span className="font-body-md text-on-surface font-semibold">
                   {itemSubtotal > 0 ? `${itemSubtotal.toLocaleString("vi-VN")}đ` : `${grandTotal.toLocaleString("vi-VN")}đ`}
                 </span>
               </div>
               {discountAmount > 0 && (
-                <div className="flex items-center justify-between text-body-md">
-                  <span className="text-on-surface-variant flex items-center gap-1">
-                    Voucher &amp; Ưu đãi:
-                    <span className="material-symbols-outlined text-primary text-[16px]" data-icon="sell">sell</span>
+                <div className="flex items-center justify-between text-body-md text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1">
+                    <span>Voucher &amp; Giảm giá:</span>
+                    <span className="material-symbols-outlined text-[16px]">confirmation_number</span>
                   </span>
-                  <span className="font-body-md text-primary font-medium">-{discountAmount.toLocaleString("vi-VN")}đ</span>
+                  <span className="font-bold">-{discountAmount.toLocaleString("vi-VN")}đ</span>
                 </div>
               )}
               <div className="flex items-center justify-between text-body-md">
                 <span className="text-on-surface-variant">Phí vận chuyển:</span>
-                <span className="font-body-md text-on-surface">
-                  {shippingFee > 0 ? `${shippingFee.toLocaleString("vi-VN")}đ` : "20.000đ"}
+                <span className="font-body-md text-on-surface font-semibold">
+                  {shippingFee > 0 ? `${shippingFee.toLocaleString("vi-VN")}đ` : (hasPhysical ? "MIỄN PHÍ" : "0đ")}
                 </span>
               </div>
               <div className="h-[1px] bg-surface-variant my-1"></div>
               <div className="flex items-baseline justify-between">
                 <div>
-                  <span className="font-title-lg text-title-lg text-on-surface block">
+                  <span className="font-title-lg text-title-lg text-on-surface block font-bold">
                     {isCod ? "Tổng Cần Thanh Toán" : "Tổng Đã Thanh Toán"}
                   </span>
                   <span className="font-label-sm text-tertiary">
                     {isCod ? "COD • Thanh toán khi nhận hàng" : "PayOS • Giao dịch hoàn tất"}
                   </span>
                 </div>
-                <span className="font-headline-md text-headline-md font-bold text-primary">
-                  {grandTotal > 0 ? `${grandTotal.toLocaleString("vi-VN")}đ` : "461.000đ"}
+                <span className="font-headline-md text-headline-md font-bold text-primary text-xl text-emerald-700 dark:text-emerald-400">
+                  {grandTotal.toLocaleString("vi-VN")}đ
                 </span>
               </div>
 

@@ -11,6 +11,7 @@ import {
   Min,
   MaxLength,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export enum FlashSaleStatus {
@@ -77,11 +78,13 @@ export class CreateFlashSaleItemDto {
 
 export class FlashSaleQueryDto {
   @ApiPropertyOptional({ default: 1 })
-  @IsInt()
+  @Type(() => Number)
+  @IsNumber()
   @IsOptional()
   page?: number = 1;
 
   @ApiPropertyOptional({ default: 20 })
+  @Type(() => Number)
   @IsNumber()
   @IsOptional()
   limit?: number = 20;

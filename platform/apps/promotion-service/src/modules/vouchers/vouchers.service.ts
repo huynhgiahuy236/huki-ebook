@@ -15,6 +15,10 @@ export interface VoucherValidationResult {
     id: string;
     code: string;
     type: string;
+    scope?: string;
+    storeId?: string;
+    minOrderAmount?: number;
+    targetAudience?: string;
     value: number;
     maxDiscountAmount?: number;
   };
@@ -333,6 +337,10 @@ export class VouchersService {
         id: voucher.id,
         code: voucher.code,
         type: voucher.type,
+        scope: voucher.scope,
+        storeId: voucher.storeId ?? undefined,
+        minOrderAmount: voucher.minOrderAmount,
+        targetAudience: voucher.targetAudience,
         value: voucher.value,
         maxDiscountAmount: voucher.maxDiscountAmount ?? undefined,
       },

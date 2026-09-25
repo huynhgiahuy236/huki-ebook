@@ -22,8 +22,8 @@ export interface WithdrawalPinModalProps {
 type ModalStep = 'CONFIRM' | 'ENTER_PIN' | 'SUCCESS' | 'LOCKED';
 
 function formatVND(amount?: number | null): string {
-  if (!amount || isNaN(amount)) return '0 ₫';
-  return `${Math.round(amount).toLocaleString('vi-VN')} ₫`;
+  if (!amount || isNaN(amount)) return '0đ';
+  return `${Math.round(amount).toLocaleString('vi-VN')}đ`;
 }
 
 export default function WithdrawalPinModal({

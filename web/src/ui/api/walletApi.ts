@@ -180,6 +180,13 @@ export interface SellerEscrowItem {
   orderId: string;
   orderCode: string;
   orderCreatedAt: string;
+  orderStatus?: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  shippingAddress?: string;
+  format?: string;
+  deliveredAt?: string | null;
+  requiresShipping?: boolean;
   storeId: string;
   storeName: string;
   customerName: string;

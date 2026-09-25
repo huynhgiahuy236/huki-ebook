@@ -260,9 +260,27 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       title: 'TÀI CHÍNH & DOANH THU',
       items: [
         { 
+          to: '/seller/reports', 
+          icon: 'analytics', 
+          label: 'Báo Cáo & Phân Tích Doanh Thu', 
+          permission: PERMISSIONS.FINANCE_VIEW 
+        },
+        { 
           to: '/seller/finance', 
           icon: 'account_balance_wallet', 
-          label: 'Ví & Doanh Thu Doanh Nghiệp', 
+          label: 'Ví Số Dư & Rút Tiền', 
+          permission: PERMISSIONS.FINANCE_VIEW 
+        },
+        { 
+          to: '/seller/escrow', 
+          icon: 'hourglass_top', 
+          label: 'Tiền Đang Treo (Ký Quỹ)', 
+          permission: PERMISSIONS.FINANCE_VIEW 
+        },
+        { 
+          to: '/seller/transactions', 
+          icon: 'receipt_long', 
+          label: 'Nhật Ký Biến Động Số Dư', 
           permission: PERMISSIONS.FINANCE_VIEW 
         }
       ]

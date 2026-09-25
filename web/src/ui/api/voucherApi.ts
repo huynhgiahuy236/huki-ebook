@@ -101,6 +101,7 @@ export const voucherApi = {
     maxDiscountAmount?: number;
     scope: 'PLATFORM' | 'STORE';
     storeId?: string;
+    targetAudience?: 'ALL' | 'NEW_CUSTOMERS_ONLY' | 'LOYALTY_TIER' | string;
     totalUsage?: number;
     maxUsagePerUser?: number;
     startsAt: string;

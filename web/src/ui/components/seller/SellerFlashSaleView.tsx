@@ -129,15 +129,24 @@ export function SellerFlashSaleView() {
         catalogApi.getPublicBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) }).catch(() => null),
       ]);
 
-      if (slotsRes.success && Array.isArray(slotsRes.data)) {
-        const slotsData = slotsRes.data;
+      if (slotsRes.success && slotsRes.data) {
+        const slotsData = Array.isArray(slotsRes.data)
+          ? slotsRes.data
+          : Array.isArray((slotsRes.data as any)?.items)
+          ? (slotsRes.data as any).items
+          : [];
         setSlots(slotsData);
         if (slotsData.length > 0) {
           setSelectedSlotId((prev) => prev || slotsData[0].id);
         }
       }
-      if (itemsRes.success && Array.isArray(itemsRes.data)) {
-        setMyItems(itemsRes.data);
+      if (itemsRes.success && itemsRes.data) {
+        const itemsData = Array.isArray(itemsRes.data)
+          ? itemsRes.data
+          : Array.isArray((itemsRes.data as any)?.items)
+          ? (itemsRes.data as any).items
+          : [];
+        setMyItems(itemsData);
       }
 
       let books: BookData[] = [];

@@ -311,16 +311,18 @@ export class PricingCalculatorService {
   ): Promise<number> {
     if (!platformVoucherCode) return 0;
 
-    // Calculate total after store discounts
+    const rawSubtotal = groups.reduce((sum, g) => sum + g.itemSubtotal, 0);
     const totalAfterStoreDiscount = groups.reduce(
-      (sum, g) => sum + (g.itemSubtotal - g.storeVoucherDiscount),
+      (sum, g) => sum + Math.max(0, g.itemSubtotal - g.storeVoucherDiscount),
       0,
     );
+
+    if (totalAfterStoreDiscount <= 0) return 0;
 
     try {
       const result = await this.voucherClient.validate(userId, {
         code: platformVoucherCode,
-        orderSubtotal: totalAfterStoreDiscount,
+        orderSubtotal: rawSubtotal,
       });
 
       if (result?.valid && result?.voucher) {
@@ -329,7 +331,8 @@ export class PricingCalculatorService {
           throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại voucher nền tảng');
         }
 
-        return result.discount ?? 0;
+        const calculatedDiscount = result.discount ?? 0;
+        return Math.min(calculatedDiscount, totalAfterStoreDiscount);
       } else {
         throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result?.reason || 'Voucher không hợp lệ');
       }

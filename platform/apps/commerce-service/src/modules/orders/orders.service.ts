@@ -2285,23 +2285,40 @@ export class OrdersService {
             if (unfreezeEntry && (unfreezeEntry.toStatus === 'ESCROW_RELEASED' || unfreezeEntry.toStatus === 'ESCROW_UNFROZEN')) {
               escrowStatus = 'RELEASED';
             } else {
-              escrowStatus = 'HOLDING';
+              escrowStatus = 'RELEASED';
             }
           } else {
-            // For PHYSICAL book: RELEASED if the physical order is DELIVERED or COMPLETED
+            // For PHYSICAL book:
+            // 1. If delivered: check 2-minute test return window (120 seconds)
             const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+            const deliveredTimestamp = sellerOrder.completedAt ? new Date(sellerOrder.completedAt).getTime() : 0;
+            const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+
             if (isPhysicalDelivered) {
-              escrowStatus = 'RELEASED';
+              if (isReturnWindowPassed || unfreezeEntry) {
+                escrowStatus = 'RELEASED'; // Hết 2 phút đổi trả -> tự động cộng vào số dư khả dụng
+              } else {
+                escrowStatus = 'HOLDING'; // Đang trong 2 phút đếm ngược đổi trả
+              }
             } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
-              escrowStatus = 'PENDING_PAYMENT';
+              escrowStatus = 'PENDING_PAYMENT'; // Chờ giao và thu tiền COD
             } else {
-              escrowStatus = 'HOLDING';
+              escrowStatus = 'HOLDING'; // Đang chuẩn bị & vận chuyển
             }
           }
 
           const subtotal = Number(item.subtotal);
           const platformFee = Math.round(subtotal * 0.05); // 5% fee
           const sellerNet = subtotal - platformFee; // 95% net revenue
+
+          const shippingAddressText = [
+            shipping.address || shipping.street,
+            shipping.ward,
+            shipping.district,
+            shipping.city || shipping.province,
+          ]
+            .filter(Boolean)
+            .join(', ') || 'Giao hàng tận nơi';
 
           if (!query?.status || query.status === 'ALL' || escrowStatus === query.status) {
             items.push({
@@ -2310,6 +2327,9 @@ export class OrdersService {
               orderCode: order.code,
               orderCreatedAt: order.createdAt.toISOString(),
               orderStatus: sellerOrder.status || order.status,
+              paymentMethod: order.paymentMethod,
+              paymentStatus: order.paymentStatus,
+              shippingAddress: shippingAddressText,
               format: item.format,
               deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
               requiresShipping: sellerOrder.requiresShipping,

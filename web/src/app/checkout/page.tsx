@@ -295,10 +295,12 @@ export default function CheckoutPage() {
     const storeItems = checkedItems.filter(
       (item: any) => (item.storeId || item.book?.storeId || item.store?.id) === storeId
     );
-    const storeSubtotal = storeItems.reduce(
-      (sum: number, item: any) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
-      0
-    );
+    const storeSubtotal = storeItems.length > 0
+      ? storeItems.reduce(
+          (sum: number, item: any) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+          0
+        )
+      : rawSubtotal;
 
     try {
       const res = await voucherApi.validateVoucher({
@@ -459,6 +461,39 @@ export default function CheckoutPage() {
     }
     return prices;
   }, [checkoutPreview]);
+
+  // Pricing calculations with robust local fallback
+  const localStoreDiscountTotal = useMemo(() => {
+    return Object.values(appliedStoreVouchers).reduce(
+      (sum: number, v: any) => sum + (Number(v?.discount) || 0),
+      0
+    );
+  }, [appliedStoreVouchers]);
+
+  const localPlatformDiscountTotal = Number(appliedPlatformVoucher?.discount) || 0;
+  const localShippingDiscountTotal = Number(appliedShippingVoucher?.discount) || (appliedShippingVoucher ? Math.min(shippingFee, Number(appliedShippingVoucher.value || 30000)) : 0);
+
+  const effectivePlatformDiscount =
+    checkoutPreview?.platformDiscountTotal !== undefined && checkoutPreview?.platformDiscountTotal !== null && checkoutPreview?.platformDiscountTotal > 0
+      ? checkoutPreview.platformDiscountTotal
+      : localPlatformDiscountTotal;
+
+  const effectiveStoreDiscount =
+    checkoutPreview?.storeDiscountTotal !== undefined && checkoutPreview?.storeDiscountTotal !== null && checkoutPreview?.storeDiscountTotal > 0
+      ? checkoutPreview.storeDiscountTotal
+      : localStoreDiscountTotal;
+
+  const effectiveDiscountTotal = effectivePlatformDiscount + effectiveStoreDiscount;
+
+  const effectiveShippingDiscount =
+    (checkoutPreview?.shippingDiscountTotal ?? 0) > 0
+      ? (checkoutPreview?.shippingDiscountTotal ?? 0)
+      : localShippingDiscountTotal;
+
+  const effectiveShippingFee = checkoutPreview?.shippingTotal ?? shippingFee;
+  const effectiveFinalShipping = Math.max(0, effectiveShippingFee - effectiveShippingDiscount);
+
+  const calculatedGrandTotal = Math.max(0, (checkoutPreview?.itemSubtotal ?? rawSubtotal) - effectiveDiscountTotal) + effectiveFinalShipping;
 
   const handleSaveNewAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1866,52 +1901,79 @@ export default function CheckoutPage() {
                 )}
               </div>
 
-              {/* Price Breakdown */}
-              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/60 space-y-1.5 text-xs text-[var(--theme-text-muted,#49454f)]">
-                <div className="flex justify-between">
-                  <span>Tạm tính:</span>
+              {/* Price Breakdown - Rành mạch, rõ ràng từng dòng */}
+              <div className="pt-2 border-t border-[var(--theme-border,#e8e5df)]/60 space-y-2 text-xs text-[var(--theme-text-muted,#49454f)]">
+                {/* 1. Tạm tính */}
+                <div className="flex justify-between items-center">
+                  <span>Tạm tính ({checkedItems.length} sản phẩm):</span>
                   <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
                     {(checkoutPreview?.itemSubtotal ?? rawSubtotal).toLocaleString("vi-VN")}đ
                   </span>
                 </div>
-                {(checkoutPreview?.storeDiscountTotal > 0 || checkoutPreview?.platformDiscountTotal > 0) && (
-                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                    <span className="flex items-center gap-1">
-                      <span>Voucher:</span>
-                      {appliedPlatformVoucher && (
-                        <span className="text-[9px] bg-emerald-100 dark:bg-emerald-950 px-1 rounded font-bold">
-                          {appliedPlatformVoucher.code}
-                        </span>
-                      )}
+
+                {/* 2. Voucher Sàn HUKI */}
+                {appliedPlatformVoucher && (
+                  <div className="flex justify-between items-center text-emerald-600 dark:text-emerald-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">confirmation_number</span>
+                      <span>Voucher Sàn ({appliedPlatformVoucher.code}):</span>
                     </span>
-                    <span className="font-semibold">
-                      -{((checkoutPreview?.storeDiscountTotal ?? 0) + (checkoutPreview?.platformDiscountTotal ?? 0)).toLocaleString("vi-VN")}đ
+                    <span className="font-bold font-mono">
+                      -{Number(effectivePlatformDiscount || appliedPlatformVoucher.discount || 0).toLocaleString("vi-VN")}đ
                     </span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Phí vận chuyển:</span>
+
+                {/* 3. Voucher của Gian Hàng */}
+                {Object.values(appliedStoreVouchers).map((sv: any) => (
+                  <div key={sv.code} className="flex justify-between items-center text-amber-700 dark:text-amber-300">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">storefront</span>
+                      <span>Voucher Shop ({sv.code}):</span>
+                    </span>
+                    <span className="font-bold font-mono">
+                      -{Number(sv.discount || 0).toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                ))}
+
+                {/* 4. Phí vận chuyển */}
+                <div className="flex justify-between items-center">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                    <span>Phí vận chuyển:</span>
+                  </span>
                   <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
-                    {(checkoutPreview?.shippingDiscountTotal ?? 0) > 0 ? (
+                    {effectiveShippingDiscount > 0 ? (
                       <>
-                        <span className="line-through opacity-50 mr-1">
-                          {(checkoutPreview?.shippingTotal ?? shippingFee).toLocaleString("vi-VN")}đ
+                        <span className="line-through opacity-50 mr-1.5 text-[11px]">
+                          {effectiveShippingFee.toLocaleString("vi-VN")}đ
                         </span>
-                        <span className="text-emerald-600 font-bold">
-                          {Math.max(0, (checkoutPreview?.shippingTotal ?? shippingFee) - (checkoutPreview?.shippingDiscountTotal ?? 0)).toLocaleString("vi-VN")}đ
+                        <span className="text-emerald-600 font-bold font-mono">
+                          {effectiveFinalShipping.toLocaleString("vi-VN")}đ
                         </span>
                       </>
                     ) : (
-                      checkoutPreview?.shippingTotal === 0 && hasPhysicalItems ? (
+                      effectiveShippingFee === 0 && hasPhysicalItems ? (
                         <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                           MIỄN PHÍ
                         </span>
                       ) : (
-                        `${(checkoutPreview?.shippingTotal ?? shippingFee).toLocaleString("vi-VN")}đ`
+                        `${effectiveShippingFee.toLocaleString("vi-VN")}đ`
                       )
                     )}
                   </span>
                 </div>
+
+                {/* 5. Giảm giá vận chuyển (nếu có mã Freeship) */}
+                {appliedShippingVoucher && effectiveShippingDiscount > 0 && (
+                  <div className="flex justify-between items-center text-teal-600 dark:text-teal-400 text-[11px] pl-5">
+                    <span>Mã Freeship ({appliedShippingVoucher.code}):</span>
+                    <span className="font-bold font-mono">
+                      -{effectiveShippingDiscount.toLocaleString("vi-VN")}đ
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Total & Submit Button */}
@@ -1920,7 +1982,7 @@ export default function CheckoutPage() {
                   Tổng cộng:
                 </span>
                 <span className="text-xl font-black text-[var(--theme-primary,#003B2B)]">
-                  {(checkoutPreview?.grandTotal ?? grandTotal).toLocaleString("vi-VN")}đ
+                  {calculatedGrandTotal.toLocaleString("vi-VN")}đ
                 </span>
               </div>
 
