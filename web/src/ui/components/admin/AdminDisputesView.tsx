@@ -4,7 +4,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi, type DisputeItem, type DisputeDetailData, type ArbitrationRuling } from '@/ui/api/adminApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useSmartFormCollapse } from '@/ui/utils/formHooks';
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
 
 const DISPUTE_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   NOT_AS_DESCRIBED: { label: 'Sai mô tả', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -52,6 +54,7 @@ export function AdminDisputesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDispute, setSelectedDispute] = useState<DisputeDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [detailTab, setDetailTab] = useState<'evidence' | 'timeline' | 'governance'>('evidence');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -108,6 +111,7 @@ export function AdminDisputesView() {
       setRulingNotes('');
       setSelectedRuling('BUYER_WINS');
       setRefundPercentage(50);
+      setDetailTab('evidence');
 
       const res = await adminApi.getDisputeDetail(disputeId);
       if (res && res.success && res.data) {
@@ -178,6 +182,176 @@ export function AdminDisputesView() {
     const start = (currentPage - 1) * pageSize;
     return disputes.slice(start, start + pageSize);
   }, [disputes, currentPage, pageSize]);
+
+  // Map Governance Audit Logs from actual Dispute Data
+  const disputeAuditLogs: AuditLogItem[] = useMemo(() => {
+    if (!selectedDispute || !selectedDispute.isFinalized) return [];
+    return [
+      {
+        id: `AUDIT-DSP-${selectedDispute.disputeId}`,
+        actorId: selectedDispute.adminEmail || 'admin-01',
+        actorRole: 'PLATFORM_ADMIN',
+        action: 'ARBITRATE',
+        resource: 'DISPUTE',
+        resourceId: selectedDispute.disputeId,
+        timestamp: selectedDispute.resolvedAt || new Date().toISOString(),
+        storeId: selectedDispute.targetSellerOrder?.storeId,
+        metadata: {
+          ruling: selectedDispute.ruling,
+          notes: selectedDispute.rulingNotes,
+          refundPercentage: selectedDispute.refundPercentage,
+          adminEmail: selectedDispute.adminEmail,
+        },
+        changedFields: ['status', 'ruling'],
+        stateBefore: {
+          status: 'UNDER_PLATFORM_REVIEW',
+          ruling: null,
+        },
+        stateAfter: {
+          status: selectedDispute.currentStatus,
+          ruling: selectedDispute.ruling,
+        },
+      },
+    ];
+  }, [selectedDispute]);
+
+  // Columns for GroupedDataTable
+  const columns: Column<DisputeItem>[] = useMemo(
+    () => [
+      {
+        key: 'index',
+        title: 'STT',
+        align: 'center',
+        className: 'w-12 font-mono text-[11px] text-gray-400',
+        render: (_val, _item, index) => (currentPage - 1) * pageSize + index + 1,
+      },
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn Hàng',
+        sortable: true,
+        className: 'font-mono font-bold text-gray-900 whitespace-nowrap',
+        render: (code: string) => `#${code}`,
+      },
+      {
+        key: 'bookTitle',
+        title: 'Tên Sản Phẩm',
+        className: 'font-semibold text-gray-900 max-w-[180px] truncate whitespace-nowrap',
+        render: (title?: string) => (title ? `📚 ${title}` : '—'),
+      },
+      {
+        key: 'storeName',
+        title: 'Cửa Hàng / Shop',
+        sortable: true,
+        className: 'text-gray-700 font-medium max-w-[140px] truncate whitespace-nowrap',
+      },
+      {
+        key: 'customerName',
+        title: 'Khách Hàng',
+        className: 'text-gray-700 font-mono text-[11px] max-w-[130px] truncate whitespace-nowrap',
+      },
+      {
+        key: 'grandTotal',
+        title: 'Giá Trị Đơn',
+        sortable: true,
+        align: 'right',
+        className: 'font-bold text-[#00875A] font-mono whitespace-nowrap',
+        render: (total: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total),
+      },
+      {
+        key: 'type',
+        title: 'Phân Loại',
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (type: string) => {
+          const typeMeta = DISPUTE_TYPE_LABELS[type] || DISPUTE_TYPE_LABELS.OTHER;
+          return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeMeta.color}`}>
+              {typeMeta.label}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'description',
+        title: 'Mô Tả Vấn Đề',
+        className: 'text-gray-600 text-[11px] max-w-[180px] truncate whitespace-nowrap',
+      },
+      {
+        key: 'resolution',
+        title: 'Giải Pháp',
+        align: 'center',
+        className: 'font-bold text-gray-800 text-[11px] whitespace-nowrap',
+        render: (res: string) => (res === 'REFUND' ? 'Hoàn tiền' : res === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'),
+      },
+      {
+        key: 'evidence',
+        title: 'Bằng Chứng',
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (_val, item) => (
+          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10.5px] font-bold">
+            <span className="material-symbols-outlined text-[13px]">attach_file</span>
+            <span>{item.evidence?.length || 0} tệp</span>
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái / Phán Quyết',
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (_val, item) => {
+          const isPending = item.status === 'DISPUTE_OPENED' || item.status === 'UNDER_PLATFORM_REVIEW';
+          const rulingKey = item.ruling || item.status.replace('RULING_', '');
+          const rulingMeta = RULING_LABELS[rulingKey];
+
+          if (isPending) {
+            return <AdminStatusBadge status="warning" label="Chờ Sàn Phân Xử" icon="hourglass_top" />;
+          }
+          if (rulingMeta) {
+            return (
+              <AdminStatusBadge
+                status={
+                  rulingKey === 'BUYER_WINS'
+                    ? 'success'
+                    : rulingKey === 'SELLER_WINS'
+                    ? 'info'
+                    : rulingKey === 'PARTIAL_SETTLEMENT'
+                    ? 'purple'
+                    : 'warning'
+                }
+                label={rulingMeta.label.split('(')[0].trim()}
+              />
+            );
+          }
+          return <AdminStatusBadge status="neutral" label={item.status} />;
+        },
+      },
+      {
+        key: 'createdAt',
+        title: 'Ngày Mở',
+        sortable: true,
+        className: 'text-gray-500 text-[11px] whitespace-nowrap',
+        render: (dateStr: string) => new Date(dateStr).toLocaleString('vi-VN'),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        align: 'right',
+        className: 'whitespace-nowrap',
+        render: (_val, item) => (
+          <button
+            onClick={() => handleOpenDetail(item.id)}
+            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00875A] hover:bg-[#00734c] text-white rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[13px]">visibility</span>
+            <span>Thẩm định</span>
+          </button>
+        ),
+      },
+    ],
+    [currentPage, pageSize]
+  );
 
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
@@ -275,165 +449,22 @@ export function AdminDisputesView() {
         </div>
       </div>
 
-      {/* Dispute Table Container */}
-      <AdminTableContainer>
-        {loading ? (
-          <div className="p-8 space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
-            ))}
-          </div>
-        ) : disputes.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-xl">gavel</span>
-            </div>
-            <div>
-              <p className="font-bold text-gray-900">Không Có Hồ Sơ Khiếu Nại Nào</p>
-              <p className="text-[11px] text-gray-500 mt-0.5">Không tìm thấy khiếu nại phù hợp với bộ lọc hiện tại.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1450px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mã Đơn Hàng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Tên Sản Phẩm</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Cửa Hàng / Shop</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Khách Hàng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Giá Trị Đơn</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Phân Loại</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mô Tả Vấn Đề</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Giải Pháp</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Bằng Chứng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái / Phán Quyết</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày Mở</th>
-                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedDisputes.map((item, idx) => {
-                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                  const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;
-                  const isPending = item.status === 'DISPUTE_OPENED' || item.status === 'UNDER_PLATFORM_REVIEW';
-                  const rulingKey = item.ruling || item.status.replace('RULING_', '');
-                  const rulingMeta = RULING_LABELS[rulingKey];
-
-                  return (
-                    <tr
-                      key={item.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                    >
-                      {/* 1. STT */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                        {itemIndex}
-                      </td>
-
-                      {/* 2. Mã Đơn Hàng */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-bold text-gray-900">
-                        #{item.orderCode}
-                      </td>
-
-                      {/* 3. Tên Sản Phẩm */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-semibold text-gray-900 max-w-[200px] truncate" title={item.bookTitle || ''}>
-                        {item.bookTitle ? `📚 ${item.bookTitle}` : '—'}
-                      </td>
-
-                      {/* 4. Cửa Hàng */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-medium max-w-[150px] truncate" title={item.storeName || ''}>
-                        {item.storeName || 'Shop'}
-                      </td>
-
-                      {/* 5. Khách Hàng */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-mono text-[11px] max-w-[140px] truncate" title={item.customerName || ''}>
-                        {item.customerName || 'Khách'}
-                      </td>
-
-                      {/* 6. Giá Trị Đơn */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-bold text-[#00875A] font-mono">
-                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal)}
-                      </td>
-
-                      {/* 7. Phân Loại */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeMeta.color}`}>
-                          {typeMeta.label}
-                        </span>
-                      </td>
-
-                      {/* 8. Mô Tả Vấn Đề */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-600 text-[11px] max-w-[180px] truncate" title={item.description}>
-                        {item.description}
-                      </td>
-
-                      {/* 9. Giải Pháp Mong Muốn */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-bold text-gray-800 text-[11px]">
-                        {item.resolution === 'REFUND' ? 'Hoàn tiền' : item.resolution === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'}
-                      </td>
-
-                      {/* 10. Bằng Chứng */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10.5px] font-bold">
-                          <span className="material-symbols-outlined text-[13px]">attach_file</span>
-                          <span>{item.evidence?.length || 0} tệp</span>
-                        </div>
-                      </td>
-
-                      {/* 11. Trạng Thái / Phán Quyết */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        {isPending ? (
-                          <AdminStatusBadge status="warning" label="Chờ Sàn Phân Xử" icon="hourglass_top" />
-                        ) : rulingMeta ? (
-                          <AdminStatusBadge
-                            status={
-                              rulingKey === 'BUYER_WINS'
-                                ? 'success'
-                                : rulingKey === 'SELLER_WINS'
-                                ? 'info'
-                                : rulingKey === 'PARTIAL_SETTLEMENT'
-                                ? 'purple'
-                                : 'warning'
-                            }
-                            label={rulingMeta.label.split('(')[0].trim()}
-                          />
-                        ) : (
-                          <AdminStatusBadge status="neutral" label={item.status} />
-                        )}
-                      </td>
-
-                      {/* 12. Ngày Mở */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
-                        {new Date(item.createdAt).toLocaleString('vi-VN')}
-                      </td>
-
-                      {/* 13. Thao Tác */}
-                      <td className="py-3 px-4 whitespace-nowrap text-right">
-                        <button
-                          onClick={() => handleOpenDetail(item.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00875A] hover:bg-[#00734c] text-white rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer"
-                        >
-                          <span className="material-symbols-outlined text-[13px]">visibility</span>
-                          <span>Thẩm định</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={disputes.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="hồ sơ khiếu nại"
-        />
-      </AdminTableContainer>
+      {/* GroupedDataTable Container */}
+      <GroupedDataTable<DisputeItem>
+        data={paginatedDisputes}
+        columns={columns}
+        keyField="id"
+        loading={loading}
+        emptyTitle="Không Có Hồ Sơ Khiếu Nại Nào"
+        emptyMessage="Không tìm thấy khiếu nại phù hợp với bộ lọc hiện tại."
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: disputes.length,
+          pageSize,
+          onPageChange: setCurrentPage,
+        }}
+      />
 
       {/* Dispute Detail & Arbitration In-Page Panel */}
       {(selectedDispute || loadingDetail) && (
@@ -463,6 +494,43 @@ export function AdminDisputesView() {
               className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition cursor-pointer"
             >
               Đóng bảng
+            </button>
+          </div>
+
+          {/* Inspection Sub-Tabs */}
+          <div className="flex items-center gap-2 px-6 pt-3 border-b border-gray-100">
+            <button
+              type="button"
+              onClick={() => setDetailTab('evidence')}
+              className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                detailTab === 'evidence'
+                  ? 'border-[#00875A] text-[#00875A]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Chứng Cứ &amp; Thẩm Định
+            </button>
+            <button
+              type="button"
+              onClick={() => setDetailTab('timeline')}
+              className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                detailTab === 'timeline'
+                  ? 'border-[#00875A] text-[#00875A]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Tiến Trình Đơn Hàng (Domain)
+            </button>
+            <button
+              type="button"
+              onClick={() => setDetailTab('governance')}
+              className={`px-3 py-2 text-xs font-bold border-b-2 transition-all cursor-pointer ${
+                detailTab === 'governance'
+                  ? 'border-[#00875A] text-[#00875A]'
+                  : 'border-transparent text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              Lịch Sử Trọng Tài &amp; Quản Trị
             </button>
           </div>
 
@@ -508,122 +576,162 @@ export function AdminDisputesView() {
                   </div>
                 </div>
 
-                {/* Product & Store info */}
-                {(selectedDispute.bookTitle || selectedDispute.storeName) && (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
-                    <div className="flex items-center gap-3">
-                      {selectedDispute.bookCoverUrl ? (
-                        <img
-                          src={selectedDispute.bookCoverUrl}
-                          alt={selectedDispute.bookTitle || 'Book cover'}
-                          className="w-12 h-16 object-cover rounded-lg border border-gray-200 shadow-2xs"
-                        />
-                      ) : (
-                        <div className="w-12 h-16 bg-emerald-50 rounded-lg flex items-center justify-center text-[#00875A]">
-                          <span className="material-symbols-outlined text-2xl">menu_book</span>
+                {/* TAB 1: EVIDENCE & ARBITRATION FORM */}
+                {detailTab === 'evidence' && (
+                  <div className="space-y-4">
+                    {/* Product & Store info */}
+                    {(selectedDispute.bookTitle || selectedDispute.storeName) && (
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs">
+                        <div className="flex items-center gap-3">
+                          {selectedDispute.bookCoverUrl ? (
+                            <img
+                              src={selectedDispute.bookCoverUrl}
+                              alt={selectedDispute.bookTitle || 'Book cover'}
+                              className="w-12 h-16 object-cover rounded-lg border border-gray-200 shadow-2xs"
+                            />
+                          ) : (
+                            <div className="w-12 h-16 bg-emerald-50 rounded-lg flex items-center justify-center text-[#00875A]">
+                              <span className="material-symbols-outlined text-2xl">menu_book</span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">Sản Phẩm Tranh Chấp</div>
+                            <div className="text-sm font-bold text-gray-900">{selectedDispute.bookTitle || 'Sách'}</div>
+                            <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
+                              <span>Gian hàng: <strong className="text-gray-700">{selectedDispute.storeName || selectedDispute.targetSellerOrder?.storeId || 'Shop'}</strong></span>
+                              <span>•</span>
+                              <span>Khách hàng: <strong className="text-gray-700">{selectedDispute.customerName || selectedDispute.buyerId || 'N/A'}</strong></span>
+                            </div>
+                          </div>
                         </div>
-                      )}
-                      <div>
-                        <div className="text-[10.5px] font-bold text-gray-500 uppercase tracking-wider">Sản Phẩm Tranh Chấp</div>
-                        <div className="text-sm font-bold text-gray-900">{selectedDispute.bookTitle || 'Sách'}</div>
-                        <div className="text-xs text-gray-500 mt-0.5 flex flex-wrap items-center gap-2">
-                          <span>Gian hàng: <strong className="text-gray-700">{selectedDispute.storeName || selectedDispute.targetSellerOrder?.storeId || 'Shop'}</strong></span>
-                          <span>•</span>
-                          <span>Khách hàng: <strong className="text-gray-700">{selectedDispute.customerName || selectedDispute.buyerId || 'N/A'}</strong></span>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-800 border border-gray-200 shadow-2xs">
+                            {selectedDispute.resolution === 'REFUND' ? 'Hình thức: Hoàn tiền 100%' : 'Hình thức: Đổi hàng mới (0đ)'}
+                          </span>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-white text-gray-800 border border-gray-200 shadow-2xs">
-                        {selectedDispute.resolution === 'REFUND' ? 'Hình thức: Hoàn tiền 100%' : 'Hình thức: Đổi hàng mới (0đ)'}
-                      </span>
+                    )}
+
+                    {/* Arbitration form if not finalized */}
+                    {!selectedDispute.isFinalized && (
+                      <form onSubmit={handleArbitrate} className="space-y-4 pt-2 border-t border-gray-200">
+                        <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-900 block">
+                            Chọn Phán Quyết Trọng Tài <span className="text-rose-500">*</span>
+                          </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                            {Object.entries(RULING_LABELS).map(([key, meta]) => (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => setSelectedRuling(key as ArbitrationRuling)}
+                                className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
+                                  selectedRuling === key
+                                    ? 'border-[#00875A] bg-emerald-50/60 ring-2 ring-[#00875A] font-bold text-gray-900'
+                                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                                }`}
+                              >
+                                <div className="font-bold text-xs">{meta.label}</div>
+                                <div className="text-[10.5px] text-gray-500 mt-0.5 font-normal">{meta.desc}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {selectedRuling === 'PARTIAL_SETTLEMENT' && (
+                          <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl space-y-2 text-xs">
+                            <label className="font-bold text-purple-900 block">
+                              Tỷ lệ hoàn tiền cho người mua: {refundPercentage}% (Người bán nhận {100 - refundPercentage}%)
+                            </label>
+                            <input
+                              type="range"
+                              min={1}
+                              max={99}
+                              value={refundPercentage}
+                              onChange={(e) => setRefundPercentage(Number(e.target.value))}
+                              className="w-full accent-purple-600"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <label className="text-xs font-bold text-gray-700 block">
+                            Căn Cứ Pháp Lý &amp; Ghi Chú Thẩm Định <span className="text-rose-500">*</span>
+                          </label>
+                          <textarea
+                            rows={3}
+                            value={rulingNotes}
+                            onChange={(e) => {
+                              setRulingNotes(e.target.value);
+                              if (rulingNotesError) setRulingNotesError('');
+                            }}
+                            placeholder="Nhập căn cứ chứng cứ, đối soát video unbox hoặc kết luận thẩm định..."
+                            className={`w-full p-3 rounded-xl border text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all ${
+                              rulingNotesError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-[#00875A]'
+                            }`}
+                          />
+                          {rulingNotesError && (
+                            <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
+                              <span className="material-symbols-outlined text-[14px]">error</span>
+                              <span>{rulingNotesError}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDispute(null)}
+                            className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold text-xs cursor-pointer"
+                          >
+                            Hủy Bỏ
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={submittingRuling}
+                            className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                          >
+                            {submittingRuling ? 'Đang Xử Lý...' : 'Ban Hành Phán Quyết'}
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 2: DOMAIN TIMELINE */}
+                {detailTab === 'timeline' && (
+                  <div className="space-y-3 p-4 bg-gray-50 rounded-2xl border border-gray-200">
+                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">Tiến Trình Xử Lý Đơn Hàng &amp; Khiếu Nại</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="p-3 bg-white rounded-xl border border-gray-200 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-gray-800">Trạng Thái Khiếu Nại:</span>{' '}
+                          <span className="font-mono text-emerald-700 font-bold">{selectedDispute.currentStatus}</span>
+                        </div>
+                        <span className="text-[11px] text-gray-400">{selectedDispute.resolvedAt ? new Date(selectedDispute.resolvedAt).toLocaleString('vi-VN') : 'Đang xử lý'}</span>
+                      </div>
+                      <div className="p-3 bg-white rounded-xl border border-gray-200 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-gray-800">Mã Đơn Hàng:</span>{' '}
+                          <span className="font-mono text-gray-900 font-bold">#{selectedDispute.orderCode}</span>
+                        </div>
+                        <span className="text-[11px] text-gray-500">Mã Seller Order: {selectedDispute.sellerOrderId || 'N/A'}</span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-                {/* Arbitration form if not finalized */}
-                {!selectedDispute.isFinalized && (
-                  <form onSubmit={handleArbitrate} className="space-y-4 pt-2 border-t border-gray-200">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-900 block">
-                        Chọn Phán Quyết Trọng Tài <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                        {Object.entries(RULING_LABELS).map(([key, meta]) => (
-                          <button
-                            key={key}
-                            type="button"
-                            onClick={() => setSelectedRuling(key as ArbitrationRuling)}
-                            className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer ${
-                              selectedRuling === key
-                                ? 'border-[#00875A] bg-emerald-50/60 ring-2 ring-[#00875A] font-bold text-gray-900'
-                                : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                            }`}
-                          >
-                            <div className="font-bold text-xs">{meta.label}</div>
-                            <div className="text-[10.5px] text-gray-500 mt-0.5 font-normal">{meta.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {selectedRuling === 'PARTIAL_SETTLEMENT' && (
-                      <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl space-y-2 text-xs">
-                        <label className="font-bold text-purple-900 block">
-                          Tỷ lệ hoàn tiền cho người mua: {refundPercentage}% (Người bán nhận {100 - refundPercentage}%)
-                        </label>
-                        <input
-                          type="range"
-                          min={1}
-                          max={99}
-                          value={refundPercentage}
-                          onChange={(e) => setRefundPercentage(Number(e.target.value))}
-                          className="w-full accent-purple-600"
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <label className="text-xs font-bold text-gray-700 block">
-                        Căn Cứ Pháp Lý &amp; Ghi Chú Thẩm Định <span className="text-rose-500">*</span>
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={rulingNotes}
-                        onChange={(e) => {
-                          setRulingNotes(e.target.value);
-                          if (rulingNotesError) setRulingNotesError('');
-                        }}
-                        placeholder="Nhập căn cứ chứng cứ, đối soát video unbox hoặc kết luận thẩm định..."
-                        className={`w-full p-3 rounded-xl border text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none transition-all ${
-                          rulingNotesError ? 'border-rose-400 focus:border-rose-500 bg-rose-50/30' : 'border-gray-300 focus:border-[#00875A]'
-                        }`}
-                      />
-                      {rulingNotesError && (
-                        <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
-                          <span className="material-symbols-outlined text-[14px]">error</span>
-                          <span>{rulingNotesError}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-end gap-3 pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedDispute(null)}
-                        className="px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold text-xs cursor-pointer"
-                      >
-                        Hủy Bỏ
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={submittingRuling}
-                        className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {submittingRuling ? 'Đang Xử Lý...' : 'Ban Hành Phán Quyết'}
-                      </button>
-                    </div>
-                  </form>
+                {/* TAB 3: GOVERNANCE AUDIT TIMELINE */}
+                {detailTab === 'governance' && (
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold text-gray-800 uppercase tracking-wider">Lịch Sử Phán Quyết &amp; Quản Trị Trọng Tài</h4>
+                    <AuditHistoryTimeline
+                      items={disputeAuditLogs}
+                      title="Nhật Ký Trọng Tài Sàn (Arbitration Audit Log)"
+                      emptyMessage="Chưa có bản ghi lịch sử trọng tài nào cho hồ sơ này."
+                    />
+                  </div>
                 )}
               </>
             ) : null}
@@ -633,3 +741,5 @@ export function AdminDisputesView() {
     </div>
   );
 }
+
+export default AdminDisputesView;

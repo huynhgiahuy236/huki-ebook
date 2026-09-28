@@ -335,4 +335,17 @@ export class UserService {
       message: 'Đã xóa người dùng thành công',
     };
   }
+
+  async getUserAuditLogs(
+    userId: string,
+    params: { page?: number; limit?: number; action?: string },
+  ) {
+    return this.auditService.queryAuditLogs({
+      resource: 'User',
+      resourceId: userId,
+      page: params.page,
+      limit: params.limit,
+      action: params.action,
+    });
+  }
 }

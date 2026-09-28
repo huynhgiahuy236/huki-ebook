@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../../../../../libs/shared/src/decorators/roles.decorator';
 import { CurrentUser } from '../../../../../libs/shared/src/decorators/current-user.decorator';
 import { UserService } from './user.service';
 
@@ -86,5 +88,26 @@ export class UserController {
   @ApiOperation({ summary: 'Admin delete user' })
   async deleteUserByAdmin(@Param('id') id: string) {
     return this.userService.deleteUserByAdmin(id);
+  }
+
+  @Get('admin/:id/audit-logs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Admin get user governance audit logs' })
+  async getUserAuditLogs(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+  ) {
+    const data = await this.userService.getUserAuditLogs(id, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+      action,
+    });
+    return {
+      success: true,
+      data,
+    };
   }
 }

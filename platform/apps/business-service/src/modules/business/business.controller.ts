@@ -388,4 +388,25 @@ export class BusinessController {
       ...result,
     };
   }
+
+  @Get('admin/:id/audit-logs')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('PLATFORM_ADMIN')
+  @ApiOperation({ summary: 'Get business governance audit logs (Platform Admin)' })
+  async getBusinessAuditLogs(
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+  ) {
+    const data = await this.businessService.getBusinessAuditLogs(id, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+      action,
+    });
+    return {
+      success: true,
+      data,
+    };
+  }
 }

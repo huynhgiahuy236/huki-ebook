@@ -30,6 +30,22 @@ export interface AuditRecordParams {
   metadata?: any;
 }
 
+export interface AuditQueryParams {
+  resource: string;
+  resourceId?: string;
+  page?: number;
+  limit?: number;
+  action?: string;
+  storeId?: string;
+}
+
+export interface PaginatedAuditLogs {
+  items: any[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
@@ -80,5 +96,51 @@ export class AuditService {
         error instanceof Error ? error.stack : error,
       );
     }
+  }
+
+  async queryAuditLogs(params: AuditQueryParams): Promise<PaginatedAuditLogs> {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const where: any = {
+      resource: params.resource,
+    };
+
+    if (params.resourceId) {
+      where.resourceId = params.resourceId;
+    }
+
+    if (params.action) {
+      where.action = params.action;
+    }
+
+    if (params.storeId) {
+      where.storeId = params.storeId;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    const sanitizedItems = items.map((item) => ({
+      ...item,
+      beforeState: item.beforeState ? AuditSanitizer.sanitize(item.beforeState) : null,
+      afterState: item.afterState ? AuditSanitizer.sanitize(item.afterState) : null,
+      metadata: item.metadata ? AuditSanitizer.sanitize(item.metadata) : null,
+    }));
+
+    return {
+      items: sanitizedItems,
+      total,
+      page,
+      limit,
+    };
   }
 }

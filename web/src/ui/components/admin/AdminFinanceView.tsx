@@ -8,7 +8,10 @@ import {
   type EodReconciliationRunView,
 } from '../../api/walletApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import FinancialTransactionTable, { type FinancialTransactionItem } from '../common/FinancialTransactionTable';
+import { adminApi, type AdminWalletTransactionItem } from '../../api/adminApi';
+import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0 ₫';
@@ -104,16 +107,23 @@ const INITIAL_PAYOUT_REQUESTS: PayoutRequestView[] = [
 export function AdminFinanceView() {
   const { showToast } = useToast();
 
-  // Primary Section Tab: Live Payout Requests Queue vs EOD Reconciliation vs Periodic NXB Batches
-  const [viewSection, setViewSection] = useState<'live_requests' | 'eod_reconciliation' | 'periodic_batches'>('live_requests');
+  // Primary Section Tab: Live Payout Requests Queue vs EOD Reconciliation vs Wallet Transactions vs Periodic NXB Batches
+  const [viewSection, setViewSection] = useState<'live_requests' | 'eod_reconciliation' | 'wallet_transactions' | 'periodic_batches'>('live_requests');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'REJECTED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Pagination states
   const [currentPageLive, setCurrentPageLive] = useState(1);
   const [currentPageEod, setCurrentPageEod] = useState(1);
+  const [currentPageWallet, setCurrentPageWallet] = useState(1);
   const [currentPageBatches, setCurrentPageBatches] = useState(1);
   const pageSize = 10;
+
+  // Real Wallet Transactions State (Commerce Service Financial Traceability)
+  const [walletTransactions, setWalletTransactions] = useState<AdminWalletTransactionItem[]>([]);
+  const [totalWalletTransactions, setTotalWalletTransactions] = useState(0);
+  const [isLoadingWallet, setIsLoadingWallet] = useState(false);
+  const [walletError, setWalletError] = useState<string | null>(null);
 
   // Live Payout Requests State
   const [liveRequests, setLiveRequests] = useState<PayoutRequestView[]>(INITIAL_PAYOUT_REQUESTS);
@@ -378,6 +388,58 @@ export function AdminFinanceView() {
     }
   }, [viewSection, fetchEodData]);
 
+  // Real Wallet Transactions Methods (Financial Traceability)
+  const fetchWalletTransactions = useCallback(async (page = 1) => {
+    setIsLoadingWallet(true);
+    setWalletError(null);
+    try {
+      const res = await adminApi.getAdminWalletTransactions({ page, limit: pageSize });
+      if (res.success && res.data) {
+        setWalletTransactions(res.data.items || []);
+        setTotalWalletTransactions(res.data.total || 0);
+      } else {
+        setWalletTransactions([]);
+        setTotalWalletTransactions(0);
+      }
+    } catch (err: any) {
+      setWalletError(err?.message || 'Lỗi khi tải lịch sử giao dịch ví.');
+      setWalletTransactions([]);
+      setTotalWalletTransactions(0);
+    } finally {
+      setIsLoadingWallet(false);
+    }
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (viewSection === 'wallet_transactions') {
+      fetchWalletTransactions(currentPageWallet);
+    }
+  }, [viewSection, currentPageWallet, fetchWalletTransactions]);
+
+  const mappedWalletTransactions: FinancialTransactionItem[] = useMemo(() => {
+    return walletTransactions.map((tx) => ({
+      id: tx.id,
+      referenceCode: tx.referenceId || tx.id.slice(0, 8),
+      timestamp: tx.createdAt,
+      type: tx.type,
+      amount: tx.amount,
+      balanceBefore: tx.availableBefore,
+      balanceAfter: tx.availableAfter,
+      status: 'COMPLETED',
+      referenceId: tx.referenceId,
+      reason: tx.description,
+      metadata: {
+        walletId: tx.walletId,
+        storeId: tx.storeId,
+        referenceType: tx.referenceType,
+        pendingBefore: tx.pendingBefore,
+        pendingAfter: tx.pendingAfter,
+        frozenBefore: tx.frozenBefore,
+        frozenAfter: tx.frozenAfter,
+      },
+    }));
+  }, [walletTransactions]);
+
   const handleRunEod = async () => {
     setIsRunningEod(true);
     try {
@@ -441,6 +503,355 @@ export function AdminFinanceView() {
     const start = (currentPageBatches - 1) * pageSize;
     return payoutBatches.slice(start, start + pageSize);
   }, [payoutBatches, currentPageBatches, pageSize]);
+
+  // Columns Definitions
+  const payoutColumns: Column<PayoutRequestView>[] = useMemo(
+    () => [
+      {
+        key: 'index',
+        title: 'STT',
+        align: 'center',
+        className: 'w-12 font-mono text-[11px] text-gray-400',
+        render: (_val, _item, index) => (currentPageLive - 1) * pageSize + index + 1,
+      },
+      {
+        key: 'id',
+        title: 'Mã Lệnh Rút',
+        sortable: true,
+        className: 'font-mono text-gray-900 font-bold whitespace-nowrap',
+        render: (id: string) => `${id.slice(0, 10)}...`,
+      },
+      {
+        key: 'createdAt',
+        title: 'Thời Gian Tạo',
+        sortable: true,
+        className: 'text-[11px] text-gray-500 whitespace-nowrap',
+        render: (dateStr: string) => formatDate(dateStr),
+      },
+      {
+        key: 'storeId',
+        title: 'Gian Hàng',
+        sortable: true,
+        className: 'font-mono text-xs font-semibold text-gray-700 whitespace-nowrap',
+      },
+      {
+        key: 'bankName',
+        title: 'Ngân Hàng Thụ Hưởng',
+        className: 'font-bold text-gray-800 whitespace-nowrap',
+        render: (_val, item) => item.bankSnapshot?.bankName || 'Ngân Hàng',
+      },
+      {
+        key: 'accountNumber',
+        title: 'Số Tài Khoản & Chủ TK',
+        className: 'font-mono text-[11px] text-gray-600 whitespace-nowrap',
+        render: (_val, item) => {
+          const accNum = item.bankSnapshot?.maskedAccountNumber || item.bankSnapshot?.accountNumberMasked || item.bankSnapshot?.accountNumber || '—';
+          return `${accNum} (${item.bankSnapshot?.accountHolder || '—'})`;
+        },
+      },
+      {
+        key: 'amount',
+        title: 'Số Tiền Rút',
+        sortable: true,
+        align: 'right',
+        className: 'font-extrabold text-xs text-[#00875A] font-mono whitespace-nowrap',
+        render: (amount: number) => formatVND(amount),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        sortable: true,
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (status: string) => {
+          if (status === 'PENDING') return <AdminStatusBadge status="warning" label="Chờ Duyệt" icon="hourglass_top" />;
+          if (status === 'APPROVED') return <AdminStatusBadge status="info" label="Đã Duyệt" icon="verified" />;
+          if (status === 'PROCESSING') return <AdminStatusBadge status="purple" label="Đang Xử Lý" icon="sync" />;
+          if (status === 'COMPLETED') return <AdminStatusBadge status="success" label="Đã Chi" icon="task_alt" />;
+          if (status === 'FAILED') return <AdminStatusBadge status="danger" label="Chi Lỗi" icon="warning" />;
+          if (status === 'REJECTED') return <AdminStatusBadge status="neutral" label="Từ Chối" icon="cancel" />;
+          return <AdminStatusBadge status="neutral" label={status} />;
+        },
+      },
+      {
+        key: 'details',
+        title: 'Chi Tiết / Ghi Chú',
+        className: 'text-[11px] text-gray-500 whitespace-nowrap',
+        render: (_val, req) => {
+          if (req.status === 'COMPLETED') {
+            return (
+              <div className="flex items-center gap-1.5">
+                <span className="text-emerald-700 font-bold">Giải ngân {formatDate(req.disbursedAt)}</span>
+                {req.providerRef && <span className="font-mono text-[10px] text-gray-400">({req.providerRef})</span>}
+              </div>
+            );
+          }
+          if (req.status === 'FAILED') return <span className="text-amber-700 font-bold">Lỗi: {req.failureReason || 'Cổng ngân hàng'}</span>;
+          if (req.status === 'REJECTED') return <span className="text-rose-600 font-medium">Lý do: {req.rejectionReason || req.rejectReason || 'Từ chối bởi admin'}</span>;
+          if (req.status === 'APPROVED') return <span className="text-blue-600 font-medium">Sẵn sàng giải ngân</span>;
+          if (req.status === 'PENDING') return <span className="text-amber-600">Chờ kế toán phê duyệt</span>;
+          return '—';
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác Xử Lý',
+        align: 'right',
+        className: 'whitespace-nowrap',
+        render: (_val, req) => (
+          <div>
+            {req.status === 'PENDING' && (
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  onClick={() => handleOpenReviewModal(req, 'APPROVE')}
+                  className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[13px]">check</span>
+                  <span>Phê Duyệt</span>
+                </button>
+                <button
+                  onClick={() => handleOpenReviewModal(req, 'REJECT')}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[13px]">close</span>
+                  <span>Từ Chối</span>
+                </button>
+              </div>
+            )}
+            {req.status === 'APPROVED' && (
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  disabled={disbursingId === req.id}
+                  onClick={() => handleDisburseSingle(req.id)}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[13px]">send</span>
+                  <span>{disbursingId === req.id ? 'Đang Chuyển...' : 'Giải Ngân'}</span>
+                </button>
+              </div>
+            )}
+            {req.status === 'FAILED' && (
+              <div className="flex items-center justify-end gap-1.5">
+                <button
+                  disabled={disbursingId === req.id}
+                  onClick={() => handleRetryDisburse(req.id)}
+                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-[13px]">replay</span>
+                  <span>{disbursingId === req.id ? 'Đang Thử...' : 'Thử Lại'}</span>
+                </button>
+                <button
+                  onClick={() => handleOpenReviewModal(req, 'CANCEL_REFUND')}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
+                >
+                  <span className="material-symbols-outlined text-[13px]">undo</span>
+                  <span>Hủy &amp; Hoàn Tiền</span>
+                </button>
+              </div>
+            )}
+            {req.status === 'COMPLETED' && (
+              <span className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
+                <span className="material-symbols-outlined text-[13px]">check_circle</span>
+                <span>Hoàn Tất</span>
+              </span>
+            )}
+            {req.status === 'REJECTED' && <span className="text-[11px] text-gray-400 italic">Đã từ chối</span>}
+          </div>
+        ),
+      },
+    ],
+    [currentPageLive, pageSize, disbursingId]
+  );
+
+  const eodColumns: Column<EodReconciliationRunView>[] = useMemo(
+    () => [
+      {
+        key: 'index',
+        title: 'STT',
+        align: 'center',
+        className: 'w-12 font-mono text-[11px] text-gray-400',
+        render: (_val, _item, index) => (currentPageEod - 1) * pageSize + index + 1,
+      },
+      {
+        key: 'runNumber',
+        title: 'Mã Đợt Chạy',
+        sortable: true,
+        className: 'font-mono font-bold text-gray-900 text-xs whitespace-nowrap',
+      },
+      {
+        key: 'businessDate',
+        title: 'Ngày Kinh Doanh',
+        sortable: true,
+        className: 'font-bold text-gray-700 whitespace-nowrap',
+      },
+      {
+        key: 'timezone',
+        title: 'Múi Giờ',
+        className: 'text-[11px] text-gray-500 font-mono whitespace-nowrap',
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        sortable: true,
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (status: string) => {
+          if (status === 'COMPLETED_PASS') return <AdminStatusBadge status="success" label="COMPLETED_PASS" icon="check_circle" />;
+          if (status === 'COMPLETED_WARNING') return <AdminStatusBadge status="warning" label="COMPLETED_WARNING" icon="warning" />;
+          if (status === 'RUNNING') return <AdminStatusBadge status="info" label="RUNNING" icon="sync" />;
+          return <AdminStatusBadge status="danger" label={status} icon="error" />;
+        },
+      },
+      {
+        key: 'matched',
+        title: 'Tổng Khớp / Kiểm Tra',
+        className: 'whitespace-nowrap',
+        render: (_val, run) => (
+          <span>
+            <strong className="text-gray-800">{run.counts?.totalMatched ?? 0}</strong>
+            <span className="text-gray-400"> / {run.counts?.totalChecked ?? 0}</span>
+          </span>
+        ),
+      },
+      {
+        key: 'discrepancies',
+        title: 'Sai Lệch',
+        className: 'whitespace-nowrap',
+        render: (_val, run) => {
+          if (run.counts?.totalDiscrepancies) {
+            return (
+              <span className="inline-flex items-center gap-1 font-bold text-amber-700">
+                <span className="material-symbols-outlined text-[13px]">warning</span>
+                <span>{run.counts.totalDiscrepancies} sai lệch</span>
+              </span>
+            );
+          }
+          return <span className="text-emerald-600 font-bold">0 (Khớp 100%)</span>;
+        },
+      },
+      {
+        key: 'startedAt',
+        title: 'Thời Gian Bắt Đầu',
+        sortable: true,
+        className: 'text-[11px] text-gray-600 whitespace-nowrap',
+        render: (dateStr: string) => formatDate(dateStr),
+      },
+      {
+        key: 'durationMs',
+        title: 'Thời Lượng',
+        className: 'text-[11px] text-gray-500 font-mono whitespace-nowrap',
+        render: (duration?: number) => (duration ? `${duration}ms` : 'N/A'),
+      },
+      {
+        key: 'actions',
+        title: 'Hành Động',
+        align: 'right',
+        className: 'whitespace-nowrap',
+        render: (_val, run) => (
+          <button
+            type="button"
+            onClick={() => setSelectedEodRun(run)}
+            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
+          >
+            Xem Chi Tiết
+          </button>
+        ),
+      },
+    ],
+    [currentPageEod, pageSize]
+  );
+
+  const batchColumns: Column<any>[] = useMemo(
+    () => [
+      {
+        key: 'index',
+        title: 'STT',
+        align: 'center',
+        className: 'w-12 font-mono text-[11px] text-gray-400',
+        render: (_val, _item, index) => (currentPageBatches - 1) * pageSize + index + 1,
+      },
+      {
+        key: 'id',
+        title: 'Mã Kỳ Đối Soát',
+        sortable: true,
+        className: 'font-mono text-[11px] text-emerald-700 font-bold whitespace-nowrap',
+        render: (id: string) => `#${id}`,
+      },
+      {
+        key: 'publisher',
+        title: 'Nhà Xuất Bản',
+        sortable: true,
+        className: 'font-bold text-gray-900 whitespace-nowrap',
+      },
+      {
+        key: 'period',
+        title: 'Kỳ Đối Soát',
+        className: 'text-[11px] text-gray-500 whitespace-nowrap',
+      },
+      {
+        key: 'ordersCount',
+        title: 'Tổng Đơn',
+        align: 'right',
+        sortable: true,
+        className: 'font-mono text-gray-700 whitespace-nowrap',
+        render: (count: number) => `${count.toLocaleString()} đơn`,
+      },
+      {
+        key: 'grossSales',
+        title: 'GMV Doanh Số',
+        align: 'right',
+        sortable: true,
+        className: 'font-extrabold text-gray-900 font-mono whitespace-nowrap',
+        render: (sales: number) => `${sales.toLocaleString()}₫`,
+      },
+      {
+        key: 'shareRatio',
+        title: 'Tỷ Lệ Chia Sẻ',
+        className: 'text-[11px] text-gray-600 whitespace-nowrap',
+      },
+      {
+        key: 'platformFee',
+        title: 'Phí Sàn 15%',
+        align: 'right',
+        className: 'font-bold text-amber-700 font-mono whitespace-nowrap',
+        render: (fee: number) => `-${fee.toLocaleString()}₫`,
+      },
+      {
+        key: 'taxWithheld',
+        title: 'Thuế Khấu Trừ',
+        align: 'right',
+        className: 'text-[11px] text-gray-500 font-mono whitespace-nowrap',
+        render: (tax: number) => `-${tax.toLocaleString()}₫`,
+      },
+      {
+        key: 'netPayout',
+        title: 'Thực Nhận NXB',
+        align: 'right',
+        sortable: true,
+        className: 'font-extrabold text-xs text-[#00875A] font-mono whitespace-nowrap',
+        render: (net: number) => `${net.toLocaleString()}₫`,
+      },
+      {
+        key: 'bankAccount',
+        title: 'Tài Khoản Thụ Hưởng',
+        className: 'text-[11px] text-gray-600 max-w-[200px] truncate whitespace-nowrap',
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        align: 'center',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        render: (status: string) =>
+          status === 'paid' ? (
+            <AdminStatusBadge status="success" label="Đã Chuyển Khoản" icon="check_circle" />
+          ) : (
+            <AdminStatusBadge status="warning" label="Chờ Ký Duyệt" icon="hourglass_top" />
+          ),
+      },
+    ],
+    [currentPageBatches, pageSize]
+  );
 
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
@@ -544,7 +955,7 @@ export function AdminFinanceView() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">payments</span>
-          <span>Hàng Đợi Rút Tiền Seller ({liveRequests.length})</span>
+          <span>Yêu Cầu Rút Tiền ({liveRequests.length})</span>
         </button>
 
         <button
@@ -556,7 +967,19 @@ export function AdminFinanceView() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-          <span>Đối Soát EOD &amp; Kiểm Toán ({eodRuns.length})</span>
+          <span>Đối Soát EOD ({eodRuns.length})</span>
+        </button>
+
+        <button
+          onClick={() => setViewSection('wallet_transactions')}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all ${
+            viewSection === 'wallet_transactions'
+              ? 'bg-[#00875A] text-white shadow-xs'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[16px]">receipt_long</span>
+          <span>Sổ Giao Dịch Ví ({totalWalletTransactions || walletTransactions.length})</span>
         </button>
 
         <button
@@ -568,7 +991,7 @@ export function AdminFinanceView() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">calendar_month</span>
-          <span>Kỳ Đối Soát NXB Định Kỳ (85/15)</span>
+          <span>Lịch Sử Quyết Toán</span>
         </button>
       </div>
 
@@ -620,182 +1043,24 @@ export function AdminFinanceView() {
             </div>
           )}
 
-          {/* Table Container */}
-          <AdminTableContainer>
-            {isLoadingLive ? (
-              <div className="p-8 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
-                ))}
-              </div>
-            ) : filteredLiveRequests.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
-                <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl">receipt_long</span>
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900">Không Có Lệnh Rút Tiền Phù Hợp</p>
-                  <p className="text-[11px] text-gray-500 mt-0.5">Không tìm thấy yêu cầu rút tiền nào với bộ lọc hiện tại.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[1450px]">
-                  <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                    <tr>
-                      <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Mã Lệnh Rút</th>
-                      <th className="py-3 px-3 whitespace-nowrap">Thời Gian Tạo</th>
-                      <th className="py-3 px-3 whitespace-nowrap">Gian Hàng / Seller</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Ngân Hàng Thụ Hưởng</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Số Tài Khoản &amp; Chủ TK</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap text-right">Số Tiền Rút</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Chi Tiết Giải Ngân / Lỗi</th>
-                      <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác Xử Lý</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {paginatedLiveRequests.map((req, idx) => {
-                      const itemIndex = (currentPageLive - 1) * pageSize + idx + 1;
-                      return (
-                        <tr key={req.id} className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                            {itemIndex}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="font-mono text-gray-900 font-bold">{req.id.slice(0, 10)}...</span>
-                          </td>
-                          <td className="py-3 px-3 whitespace-nowrap text-[11px] text-gray-500">
-                            {formatDate(req.createdAt)}
-                          </td>
-                          <td className="py-3 px-3 whitespace-nowrap">
-                            <span className="font-mono text-xs font-semibold text-gray-700">{req.storeId}</span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap font-bold text-gray-800">
-                            {req.bankSnapshot?.bankName || 'Ngân Hàng'}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
-                            {req.bankSnapshot?.maskedAccountNumber || req.bankSnapshot?.accountNumberMasked || req.bankSnapshot?.accountNumber} ({req.bankSnapshot?.accountHolder})
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-right">
-                            <span className="font-extrabold text-xs text-[#00875A] font-mono">
-                              {formatVND(req.amount)}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                            {req.status === 'PENDING' && <AdminStatusBadge status="warning" label="Chờ Duyệt" icon="hourglass_top" />}
-                            {req.status === 'APPROVED' && <AdminStatusBadge status="info" label="Đã Duyệt" icon="verified" />}
-                            {req.status === 'PROCESSING' && <AdminStatusBadge status="purple" label="Đang Xử Lý" icon="sync" />}
-                            {req.status === 'COMPLETED' && <AdminStatusBadge status="success" label="Đã Chi" icon="task_alt" />}
-                            {req.status === 'FAILED' && <AdminStatusBadge status="danger" label="Chi Lỗi" icon="warning" />}
-                            {req.status === 'REJECTED' && <AdminStatusBadge status="neutral" label="Từ Chối" icon="cancel" />}
-                            {!['PENDING', 'APPROVED', 'PROCESSING', 'COMPLETED', 'FAILED', 'REJECTED'].includes(req.status) && (
-                              <AdminStatusBadge status="neutral" label={req.status} />
-                            )}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-500">
-                            {req.status === 'COMPLETED' && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-emerald-700 font-bold">Giải ngân {formatDate(req.disbursedAt)}</span>
-                                {req.providerRef && (
-                                  <span className="font-mono text-[10px] text-gray-400">({req.providerRef})</span>
-                                )}
-                              </div>
-                            )}
-                            {req.status === 'FAILED' && (
-                              <span className="text-amber-700 font-bold">Lỗi: {req.failureReason || 'Cổng ngân hàng'}</span>
-                            )}
-                            {req.status === 'REJECTED' && (req.rejectionReason || req.rejectReason) && (
-                              <span className="text-rose-600 font-medium">Lý do: {req.rejectionReason || req.rejectReason}</span>
-                            )}
-                            {req.status === 'APPROVED' && (
-                              <span className="text-blue-600 font-medium">Sẵn sàng giải ngân</span>
-                            )}
-                            {req.status === 'PENDING' && (
-                              <span className="text-amber-600">Chờ kế toán phê duyệt</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-right">
-                            {req.status === 'PENDING' && (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => handleOpenReviewModal(req, 'APPROVE')}
-                                  className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">check</span>
-                                  <span>Phê Duyệt</span>
-                                </button>
-                                <button
-                                  onClick={() => handleOpenReviewModal(req, 'REJECT')}
-                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">close</span>
-                                  <span>Từ Chối</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {req.status === 'APPROVED' && (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  disabled={disbursingId === req.id}
-                                  onClick={() => handleDisburseSingle(req.id)}
-                                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">send</span>
-                                  <span>{disbursingId === req.id ? 'Đang Chuyển...' : 'Giải Ngân'}</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {req.status === 'FAILED' && (
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  disabled={disbursingId === req.id}
-                                  onClick={() => handleRetryDisburse(req.id)}
-                                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">replay</span>
-                                  <span>{disbursingId === req.id ? 'Đang Thử...' : 'Thử Lại'}</span>
-                                </button>
-                                <button
-                                  onClick={() => handleOpenReviewModal(req, 'CANCEL_REFUND')}
-                                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[13px]">undo</span>
-                                  <span>Hủy &amp; Hoàn Tiền</span>
-                                </button>
-                              </div>
-                            )}
-
-                            {req.status === 'COMPLETED' && (
-                              <span className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
-                                <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                                <span>Hoàn Tất</span>
-                              </span>
-                            )}
-
-                            {req.status === 'REJECTED' && (
-                              <span className="text-[11px] text-gray-400 italic">Đã từ chối</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <AdminPagination
-              currentPage={currentPageLive}
-              totalPages={totalPagesLive}
-              totalItems={filteredLiveRequests.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPageLive}
-              itemLabel="lệnh rút tiền"
-            />
-          </AdminTableContainer>
+          {/* GroupedDataTable Container */}
+          <GroupedDataTable<PayoutRequestView>
+            data={paginatedLiveRequests}
+            columns={payoutColumns}
+            keyField="id"
+            loading={isLoadingLive}
+            error={liveError}
+            onRetry={fetchLivePayoutRequests}
+            emptyTitle="Không Có Lệnh Rút Tiền Phù Hợp"
+            emptyMessage="Không tìm thấy yêu cầu rút tiền nào với bộ lọc hiện tại."
+            pagination={{
+              currentPage: currentPageLive,
+              totalPages: totalPagesLive,
+              totalItems: filteredLiveRequests.length,
+              pageSize,
+              onPageChange: setCurrentPageLive,
+            }}
+          />
         </div>
       )}
 
@@ -936,204 +1201,81 @@ export function AdminFinanceView() {
             </div>
           )}
 
-          {/* 4. Historical EOD Runs Table */}
-          <AdminTableContainer>
-            <div className="p-3.5 border-b border-[#E2E8F0] flex items-center justify-between">
-              <h4 className="font-bold text-gray-900 text-xs uppercase tracking-wider">
-                Lịch Sử Các Đợt Đối Soát EOD (Audit Evidence Immutability)
-              </h4>
-              <button
-                type="button"
-                onClick={fetchEodData}
-                className="text-xs text-[#00875A] font-bold hover:underline cursor-pointer flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[13px]">refresh</span>
-                <span>Làm mới</span>
-              </button>
-            </div>
-
-            {isLoadingEod ? (
-              <div className="p-8 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
-                ))}
-              </div>
-            ) : eodRuns.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
-                <span className="material-symbols-outlined text-3xl text-gray-300">history</span>
-                <span>Chưa có đợt đối soát EOD nào được ghi nhận. Bấm "Chạy Đối Soát EOD" để thực hiện đợt đầu tiên.</span>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[1250px]">
-                  <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                    <tr>
-                      <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Mã Đợt Chạy</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Ngày Kinh Doanh</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Múi Giờ</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Tổng Khớp / Kiểm Tra</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Sai Lệch (Discrepancies)</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Thời Gian Bắt Đầu</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Thời Lượng</th>
-                      <th className="py-3 px-4 whitespace-nowrap text-right">Hành Động</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {paginatedEodRuns.map((run, idx) => {
-                      const itemIndex = (currentPageEod - 1) * pageSize + idx + 1;
-                      return (
-                        <tr key={run.id} className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                            {itemIndex}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="font-mono font-bold text-gray-900 text-xs">{run.runNumber}</span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap font-bold text-gray-700">
-                            {run.businessDate}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-500 font-mono">
-                            {run.timezone}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                            {run.status === 'COMPLETED_PASS' && <AdminStatusBadge status="success" label="COMPLETED_PASS" icon="check_circle" />}
-                            {run.status === 'COMPLETED_WARNING' && <AdminStatusBadge status="warning" label="COMPLETED_WARNING" icon="warning" />}
-                            {run.status === 'RUNNING' && <AdminStatusBadge status="info" label="RUNNING" icon="sync" />}
-                            {!['COMPLETED_PASS', 'COMPLETED_WARNING', 'RUNNING'].includes(run.status) && (
-                              <AdminStatusBadge status="danger" label={run.status} icon="error" />
-                            )}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="font-bold text-gray-800">{run.counts?.totalMatched ?? 0}</span>
-                            <span className="text-gray-400"> / {run.counts?.totalChecked ?? 0}</span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            {run.counts?.totalDiscrepancies ? (
-                              <span className="inline-flex items-center gap-1 font-bold text-amber-700">
-                                <span className="material-symbols-outlined text-[13px]">warning</span>
-                                <span>{run.counts.totalDiscrepancies} sai lệch</span>
-                              </span>
-                            ) : (
-                              <span className="text-emerald-600 font-bold">0 (Khớp 100%)</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-600">
-                            {formatDate(run.startedAt)}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-500 font-mono">
-                            {run.durationMs ? `${run.durationMs}ms` : 'N/A'}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-right">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedEodRun(run)}
-                              className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] cursor-pointer"
-                            >
-                              Xem Chi Tiết
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-            <AdminPagination
-              currentPage={currentPageEod}
-              totalPages={totalPagesEod}
-              totalItems={eodRuns.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPageEod}
-              itemLabel="đợt đối soát"
-            />
-          </AdminTableContainer>
+          {/* 4. Historical EOD Runs GroupedDataTable */}
+          <GroupedDataTable<EodReconciliationRunView>
+            data={paginatedEodRuns}
+            columns={eodColumns}
+            keyField="id"
+            loading={isLoadingEod}
+            emptyTitle="Chưa Có Đợt Đối Soát EOD Nào"
+            emptyMessage="Chưa có đợt đối soát EOD nào được ghi nhận. Bấm 'Chạy Đối Soát EOD' để thực hiện đợt đầu tiên."
+            pagination={{
+              currentPage: currentPageEod,
+              totalPages: totalPagesEod,
+              totalItems: eodRuns.length,
+              pageSize,
+              onPageChange: setCurrentPageEod,
+            }}
+          />
         </div>
       )}
 
-      {/* SECTION 3: PERIODIC SETTLEMENT BATCHES */}
-      {viewSection === 'periodic_batches' && (
-        <AdminTableContainer>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mã Kỳ Đối Soát</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Nhà Xuất Bản</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Kỳ Đối Soát</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Tổng Đơn</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">GMV Doanh Số</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Tỷ Lệ Chia Sẻ</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Phí Sàn 15%</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Thuế Khấu Trừ</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-right">Thực Nhận NXB</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Tài Khoản Thụ Hưởng</th>
-                  <th className="py-3 px-4 whitespace-nowrap text-center">Trạng Thái</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedBatches.map((item, idx) => {
-                  const itemIndex = (currentPageBatches - 1) * pageSize + idx + 1;
-                  return (
-                    <tr key={item.id} className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                        {itemIndex}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-emerald-700 font-bold">
-                        #{item.id}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap font-bold text-gray-900">
-                        {item.publisher}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-500">
-                        {item.period}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-mono text-gray-700">
-                        {item.ordersCount.toLocaleString()} đơn
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-extrabold text-gray-900 font-mono">
-                        {item.grossSales.toLocaleString()}₫
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-600">
-                        {item.shareRatio}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-bold text-amber-700 font-mono">
-                        -{item.platformFee.toLocaleString()}₫
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right text-[11px] text-gray-500 font-mono">
-                        -{item.taxWithheld.toLocaleString()}₫
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right font-extrabold text-xs text-[#00875A] font-mono">
-                        {item.netPayout.toLocaleString()}₫
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-gray-600 max-w-[200px] truncate" title={item.bankAccount}>
-                        {item.bankAccount}
-                      </td>
-                      <td className="py-3 px-4 whitespace-nowrap text-center">
-                        {item.status === 'paid' ? (
-                          <AdminStatusBadge status="success" label="Đã Chuyển Khoản" icon="check_circle" />
-                        ) : (
-                          <AdminStatusBadge status="warning" label="Chờ Ký Duyệt" icon="hourglass_top" />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {/* SECTION 3: REAL WALLET TRANSACTIONS (Financial Traceability) */}
+      {viewSection === 'wallet_transactions' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+            <div>
+              <h3 className="font-extrabold text-gray-900 text-sm">Sổ Nhật Ký Giao Dịch Ví Toàn Sàn</h3>
+              <p className="text-[11px] text-gray-500">
+                Truy xuất trực tiếp từ Commerce Service với 10 trường số dư nguyên tử (Available, Pending, Frozen).
+              </p>
+            </div>
+            <button
+              onClick={() => fetchWalletTransactions(currentPageWallet)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors shadow-2xs cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[15px]">refresh</span>
+              <span>Làm Mới</span>
+            </button>
           </div>
-          <AdminPagination
-            currentPage={currentPageBatches}
-            totalPages={totalPagesBatches}
-            totalItems={payoutBatches.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPageBatches}
-            itemLabel="kỳ đối soát"
+
+          <FinancialTransactionTable
+            data={mappedWalletTransactions}
+            loading={isLoadingWallet}
+            error={walletError}
+            onRetry={() => fetchWalletTransactions(currentPageWallet)}
+            emptyTitle="Chưa Có Giao Dịch Ví Nào"
+            emptyMessage="Không tìm thấy bản ghi giao dịch ví nào trong hệ thống."
+            pagination={{
+              currentPage: currentPageWallet,
+              totalPages: Math.ceil(totalWalletTransactions / pageSize) || 1,
+              totalItems: totalWalletTransactions,
+              pageSize,
+              onPageChange: (p) => {
+                setCurrentPageWallet(p);
+                fetchWalletTransactions(p);
+              },
+            }}
           />
-        </AdminTableContainer>
+        </div>
+      )}
+
+      {/* SECTION 4: PERIODIC SETTLEMENT BATCHES */}
+      {viewSection === 'periodic_batches' && (
+        <GroupedDataTable<any>
+          data={paginatedBatches}
+          columns={batchColumns}
+          keyField="id"
+          emptyTitle="Chưa Có Kỳ Đối Soát Nào"
+          emptyMessage="Không tìm thấy kỳ đối soát nào."
+          pagination={{
+            currentPage: currentPageBatches,
+            totalPages: totalPagesBatches,
+            totalItems: payoutBatches.length,
+            pageSize,
+            onPageChange: setCurrentPageBatches,
+          }}
+        />
       )}
 
       {/* 3. EOD RUN DETAILS IN-PAGE PANEL */}

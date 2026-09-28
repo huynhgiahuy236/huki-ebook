@@ -23,6 +23,8 @@ const ROUTES: Record<string, ServiceName> = {
   orders: 'commerce',
   payments: 'commerce',
   wallet: 'commerce',
+  payout: 'commerce',
+  ledger: 'commerce',
   'seller': 'commerce',
   shipping: 'shipping',
   shipments: 'shipping',
@@ -178,8 +180,11 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /stores/:id/reviews → community
-    // Route /admin/* → community
+    // Route /admin/finance/* → commerce
     if (firstSegment === 'admin') {
+      if (path.includes('/admin/finance')) {
+        return 'commerce';
+      }
       return 'community';
     }
 

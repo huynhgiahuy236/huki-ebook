@@ -6,6 +6,8 @@ import { useToast } from '../../context/ToastContext';
 import { taxRegistryService } from '../../services/taxRegistryService';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -126,8 +128,11 @@ export function AdminBusinessesView() {
 
   // Full Page Detail State
   const [selectedBiz, setSelectedBiz] = useState<any>(null);
+  const [detailTab, setDetailTab] = useState<'profile' | 'stores' | 'governance_audit'>('profile');
   const [auditResult, setAuditResult] = useState<any>(null);
   const [isAuditing, setIsAuditing] = useState(false);
+  const [bizAuditLogs, setBizAuditLogs] = useState<AuditLogItem[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
 
   // Modal / Preview State
   const [previewImageUrl, setPreviewImageUrl] = useState<any>(null);
@@ -135,6 +140,22 @@ export function AdminBusinessesView() {
   const [rejectModalBiz, setRejectModalBiz] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [rejectReasonError, setRejectReasonError] = useState('');
+
+  useEffect(() => {
+    if (selectedBiz?.id && detailTab === 'governance_audit') {
+      setLoadingAudit(true);
+      adminApi.getBusinessAuditLogs(selectedBiz.id)
+        .then((res) => {
+          if (res.success && res.data?.items) {
+            setBizAuditLogs(res.data.items);
+          } else {
+            setBizAuditLogs([]);
+          }
+        })
+        .catch(() => setBizAuditLogs([]))
+        .finally(() => setLoadingAudit(false));
+    }
+  }, [selectedBiz?.id, detailTab]);
 
   const isRejectDirty = Boolean(rejectReason.trim());
   const rejectFormRef = useSmartFormCollapse({
@@ -230,6 +251,176 @@ export function AdminBusinessesView() {
     setActiveTab(key);
     setCurrentPage(1);
   };
+
+  const businessColumns: Column<any>[] = useMemo(
+    () => [
+      {
+        key: 'stt',
+        title: 'STT',
+        width: 60,
+        align: 'center',
+        render: (_val, _row, idx) => (
+          <span className="font-mono text-theme-text-muted text-[11px] font-semibold">
+            {(currentPage - 1) * pageSize + idx + 1}
+          </span>
+        ),
+      },
+      {
+        key: 'name',
+        title: 'Doanh Nghiệp',
+        minWidth: 260,
+        sortable: true,
+        render: (_val, biz) => (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-xs shrink-0">
+              {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
+            </div>
+            <div className="min-w-0 max-w-[240px]">
+              <span
+                className="font-bold text-theme-text block truncate hover:text-theme-secondary cursor-pointer"
+                onClick={() => {
+                  setSelectedBiz(biz);
+                  setDetailTab('profile');
+                }}
+                title={biz.name}
+              >
+                {biz.name}
+              </span>
+              <span className="text-[10px] text-theme-text-muted block truncate font-mono">
+                ID: {biz.id}
+              </span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'slug',
+        title: 'Mã Định Danh / Slug',
+        width: 150,
+        render: (val) => (
+          <span className="font-mono text-theme-text-muted bg-theme-surface-subtle px-2 py-0.5 rounded text-[11px]">
+            /{val || 'n-a'}
+          </span>
+        ),
+      },
+      {
+        key: 'taxCode',
+        title: 'Mã Số Thuế',
+        width: 140,
+        render: (val) => (
+          <span className="font-mono font-medium text-theme-text text-[11px]">
+            {val || <span className="text-theme-text-muted font-sans italic text-[11px]">Chưa cung cấp</span>}
+          </span>
+        ),
+      },
+      {
+        key: 'email',
+        title: 'Email Liên Hệ',
+        width: 180,
+        render: (val) => (
+          <span className="text-theme-text truncate block max-w-[170px]" title={val || ''}>
+            {val || <span className="text-theme-text-muted italic">Chưa có</span>}
+          </span>
+        ),
+      },
+      {
+        key: 'phone',
+        title: 'Số Điện Thoại',
+        width: 130,
+        render: (val) => (
+          <span className="font-mono text-theme-text">
+            {val || <span className="text-theme-text-muted font-sans italic text-[11px]">Chưa có</span>}
+          </span>
+        ),
+      },
+      {
+        key: 'createdAt',
+        title: 'Ngày Đăng Ký',
+        width: 130,
+        sortable: true,
+        render: (val) => (
+          <span className="text-theme-text-muted font-mono text-[11px]">
+            {val ? new Date(val).toLocaleDateString('vi-VN') : '—'}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 140,
+        align: 'center',
+        render: (val) => {
+          let statusVariant: any = 'neutral';
+          let statusLabel = 'Không xác định';
+          if (val === 'APPROVED') {
+            statusVariant = 'success';
+            statusLabel = 'Đã phê duyệt';
+          } else if (val === 'PENDING_APPROVAL') {
+            statusVariant = 'warning';
+            statusLabel = 'Chờ xét duyệt';
+          } else if (val === 'REJECTED') {
+            statusVariant = 'danger';
+            statusLabel = 'Đã từ chối';
+          } else if (val === 'SUSPENDED') {
+            statusVariant = 'neutral';
+            statusLabel = 'Tạm ngưng';
+          }
+          return <AdminStatusBadge variant={statusVariant} label={statusLabel} />;
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 180,
+        align: 'right',
+        render: (_val, biz) => {
+          const isPending = biz.status === 'PENDING_APPROVAL';
+          const isBusy = actionLoadingId === biz.id;
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <AdminActionButton
+                variant="view"
+                icon="visibility"
+                label="Chi tiết"
+                size="sm"
+                onClick={() => {
+                  setSelectedBiz(biz);
+                  setDetailTab('profile');
+                }}
+                title="Xem chi tiết toàn trang"
+              />
+              {isPending && (
+                <>
+                  <AdminActionButton
+                    variant="success"
+                    icon="check"
+                    label="Phê Duyệt"
+                    size="sm"
+                    onClick={() => handleApprove(biz)}
+                    disabled={isBusy}
+                    title="Phê duyệt doanh nghiệp"
+                  />
+                  <AdminActionButton
+                    variant="danger"
+                    icon="close"
+                    label="Từ Chối"
+                    size="sm"
+                    onClick={() => {
+                      setRejectModalBiz(biz);
+                      setRejectReason('');
+                    }}
+                    disabled={isBusy}
+                    title="Từ chối hồ sơ"
+                  />
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [currentPage, pageSize, actionLoadingId]
+  );
 
   // Xử lý phê duyệt
   const handleApprove = async (biz: any) => {
@@ -442,6 +633,54 @@ export function AdminBusinessesView() {
           </div>
         </div>
 
+        {/* TABS NAVIGATION */}
+        <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
+          <button
+            type="button"
+            onClick={() => setDetailTab('profile')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              detailTab === 'profile'
+                ? 'bg-emerald-50 text-[#00875A] border border-emerald-200 shadow-2xs'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">verified</span>
+            <span>Hồ Sơ Doanh Nghiệp</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDetailTab('stores')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              detailTab === 'stores'
+                ? 'bg-emerald-50 text-[#00875A] border border-emerald-200 shadow-2xs'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">storefront</span>
+            <span>Gian Hàng Liên Kết</span>
+            <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
+              {selectedBiz.stores?.length || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDetailTab('governance_audit')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              detailTab === 'governance_audit'
+                ? 'bg-emerald-50 text-[#00875A] border border-emerald-200 shadow-2xs'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[16px]">history_edu</span>
+            <span>Lịch Sử Quản Trị</span>
+          </button>
+        </div>
+
+        {/* TAB 1: HỒ SƠ DOANH NGHIỆP */}
+        {detailTab === 'profile' && (
+          <>
         {/* 2. AUDIT SUMMARY BANNER (TỔNG KẾT THẨM ĐỊNH TỰ ĐỘNG) */}
         <div className="bg-gradient-to-r from-gray-900 to-slate-800 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-start gap-4">
@@ -806,6 +1045,68 @@ export function AdminBusinessesView() {
             )}
           </div>
         </div>
+        </>
+        )}
+
+        {/* TAB 2: GIAN HÀNG LIÊN KẾT */}
+        {detailTab === 'stores' && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-600 text-xl">storefront</span>
+                <h3 className="font-extrabold text-gray-900 text-sm">Danh Sách Gian Hàng Trực Thuộc</h3>
+              </div>
+              <span className="text-xs font-bold text-gray-500">
+                Tổng cộng: {selectedBiz.stores?.length || 0} gian hàng
+              </span>
+            </div>
+
+            {(!selectedBiz.stores || selectedBiz.stores.length === 0) ? (
+              <div className="py-12 text-center text-gray-400">
+                <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">store</span>
+                <p className="text-xs font-bold text-gray-600">Chưa có gian hàng nào liên kết</p>
+                <p className="text-[11px] text-gray-400">Doanh nghiệp này chưa tạo hoặc chưa được duyệt gian hàng nào.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                    <tr>
+                      <th className="py-2.5 px-3">Tên Gian Hàng</th>
+                      <th className="py-2.5 px-3">Mã Slug</th>
+                      <th className="py-2.5 px-3">Mô Tả</th>
+                      <th className="py-2.5 px-3 text-center">Trạng Thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {selectedBiz.stores.map((st: any) => (
+                      <tr key={st.id} className="hover:bg-gray-50">
+                        <td className="py-2.5 px-3 font-bold text-gray-900">{st.name}</td>
+                        <td className="py-2.5 px-3 font-mono text-gray-600">/{st.slug}</td>
+                        <td className="py-2.5 px-3 text-gray-500 max-w-xs truncate">{st.description || '—'}</td>
+                        <td className="py-2.5 px-3 text-center">
+                          <AdminStatusBadge variant={st.status === 'APPROVED' ? 'success' : 'warning'} label={st.status || 'Hoạt động'} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: LỊCH SỬ QUẢN TRỊ (AUDIT HISTORY TIMELINE) */}
+        {detailTab === 'governance_audit' && (
+          <AuditHistoryTimeline
+            title="Lịch Sử Quản Trị & Phê Duyệt Doanh Nghiệp"
+            description="Theo dõi toàn bộ nhật ký phê duyệt, từ chối, tạm ngưng hoặc mở khóa tài khoản doanh nghiệp từ Platform Admin."
+            items={bizAuditLogs}
+            loading={loadingAudit}
+            emptyTitle="Chưa có nhật ký thay đổi quản trị"
+            emptyMessage="Hồ sơ doanh nghiệp này chưa có thao tác thay đổi trạng thái nào được ghi nhận từ Platform Admin."
+          />
+        )}
 
         {/* MODAL PHÓNG TO ẢNH TÀI LIỆU MINH CHỨNG */}
         {previewImageUrl && (
@@ -1007,178 +1308,23 @@ export function AdminBusinessesView() {
       </div>
 
       {/* 3. BUSINESSES TABLE / LIST */}
-      <AdminTableContainer>
-        {loading ? (
-          <div className="py-16 text-center flex flex-col items-center justify-center gap-2 text-gray-400">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-            <span className="text-xs font-semibold">Đang tải danh sách doanh nghiệp...</span>
-          </div>
-        ) : filteredBusinesses.length === 0 ? (
-          <div className="py-16 text-center flex flex-col items-center justify-center text-gray-400">
-            <span className="material-symbols-outlined text-4xl text-gray-300 mb-2">domain_disabled</span>
-            <p className="text-sm font-bold text-gray-600">Không tìm thấy doanh nghiệp nào</p>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {searchQuery ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.' : 'Hiện không có hồ sơ nào trong danh mục này.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Doanh Nghiệp</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[150px]">Mã Định Danh / Slug</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Mã Số Thuế</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px]">Email Liên Hệ</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px]">Số Điện Thoại</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px]">Ngày Đăng Ký</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px] text-center">Trạng Thái</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px] text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedBusinesses.map((biz: any, idx: number) => {
-                  const isPending = biz.status === 'PENDING_APPROVAL';
-                  const isBusy = actionLoadingId === biz.id;
-                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-
-                  let statusVariant: any = 'neutral';
-                  let statusLabel = 'Không xác định';
-                  if (biz.status === 'APPROVED') {
-                    statusVariant = 'success';
-                    statusLabel = 'Đã phê duyệt';
-                  } else if (biz.status === 'PENDING_APPROVAL') {
-                    statusVariant = 'warning';
-                    statusLabel = 'Chờ xét duyệt';
-                  } else if (biz.status === 'REJECTED') {
-                    statusVariant = 'danger';
-                    statusLabel = 'Đã từ chối';
-                  } else if (biz.status === 'SUSPENDED') {
-                    statusVariant = 'neutral';
-                    statusLabel = 'Tạm ngưng';
-                  }
-
-                  return (
-                    <tr
-                      key={biz.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                    >
-                      {/* STT */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400 font-semibold">
-                        {itemIndex}
-                      </td>
-
-                      {/* Name */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-xs shrink-0">
-                            {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
-                          </div>
-                          <div className="min-w-0 max-w-[240px]">
-                            <span
-                              className="font-bold text-gray-900 block truncate hover:text-[#00875A] cursor-pointer"
-                              onClick={() => setSelectedBiz(biz)}
-                              title={biz.name}
-                            >
-                              {biz.name}
-                            </span>
-                            <span className="text-[10px] text-gray-400 block truncate font-mono">
-                              ID: {biz.id}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Slug */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span className="font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[11px]">
-                          /{biz.slug || 'n-a'}
-                        </span>
-                      </td>
-
-                      {/* Tax code */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-medium text-gray-800">
-                        {biz.taxCode || <span className="text-gray-400 font-sans italic text-[11px]">Chưa cung cấp</span>}
-                      </td>
-
-                      {/* Email */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700">
-                        {biz.email || <span className="text-gray-400 italic">Chưa có</span>}
-                      </td>
-
-                      {/* Phone */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-mono">
-                        {biz.phone || <span className="text-gray-400 font-sans italic text-[11px]">Chưa có</span>}
-                      </td>
-
-                      {/* Created At */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 font-mono text-[11px]">
-                        {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '—'}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <AdminStatusBadge variant={statusVariant} label={statusLabel} />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <AdminActionButton
-                            variant="view"
-                            icon="visibility"
-                            label="Chi tiết"
-                            size="sm"
-                            onClick={() => setSelectedBiz(biz)}
-                            title="Xem chi tiết toàn trang"
-                          />
-
-                          {isPending && (
-                            <>
-                              <AdminActionButton
-                                variant="success"
-                                icon="check"
-                                label="Duyệt"
-                                size="sm"
-                                onClick={() => handleApprove(biz)}
-                                disabled={isBusy}
-                                title="Phê duyệt doanh nghiệp"
-                              />
-
-                              <AdminActionButton
-                                variant="danger"
-                                icon="close"
-                                label="Từ chối"
-                                size="sm"
-                                onClick={() => {
-                                  setRejectModalBiz(biz);
-                                  setRejectReason('');
-                                }}
-                                disabled={isBusy}
-                                title="Từ chối hồ sơ"
-                              />
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredBusinesses.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="doanh nghiệp"
-        />
-      </AdminTableContainer>
+      <GroupedDataTable
+        columns={businessColumns}
+        data={filteredBusinesses}
+        keyField="id"
+        loading={loading}
+        emptyTitle="Không tìm thấy doanh nghiệp nào"
+        emptyMessage={searchQuery ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.' : 'Hiện không có hồ sơ nào trong danh mục này.'}
+        emptyIcon="domain_disabled"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredBusinesses.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'doanh nghiệp',
+        }}
+      />
 
       {/* 4. REJECT IN-PAGE FORM */}
       {rejectModalBiz && (

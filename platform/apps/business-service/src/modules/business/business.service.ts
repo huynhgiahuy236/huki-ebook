@@ -1006,4 +1006,20 @@ export class BusinessService {
       data: updatedRequest,
     };
   }
+
+  async getBusinessAuditLogs(
+    businessId: string,
+    params: { page?: number; limit?: number; action?: string },
+  ) {
+    if (!this.auditService) {
+      return { items: [], total: 0, page: 1, limit: 10 };
+    }
+    return this.auditService.queryAuditLogs({
+      resource: 'Business',
+      resourceId: businessId,
+      page: params.page,
+      limit: params.limit,
+      action: params.action,
+    });
+  }
 }

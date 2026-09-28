@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import { adminApi } from '../../api/adminApi';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
 
 interface DrmDevice {
   id: string;
@@ -39,10 +42,32 @@ export default function AdminUsersView() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [inspectingUser, setInspectingUser] = useState<AdminUser | null>(null);
+  const [userTab, setUserTab] = useState<'info' | 'history'>('info');
+  const [userAuditLogs, setUserAuditLogs] = useState<AuditLogItem[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
+  useEffect(() => {
+    if (inspectingUser?.id && userTab === 'history') {
+      setLoadingAudit(true);
+      adminApi.getUserAuditLogs(inspectingUser.id)
+        .then((res) => {
+          if (res.success && res.data?.items) {
+            setUserAuditLogs(res.data.items);
+          } else {
+            setUserAuditLogs([]);
+          }
+        })
+        .catch(() => setUserAuditLogs([]))
+        .finally(() => setLoadingAudit(false));
+    }
+  }, [inspectingUser?.id, userTab]);
 
   const userPanelRef = useSmartFormCollapse({
     isOpen: Boolean(inspectingUser),
-    onClose: () => setInspectingUser(null),
+    onClose: () => {
+      setInspectingUser(null);
+      setUserTab('info');
+    },
     isDirty: false,
   });
 
@@ -281,6 +306,144 @@ export default function AdminUsersView() {
     return filteredUsers.slice(start, start + pageSize);
   }, [filteredUsers, currentPage, pageSize]);
 
+  // Columns for GroupedDataTable
+  const columns: Column<AdminUser>[] = useMemo(
+    () => [
+      {
+        key: 'index',
+        title: 'STT',
+        align: 'center',
+        className: 'w-12 font-mono text-[11px] text-gray-400',
+        render: (_val, _item, index) => (currentPage - 1) * pageSize + index + 1,
+      },
+      {
+        key: 'name',
+        title: 'Độc Giả',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        render: (_val, user) => (
+          <div className="flex items-center gap-2.5">
+            <img
+              src={user.avatar}
+              alt={user.name}
+              className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
+            />
+            <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
+              {user.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'email',
+        title: 'Email',
+        sortable: true,
+        className: 'font-mono text-[11px] text-gray-600 whitespace-nowrap',
+      },
+      {
+        key: 'phone',
+        title: 'Số Điện Thoại & ID',
+        className: 'font-mono text-[11px] text-gray-700 whitespace-nowrap',
+        render: (_val, user) => (
+          <span>
+            {user.phone} <span className="text-gray-400">({user.id})</span>
+          </span>
+        ),
+      },
+      {
+        key: 'tier',
+        title: 'Hạng Hội Viên',
+        align: 'center',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        render: (_val, user) => (
+          <span
+            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+              user.tier === 'diamond'
+                ? 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+                : user.tier === 'gold'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                : user.tier === 'silver'
+                ? 'bg-slate-100 text-slate-800 border border-slate-200'
+                : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[13px]">
+              {user.tier === 'diamond' ? 'diamond' : user.tier === 'gold' ? 'workspace_premium' : 'military_tech'}
+            </span>
+            <span>{user.tierLabel}</span>
+          </span>
+        ),
+      },
+      {
+        key: 'booksOwned',
+        title: 'Tủ Sách Sở Hữu',
+        sortable: true,
+        className: 'text-gray-800 whitespace-nowrap',
+        render: (_val, user) => (
+          <span>
+            <strong className="font-bold">{user.booksOwned} cuốn</strong>{' '}
+            <span className="text-[10.5px] text-gray-400">({user.ebooksCount} Ebook · {user.physicalCount} Sách in)</span>
+          </span>
+        ),
+      },
+      {
+        key: 'spent',
+        title: 'Tổng Chi Tiêu',
+        align: 'right',
+        sortable: true,
+        className: 'text-right whitespace-nowrap',
+        render: (_val, user) => (
+          <span>
+            <span className="font-extrabold text-[#00875A] font-mono">{user.spent.toLocaleString()}₫</span>{' '}
+            <span className="text-[10px] text-gray-400">({user.points} xu)</span>
+          </span>
+        ),
+      },
+      {
+        key: 'devicesCount',
+        title: 'Thiết Bị DRM',
+        align: 'center',
+        className: 'whitespace-nowrap',
+        render: (count: number) => (
+          <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold text-[10.5px] border border-purple-200">
+            {count} / 5 máy
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        align: 'center',
+        sortable: true,
+        className: 'whitespace-nowrap',
+        render: (status: string) => {
+          if (status === 'active') return <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />;
+          if (status === 'warning') return <AdminStatusBadge status="warning" label="Cần chú ý" icon="warning" />;
+          return <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />;
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        align: 'right',
+        className: 'whitespace-nowrap',
+        render: (_val, user) => (
+          <button
+            onClick={() => {
+              setInspectingUser(user);
+              setUserTab('info');
+            }}
+            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-800 font-bold text-[11px] transition-colors cursor-pointer"
+          >
+            Chi Tiết
+          </button>
+        ),
+      },
+    ],
+    [currentPage, pageSize]
+  );
+
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
       {/* 1. TOP HEADER & INTRO */}
@@ -390,125 +553,21 @@ export default function AdminUsersView() {
         </div>
       </div>
 
-      {/* 4. USERS TABLE CONTAINER */}
-      <AdminTableContainer>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
-            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-              <tr>
-                <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Độc Giả</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Email</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Số Điện Thoại &amp; ID</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Hạng Hội Viên</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Tủ Sách Sở Hữu</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-right">Tổng Chi Tiêu</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Thiết Bị DRM</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {paginatedUsers.map((user, idx) => {
-                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                return (
-                  <tr key={user.id} className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
-                    {/* 1. STT */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                      {itemIndex}
-                    </td>
-
-                    {/* 2. Độc Giả */}
-                    <td className="py-3 px-3.5 whitespace-nowrap">
-                      <div className="flex items-center gap-2.5">
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-8 h-8 rounded-full object-cover border border-gray-200 shrink-0"
-                        />
-                        <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
-                          {user.name}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* 3. Email */}
-                    <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
-                      {user.email}
-                    </td>
-
-                    {/* 4. Số Điện Thoại & ID */}
-                    <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-700">
-                      {user.phone} <span className="text-gray-400">({user.id})</span>
-                    </td>
-
-                    {/* 5. Hạng Hội Viên */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                        user.tier === 'diamond' ? 'bg-cyan-50 text-cyan-800 border border-cyan-200' :
-                        user.tier === 'gold' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                        user.tier === 'silver' ? 'bg-slate-100 text-slate-800 border border-slate-200' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        <span className="material-symbols-outlined text-[13px]">
-                          {user.tier === 'diamond' ? 'diamond' : user.tier === 'gold' ? 'workspace_premium' : 'military_tech'}
-                        </span>
-                        <span>{user.tierLabel}</span>
-                      </span>
-                    </td>
-
-                    {/* 6. Tủ Sách Sở Hữu */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-gray-800">
-                      <span className="font-bold">{user.booksOwned} cuốn</span>{' '}
-                      <span className="text-[10.5px] text-gray-400">({user.ebooksCount} Ebook · {user.physicalCount} Sách in)</span>
-                    </td>
-
-                    {/* 7. Tổng Chi Tiêu */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-right">
-                      <span className="font-extrabold text-[#00875A] font-mono">
-                        {user.spent.toLocaleString()}₫
-                      </span>{' '}
-                      <span className="text-[10px] text-gray-400">({user.points} xu)</span>
-                    </td>
-
-                    {/* 8. Thiết Bị DRM */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                      <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 font-bold text-[10.5px] border border-purple-200">
-                        {user.devicesCount} / 5 máy
-                      </span>
-                    </td>
-
-                    {/* 9. Trạng Thái */}
-                    <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                      {user.status === 'active' && <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />}
-                      {user.status === 'warning' && <AdminStatusBadge status="warning" label="Cần chú ý" icon="warning" />}
-                      {user.status === 'locked' && <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />}
-                    </td>
-
-                    {/* 10. Thao Tác */}
-                    <td className="py-3 px-4 whitespace-nowrap text-right">
-                      <button
-                        onClick={() => setInspectingUser(user)}
-                        className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-800 font-bold text-[11px] transition-colors cursor-pointer"
-                      >
-                        Chi Tiết
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredUsers.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="độc giả"
-        />
-      </AdminTableContainer>
+      {/* 4. USERS GROUPED DATA TABLE */}
+      <GroupedDataTable<AdminUser>
+        data={paginatedUsers}
+        columns={columns}
+        keyField="id"
+        emptyTitle="Không Tìm Thấy Độc Giả"
+        emptyMessage="Không tìm thấy bạn đọc phù hợp với bộ lọc tìm kiếm."
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredUsers.length,
+          pageSize,
+          onPageChange: setCurrentPage,
+        }}
+      />
 
       {/* 5. USER INSPECTOR IN-PAGE COLLAPSIBLE PANEL */}
       {inspectingUser && (
@@ -529,98 +588,142 @@ export default function AdminUsersView() {
               </div>
             </div>
             <button
-              onClick={() => setInspectingUser(null)}
+              onClick={() => {
+                setInspectingUser(null);
+                setUserTab('info');
+              }}
               className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
             >
               Đóng bảng
             </button>
           </div>
 
-          {/* Body */}
-          <div className="space-y-5 text-xs text-gray-700">
-            {/* Summary Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-center">
-              <div className="p-1">
-                <span className="text-gray-400 text-[10.5px] block font-medium">Tổng Chi Tiêu</span>
-                <span className="font-extrabold text-sm text-[#00875A] mt-0.5 block font-mono">{inspectingUser.spent.toLocaleString()}₫</span>
-              </div>
-              <div className="p-1 border-t sm:border-t-0 sm:border-x border-gray-200">
-                <span className="text-gray-400 text-[10.5px] block font-medium">Tủ Sách</span>
-                <span className="font-extrabold text-sm text-gray-900 mt-0.5 block">{inspectingUser.booksOwned} cuốn</span>
-              </div>
-              <div className="p-1 border-t sm:border-t-0 border-gray-200">
-                <span className="text-gray-400 text-[10.5px] block font-medium">Điểm HukiXu</span>
-                <span className="font-extrabold text-sm text-amber-600 mt-0.5 block">{inspectingUser.points} xu</span>
-              </div>
-            </div>
-
-            {/* DRM Linked Devices List */}
-            <div>
-              <div className="flex items-center justify-between mb-2.5">
-                <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
-                  <span className="material-symbols-outlined text-[16px] text-purple-600">devices</span>
-                  Thiết Bị Đọc DRM Đã Cấp Quyền ({inspectingUser.devicesList.length}/5)
-                </h4>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {inspectingUser.devicesList.map((device) => (
-                  <div key={device.id} className="p-3 rounded-2xl border border-gray-200 bg-gray-50/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
-                        <span className="material-symbols-outlined text-[16px]">
-                          {device.type.includes('iOS') || device.type.includes('Android') ? 'smartphone' : 'laptop'}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-bold text-gray-900 text-xs">{device.name}</div>
-                        <span className="text-[10px] text-gray-400">
-                          HĐH: {device.type} · {device.lastActive}
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => handleRevokeDevice(inspectingUser.id, device.id)}
-                      className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] transition-colors cursor-pointer border border-rose-200 shadow-2xs"
-                      title="Hủy liên kết thiết bị để bạn đọc đổi máy mới"
-                    >
-                      Thu Hồi DRM
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="pt-3 border-t border-gray-200 space-y-2">
-              <div className="font-bold text-gray-900 text-xs">Thao Tác Quản Trị Bạn Đọc:</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => handleRewardPoints(inspectingUser.id)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 cursor-pointer flex items-center gap-1 shadow-2xs"
-                >
-                  <span className="material-symbols-outlined text-[15px]">stars</span>
-                  <span>Thưởng +200 HukiXu</span>
-                </button>
-                <button
-                  onClick={() => handleToggleLock(inspectingUser.id)}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
-                    inspectingUser.status === 'locked'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-[15px]">
-                    {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
-                  </span>
-                  <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản' : 'Khóa Tạm Thời'}</span>
-                </button>
-              </div>
-            </div>
+          {/* Sub-tabs */}
+          <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+            <button
+              type="button"
+              onClick={() => setUserTab('info')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                userTab === 'info'
+                  ? 'bg-[#00875A] text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Thông Tin Độc Giả &amp; Thiết Bị
+            </button>
+            <button
+              type="button"
+              onClick={() => setUserTab('history')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                userTab === 'history'
+                  ? 'bg-[#00875A] text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              Lịch Sử Thao Tác (Governance Audit)
+            </button>
           </div>
+
+          {/* Tab 1: Info & Devices */}
+          {userTab === 'info' && (
+            <div className="space-y-5 text-xs text-gray-700">
+              {/* Summary Metrics */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-center">
+                <div className="p-1">
+                  <span className="text-gray-400 text-[10.5px] block font-medium">Tổng Chi Tiêu</span>
+                  <span className="font-extrabold text-sm text-[#00875A] mt-0.5 block font-mono">{inspectingUser.spent.toLocaleString()}₫</span>
+                </div>
+                <div className="p-1 border-t sm:border-t-0 sm:border-x border-gray-200">
+                  <span className="text-gray-400 text-[10.5px] block font-medium">Tủ Sách</span>
+                  <span className="font-extrabold text-sm text-gray-900 mt-0.5 block">{inspectingUser.booksOwned} cuốn</span>
+                </div>
+                <div className="p-1 border-t sm:border-t-0 border-gray-200">
+                  <span className="text-gray-400 text-[10.5px] block font-medium">Điểm HukiXu</span>
+                  <span className="font-extrabold text-sm text-amber-600 mt-0.5 block">{inspectingUser.points} xu</span>
+                </div>
+              </div>
+
+              {/* DRM Linked Devices List */}
+              <div>
+                <div className="flex items-center justify-between mb-2.5">
+                  <h4 className="font-bold text-gray-900 text-xs flex items-center gap-1.5 uppercase tracking-wider">
+                    <span className="material-symbols-outlined text-[16px] text-purple-600">devices</span>
+                    Thiết Bị Đọc DRM Đã Cấp Quyền ({inspectingUser.devicesList.length}/5)
+                  </h4>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {inspectingUser.devicesList.map((device) => (
+                    <div key={device.id} className="p-3 rounded-2xl border border-gray-200 bg-gray-50/50 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                          <span className="material-symbols-outlined text-[16px]">
+                            {device.type.includes('iOS') || device.type.includes('Android') ? 'smartphone' : 'laptop'}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-bold text-gray-900 text-xs">{device.name}</div>
+                          <span className="text-[10px] text-gray-400">
+                            HĐH: {device.type} · {device.lastActive}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => handleRevokeDevice(inspectingUser.id, device.id)}
+                        className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] transition-colors cursor-pointer border border-rose-200 shadow-2xs"
+                        title="Hủy liên kết thiết bị để bạn đọc đổi máy mới"
+                      >
+                        Thu Hồi DRM
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-gray-200 space-y-2">
+                <div className="font-bold text-gray-900 text-xs">Thao Tác Quản Trị Bạn Đọc:</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleRewardPoints(inspectingUser.id)}
+                    className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200 cursor-pointer flex items-center gap-1 shadow-2xs"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">stars</span>
+                    <span>Thưởng +200 HukiXu</span>
+                  </button>
+                  <button
+                    onClick={() => handleToggleLock(inspectingUser.id)}
+                    className={`px-3 py-1.5 rounded-xl font-bold text-xs cursor-pointer flex items-center gap-1 shadow-2xs ${
+                      inspectingUser.status === 'locked'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">
+                      {inspectingUser.status === 'locked' ? 'lock_open' : 'lock'}
+                    </span>
+                    <span>{inspectingUser.status === 'locked' ? 'Mở Khóa Tài Khoản' : 'Khóa Tạm Thời'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 2: Governance Audit */}
+          {userTab === 'history' && (
+            <div className="space-y-3">
+              <AuditHistoryTimeline
+                items={userAuditLogs}
+                loading={loadingAudit}
+                title="Lịch Sử Thao Tác Quản Trị (User Governance Audit)"
+                emptyMessage="Chưa có bản ghi lịch sử quản trị nào cho tài khoản này."
+              />
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
+

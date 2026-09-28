@@ -88,6 +88,13 @@ export const walletApi = {
   },
 
   /**
+   * Convenience alias for getStoreWallet
+   */
+  getWallet: async (storeId: string = 'default'): Promise<ApiResponse<WalletData>> => {
+    return walletApi.getStoreWallet(storeId);
+  },
+
+  /**
    * Get paginated operational wallet transaction history for a store
    */
   getStoreWalletTransactions: async (
@@ -102,6 +109,17 @@ export const walletApi = {
     return apiClient<WalletTransactionsData>(endpoint, {
       method: 'GET',
     });
+  },
+
+  /**
+   * Convenience alias for getStoreWalletTransactions
+   */
+  getTransactions: async (
+    page: number = 1,
+    limit: number = 10,
+    storeId: string = 'default'
+  ): Promise<ApiResponse<WalletTransactionsData>> => {
+    return walletApi.getStoreWalletTransactions(storeId, { page, limit });
   },
 
   /**

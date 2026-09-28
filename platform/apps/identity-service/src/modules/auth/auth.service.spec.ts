@@ -117,7 +117,7 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     it("TEST 1: limit = 3, active = 0 -> login creates new session successfully", async () => {
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.user.update.mockResolvedValue(mockUser);
-      tx.authSession.count.mockResolvedValue(0);
+      tx.authSession.findMany.mockResolvedValue([]);
       tx.authSession.create.mockResolvedValue({ id: "session-1" });
 
       const result = await service.login(
@@ -128,12 +128,13 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
 
       expect(result).toHaveProperty("accessToken");
       expect(result).toHaveProperty("refreshToken");
-      expect(tx.authSession.count).toHaveBeenCalledWith({
+      expect(tx.authSession.findMany).toHaveBeenCalledWith({
         where: {
           userId: "user-uuid-1",
           revokedAt: null,
           expiresAt: { gt: expect.any(Date) },
         },
+        orderBy: { createdAt: 'asc' },
       });
       expect(tx.authSession.create).toHaveBeenCalledWith({
         data: expect.objectContaining({
@@ -147,7 +148,7 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     it("TEST 2: limit = 3, active = 2 -> login creates new session successfully", async () => {
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.user.update.mockResolvedValue(mockUser);
-      tx.authSession.count.mockResolvedValue(2);
+      tx.authSession.findMany.mockResolvedValue([{ id: "s1" }, { id: "s2" }]);
       tx.authSession.create.mockResolvedValue({ id: "session-3" });
 
       const result = await service.login(
@@ -160,20 +161,25 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
       expect(tx.authSession.create).toHaveBeenCalled();
     });
 
-    it("TEST 3: limit = 3, active = 3 -> rejects new device with AUTHZ_FORBIDDEN", async () => {
+    it("TEST 3: limit = 3, active = 3 -> auto-evicts oldest session and succeeds", async () => {
       prisma.user.findUnique.mockResolvedValue(mockUser);
       prisma.user.update.mockResolvedValue(mockUser);
-      tx.authSession.count.mockResolvedValue(3);
+      tx.authSession.findMany.mockResolvedValue([{ id: "s1" }, { id: "s2" }, { id: "s3" }]);
+      tx.authSession.updateMany.mockResolvedValue({ count: 1 });
+      tx.authSession.create.mockResolvedValue({ id: "session-4" });
 
-      await expect(
-        service.login(
-          { email: "reader@huki.vn", password: "password123" },
-          "Boox Palma E-ink",
-          "127.0.0.1",
-        ),
-      ).rejects.toThrow(ForbiddenException);
+      const result = await service.login(
+        { email: "reader@huki.vn", password: "password123" },
+        "Boox Palma E-ink",
+        "127.0.0.1",
+      );
 
-      expect(tx.authSession.create).not.toHaveBeenCalled();
+      expect(result).toHaveProperty("accessToken");
+      expect(tx.authSession.updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ["s1"] } },
+        data: { revokedAt: expect.any(Date) },
+      });
+      expect(tx.authSession.create).toHaveBeenCalled();
     });
 
     it("TEST 4: dynamic limit = 5, active = 3 -> allows login (not hardcoded to 3)", async () => {

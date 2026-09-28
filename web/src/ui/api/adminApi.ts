@@ -58,6 +58,41 @@ export interface AdminDisputeFilter {
   limit?: number;
 }
 
+export interface AdminAuditLogItem {
+  id: string;
+  actorId?: string;
+  actorEmail?: string;
+  actorRole?: string;
+  action: string;
+  resource: string;
+  resourceId?: string;
+  before?: any;
+  after?: any;
+  diff?: any;
+  ipAddress?: string;
+  userAgent?: string;
+  requestId?: string;
+  createdAt: string;
+}
+
+export interface AdminWalletTransactionItem {
+  id: string;
+  walletId: string;
+  storeId?: string;
+  amount: number;
+  type: string;
+  referenceType?: string;
+  referenceId?: string;
+  availableBefore?: number;
+  availableAfter?: number;
+  pendingBefore?: number;
+  pendingAfter?: number;
+  frozenBefore?: number;
+  frozenAfter?: number;
+  description?: string;
+  createdAt: string;
+}
+
 export type ArbitrationRuling =
   | 'BUYER_WINS'
   | 'SELLER_WINS'
@@ -497,6 +532,69 @@ export const adminApi = {
       method: 'POST',
       body: JSON.stringify(dto),
     });
+  },
+
+  /**
+   * Lấy lịch sử kiểm toán quản trị doanh nghiệp (Platform Admin)
+   */
+  async getBusinessAuditLogs(
+    businessId: string,
+    params: { page?: number; limit?: number; action?: string } = {},
+  ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number }>> {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    if (params.action) query.append('action', params.action);
+    const qs = query.toString();
+    return apiClient<{ items: any[]; total: number; page: number; limit: number }>(
+      `/businesses/admin/${businessId}/audit-logs${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+
+  /**
+   * Lấy lịch sử kiểm toán quản trị tài khoản người dùng (Platform Admin)
+   */
+  async getUserAuditLogs(
+    userId: string,
+    params: { page?: number; limit?: number; action?: string } = {},
+  ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number }>> {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    if (params.action) query.append('action', params.action);
+    const qs = query.toString();
+    return apiClient<{ items: any[]; total: number; page: number; limit: number }>(
+      `/users/admin/${userId}/audit-logs${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+
+  /**
+   * Lấy danh sách biến động số dư / giao dịch ví toàn sàn (Platform Admin)
+   */
+  async getAdminWalletTransactions(
+    params: {
+      page?: number;
+      limit?: number;
+      storeId?: string;
+      type?: string;
+      dateFrom?: string;
+      dateTo?: string;
+    } = {},
+  ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number }>> {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    if (params.storeId) query.append('storeId', params.storeId);
+    if (params.type) query.append('type', params.type);
+    if (params.dateFrom) query.append('dateFrom', params.dateFrom);
+    if (params.dateTo) query.append('dateTo', params.dateTo);
+    const qs = query.toString();
+    return apiClient<{ items: any[]; total: number; page: number; limit: number }>(
+      `/wallet/admin/transactions${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+    );
   },
 };
 

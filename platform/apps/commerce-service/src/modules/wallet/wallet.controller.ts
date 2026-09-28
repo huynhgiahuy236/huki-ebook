@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Post,
@@ -41,6 +42,40 @@ export class WalletController {
     private readonly walletService: WalletService,
     private readonly walletSecurityService: WalletSecurityService,
   ) {}
+
+  @Get('admin/transactions')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({
+    summary: 'Get global wallet transaction history across all stores (Platform Admin)',
+    description: 'Enforces Admin privileges and returns paginated operational balance changes with atomic before/after balances.',
+  })
+  async getAdminTransactions(
+    @CurrentBookActor() actor: BookActor,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('storeId') storeId?: string,
+    @Query('type') type?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
+  ) {
+    const isAdmin = actor?.role === 'ADMIN' || actor?.role === 'PLATFORM_ADMIN';
+    if (!isAdmin) {
+      throw new ForbiddenException('Access denied: Platform Admin privileges required');
+    }
+    const result = await this.walletService.getAdminTransactions({
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 10,
+      storeId,
+      type: type as any,
+      dateFrom,
+      dateTo,
+    });
+    return {
+      success: true,
+      data: result,
+    };
+  }
 
   @Get('store/:storeId')
   @ApiBearerAuth()

@@ -459,14 +459,14 @@ export class AuthService {
         await tx.$executeRaw`SELECT id FROM users WHERE id = ${user.id} FOR UPDATE`;
 
         // 2. Enforce POL-04 / DRM-003 / DEC-007: active device limit with auto-eviction (FIFO)
-        const activeSessions = await tx.authSession.findMany({
+        const activeSessions = (await tx.authSession.findMany({
           where: {
             userId: user.id,
             revokedAt: null,
             expiresAt: { gt: new Date() },
           },
           orderBy: { createdAt: 'asc' },
-        });
+        })) || [];
 
         const maxAllowedDevices = policyConfig.drmMaxActiveDevices;
         if (activeSessions.length >= maxAllowedDevices) {

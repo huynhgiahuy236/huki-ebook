@@ -122,61 +122,69 @@ export class WalletService {
       });
     }
 
-    // Sync available balance from delivered/completed orders in DB
-    let sellerOrders = await this.prisma.sellerOrder.findMany({
-      where: { storeId },
-      include: { items: true },
-    });
-
-    if (sellerOrders.length === 0) {
-      sellerOrders = await this.prisma.sellerOrder.findMany({
-        include: { items: true },
-      });
+    if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
+      if (wallet.ownerUserId !== actor.sub && (actor as any)?.storeId !== wallet.storeId) {
+        throw new ForbiddenException('Access denied: Unauthorized store wallet');
+      }
     }
 
-    let totalDeliveredNet = 0;
-    let totalPendingNet = 0;
+    // Sync available balance from delivered/completed orders in DB
+    if (this.prisma.sellerOrder) {
+      let sellerOrders = (await this.prisma.sellerOrder.findMany({
+        where: { storeId },
+        include: { items: true },
+      })) || [];
 
-    sellerOrders.forEach((so) => {
-      const isDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED';
-      const isCancelled = so.status === 'CANCELLED';
+      if (sellerOrders.length === 0) {
+        sellerOrders = (await this.prisma.sellerOrder.findMany({
+          include: { items: true },
+        })) || [];
+      }
 
-      so.items.forEach((it) => {
-        const subtotal = Number(it.subtotal) || 0;
-        const fee = Math.round(subtotal * 0.05);
-        const net = subtotal - fee;
+      let totalDeliveredNet = 0;
+      let totalPendingNet = 0;
 
-        if (isDelivered) {
-          totalDeliveredNet += net;
-        } else if (!isCancelled) {
-          totalPendingNet += net;
-        }
+      sellerOrders.forEach((so) => {
+        const isDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED';
+        const isCancelled = so.status === 'CANCELLED';
+
+        so.items.forEach((it) => {
+          const subtotal = Number(it.subtotal) || 0;
+          const fee = Math.round(subtotal * 0.05);
+          const net = subtotal - fee;
+
+          if (isDelivered) {
+            totalDeliveredNet += net;
+          } else if (!isCancelled) {
+            totalPendingNet += net;
+          }
+        });
       });
-    });
 
-    // Check debited/withdrawn amount
-    const transactions = await this.prisma.walletTransaction.findMany({
-      where: { walletId: wallet.id },
-    });
-
-    const totalWithdrawn = transactions
-      .filter((t) => t.type === 'DEBIT_AVAILABLE')
-      .reduce((sum, t) => sum + t.amount.toNumber(), 0);
-
-    const calculatedAvailable = Math.max(0, totalDeliveredNet - totalWithdrawn);
-    const calculatedPending = Math.max(0, totalPendingNet);
-
-    if (
-      wallet.availableBalance.toNumber() !== calculatedAvailable ||
-      wallet.pendingBalance.toNumber() !== calculatedPending
-    ) {
-      wallet = await this.prisma.wallet.update({
-        where: { id: wallet.id },
-        data: {
-          availableBalance: new Decimal(calculatedAvailable),
-          pendingBalance: new Decimal(calculatedPending),
-        },
+      // Check debited/withdrawn amount
+      const transactions = await this.prisma.walletTransaction.findMany({
+        where: { walletId: wallet.id },
       });
+
+      const totalWithdrawn = transactions
+        .filter((t) => t.type === 'DEBIT_AVAILABLE')
+        .reduce((sum, t) => sum + t.amount.toNumber(), 0);
+
+      const calculatedAvailable = Math.max(0, totalDeliveredNet - totalWithdrawn);
+      const calculatedPending = Math.max(0, totalPendingNet);
+
+      if (
+        wallet.availableBalance.toNumber() !== calculatedAvailable ||
+        wallet.pendingBalance.toNumber() !== calculatedPending
+      ) {
+        wallet = await this.prisma.wallet.update({
+          where: { id: wallet.id },
+          data: {
+            availableBalance: new Decimal(calculatedAvailable),
+            pendingBalance: new Decimal(calculatedPending),
+          },
+        });
+      }
     }
 
     return this.formatWalletView(wallet);
@@ -207,61 +215,69 @@ export class WalletService {
       });
     }
 
-    // Ensure all delivered items have transaction records in DB
-    let deliveredOrders = await this.prisma.sellerOrder.findMany({
-      where: {
-        storeId,
-        status: { in: ['DELIVERED', 'COMPLETED'] },
-      },
-      include: { items: true, order: true },
-      orderBy: { completedAt: 'asc' },
-    });
+    if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
+      if (wallet.ownerUserId !== actor.sub && (actor as any)?.storeId !== wallet.storeId) {
+        throw new ForbiddenException('Access denied: Unauthorized store wallet');
+      }
+    }
 
-    if (deliveredOrders.length === 0) {
-      deliveredOrders = await this.prisma.sellerOrder.findMany({
+    // Ensure all delivered items have transaction records in DB
+    if (this.prisma.sellerOrder) {
+      let deliveredOrders = (await this.prisma.sellerOrder.findMany({
         where: {
+          storeId,
           status: { in: ['DELIVERED', 'COMPLETED'] },
         },
         include: { items: true, order: true },
         orderBy: { completedAt: 'asc' },
+      })) || [];
+
+      if (deliveredOrders.length === 0) {
+        deliveredOrders = (await this.prisma.sellerOrder.findMany({
+          where: {
+            status: { in: ['DELIVERED', 'COMPLETED'] },
+          },
+          include: { items: true, order: true },
+          orderBy: { completedAt: 'asc' },
+        })) || [];
+      }
+
+      const existingTxs = await this.prisma.walletTransaction.findMany({
+        where: { walletId: wallet.id },
       });
-    }
+      const loggedItemIds = new Set(existingTxs.map((t) => t.referenceId).filter(Boolean));
 
-    const existingTxs = await this.prisma.walletTransaction.findMany({
-      where: { walletId: wallet.id },
-    });
-    const loggedItemIds = new Set(existingTxs.map((t) => t.referenceId).filter(Boolean));
+      let currentRunning = existingTxs.reduce((sum, t) => {
+        return t.type === 'CREDIT_AVAILABLE' ? sum + t.amount.toNumber() : sum - t.amount.toNumber();
+      }, 0);
 
-    let currentRunning = existingTxs.reduce((sum, t) => {
-      return t.type === 'CREDIT_AVAILABLE' ? sum + t.amount.toNumber() : sum - t.amount.toNumber();
-    }, 0);
+      for (const so of deliveredOrders) {
+        for (const item of so.items) {
+          if (!loggedItemIds.has(item.id)) {
+            const subtotal = Number(item.subtotal) || 0;
+            const fee = Math.round(subtotal * 0.05);
+            const net = subtotal - fee;
+            const prev = currentRunning;
+            currentRunning += net;
 
-    for (const so of deliveredOrders) {
-      for (const item of so.items) {
-        if (!loggedItemIds.has(item.id)) {
-          const subtotal = Number(item.subtotal) || 0;
-          const fee = Math.round(subtotal * 0.05);
-          const net = subtotal - fee;
-          const prev = currentRunning;
-          currentRunning += net;
-
-          await this.prisma.walletTransaction.create({
-            data: {
-              walletId: wallet.id,
-              type: 'CREDIT_AVAILABLE',
-              amount: new Decimal(net),
-              availableBefore: new Decimal(prev),
-              availableAfter: new Decimal(currentRunning),
-              pendingBefore: new Decimal(0),
-              pendingAfter: new Decimal(0),
-              frozenBefore: new Decimal(0),
-              frozenAfter: new Decimal(0),
-              referenceType: 'ORDER_ITEM',
-              referenceId: item.id,
-              description: `Cộng doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${so.order?.code || so.code || 'N/A'} (95% thực nhận sau phí sàn 5%)`,
-              createdAt: so.completedAt || new Date(),
-            },
-          });
+            await this.prisma.walletTransaction.create({
+              data: {
+                walletId: wallet.id,
+                type: 'CREDIT_AVAILABLE',
+                amount: new Decimal(net),
+                availableBefore: new Decimal(prev),
+                availableAfter: new Decimal(currentRunning),
+                pendingBefore: new Decimal(0),
+                pendingAfter: new Decimal(0),
+                frozenBefore: new Decimal(0),
+                frozenAfter: new Decimal(0),
+                referenceType: 'ORDER_ITEM',
+                referenceId: item.id,
+                description: `Cộng doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${so.order?.code || so.code || 'N/A'} (95% thực nhận sau phí sàn 5%)`,
+                createdAt: so.completedAt || new Date(),
+              },
+            });
+          }
         }
       }
     }
@@ -710,6 +726,96 @@ export class WalletService {
       version: wallet.version,
       createdAt: wallet.createdAt,
       updatedAt: wallet.updatedAt,
+    };
+  }
+
+  /**
+   * Get global wallet transaction history for Platform Admin across all stores
+   */
+  async getAdminTransactions(
+    query: {
+      page?: number;
+      limit?: number;
+      storeId?: string;
+      type?: any;
+      dateFrom?: string;
+      dateTo?: string;
+    } = {},
+  ) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (query.storeId) {
+      const wallet = await this.prisma.wallet.findUnique({
+        where: { storeId: query.storeId },
+      });
+      if (wallet) {
+        where.walletId = wallet.id;
+      } else {
+        return { items: [], total: 0, page, limit };
+      }
+    }
+
+    if (query.type) {
+      where.type = query.type;
+    }
+
+    if (query.dateFrom || query.dateTo) {
+      where.createdAt = {};
+      if (query.dateFrom) {
+        where.createdAt.gte = new Date(query.dateFrom);
+      }
+      if (query.dateTo) {
+        where.createdAt.lte = new Date(query.dateTo);
+      }
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where,
+        include: {
+          wallet: {
+            select: {
+              storeId: true,
+              ownerUserId: true,
+              currency: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      this.prisma.walletTransaction.count({ where }),
+    ]);
+
+    return {
+      items: items.map((tx) => ({
+        id: tx.id,
+        walletId: tx.walletId,
+        storeId: tx.wallet?.storeId || null,
+        ownerUserId: tx.wallet?.ownerUserId || null,
+        currency: tx.wallet?.currency || 'VND',
+        type: tx.type,
+        amount: tx.amount.toNumber(),
+        availableBefore: tx.availableBefore.toNumber(),
+        availableAfter: tx.availableAfter.toNumber(),
+        pendingBefore: tx.pendingBefore.toNumber(),
+        pendingAfter: tx.pendingAfter.toNumber(),
+        frozenBefore: tx.frozenBefore.toNumber(),
+        frozenAfter: tx.frozenAfter.toNumber(),
+        referenceType: tx.referenceType,
+        referenceId: tx.referenceId,
+        description: tx.description,
+        metadata: tx.metadata,
+        createdAt: tx.createdAt.toISOString(),
+      })),
+      total,
+      page,
+      limit,
     };
   }
 }

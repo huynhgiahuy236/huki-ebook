@@ -4,6 +4,8 @@ import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 
 // Seed initial users for fallback if API is not yet loaded
 const INITIAL_USERS = [
@@ -176,6 +178,28 @@ export function AdminAccountsView() {
   });
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // Inspecting User Drawer / Panel
+  const [inspectingUser, setInspectingUser] = useState<any | null>(null);
+  const [inspectingTab, setInspectingTab] = useState<'info' | 'governance_audit'>('info');
+  const [userAuditLogs, setUserAuditLogs] = useState<AuditLogItem[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+
+  useEffect(() => {
+    if (inspectingUser?.id && inspectingTab === 'governance_audit') {
+      setLoadingAudit(true);
+      adminApi.getUserAuditLogs(inspectingUser.id)
+        .then((res) => {
+          if (res.success && res.data?.items) {
+            setUserAuditLogs(res.data.items);
+          } else {
+            setUserAuditLogs([]);
+          }
+        })
+        .catch(() => setUserAuditLogs([]))
+        .finally(() => setLoadingAudit(false));
+    }
+  }, [inspectingUser?.id, inspectingTab]);
 
   // Smart Form Collapse Hooks
   const isNewCustomerDirty = Boolean(
@@ -639,6 +663,148 @@ export function AdminAccountsView() {
     return <AdminStatusBadge status="neutral" label="Khách hàng" icon="person" />;
   };
 
+  const userColumns: Column<any>[] = useMemo(
+    () => [
+      {
+        key: 'stt',
+        title: 'STT',
+        width: 60,
+        align: 'center',
+        render: (_val, _row, idx) => (
+          <span className="font-mono text-theme-text-muted text-[11px] font-semibold">
+            {(currentPage - 1) * pageSize + idx + 1}
+          </span>
+        ),
+      },
+      {
+        key: 'fullName',
+        title: 'Người Dùng',
+        minWidth: 240,
+        sortable: true,
+        render: (_val, u) => (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-xs">
+              {u.avatar ? (
+                <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
+              ) : (
+                u.fullName?.charAt(0)?.toUpperCase() || 'U'
+              )}
+            </div>
+            <div>
+              <span
+                className="font-bold text-theme-text hover:text-theme-secondary cursor-pointer block truncate"
+                onClick={() => {
+                  setInspectingUser(u);
+                  setInspectingTab('info');
+                }}
+                title={u.fullName}
+              >
+                {u.fullName}
+              </span>
+              <span className="text-[10px] text-theme-text-muted font-mono block">
+                ID: {u.id}
+              </span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'email',
+        title: 'Email',
+        minWidth: 180,
+        render: (val) => (
+          <span className="font-mono text-[11px] text-theme-text-muted truncate block max-w-[170px]" title={val}>
+            {val}
+          </span>
+        ),
+      },
+      {
+        key: 'phone',
+        title: 'Số Điện Thoại',
+        width: 130,
+        render: (val) => (
+          <span className="font-mono text-[11px] text-theme-text">
+            {val || <span className="text-theme-text-muted italic">Chưa cập nhật</span>}
+          </span>
+        ),
+      },
+      {
+        key: 'role',
+        title: 'Vai Trò',
+        width: 140,
+        render: (_val, u) => renderRoleBadge(u),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 130,
+        align: 'center',
+        render: (val) => (
+          val === 'ACTIVE' ? (
+            <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
+          ) : (
+            <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
+          )
+        ),
+      },
+      {
+        key: 'createdAt',
+        title: 'Ngày Tham Gia',
+        width: 130,
+        sortable: true,
+        render: (val) => (
+          <span className="text-theme-text-muted text-[11px]">
+            {val ? new Date(val).toLocaleDateString('vi-VN') : 'Mới tạo'}
+          </span>
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 220,
+        align: 'right',
+        render: (_val, u) => {
+          const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
+          const isLocked = u.status === 'LOCKED' || u.status === 'BLOCKED';
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              <AdminActionButton
+                variant="view"
+                icon="visibility"
+                label="Chi tiết"
+                size="sm"
+                onClick={() => {
+                  setInspectingUser(u);
+                  setInspectingTab('info');
+                }}
+                title="Xem chi tiết & lịch sử thao tác"
+              />
+              <AdminActionButton
+                variant="edit"
+                icon="edit"
+                label="Sửa"
+                size="sm"
+                onClick={() => handleOpenEdit(u)}
+                title="Chỉnh sửa thông tin"
+              />
+              {!isPlatformAdmin && (
+                <AdminActionButton
+                  variant={isLocked ? 'unlock' : 'lock'}
+                  icon={isLocked ? 'lock_open' : 'lock'}
+                  label={isLocked ? 'Mở Khóa' : 'Khóa'}
+                  size="sm"
+                  onClick={() => setLockingUser(u)}
+                  title={isLocked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
+                />
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [currentPage, pageSize]
+  );
+
   return (
     <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
       {/* 1. Header Section */}
@@ -781,175 +947,138 @@ export function AdminAccountsView() {
       </div>
 
       {/* Main Table Container */}
-      <AdminTableContainer>
-        {loading ? (
-          <div className="p-8 space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-10 bg-gray-100 animate-pulse rounded-xl"></div>
-            ))}
-          </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-500 text-xs">
-            <div className="w-10 h-10 rounded-xl bg-gray-100 text-gray-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-xl">person_search</span>
+      <GroupedDataTable
+        columns={userColumns}
+        data={filteredUsers}
+        keyField="id"
+        loading={loading}
+        emptyTitle="Không Tìm Thấy Người Dùng Nào"
+        emptyMessage="Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc."
+        emptyIcon="person_search"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredUsers.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'tài khoản',
+        }}
+      />
+
+      {/* ===================== IN-PAGE USER DETAIL & GOVERNANCE AUDIT ===================== */}
+      {inspectingUser && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-200 animate-in fade-in slide-in-from-top-4 duration-300 space-y-5">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-slate-200 border border-slate-300 overflow-hidden flex items-center justify-center font-bold text-slate-700 text-base shrink-0">
+                {inspectingUser.avatar ? (
+                  <img src={inspectingUser.avatar} alt={inspectingUser.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  inspectingUser.fullName?.charAt(0)?.toUpperCase() || 'U'
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-gray-900">{inspectingUser.fullName}</h3>
+                  {renderRoleBadge(inspectingUser)}
+                  {inspectingUser.status === 'ACTIVE' ? (
+                    <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
+                  ) : (
+                    <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 font-mono mt-0.5">
+                  ID: {inspectingUser.id} • Email: {inspectingUser.email} • SĐT: {inspectingUser.phone || 'Chưa cập nhật'}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-bold text-gray-900">Không Tìm Thấy Người Dùng Nào</p>
-              <p className="text-[11px] text-gray-500 mt-0.5">Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc.</p>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setInspectingUser(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Đóng chi tiết
+              </button>
             </div>
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
-                <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Người Dùng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Email</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Số Điện Thoại</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mật Khẩu</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Vai Trò</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày Tham Gia</th>
-                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedUsers.map((u: any, idx: number) => {
-                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                  const isPasswordVisible = visiblePasswords[u.id] || false;
-                  const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
 
-                  return (
-                    <tr
-                      key={u.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                    >
-                      {/* 1. STT */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                        {itemIndex}
-                      </td>
+          {/* Sub-Tabs */}
+          <div className="flex items-center gap-2 border-b border-gray-200 pb-1">
+            <button
+              type="button"
+              onClick={() => setInspectingTab('info')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                inspectingTab === 'info'
+                  ? 'bg-emerald-50 text-[#00875A] border border-emerald-200 shadow-2xs'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">account_circle</span>
+              <span>Thông Tin Tài Khoản</span>
+            </button>
 
-                      {/* 2. Người Dùng: Avatar + Name */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-xs">
-                            {u.avatar ? (
-                              <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
-                            ) : (
-                              u.fullName?.charAt(0)?.toUpperCase() || 'U'
-                            )}
-                          </div>
-                          <div className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
-                            {u.fullName}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 3. Email */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
-                        {u.email}
-                      </td>
-
-                      {/* 4. Số điện thoại */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-700">
-                        {u.phone || <span className="text-gray-400 italic">Chưa cập nhật</span>}
-                      </td>
-
-                      {/* 5. Mật khẩu */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span
-                          title="Mật khẩu người dùng được băm bảo mật 1 chiều bằng Bcrypt trong database, không thể giải mã xem trực tiếp. Có thể đặt lại mật khẩu mới khi bấm Sửa."
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 border border-gray-200 text-[11px] font-mono text-gray-600 shadow-2xs cursor-help"
-                        >
-                          <span className="material-symbols-outlined text-[13px] text-emerald-600">lock</span>
-                          <span>Đã mã hóa Bcrypt</span>
-                        </span>
-                      </td>
-
-                      {/* 6. Vai trò */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        {renderRoleBadge(u)}
-                      </td>
-
-                      {/* 7. Trạng thái */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        {u.status === 'ACTIVE' ? (
-                          <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
-                        ) : (
-                          <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
-                        )}
-                      </td>
-
-                      {/* 8. Ngày tham gia */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
-                        {u.createdAt ? new Date(u.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}
-                      </td>
-
-                      {/* 9. Thao tác */}
-                      <td className="py-2.5 px-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <AdminActionButton
-                            variant="edit"
-                            icon="edit"
-                            size="sm"
-                            onClick={() => handleOpenEdit(u)}
-                            title="Chỉnh sửa thông tin"
-                          />
-
-                          {isPlatformAdmin ? (
-                            <AdminActionButton
-                              variant="neutral"
-                              icon="lock"
-                              size="sm"
-                              disabled
-                              title="Tài khoản Admin Sàn không thể bị khóa"
-                            />
-                          ) : (
-                            <AdminActionButton
-                              variant={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'unlock' : 'lock'}
-                              icon={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'lock_open' : 'lock'}
-                              size="sm"
-                              onClick={() => setLockingUser(u)}
-                              title={u.status === 'LOCKED' || u.status === 'BLOCKED' ? 'Mở khóa tài khoản' : 'Khóa tài khoản'}
-                            />
-                          )}
-
-                          {isPlatformAdmin ? (
-                            <AdminActionButton
-                              variant="neutral"
-                              icon="delete"
-                              size="sm"
-                              disabled
-                              title="Tài khoản Admin Sàn không thể bị xóa"
-                            />
-                          ) : (
-                            <AdminActionButton
-                              variant="danger"
-                              icon="delete"
-                              size="sm"
-                              onClick={() => setDeletingUser(u)}
-                              title="Xóa tài khoản"
-                            />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <button
+              type="button"
+              onClick={() => setInspectingTab('governance_audit')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                inspectingTab === 'governance_audit'
+                  ? 'bg-emerald-50 text-[#00875A] border border-emerald-200 shadow-2xs'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">history</span>
+              <span>Lịch Sử Thao Tác Quản Trị</span>
+            </button>
           </div>
-        )}
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredUsers.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="tài khoản"
-        />
-      </AdminTableContainer>
+
+          {/* Tab 1: Account Info */}
+          {inspectingTab === 'info' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Họ và Tên</span>
+                <p className="font-bold text-gray-900">{inspectingUser.fullName}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Email Đăng Nhập</span>
+                <p className="font-mono text-gray-900">{inspectingUser.email}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Số Điện Thoại</span>
+                <p className="font-mono text-gray-900">{inspectingUser.phone || 'Chưa cập nhật'}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Vai Trò Hệ Thống</span>
+                <p className="font-bold text-gray-900">{inspectingUser.roleLabel || inspectingUser.role}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Gian Hàng Liên Kết</span>
+                <p className="font-medium text-gray-900">{inspectingUser.storeName || 'Không có (Khách hàng/Admin)'}</p>
+              </div>
+              <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 space-y-1">
+                <span className="text-[10.5px] uppercase font-bold text-gray-500">Ngày Tạo Tài Khoản</span>
+                <p className="font-mono text-gray-900">
+                  {inspectingUser.createdAt ? new Date(inspectingUser.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Tab 2: Governance Audit Timeline */}
+          {inspectingTab === 'governance_audit' && (
+            <AuditHistoryTimeline
+              title={`Nhật Ký Quản Trị Tài Khoản #${inspectingUser.id}`}
+              description="Theo dõi toàn bộ các tác vụ Khóa tài khoản, Mở khóa, Đổi vai trò hoặc Cập nhật thông tin thực hiện bởi Platform Admin."
+              items={userAuditLogs}
+              loading={loadingAudit}
+              emptyTitle="Chưa có lịch sử thay đổi quản trị"
+              emptyMessage={`Tài khoản "${inspectingUser.fullName}" chưa có thao tác khóa/mở khóa hay phân quyền nào từ Platform Admin.`}
+            />
+          )}
+        </div>
+      )}
 
       {/* ===================== IN-PAGE FORM 1: THÊM KHÁCH HÀNG MỚI ===================== */}
       {showAddCustomerModal && (

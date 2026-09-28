@@ -1,94 +1,23 @@
 import React from 'react';
+import GroupedDataTable, {
+  Column as BaseColumn,
+  GroupedDataTableProps,
+  SortDirection,
+  PaginationConfig,
+} from './GroupedDataTable';
 
-export interface Column<T = any> {
-  key: string;
-  title: string;
-  align?: 'left' | 'center' | 'right';
-  width?: string | number;
-  headerClassName?: string;
-  className?: string;
-  render?: (value: any, row: T, index: number) => React.ReactNode;
-}
+export type Column<T = any> = BaseColumn<T>;
+export type { SortDirection, PaginationConfig };
 
-export interface DataTableProps<T = any> {
+export interface DataTableProps<T = any> extends Omit<GroupedDataTableProps<T>, 'columns' | 'data'> {
   columns: Column<T>[];
   data: T[];
-  keyField?: string;
-  loading?: boolean;
-  emptyMessage?: string;
-  onRowClick?: (row: T) => void;
-  className?: string;
 }
 
 /**
  * Shared DataTable Component for HUKI EBOOK
+ * Fully backward compatible wrapper powered by GroupedDataTable foundation.
  */
-export default function DataTable<T = any>({
-  columns = [],
-  data = [],
-  keyField = 'id',
-  loading = false,
-  emptyMessage = 'Không có dữ liệu trong danh sách',
-  onRowClick,
-  className = ''
-}: DataTableProps<T>) {
-  return (
-    <div className={`w-full overflow-hidden bg-theme-surface rounded-xl border border-theme-border shadow-2xs ${className}`}>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs text-theme-text">
-          <thead className="bg-theme-surface-subtle text-[10px] uppercase font-bold text-theme-text-muted border-b border-theme-border/70 tracking-wider">
-            <tr>
-              {columns.map((col, idx) => (
-                <th
-                  key={col.key || idx}
-                  className={`py-2 px-3 font-bold ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.headerClassName || ''}`}
-                  style={{ width: col.width }}
-                >
-                  {col.title}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-theme-border/50">
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="py-8 text-center text-theme-text-muted">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-theme-secondary border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs">Đang tải dữ liệu...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="py-6 text-center text-theme-text-muted">
-                  <div className="flex flex-col items-center justify-center gap-1.5">
-                    <span className="material-symbols-outlined text-2xl text-theme-text-muted/60">inbox</span>
-                    <span className="text-xs">{emptyMessage}</span>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              data.map((row: any, rowIdx: number) => (
-                <tr
-                  key={row[keyField] || rowIdx}
-                  onClick={() => onRowClick && onRowClick(row)}
-                  className={`transition-colors ${onRowClick ? 'cursor-pointer hover:bg-theme-surface-subtle/80' : 'hover:bg-theme-surface-subtle/40'}`}
-                >
-                  {columns.map((col, colIdx) => (
-                    <td
-                      key={col.key || colIdx}
-                      className={`py-2 px-3 text-xs ${col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'} ${col.className || ''}`}
-                    >
-                      {col.render ? col.render(row[col.key], row, rowIdx) : row[col.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+export default function DataTable<T extends Record<string, any> = any>(props: DataTableProps<T>) {
+  return <GroupedDataTable<T> {...props} />;
 }
