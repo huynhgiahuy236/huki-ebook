@@ -1,12 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Prisma, User, UserRole, UserStatus } from '../../../prisma/generated/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction, AuditDiffHelper } from '../../../../../libs/shared/src';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   private getBusinessDbClient() {
     const { Client } = require('pg');
@@ -186,6 +191,19 @@ export class UserService {
       },
     });
 
+    await this.auditService.log({
+      actorId: 'ADMIN',
+      actorRole: 'PLATFORM_ADMIN',
+      service: 'identity-service',
+      module: 'ACCOUNTS',
+      action: AuditAction.CREATE,
+      resource: 'User',
+      resourceId: user.id,
+      beforeState: null,
+      afterState: user,
+      changedFields: Object.keys(user),
+    });
+
     return {
       success: true,
       data: {
@@ -235,6 +253,20 @@ export class UserService {
       data: updateData,
     });
 
+    const diff = AuditDiffHelper.computeDiff(user, updated);
+    await this.auditService.log({
+      actorId: 'ADMIN',
+      actorRole: 'PLATFORM_ADMIN',
+      service: 'identity-service',
+      module: 'ACCOUNTS',
+      action: dto.role && dto.role !== user.role ? AuditAction.ROLE_CHANGE : AuditAction.UPDATE,
+      resource: 'User',
+      resourceId: updated.id,
+      beforeState: diff.beforeState,
+      afterState: diff.afterState,
+      changedFields: diff.changedFields,
+    });
+
     return {
       success: true,
       data: updated,
@@ -248,9 +280,24 @@ export class UserService {
     }
 
     const nextStatus = user.status === UserStatus.BLOCKED ? UserStatus.ACTIVE : UserStatus.BLOCKED;
+    const action = nextStatus === UserStatus.BLOCKED ? AuditAction.BLOCK : AuditAction.UNBLOCK;
     const updated = await this.prisma.user.update({
       where: { id },
       data: { status: nextStatus },
+    });
+
+    const diff = AuditDiffHelper.computeDiff(user, updated);
+    await this.auditService.log({
+      actorId: 'ADMIN',
+      actorRole: 'PLATFORM_ADMIN',
+      service: 'identity-service',
+      module: 'ACCOUNTS',
+      action,
+      resource: 'User',
+      resourceId: updated.id,
+      beforeState: diff.beforeState,
+      afterState: diff.afterState,
+      changedFields: diff.changedFields,
     });
 
     return {
@@ -265,9 +312,22 @@ export class UserService {
       throw new ForbiddenException('Không thể xóa tài khoản Quản trị sàn');
     }
 
-    await this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { deletedAt: new Date() },
+    });
+
+    await this.auditService.log({
+      actorId: 'ADMIN',
+      actorRole: 'PLATFORM_ADMIN',
+      service: 'identity-service',
+      module: 'ACCOUNTS',
+      action: AuditAction.DELETE,
+      resource: 'User',
+      resourceId: id,
+      beforeState: user,
+      afterState: updated,
+      changedFields: ['deletedAt'],
     });
 
     return {

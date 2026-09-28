@@ -10,6 +10,7 @@ import { BusinessModule } from './modules/business/business.module';
 import { StoreModule } from './modules/store/store.module';
 import { MemberModule } from './modules/member/member.module';
 import { BusinessOutboxModule } from './modules/outbox/outbox.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 // Health
 import { HealthController } from './modules/health/health.controller';
@@ -32,6 +33,7 @@ import { HealthController } from './modules/health/health.controller';
     StoreModule,
     MemberModule,
     BusinessOutboxModule,
+    AuditModule,
   ],
   controllers: [HealthController],
 })

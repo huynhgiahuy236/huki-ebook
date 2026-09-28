@@ -6,12 +6,15 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { throwConflict, throwNotFound, throwBadRequest, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { BUSINESS_EVENTS } from '@huki/shared/events';
+import { AuditService } from '../audit/audit.service';
+import { AuditAction, AuditActorContext } from '@huki/shared';
 
 @Injectable()
 export class BusinessService {
   constructor(
     private prisma: PrismaService,
     private eventEmitter: EventEmitter2,
+    private auditService?: AuditService,
   ) {}
 
   // ==================== CREATE ====================
@@ -302,7 +305,7 @@ export class BusinessService {
   }
 
   // ==================== APPROVAL FLOW ====================
-  async approveBusiness(id: string, adminId: string) {
+  async approveBusiness(id: string, adminId: string, actorContext?: Partial<AuditActorContext>) {
     const business = await this.prisma.business.findUnique({
       where: { id },
     });
@@ -369,6 +372,25 @@ export class BusinessService {
       });
     }
 
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: actorContext?.actorRole || 'PLATFORM_ADMIN',
+        requestId: actorContext?.requestId,
+        ip: actorContext?.ip,
+        userAgent: actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: registryVerified ? AuditAction.APPROVE : AuditAction.REJECT,
+      resource: 'Business',
+      resourceId: id,
+      storeId: business.id,
+      beforeState: { status: business.status, name: business.name, taxCode: business.taxCode },
+      afterState: { status: updatedBusiness.status, name: updatedBusiness.name, taxCode: updatedBusiness.taxCode },
+      changedFields: ['status'],
+    });
+
     // Emit event
     this.eventEmitter.emit(
       registryVerified ? BUSINESS_EVENTS.APPROVED : BUSINESS_EVENTS.REJECTED,
@@ -382,7 +404,9 @@ export class BusinessService {
     return updatedBusiness;
   }
 
-  async rejectBusiness(id: string, adminId: string, reason: string) {
+  async rejectBusiness(id: string, adminId: string, reason: string, actorContext?: Partial<AuditActorContext>) {
+    const beforeBusiness = await this.prisma.business.findUnique({ where: { id } });
+
     await this.prisma.store.updateMany({
       where: { businessId: id },
       data: {
@@ -391,7 +415,7 @@ export class BusinessService {
       },
     });
 
-    return this.prisma.business.update({
+    const updatedBusiness = await this.prisma.business.update({
       where: { id },
       data: {
         status: BusinessStatus.REJECTED,
@@ -400,9 +424,32 @@ export class BusinessService {
         rejectionReason: reason,
       },
     });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: actorContext?.actorRole || 'PLATFORM_ADMIN',
+        requestId: actorContext?.requestId,
+        ip: actorContext?.ip,
+        userAgent: actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: AuditAction.REJECT,
+      resource: 'Business',
+      resourceId: id,
+      storeId: id,
+      beforeState: beforeBusiness ? { status: beforeBusiness.status, rejectionReason: beforeBusiness.rejectionReason } : null,
+      afterState: { status: updatedBusiness.status, rejectionReason: updatedBusiness.rejectionReason },
+      changedFields: ['status', 'rejectionReason'],
+    });
+
+    return updatedBusiness;
   }
 
-  async suspendBusiness(id: string) {
+  async suspendBusiness(id: string, adminId?: string, actorContext?: Partial<AuditActorContext>) {
+    const beforeBusiness = await this.prisma.business.findUnique({ where: { id } });
+
     await this.prisma.store.updateMany({
       where: { businessId: id },
       data: {
@@ -411,12 +458,33 @@ export class BusinessService {
       },
     });
 
-    return this.prisma.business.update({
+    const updatedBusiness = await this.prisma.business.update({
       where: { id },
       data: {
         status: BusinessStatus.SUSPENDED,
       },
     });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId || actorContext?.actorId || 'SYSTEM',
+        actorRole: actorContext?.actorRole || 'PLATFORM_ADMIN',
+        requestId: actorContext?.requestId,
+        ip: actorContext?.ip,
+        userAgent: actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: AuditAction.SUSPEND,
+      resource: 'Business',
+      resourceId: id,
+      storeId: id,
+      beforeState: beforeBusiness ? { status: beforeBusiness.status } : null,
+      afterState: { status: updatedBusiness.status },
+      changedFields: ['status'],
+    });
+
+    return updatedBusiness;
   }
 
   // ==================== FOLLOW / UNFOLLOW ====================
@@ -800,7 +868,7 @@ export class BusinessService {
     return request;
   }
 
-  async approveUpdateRequest(id: string, adminId: string) {
+  async approveUpdateRequest(id: string, adminId: string, actorContext?: Partial<AuditActorContext>) {
     const request = await (this.prisma as any).businessUpdateRequest.findUnique({
       where: { id },
       include: { business: { include: { stores: true } } },
@@ -865,13 +933,32 @@ export class BusinessService {
       },
     });
 
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: actorContext?.actorRole || 'PLATFORM_ADMIN',
+        requestId: actorContext?.requestId,
+        ip: actorContext?.ip,
+        userAgent: actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: AuditAction.APPROVE,
+      resource: 'BusinessUpdateRequest',
+      resourceId: id,
+      storeId: request.businessId,
+      beforeState: { status: request.status },
+      afterState: { status: 'APPROVED', reviewedBy: adminId, requestedData: data },
+      changedFields: ['status', 'reviewedBy'],
+    });
+
     return {
       message: 'Đã phê duyệt và cập nhật thông tin doanh nghiệp thành công',
       data: updatedRequest,
     };
   }
 
-  async rejectUpdateRequest(id: string, adminId: string, reason: string) {
+  async rejectUpdateRequest(id: string, adminId: string, reason: string, actorContext?: Partial<AuditActorContext>) {
     const request = await (this.prisma as any).businessUpdateRequest.findUnique({
       where: { id },
     });
@@ -893,6 +980,25 @@ export class BusinessService {
         reviewedBy: adminId,
         reviewedAt: new Date(),
       },
+    });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: actorContext?.actorRole || 'PLATFORM_ADMIN',
+        requestId: actorContext?.requestId,
+        ip: actorContext?.ip,
+        userAgent: actorContext?.userAgent,
+      },
+      module: 'BUSINESS',
+      action: AuditAction.REJECT,
+      resource: 'BusinessUpdateRequest',
+      resourceId: id,
+      storeId: request.businessId,
+      beforeState: { status: request.status },
+      afterState: { status: 'REJECTED', rejectionReason: reason, reviewedBy: adminId },
+      changedFields: ['status', 'rejectionReason', 'reviewedBy'],
     });
 
     return {

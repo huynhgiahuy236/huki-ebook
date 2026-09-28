@@ -7,12 +7,14 @@ import { BannersModule } from './modules/banners/banners.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { DiscountsModule } from './modules/discounts/discounts.module';
 import { PromotionOutboxModule } from './modules/outbox/outbox.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { HealthController } from './health.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
+    AuditModule,
     VouchersModule,
     FlashSalesModule,
     BannersModule,

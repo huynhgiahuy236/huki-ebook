@@ -21,6 +21,7 @@ import { PayoutModule } from './modules/payout/payout.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SanctionsModule } from './modules/sanctions/sanctions.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { HealthController } from './health.controller';
 import { MonitoringModule } from '@huki/shared';
 
@@ -47,6 +48,7 @@ import { MonitoringModule } from '@huki/shared';
     EventEmitterModule.forRoot(),
     CommonModule,
     PrismaModule,
+    AuditModule,
     RedisModule,
     NotificationsModule,
     SanctionsModule,

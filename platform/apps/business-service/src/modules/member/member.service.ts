@@ -17,6 +17,8 @@ import {
 } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 import { EmailService } from "@huki/shared";
+import { AuditService } from "../audit/audit.service";
+import { AuditAction, AuditActorContext } from "@huki/shared";
 import { randomUUID } from "node:crypto";
 
 @Injectable()
@@ -24,6 +26,7 @@ export class MemberService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly emailService: EmailService,
+    private readonly auditService?: AuditService,
   ) {}
 
   private getIdentityDbClient() {
@@ -113,6 +116,30 @@ export class MemberService {
       },
     });
 
+    // Record Audit Log (sensitive initialPassword is never logged)
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.INVITE,
+      resource: 'Member',
+      resourceId: member.id,
+      storeId: businessId,
+      afterState: {
+        id: member.id,
+        businessId: member.businessId,
+        userId: member.userId,
+        role: member.role,
+        status: member.status,
+        permissions: member.permissions,
+        email,
+        fullName: dto.fullName,
+      },
+      changedFields: ['id', 'userId', 'role', 'status', 'permissions'],
+    });
+
     return {
       message: "Cấp tài khoản nhân viên thành công",
       data: {
@@ -157,6 +184,27 @@ export class MemberService {
         expiresAt,
         status: InvitationStatus.PENDING,
       },
+    });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: userId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.INVITE,
+      resource: 'Invitation',
+      resourceId: invitation.id,
+      storeId: businessId,
+      afterState: {
+        id: invitation.id,
+        email: invitation.email,
+        role: invitation.role,
+        businessId: invitation.businessId,
+        expiresAt: invitation.expiresAt,
+      },
+      changedFields: ['email', 'role', 'businessId'],
     });
 
     await this.emailService.sendInvitationEmail(
@@ -363,6 +411,22 @@ export class MemberService {
       data: { permissions },
     });
 
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.PERMISSION_CHANGE,
+      resource: 'Member',
+      resourceId: memberId,
+      storeId: businessId,
+      beforeState: { permissions: member.permissions },
+      afterState: { permissions: updated.permissions },
+      changedFields: ['permissions'],
+    });
+
     return {
       message: "Cập nhật phân quyền thành công",
       data: updated,
@@ -395,6 +459,22 @@ export class MemberService {
     const updated = await this.prisma.member.update({
       where: { id: memberId },
       data: { status },
+    });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.UPDATE,
+      resource: 'Member',
+      resourceId: memberId,
+      storeId: businessId,
+      beforeState: { status: member.status },
+      afterState: { status: updated.status },
+      changedFields: ['status'],
     });
 
     return {
@@ -441,6 +521,21 @@ export class MemberService {
       await pgClient.end();
     }
 
+    // Record Audit Log (Password is NEVER logged)
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.UPDATE,
+      resource: 'Member',
+      resourceId: memberId,
+      storeId: businessId,
+      afterState: { id: memberId, userId: member.userId, passwordReset: true },
+      changedFields: ['passwordReset'],
+    });
+
     return {
       message: "Đặt lại mật khẩu thành công",
       data: { temporaryPassword: pass },
@@ -470,10 +565,28 @@ export class MemberService {
       throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
-    return this.prisma.member.update({
+    const updated = await this.prisma.member.update({
       where: { id: memberId },
       data: { role: newRole as any },
     });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.ROLE_CHANGE,
+      resource: 'Member',
+      resourceId: memberId,
+      storeId: businessId,
+      beforeState: { role: member.role },
+      afterState: { role: updated.role },
+      changedFields: ['role'],
+    });
+
+    return updated;
   }
 
   // ==================== REMOVE MEMBER ====================
@@ -494,10 +607,28 @@ export class MemberService {
       throwBadRequest(ErrorCode.MEMBER_ROLE_IMMUTABLE);
     }
 
-    return this.prisma.member.update({
+    const updated = await this.prisma.member.update({
       where: { id: memberId },
       data: { deletedAt: new Date() },
     });
+
+    // Record Audit Log
+    await this.auditService?.record({
+      actor: {
+        actorId: adminId,
+        actorRole: 'OWNER',
+      },
+      module: 'STAFF',
+      action: AuditAction.DELETE,
+      resource: 'Member',
+      resourceId: memberId,
+      storeId: businessId,
+      beforeState: { id: member.id, role: member.role, status: member.status, deletedAt: null },
+      afterState: { id: updated.id, deletedAt: updated.deletedAt },
+      changedFields: ['deletedAt'],
+    });
+
+    return updated;
   }
 
   // ==================== LEAVE BUSINESS ====================

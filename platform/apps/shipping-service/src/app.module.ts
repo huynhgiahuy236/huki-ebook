@@ -7,6 +7,7 @@ import { DeliveryStaffModule } from './modules/delivery-staff/delivery-staff.mod
 import { ShipmentsModule } from './modules/shipments/shipments.module';
 import { ShippingModule } from './modules/shipping/shipping.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { ShippingEventsModule } from './modules/events/events.module';
 import { HealthController } from './health.controller';
 
@@ -23,6 +24,7 @@ import { HealthController } from './health.controller';
     }),
     CommonModule,
     PrismaModule,
+    AuditModule,
     AddressesModule,
     DeliveryStaffModule,
     ShippingModule,

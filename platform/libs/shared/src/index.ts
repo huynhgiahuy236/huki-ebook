@@ -37,3 +37,6 @@ export * from "./tracing";
 // Policy & Decision-dependent Configuration
 export * from "./config";
 
+// Governance Audit primitives
+export * from "./audit";
+

@@ -133,3 +133,33 @@ model OutboxEvent {
   @@index([status, createdAt])
   @@map("outbox_events")
 }
+
+// ============================================
+// GOVERNANCE AUDIT LOGS (Phase 1)
+// ============================================
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  actorId       String   @map("actor_id")
+  actorRole     String?  @map("actor_role")
+  service       String   @db.VarChar(100)
+  module        String   @db.VarChar(100)
+  action        String   @db.VarChar(100)
+  resource      String   @db.VarChar(100)
+  resourceId    String?  @map("resource_id")
+  beforeState   Json?    @map("before_state")
+  afterState    Json?    @map("after_state")
+  changedFields Json?    @map("changed_fields")
+  requestId     String?  @map("request_id")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  storeId       String?  @map("store_id")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([service, module, createdAt])
+  @@index([resource, resourceId])
+  @@index([storeId, createdAt])
+  @@map("audit_logs")
+}
