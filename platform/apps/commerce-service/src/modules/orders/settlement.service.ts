@@ -99,8 +99,12 @@ export class SettlementService {
     const shippingFee = new Decimal(sellerOrder.shippingFee);
     const grandTotal = new Decimal(sellerOrder.grandTotal);
 
-    // Commission Basis: SUBTOTAL (gross book price) vs NET_PAID (grand total paid for sub-order)
-    const commissionBasisAmount = basis === 'SUBTOTAL' ? subtotal : grandTotal;
+    // CRITICAL: Shipping fee is strictly excluded from merchandise settlement and commission
+    // Net merchandise paid by customer for this sub-order (excluding shipping)
+    const merchandiseNet = Decimal.max(new Decimal(0), grandTotal.sub(shippingFee));
+
+    // Commission Basis: SUBTOTAL (gross book price) vs NET_PAID (net book price excluding shipping)
+    const commissionBasisAmount = basis === 'SUBTOTAL' ? subtotal : merchandiseNet;
 
     // Platform Commission = round(basisAmount * commissionPercent / 100)
     const platformCommission = commissionBasisAmount
@@ -110,13 +114,13 @@ export class SettlementService {
 
     // Platform Voucher Subsidy (POL-14 FEE-001 / DEC-004):
     // Platform reimburses the platform-funded discount portion to the seller
-    const discountAmount = Decimal.max(new Decimal(0), subtotal.add(shippingFee).sub(grandTotal));
+    const discountAmount = Decimal.max(new Decimal(0), subtotal.sub(merchandiseNet));
     const platformSubsidy = discountAmount
       .mul(new Decimal(subsidyRate))
       .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
 
-    // Seller Net Payout = GrandTotal - Commission + Subsidy
-    let sellerNet = grandTotal.sub(platformCommission).add(platformSubsidy);
+    // Seller Net Payout = Merchandise Net - Commission + Subsidy (Excludes shipping fee)
+    let sellerNet = merchandiseNet.sub(platformCommission).add(platformSubsidy);
     if (sellerNet.isNegative()) {
       sellerNet = new Decimal(0);
     }
@@ -467,6 +471,8 @@ export class SettlementService {
     // 3. Payment Ingestion Ledger Precondition (Ensure opening escrow position exists)
     await this.ensureOpeningEscrowIngested(sellerOrder);
 
+    const merchandisePendingAmount = Math.max(0, calculation.grandTotal - calculation.shippingFee);
+
     // 4. Post Double-Entry Ledger Transaction
     // Entries: Dr SELLER_PENDING, Dr PLATFORM_MARKETING_EXPENSE (if subsidy > 0), Cr SELLER_AVAILABLE, Cr PLATFORM_REVENUE
     const entries: Array<{
@@ -479,7 +485,7 @@ export class SettlementService {
       {
         accountType: LedgerAccountType.SELLER_PENDING,
         direction: LedgerEntryDirection.DEBIT,
-        amount: calculation.grandTotal,
+        amount: merchandisePendingAmount,
         storeId: sellerOrder.storeId || undefined,
         description: `Clear pending seller proceeds for sub-order ${sellerOrder.code}`,
       },
@@ -639,6 +645,7 @@ export class SettlementService {
     }
 
     const calculation = this.calculateSettlement(sellerOrder);
+    const merchandisePendingAmount = Math.max(0, calculation.grandTotal - calculation.shippingFee);
 
     // 1. Post opening double-entry transaction: Dr ESCROW_HOLDING, Cr SELLER_PENDING
     await this.ledgerService.postTransaction({
@@ -652,14 +659,14 @@ export class SettlementService {
         {
           accountType: LedgerAccountType.ESCROW_HOLDING,
           direction: LedgerEntryDirection.DEBIT,
-          amount: calculation.grandTotal,
+          amount: merchandisePendingAmount,
           storeId: sellerOrder.storeId,
           description: `Payment funds deposited into escrow holding pool`,
         },
         {
           accountType: LedgerAccountType.SELLER_PENDING,
           direction: LedgerEntryDirection.CREDIT,
-          amount: calculation.grandTotal,
+          amount: merchandisePendingAmount,
           storeId: sellerOrder.storeId,
           description: `Unreleased pending seller proceeds held in escrow`,
         },
@@ -669,6 +676,7 @@ export class SettlementService {
         orderId: sellerOrder.orderId,
         storeId: sellerOrder.storeId,
         grandTotal: calculation.grandTotal,
+        merchandisePendingAmount,
         sellerNet: calculation.sellerNet,
       },
     });

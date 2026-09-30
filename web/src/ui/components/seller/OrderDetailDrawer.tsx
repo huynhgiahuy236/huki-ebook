@@ -126,9 +126,28 @@ export default function OrderDetailDrawer({
                   <li key={event.id || `${event.toStatus}-${index}`} className="relative pl-7 pb-5 last:pb-0">
                     {index < timeline.length - 1 && <span className="absolute left-[7px] top-4 bottom-0 w-px bg-emerald-200" />}
                     <span className="absolute left-0 top-1 w-4 h-4 rounded-full bg-emerald-600 ring-4 ring-emerald-100" />
-                    <p className="font-bold text-sm text-slate-900 dark:text-white">{event.title || STATUS_LABELS[event.toStatus] || event.toStatus}</p>
-                    {event.description && <p className="text-xs text-slate-500 mt-0.5">{event.description}</p>}
-                    <time className="text-[11px] text-slate-400">{dateTime(event.createdAt)}</time>
+                    <div className="flex items-baseline justify-between gap-2">
+                      <p className="font-bold text-sm text-slate-900 dark:text-white">
+                        {event.fromStatus && event.fromStatus !== event.toStatus ? (
+                          <span>
+                            <span className="text-slate-400 font-normal">{STATUS_LABELS[event.fromStatus] || event.fromStatus} → </span>
+                            <span>{STATUS_LABELS[event.toStatus] || event.toStatus}</span>
+                          </span>
+                        ) : (
+                          event.title || STATUS_LABELS[event.toStatus] || event.toStatus
+                        )}
+                      </p>
+                      <time className="text-[11px] text-slate-400 font-mono whitespace-nowrap">{dateTime(event.createdAt)}</time>
+                    </div>
+                    {event.actorType && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Thực hiện bởi: <span className="font-semibold text-slate-600 dark:text-slate-300">{event.actorType === 'SELLER' || event.actorType === 'STORE_OWNER' ? 'Chủ Shop' : event.actorType === 'STAFF' ? 'Nhân viên Shop' : event.actorType === 'PLATFORM_ADMIN' ? 'Admin' : event.actorType}</span>
+                        {event.actorId && <span className="font-mono text-[10px] ml-1 text-slate-400">({event.actorId.slice(0, 8)})</span>}
+                      </p>
+                    )}
+                    {(event.description || event.note || event.reason) && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{event.description || event.note || event.reason}</p>
+                    )}
                   </li>
                 ))}
               </ol>

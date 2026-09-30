@@ -737,4 +737,36 @@ export class MemberService {
 
     return allowedRoles.includes(member.role);
   }
+
+  // ==================== GOVERNANCE AUDIT LOGS ====================
+  async getMemberAuditLogs(
+    businessId: string,
+    userId: string,
+    userRole: string,
+    query: { page?: number; limit?: number; action?: string },
+  ) {
+    if (userRole !== 'PLATFORM_ADMIN') {
+      const hasAccess = await this.canManageMembers(businessId, userId);
+      if (!hasAccess) {
+        throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
+      }
+    }
+
+    if (!this.auditService) {
+      return {
+        items: [],
+        total: 0,
+        page: query.page || 1,
+        limit: query.limit || 20,
+      };
+    }
+
+    return this.auditService.queryAuditLogs({
+      resource: 'Member',
+      storeId: businessId,
+      page: query.page,
+      limit: query.limit,
+      action: query.action,
+    });
+  }
 }

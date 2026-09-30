@@ -22,6 +22,7 @@ describe("OrdersService (Prisma)", () => {
       sellerOrder: { findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
       payment: { updateMany: jest.fn() },
       orderStatusHistory: { create: jest.fn(), findMany: jest.fn(), findFirst: jest.fn() },
+      returnRequest: { findUnique: jest.fn().mockResolvedValue(null), findMany: jest.fn().mockResolvedValue([]), update: jest.fn().mockResolvedValue({}) },
       outboxEvent: { create: jest.fn() },
       $transaction: jest.fn().mockImplementation(async (cb: any) => {
         if (typeof cb === "function") {
@@ -39,6 +40,11 @@ describe("OrdersService (Prisma)", () => {
     flashSales = {
       releaseOrder: jest.fn().mockResolvedValue(undefined),
     };
+    const voucherClient = {
+      validateAndApplyVouchers: jest.fn().mockResolvedValue({ valid: true }),
+      releaseVoucherUsage: jest.fn().mockResolvedValue(undefined),
+      rollback: jest.fn().mockResolvedValue(undefined),
+    };
     escrow = new EscrowService(prisma);
     const configService = {
       get: jest.fn((key: string, defaultVal?: any) => defaultVal),
@@ -50,6 +56,7 @@ describe("OrdersService (Prisma)", () => {
       flashSales,
       escrow,
       configService as any,
+      voucherClient as any,
     );
   });
 
@@ -708,7 +715,7 @@ describe("OrdersService (Prisma)", () => {
       prisma.orderStatusHistory.create = jest.fn().mockResolvedValue({ id: "hist-ruling" });
       prisma.outboxEvent.create = jest.fn().mockResolvedValue({ id: "evt-ruling" });
 
-      const rulingResult = await service.adminArbitrateDispute(
+      const rulingResult: any = await service.adminArbitrateDispute(
         { sub: "admin-1", email: "admin@huki.vn", role: "PLATFORM_ADMIN" } as any,
         "disp-123",
         {
@@ -717,9 +724,9 @@ describe("OrdersService (Prisma)", () => {
         },
       );
 
-      expect(rulingResult.disputeId).toBe("disp-123");
-      expect(rulingResult.ruling).toBe("BUYER_WINS");
-      expect(rulingResult.status).toBe("RULING_BUYER_WINS");
+      expect((rulingResult as any)?.disputeId).toBe("disp-123");
+      expect((rulingResult as any)?.ruling).toBe("BUYER_WINS");
+      expect((rulingResult as any)?.status).toBe("RULING_BUYER_WINS");
 
       // Verify audit trail
       expect(prisma.orderStatusHistory.create).toHaveBeenCalledWith({
@@ -752,7 +759,7 @@ describe("OrdersService (Prisma)", () => {
       prisma.outboxEvent.create = jest.fn().mockResolvedValue({ id: "evt-ruling-2" });
 
       // Valid partial settlement
-      const partialResult = await service.adminArbitrateDispute(
+      const partialResult: any = await service.adminArbitrateDispute(
         { sub: "admin-1", email: "admin@huki.vn", role: "PLATFORM_ADMIN" } as any,
         "disp-123",
         {
@@ -762,8 +769,8 @@ describe("OrdersService (Prisma)", () => {
         },
       );
 
-      expect(partialResult.ruling).toBe("PARTIAL_SETTLEMENT");
-      expect(partialResult.refundPercentage).toBe(50);
+      expect((partialResult as any)?.ruling).toBe("PARTIAL_SETTLEMENT");
+      expect((partialResult as any)?.refundPercentage).toBe(50);
 
       // Invalid percentage (e.g. 0 or 100)
       await expect(
@@ -962,7 +969,7 @@ describe("OrdersService (Prisma)", () => {
       prisma.orderStatusHistory.create = jest.fn().mockResolvedValue({ id: "hist-unfreeze" });
       prisma.outboxEvent.create = jest.fn().mockResolvedValue({ id: "evt-unfreeze" });
 
-      const rulingResult = await service.adminArbitrateDispute(
+      const rulingResult: any = await service.adminArbitrateDispute(
         { sub: "admin-1", email: "admin@huki.vn", role: "PLATFORM_ADMIN" } as any,
         "disp-123",
         {
@@ -971,10 +978,10 @@ describe("OrdersService (Prisma)", () => {
         },
       );
 
-      expect(rulingResult.escrowStatus).toBe("ESCROW_UNFROZEN");
-      expect(rulingResult.routing).toBe("REFUND_BUYER");
-      expect(rulingResult.refundAmount).toBe(200000);
-      expect(rulingResult.sellerSettlement).toBe(0);
+      expect((rulingResult as any)?.escrowStatus).toBe("ESCROW_UNFROZEN");
+      expect((rulingResult as any)?.routing).toBe("REFUND_BUYER");
+      expect((rulingResult as any)?.refundAmount).toBe(200000);
+      expect((rulingResult as any)?.sellerSettlement).toBe(0);
 
       // Verify escrow.unfrozen outbox event
       expect(prisma.outboxEvent.create).toHaveBeenCalledWith({
@@ -1015,7 +1022,7 @@ describe("OrdersService (Prisma)", () => {
       prisma.orderStatusHistory.create = jest.fn().mockResolvedValue({ id: "hist-unfreeze" });
       prisma.outboxEvent.create = jest.fn().mockResolvedValue({ id: "evt-unfreeze" });
 
-      const rulingResult = await service.adminArbitrateDispute(
+      const rulingResult: any = await service.adminArbitrateDispute(
         { sub: "admin-1", email: "admin@huki.vn", role: "PLATFORM_ADMIN" } as any,
         "disp-123",
         {
@@ -1024,10 +1031,10 @@ describe("OrdersService (Prisma)", () => {
         },
       );
 
-      expect(rulingResult.escrowStatus).toBe("ESCROW_UNFROZEN");
-      expect(rulingResult.routing).toBe("SETTLE_SELLER");
-      expect(rulingResult.refundAmount).toBe(0);
-      expect(rulingResult.sellerSettlement).toBe(170000); // 85% of 200,000
+      expect((rulingResult as any)?.escrowStatus).toBe("ESCROW_UNFROZEN");
+      expect((rulingResult as any)?.routing).toBe("SETTLE_SELLER");
+      expect((rulingResult as any)?.refundAmount).toBe(0);
+      expect((rulingResult as any)?.sellerSettlement).toBe(170000); // 85% of 200,000
     });
 
     it("PLATFORM_ADMIN can list all frozen escrows", async () => {

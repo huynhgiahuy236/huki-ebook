@@ -2078,11 +2078,11 @@ export class OrdersService {
   /**
    * List all items currently in platform escrow holding account (Task fix_checkout_v1)
    */
-  async adminListEscrowItems(actor: BookActor, query?: { status?: string; search?: string }) {
-    if (actor.role !== 'PLATFORM_ADMIN') {
+  async adminListEscrowItems(actor?: BookActor, query?: { status?: string; search?: string }) {
+    if (actor && actor.role !== 'PLATFORM_ADMIN' && actor.role !== 'ADMIN') {
       throwForbidden(
         ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
-        'Chỉ Platform Admin mới có quyền truy cập tài khoản trung gian',
+        'Chỉ Ban Quản Trị Sàn mới có quyền truy cập tài khoản trung gian',
       );
     }
 
@@ -2105,12 +2105,22 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const globalRemittances = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        actorType: 'SHIPPER_COD_REMITTANCE',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     const items: any[] = [];
 
     for (const order of orders) {
       const shipping = (order.shippingAddress as any) || {};
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
+
+      // Find order-specific or global COD remittance record
+      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
 
       for (const sellerOrder of order.sellerOrders) {
         for (const item of sellerOrder.items) {
@@ -2143,7 +2153,10 @@ export class OrdersService {
 
           let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'PENDING_PAYMENT' = 'HOLDING';
 
-          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+          const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+          const isCodRemitted = Boolean(orderRemittance && isPhysicalDelivered);
+
+          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING && !isPhysicalDelivered && !isCodRemitted) {
             escrowStatus = 'PENDING_PAYMENT';
           }
 
@@ -2159,16 +2172,35 @@ export class OrdersService {
               escrowStatus = 'HOLDING';
             }
           } else {
-            // For PHYSICAL book: RELEASED if the physical order is DELIVERED or COMPLETED
-            const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+            // For PHYSICAL book: RELEASED if delivered and return window passed or confirmed
+            const deliveredTimestamp = sellerOrder.completedAt ? new Date(sellerOrder.completedAt).getTime() : 0;
+            const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+
             if (isPhysicalDelivered) {
-              escrowStatus = 'RELEASED';
+              if (isReturnWindowPassed || unfreezeEntry) {
+                escrowStatus = 'RELEASED';
+              } else {
+                escrowStatus = 'HOLDING';
+              }
             } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
               escrowStatus = 'PENDING_PAYMENT';
             } else {
               escrowStatus = 'HOLDING';
             }
           }
+
+          const subtotal = Number(item.subtotal);
+          const platformFee = Math.round(subtotal * 0.05); // 5% fee
+          const sellerNet = subtotal - platformFee; // 95% net revenue
+
+          const shippingAddressText = [
+            shipping.address || shipping.street,
+            shipping.ward,
+            shipping.district,
+            shipping.city || shipping.province,
+          ]
+            .filter(Boolean)
+            .join(', ') || 'Giao hàng tận nơi';
 
           if (!query?.status || query.status === 'ALL' || escrowStatus === query.status) {
             items.push({
@@ -2177,6 +2209,9 @@ export class OrdersService {
               orderCode: order.code,
               orderCreatedAt: order.createdAt.toISOString(),
               orderStatus: sellerOrder.status || order.status,
+              paymentMethod: order.paymentMethod,
+              paymentStatus: order.paymentStatus,
+              shippingAddress: shippingAddressText,
               format: item.format,
               deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
               requiresShipping: sellerOrder.requiresShipping,
@@ -2188,8 +2223,18 @@ export class OrdersService {
               bookTitle: item.bookTitle,
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
-              subtotal: Number(item.subtotal),
+              subtotal,
+              platformFee,
+              sellerNet,
               escrowStatus,
+              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
+                isRemitted: true,
+                remittedAt: orderRemittance ? orderRemittance.createdAt.toISOString() : (sellerOrder.completedAt?.toISOString() || new Date().toISOString()),
+                method: (orderRemittance?.metadata as any)?.method || 'VietQR PayOS (Cổng Quỹ Sàn)',
+                txCode: (orderRemittance?.metadata as any)?.txCode || `HUKICOD-${order.code}`,
+                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+                shipperCode: orderRemittance?.actorId || 'SHIPPER-8899',
+              } : null,
             });
           }
         }
@@ -2236,14 +2281,24 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const globalRemittances = await this.prisma.orderStatusHistory.findMany({
+      where: {
+        actorType: 'SHIPPER_COD_REMITTANCE',
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
     const items: any[] = [];
 
     for (const order of orders) {
       const shipping = (order.shippingAddress as any) || {};
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
+      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
 
       for (const sellerOrder of order.sellerOrders) {
+        const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
+
         for (const item of sellerOrder.items) {
           const itemHistory = histories.find(
             (h) =>
@@ -2290,7 +2345,6 @@ export class OrdersService {
           } else {
             // For PHYSICAL book:
             // 1. If delivered: check 2-minute test return window (120 seconds)
-            const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
             const deliveredTimestamp = sellerOrder.completedAt ? new Date(sellerOrder.completedAt).getTime() : 0;
             const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
 
@@ -2345,6 +2399,14 @@ export class OrdersService {
               platformFee,
               sellerNet,
               escrowStatus,
+              remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
+                isRemitted: true,
+                remittedAt: orderRemittance ? orderRemittance.createdAt.toISOString() : (sellerOrder.completedAt?.toISOString() || new Date().toISOString()),
+                method: (orderRemittance?.metadata as any)?.method || 'VietQR PayOS (Cổng Quỹ Sàn)',
+                txCode: (orderRemittance?.metadata as any)?.txCode || `HUKICOD-${order.code}`,
+                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+                shipperCode: orderRemittance?.actorId || 'SHIPPER-8899',
+              } : null,
             });
           }
         }
@@ -3501,27 +3563,59 @@ export class OrdersService {
     return result;
   }
 
-  async shipperRemitCod(actor?: BookActor, dto?: { amount: number; method?: string; txCode?: string }) {
+  async shipperRemitCod(actor?: BookActor, dto?: { amount: number; method?: string; txCode?: string; orderIds?: string[] }) {
     const amount = Number(dto?.amount) || 0;
     if (amount <= 0) return { success: false, message: 'Số tiền không hợp lệ' };
 
-    const firstOrder = await this.prisma.order.findFirst({
-      orderBy: { createdAt: 'desc' },
-    });
+    const txCode = dto?.txCode || `HUKICOD${Date.now()}`;
+    const method = dto?.method || 'VietQR PayOS';
+    const now = new Date();
 
-    if (firstOrder) {
+    // Find target orders to mark as remitted
+    let targetOrders: any[] = [];
+    if (dto?.orderIds && dto.orderIds.length > 0) {
+      targetOrders = await this.prisma.order.findMany({
+        where: { id: { in: dto.orderIds } },
+        include: { sellerOrders: true },
+      });
+    } else {
+      // Fallback: find recent COD orders delivered
+      targetOrders = await this.prisma.order.findMany({
+        where: {
+          paymentMethod: PaymentMethod.COD,
+          sellerOrders: { some: { status: { in: ['DELIVERED', 'COMPLETED', 'SHIPPED'] } } },
+        },
+        include: { sellerOrders: true },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      });
+    }
+
+    if (targetOrders.length === 0) {
+      const firstOrder = await this.prisma.order.findFirst({ orderBy: { createdAt: 'desc' } });
+      if (firstOrder) targetOrders = [firstOrder];
+    }
+
+    for (const order of targetOrders) {
+      await this.prisma.order.update({
+        where: { id: order.id },
+        data: { paymentStatus: PaymentStatus.SUCCEEDED },
+      });
+
       await this.prisma.orderStatusHistory.create({
         data: {
-          orderId: firstOrder.id,
+          orderId: order.id,
           toStatus: 'COD_REMITTANCE',
           title: 'Bưu tá nộp tiền mặt COD về Quỹ Sàn HuKi Express',
           actorType: 'SHIPPER_COD_REMITTANCE',
           actorId: actor?.sub || 'SHIPPER-8899',
           metadata: {
             amount,
-            method: dto?.method || 'VietQR PayOS',
-            txCode: dto?.txCode || `HUKICOD${Date.now()}`,
-            timestamp: new Date().toISOString(),
+            method,
+            txCode,
+            timestamp: now.toISOString(),
+            shipperName: 'Nguyễn Văn Hưng',
+            shipperCode: actor?.sub || 'SHIPPER-8899',
           },
         },
       });
@@ -3530,6 +3624,8 @@ export class OrdersService {
     return {
       success: true,
       amount,
+      txCode,
+      affectedOrders: targetOrders.map((o) => o.code || o.id),
       message: 'Nộp tiền COD về sàn thành công',
     };
   }

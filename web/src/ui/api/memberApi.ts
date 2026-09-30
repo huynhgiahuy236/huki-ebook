@@ -114,4 +114,24 @@ export const memberApi = {
       method: 'DELETE',
     });
   },
+
+  /**
+   * Lấy nhật ký quản trị phân quyền nhân sự (Staff Governance Audit Logs)
+   */
+  getMemberAuditLogs: async (
+    businessId: string,
+    params?: { page?: number; limit?: number; action?: string },
+  ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number }>> => {
+    const query = new URLSearchParams();
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    if (params?.action) query.append('action', params.action);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiClient<{ items: any[]; total: number; page: number; limit: number }>(
+      `/members/business/${encodeURIComponent(businessId)}/audit-logs${queryString}`,
+      {
+        method: 'GET',
+      },
+    );
+  },
 };

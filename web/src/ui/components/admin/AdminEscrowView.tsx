@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import { AdminFilterTabs } from './AdminUI';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 
 export interface EscrowTableItem {
   id: string; // order item id
@@ -10,6 +11,8 @@ export interface EscrowTableItem {
   orderCode: string;
   orderCreatedAt: string;
   orderStatus?: string; // 'PENDING' | 'CONFIRMED' | 'SHIPPING' | 'DELIVERED' | 'COMPLETED'
+  paymentMethod?: string;
+  paymentStatus?: string;
   format?: 'PHYSICAL' | 'DIGITAL' | 'BOTH';
   deliveredAt?: string | null;
   storeId: string;
@@ -21,126 +24,50 @@ export interface EscrowTableItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
-  escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED';
+  platformFee?: number;
+  sellerNet?: number;
+  escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED' | 'PENDING_PAYMENT';
   releasedAt?: string | null;
   refundedAt?: string | null;
   frozenReason?: string | null;
   returnRequestStatus?: string | null;
+  remittanceInfo?: {
+    isRemitted: boolean;
+    remittedAt: string;
+    method: string;
+    txCode: string;
+    shipperName: string;
+    shipperCode: string;
+  } | null;
 }
 
-const STATUS_TABS = [
-  { key: 'ALL', label: 'Tất Cả' },
-  { key: 'HOLDING', label: 'Đang Giữ Dòng Tiền' },
-  { key: 'FROZEN', label: 'Đóng Băng Dòng Tiền' },
-  { key: 'RELEASED', label: 'Đã Chuyển Cho Cửa Hàng' },
-  { key: 'REFUNDED', label: 'Đã Hoàn Trả Khách' },
-];
-
-// Dữ liệu mẫu ban đầu static để SSR không bị lệch thời gian
-const INITIAL_MOCK_ITEMS: EscrowTableItem[] = [
-  {
-    id: 'item-001',
-    orderId: 'ord-1001',
-    orderCode: 'DH-2026-9812',
-    orderCreatedAt: '2026-09-23T10:00:00.000Z',
-    orderStatus: 'SHIPPING', // Sách giấy đang giao -> Chờ giao hàng
-    format: 'PHYSICAL',
-    deliveredAt: null,
-    storeId: 'STR-KIEN-02',
-    storeName: 'CÔNG TY TNHH KIEN SELLER 2',
-    customerName: 'Nguyễn Văn Hoàng',
-    customerPhone: '0912345678',
-    bookId: 'BOOK-DN-01',
-    bookTitle: 'Đắc Nhân Tâm (Bản Đặc Biệt Bìa Cứng)',
-    quantity: 1,
-    unitPrice: 120000,
-    subtotal: 120000,
-    escrowStatus: 'HOLDING',
-  },
-  {
-    id: 'item-002',
-    orderId: 'ord-1001',
-    orderCode: 'DH-2026-9812',
-    orderCreatedAt: '2026-09-23T10:00:00.000Z',
-    orderStatus: 'CONFIRMED', // Ebook -> Kích hoạt đếm ngược ngay sau thanh toán
-    format: 'DIGITAL',
-    deliveredAt: null,
-    storeId: 'STR-KIEN-02',
-    storeName: 'CÔNG TY TNHH KIEN SELLER 2',
-    customerName: 'Nguyễn Văn Hoàng',
-    customerPhone: '0912345678',
-    bookId: 'BOOK-GK-02',
-    bookTitle: 'Nhà Giả Kim (Ebook Bản Quyền)',
-    quantity: 1,
-    unitPrice: 85000,
-    subtotal: 85000,
-    escrowStatus: 'HOLDING',
-  },
-  {
-    id: 'item-003',
-    orderId: 'ord-1002',
-    orderCode: 'DH-2026-9815',
-    orderCreatedAt: '2026-09-23T09:40:00.000Z',
-    orderStatus: 'DELIVERED', // Sách giấy đã giao -> Kích hoạt đếm ngược từ lúc giao
-    format: 'PHYSICAL',
-    deliveredAt: '2026-09-23T09:40:00.000Z',
-    storeId: 'STR-ALPHA',
-    storeName: 'CÔNG TY CỔ PHẦN SÁCH ALPHA',
-    customerName: 'Trần Thị Mai Anh',
-    customerPhone: '0987654321',
-    bookId: 'BOOK-TL-03',
-    bookTitle: 'Tâm Lý Học Về Tiền & Đầu Tư Cá Nhân',
-    quantity: 1,
-    unitPrice: 189000,
-    subtotal: 189000,
-    escrowStatus: 'FROZEN',
-    frozenReason: 'Khách hàng yêu cầu đổi sách do lỗi rách gáy',
-  },
-  {
-    id: 'item-004',
-    orderId: 'ord-1002',
-    orderCode: 'DH-2026-9815',
-    orderCreatedAt: '2026-09-22T09:40:00.000Z',
-    orderStatus: 'DELIVERED',
-    format: 'PHYSICAL',
-    deliveredAt: '2026-09-22T10:00:00.000Z',
-    storeId: 'STR-ALPHA',
-    storeName: 'CÔNG TY CỔ PHẦN SÁCH ALPHA',
-    customerName: 'Trần Thị Mai Anh',
-    customerPhone: '0987654321',
-    bookId: 'BOOK-TT-04',
-    bookTitle: 'Tư Duy Nhanh Và Chậm (Ấn Bản 2026)',
-    quantity: 1,
-    unitPrice: 210000,
-    subtotal: 210000,
-    escrowStatus: 'RELEASED',
-    releasedAt: '2026-09-22 11:30',
-  },
-  {
-    id: 'item-005',
-    orderId: 'ord-1003',
-    orderCode: 'DH-2026-9820',
-    orderCreatedAt: '2026-09-21T16:20:00.000Z',
-    orderStatus: 'COMPLETED',
-    format: 'DIGITAL',
-    deliveredAt: '2026-09-21T16:20:00.000Z',
-    storeId: 'STR-FAHASA',
-    storeName: 'CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH FAHASA',
-    customerName: 'Lê Minh Quân',
-    customerPhone: '0903112233',
-    bookId: 'BOOK-KD-05',
-    bookTitle: 'Thám Tử Lừng Danh Conan - Ebook Tập 104',
-    quantity: 3,
-    unitPrice: 35000,
-    subtotal: 105000,
-    escrowStatus: 'HOLDING', // Đã hết hạn đổi trả -> Sẵn sàng Bàn giao
-  },
-];
+export interface EscrowOrderGroup {
+  id: string; // orderCode
+  orderCode: string;
+  orderCreatedAt: string;
+  storeName: string;
+  storeId: string;
+  customerName: string;
+  customerPhone: string;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  remittanceInfo?: {
+    isRemitted: boolean;
+    remittedAt: string;
+    method: string;
+    txCode: string;
+    shipperName: string;
+    shipperCode: string;
+  } | null;
+  totalAmount: number;
+  itemsCount: number;
+  items: EscrowTableItem[];
+}
 
 /**
  * Format chuỗi thời gian sang chuẩn Việt Nam (GMT+7: DD/MM/YYYY HH:mm)
  */
-function formatVietnamDateTime(dateStr: string): string {
+function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return '';
   try {
     const date = new Date(dateStr);
@@ -166,24 +93,23 @@ function formatVietnamDateTime(dateStr: string): string {
     const minute = getPart('minute');
 
     return `${day}/${month}/${year} ${hour}:${minute}`;
-  } catch (e) {
+  } catch {
     return dateStr;
   }
 }
 
-
-
 export function AdminEscrowView() {
   const { showToast } = useToast();
-  const [items, setItems] = useState<EscrowTableItem[]>(INITIAL_MOCK_ITEMS);
+  const [items, setItems] = useState<EscrowTableItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [mounted, setMounted] = useState<boolean>(false);
   const [nowTime, setNowTime] = useState<number>(0);
+  const [expandedKeys, setExpandedKeys] = useState<(string | number)[]>([]);
 
-  // Mount effect to initialize client-side time
+  // Mount effect to initialize client-side time ticker
   useEffect(() => {
     setMounted(true);
     setNowTime(Date.now());
@@ -498,10 +424,10 @@ export function AdminEscrowView() {
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        const matchStore = it.storeName.toLowerCase().includes(q) || it.storeId.toLowerCase().includes(q);
-        const matchCustomer = it.customerName.toLowerCase().includes(q) || it.customerPhone.includes(q);
-        const matchOrder = it.orderCode.toLowerCase().includes(q);
-        const matchBook = it.bookTitle.toLowerCase().includes(q) || it.bookId.toLowerCase().includes(q);
+        const matchStore = (it.storeName || '').toLowerCase().includes(q) || (it.storeId || '').toLowerCase().includes(q);
+        const matchCustomer = (it.customerName || '').toLowerCase().includes(q) || (it.customerPhone || '').includes(q);
+        const matchOrder = (it.orderCode || '').toLowerCase().includes(q);
+        const matchBook = (it.bookTitle || '').toLowerCase().includes(q) || (it.bookId || '').toLowerCase().includes(q);
         return matchStore || matchCustomer || matchOrder || matchBook;
       }
       return true;
@@ -509,34 +435,45 @@ export function AdminEscrowView() {
   }, [items, activeTab, searchQuery]);
 
   // Gom nhóm các sản phẩm theo đơn hàng
-  const groupedOrders = useMemo(() => {
-    const map = new Map<string, { orderCode: string; orderCreatedAt: string; items: EscrowTableItem[] }>();
+  const groupedOrders = useMemo<EscrowOrderGroup[]>(() => {
+    const map = new Map<string, EscrowOrderGroup>();
 
     filteredItems.forEach((it) => {
       if (!map.has(it.orderCode)) {
         map.set(it.orderCode, {
+          id: it.orderCode,
           orderCode: it.orderCode,
           orderCreatedAt: it.orderCreatedAt,
+          storeName: it.storeName,
+          storeId: it.storeId,
+          customerName: it.customerName,
+          customerPhone: it.customerPhone,
+          paymentMethod: it.paymentMethod,
+          paymentStatus: it.paymentStatus,
+          remittanceInfo: it.remittanceInfo,
+          totalAmount: 0,
+          itemsCount: 0,
           items: [],
         });
       }
-      map.get(it.orderCode)!.items.push(it);
+      const group = map.get(it.orderCode)!;
+      group.items.push(it);
+      group.totalAmount += it.subtotal;
+      group.itemsCount += it.quantity;
     });
 
     return Array.from(map.values());
   }, [filteredItems]);
 
-  // Phân trang đơn hàng (10 đơn / trang)
-  const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 10;
-
-  const totalPages = Math.ceil(groupedOrders.length / pageSize) || 1;
-  const paginatedOrders = groupedOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    setCurrentPage(1);
   };
+
+  const toggleExpandOrder = useCallback((orderCode: string) => {
+    setExpandedKeys((prev) =>
+      prev.includes(orderCode) ? prev.filter((k) => k !== orderCode) : [...prev, orderCode]
+    );
+  }, []);
 
   // Thống kê tài chính
   const stats = useMemo(() => {
@@ -563,16 +500,474 @@ export function AdminEscrowView() {
     };
   }, [items]);
 
+  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (rộng rãi, không bị ép chữ)
+  const orderColumns = useMemo<Column<EscrowOrderGroup>[]>(
+    () => [
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn & Ngày Đặt',
+        minWidth: 230,
+        render: (_, row) => (
+          <div className="flex flex-col gap-1 py-1 whitespace-nowrap">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#00875A] text-[16px]">
+                shopping_bag
+              </span>
+              <span className="font-mono font-bold text-theme-text text-[13px]">
+                #{row.orderCode}
+              </span>
+            </div>
+            <span
+              suppressHydrationWarning
+              className="text-theme-text-muted font-normal text-[11.5px] flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[13px]">schedule</span>
+              <span>{formatVietnamDateTime(row.orderCreatedAt)}</span>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'store',
+        title: 'Gian Hàng / Người Bán',
+        minWidth: 300,
+        render: (_, row) => (
+          <div className="flex flex-col gap-0.5 py-1">
+            <span className="font-semibold text-theme-text text-xs whitespace-nowrap">
+              {row.storeName}
+            </span>
+            {row.storeId && (
+              <span className="font-mono text-[10.5px] text-theme-text-muted whitespace-nowrap">
+                ID: {row.storeId}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'customer',
+        title: 'Khách Hàng',
+        minWidth: 200,
+        render: (_, row) => (
+          <div className="flex flex-col gap-0.5 py-1 whitespace-nowrap">
+            <span className="font-medium text-theme-text text-xs">
+              {row.customerName}
+            </span>
+            <span className="font-mono text-[11px] text-theme-text-muted">
+              {row.customerPhone}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'payment',
+        title: 'Phương Thức Thanh Toán',
+        minWidth: 260,
+        render: (_, row) => {
+          if (row.paymentMethod === 'COD') {
+            if (row.remittanceInfo?.isRemitted) {
+              return (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap">
+                  <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
+                  <span>COD: Bưu tá đã nộp Quỹ ({row.remittanceInfo.method})</span>
+                </span>
+              );
+            }
+            return (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
+                <span className="material-symbols-outlined text-[14px] text-amber-600">local_shipping</span>
+                <span>COD: Bưu tá đang giao / chờ nộp</span>
+              </span>
+            );
+          }
+          return (
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
+              <span className="material-symbols-outlined text-[14px] text-blue-600">account_balance</span>
+              <span>PayOS Cổng Quỹ Sàn (Đã Thu)</span>
+            </span>
+          );
+        },
+      },
+      {
+        key: 'itemsCount',
+        title: 'Số Món',
+        align: 'center',
+        width: '100px',
+        render: (_, row) => (
+          <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-bold bg-theme-surface-subtle border border-theme-border text-theme-text whitespace-nowrap">
+            {row.itemsCount} món
+          </span>
+        ),
+      },
+      {
+        key: 'totalAmount',
+        title: 'Tổng Giá Trị Đơn',
+        align: 'right',
+        minWidth: 160,
+        render: (_, row) => (
+          <span className="font-mono text-sm font-bold text-theme-text whitespace-nowrap">
+            {Number(row.totalAmount || 0).toLocaleString('vi-VN')} đ
+          </span>
+        ),
+      },
+      {
+        key: 'overallStatus',
+        title: 'Trạng Thái Dòng Tiền',
+        align: 'center',
+        minWidth: 230,
+        render: (_, row) => {
+          const allReleased = row.items.every((i) => i.escrowStatus === 'RELEASED');
+          const anyFrozen = row.items.some((i) => i.escrowStatus === 'FROZEN');
+          const anyPending = row.items.some((i) => i.escrowStatus === 'PENDING_PAYMENT');
+          const anyRefunded = row.items.some((i) => i.escrowStatus === 'REFUNDED');
+
+          return (
+            <div className="flex justify-center whitespace-nowrap">
+              {anyFrozen ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                  <span>Có khiếu nại (Đóng băng)</span>
+                </span>
+              ) : allReleased ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Đã bàn giao cho Shop</span>
+                </span>
+              ) : anyRefunded ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                  <span>Đã hoàn tiền khách</span>
+                </span>
+              ) : anyPending ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span>Chờ bưu tá thu COD</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                  <span>Đang giữ dòng tiền</span>
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
+  // Render phần chi tiết sản phẩm khi bấm xổ xuống
+  const renderOrderItemsDetail = useCallback(
+    (order: EscrowOrderGroup) => {
+      return (
+        <div className="flex flex-col gap-3 p-1">
+          <div className="flex items-center justify-between border-b border-theme-border/70 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#00875A] text-[18px]">
+                inventory_2
+              </span>
+              <h4 className="text-xs font-bold text-theme-text uppercase tracking-wide">
+                Danh sách sản phẩm trong đơn #{order.orderCode} ({order.items.length} món)
+              </h4>
+            </div>
+
+            {order.remittanceInfo && (
+              <div className="text-[11.5px] text-theme-text-muted flex items-center gap-2">
+                <span>Bưu tá nộp COD: <strong className="text-theme-text">{order.remittanceInfo.shipperName}</strong> ({order.remittanceInfo.shipperCode})</span>
+                <span>•</span>
+                <span>Mã GD: <strong className="font-mono text-theme-text">{order.remittanceInfo.txCode}</strong></span>
+              </div>
+            )}
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-theme-border/80 bg-theme-surface">
+            <table className="w-full text-left text-xs divide-y divide-theme-border/60 min-w-[1200px]">
+              <thead className="bg-theme-surface-subtle text-[10.5px] uppercase font-bold text-theme-text-muted tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-4 w-[35%]">Sản Phẩm &amp; Phân Loại</th>
+                  <th className="py-2.5 px-3 text-center w-[8%]">Số Lượng</th>
+                  <th className="py-2.5 px-4 text-right w-[12%]">Đơn Giá</th>
+                  <th className="py-2.5 px-4 text-right w-[13%]">Thành Tiền</th>
+                  <th className="py-2.5 px-4 text-center w-[14%]">Trạng Thái Dòng Tiền</th>
+                  <th className="py-2.5 px-4 text-center w-[14%]">Thời Hạn Đổi Trả</th>
+                  <th className="py-2.5 px-4 text-center w-[12%]">Thao Tác</th>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-theme-border/40 bg-theme-surface">
+                {order.items.map((item) => {
+                  const isReleased = item.escrowStatus === 'RELEASED';
+                  const isRefunded = item.escrowStatus === 'REFUNDED';
+                  const isFrozen = item.escrowStatus === 'FROZEN';
+                  const isHolding = item.escrowStatus === 'HOLDING';
+                  const isPendingPayment = item.escrowStatus === 'PENDING_PAYMENT';
+                  const returnInfo = getReturnStatusInfo(item);
+                  const isDigital = item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook');
+                  const canRefund =
+                    item.returnRequestStatus === 'SELLER_ACCEPTED' ||
+                    item.returnRequestStatus === 'ARBITRATED_BUYER_WINS' ||
+                    isFrozen;
+
+                  return (
+                    <tr key={item.id} className="hover:bg-theme-surface-subtle/40 transition-colors">
+                      {/* 1. Tên Sản Phẩm */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-start gap-2.5">
+                          {isDigital ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 mt-0.5 tracking-wide">
+                              EBOOK
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60 shrink-0 mt-0.5 tracking-wide">
+                              SÁCH IN
+                            </span>
+                          )}
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-semibold text-theme-text text-[13px] leading-snug">
+                              {item.bookTitle}
+                            </span>
+                            <span className="font-mono text-[10.5px] text-theme-text-muted mt-0.5">
+                              Mã SP: {item.bookId}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 2. Số Lượng */}
+                      <td className="py-3.5 px-3 text-center font-bold text-theme-text text-xs">
+                        {item.quantity}
+                      </td>
+
+                      {/* 3. Đơn Giá */}
+                      <td className="py-3.5 px-4 text-right font-mono text-xs text-theme-text-muted whitespace-nowrap">
+                        {item.unitPrice.toLocaleString('vi-VN')} đ
+                      </td>
+
+                      {/* 4. Thành Tiền */}
+                      <td className="py-3.5 px-4 text-right font-mono text-xs font-bold text-theme-text whitespace-nowrap">
+                        {item.subtotal.toLocaleString('vi-VN')} đ
+                      </td>
+
+                      {/* 5. Trạng Thái Dòng Tiền */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        {isPendingPayment && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-800 border border-blue-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                            <span>Chờ thu tiền COD</span>
+                          </span>
+                        )}
+                        {isHolding && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            <span>Đang giữ dòng tiền</span>
+                          </span>
+                        )}
+                        {isFrozen && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>Đóng băng dòng tiền</span>
+                          </span>
+                        )}
+                        {isReleased && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>Đã chuyển cho shop</span>
+                          </span>
+                        )}
+                        {isRefunded && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-sky-50 text-sky-800 border border-sky-200/60">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                            <span>Đã hoàn trả khách</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 6. Thời Hạn Đổi Trả */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        {returnInfo.type === 'FROZEN' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-rose-50/60 text-rose-700 border border-rose-200/60"
+                            title="Đơn hàng đang có khiếu nại, thời hạn đổi trả tạm dừng"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-rose-500 animate-pulse">pause_circle</span>
+                            <span>Đang khiếu nại</span>
+                          </span>
+                        ) : returnInfo.type === 'REFUNDED' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-theme-surface-subtle text-theme-text-muted border border-theme-border"
+                            title="Đã hoàn tiền cho người mua"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-theme-text-muted">replay</span>
+                            <span>Đã hoàn tiền</span>
+                          </span>
+                        ) : returnInfo.type === 'WAITING_DELIVERY' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-theme-text-muted bg-theme-surface-subtle border border-theme-border"
+                            title="Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả 2 phút"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">local_shipping</span>
+                            <span>Chờ giao hàng</span>
+                          </span>
+                        ) : returnInfo.type === 'COUNTDOWN' ? (
+                          <span
+                            suppressHydrationWarning
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50/80 text-amber-800 border border-amber-200/80 font-mono shadow-2xs"
+                            title="Đang trong thời hạn kiểm tra và đổi trả 2 phút"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-amber-600 animate-spin">timer</span>
+                            <span>Còn {returnInfo.formattedTime}</span>
+                          </span>
+                        ) : returnInfo.type === 'RELEASED' ? (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-theme-text-muted bg-theme-surface-subtle border border-theme-border"
+                            title="Đã hoàn tất chuyển tiền cho shop"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
+                            <span>Đã hoàn tất bàn giao</span>
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-emerald-700 bg-emerald-50/50 border border-emerald-200/50"
+                            title="Đã qua thời hạn 2 phút đổi trả, sẵn sàng bàn giao cho cửa hàng"
+                          >
+                            <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
+                            <span>Hết hạn đổi trả</span>
+                          </span>
+                        )}
+                      </td>
+
+                      {/* 7. Thao Tác Chi Tiết */}
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap relative escrow-dropdown-container">
+                        {isReleased ? (
+                          <span className="text-[11.5px] text-theme-text-muted font-medium italic">
+                            Đã bàn giao
+                          </span>
+                        ) : isRefunded ? (
+                          <span className="text-[11.5px] text-theme-text-muted font-medium italic">
+                            Đã hoàn tiền
+                          </span>
+                        ) : (
+                          <div className="relative inline-block text-left">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenDropdownId(openDropdownId === item.id ? null : item.id);
+                              }}
+                              className={`inline-flex items-center justify-between gap-1.5 px-3 py-1.5 text-[11.5px] font-medium rounded-xl border transition-all cursor-pointer shadow-2xs active:scale-[0.96] ${
+                                isHolding
+                                  ? 'bg-theme-surface hover:bg-theme-surface-subtle text-theme-text border-theme-border'
+                                  : isFrozen
+                                  ? 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border-rose-200/80'
+                                  : 'bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 border-emerald-200/80'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`w-2 h-2 rounded-full ${
+                                    isHolding ? 'bg-amber-500' : isFrozen ? 'bg-rose-500' : 'bg-emerald-500'
+                                  }`}
+                                ></span>
+                                <span>{isHolding ? 'Đang giữ' : isFrozen ? 'Đóng băng' : 'Bàn giao'}</span>
+                              </div>
+                              <span className="material-symbols-outlined text-[15px] text-theme-text-muted">expand_more</span>
+                            </button>
+
+                            {openDropdownId === item.id && (
+                              <div className="absolute right-0 mt-1.5 w-52 bg-theme-surface rounded-2xl shadow-xl border border-theme-border z-50 py-1.5 divide-y divide-theme-border text-left animate-in fade-in zoom-in-95 duration-150">
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(item.id, 'HOLDING')}
+                                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-theme-text hover:bg-amber-50/60 hover:text-amber-800 transition-colors cursor-pointer"
+                                >
+                                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                                  <span>Đang giữ tiền</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleStatusChange(item.id, 'FROZEN')}
+                                  className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-theme-text hover:bg-rose-50/60 hover:text-rose-800 transition-colors cursor-pointer"
+                                >
+                                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                                  <span>Đóng băng dòng tiền</span>
+                                </button>
+
+                                {returnInfo.canRelease ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(item.id, 'RELEASED')}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-theme-text hover:bg-emerald-50/60 hover:text-emerald-800 transition-colors cursor-pointer"
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                                    <span>Bàn giao cho Shop</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-theme-text-muted opacity-60 cursor-not-allowed select-none bg-theme-surface-subtle"
+                                    title={returnInfo.reason}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                                      <span>Bàn giao (Chưa đủ ĐK)</span>
+                                    </div>
+                                    <span className="material-symbols-outlined text-[13px]">lock</span>
+                                  </button>
+                                )}
+
+                                {canRefund ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleStatusChange(item.id, 'REFUNDED')}
+                                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-theme-text hover:bg-sky-50/60 hover:text-sky-800 transition-colors cursor-pointer"
+                                  >
+                                    <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                                    <span>Hoàn trả Khách hàng</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    disabled
+                                    className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-theme-text-muted opacity-60 cursor-not-allowed select-none bg-theme-surface-subtle"
+                                    title="Chỉ khả dụng khi Shop đồng ý hoặc Trọng tài xử Khách thắng"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                                      <span>Hoàn tiền (Khóa)</span>
+                                    </div>
+                                    <span className="material-symbols-outlined text-[13px]">lock</span>
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    },
+    [getReturnStatusInfo, handleStatusChange, openDropdownId],
+  );
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. Tiêu đề Trang & Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-theme-border">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-theme-text tracking-tight flex items-center gap-2.5">
             <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
             <span>Ký Quỹ Sàn &amp; Tài Khoản Trung Gian</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
+          <p className="text-xs text-theme-text-muted mt-1">
             Kiểm soát dòng tiền giữ hộ, thời hạn đổi trả 2 phút và điều phối bàn giao doanh thu cho người bán
           </p>
         </div>
@@ -581,9 +976,9 @@ export function AdminEscrowView() {
           type="button"
           onClick={fetchEscrowItems}
           disabled={loading}
-          className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-[0.98]"
+          className="px-3.5 py-2 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-subtle text-theme-text font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-[0.98]"
         >
-          <span className={`material-symbols-outlined text-[16px] text-slate-500 ${loading ? 'animate-spin text-[#00875A]' : ''}`}>
+          <span className={`material-symbols-outlined text-[16px] text-theme-text-muted ${loading ? 'animate-spin text-[#00875A]' : ''}`}>
             refresh
           </span>
           <span>Làm mới dữ liệu</span>
@@ -593,13 +988,13 @@ export function AdminEscrowView() {
       {/* 2. Thẻ Thống Kê Tổng Quan */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Đang Giữ */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Đang Giữ Ký Quỹ</p>
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đang Giữ Ký Quỹ</p>
             <h3 className="text-xl font-bold text-amber-600 mt-1 font-mono tracking-tight">
               {stats.totalHolding.toLocaleString('vi-VN')} đ
             </h3>
-            <p className="text-[11.5px] text-slate-500 mt-1 font-medium">{stats.holdingCount} món hàng đang giữ tiền</p>
+            <p className="text-[11.5px] text-theme-text-muted mt-1 font-medium">{stats.holdingCount} món hàng đang giữ tiền</p>
           </div>
           <div className="w-11 h-11 rounded-xl bg-amber-50/80 border border-amber-100 text-amber-600 flex items-center justify-center">
             <span className="material-symbols-outlined text-[22px]">lock_clock</span>
@@ -607,9 +1002,9 @@ export function AdminEscrowView() {
         </div>
 
         {/* Đã Bàn Giao */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Đã Bàn Giao Cho Shop</p>
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đã Bàn Giao Cho Shop</p>
             <h3 className="text-xl font-bold text-[#00875A] mt-1 font-mono tracking-tight">
               {stats.totalReleased.toLocaleString('vi-VN')} đ
             </h3>
@@ -621,9 +1016,9 @@ export function AdminEscrowView() {
         </div>
 
         {/* Đóng Băng Tranh Chấp */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Đóng Băng Tranh Chấp</p>
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đóng Băng Tranh Chấp</p>
             <h3 className="text-xl font-bold text-rose-600 mt-1 font-mono tracking-tight">
               {stats.totalFrozen.toLocaleString('vi-VN')} đ
             </h3>
@@ -636,7 +1031,7 @@ export function AdminEscrowView() {
       </div>
 
       {/* 3. Thanh Bộ Lọc & Tìm Kiếm */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
+      <div className="bg-theme-surface rounded-2xl p-3 border border-theme-border shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Tabs Trạng Thái */}
         <AdminFilterTabs
           tabs={[
@@ -651,27 +1046,21 @@ export function AdminEscrowView() {
 
         {/* Ô Tìm Kiếm */}
         <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted text-[16px]">
             search
           </span>
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
+            onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Tìm mã đơn, SĐT, tên sách..."
-            className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+            className="w-full pl-9 pr-7 py-2 bg-theme-surface-subtle border border-theme-border rounded-xl text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-[#00875A] focus:bg-theme-surface transition-all"
           />
           {searchQuery && (
             <button
               type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text p-0.5"
             >
               <span className="material-symbols-outlined text-xs">close</span>
             </button>
@@ -679,374 +1068,32 @@ export function AdminEscrowView() {
         </div>
       </div>
 
-      {/* 4. Bảng Dữ Liệu Ký Quỹ Đơn Hàng */}
-      <AdminTableContainer>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs min-w-[1360px]">
-            <thead>
-              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3.5 pl-5 pr-4 w-[38%] min-w-[360px]">Sản Phẩm &amp; Phân Loại</th>
-                <th className="py-3.5 px-3 w-[7%] text-center">Số Lượng</th>
-                <th className="py-3.5 px-4 w-[11%] text-right">Đơn Giá</th>
-                <th className="py-3.5 px-4 w-[13%] text-right">Thành Tiền</th>
-                <th className="py-3.5 px-4 w-[14%] text-center">Trạng Thái Dòng Tiền</th>
-                <th className="py-3.5 px-4 w-[14%] text-center">Thời Hạn Đổi Trả</th>
-                <th className="py-3.5 pl-4 pr-5 w-[13%] text-center">Thao Tác</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {paginatedOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-16 text-center text-slate-400 text-xs">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <span className="material-symbols-outlined text-3xl text-slate-300">
-                        inbox
-                      </span>
-                      <p className="font-semibold text-slate-700">Không Tìm Thấy Dữ Liệu Ký Quỹ Phù Hợp</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map((group, groupIndex) => {
-                  const firstItem = group.items[0];
-
-                  return (
-                    <React.Fragment key={group.orderCode}>
-                      {/* Header bar cho từng Đơn hàng */}
-                      <tr className="bg-slate-50/70 text-slate-700 border-t-2 border-b border-slate-200/80">
-                        <td colSpan={7} className="py-2.5 pl-5 pr-5">
-                          <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3.5">
-                              {/* Order Code */}
-                              <span className="inline-flex items-center gap-1.5 font-bold text-slate-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200/90 shadow-2xs">
-                                <span className="material-symbols-outlined text-[#00875A] text-[15px]">
-                                  shopping_bag
-                                </span>
-                                <span className="font-mono text-[12px]">#{group.orderCode}</span>
-                              </span>
-
-                              {/* Order Time */}
-                              <span
-                                suppressHydrationWarning
-                                className="text-slate-500 font-normal text-[11.5px] flex items-center gap-1"
-                              >
-                                <span className="material-symbols-outlined text-[14px] text-slate-400">schedule</span>
-                                <span>{formatVietnamDateTime(group.orderCreatedAt)}</span>
-                              </span>
-
-                              {firstItem && (
-                                <>
-                                  <span className="text-slate-300 hidden md:inline">•</span>
-                                  {/* Store */}
-                                  <span className="text-slate-700 flex items-center gap-1.5 text-[12px]">
-                                    <span className="material-symbols-outlined text-[15px] text-slate-400">storefront</span>
-                                    <span className="font-medium text-slate-800">{firstItem.storeName}</span>
-                                    <span className="font-mono text-[10.5px] text-slate-400 bg-slate-100 px-1 py-0.5 rounded">
-                                      {firstItem.storeId}
-                                    </span>
-                                  </span>
-
-                                  <span className="text-slate-300 hidden md:inline">•</span>
-                                  {/* Customer */}
-                                  <span className="text-slate-600 flex items-center gap-1.5 text-[12px]">
-                                    <span className="material-symbols-outlined text-[15px] text-slate-400">person</span>
-                                    <span className="font-medium text-slate-800">{firstItem.customerName}</span>
-                                    <span className="font-mono text-[11px] text-slate-400">({firstItem.customerPhone})</span>
-                                  </span>
-                                </>
-                              )}
-                            </div>
-
-                            {/* Item count */}
-                            <span className="text-slate-500 font-medium text-[11px] bg-white px-2 py-0.5 rounded-md border border-slate-200">
-                              {group.items.length} món hàng
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Các dòng sản phẩm của đơn hàng */}
-                      {group.items.map((item, itIdx) => {
-                        const isReleased = item.escrowStatus === 'RELEASED';
-                        const isRefunded = item.escrowStatus === 'REFUNDED';
-                        const isFrozen = item.escrowStatus === 'FROZEN';
-                        const isHolding = item.escrowStatus === 'HOLDING';
-                        const returnInfo = getReturnStatusInfo(item);
-                        const canRefund =
-                          item.returnRequestStatus === 'SELLER_ACCEPTED' ||
-                          item.returnRequestStatus === 'ARBITRATED_BUYER_WINS' ||
-                          isFrozen;
-
-                        return (
-                          <tr
-                            key={item.id}
-                            className="bg-white hover:bg-slate-50/70 transition-colors"
-                          >
-                            {/* 1. Tên sản phẩm & Định dạng */}
-                            <td className="py-3.5 pl-5 pr-4 min-w-[360px]">
-                              <div className="flex items-start gap-2.5">
-                                {item.format === 'DIGITAL' || item.bookTitle.toLowerCase().includes('ebook') ? (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 mt-0.5 tracking-wide">
-                                    EBOOK
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60 shrink-0 mt-0.5 tracking-wide">
-                                    SÁCH IN
-                                  </span>
-                                )}
-                                <div className="flex flex-col min-w-0">
-                                  <span className="font-medium text-slate-900 text-[13px] leading-snug">
-                                    {item.bookTitle}
-                                  </span>
-                                  <span className="font-mono text-[10.5px] text-slate-400 mt-0.5">
-                                    Mã SP: {item.bookId}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* 2. Số lượng */}
-                            <td className="py-3.5 px-3 text-center font-semibold text-slate-700 text-xs">
-                              {item.quantity}
-                            </td>
-
-                            {/* 3. Đơn giá */}
-                            <td className="py-3.5 px-4 text-right font-mono text-xs text-slate-600 whitespace-nowrap">
-                              {item.unitPrice.toLocaleString('vi-VN')} đ
-                            </td>
-
-                            {/* 4. Thành tiền */}
-                            <td className="py-3.5 px-4 text-right font-mono text-xs font-bold text-slate-900 whitespace-nowrap">
-                              {item.subtotal.toLocaleString('vi-VN')} đ
-                            </td>
-
-                            {/* 5. Trạng thái dòng tiền */}
-                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                              {isHolding && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-800 border border-amber-200/60">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                  <span>Đang giữ dòng tiền</span>
-                                </span>
-                              )}
-                              {isFrozen && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                  <span>Đóng băng dòng tiền</span>
-                                </span>
-                              )}
-                              {isReleased && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 border border-emerald-200/60">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                  <span>Đã chuyển cho shop</span>
-                                </span>
-                              )}
-                              {isRefunded && (
-                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-sky-50 text-sky-800 border border-sky-200/60">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-                                  <span>Đã hoàn trả khách</span>
-                                </span>
-                              )}
-                            </td>
-
-                            {/* 6. Thời Hạn Đổi Trả */}
-                            <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                              {returnInfo.type === 'FROZEN' ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-rose-50/60 text-rose-700 border border-rose-200/60"
-                                  title="Đơn hàng đang có khiếu nại, thời hạn đổi trả tạm dừng"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-rose-500 animate-pulse">pause_circle</span>
-                                  <span>Đang khiếu nại</span>
-                                </span>
-                              ) : returnInfo.type === 'REFUNDED' ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200"
-                                  title="Đã hoàn tiền cho người mua"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-slate-400">replay</span>
-                                  <span>Đã hoàn tiền</span>
-                                </span>
-                              ) : returnInfo.type === 'WAITING_DELIVERY' ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-600 bg-slate-50 border border-slate-200"
-                                  title="Sách giấy đang giao, chưa kích hoạt thời hạn đổi trả 2 phút"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-slate-400">local_shipping</span>
-                                  <span>Chờ giao hàng</span>
-                                </span>
-                              ) : returnInfo.type === 'COUNTDOWN' ? (
-                                <span
-                                  suppressHydrationWarning
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-50/80 text-amber-800 border border-amber-200/80 font-mono shadow-2xs"
-                                  title="Đang trong thời hạn kiểm tra và đổi trả 2 phút"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-amber-600 animate-spin">timer</span>
-                                  <span>Còn {returnInfo.formattedTime}</span>
-                                </span>
-                              ) : returnInfo.type === 'RELEASED' ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200"
-                                  title="Đã hoàn tất chuyển tiền cho shop"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
-                                  <span>Đã hoàn tất bàn giao</span>
-                                </span>
-                              ) : (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium text-emerald-700 bg-emerald-50/50 border border-emerald-200/50"
-                                  title="Đã qua thời hạn 2 phút đổi trả, sẵn sàng bàn giao cho cửa hàng"
-                                >
-                                  <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
-                                  <span>Hết hạn đổi trả</span>
-                                </span>
-                              )}
-                            </td>
-
-                            {/* 7. Thao tác */}
-                            <td className="py-3.5 pl-4 pr-5 text-center whitespace-nowrap relative escrow-dropdown-container">
-                              {isReleased ? (
-                                <span className="text-[11.5px] text-slate-400 font-medium italic">
-                                  Đã bàn giao
-                                </span>
-                              ) : isRefunded ? (
-                                <span className="text-[11.5px] text-slate-400 font-medium italic">
-                                  Đã hoàn tiền
-                                </span>
-                              ) : (
-                                /* Dropdown thao tác: Đang giữ, Đóng băng, Bàn giao, Hoàn trả */
-                                <div className="relative inline-block text-left">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setOpenDropdownId(openDropdownId === item.id ? null : item.id);
-                                    }}
-                                    className={`inline-flex items-center justify-between gap-1.5 px-3 py-1.5 text-[11.5px] font-medium rounded-xl border transition-all cursor-pointer shadow-2xs active:scale-[0.96] ${
-                                      isHolding
-                                        ? 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
-                                        : isFrozen
-                                        ? 'bg-rose-50/80 hover:bg-rose-100 text-rose-800 border-rose-200/80'
-                                        : 'bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 border-emerald-200/80'
-                                    }`}
-                                  >
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        className={`w-2 h-2 rounded-full ${
-                                          isHolding
-                                            ? 'bg-amber-500'
-                                            : isFrozen
-                                            ? 'bg-rose-500'
-                                            : 'bg-emerald-500'
-                                        }`}
-                                      ></span>
-                                      <span>
-                                        {isHolding ? 'Đang giữ' : isFrozen ? 'Đóng băng' : 'Bàn giao'}
-                                      </span>
-                                    </div>
-                                    <span className="material-symbols-outlined text-[15px] text-slate-400">expand_more</span>
-                                  </button>
-
-                                  {/* Menu Dropdown 4 lựa chọn */}
-                                  {openDropdownId === item.id && (
-                                    <div className="absolute right-0 mt-1.5 w-52 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 py-1.5 divide-y divide-slate-100 text-left animate-in fade-in zoom-in-95 duration-150">
-                                      {/* Lựa chọn 1: Đang giữ */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStatusChange(item.id, 'HOLDING')}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-amber-50/60 hover:text-amber-800 transition-colors cursor-pointer"
-                                      >
-                                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                                        <span>Đang giữ tiền</span>
-                                      </button>
-
-                                      {/* Lựa chọn 2: Đóng băng */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleStatusChange(item.id, 'FROZEN')}
-                                        className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-rose-50/60 hover:text-rose-800 transition-colors cursor-pointer"
-                                      >
-                                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                                        <span>Đóng băng dòng tiền</span>
-                                      </button>
-
-                                      {/* Lựa chọn 3: Bàn giao */}
-                                      {returnInfo.canRelease ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStatusChange(item.id, 'RELEASED')}
-                                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-emerald-50/60 hover:text-emerald-800 transition-colors cursor-pointer"
-                                        >
-                                          <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                                          <span>Bàn giao cho Shop</span>
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          disabled
-                                          className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-400 opacity-60 cursor-not-allowed select-none bg-slate-50/60"
-                                          title={returnInfo.reason}
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                                            <span>Bàn giao (Chưa đủ ĐK)</span>
-                                          </div>
-                                          <span className="material-symbols-outlined text-[13px]">lock</span>
-                                        </button>
-                                      )}
-
-                                      {/* Lựa chọn 4: Hoàn trả (Blue button) */}
-                                      {canRefund ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleStatusChange(item.id, 'REFUNDED')}
-                                          className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-sky-50/60 hover:text-sky-800 transition-colors cursor-pointer"
-                                        >
-                                          <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                                          <span>Hoàn trả Khách hàng</span>
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          disabled
-                                          className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-slate-400 opacity-60 cursor-not-allowed select-none bg-slate-50/60"
-                                          title="Chỉ khả dụng khi Shop đồng ý hoặc Trọng tài xử Khách thắng"
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                                            <span>Hoàn tiền (Khóa)</span>
-                                          </div>
-                                          <span className="material-symbols-outlined text-[13px]">lock</span>
-                                        </button>
-                                      )}
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Phân trang */}
-        <AdminPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={groupedOrders.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="đơn hàng ký quỹ"
-        />
-      </AdminTableContainer>
+      {/* 4. Grouped Data Table: Bảng Rộng Dài Kèm Thanh Kéo Ngang, Click Hàng Tự Động Xổ Xuống */}
+      <GroupedDataTable
+        columns={orderColumns}
+        data={groupedOrders}
+        keyField="id"
+        expandable={true}
+        expandedRowRender={renderOrderItemsDetail}
+        expandedRowKeys={expandedKeys}
+        onExpandedRowsChange={setExpandedKeys}
+        onRowClick={(row) => toggleExpandOrder(row.id)}
+        loading={loading}
+        onRetry={fetchEscrowItems}
+        emptyTitle="Không tìm thấy đơn hàng ký quỹ"
+        emptyMessage={
+          searchQuery
+            ? `Không có kết quả khớp với từ khóa "${searchQuery}"`
+            : activeTab !== 'ALL'
+            ? 'Không có đơn hàng nào trong trạng thái đã chọn.'
+            : 'Hiện chưa có đơn hàng nào trong hệ thống ký quỹ.'
+        }
+        emptyIcon="lock_clock"
+        pagination={true}
+        className="min-w-[1500px]"
+      />
     </div>
   );
 }
-export default AdminEscrowView;
 
+export default AdminEscrowView;

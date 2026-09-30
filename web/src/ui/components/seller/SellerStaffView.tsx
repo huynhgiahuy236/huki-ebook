@@ -14,6 +14,7 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 
 const initialForm = {
   fullName: '',
@@ -68,6 +69,12 @@ export function SellerStaffView() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
+  // Tab State: Members vs Governance Audit Timeline
+  const [activeStaffTab, setActiveStaffTab] = useState<'members' | 'audit_logs'>('members');
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+
   // Load Members
   const loadMembers = useCallback(async () => {
     setLoading(true);
@@ -106,9 +113,65 @@ export function SellerStaffView() {
     }
   }, [businessId, setActiveBusinessId]);
 
+  // Load Governance Audit Logs
+  const loadAuditLogs = useCallback(async () => {
+    let currentBizId = businessId;
+    if (!currentBizId) {
+      try {
+        const myBiz = await businessApi.getMyBusiness();
+        if (myBiz.success && myBiz.data?.id) {
+          currentBizId = myBiz.data.id;
+          setActiveBusinessId(currentBizId);
+        }
+      } catch (err) {
+        console.warn('Could not auto-fetch businessId for audit logs', err);
+      }
+    }
+
+    if (!currentBizId) return;
+
+    setLoadingAuditLogs(true);
+    setAuditError(null);
+    try {
+      const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 50 });
+      if (res.success && res.data?.items) {
+        const mapped: AuditLogItem[] = res.data.items.map((log: any) => ({
+          id: log.id,
+          actorId: log.actorId,
+          actorRole: log.actorRole,
+          action: log.action,
+          resource: log.resource,
+          resourceId: log.resourceId,
+          storeId: log.storeId,
+          timestamp: log.createdAt || log.timestamp,
+          ipAddress: log.ipAddress,
+          requestId: log.requestId,
+          changedFields: log.changedFields,
+          stateBefore: log.beforeState,
+          stateAfter: log.afterState,
+          metadata: log.metadata,
+        }));
+        setAuditLogs(mapped);
+      } else {
+        setAuditLogs([]);
+      }
+    } catch (err: any) {
+      setAuditError(err?.message || 'Không thể tải nhật ký phân quyền nhân sự.');
+      setAuditLogs([]);
+    } finally {
+      setLoadingAuditLogs(false);
+    }
+  }, [businessId, setActiveBusinessId]);
+
   useEffect(() => {
     loadMembers();
   }, [loadMembers]);
+
+  useEffect(() => {
+    if (activeStaffTab === 'audit_logs') {
+      loadAuditLogs();
+    }
+  }, [activeStaffTab, loadAuditLogs]);
 
   // Handle Select Role Preset
   const handleSelectPreset = (presetId: string) => {
@@ -405,15 +468,60 @@ export function SellerStaffView() {
             variant={showAddForm ? 'neutral' : 'primary'}
             size="sm"
             icon={showAddForm ? 'close' : 'person_add'}
-            onClick={() => setShowAddForm(!showAddForm)}
+            onClick={() => {
+              if (activeStaffTab !== 'members') setActiveStaffTab('members');
+              setShowAddForm(!showAddForm);
+            }}
           >
             {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
           </SellerActionButton>
         </div>
       </div>
 
-      {/* Direct Provisioning Form (In-Page Collapsible) */}
-      {showAddForm && (
+      {/* Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveStaffTab('members')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeStaffTab === 'members'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+          }`}
+        >
+          <span className="material-symbols-outlined text-base">badge</span>
+          <span>Danh Sách Nhân Viên ({members.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveStaffTab('audit_logs')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeStaffTab === 'audit_logs'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
+          }`}
+        >
+          <span className="material-symbols-outlined text-base">history_edu</span>
+          <span>Lịch Sử Thao Tác Phân Quyền</span>
+        </button>
+      </div>
+
+      {activeStaffTab === 'audit_logs' ? (
+        <AuditHistoryTimeline
+          title="Lịch Sử Thao Tác Phân Quyền & Quản Trị Nhân Sự"
+          description="Theo dõi toàn bộ nhật ký cấp tài khoản, cập nhật vai trò, phân quyền hoặc xóa tài khoản nhân sự trong Doanh nghiệp."
+          items={auditLogs}
+          loading={loadingAuditLogs}
+          error={auditError}
+          onRetry={loadAuditLogs}
+          emptyTitle="Chưa có nhật ký phân quyền nhân sự"
+          emptyMessage="Chưa ghi nhận thao tác phân quyền hoặc thay đổi nhân sự nào trong Doanh nghiệp."
+        />
+      ) : (
+        <>
+          {/* Direct Provisioning Form (In-Page Collapsible) */}
+          {showAddForm && (
         <div className="bg-white rounded-2xl border-2 border-slate-300 p-6 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2 text-slate-900">
@@ -951,6 +1059,8 @@ export function SellerStaffView() {
           totalPages={totalPages}
           onPageChange={setCurrentPage}
         />
+      )}
+        </>
       )}
     </div>
   );

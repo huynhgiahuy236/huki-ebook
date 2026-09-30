@@ -262,25 +262,25 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/reports', 
           icon: 'analytics', 
-          label: 'Báo Cáo & Phân Tích Doanh Thu', 
+          label: 'Báo Cáo Doanh Thu', 
           permission: PERMISSIONS.FINANCE_VIEW 
         },
         { 
           to: '/seller/finance', 
           icon: 'account_balance_wallet', 
-          label: 'Ví Số Dư & Rút Tiền', 
+          label: 'Số Dư Ví & Rút Tiền', 
           permission: PERMISSIONS.FINANCE_VIEW 
         },
         { 
           to: '/seller/escrow', 
           icon: 'hourglass_top', 
-          label: 'Tiền Đang Treo (Ký Quỹ)', 
+          label: 'Tiền Ký Quỹ Đang Giữ', 
           permission: PERMISSIONS.FINANCE_VIEW 
         },
         { 
           to: '/seller/transactions', 
           icon: 'receipt_long', 
-          label: 'Nhật Ký Biến Động Số Dư', 
+          label: 'Lịch Sử Giao Dịch Ví', 
           permission: PERMISSIONS.FINANCE_VIEW 
         }
       ]

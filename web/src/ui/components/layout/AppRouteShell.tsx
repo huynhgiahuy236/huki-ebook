@@ -19,8 +19,9 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   const isReaderRoute = pathname.startsWith('/reader') || pathname.startsWith('/read');
   const isInvoiceRoute = pathname.includes('/invoice');
   const isMessagesRoute = pathname.startsWith('/account/messages') || pathname.startsWith('/messages');
+  const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname.startsWith('/welcome');
 
-  if (isAuthRoute || isSellerRoute || isAdminRoute || isShipperRoute || isReaderRoute || isInvoiceRoute || isMessagesRoute) {
+  if (isAuthRoute || isSellerRoute || isAdminRoute || isShipperRoute || isReaderRoute || isInvoiceRoute || isMessagesRoute || isOnboardingRoute) {
     return <>{children}</>;
   }
 

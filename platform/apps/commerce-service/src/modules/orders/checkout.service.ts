@@ -100,7 +100,7 @@ export class CheckoutService {
     private readonly voucherClient: VoucherClientService,
     private readonly pricingCalculator: PricingCalculatorService,
     @Optional() private readonly sanctionsService?: SanctionsService,
-  ) {}
+  ) { }
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
@@ -253,11 +253,11 @@ export class CheckoutService {
       voucherSelection,
       resolvedAddress
         ? {
-            province: resolvedAddress.province,
-            district: resolvedAddress.district,
-            ward: resolvedAddress.ward,
-            address: resolvedAddress.line1,
-          }
+          province: resolvedAddress.province,
+          district: resolvedAddress.district,
+          ward: resolvedAddress.ward,
+          address: resolvedAddress.line1,
+        }
         : undefined,
     );
 
@@ -320,10 +320,10 @@ export class CheckoutService {
     const ttlMinutes = hasFlashSale
       ? 1
       : Number(
-          this.config.get("checkout.sessionTtlMinutes") ??
-            process.env.CHECKOUT_SESSION_TTL_MINUTES ??
-            15,
-        );
+        this.config.get("checkout.sessionTtlMinutes") ??
+        process.env.CHECKOUT_SESSION_TTL_MINUTES ??
+        15,
+      );
 
     const session = await this.prisma.checkoutSession.create({
       data: {
@@ -430,11 +430,11 @@ export class CheckoutService {
             voucherSelection,
             shippingAddress
               ? {
-                  province: shippingAddress.province,
-                  district: shippingAddress.district,
-                  ward: shippingAddress.ward,
-                  address: shippingAddress.line1,
-                }
+                province: shippingAddress.province,
+                district: shippingAddress.district,
+                ward: shippingAddress.ward,
+                address: shippingAddress.line1,
+              }
               : undefined,
           );
 
@@ -633,13 +633,13 @@ export class CheckoutService {
               paymentStatus: order.paymentStatus,
               shippingAddress: shippingAddress
                 ? {
-                    receiverName: shippingAddress.recipientName,
-                    receiverPhone: shippingAddress.phone,
-                    address: shippingAddress.line1,
-                    province: shippingAddress.province,
-                    district: shippingAddress.district,
-                    ward: shippingAddress.ward,
-                  }
+                  receiverName: shippingAddress.recipientName,
+                  receiverPhone: shippingAddress.phone,
+                  address: shippingAddress.line1,
+                  province: shippingAddress.province,
+                  district: shippingAddress.district,
+                  ward: shippingAddress.ward,
+                }
                 : null,
               sellerOrders: shipmentSellerOrders,
             },
@@ -716,6 +716,19 @@ export class CheckoutService {
         } catch (error: any) {
           console.error('Failed to consume store voucher:', error?.message || error);
         }
+      }
+    }
+
+    // Consume shipping voucher (Freeship)
+    if (snapshot.vouchers?.shipping?.code) {
+      try {
+        await this.voucherClient.apply(userId, {
+          code: snapshot.vouchers.shipping.code,
+          orderId,
+          discountAmount: snapshot.shippingDiscountTotal || snapshot.vouchers.shipping.discount || 0,
+        });
+      } catch (error: any) {
+        console.error('Failed to consume shipping voucher:', error?.message || error);
       }
     }
   }
