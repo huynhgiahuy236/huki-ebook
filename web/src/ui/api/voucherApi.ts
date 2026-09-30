@@ -49,7 +49,7 @@ export const voucherApi = {
    * Get vouchers by store
    */
   getVouchersByStore: async (storeId: string): Promise<ApiResponse<Voucher[]>> => {
-    return apiClient<Voucher[]>(`/vouchers?scope=STORE&storeId=${storeId}`, {
+    return apiClient<Voucher[]>(`/vouchers?scope=STORE&storeId=${storeId}&status=ACTIVE&activeOnly=true`, {
       method: 'GET',
     });
   },
@@ -58,7 +58,7 @@ export const voucherApi = {
    * Get platform vouchers
    */
   getPlatformVouchers: async (): Promise<ApiResponse<Voucher[]>> => {
-    return apiClient<Voucher[]>('/vouchers?scope=PLATFORM', {
+    return apiClient<Voucher[]>('/vouchers?scope=PLATFORM&status=ACTIVE&activeOnly=true', {
       method: 'GET',
     });
   },

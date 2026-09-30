@@ -31,7 +31,7 @@ export class VouchersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async onApplicationBootstrap() {
-    await this.seedDefaultVouchersIfEmpty();
+    // Disabled automatic sample vouchers seeding as requested
   }
 
   private async seedDefaultVouchersIfEmpty() {
@@ -160,11 +160,29 @@ export class VouchersService {
     });
   }
 
-  async findAll(query: VoucherQueryDto) {
+  async findAll(query: VoucherQueryDto & { activeOnly?: boolean | string }) {
     const where: any = {};
-    if (query.status) where.status = query.status;
+    const now = new Date();
+
+    const isActiveOnly =
+      query.activeOnly === true ||
+      query.activeOnly === 'true' ||
+      query.status === 'ACTIVE' ||
+      (!query.status && Boolean(query.storeId));
+
+    if (isActiveOnly) {
+      where.status = 'ACTIVE';
+      where.startsAt = { lte: now };
+      where.expiresAt = { gte: now };
+    } else if (query.status) {
+      where.status = query.status;
+    }
+
     if (query.scope) where.scope = query.scope;
-    if (query.storeId) where.storeId = query.storeId;
+    if (query.storeId) {
+      const relatedIds = await this.getRelatedStoreAndBusinessIds(query.storeId);
+      where.storeId = relatedIds.length === 1 ? relatedIds[0] : { in: relatedIds };
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.voucher.findMany({
@@ -236,16 +254,16 @@ export class VouchersService {
 
     // Check status
     if (voucher.status !== 'ACTIVE') {
-      return { valid: false, reason: `Voucher is ${voucher.status.toLowerCase()}` };
+      return { valid: false, reason: `Mã voucher hiện đang ở trạng thái: ${voucher.status}` };
     }
 
     // Check expiry
     const now = new Date();
     if (now < voucher.startsAt) {
-      return { valid: false, reason: 'Voucher has not started yet' };
+      return { valid: false, reason: 'Mã voucher chưa đến thời gian có hiệu lực sử dụng' };
     }
     if (now > voucher.expiresAt) {
-      return { valid: false, reason: 'Voucher has expired' };
+      return { valid: false, reason: 'Mã voucher đã hết hạn sử dụng' };
     }
 
     // Check usage limit
@@ -275,8 +293,11 @@ export class VouchersService {
     }
 
     // Check scope
-    if (voucher.scope === 'STORE' && dto.storeId && voucher.storeId !== dto.storeId) {
-      return { valid: false, reason: 'Voucher is not valid for this store' };
+    if (voucher.scope === 'STORE' && dto.storeId) {
+      const relatedIds = await this.getRelatedStoreAndBusinessIds(dto.storeId);
+      if (voucher.storeId && !relatedIds.includes(voucher.storeId)) {
+        return { valid: false, reason: 'Voucher is not valid for this store' };
+      }
     }
 
     // Check Target Audience (ALL | FOLLOWERS_ONLY | NEW_CUSTOMERS_ONLY)
@@ -618,8 +639,8 @@ export class VouchersService {
     });
   }
 
-  private async checkUserFollowsStore(userId: string, storeId?: string | null): Promise<{ isFollower: boolean; daysFollowed: number; createdAt?: Date }> {
-    if (!userId || userId === 'anonymous' || !storeId) return { isFollower: false, daysFollowed: 0 };
+  private async getRelatedStoreAndBusinessIds(id?: string | null): Promise<string[]> {
+    if (!id) return [];
     try {
       const { Client } = require('pg');
       const bizDbUrl =
@@ -628,11 +649,38 @@ export class VouchersService {
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
+        `SELECT id, business_id FROM stores WHERE id = $1 OR business_id = $1`,
+        [id],
+      );
+      await pgClient.end();
+      const ids = new Set<string>([id]);
+      if (res.rows && res.rows.length > 0) {
+        for (const row of res.rows) {
+          if (row.id) ids.add(row.id);
+          if (row.business_id) ids.add(row.business_id);
+        }
+      }
+      return Array.from(ids);
+    } catch {
+      return [id];
+    }
+  }
+
+  private async checkUserFollowsStore(userId: string, storeId?: string | null): Promise<{ isFollower: boolean; daysFollowed: number; createdAt?: Date }> {
+    if (!userId || userId === 'anonymous' || !storeId) return { isFollower: false, daysFollowed: 0 };
+    try {
+      const relatedIds = await this.getRelatedStoreAndBusinessIds(storeId);
+      const { Client } = require('pg');
+      const bizDbUrl =
+        process.env.BUSINESS_DATABASE_URL ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      const pgClient = new Client({ connectionString: bizDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
         `SELECT bf.id, bf.created_at FROM business_followers bf
-         LEFT JOIN stores s ON s.business_id = bf.business_id
-         WHERE (bf.business_id = $1 OR s.id = $1) AND bf.user_id = $2
+         WHERE bf.business_id = ANY($1) AND bf.user_id = $2
          LIMIT 1`,
-        [storeId, userId],
+        [relatedIds, userId],
       );
       await pgClient.end();
 
@@ -653,6 +701,7 @@ export class VouchersService {
   private async checkIsNewCustomer(userId: string, storeId?: string | null): Promise<boolean> {
     if (!userId) return false;
     try {
+      const relatedIds = await this.getRelatedStoreAndBusinessIds(storeId);
       const { Client } = require('pg');
       const commerceDbUrl =
         process.env.COMMERCE_DATABASE_URL ||
@@ -661,8 +710,8 @@ export class VouchersService {
       const pgClient = new Client({ connectionString: commerceDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
-        `SELECT id FROM orders WHERE user_id = $1 ${storeId ? 'AND store_id = $2' : ''} AND status NOT IN ('CANCELLED', 'PAYMENT_FAILED') LIMIT 1`,
-        storeId ? [userId, storeId] : [userId],
+        `SELECT id FROM orders WHERE user_id = $1 ${relatedIds.length > 0 ? 'AND (store_id = ANY($2) OR business_id = ANY($2))' : ''} AND status NOT IN ('CANCELLED', 'PAYMENT_FAILED') LIMIT 1`,
+        relatedIds.length > 0 ? [userId, relatedIds] : [userId],
       );
       await pgClient.end();
       return res.rows.length === 0;

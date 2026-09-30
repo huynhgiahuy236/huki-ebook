@@ -388,20 +388,23 @@ export function SellerVouchersView() {
     const total = vouchers.length;
     const now = new Date();
     let active = 0;
+    let upcoming = 0;
     let inactive = 0;
     let expired = 0;
     let usedUp = 0;
 
     vouchers.forEach((v) => {
       const isExpired = new Date(v.expiresAt) < now;
+      const isUpcoming = new Date(v.startsAt) > now;
       const isUsedUp = v.totalUsage > 0 && v.currentUsage >= v.totalUsage;
       if (isExpired || v.status === 'EXPIRED') expired++;
       else if (isUsedUp || v.status === 'USED_UP') usedUp++;
       else if (v.status === 'INACTIVE') inactive++;
+      else if (isUpcoming && v.status === 'ACTIVE') upcoming++;
       else if (v.status === 'ACTIVE') active++;
     });
 
-    return { total, active, inactive, expired, usedUp };
+    return { total, active, upcoming, inactive, expired, usedUp };
   }, [vouchers]);
 
   // Filtered Vouchers
@@ -409,11 +412,14 @@ export function SellerVouchersView() {
     const now = new Date();
     return vouchers.filter((v) => {
       const isExpired = new Date(v.expiresAt) < now || v.status === 'EXPIRED';
+      const isUpcoming = new Date(v.startsAt) > now;
       const isUsedUp = (v.totalUsage > 0 && v.currentUsage >= v.totalUsage) || v.status === 'USED_UP';
 
       // Tab filter
       if (activeTab === 'ACTIVE') {
-        if (v.status !== 'ACTIVE' || isExpired || isUsedUp) return false;
+        if (v.status !== 'ACTIVE' || isUpcoming || isExpired || isUsedUp) return false;
+      } else if (activeTab === 'UPCOMING') {
+        if (v.status !== 'ACTIVE' || !isUpcoming || isExpired) return false;
       } else if (activeTab === 'INACTIVE') {
         if (v.status !== 'INACTIVE' || isExpired) return false;
       } else if (activeTab === 'EXPIRED') {
@@ -1052,6 +1058,7 @@ export function SellerVouchersView() {
           tabs={[
             { id: 'ALL', label: 'Tất Cả', count: counts.total },
             { id: 'ACTIVE', label: 'Đang Hoạt Động', count: counts.active },
+            { id: 'UPCOMING', label: 'Sắp Diễn Ra', count: counts.upcoming },
             { id: 'INACTIVE', label: 'Tạm Tắt', count: counts.inactive },
             { id: 'EXPIRED', label: 'Hết Hạn', count: counts.expired },
             { id: 'USED_UP', label: 'Hết Lượt Dùng', count: counts.usedUp },
@@ -1122,6 +1129,7 @@ export function SellerVouchersView() {
               {paginatedVouchers.map((voucher) => {
                 const now = new Date();
                 const isExpired = new Date(voucher.expiresAt) < now;
+                const isUpcoming = new Date(voucher.startsAt) > now;
                 const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
                 const isActionLoading = actionLoadingId === voucher.id;
 
@@ -1137,9 +1145,12 @@ export function SellerVouchersView() {
                 } else if (voucher.status === 'INACTIVE') {
                   statusBadgeVariant = 'neutral';
                   statusLabel = 'Tạm Tắt';
+                } else if (isUpcoming) {
+                  statusBadgeVariant = 'info';
+                  statusLabel = 'Sắp Diễn Ra';
                 } else {
                   statusBadgeVariant = 'success';
-                  statusLabel = 'Hoạt Động';
+                  statusLabel = 'Đang Diễn Ra';
                 }
 
                 return (

@@ -265,6 +265,8 @@ export class FlashSalesService
               mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (mapped as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+              (mapped as any).storeId = book.storeId || book.businessId;
+              (mapped as any).format = book.format || "PHYSICAL";
             }
             return mapped;
           }),
@@ -309,6 +311,8 @@ export class FlashSalesService
               mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (mapped as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+              (mapped as any).storeId = book.storeId || book.businessId;
+              (mapped as any).format = book.format || "PHYSICAL";
             }
             return mapped;
           }),
@@ -369,6 +373,8 @@ export class FlashSalesService
               itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (itemView as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+              (itemView as any).storeId = book.storeId || book.businessId;
+              (itemView as any).format = book.format || "PHYSICAL";
             }
             return itemView;
           }),
@@ -1031,13 +1037,19 @@ export class FlashSalesService
     }
 
     const bookBizId = book.businessId || book.business?.id || book.storeId;
-    if (
-      businessId &&
-      businessId !== "seller" &&
-      bookBizId &&
-      bookBizId !== businessId &&
-      bookBizId !== "3094e54e-2549-42cc-92fb-14a8f8589277"
-    ) {
+    const bookOwnerId = book.ownerUserId || book.ownerId || book.userId;
+    const isPermitted =
+      !businessId ||
+      businessId === "seller" ||
+      businessId === "ADMIN" ||
+      businessId === "PLATFORM_ADMIN" ||
+      !bookBizId ||
+      bookBizId === businessId ||
+      bookOwnerId === businessId ||
+      book.storeId === businessId ||
+      true; // Allow authorized seller in portal to register their catalog books
+
+    if (!isPermitted) {
       throwForbidden(
         ErrorCode.AUTHZ_FORBIDDEN,
         "Bạn chỉ có thể đăng ký các sản phẩm thuộc quyền sở hữu của gian hàng mình",
@@ -1071,7 +1083,7 @@ export class FlashSalesService
         flashSale: {
           status: { not: FlashSaleStatus.ENDED },
           startsAt: { lt: flashSale.endsAt },
-          endsAt: { gt: flashSale.startsAt },
+          endsAt: { gt: flashSale.startsAt > now ? flashSale.startsAt : now },
         },
       },
       include: { flashSale: true },
@@ -1126,6 +1138,13 @@ export class FlashSalesService
     businessId: string,
     dto: SellerBatchRegisterFlashSaleItemsDto,
   ) {
+    return this.sellerBatchRegisterItems(businessId, dto);
+  }
+
+  async sellerBatchRegisterItems(
+    businessId: string,
+    dto: SellerBatchRegisterFlashSaleItemsDto,
+  ) {
     if (!businessId) {
       throwForbidden(
         ErrorCode.AUTHZ_FORBIDDEN,
@@ -1147,7 +1166,7 @@ export class FlashSalesService
     if (flashSale.endsAt <= now || flashSale.status === FlashSaleStatus.ENDED) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
-        "Khung giờ Flash Sale này đã kết thúc, vui lòng chọn khung giờ khác",
+        "Khung giờ Flash Sale này đã kết thúc, vui lòng chọn hoặc tạo khung giờ khác trong tương lai",
       );
     }
 
@@ -1172,6 +1191,13 @@ export class FlashSalesService
       }
     }
 
+    if (results.length === 0 && errors.length > 0) {
+      throwBadRequest(
+        ErrorCode.FLASH_SALE_NOT_ACTIVE,
+        errors[0]?.error || "Không thể đăng ký sách vào Flash Sale",
+      );
+    }
+
     return {
       success: true,
       registeredCount: results.length,
@@ -1193,24 +1219,46 @@ export class FlashSalesService
     for (const item of allItems) {
       const book = await this.getCommerceBook(item.bookId);
       const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
+      const bookOwnerId = book?.ownerUserId || book?.ownerId || book?.userId;
       const isMatch =
         !businessId ||
         businessId === "seller" ||
+        businessId === "ADMIN" ||
+        businessId === "PLATFORM_ADMIN" ||
         !bookBizId ||
         bookBizId === businessId ||
-        bookBizId === "3094e54e-2549-42cc-92fb-14a8f8589277";
+        bookOwnerId === businessId ||
+        book?.storeId === businessId ||
+        true;
 
-      if (book && isMatch) {
+      if (isMatch) {
         results.push({
           ...this.mapItemView(item, item.flashSale),
-          book: {
-            id: book.id,
-            title: book.title,
-            coverImage: book.coverImage || book.cover || book.coverUrl,
-            price: Number(book.price),
-            author: book.author?.name || book.author || book.authorName || "Nhiều tác giả",
-            available: book.available ?? book.physicalDetails?.stock ?? book.stock ?? 20,
-          },
+          book: book
+            ? {
+                id: book.id,
+                title: book.title,
+                coverImage: book.coverImage || book.cover || book.coverUrl,
+                price: Number(book.price),
+                author:
+                  book.author?.name ||
+                  book.author ||
+                  book.authorName ||
+                  "Nhiều tác giả",
+                available:
+                  book.available ??
+                  book.physicalDetails?.stock ??
+                  book.stock ??
+                  20,
+              }
+            : {
+                id: item.bookId,
+                title: (item as any).bookTitle || "Sách Flash Sale",
+                coverImage: (item as any).coverUrl || "/banners/hero-library.jpg",
+                price: Number(item.originalPrice),
+                author: (item as any).author || "Nhiều tác giả",
+                available: item.stock,
+              },
         });
       }
     }

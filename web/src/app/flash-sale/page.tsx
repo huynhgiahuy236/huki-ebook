@@ -61,25 +61,21 @@ export default function FlashSalePage() {
       if (showLoading) setLoading(true);
       const res = await flashSaleApi.getTimeSlots();
       if (res.success && Array.isArray(res.data)) {
-        const slotList = res.data;
-        setSlots(slotList);
-        
         const now = Date.now();
-        // Priority: Active slot > Upcoming slot > First slot
-        const active = slotList.find((s) => {
+        // Direction 2: Strictly filter only active sessions (startsAt <= now <= endsAt) with items
+        const activeOnlySlots = res.data.filter((s) => {
           const start = new Date(s.startsAt).getTime();
           const end = new Date(s.endsAt).getTime();
-          return now >= start && now <= end;
-        }) || slotList.find((s) => {
-          const start = new Date(s.startsAt).getTime();
-          return now < start;
-        }) || slotList[0];
+          return now >= start && now <= end && (s.items?.length ?? 0) > 0;
+        });
+
+        setSlots(activeOnlySlots);
 
         setActiveSlotId((current) => {
-          if (current && slotList.some((slot) => slot.id === current)) {
+          if (current && activeOnlySlots.some((slot) => slot.id === current)) {
             return current;
           }
-          return active?.id || null;
+          return activeOnlySlots[0]?.id || null;
         });
       }
     } catch (err) {
@@ -177,13 +173,17 @@ export default function FlashSalePage() {
         coverUrl:
           item.coverUrl ||
           matchedBook?.coverUrl ||
+          matchedBook?.cover ||
+          (matchedBook as any)?.coverImage ||
           "/banners/hero-library.jpg",
         slug: item.bookSlug || matchedBook?.slug || item.bookId,
         author:
           (item as any).author ||
           matchedBook?.author?.name ||
+          (matchedBook as any)?.author ||
+          (matchedBook as any)?.authorName ||
           "Tác giả HUKI",
-        format: matchedBook?.format || "PHYSICAL",
+        format: (item as any).format || matchedBook?.format || "PHYSICAL",
       };
     });
   }, [currentSlot, catalogBooks]);
@@ -372,62 +372,64 @@ export default function FlashSalePage() {
 
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 mt-6">
         {/* 2. TIMELINE TABS */}
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-3.5 mb-6 overflow-x-auto">
-          <div className="flex items-center gap-3 min-w-max">
-            {slots.map((slot) => {
-              const timer = timeRemaining[slot.id] || {
-                mode: "ended",
-                diff: 0,
-                h: "00",
-                m: "00",
-                s: "00",
-              };
-              const isSelected = slot.id === (activeSlotId || currentSlot?.id);
-              const isActive = timer.mode === "active";
-              const isUpcoming = timer.mode === "upcoming";
-              const startTime = new Date(slot.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-              const endTime = new Date(slot.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-              const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+        {slots.length > 0 && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-3.5 mb-6 overflow-x-auto">
+            <div className="flex items-center gap-3 min-w-max">
+              {slots.map((slot) => {
+                const timer = timeRemaining[slot.id] || {
+                  mode: "ended",
+                  diff: 0,
+                  h: "00",
+                  m: "00",
+                  s: "00",
+                };
+                const isSelected = slot.id === (activeSlotId || currentSlot?.id);
+                const isActive = timer.mode === "active";
+                const isUpcoming = timer.mode === "upcoming";
+                const startTime = new Date(slot.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                const endTime = new Date(slot.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                const dateStr = new Date(slot.startsAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 
-              return (
-                <button
-                  key={slot.id}
-                  onClick={() => setActiveSlotId(slot.id)}
-                  className={`flex flex-col items-center justify-center px-6 py-3 rounded-2xl transition-all cursor-pointer border shrink-0 ${
-                    isSelected
-                      ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 text-white border-transparent shadow-md scale-102 ring-2 ring-orange-400/50"
-                      : "bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 font-black text-sm">
-                    {isActive && (
-                      <span className="material-symbols-outlined text-yellow-300 text-base animate-pulse">
-                        bolt
-                      </span>
-                    )}
-                    <span>{slot.name}</span>
-                  </div>
-                  <div className="text-[11px] font-semibold mt-1 flex items-center gap-1.5 opacity-90">
-                    <span className="font-mono text-[10px] opacity-85">{startTime} - {endTime} ({dateStr})</span>
-                    <span>•</span>
-                    {isActive ? (
-                      <span className="text-yellow-200 font-bold flex items-center gap-1">
-                        <span>Đang Diễn Ra</span>
-                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-ping"></span>
-                      </span>
-                    ) : isUpcoming ? (
-                      <span className={isSelected ? "text-amber-100 font-bold" : "text-orange-600 font-bold"}>
-                        Sắp Diễn Ra ⏳
-                      </span>
-                    ) : (
-                      <span className="opacity-60">Đã Kết Thúc</span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={slot.id}
+                    onClick={() => setActiveSlotId(slot.id)}
+                    className={`flex flex-col items-center justify-center px-6 py-3 rounded-2xl transition-all cursor-pointer border shrink-0 ${
+                      isSelected
+                        ? "bg-gradient-to-r from-red-600 via-orange-600 to-amber-600 text-white border-transparent shadow-md scale-102 ring-2 ring-orange-400/50"
+                        : "bg-slate-50/80 hover:bg-slate-100 text-slate-800 border-slate-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-black text-sm">
+                      {isActive && (
+                        <span className="material-symbols-outlined text-yellow-300 text-base animate-pulse">
+                          bolt
+                        </span>
+                      )}
+                      <span>{slot.name}</span>
+                    </div>
+                    <div className="text-[11px] font-semibold mt-1 flex items-center gap-1.5 opacity-90">
+                      <span className="font-mono text-[10px] opacity-85">{startTime} - {endTime} ({dateStr})</span>
+                      <span>•</span>
+                      {isActive ? (
+                        <span className="text-yellow-200 font-bold flex items-center gap-1">
+                          <span>Đang Diễn Ra</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-yellow-300 animate-ping"></span>
+                        </span>
+                      ) : isUpcoming ? (
+                        <span className={isSelected ? "text-amber-100 font-bold" : "text-orange-600 font-bold"}>
+                          Sắp Diễn Ra ⏳
+                        </span>
+                      ) : (
+                        <span className="opacity-60">Đã Kết Thúc</span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* 3. ACTIVE SESSION COUNTDOWN HEADER */}
         {currentSlot && (
@@ -502,15 +504,17 @@ export default function FlashSalePage() {
             </p>
           </div>
         ) : displayItems.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
-            <span className="material-symbols-outlined text-5xl text-slate-300">
-              inventory_2
-            </span>
-            <h3 className="text-base font-bold text-slate-700 mt-2">
-              Chưa có sản phẩm trong khung giờ này
+          <div className="bg-white rounded-3xl p-12 sm:p-16 text-center border border-slate-200/80 shadow-xs max-w-xl mx-auto my-6">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-3xl">
+                timer
+              </span>
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              Chưa có phiên Flash Sale nào đang mở bán
             </h3>
-            <p className="text-xs text-slate-500 mt-1">
-              Vui lòng chọn khung giờ khác hoặc quay lại sau!
+            <p className="text-xs sm:text-sm text-slate-500 mt-1.5 leading-relaxed">
+              Các chương trình Flash Sale sẽ tự động xuất hiện ngay khi đến khung giờ mở bán. Vui lòng quay lại sau!
             </p>
           </div>
         ) : (

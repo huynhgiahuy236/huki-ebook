@@ -271,7 +271,14 @@ export default function ShopPage() {
         .getVouchersByStore(sId)
         .then((res) => {
           if (res.success && Array.isArray(res.data)) {
-            setShopVouchers(res.data.filter((v: any) => v.status === 'ACTIVE'));
+            const now = new Date();
+            setShopVouchers(
+              res.data.filter((v: any) => {
+                const starts = new Date(v.startsAt);
+                const expires = new Date(v.expiresAt);
+                return v.status === 'ACTIVE' && starts <= now && expires >= now;
+              })
+            );
           }
         })
         .catch(() => setShopVouchers([]));

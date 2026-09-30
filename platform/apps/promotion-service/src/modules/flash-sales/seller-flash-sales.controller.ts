@@ -141,4 +141,18 @@ export class SellerFlashSalesController {
   ) {
     return this.flashSales.sellerCancelItem(business.id, itemId);
   }
+
+  @Delete("slots/:slotId")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Delete a flash sale slot",
+    description: "Removes a flash sale slot and all registered items",
+  })
+  @ApiParam({ name: "slotId", description: "Flash Sale Slot ID" })
+  @ApiResponse({ status: 200, description: "Flash sale slot deleted successfully" })
+  async deleteSlot(
+    @Param("slotId", ParseUUIDPipe) slotId: string,
+  ) {
+    return this.flashSales.delete(slotId);
+  }
 }

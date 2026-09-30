@@ -270,5 +270,13 @@ export const flashSaleApi = {
       body: JSON.stringify(payload),
     });
   },
+
+  sellerDeleteSlot: async (
+    slotId: string,
+  ): Promise<ApiResponse<any>> => {
+    return apiClient<any>(`/flash-sales/seller/slots/${slotId}`, {
+      method: "DELETE",
+    });
+  },
 };
 
