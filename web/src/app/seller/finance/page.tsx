@@ -5,9 +5,11 @@ import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import {
   walletApi,
+  payoutApi,
   type WalletData,
   type SellerEscrowItem,
   type WalletTransactionItem,
+  type PayoutRequestItem,
 } from '@/ui/api/walletApi';
 import WithdrawalPinModal, { type BankInfo } from '@/ui/components/seller/WithdrawalPinModal';
 
@@ -71,6 +73,12 @@ export default function SellerFinancePage() {
   const [walletError, setWalletError] = useState<string | null>(null);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
 
+  // Payout Requests History State
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequestItem[]>([]);
+  const [isPayoutsLoading, setIsPayoutsLoading] = useState(true);
+  const [payoutPage, setPayoutPage] = useState(1);
+  const [payoutTotalPages, setPayoutTotalPages] = useState(1);
+
   // Fetch Wallet Data
   const fetchWallet = useCallback(async () => {
     setIsWalletLoading(true);
@@ -113,9 +121,26 @@ export default function SellerFinancePage() {
     }
   }, [storeId]);
 
+  // Fetch Payout Requests History
+  const fetchPayoutRequests = useCallback(async (pageNum = 1) => {
+    setIsPayoutsLoading(true);
+    try {
+      const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 10 });
+      if (res.success && res.data) {
+        setPayoutRequests(res.data.items || []);
+        setPayoutPage(res.data.page || pageNum);
+        setPayoutTotalPages(Math.ceil((res.data.total || 0) / (res.data.limit || 10)) || 1);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải lịch sử yêu cầu rút tiền:', err);
+    } finally {
+      setIsPayoutsLoading(false);
+    }
+  }, [storeId]);
+
   const handleRefreshAll = useCallback(async () => {
-    await Promise.all([fetchWallet(), fetchEscrowItems(), fetchRecentTransactions()]);
-  }, [fetchWallet, fetchEscrowItems, fetchRecentTransactions]);
+    await Promise.all([fetchWallet(), fetchEscrowItems(), fetchRecentTransactions(), fetchPayoutRequests(1)]);
+  }, [fetchWallet, fetchEscrowItems, fetchRecentTransactions, fetchPayoutRequests]);
 
   useEffect(() => {
     handleRefreshAll();
@@ -543,6 +568,158 @@ export default function SellerFinancePage() {
           </div>
         </div>
       )}
+
+      {/* 6. PAYOUT REQUESTS HISTORY (LỊCH SỬ RÚT TIỀN VỀ NGÂN HÀNG) */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-emerald-600 text-lg">payments</span>
+              <span>Lịch Sử Yêu Cầu Rút Tiền Về Ngân Hàng (Payout Requests)</span>
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Theo dõi trạng thái duyệt lệnh, thời gian xử lý và lịch sử giải ngân của từng yêu cầu rút tiền
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fetchPayoutRequests(payoutPage)}
+            disabled={isPayoutsLoading}
+            className="text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 font-semibold flex items-center gap-1 cursor-pointer"
+          >
+            <span className={`material-symbols-outlined text-sm ${isPayoutsLoading ? 'animate-spin' : ''}`}>refresh</span>
+            <span>Làm mới</span>
+          </button>
+        </div>
+
+        {isPayoutsLoading ? (
+          <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+            <span className="material-symbols-outlined text-2xl animate-spin text-emerald-600">progress_activity</span>
+            <span className="text-xs">Đang tải lịch sử rút tiền...</span>
+          </div>
+        ) : payoutRequests.length === 0 ? (
+          <div className="py-8 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
+            <span className="material-symbols-outlined text-3xl text-slate-300">account_balance_wallet</span>
+            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Chưa có yêu cầu rút tiền nào</p>
+            <p className="text-[11px] text-slate-400">Các lệnh rút tiền về tài khoản ngân hàng sẽ được lưu vết đầy đủ tại đây</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
+                  <th className="py-2.5 px-3">Mã Lệnh</th>
+                  <th className="py-2.5 px-3">Thời Gian Tạo</th>
+                  <th className="py-2.5 px-3">Số Tiền Rút</th>
+                  <th className="py-2.5 px-3 text-center">Trạng Thái</th>
+                  <th className="py-2.5 px-3">Người Duyệt / Thời Gian</th>
+                  <th className="py-2.5 px-3">Chi Tiết / Lý Do</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                {payoutRequests.map((req) => {
+                  const status = req.status;
+                  let statusBadge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+                  if (status === 'PENDING') {
+                    statusBadge = { label: 'Chờ duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+                  } else if (status === 'APPROVED') {
+                    statusBadge = { label: 'Đã duyệt', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+                  } else if (status === 'PROCESSING') {
+                    statusBadge = { label: 'Đang giải ngân', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                  } else if (status === 'COMPLETED') {
+                    statusBadge = { label: 'Hoàn tất', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+                  } else if (status === 'REJECTED') {
+                    statusBadge = { label: 'Từ chối', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+                  } else if (status === 'FAILED') {
+                    statusBadge = { label: 'Thất bại', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+                  }
+
+                  const reasonText = req.rejectionReason || req.rejectReason || req.failureReason;
+
+                  return (
+                    <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white text-[11px]">
+                        #{req.id.slice(0, 8)}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                        {formatVietnamDateTime(req.requestedAt || req.createdAt)}
+                      </td>
+                      <td className="py-2.5 px-3 font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                        {formatVND(req.amount)}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge.bg}`}>
+                          {statusBadge.label}
+                        </span>
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-[11px]">
+                        {req.reviewedBy ? (
+                          <div>
+                            <span className="font-semibold">{req.reviewedBy === 'ADMIN' ? 'Platform Admin' : req.reviewedBy}</span>
+                            {req.reviewedAt && (
+                              <span className="block text-[10px] text-slate-400 font-mono">
+                                {formatVietnamDateTime(req.reviewedAt)}
+                              </span>
+                            )}
+                          </div>
+                        ) : req.disbursedAt ? (
+                          <div>
+                            <span className="font-semibold text-emerald-600">Đã giải ngân</span>
+                            <span className="block text-[10px] text-slate-400 font-mono">
+                              {formatVietnamDateTime(req.disbursedAt)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic">Đang chờ xử lý</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-[200px] truncate">
+                        {reasonText ? (
+                          <span className="text-rose-600 font-medium" title={reasonText}>
+                            Lý do: {reasonText}
+                          </span>
+                        ) : req.providerRef ? (
+                          <span className="font-mono text-[10.5px] text-slate-500">
+                            Ref: {req.providerRef}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {payoutTotalPages > 1 && (
+              <div className="pt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 text-xs">
+                <span className="text-slate-500 text-[11px]">
+                  Trang {payoutPage} / {payoutTotalPages}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={payoutPage <= 1 || isPayoutsLoading}
+                    onClick={() => fetchPayoutRequests(payoutPage - 1)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Trước
+                  </button>
+                  <button
+                    type="button"
+                    disabled={payoutPage >= payoutTotalPages || isPayoutsLoading}
+                    onClick={() => fetchPayoutRequests(payoutPage + 1)}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    Tiếp
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* MODAL RÚT TIỀN 2 BƯỚC (PIN 6 SỐ) */}
       <WithdrawalPinModal

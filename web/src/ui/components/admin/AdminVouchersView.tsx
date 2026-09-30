@@ -191,6 +191,10 @@ export function AdminVouchersView() {
       if (!voucherForm.value || voucherForm.value < 1000) {
         errs.value = "Số tiền giảm cố định phải từ 1,000₫ trở lên.";
       }
+    } else if (voucherForm.type === "FREE_SHIPPING") {
+      if (!voucherForm.value || voucherForm.value < 1000) {
+        errs.value = "Mức hỗ trợ cước vận chuyển (Freeship) phải từ 1,000₫ trở lên.";
+      }
     }
 
     if (voucherForm.totalUsage <= 0) {
@@ -360,267 +364,538 @@ export function AdminVouchersView() {
         </div>
       </div>
 
-      {/* 3. IN-PAGE EXPANDABLE STUDIO FORM (100% IN-PAGE, ZERO MODAL) */}
+      {/* 3. IN-PAGE EXPANDABLE STUDIO MASTER PANEL & CONFIGURATION TABLE */}
       {isFormOpen && (
-        <div className="bg-white rounded-3xl p-6 border-2 border-emerald-500/40 shadow-xl animate-in slide-in-from-top-4 duration-200">
-          <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-[#00875A] flex items-center justify-center font-bold border border-emerald-200">
-                <span className="material-symbols-outlined text-xl">add_card</span>
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-emerald-500/40 shadow-2xl animate-in slide-in-from-top-4 duration-200">
+          {/* Header */}
+          <div className="flex items-center justify-between pb-5 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-[#00875A] flex items-center justify-center font-bold border border-emerald-200 shadow-xs">
+                <span className="material-symbols-outlined text-2xl">confirmation_number</span>
               </div>
               <div>
-                <h3 className="font-extrabold text-gray-900 text-base">
+                <h3 className="font-extrabold text-gray-900 text-lg sm:text-xl font-editorial">
                   Studio Thiết Lập &amp; Phát Hành Voucher Sàn Mới
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Thiết lập mã giảm giá, kiểm soát trần khuyến mãi và lựa chọn phân khúc đối tượng thụ hưởng
+                  Thiết lập mã giảm giá toàn sàn, Freeship 100% hoặc hỗ trợ cước, kiểm soát ngân sách và theo dõi dòng tiền mô phỏng tức thì
                 </p>
               </div>
             </div>
 
             <button
               onClick={() => setIsFormOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+              className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
             >
-              <span className="material-symbols-outlined text-lg">close</span>
+              <span className="material-symbols-outlined text-xl">close</span>
             </button>
           </div>
 
-          <form onSubmit={handleCreateVoucher} className="space-y-5 pt-5 text-xs">
-            {/* 4 Cards Grid Layout */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Thông tin cơ bản */}
-              <div className="p-4 rounded-2xl bg-gray-50/80 border border-gray-200 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-gray-800 text-xs border-b border-gray-200 pb-2">
-                  <span className="material-symbols-outlined text-base text-gray-600">badge</span>
-                  <span>1. Thông Tin Nhận Diện</span>
-                </div>
+          <form onSubmit={handleCreateVoucher} className="space-y-6 pt-6">
+            {/* UNIFIED MASTER CONFIGURATION TABLE */}
+            <div className="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-xs">
+              <table className="w-full text-left border-collapse">
+                <tbody className="divide-y divide-gray-200 text-xs">
+                  {/* ROW 1: LOẠI ƯU ĐÃI & THIẾT LẬP MỨC GIẢM */}
+                  <tr className="bg-emerald-50/40">
+                    <td className="w-1/4 p-4 font-bold text-gray-900 bg-emerald-50/70 border-r border-gray-200 align-top">
+                      <div className="flex items-center gap-2 text-emerald-900 text-sm font-extrabold">
+                        <span className="material-symbols-outlined text-emerald-700">payments</span>
+                        <span>1. Loại Ưu Đãi &amp; Mức Giảm</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-normal mt-1 leading-relaxed">
+                        Chọn hình thức giảm giá sách hoặc miễn phí cước vận chuyển (Freeship do Sàn tài trợ 100%).
+                      </p>
+                    </td>
+                    <td className="p-5 space-y-4">
+                      {/* Chọn 3 loại hình */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          {
+                            id: 'PERCENTAGE',
+                            label: 'Giảm theo % Giá Sách',
+                            desc: 'Giảm theo % giá trị đơn (kèm trần)',
+                            icon: 'percent',
+                          },
+                          {
+                            id: 'FIXED_AMOUNT',
+                            label: 'Giảm Số Tiền Cố Định (₫)',
+                            desc: 'Trừ thẳng vào tiền sách (VD: 20k, 50k)',
+                            icon: 'attach_money',
+                          },
+                          {
+                            id: 'FREE_SHIPPING',
+                            label: 'Miễn Phí Vận Chuyển (Freeship)',
+                            desc: 'Sàn tài trợ 100% hoặc hỗ trợ cước ship',
+                            icon: 'local_shipping',
+                          },
+                        ].map((mode) => (
+                          <button
+                            type="button"
+                            key={mode.id}
+                            onClick={() => {
+                              const nextType = mode.id as any;
+                              let defVal = voucherForm.value;
+                              if (nextType === 'PERCENTAGE' && defVal > 100) defVal = 15;
+                              if (nextType === 'FREE_SHIPPING' && defVal <= 100) defVal = 30000;
+                              if (nextType === 'FIXED_AMOUNT' && defVal <= 100) defVal = 20000;
+                              setVoucherForm({ ...voucherForm, type: nextType, value: defVal });
+                            }}
+                            className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              voucherForm.type === mode.id
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/30'
+                                : 'bg-white hover:bg-gray-50 text-gray-700 border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full mb-1">
+                              <span className="font-bold text-xs">{mode.label}</span>
+                              <span className="material-symbols-outlined text-base">
+                                {mode.icon}
+                              </span>
+                            </div>
+                            <span className={`text-[10.5px] ${voucherForm.type === mode.id ? 'text-emerald-100' : 'text-gray-400'}`}>
+                              {mode.desc}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Mã Code <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="VD: HUKISALE25"
-                    value={voucherForm.code}
-                    onChange={(e) =>
-                      setVoucherForm({ ...voucherForm, code: e.target.value.toUpperCase() })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-black uppercase text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {voucherErrors.code && (
-                    <p className="text-red-500 text-[10.5px] mt-1">{voucherErrors.code}</p>
-                  )}
-                </div>
+                      {/* Chi tiết mức giảm theo từng loại */}
+                      <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
+                        {voucherForm.type === 'FREE_SHIPPING' ? (
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <label className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-emerald-700 text-base">local_shipping</span>
+                                <span>Chế độ Freeship:</span>
+                              </label>
+                              {/* Nút bấm chọn nhanh mức Freeship */}
+                              <div className="flex flex-wrap items-center gap-2">
+                                {[
+                                  { label: '🌟 Miễn Phí 100% (Tối đa 100k)', val: 100000 },
+                                  { label: '🚚 Chuẩn Sàn HUKI (30.000₫)', val: 30000 },
+                                  { label: '⚡ Hỗ trợ 15.000₫', val: 15000 },
+                                ].map((preset) => (
+                                  <button
+                                    type="button"
+                                    key={preset.val}
+                                    onClick={() => setVoucherForm({ ...voucherForm, value: preset.val })}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                      voucherForm.value === preset.val
+                                        ? 'bg-[#00875A] text-white shadow-xs'
+                                        : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    {preset.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Tên Chiến Dịch <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="VD: Giảm 25% Đơn Đầu Tiên"
-                    value={voucherForm.name}
-                    onChange={(e) => setVoucherForm({ ...voucherForm, name: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-medium text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                  {voucherErrors.name && (
-                    <p className="text-red-500 text-[10.5px] mt-1">{voucherErrors.name}</p>
-                  )}
-                </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                              <div>
+                                <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                  Mức Hỗ Trợ Cước Vận Chuyển Tối Đa (₫) <span className="text-red-500">*</span>
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    value={voucherForm.value}
+                                    onChange={(e) => setVoucherForm({ ...voucherForm, value: Number(e.target.value) })}
+                                    placeholder="VD: 30000"
+                                    className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-black text-sm text-emerald-700 focus:border-[#00875A] focus:outline-none"
+                                  />
+                                  <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                                </div>
+                                <span className="text-[11px] text-gray-500 mt-1 block">
+                                  {voucherForm.value >= 100000
+                                    ? 'Khách hàng được miễn phí 100% cước ship thông thường toàn quốc.'
+                                    : `Sàn tài trợ cước tối đa ${voucherForm.value.toLocaleString('vi-VN')}₫ cho mỗi đơn hàng đủ điều kiện.`}
+                                </span>
+                              </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">Mô Tả Hiển Thị</label>
-                  <input
-                    type="text"
-                    placeholder="VD: Áp dụng cho mọi đơn hàng sách"
-                    value={voucherForm.description}
-                    onChange={(e) => setVoucherForm({ ...voucherForm, description: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
-              </div>
+                              <div>
+                                <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                  Đơn Hàng Tối Thiểu (₫)
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    value={voucherForm.minOrderAmount}
+                                    onChange={(e) => setVoucherForm({ ...voucherForm, minOrderAmount: Number(e.target.value) })}
+                                    placeholder="VD: 100000"
+                                    className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-sm text-gray-800 focus:border-[#00875A] focus:outline-none"
+                                  />
+                                  <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                                </div>
+                                <span className="text-[11px] text-gray-500 mt-1 block">
+                                  {voucherForm.minOrderAmount > 0
+                                    ? `Áp dụng khi tổng tiền sách từ ${voucherForm.minOrderAmount.toLocaleString('vi-VN')}₫ trở lên.`
+                                    : 'Áp dụng cho mọi giá trị đơn hàng.'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : voucherForm.type === 'PERCENTAGE' ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                              <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                Tỷ Lệ Giảm (%) <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={voucherForm.value}
+                                  onChange={(e) => setVoucherForm({ ...voucherForm, value: Number(e.target.value) })}
+                                  placeholder="VD: 15"
+                                  min={1}
+                                  max={100}
+                                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-black text-sm text-emerald-700 focus:border-[#00875A] focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">%</span>
+                              </div>
+                            </div>
 
-              {/* Card 2: Thiết lập mức giảm */}
-              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-emerald-900 text-xs border-b border-emerald-200 pb-2">
-                  <span className="material-symbols-outlined text-base text-emerald-700">payments</span>
-                  <span>2. Mức Giảm Giá</span>
-                </div>
+                            <div>
+                              <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                Trần Giảm Tối Đa (₫)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={voucherForm.maxDiscountAmount || ''}
+                                  onChange={(e) => setVoucherForm({ ...voucherForm, maxDiscountAmount: Number(e.target.value) })}
+                                  placeholder="VD: 50000"
+                                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-sm text-gray-800 focus:border-[#00875A] focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                              </div>
+                            </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Loại Ưu Đãi <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={voucherForm.type}
-                    onChange={(e: any) => setVoucherForm({ ...voucherForm, type: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold text-xs focus:border-[#00875A] focus:outline-none"
-                  >
-                    <option value="PERCENTAGE">Giảm theo tỷ lệ (%)</option>
-                    <option value="FIXED_AMOUNT">Giảm tiền mặt cố định (₫)</option>
-                    <option value="FREE_SHIPPING">Miễn phí vận chuyển (Freeship)</option>
-                  </select>
-                </div>
+                            <div>
+                              <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                Đơn Hàng Tối Thiểu (₫)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={voucherForm.minOrderAmount}
+                                  onChange={(e) => setVoucherForm({ ...voucherForm, minOrderAmount: Number(e.target.value) })}
+                                  placeholder="VD: 100000"
+                                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-sm text-gray-800 focus:border-[#00875A] focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                Số Tiền Giảm Cố Định (₫) <span className="text-red-500">*</span>
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={voucherForm.value}
+                                  onChange={(e) => setVoucherForm({ ...voucherForm, value: Number(e.target.value) })}
+                                  placeholder="VD: 30000"
+                                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-black text-sm text-emerald-700 focus:border-[#00875A] focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                              </div>
+                            </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    {voucherForm.type === 'PERCENTAGE'
-                      ? 'Tỷ Lệ Giảm (%)'
-                      : voucherForm.type === 'FREE_SHIPPING'
-                      ? 'Phí Ship Giảm Tối Đa (₫)'
-                      : 'Số Tiền Giảm (₫)'}{' '}
-                    <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={voucherForm.value}
-                    onChange={(e) => setVoucherForm({ ...voucherForm, value: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-black text-xs text-emerald-700 focus:border-[#00875A] focus:outline-none"
-                  />
-                  {voucherErrors.value && (
-                    <p className="text-red-500 text-[10.5px] mt-1">{voucherErrors.value}</p>
-                  )}
-                </div>
+                            <div>
+                              <label className="block text-gray-700 font-bold mb-1 text-xs">
+                                Đơn Hàng Tối Thiểu (₫)
+                              </label>
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  value={voucherForm.minOrderAmount}
+                                  onChange={(e) => setVoucherForm({ ...voucherForm, minOrderAmount: Number(e.target.value) })}
+                                  placeholder="VD: 100000"
+                                  className="w-full pl-3 pr-10 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-sm text-gray-800 focus:border-[#00875A] focus:outline-none"
+                                />
+                                <span className="absolute right-3 top-2.5 font-bold text-gray-400 text-xs">VNĐ</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {voucherErrors.value && (
+                          <p className="text-red-500 text-xs font-semibold">{voucherErrors.value}</p>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
 
-                {voucherForm.type === 'PERCENTAGE' && (
-                  <div>
-                    <label className="block text-gray-700 font-bold mb-1">
-                      Mức Giảm Tối Đa (Trần Giảm ₫)
-                    </label>
-                    <input
-                      type="number"
-                      placeholder="VD: 50000"
-                      value={voucherForm.maxDiscountAmount}
-                      onChange={(e) =>
-                        setVoucherForm({ ...voucherForm, maxDiscountAmount: Number(e.target.value) })
-                      }
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs focus:border-[#00875A] focus:outline-none"
-                    />
-                  </div>
-                )}
-              </div>
+                  {/* ROW 2: THÔNG TIN NHẬN DIỆN CHIẾN DỊCH */}
+                  <tr>
+                    <td className="p-4 font-bold text-gray-900 bg-gray-50/70 border-r border-gray-200 align-top">
+                      <div className="flex items-center gap-2 text-gray-900 text-sm font-extrabold">
+                        <span className="material-symbols-outlined text-gray-700">badge</span>
+                        <span>2. Nhận Diện &amp; Mô Tả</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-normal mt-1 leading-relaxed">
+                        Mã hiển thị cho độc giả nhập tại bước thanh toán và tên hiển thị trên Banner / Ví Voucher.
+                      </p>
+                    </td>
+                    <td className="p-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Mã Code Khuyến Mãi <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="VD: FREESHIP30, HUKISALE"
+                            value={voucherForm.code}
+                            onChange={(e) =>
+                              setVoucherForm({ ...voucherForm, code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, '') })
+                            }
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-black uppercase text-sm text-emerald-800 focus:border-[#00875A] focus:outline-none"
+                          />
+                          {voucherErrors.code && (
+                            <p className="text-red-500 text-xs mt-1">{voucherErrors.code}</p>
+                          )}
+                        </div>
 
-              {/* Card 3: Phân khúc đối tượng & Hạn mức */}
-              <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200/80 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-blue-900 text-xs border-b border-blue-200 pb-2">
-                  <span className="material-symbols-outlined text-base text-blue-700">target</span>
-                  <span>3. Phân Khúc &amp; Hạn Mức</span>
-                </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Tên Chiến Dịch <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="VD: Miễn Phí Vận Chuyển Đơn Từ 100k"
+                            value={voucherForm.name}
+                            onChange={(e) => setVoucherForm({ ...voucherForm, name: e.target.value })}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-semibold text-xs focus:border-[#00875A] focus:outline-none"
+                          />
+                          {voucherErrors.name && (
+                            <p className="text-red-500 text-xs mt-1">{voucherErrors.name}</p>
+                          )}
+                        </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Đối Tượng Thụ Hưởng (Shopee Style)
-                  </label>
-                  <select
-                    value={voucherForm.targetAudience}
-                    onChange={(e: any) =>
-                      setVoucherForm({ ...voucherForm, targetAudience: e.target.value })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold text-xs text-blue-900 focus:border-[#00875A] focus:outline-none"
-                  >
-                    <option value="ALL">Toàn bộ bạn đọc (Tất cả)</option>
-                    <option value="NEW_CUSTOMERS_ONLY">Chỉ độc giả mới (Đơn đầu tiên)</option>
-                    <option value="FOLLOWERS_ONLY">Độc giả thân thiết / Đã theo dõi</option>
-                  </select>
-                </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Mô Tả Hiển Thị / Ghi Chú
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="VD: Áp dụng toàn quốc cho mọi đơn sách HUKI"
+                            value={voucherForm.description}
+                            onChange={(e) => setVoucherForm({ ...voucherForm, description: e.target.value })}
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Đơn Hàng Tối Thiểu (₫)
-                  </label>
-                  <input
-                    type="number"
-                    value={voucherForm.minOrderAmount}
-                    onChange={(e) =>
-                      setVoucherForm({ ...voucherForm, minOrderAmount: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
+                  {/* ROW 3: ĐỐI TƯỢNG, HẠN MỨC & THỜI GIAN */}
+                  <tr>
+                    <td className="p-4 font-bold text-gray-900 bg-gray-50/70 border-r border-gray-200 align-top">
+                      <div className="flex items-center gap-2 text-gray-900 text-sm font-extrabold">
+                        <span className="material-symbols-outlined text-blue-700">target</span>
+                        <span>3. Phân Khúc &amp; Thời Gian</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-normal mt-1 leading-relaxed">
+                        Cài đặt đối tượng thụ hưởng, số lượng mã phát hành và thời hạn hiệu lực.
+                      </p>
+                    </td>
+                    <td className="p-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Đối Tượng Thụ Hưởng
+                          </label>
+                          <select
+                            value={voucherForm.targetAudience}
+                            onChange={(e: any) =>
+                              setVoucherForm({ ...voucherForm, targetAudience: e.target.value })
+                            }
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-bold text-xs text-blue-900 focus:border-[#00875A] focus:outline-none"
+                          >
+                            <option value="ALL">Toàn bộ bạn đọc (Tất cả)</option>
+                            <option value="NEW_CUSTOMERS_ONLY">Chỉ độc giả mới (Đơn đầu tiên)</option>
+                            <option value="FOLLOWERS_ONLY">Độc giả thân thiết / Đã theo dõi</option>
+                          </select>
+                        </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Lượt Dùng / Mỗi Bạn Đọc
-                  </label>
-                  <input
-                    type="number"
-                    value={voucherForm.maxUsagePerUser}
-                    onChange={(e) =>
-                      setVoucherForm({ ...voucherForm, maxUsagePerUser: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
-              </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Tổng Lượt Phát Hành <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            value={voucherForm.totalUsage}
+                            onChange={(e) =>
+                              setVoucherForm({ ...voucherForm, totalUsage: Number(e.target.value) })
+                            }
+                            placeholder="VD: 1000"
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs focus:border-[#00875A] focus:outline-none"
+                          />
+                        </div>
 
-              {/* Card 4: Ngân sách & Thời hạn */}
-              <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/80 space-y-3">
-                <div className="flex items-center gap-1.5 font-bold text-amber-900 text-xs border-b border-amber-200 pb-2">
-                  <span className="material-symbols-outlined text-base text-amber-700">schedule</span>
-                  <span>4. Ngân Sách &amp; Thời Gian</span>
-                </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Lượt Dùng / Mỗi Bạn Đọc
+                          </label>
+                          <input
+                            type="number"
+                            value={voucherForm.maxUsagePerUser}
+                            onChange={(e) =>
+                              setVoucherForm({ ...voucherForm, maxUsagePerUser: Number(e.target.value) })
+                            }
+                            placeholder="VD: 1"
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs focus:border-[#00875A] focus:outline-none"
+                          />
+                        </div>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">
-                    Tổng Lượt Phát Hành Sàn <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    value={voucherForm.totalUsage}
-                    onChange={(e) =>
-                      setVoucherForm({ ...voucherForm, totalUsage: Number(e.target.value) })
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono font-bold text-xs text-amber-900 focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Thời Gian Hiệu Lực
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="datetime-local"
+                              value={voucherForm.startsAt}
+                              onChange={(e) => setVoucherForm({ ...voucherForm, startsAt: e.target.value })}
+                              className="w-full px-2 py-2 rounded-xl bg-white border border-gray-300 text-[11px] focus:border-[#00875A] focus:outline-none"
+                              title="Ngày bắt đầu"
+                            />
+                            <input
+                              type="datetime-local"
+                              value={voucherForm.expiresAt}
+                              onChange={(e) => setVoucherForm({ ...voucherForm, expiresAt: e.target.value })}
+                              className="w-full px-2 py-2 rounded-xl bg-white border border-gray-300 text-[11px] focus:border-[#00875A] focus:outline-none"
+                              title="Ngày hết hạn"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">Bắt Đầu</label>
-                  <input
-                    type="datetime-local"
-                    value={voucherForm.startsAt}
-                    onChange={(e) => setVoucherForm({ ...voucherForm, startsAt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
+                  {/* ROW 4: MÔ PHỎNG DÒNG TIỀN TÀI CHÍNH TỨC THÌ (LIVE SIMULATION) */}
+                  <tr className="bg-slate-50/80">
+                    <td className="p-4 font-bold text-gray-900 bg-slate-100/80 border-r border-gray-200 align-top">
+                      <div className="flex items-center gap-2 text-slate-800 text-sm font-extrabold">
+                        <span className="material-symbols-outlined text-slate-700">query_stats</span>
+                        <span>4. Mô Phỏng Dòng Tiền</span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 font-normal mt-1 leading-relaxed">
+                        Ví dụ giả lập một đơn hàng mẫu trị giá 200.000₫ với phí ship 30.000₫ khi áp dụng voucher này.
+                      </p>
+                    </td>
+                    <td className="p-5">
+                      {(() => {
+                        const sampleSubtotal = 200000;
+                        const sampleShipping = 30000;
+                        let sampleDiscount = 0;
+                        let sampleShippingDiscount = 0;
 
-                <div>
-                  <label className="block text-gray-700 font-bold mb-1">Hết Hạn</label>
-                  <input
-                    type="datetime-local"
-                    value={voucherForm.expiresAt}
-                    onChange={(e) => setVoucherForm({ ...voucherForm, expiresAt: e.target.value })}
-                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 text-xs focus:border-[#00875A] focus:outline-none"
-                  />
-                </div>
-              </div>
+                        if (voucherForm.type === 'FREE_SHIPPING') {
+                          sampleShippingDiscount = Math.min(sampleShipping, voucherForm.value);
+                        } else if (voucherForm.type === 'PERCENTAGE') {
+                          sampleDiscount = (sampleSubtotal * (voucherForm.value || 0)) / 100;
+                          if (voucherForm.maxDiscountAmount && sampleDiscount > voucherForm.maxDiscountAmount) {
+                            sampleDiscount = voucherForm.maxDiscountAmount;
+                          }
+                        } else {
+                          sampleDiscount = Math.min(sampleSubtotal, voucherForm.value || 0);
+                        }
+
+                        const customerPays = sampleSubtotal - sampleDiscount + (sampleShipping - sampleShippingDiscount);
+                        const platformSubsidy = sampleDiscount + sampleShippingDiscount;
+
+                        return (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white p-3.5 rounded-xl border border-gray-200 font-mono text-xs">
+                            <div className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                              <span className="text-[10.5px] text-gray-500 block font-sans">Khách Hàng Trả</span>
+                              <span className="font-extrabold text-gray-900 text-sm">
+                                {customerPays.toLocaleString('vi-VN')}₫
+                              </span>
+                              <span className="text-[10px] text-gray-400 block font-sans mt-0.5">
+                                (Tiền hàng + Ship thực trả)
+                              </span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                              <span className="text-[10.5px] text-emerald-800 block font-sans font-bold">
+                                Sàn Trợ Giá (Chi Phí)
+                              </span>
+                              <span className="font-extrabold text-emerald-700 text-sm">
+                                {platformSubsidy.toLocaleString('vi-VN')}₫
+                              </span>
+                              <span className="text-[10px] text-emerald-600 block font-sans mt-0.5">
+                                Hạch toán Marketing Sàn
+                              </span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-100">
+                              <span className="text-[10.5px] text-blue-800 block font-sans font-bold">
+                                Doanh Thu Seller
+                              </span>
+                              <span className="font-extrabold text-blue-700 text-sm">
+                                {sampleSubtotal.toLocaleString('vi-VN')}₫
+                              </span>
+                              <span className="text-[10px] text-blue-600 block font-sans mt-0.5">
+                                (Không bị trừ tiền ship)
+                              </span>
+                            </div>
+
+                            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-100">
+                              <span className="text-[10.5px] text-amber-800 block font-sans font-bold">
+                                Cước Shipper Nhận
+                              </span>
+                              <span className="font-extrabold text-amber-700 text-sm">
+                                {sampleShipping.toLocaleString('vi-VN')}₫
+                              </span>
+                              <span className="text-[10px] text-amber-600 block font-sans mt-0.5">
+                                (Đảm bảo đủ 100% cước)
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="px-5 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
-              >
-                {submitting ? (
-                  <span>Đang phát hành...</span>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-base">verified</span>
-                    <span>Xác Nhận Phát Hành Voucher Sàn</span>
-                  </>
-                )}
-              </button>
+            <div className="pt-2 flex items-center justify-between">
+              <span className="text-xs text-gray-500 font-medium flex items-center gap-1">
+                <span className="material-symbols-outlined text-emerald-600 text-base">verified_user</span>
+                <span>Toàn bộ chi phí Voucher Sàn và Freeship sẽ được ghi nhận minh bạch vào sổ cái tài chính Sàn HUKI.</span>
+              </span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsFormOpen(false)}
+                  className="px-5 py-2.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs cursor-pointer transition-colors"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {submitting ? (
+                    <span>Đang phát hành...</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-base">rocket_launch</span>
+                      <span>Xác Nhận Phát Hành Voucher Sàn</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
         </div>

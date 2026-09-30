@@ -1319,14 +1319,43 @@ export default function OrderDetailPage() {
                   </span>
                 </div>
 
-                {Number(order.discountTotal || 0) > 0 && (
-                  <div className="flex justify-between text-emerald-600">
-                    <span>Giảm giá:</span>
-                    <span className="font-semibold">
-                      -{Number(order.discountTotal).toLocaleString('vi-VN')}đ
-                    </span>
-                  </div>
-                )}
+                {/* Chi tiết giảm giá tách bạch sản phẩm & freeship */}
+                {(() => {
+                  const shippingDiscount = Number(order.shippingDiscountTotal ?? 0);
+                  const totalDiscount = Number(order.discountTotal ?? 0);
+                  const productDiscount = shippingDiscount > 0
+                    ? Math.max(0, totalDiscount - shippingDiscount)
+                    : totalDiscount;
+
+                  return (
+                    <>
+                      {productDiscount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                          <span>Giảm giá sản phẩm:</span>
+                          <span className="font-semibold font-mono">
+                            -{productDiscount.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                      )}
+                      {shippingDiscount > 0 && (
+                        <div className="flex justify-between text-teal-600 dark:text-teal-400">
+                          <span>Giảm phí vận chuyển (Freeship):</span>
+                          <span className="font-semibold font-mono">
+                            -{shippingDiscount.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                      )}
+                      {productDiscount === 0 && shippingDiscount === 0 && totalDiscount > 0 && (
+                        <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
+                          <span>Giảm giá:</span>
+                          <span className="font-semibold font-mono">
+                            -{totalDiscount.toLocaleString('vi-VN')}đ
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
 
                 <div className="pt-3 border-t border-theme-border flex justify-between items-center text-sm">
                   <span className="font-bold text-on-surface">Tổng thanh toán:</span>

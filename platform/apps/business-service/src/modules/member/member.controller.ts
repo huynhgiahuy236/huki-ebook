@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -169,5 +170,47 @@ export class MemberController {
   ) {
     await this.memberService.leaveBusiness(businessId, userId);
     return { message: 'Rời doanh nghiệp thành công' };
+  }
+
+  @Get('members/business/:businessId/audit-logs')
+  @ApiOperation({ summary: 'Get member governance audit logs (Store Owner / Authorized Staff / Admin)' })
+  async getMemberAuditLogs(
+    @Param('businessId') businessId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+  ) {
+    const data = await this.memberService.getMemberAuditLogs(businessId, userId, userRole, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+      action,
+    });
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  @Get('businesses/:businessId/members/audit-logs')
+  @ApiOperation({ summary: 'Get member governance audit logs alias' })
+  async getBusinessMembersAuditLogs(
+    @Param('businessId') businessId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('action') action?: string,
+  ) {
+    const data = await this.memberService.getMemberAuditLogs(businessId, userId, userRole, {
+      page: page ? parseInt(page) : 1,
+      limit: limit ? parseInt(limit) : 20,
+      action,
+    });
+    return {
+      success: true,
+      data,
+    };
   }
 }

@@ -706,6 +706,40 @@ export default function SellerEscrowPage() {
                 </div>
               </div>
 
+              {/* COD Remittance Details */}
+              {selectedItem.paymentMethod === 'COD' && (
+                <div className={`p-3 rounded-xl border ${selectedItem.remittanceInfo?.isRemitted ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950' : 'bg-amber-50/60 border-amber-200 text-amber-950'}`}>
+                  <div className="flex items-center gap-1.5 font-bold">
+                    <span className="material-symbols-outlined text-[16px] text-emerald-700">local_shipping</span>
+                    <span>Thông Tin Thu Nộp COD (HuKi Express)</span>
+                  </div>
+                  {selectedItem.remittanceInfo?.isRemitted ? (
+                    <div className="mt-1.5 space-y-1 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-emerald-800">Bưu tá thu &amp; nộp:</span>
+                        <span className="font-bold">{selectedItem.remittanceInfo.shipperName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-800">Cổng nộp Quỹ Sàn:</span>
+                        <span className="font-semibold">{selectedItem.remittanceInfo.method}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-800">Mã giao dịch đối soát:</span>
+                        <span className="font-mono font-bold text-emerald-900">{selectedItem.remittanceInfo.txCode}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-emerald-800">Thời gian nộp Quỹ:</span>
+                        <span className="font-semibold">{formatVietnamDateTime(selectedItem.remittanceInfo.remittedAt)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-1 text-xs text-amber-800">
+                      Bưu tá đang vận chuyển giao hàng tận nơi. Tiền mặt sẽ được nộp về Quỹ Sàn ngay sau khi giao thành công.
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200 text-blue-900">
                 <div className="font-bold">Trạng Thái Dòng Tiền:</div>
                 <div className="mt-1">

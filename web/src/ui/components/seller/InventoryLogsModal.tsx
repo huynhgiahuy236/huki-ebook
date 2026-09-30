@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { catalogApi, InventoryReason } from '@/ui/api/catalogApi';
 
 export interface InventoryLogItem {
@@ -12,49 +11,38 @@ export interface InventoryLogItem {
   note?: string;
   previousStock?: number;
   newStock?: number;
+  actor?: string;
+  operation?: string;
 }
 
 export interface InventoryBookItem {
   id: string;
   title: string;
+  isbn?: string;
   physicalDetails?: {
     stock?: number;
     reserved?: number;
   };
 }
 
-export interface InventoryLogsModalProps {
+export interface InventoryLogsDrawerProps {
   book: InventoryBookItem | null;
-  isOpen: boolean;
+  isOpen?: boolean;
   onClose: () => void;
+  className?: string;
 }
 
-export function InventoryLogsModal({ book, isOpen, onClose }: InventoryLogsModalProps) {
+export function InventoryLogsDrawer({ book, isOpen = true, onClose, className = '' }: InventoryLogsDrawerProps) {
   const [logs, setLogs] = useState<InventoryLogItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (isOpen && book?.id) {
       fetchLogs(1);
     }
   }, [isOpen, book?.id]);
-
-  // ESC key listener to close modal
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
 
   const fetchLogs = async (pageNum = 1) => {
     if (!book?.id) return;
@@ -76,116 +64,121 @@ export function InventoryLogsModal({ book, isOpen, onClose }: InventoryLogsModal
     }
   };
 
-  if (!isOpen || !book || !mounted) return null;
+  if (!isOpen || !book) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
+  return (
+    <div className={`p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-200 ${className}`}>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div className="flex items-center gap-2 text-slate-800 dark:text-slate-100">
+          <span className="material-symbols-outlined text-lg text-emerald-600">history</span>
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-600 text-xl">history</span>
-              Lịch Sử Biến Động Tồn Kho
+            <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <span>Lịch Sử Biến Động Tồn Kho</span>
+              <span className="font-normal text-xs text-slate-400">·</span>
+              <span className="font-semibold text-xs text-slate-600 dark:text-slate-300">{book.title}</span>
             </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-md">
-              {book.title}
-            </p>
+            {book.isbn && (
+              <p className="text-[11px] text-slate-400 font-mono">ISBN: {book.isbn}</p>
+            )}
           </div>
-          <button 
-            onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-lg">close</span>
-          </button>
         </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-base">close</span>
+        </button>
+      </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {loading ? (
-            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-3">
-              <span className="material-symbols-outlined text-3xl animate-spin text-emerald-600">progress_activity</span>
-              <span className="text-xs">Đang tải nhật ký kiểm kho...</span>
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
-              <span className="material-symbols-outlined text-3xl">inventory_2</span>
-              <span className="text-xs">Chưa có bản ghi biến động tồn kho nào</span>
-            </div>
-          ) : (
-            <div className="space-y-2.5">
+      {/* Content Body */}
+      {loading ? (
+        <div className="py-8 flex flex-col items-center justify-center text-slate-400 gap-2">
+          <span className="material-symbols-outlined text-2xl animate-spin text-emerald-600">progress_activity</span>
+          <span className="text-xs">Đang tải nhật ký kiểm kho...</span>
+        </div>
+      ) : logs.length === 0 ? (
+        <div className="py-6 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+          <span className="material-symbols-outlined text-2xl">inventory_2</span>
+          <span className="text-xs">Chưa có bản ghi biến động tồn kho nào cho đầu sách này</span>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-800">
+                <th className="py-2.5 px-3">Thời Gian</th>
+                <th className="py-2.5 px-3">Lý Do / Nghiệp Vụ</th>
+                <th className="py-2.5 px-3 text-center">Biến Động</th>
+                <th className="py-2.5 px-3 text-center">Tồn Trước</th>
+                <th className="py-2.5 px-3 text-center">Tồn Sau</th>
+                <th className="py-2.5 px-3">Ghi Chú</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {logs.map((log, idx) => {
-                const isPositive = (log.change || 0) > 0;
+                const changeNum = Number(log.change || 0);
+                const isPositive = changeNum > 0;
                 return (
-                  <div 
-                    key={log.id || idx}
-                    className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4 hover:border-slate-200 dark:hover:border-slate-700 transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-                        isPositive 
-                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200/50' 
-                          : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200/50'
-                      }`}>
-                        <span className="material-symbols-outlined text-lg font-bold">
-                          {isPositive ? 'add' : 'remove'}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                          <span>{log.reason || 'Biến động tồn kho'}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                          {log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : 'Vừa xong'}
-                          {log.note && <span className="ml-1 text-slate-500">· {log.note}</span>}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className={`text-sm font-black font-mono ${
-                        isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                      }`}>
-                        {isPositive ? `+${log.change}` : log.change}
-                      </div>
-                      <div className="text-[10px] text-slate-400">
-                        {log.previousStock != null && log.newStock != null ? `${log.previousStock} → ${log.newStock}` : 'Đơn vị: cuốn'}
-                      </div>
-                    </div>
-                  </div>
+                  <tr key={log.id || idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                    <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : '—'}
+                    </td>
+                    <td className="py-2.5 px-3 font-semibold text-slate-700 dark:text-slate-200">
+                      {log.reason || 'Điều chỉnh'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-bold font-mono">
+                      <span className={isPositive ? 'text-emerald-600 dark:text-emerald-400' : changeNum < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-600'}>
+                        {isPositive ? `+${changeNum}` : changeNum}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-center text-slate-500 font-mono">
+                      {log.previousStock ?? '—'}
+                    </td>
+                    <td className="py-2.5 px-3 text-center font-bold text-slate-800 dark:text-slate-100 font-mono">
+                      {log.newStock ?? '—'}
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 max-w-[220px] truncate">
+                      {log.note || '—'}
+                    </td>
+                  </tr>
                 );
               })}
+            </tbody>
+          </table>
+
+          {totalPages > 1 && (
+            <div className="pt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-800 text-xs">
+              <span className="text-slate-500 text-[11px]">
+                Trang {page} / {totalPages}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={page <= 1 || loading}
+                  onClick={() => fetchLogs(page - 1)}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Trang trước
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => fetchLogs(page + 1)}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                >
+                  Trang sau
+                </button>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Footer / Pagination */}
-        <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between text-xs">
-          <span className="text-slate-500 text-[11px]">
-            Trang {page} / {totalPages}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              disabled={page <= 1 || loading}
-              onClick={() => fetchLogs(page - 1)}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 cursor-pointer text-[11px]"
-            >
-              Trước
-            </button>
-            <button
-              disabled={page >= totalPages || loading}
-              onClick={() => fetchLogs(page + 1)}
-              className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 cursor-pointer text-[11px]"
-            >
-              Tiếp
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body
+      )}
+    </div>
   );
 }
+
+// Export alias for backward compatibility
+export const InventoryLogsModal = InventoryLogsDrawer;
+export default InventoryLogsDrawer;

@@ -15,7 +15,7 @@ describe("NotificationGateway", () => {
       disconnect: jest.fn(),
     };
     await gateway.handleConnection(client as any);
-    expect(jwt.verifyAsync).toHaveBeenCalledWith("access-token");
+    expect(jwt.verifyAsync).toHaveBeenCalledWith("access-token", expect.anything());
     expect(client.join).toHaveBeenCalledWith("user:user-1");
     expect(client.disconnect).not.toHaveBeenCalled();
   });

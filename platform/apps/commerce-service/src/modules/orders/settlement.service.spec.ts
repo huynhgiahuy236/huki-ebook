@@ -107,6 +107,8 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     };
 
     policyConfig = new PolicyConfigService();
+    jest.spyOn(policyConfig, 'platformCommissionPercent', 'get').mockReturnValue(15);
+    jest.spyOn(policyConfig, 'platformVoucherSubsidyRate', 'get').mockReturnValue(0);
 
     service = new SettlementService(
       prisma,
@@ -125,13 +127,13 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     walletService.getOrCreateWallet.mockResolvedValue({
       id: 'wallet-1',
       storeId: mockStoreA,
-      pendingBalance: 195500,
+      pendingBalance: 170000,
       availableBalance: 0,
     });
     ledgerService.postTransaction.mockResolvedValue({
       id: 'ltx-settle-1',
       transactionNumber: 'LTX-SETTLE-0001',
-      totalAmount: 230000,
+      totalAmount: 200000,
       postedAt: new Date(),
     });
 
@@ -140,11 +142,12 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     expect(result.success).toBe(true);
     expect(result.calculation.platformSubsidy).toBe(0);
     expect(result.calculation.grandTotal).toBe(230000);
-    expect(result.calculation.platformCommission).toBe(34500);
-    expect(result.calculation.sellerNet).toBe(195500);
+    expect(result.calculation.itemSubtotal).toBe(200000);
+    expect(result.calculation.platformCommission).toBe(30000); // 15% on 200k merchandise
+    expect(result.calculation.sellerNet).toBe(170000); // 200k merchandise - 30k commission
 
-    // Sum Debit = 230,000 (SELLER_PENDING)
-    // Sum Credit = 195,500 (SELLER_AVAILABLE) + 34,500 (PLATFORM_REVENUE) = 230,000
+    // Sum Debit = 200,000 (SELLER_PENDING)
+    // Sum Credit = 170,000 (SELLER_AVAILABLE) + 30,000 (PLATFORM_REVENUE) = 200,000
     expect(ledgerService.postTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
         referenceType: 'ESCROW_SETTLEMENT',
@@ -152,21 +155,21 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
           {
             accountType: LedgerAccountType.SELLER_PENDING,
             direction: LedgerEntryDirection.DEBIT,
-            amount: 230000,
+            amount: 200000,
             storeId: mockStoreA,
             description: expect.any(String),
           },
           {
             accountType: LedgerAccountType.SELLER_AVAILABLE,
             direction: LedgerEntryDirection.CREDIT,
-            amount: 195500,
+            amount: 170000,
             storeId: mockStoreA,
             description: expect.any(String),
           },
           {
             accountType: LedgerAccountType.PLATFORM_REVENUE,
             direction: LedgerEntryDirection.CREDIT,
-            amount: 34500,
+            amount: 30000,
             description: expect.any(String),
           },
         ],
@@ -187,13 +190,13 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     walletService.getOrCreateWallet.mockResolvedValue({
       id: 'wallet-1',
       storeId: mockStoreA,
-      pendingBalance: 180000,
+      pendingBalance: 177500,
       availableBalance: 0,
     });
     ledgerService.postTransaction.mockResolvedValue({
       id: 'ltx-settle-sub',
       transactionNumber: 'LTX-SETTLE-SUB-1',
-      totalAmount: 230000,
+      totalAmount: 200000,
       postedAt: new Date(),
     });
 
@@ -204,12 +207,12 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
 
     expect(result.success).toBe(true);
     expect(result.calculation.platformSubsidy).toBe(50000);
-    expect(result.calculation.platformCommission).toBe(27000); // 15% on 180,000 net paid = 27,000
-    // sellerNet = 180,000 - 27,000 + 50,000 = 203,000
-    expect(result.calculation.sellerNet).toBe(203000);
+    expect(result.calculation.platformCommission).toBe(22500); // 15% on 150,000 merchandise net paid = 22,500
+    // sellerNet = 150,000 - 22,500 + 50,000 = 177,500
+    expect(result.calculation.sellerNet).toBe(177500);
 
-    // Sum Debit = 180,000 (SELLER_PENDING) + 50,000 (PLATFORM_MARKETING_EXPENSE) = 230,000
-    // Sum Credit = 203,000 (SELLER_AVAILABLE) + 27,000 (PLATFORM_REVENUE) = 230,000
+    // Sum Debit = 150,000 (SELLER_PENDING) + 50,000 (PLATFORM_MARKETING_EXPENSE) = 200,000
+    // Sum Credit = 177,500 (SELLER_AVAILABLE) + 22,500 (PLATFORM_REVENUE) = 200,000
     // SUM(DEBIT) === SUM(CREDIT)!
     expect(ledgerService.postTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -218,17 +221,17 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
           expect.objectContaining({
             accountType: LedgerAccountType.SELLER_PENDING,
             direction: LedgerEntryDirection.DEBIT,
-            amount: 180000,
+            amount: 150000,
           }),
           expect.objectContaining({
             accountType: LedgerAccountType.SELLER_AVAILABLE,
             direction: LedgerEntryDirection.CREDIT,
-            amount: 203000,
+            amount: 177500,
           }),
           expect.objectContaining({
             accountType: LedgerAccountType.PLATFORM_REVENUE,
             direction: LedgerEntryDirection.CREDIT,
-            amount: 27000,
+            amount: 22500,
           }),
           expect.objectContaining({
             accountType: LedgerAccountType.PLATFORM_MARKETING_EXPENSE,
@@ -267,12 +270,12 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
           expect.objectContaining({
             accountType: LedgerAccountType.ESCROW_HOLDING,
             direction: LedgerEntryDirection.DEBIT,
-            amount: 230000,
+            amount: 200000,
           }),
           expect.objectContaining({
             accountType: LedgerAccountType.SELLER_PENDING,
             direction: LedgerEntryDirection.CREDIT,
-            amount: 230000,
+            amount: 200000,
           }),
         ]),
       }),
@@ -281,7 +284,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     // 2. Wallet pending balance credited immediately upon payment
     expect(walletService.creditPending).toHaveBeenCalledWith(
       mockStoreA,
-      195500,
+      170000,
       expect.objectContaining({
         referenceType: 'ORDER_PAYMENT',
         referenceId: 'so-pre-1',
@@ -363,7 +366,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     prisma.sellerOrder.findUnique.mockResolvedValue(buyerConfirmedSO);
     prisma.ledgerTransaction.findUnique.mockResolvedValue(null);
     prisma.walletTransaction.findFirst.mockResolvedValue(null);
-    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 195500, availableBalance: 0 });
+    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 170000, availableBalance: 0 });
     ledgerService.postTransaction.mockResolvedValue({ id: 'ltx-buyer-conf', postedAt: new Date() });
 
     const result = await service.settleSellerOrder('so-1');
@@ -393,7 +396,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     prisma.sellerOrder.findUnique.mockResolvedValue(expiredWindowSO);
     prisma.ledgerTransaction.findUnique.mockResolvedValue(null);
     prisma.walletTransaction.findFirst.mockResolvedValue(null);
-    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 195500, availableBalance: 0 });
+    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 170000, availableBalance: 0 });
     ledgerService.postTransaction.mockResolvedValue({ id: 'ltx-7d', postedAt: new Date() });
 
     const result = await service.settleSellerOrder('so-1');
@@ -493,7 +496,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     comboSO.completedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
     prisma.ledgerTransaction.findUnique.mockResolvedValue(null);
     prisma.walletTransaction.findFirst.mockResolvedValue(null);
-    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 195500, availableBalance: 0 });
+    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 170000, availableBalance: 0 });
     ledgerService.postTransaction.mockResolvedValue({ id: 'ltx-combo', postedAt: new Date() });
 
     const result = await service.settleSellerOrder('so-combo');
@@ -512,7 +515,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     });
     // Wallet settlement transaction was NOT created due to prior failure
     prisma.walletTransaction.findFirst.mockResolvedValue(null);
-    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 195500, availableBalance: 0 });
+    walletService.getOrCreateWallet.mockResolvedValue({ id: 'w-1', pendingBalance: 170000, availableBalance: 0 });
 
     const result = await service.settleSellerOrder('so-1');
 
@@ -521,7 +524,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     // Proves missing wallet movement is recovered and executed
     expect(walletService.movePendingToAvailable).toHaveBeenCalledWith(
       mockStoreA,
-      195500,
+      170000,
       expect.objectContaining({
         referenceType: 'SETTLEMENT',
         referenceId: 'so-1',
@@ -622,7 +625,7 @@ describe('SettlementService (Task 72 / POL-14 / POL-15)', () => {
     walletService.getOrCreateWallet.mockResolvedValue({
       id: 'w-A',
       storeId: mockStoreA,
-      pendingBalance: 195500,
+      pendingBalance: 170000,
       availableBalance: 0,
     });
     ledgerService.postTransaction.mockResolvedValue({

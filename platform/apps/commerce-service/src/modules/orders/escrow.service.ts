@@ -107,7 +107,9 @@ export class EscrowService {
       targetSellerOrder = order.sellerOrders[0];
     }
 
-    const amount = targetSellerOrder ? Number(targetSellerOrder.grandTotal) : Number(order.grandTotal);
+    const amount = targetSellerOrder
+      ? Number(targetSellerOrder.itemSubtotal ?? targetSellerOrder.grandTotal)
+      : Number(order.itemSubtotal ?? order.grandTotal);
     const split = this.calculateEscrowSplit(amount);
 
     // Determine frozen status
@@ -278,9 +280,9 @@ export class EscrowService {
           (so) => so.id === (meta.sellerOrderId || h.sellerOrderId),
         );
         const amount = targetSellerOrder
-          ? Number(targetSellerOrder.grandTotal)
+          ? Number(targetSellerOrder.itemSubtotal ?? targetSellerOrder.grandTotal)
           : order
-          ? Number(order.grandTotal)
+          ? Number(order.itemSubtotal ?? order.grandTotal)
           : 0;
         const split = this.calculateEscrowSplit(amount);
 

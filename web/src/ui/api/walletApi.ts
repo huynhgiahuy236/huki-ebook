@@ -217,6 +217,14 @@ export interface SellerEscrowItem {
   platformFee: number;
   sellerNet: number;
   escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED';
+  remittanceInfo?: {
+    isRemitted: boolean;
+    remittedAt: string;
+    method: string;
+    txCode: string;
+    shipperName: string;
+    shipperCode: string;
+  } | null;
 }
 
 

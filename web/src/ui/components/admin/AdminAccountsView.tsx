@@ -7,133 +7,10 @@ import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 
-// Seed initial users for fallback if API is not yet loaded
-const INITIAL_USERS = [
-  {
-    id: 'USR-1001',
-    fullName: 'Nguyễn Văn Quản Trị',
-    email: 'admin@huki.vn',
-    phone: '0901 888 999',
-    password: 'AdminMaster2026!#',
-    role: 'PLATFORM_ADMIN',
-    roleLabel: 'Admin Sàn',
-    storeName: null,
-    status: 'ACTIVE',
-    createdAt: '2025-11-10T08:00:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1002',
-    fullName: 'Trần Thị Mai Anh',
-    email: 'maianh.tran@gmail.com',
-    phone: '0988 123 456',
-    password: 'CustomerPass@123',
-    role: 'CUSTOMER',
-    roleLabel: 'Khách hàng',
-    storeName: null,
-    status: 'ACTIVE',
-    createdAt: '2026-01-15T09:30:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1003',
-    fullName: 'Lê Hoàng Long',
-    email: 'long.le@nhanam.vn',
-    phone: '0912 345 678',
-    password: 'SellerSecret#99',
-    role: 'SELLER_ADMIN',
-    roleLabel: 'Admin Seller',
-    storeName: 'Nhà Sách Nhã Nam Hà Nội',
-    status: 'ACTIVE',
-    createdAt: '2026-02-01T14:20:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1004',
-    fullName: 'Phạm Quỳnh Nga',
-    email: 'nga.pham@nhanam.vn',
-    phone: '0977 456 789',
-    password: 'StaffNhaNam2026',
-    role: 'SELLER_STAFF',
-    roleLabel: 'Nhân viên',
-    storeName: 'Nhà Sách Nhã Nam Hà Nội',
-    status: 'ACTIVE',
-    createdAt: '2026-02-10T11:00:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1005',
-    fullName: 'Vũ Quốc Bảo',
-    email: 'quocbao.vu@fahasa.com',
-    phone: '0933 678 901',
-    password: 'FahasaOwnerPass!',
-    role: 'SELLER_ADMIN',
-    roleLabel: 'Admin Seller',
-    storeName: 'Fahasa Nguyễn Huệ',
-    status: 'ACTIVE',
-    createdAt: '2026-02-20T16:45:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1006',
-    fullName: 'Đặng Minh Triết',
-    email: 'triet.dang@fahasa.com',
-    phone: '0944 890 123',
-    password: 'StaffTriet@123',
-    role: 'SELLER_STAFF',
-    roleLabel: 'Nhân viên',
-    storeName: 'Fahasa Nguyễn Huệ',
-    status: 'LOCKED',
-    createdAt: '2026-03-01T10:15:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1007',
-    fullName: 'Hoàng Kim Ngân',
-    email: 'ngan.hoang@tienphong.vn',
-    phone: '0966 234 567',
-    password: 'TienPhongBoss2026',
-    role: 'SELLER_ADMIN',
-    roleLabel: 'Admin Seller',
-    storeName: 'Nhà Sách Tiền Phong Tràng Tiền',
-    status: 'ACTIVE',
-    createdAt: '2026-03-05T08:30:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1008',
-    fullName: 'Đỗ Thảo Vy',
-    email: 'vy.dothao@gmail.com',
-    phone: '0918 901 234',
-    password: 'CustomerVyVy99',
-    role: 'CUSTOMER',
-    roleLabel: 'Khách hàng',
-    storeName: null,
-    status: 'ACTIVE',
-    createdAt: '2026-03-12T13:10:00.000Z',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120&auto=format&fit=crop&q=80',
-  },
-  {
-    id: 'USR-1009',
-    fullName: 'Bùi Đức Trọng',
-    email: 'trong.bui@gmail.com',
-    phone: '0922 345 678',
-    password: 'PassSpamBiKhoa12',
-    role: 'CUSTOMER',
-    roleLabel: 'Khách hàng',
-    storeName: null,
-    status: 'LOCKED',
-    createdAt: '2026-03-14T15:20:00.000Z',
-    avatar: null,
-  }
-];
-
-const LOCAL_STORAGE_KEY = 'huki_admin_users_list_v2';
-
 export function AdminAccountsView() {
   const { showToast } = useToast();
 
-  const [users, setUsers] = useState(INITIAL_USERS);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Pagination
@@ -246,24 +123,14 @@ export function AdminAccountsView() {
     setLoading(true);
     try {
       const res = await adminApi.getUsers();
-      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.success && Array.isArray(res.data)) {
         setUsers(res.data);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(res.data));
-        }
       } else {
-        if (typeof window !== 'undefined') {
-          const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-          if (saved) setUsers(JSON.parse(saved));
-          else setUsers(INITIAL_USERS);
-        }
+        setUsers([]);
       }
     } catch (err) {
-      console.warn('[AdminAccountsPage] Could not load from DB API, using local state cache', err);
-      if (typeof window !== 'undefined') {
-        const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-        if (saved) setUsers(JSON.parse(saved));
-      }
+      console.warn('[AdminAccountsPage] Could not load from DB API:', err);
+      setUsers([]);
     } finally {
       setLoading(false);
     }

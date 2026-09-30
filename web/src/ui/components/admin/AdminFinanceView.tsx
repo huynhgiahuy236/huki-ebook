@@ -36,74 +36,6 @@ function formatDate(dateStr?: string | null): string {
   }
 }
 
-const INITIAL_PAYOUT_REQUESTS: PayoutRequestView[] = [
-  {
-    id: 'REQ-202609-001',
-    storeId: 'STR-1003',
-    walletId: 'WAL-1003',
-    amount: 15450000,
-    currency: 'VND',
-    status: 'PENDING',
-    bankSnapshot: {
-      bankName: 'Ngân hàng TMCP Ngoại Thương (Vietcombank)',
-      accountNumber: '001100489281',
-      accountNumberMasked: '001100****81',
-      accountHolder: 'CÔNG TY CP VĂN HÓA NHÃ NAM',
-      branch: 'Chi nhánh Ba Đình',
-    },
-    requestedBy: 'USR-1003',
-    requestedAt: '2026-09-24T08:30:00.000Z',
-    idempotencyKey: 'idemp_req_001',
-    createdAt: '2026-09-24T08:30:00.000Z',
-    updatedAt: '2026-09-24T08:30:00.000Z',
-  },
-  {
-    id: 'REQ-202609-002',
-    storeId: 'STR-1005',
-    walletId: 'WAL-1005',
-    amount: 28900000,
-    currency: 'VND',
-    status: 'APPROVED',
-    bankSnapshot: {
-      bankName: 'Ngân hàng Công Thương Việt Nam (VietinBank)',
-      accountNumber: '102893847291',
-      accountNumberMasked: '102893****91',
-      accountHolder: 'CTY PHÁT HÀNH SÁCH FAHASA',
-      branch: 'Chi nhánh TP.HCM',
-    },
-    requestedBy: 'USR-1005',
-    approvedAt: '2026-09-24T09:15:00.000Z',
-    requestedAt: '2026-09-24T07:45:00.000Z',
-    idempotencyKey: 'idemp_req_002',
-    createdAt: '2026-09-24T07:45:00.000Z',
-    updatedAt: '2026-09-24T09:15:00.000Z',
-  },
-  {
-    id: 'REQ-202609-003',
-    storeId: 'STR-1007',
-    walletId: 'WAL-1007',
-    amount: 8200000,
-    currency: 'VND',
-    status: 'COMPLETED',
-    bankSnapshot: {
-      bankName: 'Ngân hàng TMCP Đầu Tư & Phát Triển (BIDV)',
-      accountNumber: '12010009827361',
-      accountNumberMasked: '120100****61',
-      accountHolder: 'CTY CP TIỀN PHONG HÀ NỘI',
-      branch: 'Chi nhánh Hà Nội',
-    },
-    requestedBy: 'USR-1007',
-    approvedAt: '2026-09-23T14:00:00.000Z',
-    disbursedAt: '2026-09-23T14:05:22.000Z',
-    provider: 'VIETQR_NAPAS247',
-    providerRef: 'FT26267000998',
-    requestedAt: '2026-09-23T11:20:00.000Z',
-    idempotencyKey: 'idemp_req_003',
-    createdAt: '2026-09-23T11:20:00.000Z',
-    updatedAt: '2026-09-23T14:05:22.000Z',
-  },
-];
-
 export function AdminFinanceView() {
   const { showToast } = useToast();
 
@@ -126,7 +58,7 @@ export function AdminFinanceView() {
   const [walletError, setWalletError] = useState<string | null>(null);
 
   // Live Payout Requests State
-  const [liveRequests, setLiveRequests] = useState<PayoutRequestView[]>(INITIAL_PAYOUT_REQUESTS);
+  const [liveRequests, setLiveRequests] = useState<PayoutRequestView[]>([]);
   const [isLoadingLive, setIsLoadingLive] = useState(true);
   const [liveError, setLiveError] = useState<string | null>(null);
 
@@ -221,15 +153,14 @@ export function AdminFinanceView() {
     setLiveError(null);
     try {
       const res = await payoutApi.getAllPayoutRequests();
-      if (res.success && res.data && Array.isArray(res.data.items) && res.data.items.length > 0) {
+      if (res.success && res.data && Array.isArray(res.data.items)) {
         setLiveRequests(res.data.items);
       } else {
-        // Use fallback initial requests if API returns empty list or not yet seeded
-        setLiveRequests(INITIAL_PAYOUT_REQUESTS);
+        setLiveRequests([]);
       }
     } catch (err: any) {
-      console.warn('[AdminFinance] Could not load from backend, using fallback:', err);
-      setLiveRequests(INITIAL_PAYOUT_REQUESTS);
+      console.warn('[AdminFinance] Could not load from backend:', err);
+      setLiveRequests([]);
     } finally {
       setIsLoadingLive(false);
     }

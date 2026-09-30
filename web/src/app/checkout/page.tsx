@@ -480,38 +480,41 @@ export default function CheckoutPage() {
     return prices;
   }, [checkoutPreview]);
 
-  // Pricing calculations with robust local fallback
-  const localStoreDiscountTotal = useMemo(() => {
-    return Object.values(appliedStoreVouchers).reduce(
-      (sum: number, v: any) => sum + (Number(v?.discount) || 0),
-      0
-    );
-  }, [appliedStoreVouchers]);
-
-  const localPlatformDiscountTotal = Number(appliedPlatformVoucher?.discount) || 0;
-  const localShippingDiscountTotal = Number(appliedShippingVoucher?.discount) || (appliedShippingVoucher ? Math.min(shippingFee, Number(appliedShippingVoucher.value || 30000)) : 0);
-
+  // Pricing calculations: checkoutPreview from backend is the single source of truth
   const effectivePlatformDiscount =
-    checkoutPreview?.platformDiscountTotal !== undefined && checkoutPreview?.platformDiscountTotal !== null && checkoutPreview?.platformDiscountTotal > 0
-      ? checkoutPreview.platformDiscountTotal
-      : localPlatformDiscountTotal;
+    checkoutPreview?.platformDiscountTotal !== undefined && checkoutPreview?.platformDiscountTotal !== null
+      ? Number(checkoutPreview.platformDiscountTotal)
+      : Number(appliedPlatformVoucher?.discount) || 0;
 
   const effectiveStoreDiscount =
-    checkoutPreview?.storeDiscountTotal !== undefined && checkoutPreview?.storeDiscountTotal !== null && checkoutPreview?.storeDiscountTotal > 0
-      ? checkoutPreview.storeDiscountTotal
-      : localStoreDiscountTotal;
+    checkoutPreview?.storeDiscountTotal !== undefined && checkoutPreview?.storeDiscountTotal !== null
+      ? Number(checkoutPreview.storeDiscountTotal)
+      : Object.values(appliedStoreVouchers).reduce(
+          (sum: number, v: any) => sum + (Number(v?.discount) || 0),
+          0
+        );
 
-  const effectiveDiscountTotal = effectivePlatformDiscount + effectiveStoreDiscount;
+  const effectiveDiscountTotal =
+    checkoutPreview?.discountTotal !== undefined && checkoutPreview?.discountTotal !== null
+      ? Number(checkoutPreview.discountTotal)
+      : effectivePlatformDiscount + effectiveStoreDiscount;
 
   const effectiveShippingDiscount =
-    (checkoutPreview?.shippingDiscountTotal ?? 0) > 0
-      ? (checkoutPreview?.shippingDiscountTotal ?? 0)
-      : localShippingDiscountTotal;
+    checkoutPreview?.shippingDiscountTotal !== undefined && checkoutPreview?.shippingDiscountTotal !== null
+      ? Number(checkoutPreview.shippingDiscountTotal)
+      : Number(appliedShippingVoucher?.discount) || 0;
 
-  const effectiveShippingFee = checkoutPreview?.shippingTotal ?? shippingFee;
+  const effectiveShippingFee =
+    checkoutPreview?.shippingTotal !== undefined && checkoutPreview?.shippingTotal !== null
+      ? Number(checkoutPreview.shippingTotal)
+      : (effectiveHasPhysical ? 30000 : 0);
+
   const effectiveFinalShipping = Math.max(0, effectiveShippingFee - effectiveShippingDiscount);
 
-  const calculatedGrandTotal = Math.max(0, (checkoutPreview?.itemSubtotal ?? rawSubtotal) - effectiveDiscountTotal) + effectiveFinalShipping;
+  const calculatedGrandTotal =
+    checkoutPreview?.grandTotal !== undefined && checkoutPreview?.grandTotal !== null
+      ? Number(checkoutPreview.grandTotal)
+      : Math.max(0, (checkoutPreview?.itemSubtotal ?? rawSubtotal) - effectiveDiscountTotal) + effectiveFinalShipping;
 
   const handleSaveNewAddress = async (e: React.FormEvent) => {
     e.preventDefault();
