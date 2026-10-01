@@ -63,41 +63,127 @@ export class FlashSalesService
     const endsAt = new Date(dto.endsAt);
     const now = new Date();
 
-    // 1. Validation: startsAt must be at least 2 minutes in the future (announcement / warm-up period)
-    const minStartsAt = new Date(now.getTime() + 2 * 60 * 1000 - 5000); // 5s network lag buffer
-    if (startsAt.getTime() < minStartsAt.getTime()) {
-      throwBadRequest(
-        ErrorCode.BANNER_INVALID_DATE_RANGE,
-        "Thời gian bắt đầu đợt Flash Sale phải cách thời điểm tạo tối thiểu 2 phút để hệ thống công bố trước cho khách hàng",
-      );
-    }
-
-    if (endsAt <= startsAt) {
-      throwBadRequest(
-        ErrorCode.BANNER_INVALID_DATE_RANGE,
-        "Thời gian kết thúc phải sau thời gian bắt đầu",
-      );
-    }
-
     const scope = dto.scope || (dto.storeId ? FlashSaleScope.SHOP : FlashSaleScope.PLATFORM);
     const storeId = dto.storeId || null;
 
-    // 2. Shop constraints: Each seller can only have at most 1 active or upcoming flash sale
-    if (scope === FlashSaleScope.SHOP && storeId) {
-      const activeOrUpcoming = await this.prisma.flashSale.findFirst({
+    let registrationStartsAt: Date | null = null;
+    let registrationEndsAt: Date | null = null;
+    let minStores = 1;
+    let maxStores = 10;
+    let discountPercent = 30;
+    let maxPerUser = 1;
+
+    if (scope === FlashSaleScope.PLATFORM) {
+      // 1. Platform singleton constraint: only 1 active or upcoming/registering Flash Sale at any time
+      const existingPlatformSlot = await this.prisma.flashSale.findFirst({
         where: {
-          storeId,
-          scope: FlashSaleScope.SHOP,
-          status: { not: FlashSaleStatus.ENDED },
+          scope: FlashSaleScope.PLATFORM,
+          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
           endsAt: { gt: now },
         },
       });
 
-      if (activeOrUpcoming) {
+      if (existingPlatformSlot) {
         throwBadRequest(
           ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
-          `Cửa hàng của bạn đang có 1 đợt Flash Sale ("${activeOrUpcoming.name}") chưa kết thúc. Mỗi cửa hàng chỉ được tạo tối đa 1 đợt Flash Sale. Vui lòng chờ đợt hiện tại kết thúc để tạo đợt mới.`,
+          `Sàn hiện đã có 1 chương trình Flash Sale chưa kết thúc ("${existingPlatformSlot.name}"). Mỗi thời điểm chỉ được phép có tối đa 1 chương trình Flash Sale toàn sàn.`,
         );
+      }
+
+      // 2. 4-Stage Timelines Validation for Platform Flash Sale
+      registrationStartsAt = dto.registrationStartsAt ? new Date(dto.registrationStartsAt) : now;
+      registrationEndsAt = dto.registrationEndsAt ? new Date(dto.registrationEndsAt) : null;
+
+      if (!registrationEndsAt) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Vui lòng nhập thời gian kết thúc đăng ký cho Flash Sale của Sàn",
+        );
+      }
+
+      if (registrationEndsAt <= registrationStartsAt) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Thời gian kết thúc đăng ký phải sau thời gian mở đăng ký",
+        );
+      }
+
+      // startsAt must be at least 2 minutes after registrationEndsAt (pre-announcement teaser buffer)
+      const minStartsAtPlatform = new Date(registrationEndsAt.getTime() + 2 * 60 * 1000 - 5000);
+      if (startsAt.getTime() < minStartsAtPlatform.getTime()) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Thời gian bắt đầu áp dụng mở bán phải sau thời gian kết thúc đăng ký ít nhất 2 phút (để đếm ngược công bố trước cho khách hàng)",
+        );
+      }
+
+      if (endsAt <= startsAt) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Thời gian kết thúc Flash Sale phải sau thời gian bắt đầu áp dụng",
+        );
+      }
+
+      // 3. Store limits validation (1 <= minStores <= maxStores <= 10)
+      minStores = Number(dto.minStores ?? 1);
+      maxStores = Number(dto.maxStores ?? 10);
+      if (minStores < 1 || minStores > 10 || maxStores < 1 || maxStores > 10 || minStores > maxStores) {
+        throwBadRequest(
+          ErrorCode.VALIDATION_MIN_VALUE,
+          "Số lượng cửa hàng tham gia Flash Sale của Sàn phải từ 1 đến tối đa 10 cửa hàng (Tối thiểu <= Tối đa)",
+        );
+      }
+
+      // 4. Subsidy & quota validation
+      discountPercent = dto.discountPercent !== undefined ? Number(dto.discountPercent) : 30;
+      if (discountPercent < 20 || discountPercent > 80) {
+        throwBadRequest(
+          ErrorCode.VALIDATION_MIN_VALUE,
+          "Số phần trăm trợ giá của Sàn phải từ 20% đến 80%",
+        );
+      }
+
+      maxPerUser = dto.maxPerUser !== undefined ? Number(dto.maxPerUser) : 1;
+      if (maxPerUser < 1) {
+        throwBadRequest(
+          ErrorCode.VALIDATION_MIN_VALUE,
+          "Số lượng sản phẩm tối đa cho mỗi khách hàng phải từ 1 trở lên",
+        );
+      }
+    } else {
+      // Shop Scope Validation: startsAt must be at least 2 minutes in the future (announcement / warm-up period)
+      const minStartsAt = new Date(now.getTime() + 2 * 60 * 1000 - 5000); // 5s network lag buffer
+      if (startsAt.getTime() < minStartsAt.getTime()) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Thời gian bắt đầu đợt Flash Sale phải cách thời điểm tạo tối thiểu 2 phút để hệ thống công bố trước cho khách hàng",
+        );
+      }
+
+      if (endsAt <= startsAt) {
+        throwBadRequest(
+          ErrorCode.BANNER_INVALID_DATE_RANGE,
+          "Thời gian kết thúc phải sau thời gian bắt đầu",
+        );
+      }
+
+      // Shop constraints: Each seller can only have at most 1 active or upcoming flash sale
+      if (storeId) {
+        const activeOrUpcoming = await this.prisma.flashSale.findFirst({
+          where: {
+            storeId,
+            scope: FlashSaleScope.SHOP,
+            status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
+            endsAt: { gt: now },
+          },
+        });
+
+        if (activeOrUpcoming) {
+          throwBadRequest(
+            ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+            `Cửa hàng của bạn đang có 1 đợt Flash Sale ("${activeOrUpcoming.name}") chưa kết thúc. Mỗi cửa hàng chỉ được tạo tối đa 1 đợt Flash Sale. Vui lòng chờ đợt hiện tại kết thúc để tạo đợt mới.`,
+          );
+        }
       }
     }
 
@@ -110,8 +196,14 @@ export class FlashSalesService
         bannerUrl: dto.bannerUrl ?? null,
         scope,
         storeId,
+        registrationStartsAt,
+        registrationEndsAt,
         startsAt,
         endsAt,
+        minStores,
+        maxStores,
+        discountPercent,
+        maxPerUser,
         status,
       },
     });
@@ -135,14 +227,38 @@ export class FlashSalesService
       this.prisma.flashSale.count({ where }),
     ]);
 
-    // Recalculate dynamic status based on time
-    const mapped = items.map((fs) => ({
-      ...fs,
-      status: fs.status,
-      totalItems: fs.items.length,
-      totalStock: fs.items.reduce((sum, item) => sum + item.stock, 0),
-      totalSold: fs.items.reduce((sum, item) => sum + item.sold, 0),
-    }));
+    // Recalculate dynamic status and calculate participatingStoresCount and book details
+    const mapped = await Promise.all(
+      items.map(async (fs) => {
+        const participatingStoreIds = await this.getParticipatingStoreIds(fs.id, fs.items);
+        const enrichedItems = await Promise.all(
+          fs.items.map(async (item) => {
+            const itemView = this.mapItemView(item, fs);
+            const book = await this.getCommerceBook(item.bookId);
+            if (book) {
+              itemView.bookTitle = book.title;
+              itemView.bookSlug = book.slug || book.id;
+              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
+              (itemView as any).author =
+                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+              (itemView as any).storeId = item.storeId || book.storeId || book.businessId || fs.storeId;
+              (itemView as any).format = book.format || "PHYSICAL";
+            }
+            return itemView;
+          }),
+        );
+
+        return {
+          ...fs,
+          status: fs.status,
+          participatingStoresCount: participatingStoreIds.length,
+          totalItems: fs.items.length,
+          totalStock: fs.items.reduce((sum, item) => sum + item.stock, 0),
+          totalSold: fs.items.reduce((sum, item) => sum + item.sold, 0),
+          items: enrichedItems,
+        };
+      }),
+    );
 
     return {
       items: mapped,
@@ -329,9 +445,12 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    return Promise.all(
+    const enriched = await Promise.all(
       campaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
+        const participatingStoresCount = participatingStoreIds.length;
+        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
         const itemsWithBooks = await Promise.all(
           c.items.map(async (item) => {
             const mapped = this.mapItemView(item, c);
@@ -351,6 +470,17 @@ export class FlashSalesService
 
         return {
           ...c,
+          registrationStartsAt: c.registrationStartsAt,
+          registrationEndsAt: c.registrationEndsAt,
+          minStores: c.minStores,
+          maxStores: c.maxStores,
+          discountPercent: c.discountPercent ?? 30,
+          maxPerUser: c.maxPerUser ?? 1,
+          participatingStoresCount,
+          registrationRemainingSeconds: Math.max(
+            0,
+            Math.floor((regEnd.getTime() - now.getTime()) / 1000),
+          ),
           status,
           startsInSeconds: Math.max(
             0,
@@ -364,6 +494,8 @@ export class FlashSalesService
         };
       }),
     );
+
+    return enriched.filter((c) => c.status === FlashSaleStatus.ACTIVE);
   }
 
   async getUpcomingFlashSales(scope?: FlashSaleScope) {
@@ -385,8 +517,12 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    return Promise.all(
+    const enriched = await Promise.all(
       campaigns.map(async (c) => {
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
+        const participatingStoresCount = participatingStoreIds.length;
+        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
         const itemsWithBooks = await Promise.all(
           c.items.map(async (item) => {
             const mapped = this.mapItemView(item, c);
@@ -406,7 +542,18 @@ export class FlashSalesService
 
         return {
           ...c,
-          status: FlashSaleStatus.SCHEDULED,
+          registrationStartsAt: c.registrationStartsAt,
+          registrationEndsAt: c.registrationEndsAt,
+          minStores: c.minStores,
+          maxStores: c.maxStores,
+          discountPercent: c.discountPercent ?? 30,
+          maxPerUser: c.maxPerUser ?? 1,
+          participatingStoresCount,
+          registrationRemainingSeconds: Math.max(
+            0,
+            Math.floor((regEnd.getTime() - now.getTime()) / 1000),
+          ),
+          status,
           startsInSeconds: Math.max(
             0,
             Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
@@ -415,6 +562,16 @@ export class FlashSalesService
         };
       }),
     );
+
+    return enriched.filter((c) => {
+      if (c.status === FlashSaleStatus.CANCELLED) return false;
+      // For platform flash sales: hide from public customers if registration is not ended yet
+      if (c.scope === FlashSaleScope.PLATFORM) {
+        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : new Date(c.startsAt);
+        if (now < regEnd) return false;
+      }
+      return true;
+    });
   }
 
   async getTimeSlots(scope?: FlashSaleScope) {
@@ -424,6 +581,7 @@ export class FlashSalesService
     const future14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
     const where: any = {
+      status: { not: FlashSaleStatus.CANCELLED },
       OR: [
         { status: FlashSaleStatus.ACTIVE },
         { status: FlashSaleStatus.SCHEDULED, startsAt: { lte: future14d } },
@@ -443,7 +601,10 @@ export class FlashSalesService
 
     const mapped = await Promise.all(
       allCampaigns.map(async (c) => {
-        const status = this.calculateStatus(c.startsAt, c.endsAt);
+        const status = this.calculateStatus(c.startsAt, c.endsAt, c.status);
+        const participatingStoreIds = await this.getParticipatingStoreIds(c.id, c.items);
+        const participatingStoresCount = participatingStoreIds.length;
+        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : c.startsAt;
         const remainingSeconds =
           status === FlashSaleStatus.ACTIVE
             ? Math.max(0, Math.floor((c.endsAt.getTime() - now.getTime()) / 1000))
@@ -478,6 +639,17 @@ export class FlashSalesService
           bannerUrl: c.bannerUrl,
           scope: c.scope,
           storeId: c.storeId,
+          registrationStartsAt: c.registrationStartsAt,
+          registrationEndsAt: c.registrationEndsAt,
+          minStores: c.minStores,
+          maxStores: c.maxStores,
+          discountPercent: c.discountPercent ?? 30,
+          maxPerUser: c.maxPerUser ?? 1,
+          participatingStoresCount,
+          registrationRemainingSeconds: Math.max(
+            0,
+            Math.floor((regEnd.getTime() - now.getTime()) / 1000),
+          ),
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           status,
@@ -488,7 +660,17 @@ export class FlashSalesService
       }),
     );
 
-    return mapped.sort((a, b) => {
+    const publicVisible = mapped.filter((c) => {
+      if (c.status === FlashSaleStatus.CANCELLED) return false;
+      // For platform scope: hide from public customer time slots if registration is ongoing
+      if (c.scope === FlashSaleScope.PLATFORM) {
+        const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : new Date(c.startsAt);
+        if (now < regEnd) return false;
+      }
+      return true;
+    });
+
+    return publicVisible.sort((a, b) => {
       const order: Record<string, number> = {
         ACTIVE: 1,
         SCHEDULED: 2,
@@ -631,21 +813,31 @@ export class FlashSalesService
         activeCount,
         scheduledCount,
       },
-      slots: slots.map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description,
-        startsAt: s.startsAt,
-        endsAt: s.endsAt,
-        status: s.status,
-        scope: s.scope,
-        storeId: s.storeId,
-        totalItems: s.items.length,
-        remainingSeconds: Math.max(
-          0,
-          Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
-        ),
-      })),
+      slots: await Promise.all(
+        slots.map(async (s) => {
+          const participatingStoreIds = await this.getParticipatingStoreIds(s.id, s.items);
+          return {
+            id: s.id,
+            name: s.name,
+            description: s.description,
+            startsAt: s.startsAt,
+            endsAt: s.endsAt,
+            registrationStartsAt: s.registrationStartsAt,
+            registrationEndsAt: s.registrationEndsAt,
+            minStores: s.minStores,
+            maxStores: s.maxStores,
+            participatingStoresCount: participatingStoreIds.length,
+            status: s.status,
+            scope: s.scope,
+            storeId: s.storeId,
+            totalItems: s.items.length,
+            remainingSeconds: Math.max(
+              0,
+              Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
+            ),
+          };
+        }),
+      ),
     };
   }
 
@@ -961,7 +1153,17 @@ export class FlashSalesService
     };
   }
 
-  private calculateStatus(startsAt: Date, endsAt: Date): FlashSaleStatus {
+  private calculateStatus(
+    startsAt: Date,
+    endsAt: Date,
+    currentStatus?: FlashSaleStatus | string,
+  ): FlashSaleStatus {
+    if (
+      currentStatus === FlashSaleStatus.CANCELLED ||
+      currentStatus === "CANCELLED"
+    ) {
+      return FlashSaleStatus.CANCELLED;
+    }
     const now = new Date();
     if (now < startsAt) return FlashSaleStatus.SCHEDULED;
     if (now > endsAt) return FlashSaleStatus.ENDED;
@@ -970,6 +1172,32 @@ export class FlashSalesService
 
   private async syncStatuses() {
     const now = new Date();
+
+    // 1. Auto-cancel Platform Flash Sales that reached registrationEndsAt with fewer distinct stores than minStores
+    const pendingPlatformSales = await this.prisma.flashSale.findMany({
+      where: {
+        scope: FlashSaleScope.PLATFORM,
+        status: FlashSaleStatus.SCHEDULED,
+        registrationEndsAt: { lte: now },
+      },
+      include: { items: true },
+    });
+
+    for (const fs of pendingPlatformSales) {
+      const storeIds = await this.getParticipatingStoreIds(fs.id, fs.items);
+      const minStores = fs.minStores ?? 3;
+      if (storeIds.length < minStores) {
+        await this.prisma.flashSale.update({
+          where: { id: fs.id },
+          data: { status: FlashSaleStatus.CANCELLED },
+        });
+        this.logger.warn(
+          `Flash Sale Sàn "${fs.name}" đã tự động bị HỦY do chỉ có ${storeIds.length}/${minStores} Shop tham gia khi đóng cổng đăng ký.`,
+        );
+      }
+    }
+
+    // 2. Transition SCHEDULED (non-cancelled) to ACTIVE when reaching startsAt
     await this.prisma.$transaction([
       this.prisma.flashSale.updateMany({
         where: {
@@ -998,13 +1226,42 @@ export class FlashSalesService
         flashSale: {
           startsAt: { lte: now },
           endsAt: { gte: now },
-          status: { not: FlashSaleStatus.ENDED },
+          status: { notIn: [FlashSaleStatus.ENDED, FlashSaleStatus.CANCELLED] },
         },
         stock: { gt: 0 },
       },
       include: { flashSale: true },
       orderBy: [{ salePrice: "asc" }, { createdAt: "asc" }],
     });
+  }
+
+  async getParticipatingStoreIds(flashSaleId: string, preloadedItems?: any[]): Promise<string[]> {
+    const items = preloadedItems ?? await this.prisma.flashSaleItem.findMany({
+      where: { flashSaleId },
+      select: { id: true, bookId: true, storeId: true },
+    });
+    const storeIds = new Set<string>();
+    for (const item of items) {
+      if (item.storeId) {
+        storeIds.add(String(item.storeId));
+        continue;
+      }
+      const book = await this.getCommerceBook(item.bookId);
+      const sid =
+        book?.businessId ||
+        book?.business?.id ||
+        book?.storeId ||
+        book?.ownerUserId ||
+        book?.sellerId ||
+        book?.ownerId ||
+        book?.business_id;
+      if (sid) {
+        storeIds.add(String(sid));
+      } else if (item.bookId) {
+        storeIds.add(`store-${item.bookId.slice(0, 8)}`);
+      }
+    }
+    return Array.from(storeIds);
   }
 
   private quotaKey(userId: string, campaignId: string, bookId: string) {
@@ -1294,11 +1551,20 @@ export class FlashSalesService
     }
 
     const commercePrice = Number(book.price);
-    if (dto.salePrice >= commercePrice) {
-      throwBadRequest(
-        ErrorCode.BOOK_PRICE_INVALID,
-        `Giá Flash Sale (${dto.salePrice.toLocaleString("vi-VN")} đ) phải thấp hơn giá niêm yết hiện tại (${commercePrice.toLocaleString("vi-VN")} đ)`,
-      );
+    let finalSalePrice = dto.salePrice;
+    let finalMaxPerUser = dto.maxPerUser ?? 1;
+
+    if (flashSale.scope === FlashSaleScope.PLATFORM) {
+      const discountPercent = Number(flashSale.discountPercent ?? 30);
+      finalSalePrice = Math.max(1, Math.round(commercePrice * (1 - discountPercent / 100)));
+      finalMaxPerUser = flashSale.maxPerUser ?? 1;
+    } else {
+      if (dto.salePrice >= commercePrice) {
+        throwBadRequest(
+          ErrorCode.BOOK_PRICE_INVALID,
+          `Giá Flash Sale (${dto.salePrice.toLocaleString("vi-VN")} đ) phải thấp hơn giá niêm yết hiện tại (${commercePrice.toLocaleString("vi-VN")} đ)`,
+        );
+      }
     }
 
     const availableStock = Number(
@@ -1310,6 +1576,28 @@ export class FlashSalesService
         ErrorCode.INVENTORY_INSUFFICIENT,
         `Số lượng đăng ký Flash Sale (${dto.stock}) vượt quá số lượng tồn kho khả dụng (${availableStock})`,
       );
+    }
+
+    // Platform Flash Sale registration period & store quota validation
+    if (flashSale.scope === FlashSaleScope.PLATFORM) {
+      const regStart = flashSale.registrationStartsAt ? new Date(flashSale.registrationStartsAt) : flashSale.createdAt;
+      const regEnd = flashSale.registrationEndsAt ? new Date(flashSale.registrationEndsAt) : flashSale.startsAt;
+      if (now < regStart || now > regEnd) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_NOT_ACTIVE,
+          "Cổng đăng ký cho khung giờ Flash Sale của Sàn hiện đang đóng hoặc đã hết thời gian đăng ký",
+        );
+      }
+
+      const participatingStoreIds = await this.getParticipatingStoreIds(flashSale.id);
+      const isAlreadyParticipating = participatingStoreIds.includes(businessId);
+      const maxStores = flashSale.maxStores || 10;
+      if (!isAlreadyParticipating && participatingStoreIds.length >= maxStores) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Khung giờ Flash Sale của Sàn đã đủ số lượng cửa hàng tham gia (tối đa ${maxStores} Shop)`,
+        );
+      }
     }
 
     // Conflict check: Exclusive product rule between Platform and Shop
@@ -1375,10 +1663,11 @@ export class FlashSalesService
       item = await this.prisma.flashSaleItem.update({
         where: { id: existing.id },
         data: {
+          storeId: businessId,
           originalPrice: commercePrice,
-          salePrice: dto.salePrice,
+          salePrice: finalSalePrice,
           stock: dto.stock,
-          maxPerUser: dto.maxPerUser ?? 1,
+          maxPerUser: finalMaxPerUser,
         },
         include: { flashSale: true },
       });
@@ -1387,10 +1676,11 @@ export class FlashSalesService
         data: {
           flashSaleId: dto.flashSaleId,
           bookId: dto.bookId,
+          storeId: businessId,
           originalPrice: commercePrice,
-          salePrice: dto.salePrice,
+          salePrice: finalSalePrice,
           stock: dto.stock,
-          maxPerUser: dto.maxPerUser ?? 1,
+          maxPerUser: finalMaxPerUser,
           sold: 0,
         },
         include: { flashSale: true },
@@ -1496,6 +1786,7 @@ export class FlashSalesService
         !businessId ||
         businessId === "ADMIN" ||
         businessId === "PLATFORM_ADMIN" ||
+        (item.storeId && item.storeId === businessId) ||
         (item.flashSale?.storeId && item.flashSale.storeId === businessId) ||
         (bookBizId && bookBizId === businessId) ||
         (bookOwnerId && bookOwnerId === businessId) ||
@@ -1675,27 +1966,55 @@ export class FlashSalesService
       orderBy: { startsAt: "asc" },
     });
 
-    return slots.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      bannerUrl: s.bannerUrl,
-      scope: s.scope,
-      storeId: s.storeId,
-      startsAt: s.startsAt,
-      endsAt: s.endsAt,
-      status: s.status,
-      totalItems: s.items.length,
-      isRegistrationOpen: s.status === FlashSaleStatus.SCHEDULED,
-      startsInSeconds: Math.max(
-        0,
-        Math.floor((s.startsAt.getTime() - now.getTime()) / 1000),
-      ),
-      remainingSeconds: Math.max(
-        0,
-        Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
-      ),
-    }));
+    return Promise.all(
+      slots.map(async (s) => {
+        const participatingStoreIds = await this.getParticipatingStoreIds(s.id, s.items);
+        const participatingStoresCount = participatingStoreIds.length;
+        const maxStores = s.maxStores ?? 10;
+        const regStart = s.registrationStartsAt ? new Date(s.registrationStartsAt) : s.createdAt;
+        const regEnd = s.registrationEndsAt ? new Date(s.registrationEndsAt) : s.startsAt;
+        const isRegistrationOpen =
+          s.scope === FlashSaleScope.PLATFORM
+            ? now >= regStart && now <= regEnd && participatingStoresCount < maxStores
+            : s.status === FlashSaleStatus.SCHEDULED;
+
+        return {
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          bannerUrl: s.bannerUrl,
+          scope: s.scope,
+          storeId: s.storeId,
+          registrationStartsAt: s.registrationStartsAt,
+          registrationEndsAt: s.registrationEndsAt,
+          minStores: s.minStores,
+          maxStores,
+          discountPercent: s.discountPercent ?? 30,
+          maxPerUser: s.maxPerUser ?? 1,
+          participatingStoresCount,
+          isUserStoreParticipating: businessId
+            ? participatingStoreIds.includes(businessId) || s.items.some((it: any) => it.storeId === businessId)
+            : false,
+          startsAt: s.startsAt,
+          endsAt: s.endsAt,
+          status: s.status,
+          totalItems: s.items.length,
+          isRegistrationOpen,
+          registrationRemainingSeconds: Math.max(
+            0,
+            Math.floor((regEnd.getTime() - now.getTime()) / 1000),
+          ),
+          startsInSeconds: Math.max(
+            0,
+            Math.floor((s.startsAt.getTime() - now.getTime()) / 1000),
+          ),
+          remainingSeconds: Math.max(
+            0,
+            Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
+          ),
+        };
+      }),
+    );
   }
 }
 

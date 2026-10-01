@@ -23,80 +23,87 @@ Khi Admin thiết lập một khung giờ Flash Sale mới toàn sàn, form cấ
 1. **Thời gian bắt đầu mở đăng ký (`registrationStartsAt`):** Thời điểm Sàn chính thức mở cổng thông báo và cho phép các Cửa hàng (Sellers) chọn sách trong kho để nộp đăng ký tham gia.
 2. **Thời gian kết thúc đăng ký (`registrationEndsAt`):** Thời điểm Sàn đóng cổng đăng ký. Sau mốc này, Seller không thể đăng ký thêm hoặc sửa sách tham gia.
 3. **Thời gian bắt đầu áp dụng / Mở bán (`startsAt`):** Thời điểm bắt đầu mở bán giảm giá cho người mua trên toàn sàn.
-   - **Ràng buộc cứng:** `startsAt` phải sau `registrationEndsAt` **ít nhất 2 phút** (`startsAt >= registrationEndsAt + 2 phút`).
-4. **Thời gian kết thúc Flash Sale (`endsAt`):** Thời điểm đợt Flash Sale của Sàn khép lại.
+   - **Ràng buộc cứng:** `startsAt` phải sau `registrationEndsAt` **ít nhất 2 phút** (`startsAt >= registrationEndsAt + 2 phút`). Khoảng thời gian từ `registrationEndsAt` đến `startsAt` là khoảng đệm công bố trước (Teaser Buffer), Admin có thể thiết lập dài hơn 2 phút tùy nhu cầu chiến dịch.
+4. **Thời gian kết thúc Flash Sale (`endsAt`):** Thời điểm đợt Flash Sale của Sàn khép lại (`endsAt > startsAt`).
 
-#### B. Cơ chế 2 phút đệm công bố cho khách hàng:
-- Khoảng thời gian từ `registrationEndsAt` đến `startsAt` (tối thiểu 2 phút) là **giai đoạn đếm ngược công bố trước**:
-  - Tại giao diện khách hàng (tab **Huki Flash Sale** tại `/flash-sale`):
-    - **Ẩn hoàn toàn danh sách sản phẩm** (không để lộ sách tham gia trước giờ mở bán).
-    - **Chỉ hiển thị 1 thẻ dài (Teaser Card/Banner)** với thiết kế bắt mắt gồm:
-      - Badge: `[SẮP MỞ BÁN - CÔNG BỐ TRƯỚC]`.
-      - Tên chương trình Flash Sale của Sàn.
-      - Đồng hồ đếm ngược thời gian thực đến `startsAt` (*"Mở bán chính thức sau: MM:SS"*).
-      - Mức % giảm giá tối đa (*"Giảm giá lên đến ...%"*).
-  - Khi đồng hồ đếm ngược chạm mốc `startsAt`:
-    - Thẻ tự động chuyển sang trạng thái **Đang Mở Bán ⚡**.
-    - Lưới toàn bộ sản phẩm sách lập tức xuất hiện kèm giá giảm, số lượng kho, kích hoạt nút `Mua Ngay` và `Thêm vào giỏ hàng`.
+#### B. Cấu hình Trợ giá & Giới hạn mua do Sàn thiết lập:
+Admin thiết lập 2 thông số trợ giá quy chuẩn áp dụng đồng bộ cho toàn bộ sách tham gia đợt Flash Sale của Sàn:
+1. **Số phần trăm trợ giá toàn sàn (`discountPercent` / `subsidyPercent`):**
+   - **Ràng buộc cứng:** Tối thiểu **20%** và tối đa **80%** (`20 <= discountPercent <= 80`).
+   - Mọi sách của các Shop nộp vào đợt Flash Sale của Sàn sẽ tự động được tính giá bán theo mức giảm này: `Giá Flash Sale = Giá niêm yết * (1 - discountPercent / 100)`.
+2. **Số lượng sản phẩm tối đa cho mỗi khách hàng (`maxPerUser`):**
+   - Số lượng tối đa mà mỗi tài khoản khách hàng được mua với giá Flash Sale cho 1 loại sản phẩm (mặc định 1 cuốn).
+   - Áp dụng tự động và cố định cho mọi sách nộp vào đợt của Sàn.
 
-#### C. Quy định tính duy nhất của Flash Sale Toàn Sàn:
-- **Nguyên tắc:** Tại một thời điểm, toàn sàn **chỉ được phép có duy nhất 1 chương trình Flash Sale chưa kết thúc** (`scope = PLATFORM` và `endsAt > now` và `status != ENDED`).
-- **Chặn tạo mới:** Không cho phép Admin tạo chương trình mới nếu chương trình hiện tại vẫn đang ở bất kỳ giai đoạn nào:
-  1. Giai đoạn mở đăng ký cho cửa hàng (`now >= registrationStartsAt && now < registrationEndsAt`)
-  2. Giai đoạn chờ áp dụng / đếm ngược công bố (`now >= registrationEndsAt && now < startsAt`)
-  3. Giai đoạn đang mở bán áp dụng (`now >= startsAt && now <= endsAt`)
-- **Phía Giao diện Admin:** Nút `+ Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn` sẽ bị **Disable (xám + khóa 🔒)** và hiển thị dòng chữ đỏ thông báo lý do bên dưới.
-- **Phía Backend API:** Chặn bằng validation và ném ngoại lệ rõ ràng nếu đã có 1 đợt Sàn đang tồn tại.
+#### C. Giới hạn số lượng cửa hàng tham gia (`minStores = 1`, `maxStores = 10`):
+- **Tối thiểu:** 1 cửa hàng (`minStores = 1`). Chỉ cần từ 1 gian hàng nộp sách tham gia thành công là đợt Flash Sale của Sàn sẽ diễn ra bình thường khi hết hạn đăng ký.
+- **Tối đa:** 10 cửa hàng (`maxStores = 10`, `1 <= minStores <= maxStores <= 10`).
+- **Cơ chế kiểm soát quota Shop:** Hệ thống đếm chính xác số lượng cửa hàng duy nhất (`unique storeId`) nộp sách vào đợt của Sàn và cập nhật thời gian thực trên cả giao diện Admin và Seller (`X / Y Shop`).
 
-#### D. Giới hạn số lượng cửa hàng tham gia (`minStores = 3`, `maxStores = 10`):
-- Trong form tạo Flash Sale Toàn Sàn, Admin thiết lập trường **"Giới hạn số lượng cửa hàng tham gia"** (`maxStores` / `storeLimit`).
-- **Ràng buộc cứng:**
-  - **Tối thiểu:** 3 cửa hàng (`min = 3`).
-  - **Tối đa:** 10 cửa hàng (`max = 10`).
-  - Admin không được phép nhập giá trị nhỏ hơn 3 hoặc lớn hơn 10 (ràng buộc validation cả Frontend và Backend).
-- **Cơ chế kiểm soát quota Shop:**
-  - Hệ thống đếm số lượng cửa hàng duy nhất (`unique storeId`) nộp sách vào đợt của Sàn.
-  - Khi số lượng cửa hàng đã đạt mức giới hạn (VD: 5/5 Shop), hệ thống tự động khóa cổng đăng ký đối với các Shop mới tiếp theo (báo *"Đã đủ số lượng Shop tham gia"*).
+#### D. Quy tắc hiển thị phía Khách hàng theo từng giai đoạn (Customer Visibility Lifecycle):
+1. **Giai đoạn Mở đăng ký cho Cửa hàng (`now >= registrationStartsAt && now < registrationEndsAt`):**
+   - **Ẩn hoàn toàn phía Khách hàng:** Giao diện khách hàng (trang `/flash-sale` và widget trang chủ) **tuyệt đối không hiển thị bất kỳ thông tin nào** về đợt Flash Sale này của Sàn.
+   - Chỉ hiển thị trong Kênh Quản trị Admin và Kênh Người Bán (mục *"Tham Gia Huki Flash Sale"*).
+2. **Mốc kết thúc đăng ký (`now >= registrationEndsAt`):**
+   - **Trường hợp KHÔNG CÓ Shop nào tham gia (`distinctStores < minStores`, tức 0 Shop):**
+     - Hệ thống **tự động HỦY (`CANCELLED`)** đợt Flash Sale của Sàn.
+     - Hiển thị thông báo trạng thái Đã Hủy trên Admin View (`"Đã hủy - Không có Shop nào tham gia"`).
+     - Khách hàng không nhìn thấy đợt Flash Sale bị hủy này.
+   - **Trường hợp ĐỦ số lượng Shop tham gia (`distinctStores >= minStores`, tức >= 1 Shop):**
+     - Đợt Flash Sale bước vào giai đoạn **Đệm Công Bố Trước (Teaser Buffer)** từ `registrationEndsAt` đến `startsAt`.
+     - Phía Khách hàng (tab Huki Flash Sale tại `/flash-sale`) hiển thị **1 thẻ dài (Teaser Card/Banner)**:
+       - Huy hiệu: `[SẮP MỞ BÁN - CÔNG BỐ TRƯỚC]`.
+       - Tên chương trình Flash Sale của Sàn.
+       - Đồng hồ đếm ngược thời gian thực đến `startsAt` (*"Mở bán chính thức sau: MM:SS"*).
+       - Mức % giảm giá trợ giá (*"Giảm giá lên đến {discountPercent}%"*).
+       - **Ẩn hoàn toàn danh sách sản phẩm sách** (không để lộ sách trước giờ mở bán).
+3. **Giai đoạn Đang Mở Bán (`now >= startsAt && now <= endsAt`):**
+   - Thẻ tự động chuyển sang trạng thái **Đang Mở Bán ⚡**.
+   - Lưới sản phẩm sách xuất hiện kèm giá giảm, số lượng kho, kích hoạt nút `Mua Ngay` và `Thêm vào giỏ hàng`.
+
+#### E. Quy định tính duy nhất của Flash Sale Toàn Sàn:
+- Tại một thời điểm, toàn sàn **chỉ được phép có duy nhất 1 chương trình Flash Sale chưa kết thúc hoặc chưa hủy** (`scope = PLATFORM` và `endsAt > now` và `status NOT IN [ENDED, CANCELLED]`).
+- Khi có 1 đợt Sàn đang tồn tại, nút `+ Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn` trên Admin View sẽ bị **Disable (xám + khóa 🔒)**. Khi đợt cũ đã `ENDED` hoặc `CANCELLED`, nút sẽ tự động được mở lại.
 
 ---
 
 ### 3. Quy chuẩn chi tiết: Kênh Người Bán (Seller Flash Sale)
 
-#### A. Mục "Tham Gia Huki Flash Sale" (Chương trình Sàn):
-- Trên trang quản trị Flash Sale của Seller ([`SellerFlashSaleView.tsx`](file:///d:/doan_huki_ebook/huki-ebook/web/src/ui/components/seller/SellerFlashSaleView.tsx)), thiết kế một khu vực riêng biệt mang tên **"Tham Gia Huki Flash Sale"**.
-- **Khi Sàn mở đăng ký (`now >= registrationStartsAt && now <= registrationEndsAt`):**
-  - Hiển thị thẻ thông báo nổi bật: Tên chương trình Sàn, thời hạn đóng đăng ký còn lại, tiến độ số lượng Shop tham gia (VD: *Đã tham gia: 4/10 Shop*).
-  - Có nút **`⚡ Đăng Ký Tham Gia Ngay`** để Seller chọn sách trong kho nộp vào đợt của Sàn.
-- **Khi hết hạn hoặc đã đủ số lượng Shop:**
-  - Hiển thị thông báo: *"Đã đóng cổng đăng ký (Đã đủ số lượng Shop tham gia / Đã hết thời gian đăng ký)"* và khóa nút nộp sách.
+#### A. Tinh gọn giao diện Kênh Người Bán:
+- Bỏ khu vực *"Khung Giờ Flash Sale Trong Ngày"* và các bảng lặp lại của slot Sàn ở phía dưới trang Seller.
+- Phân chia bố cục trang Seller thành 2 khu vực rõ ràng:
+  1. Khu vực nổi bật trên cùng: **"Tham Gia Huki Flash Sale"** (Chương trình tài trợ từ Sàn).
+  2. Khu vực bên dưới: **"Flash Sale Của Shop"** (Danh sách các đợt Flash Sale do chính Shop tạo và quản lý).
 
-#### B. Flash Sale riêng của Shop (`scope = SHOP`):
-- **Giới hạn 1 đợt duy nhất:** Mỗi Shop chỉ được tạo và duy trì tối đa **1 đợt Flash Sale** đang hoạt động hoặc chuẩn bị diễn ra (`endsAt > now`).
-- **Thời gian công bố tối thiểu 2 phút:** Thời gian bắt đầu `startsAt` phải sau thời điểm tạo tối thiểu 2 phút (`startsAt >= now + 2 phút`).
-- **Trạng thái nút tạo:** Nút `⚡ Tạo Flash Sale & Đăng Ký Sách` tự động chuyển sang trạng thái **Disable (màu xám, có ổ khóa 🔒)** kèm dòng chữ đỏ cảnh báo lý do nếu Shop đã có 1 đợt đang hoạt động.
-- **Bộ lọc tab tinh gọn:** Chỉ duy trì đúng 3 tab:
-  1. `Tất Cả Khung Giờ` (`ALL`)
-  2. `Đang Mở Bán ⚡` (`ACTIVE` - bao gồm cả các đợt đang đếm ngược chuẩn bị mở bán)
-  3. `Đã Kết Thúc 🏁` (`ENDED`)
+#### B. Quy tắc Studio Chọn Sách Hàng Loạt:
+1. **Khi nộp sách vào Flash Sale của SÀN:**
+   - Cố định mức `% Giảm` và `Số lượng tối đa / khách hàng` theo giá trị Sàn đã cấu hình (`discountPercent` và `maxPerUser`).
+   - Khung công cụ chỉnh % giảm và Max/Khách sẽ bị **Disable / Readonly** kèm thông báo: *"Áp dụng theo mức trợ giá {discountPercent}% và giới hạn {maxPerUser} cuốn/khách của Sàn"*.
+   - Cột Giá Flash Sale và % Giảm trong bảng tự động tính toán chính xác và cố định. Seller chỉ cần nhập số lượng tồn kho (`stock`) muốn nộp vào Flash Sale.
+2. **Khi tạo Flash Sale RIÊNG CỦA SHOP:**
+   - Shop được toàn quyền tự do nhập mức % giảm giá, điều chỉnh giá bán và thiết lập giới hạn mua cho từng sản phẩm như bình thường.
 
----
+#### C. Khóa cứng nút Đăng ký & Nút "Xem Chi Tiết":
+1. **Khóa nút Đăng ký khi Shop đã tham gia:**
+   - Ngay khi Shop xác nhận nộp sách vào đợt của Sàn thành công: Nút đăng ký chuyển sang **Disable (ổ khóa 🔒 `Đã Đăng Ký Tham Gia`)**.
+   - Không cho phép đăng ký lại hoặc nộp thêm sách vào slot Sàn đó.
+2. **Bổ sung Nút "🔍 Xem Chi Tiết":**
+   - Xuất hiện ngay cạnh thẻ trạng thái đăng ký của Sàn.
+   - Khi bấm vào: Mở giao diện hiển thị danh sách toàn bộ các cuốn sách mà **chính gian hàng đó đã nộp vào đợt Flash Sale của Sàn** (kèm Tựa sách, Ảnh bìa, Giá gốc, Giá trợ giá Flash Sale, Tồn kho nộp, Số lượng đã bán, Trạng thái và Thời gian của đợt Sàn).
 
-### 4. Quy chuẩn chi tiết: Giao diện Khách Hàng (`/flash-sale`)
+#### D. Độc lập Quota giữa Flash Sale Sàn và Flash Sale của Shop:
+- Việc Shop tham gia Flash Sale của Sàn **KHÔNG TÍNH** vào hạn mức 1 đợt Flash Sale riêng của Shop.
+- Shop hoàn toàn có quyền vừa tham gia Flash Sale của Sàn, vừa tự tạo 1 đợt Flash Sale riêng của Shop mình.
 
-- **Tab Huki Flash Sale:**
-  - Khi đợt sale của Sàn trong 2 phút đệm (`now >= registrationEndsAt && now < startsAt`): Hiển thị **Teaser Card dài** với tên đợt, đếm ngược `Mở bán chính thức sau: MM:SS` và mức % giảm tối đa; **ẩn toàn bộ lưới sách**.
-  - Khi `now >= startsAt`: Hiển thị danh sách sách đang mở bán kèm các nút `Mua Ngay` và `Thêm vào giỏ`.
-- **Tab Shops Flash Sale:**
-  - Đối với từng đợt sale của Shop đang trong giai đoạn `upcoming`: Hiển thị **Teaser Card dài** đếm ngược và % giảm giá; **ẩn danh sách sách**.
-  - Khi chuyển sang `active`: Tự động mở lưới sách với giá giảm và nút mua hàng.
+#### E. Quy tắc Xung đột ở cấp độ Sản phẩm / Sách (Product-Level Conflict Rule):
+- Sách đã đăng ký trong Flash Sale Sàn trong khung giờ `[startsAt, endsAt]` thì **KHÔNG ĐƯỢC** đăng ký vào Flash Sale riêng của Shop có khung giờ trùng lặp, và ngược lại.
+- Trong Studio, sách bị xung đột sẽ bị **Disable checkbox** và hiển thị huy hiệu `[Đang tham gia Flash Sale Sàn]` hoặc `[Đang tham gia Flash Sale Shop]`.
 
 ---
 
 ## II. THIẾT KẾ CƠ SỞ DỮ LIỆU & KIẾN TRÚC KỸ THUẬT
 
 ### 1. Cơ sở dữ liệu (`promotion-service` – Prisma Schema)
-
-Cập nhật model `FlashSale` trong file `platform/apps/promotion-service/prisma/schema.prisma`:
 
 ```prisma
 enum FlashSaleScope {
@@ -108,6 +115,7 @@ enum FlashSaleStatus {
   SCHEDULED
   ACTIVE
   ENDED
+  CANCELLED
 }
 
 model FlashSale {
@@ -120,15 +128,19 @@ model FlashSale {
   scope                FlashSaleScope @default(PLATFORM)
   storeId              String?        @map("store_id")
 
-  // Timeline 4 mốc cho Platform Flash Sale (Nullable để tương thích Shop Flash Sale)
+  // Timeline 4 mốc cho Platform Flash Sale
   registrationStartsAt DateTime?      @map("registration_starts_at")
   registrationEndsAt   DateTime?      @map("registration_ends_at")
   startsAt             DateTime       @map("starts_at")
   endsAt               DateTime       @map("ends_at")
 
-  // Giới hạn số lượng Shop tham gia (Dành riêng cho Platform Flash Sale)
-  minStores            Int            @default(3) @map("min_stores")
+  // Giới hạn số lượng Shop tham gia (Dành cho Platform Flash Sale)
+  minStores            Int            @default(1) @map("min_stores")
   maxStores            Int            @default(10) @map("max_stores")
+
+  // Cấu hình trợ giá và giới hạn mua toàn sàn
+  discountPercent      Float?         @default(30) @map("discount_percent")
+  maxPerUser           Int?           @default(1) @map("max_per_user")
 
   status               FlashSaleStatus @default(SCHEDULED)
 
@@ -141,160 +153,82 @@ model FlashSale {
   @@index([storeId, status])
   @@map("flash_sales")
 }
-```
 
----
+model FlashSaleItem {
+  id          String  @id @default(uuid())
+  flashSaleId String  @map("flash_sale_id")
+  bookId      String  @map("book_id")
+  storeId     String? @map("store_id")
 
-### 2. Backend Logic (`promotion-service`)
+  originalPrice Float @map("original_price")
+  salePrice     Float @map("sale_price")
 
-#### A. DTOs Cập nhật (`create-flash-sale.dto.ts`):
-```typescript
-export class CreateFlashSaleDto {
-  name: string;
-  description?: string;
-  bannerUrl?: string;
-  scope?: FlashSaleScope;
-  storeId?: string;
+  // Limits
+  stock      Int
+  sold       Int @default(0)
+  maxPerUser Int @default(1) @map("max_per_user")
 
-  // 4 mốc thời gian
-  registrationStartsAt?: string;
-  registrationEndsAt?: string;
-  startsAt: string;
-  endsAt: string;
+  createdAt DateTime @default(now()) @map("created_at")
 
-  // Giới hạn số lượng cửa hàng tham gia
-  minStores?: number;
-  maxStores?: number;
+  flashSale FlashSale @relation(fields: [flashSaleId], references: [id])
+
+  @@index([flashSaleId])
+  @@index([bookId])
+  @@index([storeId])
+  @@map("flash_sale_items")
 }
 ```
 
-#### B. Validation trong `FlashSalesService.create`:
-1. **Kiểm tra tính duy nhất của Flash Sale Sàn (`scope === PLATFORM`):**
-   ```typescript
-   if (dto.scope === FlashSaleScope.PLATFORM || !dto.storeId) {
-     const existingPlatformSlot = await this.prisma.flashSale.findFirst({
-       where: {
-         scope: FlashSaleScope.PLATFORM,
-         endsAt: { gt: now },
-         status: { not: FlashSaleStatus.ENDED },
-       },
-     });
-     if (existingPlatformSlot) {
-       throw new BadRequestException(
-         `Sàn hiện đã có 1 chương trình Flash Sale chưa kết thúc ("${existingPlatformSlot.name}"). Mỗi thời điểm chỉ được phép có tối đa 1 chương trình Flash Sale toàn sàn.`
-       );
-     }
-   }
-   ```
-2. **Kiểm tra tính hợp lệ của 4 mốc thời gian (Flash Sale Sàn):**
-   ```typescript
-   if (dto.scope === FlashSaleScope.PLATFORM) {
-     const regStart = new Date(dto.registrationStartsAt || now);
-     const regEnd = new Date(dto.registrationEndsAt || 0);
-     const start = new Date(dto.startsAt);
-     const end = new Date(dto.endsAt);
-
-     if (regEnd <= regStart) {
-       throw new BadRequestException("Thời gian kết thúc đăng ký phải sau thời gian mở đăng ký.");
-     }
-     if (start.getTime() < regEnd.getTime() + 2 * 60 * 1000 - 5000) {
-       throw new BadRequestException("Thời gian bắt đầu áp dụng phải sau thời gian kết thúc đăng ký ít nhất 2 phút (thời gian công bố trước cho khách hàng).");
-     }
-     if (end <= start) {
-       throw new BadRequestException("Thời gian kết thúc Flash Sale phải sau thời gian bắt đầu áp dụng.");
-     }
-   }
-   ```
-3. **Kiểm tra giới hạn số lượng cửa hàng (`minStores`, `maxStores`):**
-   ```typescript
-   if (dto.scope === FlashSaleScope.PLATFORM) {
-     const maxStores = Number(dto.maxStores ?? 10);
-     if (maxStores < 3 || maxStores > 10) {
-       throw new BadRequestException("Số lượng cửa hàng tham gia Flash Sale của Sàn phải từ 3 đến tối đa 10 cửa hàng.");
-     }
-   }
-   ```
-4. **Kiểm tra khi Seller đăng ký sách vào slot Sàn (`sellerRegisterItem` / `sellerRegisterBatch`):**
-   - Kiểm tra thời gian hiện tại: `now >= slot.registrationStartsAt && now <= slot.registrationEndsAt`. Nếu ngoài khoảng ➔ Báo lỗi *"Khung giờ Sàn đã đóng cổng đăng ký sách"*.
-   - Kiểm tra số lượng Shop tham gia: Đếm số lượng Shop đã có sách trong slot. Nếu Shop hiện tại là Shop mới và số lượng Shop đã đạt `maxStores` ➔ Báo lỗi *"Khung giờ Flash Sale của Sàn đã đủ số lượng cửa hàng tham gia (tối đa {maxStores} Shop)"*.
-
 ---
 
-## III. NGUYÊN TẮC THIẾT KẾ UI/UX & GIAO DIỆN HIỆN CÓ
-
-1. **Sử dụng component và tokens có sẵn:**
-   - Sử dụng hệ thống component sẵn có trong `@/ui/components/seller/SellerUI` và `@/ui/components/admin/AdminUI`.
-   - Sử dụng `ToastContext` (`showToast`) để hiển thị phản hồi tức thì cho người dùng.
-2. **Chuẩn phong cách màu sắc và typography của dự án:**
-   - **Sàn Huki (Platform):** Màu đỏ thương hiệu (`#ac2c19`, `#c73924`), huy hiệu Amber/Gold (`#F59E0B`).
-   - **Cửa hàng (Shops):** Xanh lục bảo đậm (`#003B2B`, `#005a41`), gradient Emerald.
-   - Font chữ chuẩn `font-sans`, icon chuẩn từ `material-symbols-outlined`.
-3. **Responsive và căn chỉnh giao diện:**
-   - Hỗ trợ hiển thị mượt mà trên cả Mobile, Tablet và Desktop (`sm:`, `md:`, `lg:`, `xl:`).
-   - Thiết kế dạng thẻ ngang, bảng có thanh cuộn ngang khi danh sách nhiều cột, không vỡ khung hay tràn viền.
-4. **Tuyệt đối không ảnh hưởng phân hệ khác:**
-   - Không can thiệp vào các logic ngoài phân hệ Flash Sale (Cart, Checkout, Catalog, Order Management).
-5. **Nguyên tắc xử lý thông tin chưa rõ:**
-   - Trường hợp có bất kỳ yêu cầu nào phát sinh chưa rõ ràng, cần xác nhận lại với người dùng trước khi triển khai, không tự ý suy đoán.
-
----
-
-## IV. KẾ HOẠCH TRIỂN KHAI CHI TIẾT TỪNG BƯỚC
+## III. KẾ HOẠCH TRIỂN KHAI CHI TIẾT TỪNG BƯỚC
 
 ### Giai đoạn 1: Cơ sở dữ liệu & Backend (`platform/apps/promotion-service`)
-- [ ] **Bước 1.1:** Cập nhật file `prisma/schema.prisma` bổ sung `registrationStartsAt`, `registrationEndsAt`, `minStores`, `maxStores` vào model `FlashSale`.
-- [ ] **Bước 1.2:** Chạy `prisma db push` / generate client cho `promotion-service`.
-- [ ] **Bước 1.3:** Cập nhật DTOs (`create-flash-sale.dto.ts`, `seller-register-item.dto.ts`).
-- [ ] **Bước 1.4:** Cập nhật hàm `create` trong `flash-sales.service.ts`:
-  - Thêm validation 1 chương trình Sàn duy nhất (`scope = PLATFORM`, `endsAt > now`).
-  - Thêm validation 4 mốc thời gian (`startsAt >= registrationEndsAt + 2 phút`).
-  - Thêm validation `3 <= maxStores <= 10`.
-- [ ] **Bước 1.5:** Cập nhật hàm `sellerRegisterItem` / `sellerRegisterBatch`:
-  - Kiểm tra thời gian đăng ký hợp lệ `[registrationStartsAt, registrationEndsAt]`.
-  - Kiểm tra quota số lượng shop tham gia (`unique stores <= maxStores`).
-- [ ] **Bước 1.6:** Cập nhật `getTimeSlots`, `getActiveFlashSales`, `getSellerSlots` trả về đầy đủ các trường mới và số lượng Shop đã tham gia.
-- [ ] **Bước 1.7:** Kiểm tra build backend: `npm run build:promotion`.
+- [x] **Bước 1.1:** Cập nhật model `FlashSale` trong `prisma/schema.prisma` bổ sung `discountPercent` (Float), `maxPerUser` (Int), cập nhật mặc định `minStores = 1`.
+- [x] **Bước 1.2:** Bổ sung trường `storeId` vào model `FlashSaleItem` và chạy `prisma db push` / `prisma generate`.
+- [x] **Bước 1.3:** Cập nhật DTOs (`create-flash-sale.dto.ts`) validate `discountPercent` (20-80%), `maxPerUser` (>=1), `minStores` (1-10).
+- [x] **Bước 1.4:** Cập nhật `flash-sales.service.ts`:
+  - `findAll()`: Bổ sung tính toán `participatingStoresCount` và enrich sách đầy đủ cho view Admin.
+  - `create()` lưu `discountPercent`, `maxPerUser`, `minStores`.
+  - Tối ưu `getParticipatingStoreIds()` đếm chính xác 100% số lượng Shop đã tham gia dựa trên `storeId`.
+  - `sellerRegisterItem` / `sellerRegisterBatch`: Khi nộp vào slot Sàn, tự động áp dụng `discountPercent` và `maxPerUser` của Sàn, đồng thời lưu `storeId: businessId`.
+  - Chặn Shop đăng ký lại nếu đã nộp sách vào slot Sàn.
+- [x] **Bước 1.5:** Kiểm tra build: `npm run build:promotion`.
 
 ---
 
 ### Giai đoạn 2: Giao diện Quản trị Admin (`web/src/ui/components/admin/AdminFlashSaleView.tsx`)
-- [ ] **Bước 2.1:** Cập nhật API client `web/src/ui/api/flashSaleApi.ts` với các trường mới của `CreateFlashSalePayload` và `FlashSaleSlot`.
-- [ ] **Bước 2.2:** Cập nhật Form *"Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn"*:
-  - Thêm 2 trường: `Thời Gian Mở Đăng Ký` và `Thời Gian Đóng Đăng Ký`.
-  - Thêm trường `Giới Hạn Số Lượng Cửa Hàng Tham Gia` (input number `min="3" max="10"`, mặc định 10).
-  - Tự động gán `startsAt` tối thiểu sau `registrationEndsAt` 2 phút.
-- [ ] **Bước 2.3:** Kiểm tra đợt Sàn đang hoạt động:
-  - Nếu đã có 1 đợt Sàn chưa kết thúc: Disable nút `+ Thiết Lập Khung Giờ Mới` và hiển thị dòng chữ đỏ thông báo nguyên nhân bên dưới.
-- [ ] **Bước 2.4:** Hiển thị thông tin tiến độ số lượng Shop tham gia trên danh sách các khung giờ Flash Sale của Admin.
+- [x] **Bước 2.1:** Cập nhật API client `flashSaleApi.ts` với `discountPercent` và `maxPerUser`.
+- [x] **Bước 2.2:** Thêm 2 trường input vào Form tạo Flash Sale Sàn (`% Trợ giá toàn sàn` 20-80%, `Max/Khách` >= 1, `minStores` 1-10).
+- [x] **Bước 2.3:** Lọc nghiêm ngặt `scope = PLATFORM` để Admin chỉ hiển thị và quản lý các phiên Flash Sale do Sàn tổ chức, không hiển thị phiên của Shop.
+- [x] **Bước 2.4:** Hiển thị thông số `% Trợ giá`, `Max/Khách` và tiến độ Shop tham gia chính xác (`X / 10 Shop`).
 
 ---
 
 ### Giai đoạn 3: Kênh Người Bán Seller (`web/src/ui/components/seller/SellerFlashSaleView.tsx`)
-- [ ] **Bước 3.1:** Xây dựng mục chuyên biệt **"Tham Gia Huki Flash Sale"** ở vị trí nổi bật:
-  - Hiển thị banner chương trình Sàn đang mở đăng ký.
-  - Hiển thị thời gian đếm ngược đến hạn chót đăng ký (`registrationEndsAt`).
-  - Hiển thị tiến độ: `Đã có {currentStores}/{maxStores} Shop tham gia`.
-  - Nút `⚡ Đăng Ký Tham Gia Ngay` mở Studio chọn sách nộp vào đợt của Sàn.
-- [ ] **Bước 3.2:** Khóa nút đăng ký khi đã quá `registrationEndsAt` hoặc đã đủ `maxStores` Shop tham gia kèm thông báo lý do rõ ràng.
-- [ ] **Bước 3.3:** Giữ vững quy chuẩn Flash Sale riêng của Shop:
-  - Giới hạn 1 đợt, công bố tối thiểu 2 phút, disable nút tạo khi đã có 1 đợt hoạt động.
-  - Duy trì đúng 3 tab bộ lọc: `Tất Cả Khung Giờ`, `Đang Mở Bán ⚡`, `Đã Kết Thúc 🏁`.
+- [x] **Bước 3.1:** Bỏ phần *"Khung Giờ Flash Sale Trong Ngày"* và bảng slot sàn lặp lại ở phía dưới.
+- [x] **Bước 3.2:** Khóa nút đăng ký (Disable 🔒 `Đã Đăng Ký Tham Gia`) ngay khi Shop đã nộp sách tham gia.
+- [x] **Bước 3.3:** Bổ sung nút **`🔍 Xem Chi Tiết`** hiển thị danh sách các sách mà chính Shop đã nộp vào đợt Flash Sale của Sàn.
+- [x] **Bước 3.4:** Cập nhật Studio Đăng Ký Sách Hàng Loạt:
+  - Khi nộp vào slot Sàn: Tự động khóa cố định % Giảm và Max/Khách theo cấu hình của Sàn, tự động tính giá bán đã trợ giá.
+  - Khi tạo Flash Sale riêng của Shop: Cho phép tự do chỉnh sửa như bình thường.
 
 ---
 
-### Giai đoạn 4: Giao diện Khách Hàng (`web/src/app/flash-sale/page.tsx`)
-- [ ] **Bước 4.1:** Hoàn thiện hiển thị tab **Huki Flash Sale**:
-  - Khi trong giai đoạn đếm ngược 2 phút công bố trước (`now >= registrationEndsAt && now < startsAt`):
-    - Hiển thị duy nhất 1 Teaser Card dài nổi bật với tên đợt, đếm ngược `Mở bán sau: MM:SS` và mức % giảm tối đa.
-    - Ẩn toàn bộ lưới sách.
-  - Khi chạm mốc `startsAt`: Tự động chuyển sang Đang Mở Bán và hiển thị đầy đủ sách với nút `Mua Ngay` và `Thêm vào giỏ`.
-- [ ] **Bước 4.2:** Đồng bộ hiển thị tương tự cho tab **Shops Flash Sale**.
+### Giai đoạn 4: Giao diện Khách Hàng (`web/src/app/flash-sale/page.tsx`) & API Doanh Nghiệp (`business-service`)
+- [x] **Bước 4.1:** Đảm bảo hiển thị mức % giảm giá trợ giá chính xác trên Teaser Card và nhãn Flash Sale.
+- [x] **Bước 4.2:** Chuẩn hóa API Doanh nghiệp `business-service` (`business.service.ts` -> `getAllBusinesses`):
+  - Bổ sung `slug`, `logo`, `banner` vào quan hệ `stores` (`select: { id: true, name: true, slug: true, logo: true, banner: true }`) để cung cấp đầy đủ thông tin định danh gian hàng cho các dịch vụ khác.
+- [x] **Bước 4.3:** Hiển thị chuẩn xác tên và chuyển hướng Gian hàng trong khung Header của tab *Shops Flash Sale*:
+  - Đồng bộ việc tải danh sách Doanh nghiệp và Flash Sale bằng `Promise.all` để tránh trường hợp render khi danh sách Doanh nghiệp chưa tải xong.
+  - Lấy đúng tên chính thức trong cơ sở dữ liệu `Business` / `Store` (`store.name` / `business.name`).
+  - Lấy đúng ảnh Avatar/Logo gian hàng (`store.logo` / `business.logo`). Nếu chưa có ảnh đại diện, tự động hiển thị **chữ cái đầu tiên** của tên gian hàng viết hoa trên nền gradient thương hiệu.
+  - Nút *"Xem Gian Hàng →"* trỏ đúng đường dẫn slug chính thức của gian hàng (`/shop/{store.slug}` hoặc `/shop/{business.slug}`).
 
 ---
 
-### Giai đoạn 5: Kiểm thử Toàn Diện & Nghiệm Thu
-- [ ] **Bước 5.1:** Kiểm tra TypeScript build: `npx tsc --noEmit` (web) và `npm run build:promotion` (backend).
-- [ ] **Bước 5.2:** Kiểm thử tạo Flash Sale Sàn với 4 mốc thời gian và giới hạn Shop (3 - 10).
-- [ ] **Bước 5.3:** Kiểm thử Seller đăng ký vào Flash Sale Sàn và kiểm tra tự động khóa khi đủ số lượng Shop.
-- [ ] **Bước 5.4:** Kiểm thử giai đoạn 2 phút công bố trước trên trang khách hàng và chuyển đổi trạng thái khi hết giờ.
-- [ ] **Bước 5.5:** Kiểm thử tính duy nhất (chặn tạo đợt thứ 2 khi đợt 1 chưa kết thúc trên cả Admin và Seller).
+### Giai đoạn 5: Kiểm thử Build & Nghiệm Thu
+- [x] **Bước 5.1:** Kiểm tra TypeScript `web`: `npx tsc --noEmit` (0 lỗi).
+- [x] **Bước 5.2:** Kiểm tra build `business-service`: `npm run build:business` (0 lỗi).
+- [x] **Bước 5.3:** Kiểm tra build `promotion-service`: `npm run build:promotion` (0 lỗi).
+

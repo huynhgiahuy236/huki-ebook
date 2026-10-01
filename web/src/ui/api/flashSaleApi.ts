@@ -38,9 +38,20 @@ export interface FlashSaleSlot {
   storeId?: string | null;
   storeName?: string;
   storeAvatar?: string;
+  registrationStartsAt?: string | null;
+  registrationEndsAt?: string | null;
   startsAt: string;
   endsAt: string;
-  status: "SCHEDULED" | "ACTIVE" | "ENDED";
+  minStores?: number;
+  maxStores?: number;
+  discountPercent?: number;
+  maxPerUser?: number;
+  participatingStoresCount?: number;
+  isUserStoreParticipating?: boolean;
+  isRegistrationOpen?: boolean;
+  registrationRemainingSeconds?: number;
+  startsInSeconds?: number;
+  status: "SCHEDULED" | "ACTIVE" | "ENDED" | "CANCELLED";
   remainingSeconds: number;
   totalItems: number;
   items: FlashSaleItem[];
@@ -57,8 +68,15 @@ export interface CreateFlashSalePayload {
   name: string;
   description?: string;
   bannerUrl?: string;
+  scope?: FlashSaleScope;
+  registrationStartsAt?: string;
+  registrationEndsAt?: string;
   startsAt: string;
   endsAt: string;
+  minStores?: number;
+  maxStores?: number;
+  discountPercent?: number;
+  maxPerUser?: number;
 }
 
 export interface CreateFlashSaleItemPayload {
@@ -129,8 +147,11 @@ export function getCachedFlashSale(bookId: string): FlashSaleItem | null {
 }
 
 export const flashSaleApi = {
-  getAll: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales?limit=100", {
+  getAll: async (params?: { scope?: FlashSaleScope; status?: string }): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const query = new URLSearchParams({ limit: '100' });
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.status) query.set('status', params.status);
+    return apiClient<FlashSaleSlot[]>(`/flash-sales?${query.toString()}`, {
       method: "GET",
     });
   },

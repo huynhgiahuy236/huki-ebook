@@ -236,6 +236,19 @@ export default function ShopPage() {
         const idRes = await businessApi.getBusinessById(identifier);
         if (idRes.success && idRes.data) {
           businessData = idRes.data;
+        } else {
+          // Fallback to match across all public businesses (by storeId, ownerId, slug)
+          const allBizRes = await businessApi.getPublicBusinesses({ limit: 100 });
+          if (allBizRes.success && Array.isArray(allBizRes.data)) {
+            const matched = allBizRes.data.find(
+              (b) =>
+                b.id === identifier ||
+                b.ownerId === identifier ||
+                b.slug === identifier ||
+                b.stores?.some((s) => s.id === identifier || s.slug === identifier),
+            );
+            if (matched) businessData = matched;
+          }
         }
       }
       setBusiness(businessData || null);

@@ -13,6 +13,7 @@ import {
   type ShopFlashSaleGroup,
 } from "@/ui/api/flashSaleApi";
 import { catalogApi, type BookData } from "@/ui/api/catalogApi";
+import { businessApi, type BusinessData } from "@/ui/api/businessApi";
 
 interface DisplayFlashItem extends FlashSaleItem {
   title: string;
@@ -44,20 +45,13 @@ export default function FlashSalePage() {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [catalogBooks, setCatalogBooks] = useState<BookData[]>([]);
+  const [businesses, setBusinesses] = useState<BusinessData[]>([]);
   const [timeRemaining, setTimeRemaining] = useState<Record<string, TimerInfo>>({});
   const previousModes = useRef<Record<string, string>>({});
 
   // Fetch slots and catalog fallback books
   useEffect(() => {
     fetchSlots();
-    catalogApi
-      .getPublicBooks({ limit: 100 })
-      .then((res) => {
-        if (res.success && Array.isArray(res.data)) {
-          setCatalogBooks(res.data);
-        }
-      })
-      .catch((err) => console.warn("Could not fetch catalog:", err));
   }, []);
 
   useEffect(() => {
@@ -69,18 +63,33 @@ export default function FlashSalePage() {
     try {
       if (showLoading) setLoading(true);
 
-      // 1. Fetch Platform slots and Shop flash sales in parallel
-      const [platformRes, shopsRes] = await Promise.all([
+      // 1. Fetch Platform slots, Shop flash sales, catalog books and businesses in parallel
+      const [platformRes, shopsRes, booksRes, bizRes] = await Promise.all([
         flashSaleApi.getTimeSlots("PLATFORM"),
         flashSaleApi.getGroupedShopFlashSales(),
+        catalogApi.getPublicBooks({ limit: 100 }).catch(() => null),
+        businessApi.getPublicBusinesses({ limit: 100 }).catch(() => null),
       ]);
+
+      if (booksRes && booksRes.success && Array.isArray(booksRes.data)) {
+        setCatalogBooks(booksRes.data);
+      }
+
+      if (bizRes && bizRes.success && Array.isArray(bizRes.data)) {
+        setBusinesses(bizRes.data);
+      }
 
       const now = Date.now();
 
       if (platformRes.success && Array.isArray(platformRes.data)) {
         const activePlatformSlots = platformRes.data.filter((s) => {
           const end = new Date(s.endsAt).getTime();
-          return now <= end && (s.items?.length ?? 0) > 0;
+          const regEnd = s.registrationEndsAt
+            ? new Date(s.registrationEndsAt).getTime()
+            : new Date(s.startsAt).getTime();
+          const isCancelled = s.status === 'CANCELLED';
+          const isRegistrationStage = now < regEnd;
+          return now <= end && !isCancelled && !isRegistrationStage && (s.items?.length ?? 0) > 0;
         });
 
         setPlatformSlots(activePlatformSlots);
@@ -875,6 +884,74 @@ export default function FlashSalePage() {
               </div>
             ) : (
               shopGroups.map((group) => {
+                const matchedBiz = businesses.find(
+                  (b) =>
+                    b.id === group.storeId ||
+                    b.ownerId === group.storeId ||
+                    b.slug === group.storeId ||
+                    b.stores?.some((s) => s.id === group.storeId || s.slug === group.storeId),
+                );
+                const matchedStore =
+                  matchedBiz?.stores?.find((s) => s.id === group.storeId || s.slug === group.storeId) ||
+                  matchedBiz?.stores?.[0];
+
+                const matchBook = catalogBooks.find(
+                  (b) =>
+                    b.storeId === group.storeId ||
+                    b.businessId === group.storeId ||
+                    (b as any).business?.id === group.storeId,
+                );
+
+                const resolvedStoreName =
+                  matchedStore?.name ||
+                  matchedBiz?.name ||
+                  (matchedBiz as any)?.displayName ||
+                  (matchBook as any)?.business?.displayName ||
+                  (matchBook as any)?.business?.name ||
+                  (matchBook?.publisher as any)?.displayName ||
+                  (matchBook?.publisher as any)?.name ||
+                  (typeof matchBook?.publisher === "string" ? matchBook.publisher : null) ||
+                  (matchBook as any)?.businessName ||
+                  (matchBook as any)?.storeName ||
+                  (group.storeName && group.storeName !== "Cửa hàng HUKI" ? group.storeName : null) ||
+                  "Cửa Hàng Đối Tác";
+
+                const fallbackSlug =
+                  resolvedStoreName && resolvedStoreName !== "Cửa Hàng Đối Tác"
+                    ? resolvedStoreName
+                        .toLowerCase()
+                        .normalize("NFD")
+                        .replace(/[\u0300-\u036f]/g, "")
+                        .replace(/[đĐ]/g, "d")
+                        .replace(/[^a-z0-9]+/g, "-")
+                        .replace(/(^-|-$)+/g, "")
+                    : group.storeId;
+
+                const resolvedStoreSlug =
+                  matchedStore?.slug ||
+                  matchedBiz?.slug ||
+                  (matchBook as any)?.store?.slug ||
+                  (matchBook as any)?.business?.slug ||
+                  fallbackSlug;
+
+                const rawAvatar =
+                  matchedStore?.logo ||
+                  matchedBiz?.logo ||
+                  (matchedBiz as any)?.avatar ||
+                  (matchedBiz as any)?.avatarUrl ||
+                  (matchedBiz as any)?.logoUrl ||
+                  (group.storeAvatar && !group.storeAvatar.includes("hero-library.jpg") ? group.storeAvatar : null);
+
+                const hasValidAvatar = Boolean(
+                  rawAvatar &&
+                  typeof rawAvatar === "string" &&
+                  rawAvatar.trim() !== "" &&
+                  !rawAvatar.includes("hero-library.jpg") &&
+                  !rawAvatar.includes("placeholder"),
+                );
+
+                const storeInitial = (resolvedStoreName.trim().charAt(0) || "S").toUpperCase();
+
                 return (
                   <section
                     key={group.storeId}
@@ -883,16 +960,28 @@ export default function FlashSalePage() {
                     {/* Shop Header Block */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
                       <div className="flex items-center gap-3.5 min-w-0">
-                        {/* Constrained Avatar Box */}
-                        <div className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl bg-gradient-to-tr from-[#003B2B] to-emerald-600 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center text-white">
-                          <span className="material-symbols-outlined text-2xl">
-                            store
-                          </span>
-                        </div>
+                        {/* Avatar Image with Initial Letter Fallback */}
+                        {hasValidAvatar ? (
+                          <div className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl bg-slate-100 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center border border-slate-200">
+                            <img
+                              src={rawAvatar!}
+                              alt={resolvedStoreName}
+                              className="w-full h-full object-cover rounded-xl"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = "none";
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-2xl bg-gradient-to-tr from-[#003B2B] to-emerald-600 shadow-sm shrink-0 flex items-center justify-center text-white font-black text-2xl uppercase select-none border border-emerald-700/30">
+                            <span>{storeInitial}</span>
+                          </div>
+                        )}
+
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h2 className="text-base sm:text-lg font-bold text-slate-900 truncate">
-                              {group.storeName}
+                              {resolvedStoreName}
                             </h2>
                             <span className="bg-emerald-100 text-emerald-800 font-extrabold text-[10px] px-2 py-0.5 rounded-md flex items-center gap-0.5 shrink-0">
                               <span className="material-symbols-outlined text-[12px]">
@@ -909,8 +998,8 @@ export default function FlashSalePage() {
 
                       <div className="flex items-center gap-2.5 shrink-0">
                         <Link
-                          href={`/shop/${group.storeId}`}
-                          className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all"
+                          href={`/shop/${resolvedStoreSlug}`}
+                          className="px-4 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 flex items-center gap-1 transition-all hover:border-[#003B2B] hover:text-[#003B2B]"
                         >
                           <span>Xem Gian Hàng</span>
                           <span className="material-symbols-outlined text-[15px]">

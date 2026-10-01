@@ -187,9 +187,21 @@ model FlashSale {
   scope       FlashSaleScope @default(PLATFORM)
   storeId     String?        @map("store_id")
 
-  startsAt DateTime        @map("starts_at")
-  endsAt   DateTime        @map("ends_at")
-  status   FlashSaleStatus @default(SCHEDULED)
+  // Timeline 4 mốc cho Platform Flash Sale (Nullable để tương thích Shop Flash Sale)
+  registrationStartsAt DateTime?      @map("registration_starts_at")
+  registrationEndsAt   DateTime?      @map("registration_ends_at")
+  startsAt             DateTime       @map("starts_at")
+  endsAt               DateTime       @map("ends_at")
+
+  // Giới hạn số lượng Shop tham gia (Dành cho Platform Flash Sale)
+  minStores            Int            @default(1) @map("min_stores")
+  maxStores            Int            @default(10) @map("max_stores")
+
+  // Cấu hình trợ giá và giới hạn mua toàn sàn
+  discountPercent      Float?         @default(30) @map("discount_percent")
+  maxPerUser           Int?           @default(1) @map("max_per_user")
+
+  status               FlashSaleStatus @default(SCHEDULED)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -205,12 +217,14 @@ enum FlashSaleStatus {
   SCHEDULED
   ACTIVE
   ENDED
+  CANCELLED
 }
 
 model FlashSaleItem {
-  id          String @id @default(uuid())
-  flashSaleId String @map("flash_sale_id")
-  bookId      String @map("book_id")
+  id          String  @id @default(uuid())
+  flashSaleId String  @map("flash_sale_id")
+  bookId      String  @map("book_id")
+  storeId     String? @map("store_id")
 
   originalPrice Float @map("original_price")
   salePrice     Float @map("sale_price")
@@ -226,6 +240,7 @@ model FlashSaleItem {
 
   @@index([flashSaleId])
   @@index([bookId])
+  @@index([storeId])
   @@map("flash_sale_items")
 }
 

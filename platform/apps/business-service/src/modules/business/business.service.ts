@@ -262,7 +262,7 @@ export class BusinessService {
         where,
         include: {
           stores: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, slug: true, logo: true, banner: true },
           },
         },
         skip: (page - 1) * limit,
