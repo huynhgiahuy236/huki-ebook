@@ -20,6 +20,11 @@ export enum FlashSaleStatus {
   ENDED = "ENDED",
 }
 
+export enum FlashSaleScope {
+  PLATFORM = "PLATFORM",
+  SHOP = "SHOP",
+}
+
 export class CreateFlashSaleDto {
   @ApiProperty({ example: "Summer Sale 2026" })
   @IsString()
@@ -35,6 +40,16 @@ export class CreateFlashSaleDto {
   @IsUrl({ require_tld: false })
   @IsOptional()
   bannerUrl?: string;
+
+  @ApiPropertyOptional({ enum: FlashSaleScope, default: FlashSaleScope.PLATFORM })
+  @IsEnum(FlashSaleScope)
+  @IsOptional()
+  scope?: FlashSaleScope = FlashSaleScope.PLATFORM;
+
+  @ApiPropertyOptional({ description: "Store/Business ID if scope is SHOP" })
+  @IsUUID()
+  @IsOptional()
+  storeId?: string;
 
   @ApiProperty({ example: "2026-08-01T00:00:00Z" })
   @IsDateString()
@@ -93,6 +108,16 @@ export class FlashSaleQueryDto {
   @IsEnum(FlashSaleStatus)
   @IsOptional()
   status?: FlashSaleStatus;
+
+  @ApiPropertyOptional({ enum: FlashSaleScope })
+  @IsEnum(FlashSaleScope)
+  @IsOptional()
+  scope?: FlashSaleScope;
+
+  @ApiPropertyOptional({ description: "Store ID" })
+  @IsUUID()
+  @IsOptional()
+  storeId?: string;
 }
 
 export class FlashSaleItemQueryDto {

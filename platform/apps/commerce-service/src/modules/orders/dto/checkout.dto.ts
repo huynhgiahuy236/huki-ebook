@@ -1,16 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsEnum,
+  IsNumber,
   IsOptional,
   IsPhoneNumber,
   IsString,
   IsUUID,
   MaxLength,
+  Min,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { PaymentMethod } from '../../../../prisma/generated/client';
+import { CartItemFormat, PaymentMethod } from '../../../../prisma/generated/client';
 
 export interface ShippingAddress {
   recipientName: string;
@@ -19,6 +22,21 @@ export interface ShippingAddress {
   ward: string;
   district: string;
   province: string;
+}
+
+export class DirectCheckoutItemDto {
+  @ApiProperty()
+  @IsUUID()
+  bookId: string;
+
+  @ApiProperty({ enum: CartItemFormat })
+  @IsEnum(CartItemFormat)
+  format: CartItemFormat;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(1)
+  quantity: number;
 }
 
 export class ShippingAddressDto implements ShippingAddress {
@@ -35,6 +53,18 @@ export class ShippingAddressDto implements ShippingAddress {
 }
 
 export class CheckoutPreviewDto {
+  @ApiPropertyOptional({ type: DirectCheckoutItemDto, description: 'Direct checkout item (bypasses cart items)' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => DirectCheckoutItemDto)
+  directItem?: DirectCheckoutItemDto;
+
+  @ApiPropertyOptional({ type: [String], description: 'Selected cart item IDs to checkout' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  cartItemIds?: string[];
+
   @ApiPropertyOptional({ description: 'Address ID - validated against user ownership' })
   @IsOptional()
   @IsUUID()

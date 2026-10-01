@@ -51,7 +51,7 @@ export default function HomePage() {
     let mounted = true;
     const loadFlashSale = async () => {
       try {
-        const res = await flashSaleApi.getActiveFlashSales();
+        const res = await flashSaleApi.getActiveFlashSales("PLATFORM");
         if (!mounted || !res.success || !Array.isArray(res.data)) return;
         const campaign = res.data[0] || null;
         setActiveFlashSale(campaign);

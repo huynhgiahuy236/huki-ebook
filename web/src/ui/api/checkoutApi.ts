@@ -11,6 +11,12 @@ export interface CheckoutShippingAddress {
 }
 
 export interface CheckoutPreviewPayload {
+  directItem?: {
+    bookId: string;
+    format: 'PHYSICAL' | 'DIGITAL';
+    quantity: number;
+  };
+  cartItemIds?: string[];
   addressId?: string; // NEW: Preferred - validates ownership
   shippingAddress?: CheckoutShippingAddress; // Deprecated - use addressId
   note?: string;

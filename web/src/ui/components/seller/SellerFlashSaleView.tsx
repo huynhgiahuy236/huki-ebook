@@ -45,8 +45,8 @@ export function SellerFlashSaleView() {
 
   const getInitialTimes = () => {
     const now = new Date();
-    // Set to current exact system time so it is active immediately
-    const start = now;
+    // Must be at least 2 minutes in the future for warm-up / teaser period
+    const start = new Date(now.getTime() + 2 * 60 * 1000 + 10 * 1000);
     const end = new Date(start.getTime() + 4 * 60 * 60 * 1000); // 4 hours
     const pad = (n: number) => String(n).padStart(2, '0');
     return {
@@ -55,15 +55,49 @@ export function SellerFlashSaleView() {
     };
   };
 
+  const getMinStartsAt = () => {
+    const minDate = new Date(Date.now() + 2 * 60 * 1000);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${minDate.getFullYear()}-${pad(minDate.getMonth() + 1)}-${pad(minDate.getDate())}T${pad(minDate.getHours())}:${pad(minDate.getMinutes())}`;
+  };
+
   const handleSetStartNow = () => {
     const freshTimes = getInitialTimes();
     setCustomStartsAt(freshTimes.startsAt);
     setCustomEndsAt(freshTimes.endsAt);
-    showToast('Đã thiết lập thời gian bắt đầu là NGAY BÂY GIỜ! ⚡', 'info');
+    showToast('Đã thiết lập thời gian bắt đầu sau 2 phút (theo quy định công bố tối thiểu)! ⏳', 'info');
   };
 
   const [customStartsAt, setCustomStartsAt] = useState<string>(() => getInitialTimes().startsAt);
   const [customEndsAt, setCustomEndsAt] = useState<string>(() => getInitialTimes().endsAt);
+
+  // Check if current seller already has an active or scheduled Flash Sale slot
+  const existingShopSlot = useMemo(() => {
+    const now = Date.now();
+    // 1. Check in loaded slots array
+    const foundInSlots = slots.find((s) => {
+      const endsAt = new Date(s.endsAt || 0).getTime();
+      return endsAt > now && s.status !== 'ENDED';
+    });
+    if (foundInSlots) return foundInSlots;
+
+    // 2. Also check across myItems (and nested flashSale object in items)
+    for (const item of myItems) {
+      const fs = item.flashSale;
+      const endsAt = new Date(fs?.endsAt || item.endsAt || 0).getTime();
+      const status = fs?.status || item.status;
+      if (endsAt > now && status !== 'ENDED') {
+        return {
+          id: fs?.id || item.flashSaleId || 'current-slot',
+          name: fs?.name || item.flashSaleName || 'Flash Sale hiện tại',
+          startsAt: fs?.startsAt || item.startsAt,
+          endsAt: fs?.endsAt || item.endsAt,
+          status: status || 'ACTIVE',
+        };
+      }
+    }
+    return null;
+  }, [slots, myItems]);
 
   const [bookConfigMap, setBookConfigMap] = useState<Record<string, ConfiguredBookItem>>({});
   const [bookSearchQuery, setBookSearchQuery] = useState('');
@@ -130,18 +164,20 @@ export function SellerFlashSaleView() {
         } catch { /* ignore */ }
       }
 
-      const [slotsRes, itemsRes, booksSellerRes, booksPublicRes] = await Promise.all([
+      const [slotsRes, itemsRes, booksSellerRes] = await Promise.all([
         flashSaleApi.getSellerSlots(),
         flashSaleApi.getSellerMyItems(),
         catalogApi.getSellerBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) }).catch(() => null),
-        catalogApi.getPublicBooks({ limit: 100, ...(bizId ? { business: bizId } : {}) }).catch(() => null),
       ]);
 
       if (slotsRes.success && slotsRes.data) {
-        const slotsData = Array.isArray(slotsRes.data)
-          ? slotsRes.data
-          : Array.isArray((slotsRes.data as any)?.items)
-          ? (slotsRes.data as any).items
+        const raw = slotsRes.data as any;
+        const slotsData = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw.slots)
+          ? raw.slots
+          : Array.isArray(raw.items)
+          ? raw.items
           : [];
         setSlots(slotsData);
         if (slotsData.length > 0) {
@@ -158,21 +194,26 @@ export function SellerFlashSaleView() {
       }
 
       let books: BookData[] = [];
-      if (booksSellerRes?.success && Array.isArray(booksSellerRes.data) && booksSellerRes.data.length > 0) {
-        books = booksSellerRes.data;
-      } else if (booksPublicRes?.success && Array.isArray(booksPublicRes.data)) {
-        books = booksPublicRes.data;
+      if (booksSellerRes?.success && booksSellerRes.data) {
+        books = Array.isArray(booksSellerRes.data)
+          ? booksSellerRes.data
+          : Array.isArray((booksSellerRes.data as any)?.items)
+          ? (booksSellerRes.data as any).items
+          : [];
       }
 
       const finalBooks = bizId
-        ? books.filter((b) => (b.businessId || (b as any).business?.id || b.storeId) === bizId || !b.businessId)
+        ? books.filter((b) => {
+            const bStore = b.storeId || b.businessId || (b as any).business?.id;
+            return !bStore || bStore === bizId;
+          })
         : books;
 
-      setRawBooks(finalBooks.length > 0 ? finalBooks : books);
+      setRawBooks(finalBooks);
 
       // Initialize Book Config Map for Multi-Selection
       const initialMap: Record<string, ConfiguredBookItem> = {};
-      (finalBooks.length > 0 ? finalBooks : books).forEach((b) => {
+      finalBooks.forEach((b) => {
         const origPrice = Number(b.price || 100000);
         const defaultSale = Math.max(1000, Math.round(origPrice * 0.7)); // default 30% off
         const avail = Number((b as any).available ?? b.physicalDetails?.stock ?? (b as any).stock ?? 20);
@@ -366,6 +407,10 @@ export function SellerFlashSaleView() {
     let targetSlotId = selectedSlotId;
 
     if (slotMode === 'CUSTOM') {
+      if (existingShopSlot) {
+        showToast(`Shop của bạn đã có 1 đợt Flash Sale (${existingShopSlot.name}). Mỗi shop chỉ được tạo tối đa 1 đợt Flash Sale cùng lúc.`, 'error');
+        return;
+      }
       if (!customSlotName.trim()) {
         showToast('Vui lòng nhập tên chương trình Flash Sale', 'warning');
         return;
@@ -382,6 +427,12 @@ export function SellerFlashSaleView() {
       const endDate = new Date(customEndsAt);
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         showToast('Định dạng ngày giờ không hợp lệ', 'error');
+        return;
+      }
+      const now = Date.now();
+      const minStartsAt = now + 2 * 60 * 1000 - 5000; // 2 minutes minus 5s buffer
+      if (startDate.getTime() < minStartsAt) {
+        showToast('Thời gian bắt đầu phải sau ít nhất 2 phút kể từ hiện tại (quy định công bố trước tối thiểu 2 phút)', 'warning');
         return;
       }
       if (endDate <= startDate) {
@@ -518,6 +569,32 @@ export function SellerFlashSaleView() {
     }
   };
 
+  const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
+
+  const handleDeleteSlot = async (slotId: string, slotName?: string) => {
+    if (
+      !window.confirm(
+        `Bạn có chắc chắn muốn xóa đợt Flash Sale "${slotName || 'này'}"? Toàn bộ sách đã đăng ký trong đợt này sẽ bị hủy.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setDeletingSlotId(slotId);
+      const res = await flashSaleApi.sellerDeleteSlot(slotId);
+      if (res.success) {
+        showToast('Đã xóa đợt Flash Sale thành công! 🎉', 'success');
+        await loadData();
+      } else {
+        showToast((res as any)?.message || 'Không thể xóa đợt Flash Sale', 'error');
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi xảy ra khi xóa đợt Flash Sale', 'error');
+    } finally {
+      setDeletingSlotId(null);
+    }
+  };
+
   // Inline Row Editing Handlers (Zero Popup)
   const handleStartInlineEdit = (item: any) => {
     const orig = Number(item.originalPrice || item.book?.price || 0);
@@ -579,8 +656,19 @@ export function SellerFlashSaleView() {
   // Overall KPI Calculations
   const stats = useMemo(() => {
     const totalSlots = slots.length;
-    const openSlots = slots.filter((s) => s.status === 'SCHEDULED').length;
-    const activeItems = myItems.filter((i) => (i.flashSale?.status || i.status) === 'ACTIVE').length;
+    const now = Date.now();
+    const openSlots = slots.filter((s) => {
+      const startsAt = new Date(s.startsAt || 0).getTime();
+      const endsAt = new Date(s.endsAt || 0).getTime();
+      return s.status === 'SCHEDULED' || (now < startsAt && endsAt > now);
+    }).length;
+    const activeItems = myItems.filter((i) => {
+      const fs = i.flashSale || i;
+      const endsAt = new Date(fs.endsAt || i.endsAt || 0).getTime();
+      const startsAt = new Date(fs.startsAt || i.startsAt || 0).getTime();
+      const isActive = (fs.status || i.status) === 'ACTIVE' || (now >= startsAt && now <= endsAt);
+      return isActive && endsAt > now;
+    }).length;
     const totalSold = myItems.reduce((sum, i) => sum + Number(i.sold || 0), 0);
     const totalRevenue = myItems.reduce(
       (sum, i) => sum + Number(i.sold || 0) * Number(i.salePrice || 0),
@@ -592,16 +680,23 @@ export function SellerFlashSaleView() {
 
   // Group My Items by Flash Sale Slot (High-Detail Session Grouping)
   const groupedSessions = useMemo(() => {
+    const currentBizId = user?.business?.id || activeBusinessId;
     const slotMap = new Map<string, { slot: FlashSaleSlot | any; items: any[] }>();
 
-    // 1. Initialize with all known slots
+    // 1. Initialize with all known slots belonging to platform or current shop
     slots.forEach((s) => {
+      if (s.scope === 'SHOP' && currentBizId && s.storeId && s.storeId !== currentBizId) {
+        return;
+      }
       slotMap.set(s.id, { slot: s, items: [] });
     });
 
     // 2. Distribute items into their respective slots
     myItems.forEach((item) => {
       const slotId = item.flashSaleId || item.flashSale?.id;
+      if (item.flashSale?.scope === 'SHOP' && currentBizId && item.flashSale?.storeId && item.flashSale?.storeId !== currentBizId) {
+        return;
+      }
       if (slotId && slotMap.has(slotId)) {
         slotMap.get(slotId)!.items.push(item);
       } else if (slotId) {
@@ -613,6 +708,8 @@ export function SellerFlashSaleView() {
             startsAt: item.startsAt,
             endsAt: item.endsAt,
             status: item.status || 'SCHEDULED',
+            scope: item.flashSale?.scope,
+            storeId: item.flashSale?.storeId,
           },
           items: [item],
         });
@@ -637,8 +734,7 @@ export function SellerFlashSaleView() {
       }
       
       // Tab filter
-      if (activeTab === 'ACTIVE' && slotStatus !== 'ACTIVE') return;
-      if (activeTab === 'SCHEDULED' && slotStatus !== 'SCHEDULED') return;
+      if (activeTab === 'ACTIVE' && slotStatus !== 'ACTIVE' && slotStatus !== 'SCHEDULED') return;
       if (activeTab === 'ENDED' && slotStatus !== 'ENDED') return;
 
       // Search filter within items or slot name
@@ -694,31 +790,49 @@ export function SellerFlashSaleView() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            const nextState = !isFormOpen;
-            setIsFormOpen(nextState);
-            if (nextState) {
-              const freshTimes = getInitialTimes();
-              setCustomStartsAt(freshTimes.startsAt);
-              setCustomEndsAt(freshTimes.endsAt);
-              if (slots.length > 0 && !selectedSlotId) {
-                setSelectedSlotId(slots[0].id);
+        <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+          <button
+            type="button"
+            disabled={Boolean(existingShopSlot) && !isFormOpen}
+            onClick={() => {
+              if (existingShopSlot && !isFormOpen) {
+                showToast(
+                  `Shop hiện đã có 1 đợt Flash Sale "${existingShopSlot.name}". Mỗi shop chỉ được tạo tối đa 1 đợt cùng lúc!`,
+                  'warning'
+                );
+                return;
               }
-            }
-          }}
-          className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer ${
-            isFormOpen
-              ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300'
-              : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-orange-500/25 hover:scale-[1.02]'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">
-            {isFormOpen ? 'close' : 'bolt'}
-          </span>
-          <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
-        </button>
+              const nextState = !isFormOpen;
+              setIsFormOpen(nextState);
+              if (nextState) {
+                const freshTimes = getInitialTimes();
+                setCustomStartsAt(freshTimes.startsAt);
+                setCustomEndsAt(freshTimes.endsAt);
+                if (slots.length > 0 && !selectedSlotId) {
+                  setSelectedSlotId(slots[0].id);
+                }
+              }
+            }}
+            className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+              existingShopSlot && !isFormOpen
+                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
+                : isFormOpen
+                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer shadow-md'
+                : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 hover:scale-[1.02] cursor-pointer'
+            }`}
+          >
+            <span className="material-symbols-outlined text-lg">
+              {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
+            </span>
+            <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
+          </button>
+          {existingShopSlot && !isFormOpen && (
+            <div className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 sm:text-right max-w-sm">
+              <span className="material-symbols-outlined text-xs shrink-0">error</span>
+              <span>Shop đang có 1 đợt Flash Sale hoạt động ("{existingShopSlot.name}"). Vui lòng đợi kết thúc hoặc xóa đợt cũ.</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 2. KPI Metrics Banner */}
@@ -870,23 +984,37 @@ export function SellerFlashSaleView() {
                       Đã có <strong>{slot.totalItems || 0}</strong> sách
                     </span>
 
-                    {isScheduled && (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenRegisterForSlot(slot.id)}
-                        className="px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-transform hover:scale-105 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-xs">add</span>
-                        <span>Đăng ký sách</span>
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {isScheduled && (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenRegisterForSlot(slot.id)}
+                          className="px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-transform hover:scale-105 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-xs">add</span>
+                          <span>Đăng ký sách</span>
+                        </button>
+                      )}
 
-                    {isActive && (
-                      <span className="text-[11px] font-bold text-orange-700 flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-orange-600 animate-ping"></span>
-                        Đang phát sóng
-                      </span>
-                    )}
+                      {isActive && (
+                        <span className="text-[11px] font-bold text-orange-700 flex items-center gap-1 mr-1">
+                          <span className="w-2 h-2 rounded-full bg-orange-600 animate-ping"></span>
+                          Đang phát sóng
+                        </span>
+                      )}
+
+                      {(slot.scope === 'SHOP' || slot.storeId) && (
+                        <button
+                          type="button"
+                          disabled={deletingSlotId === slot.id}
+                          onClick={() => handleDeleteSlot(slot.id, slot.name)}
+                          className="p-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 cursor-pointer transition-colors"
+                          title="Xóa đợt Flash Sale này"
+                        >
+                          <span className="material-symbols-outlined text-xs">delete</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -971,6 +1099,22 @@ export function SellerFlashSaleView() {
 
               {slotMode === 'CUSTOM' ? (
                 <div className="space-y-4">
+                  {existingShopSlot && (
+                    <div className="p-4 bg-amber-500/10 border-2 border-amber-500/40 rounded-2xl flex items-start gap-3 text-amber-900">
+                      <span className="material-symbols-outlined text-amber-600 text-xl shrink-0 mt-0.5">
+                        info
+                      </span>
+                      <div className="text-xs space-y-1">
+                        <div className="font-extrabold text-amber-800">
+                          Shop hiện đã có 1 đợt Flash Sale: "{existingShopSlot.name}"
+                        </div>
+                        <p className="text-amber-700 leading-relaxed">
+                          Quy định hệ thống: <strong>Mỗi shop chỉ được duy trì tối đa 1 đợt Flash Sale</strong> đang mở bán hoặc chuẩn bị mở bán. Khi đợt hiện tại kết thúc (hoặc sau khi bạn xóa đợt hiện tại), bạn mới có thể tạo đợt mới.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Tên chương trình */}
                     <div className="space-y-1.5 md:col-span-1">
@@ -984,7 +1128,8 @@ export function SellerFlashSaleView() {
                         value={customSlotName}
                         onChange={(e) => setCustomSlotName(e.target.value)}
                         placeholder="VD: Flash Sale Đêm Săn Deal..."
-                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                        disabled={Boolean(existingShopSlot)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all disabled:bg-gray-100 disabled:opacity-60"
                       />
                     </div>
 
@@ -993,22 +1138,26 @@ export function SellerFlashSaleView() {
                       <div className="flex items-center justify-between">
                         <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1">
                           <span className="material-symbols-outlined text-xs text-emerald-600">play_circle</span>
-                          <span>Thời Gian Bắt Đầu</span>
+                          <span>Thời Gian Bắt Đầu (Tối thiểu sau 2 phút)</span>
                           <span className="text-red-500">*</span>
                         </label>
-                        <button
-                          type="button"
-                          onClick={handleSetStartNow}
-                          className="text-[10px] text-orange-600 hover:text-orange-700 font-bold underline cursor-pointer"
-                        >
-                          ⚡ Bắt đầu ngay
-                        </button>
+                        {!existingShopSlot && (
+                          <button
+                            type="button"
+                            onClick={handleSetStartNow}
+                            className="text-[10px] text-orange-600 hover:text-orange-700 font-bold underline cursor-pointer"
+                          >
+                            ⏳ Sau 2 phút
+                          </button>
+                        )}
                       </div>
                       <input
                         type="datetime-local"
                         value={customStartsAt}
+                        min={getMinStartsAt()}
                         onChange={(e) => setCustomStartsAt(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                        disabled={Boolean(existingShopSlot)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all disabled:bg-gray-100 disabled:opacity-60"
                       />
                     </div>
 
@@ -1023,7 +1172,8 @@ export function SellerFlashSaleView() {
                         type="datetime-local"
                         value={customEndsAt}
                         onChange={(e) => setCustomEndsAt(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all"
+                        disabled={Boolean(existingShopSlot)}
+                        className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs sm:text-sm font-semibold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none transition-all disabled:bg-gray-100 disabled:opacity-60"
                       />
                     </div>
                   </div>
@@ -1450,7 +1600,7 @@ export function SellerFlashSaleView() {
 
                 <button
                   type="submit"
-                  disabled={submitting || selectedBooksList.length === 0}
+                  disabled={submitting || selectedBooksList.length === 0 || (slotMode === 'CUSTOM' && Boolean(existingShopSlot))}
                   className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 flex items-center gap-2 transition-all cursor-pointer hover:scale-[1.02]"
                 >
                   <span className="material-symbols-outlined text-base">
@@ -1459,6 +1609,8 @@ export function SellerFlashSaleView() {
                   <span>
                     {submitting
                       ? 'Đang Đăng Ký...'
+                      : slotMode === 'CUSTOM' && existingShopSlot
+                      ? 'Đã Có 1 Đợt Đang Hoạt Động'
                       : `Xác Nhận Đăng Ký (${selectedBooksList.length} Sách)`}
                   </span>
                 </button>
@@ -1474,7 +1626,6 @@ export function SellerFlashSaleView() {
           tabs={[
             { key: 'ALL', label: 'Tất Cả Khung Giờ' },
             { key: 'ACTIVE', label: 'Đang Mở Bán ⚡' },
-            { key: 'SCHEDULED', label: 'Sắp Diễn Ra ⏳' },
             { key: 'ENDED', label: 'Đã Kết Thúc 🏁' },
           ]}
           activeTab={activeTab}
@@ -1639,6 +1790,19 @@ export function SellerFlashSaleView() {
                       >
                         <span className="material-symbols-outlined text-sm">add_circle</span>
                         <span>Thêm sách</span>
+                      </button>
+                    )}
+
+                    {(slot.scope === 'SHOP' || slot.storeId) && (
+                      <button
+                        type="button"
+                        disabled={deletingSlotId === slot.id}
+                        onClick={() => handleDeleteSlot(slot.id, slot.name)}
+                        className="px-3 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                        title="Xóa đợt Flash Sale này"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                        <span className="hidden sm:inline">Xóa đợt</span>
                       </button>
                     )}
                   </div>

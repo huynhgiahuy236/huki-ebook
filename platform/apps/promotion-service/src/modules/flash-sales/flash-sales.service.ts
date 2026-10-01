@@ -13,6 +13,7 @@ import {
   FlashSaleQueryDto,
   FlashSaleItemQueryDto,
   FlashSaleStatus,
+  FlashSaleScope,
   ValidateQuotaDto,
   ReserveFlashSaleDto,
   ReleaseFlashSaleOrderDto,
@@ -60,12 +61,44 @@ export class FlashSalesService
   async create(dto: CreateFlashSaleDto) {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
+    const now = new Date();
+
+    // 1. Validation: startsAt must be at least 2 minutes in the future (announcement / warm-up period)
+    const minStartsAt = new Date(now.getTime() + 2 * 60 * 1000 - 5000); // 5s network lag buffer
+    if (startsAt.getTime() < minStartsAt.getTime()) {
+      throwBadRequest(
+        ErrorCode.BANNER_INVALID_DATE_RANGE,
+        "Thời gian bắt đầu đợt Flash Sale phải cách thời điểm tạo tối thiểu 2 phút để hệ thống công bố trước cho khách hàng",
+      );
+    }
 
     if (endsAt <= startsAt) {
       throwBadRequest(
         ErrorCode.BANNER_INVALID_DATE_RANGE,
         "Thời gian kết thúc phải sau thời gian bắt đầu",
       );
+    }
+
+    const scope = dto.scope || (dto.storeId ? FlashSaleScope.SHOP : FlashSaleScope.PLATFORM);
+    const storeId = dto.storeId || null;
+
+    // 2. Shop constraints: Each seller can only have at most 1 active or upcoming flash sale
+    if (scope === FlashSaleScope.SHOP && storeId) {
+      const activeOrUpcoming = await this.prisma.flashSale.findFirst({
+        where: {
+          storeId,
+          scope: FlashSaleScope.SHOP,
+          status: { not: FlashSaleStatus.ENDED },
+          endsAt: { gt: now },
+        },
+      });
+
+      if (activeOrUpcoming) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Cửa hàng của bạn đang có 1 đợt Flash Sale ("${activeOrUpcoming.name}") chưa kết thúc. Mỗi cửa hàng chỉ được tạo tối đa 1 đợt Flash Sale. Vui lòng chờ đợt hiện tại kết thúc để tạo đợt mới.`,
+        );
+      }
     }
 
     const status = this.calculateStatus(startsAt, endsAt);
@@ -75,6 +108,8 @@ export class FlashSalesService
         name: dto.name,
         description: dto.description ?? null,
         bannerUrl: dto.bannerUrl ?? null,
+        scope,
+        storeId,
         startsAt,
         endsAt,
         status,
@@ -86,6 +121,8 @@ export class FlashSalesService
     await this.syncStatuses();
     const where: any = {};
     if (query.status) where.status = query.status;
+    if (query.scope) where.scope = query.scope;
+    if (query.storeId) where.storeId = query.storeId;
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.flashSale.findMany({
@@ -175,6 +212,40 @@ export class FlashSalesService
       );
     }
 
+    // Conflict check: Product exclusivity between Platform and Shop
+    const campaignScope = campaign.scope || FlashSaleScope.PLATFORM;
+    const oppositeScope =
+      campaignScope === FlashSaleScope.PLATFORM
+        ? FlashSaleScope.SHOP
+        : FlashSaleScope.PLATFORM;
+
+    const conflictingOpposite = await this.prisma.flashSaleItem.findFirst({
+      where: {
+        bookId: dto.bookId,
+        flashSale: {
+          scope: oppositeScope,
+          status: { not: FlashSaleStatus.ENDED },
+          startsAt: { lt: campaign.endsAt },
+          endsAt: { gt: campaign.startsAt },
+        },
+      },
+      include: { flashSale: true },
+    });
+
+    if (conflictingOpposite) {
+      if (campaignScope === FlashSaleScope.PLATFORM) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Sách này đang nằm trong đợt Flash Sale "${conflictingOpposite.flashSale.name}" của Cửa hàng trong cùng khung giờ, không thể đưa vào Flash Sale của Sàn`,
+        );
+      } else {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Sách này đang tham gia đợt Flash Sale "${conflictingOpposite.flashSale.name}" của Sàn Huki trong cùng khung giờ, không thể tham gia Flash Sale của Shop`,
+        );
+      }
+    }
+
     const overlapping = await this.prisma.flashSaleItem.findFirst({
       where: {
         bookId: dto.bookId,
@@ -185,11 +256,12 @@ export class FlashSalesService
           endsAt: { gt: campaign.startsAt },
         },
       },
+      include: { flashSale: true },
     });
     if (overlapping) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
-        "Sách đã thuộc một phiên Flash Sale có thời gian chồng lấn",
+        `Sách đã thuộc phiên Flash Sale "${overlapping.flashSale.name}" có thời gian chồng lấn`,
       );
     }
 
@@ -238,15 +310,19 @@ export class FlashSalesService
     return items.map((item) => this.mapItemView(item, item.flashSale));
   }
 
-  async getActiveFlashSales() {
+  async getActiveFlashSales(scope?: FlashSaleScope) {
     await this.syncStatuses();
     const now = new Date();
+    const where: any = {
+      status: { in: [FlashSaleStatus.ACTIVE, FlashSaleStatus.SCHEDULED] },
+      endsAt: { gte: now },
+    };
+    if (scope) {
+      where.scope = scope;
+    }
+
     const campaigns = await this.prisma.flashSale.findMany({
-      where: {
-        status: FlashSaleStatus.ACTIVE,
-        startsAt: { lte: now },
-        endsAt: { gte: now },
-      },
+      where,
       include: {
         items: true,
       },
@@ -255,6 +331,7 @@ export class FlashSalesService
 
     return Promise.all(
       campaigns.map(async (c) => {
+        const status = this.calculateStatus(c.startsAt, c.endsAt);
         const itemsWithBooks = await Promise.all(
           c.items.map(async (item) => {
             const mapped = this.mapItemView(item, c);
@@ -265,7 +342,7 @@ export class FlashSalesService
               mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (mapped as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (mapped as any).storeId = book.storeId || book.businessId;
+              (mapped as any).storeId = book.storeId || book.businessId || c.storeId;
               (mapped as any).format = book.format || "PHYSICAL";
             }
             return mapped;
@@ -274,7 +351,11 @@ export class FlashSalesService
 
         return {
           ...c,
-          status: FlashSaleStatus.ACTIVE,
+          status,
+          startsInSeconds: Math.max(
+            0,
+            Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
+          ),
           remainingSeconds: Math.max(
             0,
             Math.floor((c.endsAt.getTime() - now.getTime()) / 1000),
@@ -285,14 +366,19 @@ export class FlashSalesService
     );
   }
 
-  async getUpcomingFlashSales() {
+  async getUpcomingFlashSales(scope?: FlashSaleScope) {
     await this.syncStatuses();
     const now = new Date();
+    const where: any = {
+      status: FlashSaleStatus.SCHEDULED,
+      startsAt: { gt: now },
+    };
+    if (scope) {
+      where.scope = scope;
+    }
+
     const campaigns = await this.prisma.flashSale.findMany({
-      where: {
-        status: FlashSaleStatus.SCHEDULED,
-        startsAt: { gt: now },
-      },
+      where,
       include: {
         items: true,
       },
@@ -311,7 +397,7 @@ export class FlashSalesService
               mapped.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (mapped as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (mapped as any).storeId = book.storeId || book.businessId;
+              (mapped as any).storeId = book.storeId || book.businessId || c.storeId;
               (mapped as any).format = book.format || "PHYSICAL";
             }
             return mapped;
@@ -331,21 +417,26 @@ export class FlashSalesService
     );
   }
 
-  async getTimeSlots() {
+  async getTimeSlots(scope?: FlashSaleScope) {
     await this.syncStatuses();
     const now = new Date();
     const past48h = new Date(now.getTime() - 48 * 60 * 60 * 1000);
     const future14d = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
 
+    const where: any = {
+      OR: [
+        { status: FlashSaleStatus.ACTIVE },
+        { status: FlashSaleStatus.SCHEDULED, startsAt: { lte: future14d } },
+        { status: FlashSaleStatus.ENDED, endsAt: { gte: past48h } },
+        { endsAt: { gte: past48h }, startsAt: { lte: future14d } },
+      ],
+    };
+    if (scope) {
+      where.scope = scope;
+    }
+
     const allCampaigns = await this.prisma.flashSale.findMany({
-      where: {
-        OR: [
-          { status: FlashSaleStatus.ACTIVE },
-          { status: FlashSaleStatus.SCHEDULED, startsAt: { lte: future14d } },
-          { status: FlashSaleStatus.ENDED, endsAt: { gte: past48h } },
-          { endsAt: { gte: past48h }, startsAt: { lte: future14d } },
-        ],
-      },
+      where,
       orderBy: { startsAt: "asc" },
       include: { items: true },
     });
@@ -373,7 +464,7 @@ export class FlashSalesService
               itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
               (itemView as any).author =
                 book.author?.name || book.author || book.authorName || "Nhiều tác giả";
-              (itemView as any).storeId = book.storeId || book.businessId;
+              (itemView as any).storeId = book.storeId || book.businessId || c.storeId;
               (itemView as any).format = book.format || "PHYSICAL";
             }
             return itemView;
@@ -385,6 +476,8 @@ export class FlashSalesService
           name: c.name,
           description: c.description,
           bannerUrl: c.bannerUrl,
+          scope: c.scope,
+          storeId: c.storeId,
           startsAt: c.startsAt,
           endsAt: c.endsAt,
           status,
@@ -395,7 +488,6 @@ export class FlashSalesService
       }),
     );
 
-    // Sort: ACTIVE first, then SCHEDULED ascending by startsAt, then ENDED descending by endsAt
     return mapped.sort((a, b) => {
       const order: Record<string, number> = {
         ACTIVE: 1,
@@ -404,11 +496,157 @@ export class FlashSalesService
       };
       const diff = (order[a.status] || 99) - (order[b.status] || 99);
       if (diff !== 0) return diff;
-      if (a.status === FlashSaleStatus.SCHEDULED) {
-        return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
-      }
-      return new Date(b.endsAt).getTime() - new Date(a.endsAt).getTime();
+      return new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime();
     });
+  }
+
+  async getGroupedShopFlashSales() {
+    await this.syncStatuses();
+    const now = new Date();
+
+    // Get active and upcoming (teaser) shop flash sales that have not ended
+    const shopCampaigns = await this.prisma.flashSale.findMany({
+      where: {
+        scope: FlashSaleScope.SHOP,
+        status: { in: [FlashSaleStatus.ACTIVE, FlashSaleStatus.SCHEDULED] },
+        endsAt: { gte: now },
+      },
+      include: { items: true },
+      orderBy: { startsAt: "asc" },
+    });
+
+    const enriched = await Promise.all(
+      shopCampaigns.map(async (c) => {
+        const status = this.calculateStatus(c.startsAt, c.endsAt);
+        const startsInSeconds = Math.max(
+          0,
+          Math.floor((c.startsAt.getTime() - now.getTime()) / 1000),
+        );
+        const remainingSeconds = Math.max(
+          0,
+          Math.floor((c.endsAt.getTime() - now.getTime()) / 1000),
+        );
+
+        let storeDisplayName = "Cửa hàng HUKI";
+        let storeAvatar = "/banners/hero-library.jpg";
+
+        const itemsWithBooks = await Promise.all(
+          c.items.map(async (item) => {
+            const itemView = this.mapItemView(item, c);
+            const book = await this.getCommerceBook(item.bookId);
+            if (book) {
+              itemView.bookTitle = book.title;
+              itemView.bookSlug = book.slug || book.id;
+              itemView.coverUrl = book.coverImage || book.cover || book.coverUrl;
+              (itemView as any).author =
+                book.author?.name || book.author || book.authorName || "Nhiều tác giả";
+              (itemView as any).storeId = book.storeId || book.businessId || c.storeId;
+              (itemView as any).format = book.format || "PHYSICAL";
+
+              if (book.publisher?.name || book.publisher?.displayName) {
+                storeDisplayName = book.publisher.displayName || book.publisher.name;
+              } else if (book.publisher && typeof book.publisher === "string") {
+                storeDisplayName = book.publisher;
+              } else if (book.businessName || book.storeName) {
+                storeDisplayName = book.businessName || book.storeName;
+              }
+            }
+            return itemView;
+          }),
+        );
+
+        return {
+          id: c.id,
+          name: c.name,
+          description: c.description,
+          bannerUrl: c.bannerUrl,
+          scope: c.scope,
+          storeId: c.storeId || itemsWithBooks[0]?.storeId || "unknown-store",
+          storeName: storeDisplayName,
+          storeAvatar,
+          startsAt: c.startsAt,
+          endsAt: c.endsAt,
+          status,
+          startsInSeconds,
+          remainingSeconds,
+          totalItems: c.items.length,
+          items: itemsWithBooks,
+        };
+      }),
+    );
+
+    // Group by storeId
+    const storeMap = new Map<
+      string,
+      {
+        storeId: string;
+        storeName: string;
+        storeAvatar: string;
+        campaigns: typeof enriched;
+      }
+    >();
+
+    for (const campaign of enriched) {
+      const sId = campaign.storeId;
+      if (!storeMap.has(sId)) {
+        storeMap.set(sId, {
+          storeId: sId,
+          storeName: campaign.storeName,
+          storeAvatar: campaign.storeAvatar,
+          campaigns: [],
+        });
+      }
+      storeMap.get(sId)!.campaigns.push(campaign);
+    }
+
+    return Array.from(storeMap.values());
+  }
+
+  async getSellerSlots(businessId: string) {
+    await this.syncStatuses();
+    const now = new Date();
+    const where: any = {
+      scope: FlashSaleScope.SHOP,
+      endsAt: { gt: now },
+    };
+    if (businessId && businessId !== "seller" && businessId !== "ADMIN" && businessId !== "PLATFORM_ADMIN") {
+      where.storeId = businessId;
+    }
+
+    const slots = await this.prisma.flashSale.findMany({
+      where,
+      include: { items: true },
+      orderBy: { startsAt: "asc" },
+    });
+
+    const activeCount = slots.filter((s) => s.status === FlashSaleStatus.ACTIVE).length;
+    const scheduledCount = slots.filter((s) => s.status === FlashSaleStatus.SCHEDULED).length;
+    const totalActiveOrScheduled = activeCount + scheduledCount;
+
+    return {
+      quota: {
+        used: totalActiveOrScheduled,
+        max: 1,
+        remaining: Math.max(0, 1 - totalActiveOrScheduled),
+        activeCount,
+        scheduledCount,
+      },
+      slots: slots.map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        status: s.status,
+        scope: s.scope,
+        storeId: s.storeId,
+        totalItems: s.items.length,
+        remainingSeconds: Math.max(
+          0,
+          Math.floor((s.endsAt.getTime() - now.getTime()) / 1000),
+        ),
+      })),
+    };
   }
 
   async getBookFlashSalePrice(bookId: string) {
@@ -670,13 +908,10 @@ export class FlashSalesService
     });
     if (!flashSale) throwNotFound(ErrorCode.FLASH_SALE_NOT_FOUND);
     const campaign = flashSale!;
-    if (
-      campaign.status === FlashSaleStatus.ACTIVE ||
-      campaign.items.some((item) => item.sold > 0)
-    ) {
+    if (campaign.items.some((item) => item.sold > 0)) {
       throwBadRequest(
         ErrorCode.FLASH_SALE_NOT_ACTIVE,
-        "Không thể xóa chiến dịch đang hoạt động hoặc đã phát sinh giao dịch",
+        "Không thể xóa đợt Flash Sale đã phát sinh đơn hàng đã bán",
       );
     }
 
@@ -704,6 +939,8 @@ export class FlashSalesService
       id: item.id,
       flashSaleId: item.flashSaleId,
       flashSaleName: flashSale?.name ?? "Flash Sale Giờ Vàng",
+      scope: flashSale?.scope ?? FlashSaleScope.PLATFORM,
+      storeId: flashSale?.storeId ?? null,
       bookId: item.bookId,
       bookTitle: item.bookTitle ?? null,
       bookSlug: item.bookSlug ?? null,
@@ -1075,7 +1312,41 @@ export class FlashSalesService
       );
     }
 
-    // Check overlapping sessions
+    // Conflict check: Exclusive product rule between Platform and Shop
+    const fsScope = flashSale.scope || FlashSaleScope.PLATFORM;
+    const oppositeScope =
+      fsScope === FlashSaleScope.PLATFORM
+        ? FlashSaleScope.SHOP
+        : FlashSaleScope.PLATFORM;
+
+    const conflictingOpposite = await this.prisma.flashSaleItem.findFirst({
+      where: {
+        bookId: dto.bookId,
+        flashSale: {
+          scope: oppositeScope,
+          status: { not: FlashSaleStatus.ENDED },
+          startsAt: { lt: flashSale.endsAt },
+          endsAt: { gt: flashSale.startsAt > now ? flashSale.startsAt : now },
+        },
+      },
+      include: { flashSale: true },
+    });
+
+    if (conflictingOpposite) {
+      if (fsScope === FlashSaleScope.PLATFORM) {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Sách này đang nằm trong đợt Flash Sale "${conflictingOpposite.flashSale.name}" của Cửa hàng trong cùng khung giờ, không thể đưa vào Flash Sale của Sàn`,
+        );
+      } else {
+        throwBadRequest(
+          ErrorCode.FLASH_SALE_USER_LIMIT_REACHED,
+          `Sách này đang tham gia đợt Flash Sale "${conflictingOpposite.flashSale.name}" của Sàn Huki trong cùng khung giờ, không thể tham gia Flash Sale của Shop`,
+        );
+      }
+    }
+
+    // Check overlapping sessions in same scope
     const overlapping = await this.prisma.flashSaleItem.findFirst({
       where: {
         bookId: dto.bookId,
@@ -1220,16 +1491,15 @@ export class FlashSalesService
       const book = await this.getCommerceBook(item.bookId);
       const bookBizId = book?.businessId || book?.business?.id || book?.storeId;
       const bookOwnerId = book?.ownerUserId || book?.ownerId || book?.userId;
+      
       const isMatch =
         !businessId ||
-        businessId === "seller" ||
         businessId === "ADMIN" ||
         businessId === "PLATFORM_ADMIN" ||
-        !bookBizId ||
-        bookBizId === businessId ||
-        bookOwnerId === businessId ||
-        book?.storeId === businessId ||
-        true;
+        (item.flashSale?.storeId && item.flashSale.storeId === businessId) ||
+        (bookBizId && bookBizId === businessId) ||
+        (bookOwnerId && bookOwnerId === businessId) ||
+        (book?.storeId && book.storeId === businessId);
 
       if (isMatch) {
         results.push({
@@ -1382,14 +1652,23 @@ export class FlashSalesService
     };
   }
 
-  async getSellerAvailableSlots() {
+  async getSellerAvailableSlots(businessId?: string) {
     await this.syncStatuses();
     const now = new Date();
+    const where: any = {
+      endsAt: { gt: now },
+      status: { in: [FlashSaleStatus.ACTIVE, FlashSaleStatus.SCHEDULED] },
+    };
+
+    if (businessId && businessId !== "ADMIN" && businessId !== "PLATFORM_ADMIN") {
+      where.OR = [
+        { scope: FlashSaleScope.PLATFORM },
+        { scope: FlashSaleScope.SHOP, storeId: businessId },
+      ];
+    }
+
     const slots = await this.prisma.flashSale.findMany({
-      where: {
-        endsAt: { gt: now },
-        status: { in: [FlashSaleStatus.ACTIVE, FlashSaleStatus.SCHEDULED] },
-      },
+      where,
       include: {
         items: true,
       },
@@ -1401,6 +1680,8 @@ export class FlashSalesService
       name: s.name,
       description: s.description,
       bannerUrl: s.bannerUrl,
+      scope: s.scope,
+      storeId: s.storeId,
       startsAt: s.startsAt,
       endsAt: s.endsAt,
       status: s.status,

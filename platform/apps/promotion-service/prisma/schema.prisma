@@ -172,11 +172,20 @@ enum DiscountStatus {
 // FLASH SALE
 // ============================================
 
+enum FlashSaleScope {
+  PLATFORM
+  SHOP
+}
+
 model FlashSale {
-  id          String  @id @default(uuid())
+  id          String         @id @default(uuid())
   name        String
   description String?
-  bannerUrl   String? @map("banner_url")
+  bannerUrl   String?        @map("banner_url")
+
+  // Scope & Ownership
+  scope       FlashSaleScope @default(PLATFORM)
+  storeId     String?        @map("store_id")
 
   startsAt DateTime        @map("starts_at")
   endsAt   DateTime        @map("ends_at")
@@ -187,6 +196,8 @@ model FlashSale {
 
   items FlashSaleItem[]
 
+  @@index([scope, status])
+  @@index([storeId, status])
   @@map("flash_sales")
 }
 

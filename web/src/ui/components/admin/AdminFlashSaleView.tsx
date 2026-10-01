@@ -759,10 +759,11 @@ export function AdminFlashSaleView() {
                           </button>
                           <button
                             onClick={() => handleDeleteSlot(slot.id, slot.name)}
-                            className="p-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 cursor-pointer transition-colors"
-                            title="Xóa khung giờ"
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Xóa đợt Flash Sale này"
                           >
                             <span className="material-symbols-outlined text-sm">delete</span>
+                            <span className="hidden sm:inline">Xóa đợt</span>
                           </button>
                         </div>
                       </div>

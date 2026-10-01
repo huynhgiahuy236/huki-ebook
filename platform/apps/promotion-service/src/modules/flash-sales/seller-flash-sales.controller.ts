@@ -28,6 +28,7 @@ import {
 } from "@nestjs/swagger";
 import { FlashSalesService } from "./flash-sales.service";
 import {
+  FlashSaleScope,
   SellerRegisterFlashSaleItemDto,
   SellerBatchRegisterFlashSaleItemsDto,
   SellerUpdateFlashSaleItemDto,
@@ -49,8 +50,8 @@ export class SellerFlashSalesController {
     description: "Returns open and upcoming flash sale time slots",
   })
   @ApiResponse({ status: 200, description: "List of available flash sale slots" })
-  async getAvailableSlots() {
-    const slots = await this.flashSales.getSellerAvailableSlots();
+  async getAvailableSlots(@CurrentBusiness() business: any) {
+    const slots = await this.flashSales.getSellerAvailableSlots(business?.id);
     return { data: slots };
   }
 
@@ -65,8 +66,22 @@ export class SellerFlashSalesController {
     @CurrentBusiness() business: any,
     @Body() dto: any,
   ) {
-    const created = await this.flashSales.create(dto);
+    const created = await this.flashSales.create({
+      ...dto,
+      scope: FlashSaleScope.SHOP,
+      storeId: business?.id,
+    });
     return { data: created, success: true, message: "Tạo khung giờ Flash Sale thành công" };
+  }
+
+  @Get("my-slots")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Get seller's created flash sale slots and quota info",
+  })
+  async getMySlots(@CurrentBusiness() business: any) {
+    const slots = await this.flashSales.getSellerSlots(business?.id);
+    return { data: slots };
   }
 
   @Get("my-items")
@@ -77,7 +92,7 @@ export class SellerFlashSalesController {
   })
   @ApiResponse({ status: 200, description: "List of seller's registered flash sale items" })
   async getMyItems(@CurrentBusiness() business: any) {
-    const items = await this.flashSales.getSellerFlashSaleItems(business.id);
+    const items = await this.flashSales.getSellerFlashSaleItems(business?.id);
     return { data: items };
   }
 

@@ -1,14 +1,19 @@
 import { apiClient } from "./apiClient";
 import type { ApiResponse } from "./types";
 
+export type FlashSaleScope = "PLATFORM" | "SHOP";
+
 export interface FlashSaleItem {
   id: string;
   flashSaleId: string;
   flashSaleName?: string;
+  scope?: FlashSaleScope;
+  storeId?: string | null;
   bookId: string;
   bookTitle?: string;
   bookSlug?: string;
   coverUrl?: string;
+  author?: string;
   originalPrice: number;
   salePrice: number;
   discount: number;
@@ -21,6 +26,7 @@ export interface FlashSaleItem {
   maxPerUser: number;
   startsAt: string;
   endsAt: string;
+  format?: string;
 }
 
 export interface FlashSaleSlot {
@@ -28,12 +34,23 @@ export interface FlashSaleSlot {
   name: string;
   description?: string;
   bannerUrl?: string;
+  scope?: FlashSaleScope;
+  storeId?: string | null;
+  storeName?: string;
+  storeAvatar?: string;
   startsAt: string;
   endsAt: string;
   status: "SCHEDULED" | "ACTIVE" | "ENDED";
   remainingSeconds: number;
   totalItems: number;
   items: FlashSaleItem[];
+}
+
+export interface ShopFlashSaleGroup {
+  storeId: string;
+  storeName: string;
+  storeAvatar: string;
+  campaigns: FlashSaleSlot[];
 }
 
 export interface CreateFlashSalePayload {
@@ -117,16 +134,25 @@ export const flashSaleApi = {
       method: "GET",
     });
   },
-  getTimeSlots: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/slots", { method: "GET" });
+  getTimeSlots: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/slots?scope=${scope}` : "/flash-sales/slots";
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
   },
 
-  getActiveFlashSales: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/active", { method: "GET" });
+  getActiveFlashSales: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/active?scope=${scope}` : "/flash-sales/active";
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
   },
 
-  getUpcomingFlashSales: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/upcoming", {
+  getGroupedShopFlashSales: async (): Promise<ApiResponse<ShopFlashSaleGroup[]>> => {
+    return apiClient<ShopFlashSaleGroup[]>("/flash-sales/shops/grouped", {
+      method: "GET",
+    });
+  },
+
+  getUpcomingFlashSales: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/upcoming?scope=${scope}` : "/flash-sales/upcoming";
+    return apiClient<FlashSaleSlot[]>(url, {
       method: "GET",
     });
   },

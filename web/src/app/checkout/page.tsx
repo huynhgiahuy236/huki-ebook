@@ -77,6 +77,13 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const isDirectParam = searchParams.get("direct") === "1";
+      if (!isDirectParam) {
+        sessionStorage.removeItem("huki_direct_checkout_item");
+        setDirectItem(null);
+        return;
+      }
       const stored = sessionStorage.getItem("huki_direct_checkout_item");
       if (stored) {
         try {
@@ -109,11 +116,13 @@ export default function CheckoutPage() {
     ? physicalItems.length > 0
     : hasPhysicalItems;
 
-  const rawSubtotal = checkedItems.reduce(
-    (sum: number, i: any) =>
-      sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
-    0
-  );
+  const rawSubtotal = useMemo(() => {
+    return checkedItems.reduce(
+      (sum: number, i: any) =>
+        sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+      0
+    );
+  }, [checkedItems]);
   const shippingFee = effectiveHasPhysical ? 30000 : 0;
   const grandTotal = rawSubtotal + shippingFee;
 
@@ -424,10 +433,10 @@ export default function CheckoutPage() {
         );
         const shippingVoucherCode = appliedShippingVoucher?.code;
 
-        const res = await checkoutApi.previewCheckout({
+        const payload: any = {
           addressId: selectedAddressId || undefined,
           shippingAddress:
-            !selectedAddressId && hasPhysicalItems && activeAddress
+            !selectedAddressId && effectiveHasPhysical && activeAddress
               ? {
                   recipientName: activeAddress.name || user?.fullName || "Khách Hàng",
                   phone: activeAddress.phone || user?.phone || "0988123456",
@@ -442,7 +451,24 @@ export default function CheckoutPage() {
           storeVoucherCodes:
             Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
           shippingVoucherCode,
-        });
+        };
+
+        if (isDirectMode && directItem) {
+          payload.directItem = {
+            bookId: directItem.bookId || directItem.id,
+            format:
+              directItem.format === "DIGITAL" || directItem.type === "ebook"
+                ? "DIGITAL"
+                : "PHYSICAL",
+            quantity: Number(directItem.quantity) || 1,
+          };
+        } else {
+          payload.cartItemIds = checkedItems
+            .map((it: any) => it.id)
+            .filter(Boolean);
+        }
+
+        const res = await checkoutApi.previewCheckout(payload);
 
         if (isMounted && res.success && res.data?.sessionId) {
           setSessionId(res.data.sessionId);
@@ -461,8 +487,10 @@ export default function CheckoutPage() {
     };
   }, [
     isLoggedIn,
-    checkedItems.length,
-    hasPhysicalItems,
+    isDirectMode,
+    directItem,
+    checkedItems,
+    effectiveHasPhysical,
     activeAddress,
     selectedAddressId,
     note,
@@ -572,7 +600,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    if (checkedItemsCount === 0) {
+    if (isDirectMode ? !directItem : checkedItemsCount === 0) {
       showToast(
         {
           title: "Giỏ hàng trống",
@@ -584,7 +612,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (hasPhysicalItems && !hasValidAddress) {
+    if (effectiveHasPhysical && !hasValidAddress) {
       showToast(
         {
           title: "Thiếu địa chỉ nhận hàng",
@@ -603,44 +631,46 @@ export default function CheckoutPage() {
 
     if (isLoggedIn || hasToken) {
       try {
-        // 1. Sync checked items to server cart if missing
-        try {
-          const serverCartRes = await cartApi.getCart();
-          const serverItems =
-            serverCartRes.success && serverCartRes.data?.items
-              ? serverCartRes.data.items
-              : [];
+        // 1. Sync checked items to server cart ONLY if in Cart mode (NOT Direct mode)
+        if (!isDirectMode) {
+          try {
+            const serverCartRes = await cartApi.getCart();
+            const serverItems =
+              serverCartRes.success && serverCartRes.data?.items
+                ? serverCartRes.data.items
+                : [];
 
-          for (const item of checkedItems) {
-            const isUUID =
-              typeof item.bookId === "string" &&
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                item.bookId
-              );
-            if (isUUID) {
-              const apiFormat =
-                item.type === "physical" ||
-                item.format?.toLowerCase().includes("giấy")
-                  ? "PHYSICAL"
-                  : "DIGITAL";
-              const exists = serverItems.some(
-                (si: any) => si.bookId === item.bookId && si.format === apiFormat
-              );
-              if (!exists) {
-                try {
-                  await cartApi.addToCart({
-                    bookId: item.bookId,
-                    format: apiFormat,
-                    quantity: item.quantity || 1,
-                  });
-                } catch {
-                  // ignore
+            for (const item of checkedItems) {
+              const isUUID =
+                typeof item.bookId === "string" &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  item.bookId
+                );
+              if (isUUID) {
+                const apiFormat =
+                  item.type === "physical" ||
+                  item.format?.toLowerCase().includes("giấy")
+                    ? "PHYSICAL"
+                    : "DIGITAL";
+                const exists = serverItems.some(
+                  (si: any) => si.bookId === item.bookId && si.format === apiFormat
+                );
+                if (!exists) {
+                  try {
+                    await cartApi.addToCart({
+                      bookId: item.bookId,
+                      format: apiFormat,
+                      quantity: item.quantity || 1,
+                    });
+                  } catch {
+                    // ignore
+                  }
                 }
               }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
 
         // 2. Generate or refresh checkout session
@@ -672,15 +702,30 @@ export default function CheckoutPage() {
           province: activeAddress?.province || "Hồ Chí Minh",
         };
 
-        const previewPayload = {
+        const previewPayload: any = {
           addressId: selectedAddressId || undefined,
-          shippingAddress: !selectedAddressId && hasPhysicalItems ? shippingAddressPayload : undefined,
+          shippingAddress: !selectedAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
           note: finalNote,
           platformVoucherCode: appliedPlatformVoucher?.code,
           storeVoucherCodes:
             Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
           shippingVoucherCode: appliedShippingVoucher?.code,
         };
+
+        if (isDirectMode && directItem) {
+          previewPayload.directItem = {
+            bookId: directItem.bookId || directItem.id,
+            format:
+              directItem.format === "DIGITAL" || directItem.type === "ebook"
+                ? "DIGITAL"
+                : "PHYSICAL",
+            quantity: Number(directItem.quantity) || 1,
+          };
+        } else {
+          previewPayload.cartItemIds = checkedItems
+            .map((it: any) => it.id)
+            .filter(Boolean);
+        }
 
         const previewRes = await checkoutApi.previewCheckout(previewPayload);
         if (!previewRes.success || !previewRes.data?.sessionId) {
@@ -768,6 +813,9 @@ export default function CheckoutPage() {
               console.error("Failed to initiate PayOS link:", payErr);
             }
 
+            if (isDirectMode && typeof window !== "undefined") {
+              sessionStorage.removeItem("huki_direct_checkout_item");
+            }
             setCurrentOrderId(orderData.id);
             setCurrentOrderCode(orderData.code);
             setCurrentOrderGrandTotal(
@@ -1051,7 +1099,7 @@ export default function CheckoutPage() {
             </section>
 
             {/* Customer & Shipping Address Section */}
-            {hasPhysicalItems && (
+            {effectiveHasPhysical && (
               <section className="bg-[var(--theme-surface,#ffffff)] rounded-xl border border-[var(--theme-border,#e8e5df)] p-3.5 sm:p-4 shadow-2xs">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h2 className="font-editorial text-sm sm:text-base font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-1.5">
@@ -2035,7 +2083,7 @@ export default function CheckoutPage() {
                         </span>
                       </>
                     ) : (
-                      effectiveShippingFee === 0 && hasPhysicalItems ? (
+                      effectiveShippingFee === 0 && effectiveHasPhysical ? (
                         <span className="text-emerald-600 dark:text-emerald-400 font-bold">
                           MIỄN PHÍ
                         </span>
@@ -2069,7 +2117,7 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePlaceOrder}
-                disabled={isSubmitting || checkedItemsCount === 0}
+                disabled={isSubmitting || checkedItems.length === 0}
                 className="w-full h-10 bg-[var(--theme-primary,#003B2B)] hover:opacity-95 text-white rounded-lg font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? (
