@@ -9,12 +9,24 @@ export interface UserProfile {
   avatar?: string | null;
   role?: string;
   status?: string;
+  preferredCategories?: string[];
+  preferredFormats?: string[];
+  dailyMinutesGoal?: number;
+  yearlyBooksTarget?: number;
+  preferredReadingTime?: string;
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface UpdateProfilePayload {
   fullName?: string;
   phone?: string;
   avatar?: string;
+  preferredCategories?: string[];
+  preferredFormats?: string[];
+  dailyMinutesGoal?: number;
+  yearlyBooksTarget?: number;
+  preferredReadingTime?: string;
+  hasCompletedOnboarding?: boolean;
 }
 
 export const userApi = {

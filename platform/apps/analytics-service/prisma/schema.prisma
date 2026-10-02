@@ -85,3 +85,46 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+// ============================================================================
+// User Affinity Models - Gợi Ý Sách Cá Nhân Hóa
+// ============================================================================
+
+// Điểm sở thích theo thể loại sách của từng người dùng
+// Tách riêng viewScore và purchaseScore để đánh giá chính xác hơn
+model UserCategoryAffinity {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  categoryId          String   @map("category_id")
+  viewScore           Decimal  @default(0) @map("view_score") @db.Decimal(10, 2)
+  purchaseScore       Decimal  @default(0) @map("purchase_score") @db.Decimal(10, 2)
+  totalAffinityScore  Decimal  @default(0) @map("total_affinity_score") @db.Decimal(10, 2)
+  interactionCount    Int      @default(0) @map("interaction_count")
+  lastInteractedAt    DateTime @default(now()) @map("last_interacted_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, categoryId], name: "unique_user_category")
+  @@index([userId, totalAffinityScore(sort: Desc)])
+  @@index([categoryId])
+  @@map("user_category_affinities")
+}
+
+// Điểm yêu thích theo tác giả của từng người dùng
+model UserAuthorAffinity {
+  id                  String   @id @default(uuid())
+  userId              String   @map("user_id")
+  authorId            String   @map("author_id")
+  viewScore           Decimal  @default(0) @map("view_score") @db.Decimal(10, 2)
+  purchaseScore       Decimal  @default(0) @map("purchase_score") @db.Decimal(10, 2)
+  totalAffinityScore  Decimal  @default(0) @map("total_affinity_score") @db.Decimal(10, 2)
+  interactionCount    Int      @default(0) @map("interaction_count")
+  lastInteractedAt    DateTime @default(now()) @map("last_interacted_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, authorId], name: "unique_user_author")
+  @@index([userId, totalAffinityScore(sort: Desc)])
+  @@index([authorId])
+  @@map("user_author_affinities")
+}

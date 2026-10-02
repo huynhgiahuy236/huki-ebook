@@ -123,42 +123,45 @@ export default function OrderReturnPage() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {/* Item 1 */}
             <div
               onClick={() => toggleItem('atomic-habits')}
-              className={`p-4 rounded-2xl border-2 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer ${
-                selectedItems['atomic-habits'] ? 'border-theme-primary bg-theme-secondary-subtle/40' : 'border-theme-border bg-theme-surface'
+              className={`p-3 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer ${
+                selectedItems['atomic-habits'] ? 'border-theme-primary bg-theme-secondary-subtle/40' : 'border-theme-border bg-theme-surface hover:border-theme-primary/50'
               }`}
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <input
                   type="checkbox"
                   checked={!!selectedItems['atomic-habits']}
                   onChange={() => {}}
-                  className="w-5 h-5 text-theme-primary rounded border-slate-300 focus:ring-theme-primary"
+                  className="w-4 h-4 text-theme-primary rounded border-slate-300 focus:ring-theme-primary shrink-0"
                 />
-                <img
-                  className="w-16 h-22 object-cover rounded-xl shadow-sm shrink-0"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjgnwa9G3UcVqohHuu1ky9tGqqJaffDqENIcbnvbC4V33nXAN1RzXK7Infa5ig737CMNvJKpKbHxlGbnf3XMJix08LNjSVTkIjgsxwLgd6uSps5RzGkLczuULkinxoH_ey7coA1DnldeLUGG3ukev7R3FZaugpryH9VAvys10Il-8M0pk-q1fyN5ZiMXarjiRWn4dokVSirk_wdiZOqubfbC8Rey2_o4SyHyPrIDlrP2vAaptd6TudTg"
-                  alt="Atomic Habits"
-                />
-                <div>
-                  <span className="bg-[#ac2c19]/10 text-[#ac2c19] text-[10px] font-bold px-2 py-0.5 rounded mr-2">Sách In Giấy</span>
-                  <h4 className="font-semibold text-sm text-on-surface">Atomic Habits - Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ</h4>
-                  <p className="text-xs text-on-surface-variant">Tác giả: James Clear • Alpha Books Official</p>
-                  <p className="text-sm font-bold text-[#ac2c19] mt-1">129.000đ</p>
+                <div className="relative w-12 h-16 shrink-0 overflow-hidden rounded-md ring-1 ring-black/5 bg-slate-50">
+                  <img
+                    className="absolute inset-0 w-full h-full object-cover"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBjgnwa9G3UcVqohHuu1ky9tGqqJaffDqENIcbnvbC4V33nXAN1RzXK7Infa5ig737CMNvJKpKbHxlGbnf3XMJix08LNjSVTkIjgsxwLgd6uSps5RzGkLczuULkinxoH_ey7coA1DnldeLUGG3ukev7R3FZaugpryH9VAvys10Il-8M0pk-q1fyN5ZiMXarjiRWn4dokVSirk_wdiZOqubfbC8Rey2_o4SyHyPrIDlrP2vAaptd6TudTg"
+                    alt="Atomic Habits"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="bg-[#ac2c19]/10 text-[#ac2c19] text-[9px] font-bold px-1.5 py-0.5 rounded">Sách In Giấy</span>
+                  <h4 className="font-semibold text-[13px] text-on-surface line-clamp-1 mt-0.5">Atomic Habits - Thay Đổi Tí Hon, Hiệu Quả Bất Ngờ</h4>
+                  <p className="text-[11px] text-on-surface-variant truncate">James Clear • Alpha Books Official</p>
+                  <p className="text-[12px] font-bold text-[#ac2c19] mt-0.5">129.000đ</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-end md:self-center text-xs" onClick={(e) => e.stopPropagation()}>
-                <label className="text-on-surface-variant font-medium">Số lượng:</label>
+              <div className="flex items-center gap-2 self-end md:self-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                <label className="text-[11px] text-on-surface-variant font-medium">SL:</label>
                 <select
                   value={quantities['atomic-habits']}
                   onChange={(e) => setQuantities(prev => ({ ...prev, 'atomic-habits': Number(e.target.value) }))}
-                  className="bg-theme-surface border border-theme-border rounded-lg px-3 py-1.5 text-xs font-semibold"
+                  className="bg-theme-surface border border-theme-border rounded-md px-2.5 py-1 text-[11px] font-semibold"
                 >
-                  <option value={1}>1 cuốn</option>
-                  <option value={2}>2 cuốn</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
                 </select>
               </div>
             </div>
@@ -166,38 +169,41 @@ export default function OrderReturnPage() {
             {/* Item 2 */}
             <div
               onClick={() => toggleItem('psychology-money')}
-              className={`p-4 rounded-2xl border-2 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 cursor-pointer ${
-                selectedItems['psychology-money'] ? 'border-theme-primary bg-theme-secondary-subtle/40' : 'border-theme-border bg-theme-surface'
+              className={`p-3 rounded-xl border transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-3 cursor-pointer ${
+                selectedItems['psychology-money'] ? 'border-theme-primary bg-theme-secondary-subtle/40' : 'border-theme-border bg-theme-surface hover:border-theme-primary/50'
               }`}
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
                 <input
                   type="checkbox"
                   checked={!!selectedItems['psychology-money']}
                   onChange={() => {}}
-                  className="w-5 h-5 text-theme-primary rounded border-slate-300 focus:ring-theme-primary"
+                  className="w-4 h-4 text-theme-primary rounded border-slate-300 focus:ring-theme-primary shrink-0"
                 />
-                <img
-                  className="w-16 h-22 object-cover rounded-xl shadow-sm shrink-0"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPtM4fEF50qiA3LJT6VRKZ4N7fTPN6jOoxh2ryBnzedt5FA5_VTRim9wYpzGX1LBNImhplf6XFrSgwnvdVFanZ2TEFWln9kRUk0j0FDd54xHUJJql6Lw3bHytmH2n_PbDCsDtu9_o0sUCgc9ZNUl--xR6TmfF825RDGooi07RHZ-74OyLPkpqUkrYgxkbp054QNKTO5hp82EqWyeC1yqcp0rOHERKeBFh7vHjCmZu9qxm5Dvs0BJkEaw"
-                  alt="Psychology of Money"
-                />
-                <div>
-                  <span className="bg-[#ac2c19]/10 text-[#ac2c19] text-[10px] font-bold px-2 py-0.5 rounded mr-2">Sách In Giấy</span>
-                  <h4 className="font-semibold text-sm text-on-surface">Tâm Lý Học Về Tiền (The Psychology of Money)</h4>
-                  <p className="text-xs text-on-surface-variant">Tác giả: Morgan Housel • 1980 Books</p>
-                  <p className="text-sm font-bold text-[#ac2c19] mt-1">135.000đ</p>
+                <div className="relative w-12 h-16 shrink-0 overflow-hidden rounded-md ring-1 ring-black/5 bg-slate-50">
+                  <img
+                    className="absolute inset-0 w-full h-full object-cover"
+                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuBPtM4fEF50qiA3LJT6VRKZ4N7fTPN6jOoxh2ryBnzedt5FA5_VTRim9wYpzGX1LBNImhplf6XFrSgwnvdVFanZ2TEFWln9kRUk0j0FDd54xHUJJql6Lw3bHytmH2n_PbDCsDtu9_o0sUCgc9ZNUl--xR6TmfF825RDGooi07RHZ-74OyLPkpqUkrYgxkbp054QNKTO5hp82EqWyeC1yqcp0rOHERKeBFh7vHjCmZu9qxm5Dvs0BJkEaw"
+                    alt="Psychology of Money"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <span className="bg-[#ac2c19]/10 text-[#ac2c19] text-[9px] font-bold px-1.5 py-0.5 rounded">Sách In Giấy</span>
+                  <h4 className="font-semibold text-[13px] text-on-surface line-clamp-1 mt-0.5">Tâm Lý Học Về Tiền (The Psychology of Money)</h4>
+                  <p className="text-[11px] text-on-surface-variant truncate">Morgan Housel • 1980 Books</p>
+                  <p className="text-[12px] font-bold text-[#ac2c19] mt-0.5">135.000đ</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-end md:self-center text-xs" onClick={(e) => e.stopPropagation()}>
-                <label className="text-on-surface-variant font-medium">Số lượng:</label>
+              <div className="flex items-center gap-2 self-end md:self-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                <label className="text-[11px] text-on-surface-variant font-medium">SL:</label>
                 <select
                   value={quantities['psychology-money']}
                   onChange={(e) => setQuantities(prev => ({ ...prev, 'psychology-money': Number(e.target.value) }))}
-                  className="bg-theme-surface border border-theme-border rounded-lg px-3 py-1.5 text-xs font-semibold"
+                  className="bg-theme-surface border border-theme-border rounded-md px-2.5 py-1 text-[11px] font-semibold"
                 >
-                  <option value={1}>1 cuốn</option>
-                  <option value={2}>2 cuốn</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
                 </select>
               </div>
             </div>

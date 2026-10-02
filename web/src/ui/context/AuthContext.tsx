@@ -22,6 +22,7 @@ export interface AuthContextType {
   resendVerification: (email: string) => Promise<ApiResponse<{ message: string }>>;
   refreshBusiness: () => Promise<BusinessData | null>;
   updateUserProfile: (payload: UpdateProfilePayload) => Promise<ApiResponse<UserProfile>>;
+  completeOnboarding: (preferences: { preferredCategories?: string[]; preferredFormats?: string[]; dailyMinutesGoal?: number; yearlyBooksTarget?: number; preferredReadingTime?: string }) => Promise<ApiResponse<UserProfile>>;
   hasRole: (allowedRoles: string | string[]) => boolean;
   hasPermission: (permission: string, targetBusinessId?: string) => boolean;
   can: (permission: string, bizId?: string) => boolean;
@@ -320,6 +321,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return res;
   };
 
+  // Lưu onboarding preferences & đánh dấu đã hoàn thành
+  const completeOnboarding = async (preferences: {
+    preferredCategories?: string[];
+    preferredFormats?: string[];
+    dailyMinutesGoal?: number;
+    yearlyBooksTarget?: number;
+    preferredReadingTime?: string;
+  }) => {
+    try {
+      const res = await userApi.updateProfile({
+        ...preferences,
+        hasCompletedOnboarding: true,
+      });
+
+      if (res.success) {
+        // Cập nhật user state với hasCompletedOnboarding = true
+        setUser((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            hasCompletedOnboarding: true,
+            profile: {
+              ...prev.profile,
+              ...preferences,
+            },
+          };
+        });
+
+        // Xóa local storage onboarding preferences
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('huki_onboarding_preferences');
+        }
+      }
+
+      return res;
+    } catch (err) {
+      console.error('Failed to complete onboarding:', err);
+      // Vẫn mark local state là completed
+      setUser((prev) => {
+        if (!prev) return null;
+        return { ...prev, hasCompletedOnboarding: true };
+      });
+      return { success: false, error: { code: 'UNKNOWN', message: 'Lỗi lưu preferences' } };
+    }
+  };
+
   const value: AuthContextType = useMemo(
     () => ({
       user,
@@ -337,6 +384,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       resendVerification,
       refreshBusiness,
       updateUserProfile,
+      completeOnboarding,
       hasRole,
       hasPermission,
       can: (permission: string, bizId?: string) => canPermission(permission, bizId || activeBusinessId || undefined, user),

@@ -128,6 +128,11 @@ export default function RegisterPage() {
     setIsLoading(false);
 
     if (regRes.success) {
+      // Lưu password tạm để auto-login sau khi verify
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('huki_pending_password', formData.password);
+      }
+
       showToast({
         title: 'Đăng ký thành công',
         message: 'Mã OTP đã được gửi đến email của bạn.',

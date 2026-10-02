@@ -5,14 +5,16 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { tokenStorage } from '@/ui/api/tokenStorage';
 
 function VerifyOtpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { verifyEmail, resendVerification, pendingResetTarget } = useAuth();
+  const { verifyEmail, resendVerification, login, pendingResetTarget } = useAuth();
   const { showToast } = useToast();
 
   const targetEmail = searchParams.get('email') || pendingResetTarget || 'user@huki.com';
+  const storedPassword = typeof window !== 'undefined' ? localStorage.getItem('huki_pending_password') : null;
 
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
@@ -119,9 +121,35 @@ function VerifyOtpForm() {
     const res = await verifyEmail(otpCode);
     setIsLoading(false);
     if (res.success) {
+      // Xóa pending password sau khi verify thành công
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('huki_pending_password');
+      }
+
+      // Thử auto-login với email/password đã lưu
+      if (storedPassword) {
+        showToast({
+          title: 'Xác thực thành công',
+          message: 'Đang đăng nhập tự động...',
+          type: 'success',
+        });
+
+        const loginRes = await login(targetEmail, storedPassword);
+        if (loginRes.success && loginRes.user) {
+          // Kiểm tra onboarding - user mới luôn chưa complete
+          if (!loginRes.user.hasCompletedOnboarding) {
+            router.push('/onboarding');
+          } else {
+            router.push('/');
+          }
+          return;
+        }
+      }
+
+      // Fallback: chuyển về login
       showToast({
         title: 'Xác thực thành công',
-        message: 'Tài khoản của bạn đã được kích hoạt thành công! Đang chuyển đến trang đăng nhập...',
+        message: 'Vui lòng đăng nhập để tiếp tục.',
         type: 'success',
       });
       router.push('/auth/login');

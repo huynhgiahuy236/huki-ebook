@@ -45,6 +45,11 @@ export interface UserSession {
   profile?: {
     fullName?: string;
     avatar?: string;
+    preferredCategories?: string[];
+    preferredFormats?: string[];
+    dailyMinutesGoal?: number;
+    yearlyBooksTarget?: number;
+    preferredReadingTime?: string;
   };
   business?: {
     id: string;
@@ -61,6 +66,7 @@ export interface UserSession {
     };
   };
   hasApprovedBusiness?: boolean;
+  hasCompletedOnboarding?: boolean;
 }
 
 export interface LoginResponseData {

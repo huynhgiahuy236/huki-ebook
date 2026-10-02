@@ -12,10 +12,11 @@ import {
   Step4Habits,
   Step5WelcomeGift,
 } from '@/ui/components/onboarding';
+import { ONBOARDING_GENRES } from '@/ui/components/onboarding/onboardingData';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, completeOnboarding } = useAuth();
   const { showToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -106,10 +107,24 @@ export default function OnboardingPage() {
     router.push('/');
   };
 
-  const handleFinish = () => {
+  const handleFinish = async () => {
     setIsSubmitting(true);
 
     try {
+      // Lấy category IDs từ selected genres
+      const selectedGenreItems = ONBOARDING_GENRES.filter(g => selectedGenres.includes(g.id));
+      const categoryNames = [...new Set(selectedGenreItems.map(g => g.category))];
+
+      // Gọi API để lưu preferences
+      await completeOnboarding({
+        preferredCategories: categoryNames,
+        preferredFormats: selectedFormats,
+        dailyMinutesGoal: dailyMinutes,
+        yearlyBooksTarget: yearlyBooksTarget,
+        preferredReadingTime: preferredTime,
+      });
+
+      // Lưu local để backup
       const preferences = {
         primaryGoals: selectedGoals,
         favoriteGenres: selectedGenres,
@@ -138,7 +153,8 @@ export default function OnboardingPage() {
         router.push('/');
       }, 600);
     } catch (err) {
-      console.error('Failed to save preferences', err);
+      console.error('Failed to complete onboarding', err);
+      // Vẫn redirect về homepage dù có lỗi
       router.push('/');
     } finally {
       setIsSubmitting(false);
@@ -150,7 +166,7 @@ export default function OnboardingPage() {
     (currentStep === 2 && selectedGenres.length < 3) ||
     (currentStep === 3 && selectedFormats.length === 0);
 
-  const userName = user?.fullName || (user as any)?.name || 'Bạn đọc';
+  const userName = user?.fullName || (user as { name?: string })?.name || 'Bạn đọc';
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-[#fbf9f4] flex flex-col lg:flex-row font-sans antialiased text-[#17201f]">

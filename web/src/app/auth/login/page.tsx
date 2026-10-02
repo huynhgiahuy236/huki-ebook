@@ -86,16 +86,33 @@ function LoginForm() {
 
       const rawTarget = searchParams.get('redirect') || searchParams.get('from') || '/';
 
+      // Ưu tiên 1: Đổi mật khẩu bắt buộc
       if (res.user.mustChangePassword) {
         router.push('/auth/change-password');
-      } else if (res.user.role === 'PLATFORM_ADMIN') {
-        router.push(rawTarget.startsWith('/admin') ? rawTarget : '/admin');
-      } else if (res.user.role === 'BUSINESS' || res.user.hasApprovedBusiness) {
-        router.push(rawTarget.startsWith('/seller') ? rawTarget : '/seller/dashboard');
-      } else {
-        const isRestricted = rawTarget.startsWith('/seller') || rawTarget.startsWith('/admin');
-        router.push(isRestricted ? '/' : rawTarget);
+        return;
       }
+
+      // Ưu tiên 2: Admin → dashboard
+      if (res.user.role === 'PLATFORM_ADMIN') {
+        router.push(rawTarget.startsWith('/admin') ? rawTarget : '/admin');
+        return;
+      }
+
+      // Ưu tiên 3: Seller/Business → seller dashboard
+      if (res.user.role === 'BUSINESS' || res.user.hasApprovedBusiness) {
+        router.push(rawTarget.startsWith('/seller') ? rawTarget : '/seller/dashboard');
+        return;
+      }
+
+      // Ưu tiên 4: Chưa hoàn thành onboarding → redirect đến onboarding
+      if (!res.user.hasCompletedOnboarding) {
+        router.push('/onboarding');
+        return;
+      }
+
+      // Ưu tiên 5: Redirect bình thường
+      const isRestricted = rawTarget.startsWith('/seller') || rawTarget.startsWith('/admin');
+      router.push(isRestricted ? '/' : rawTarget);
     } else {
       const vietnameseError = formatAuthError(res.error);
       showToast({

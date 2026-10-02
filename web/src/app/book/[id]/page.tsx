@@ -15,6 +15,8 @@ import { reviewApi, ReviewItemData, ReviewSummaryData } from '@/ui/api/reviewApi
 import ReviewCard from '@/ui/components/review/ReviewCard';
 import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge';
 import ReviewFormModal from '@/ui/components/review/ReviewFormModal';
+import { trackEvent, getTracker } from '@/lib/tracker';
+import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBooksSection';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -85,6 +87,30 @@ export default function BookDetailPage() {
   const [reviewsFilterRating, setReviewsFilterRating] = useState<number | undefined>(undefined);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  // Track view time for analytics
+  const pageLoadTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    // Track book view when component mounts
+    if (id) {
+      const tracker = getTracker();
+      if (user?.id) {
+        tracker.setUserId(user.id);
+      }
+
+      // Track initial view (will be refined with duration on unmount)
+      trackEvent.bookView(id, realBook?.categoryId, 0);
+    }
+
+    // Cleanup: track actual time spent on page
+    return () => {
+      const duration = Math.round((Date.now() - pageLoadTimeRef.current) / 1000);
+      if (id && duration > 0) {
+        trackEvent.bookView(id, realBook?.categoryId, duration);
+      }
+    };
+  }, [id, user?.id, realBook?.categoryId]);
 
   useEffect(() => {
     if (!id) return;
@@ -587,6 +613,10 @@ export default function BookDetailPage() {
       showToast(`Flash Sale giới hạn tối đa ${flashSaleInfo.maxPerUser || 1} cuốn/khách`, 'warning');
       return;
     }
+
+    // Track add to cart event
+    trackEvent.addToCart(book.id, realBook?.categoryId);
+
     addItem({
       id: `${book.id}-${selectedFormat}`,
       bookId: book.id,
@@ -1324,6 +1354,11 @@ export default function BookDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Similar Books Recommendations */}
+      {realBook?.id && (
+        <SimilarBooksSection bookId={realBook.id} limit={6} />
       )}
     </div>
   );
