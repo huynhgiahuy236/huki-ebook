@@ -24,6 +24,16 @@ export interface EscrowTableItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  storeVoucherDiscount?: number;
+  effectiveSubtotal?: number;
+  voucherInfo?: {
+    code: string;
+    name?: string;
+    discount: number;
+    scope: 'STORE' | 'PLATFORM';
+  } | null;
+  orderGrandTotal?: number;
+  platformVoucherDiscount?: number;
   platformFee?: number;
   sellerNet?: number;
   escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED' | 'PENDING_PAYMENT';
@@ -44,6 +54,7 @@ export interface EscrowTableItem {
 export interface EscrowOrderGroup {
   id: string; // orderCode
   orderCode: string;
+  orderGrandTotal?: number;
   orderCreatedAt: string;
   storeName: string;
   storeId: string;
@@ -443,6 +454,7 @@ export function AdminEscrowView() {
         map.set(it.orderCode, {
           id: it.orderCode,
           orderCode: it.orderCode,
+          orderGrandTotal: (it as any).orderGrandTotal,
           orderCreatedAt: it.orderCreatedAt,
           storeName: it.storeName,
           storeId: it.storeId,
@@ -458,8 +470,11 @@ export function AdminEscrowView() {
       }
       const group = map.get(it.orderCode)!;
       group.items.push(it);
-      group.totalAmount += it.subtotal;
+      group.totalAmount += (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal);
       group.itemsCount += it.quantity;
+      if ((it as any).orderGrandTotal && !group.orderGrandTotal) {
+        group.orderGrandTotal = (it as any).orderGrandTotal;
+      }
     });
 
     return Array.from(map.values());
@@ -479,15 +494,15 @@ export function AdminEscrowView() {
   const stats = useMemo(() => {
     const totalHolding = items
       .filter((it) => it.escrowStatus === 'HOLDING')
-      .reduce((sum, it) => sum + it.subtotal, 0);
+      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
 
     const totalReleased = items
       .filter((it) => it.escrowStatus === 'RELEASED')
-      .reduce((sum, it) => sum + it.subtotal, 0);
+      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
 
     const totalFrozen = items
       .filter((it) => it.escrowStatus === 'FROZEN')
-      .reduce((sum, it) => sum + it.subtotal, 0);
+      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
 
     return {
       totalHolding,
@@ -531,18 +546,37 @@ export function AdminEscrowView() {
         key: 'store',
         title: 'Gian Hàng / Người Bán',
         minWidth: 300,
-        render: (_, row) => (
-          <div className="flex flex-col gap-0.5 py-1">
-            <span className="font-semibold text-theme-text text-xs whitespace-nowrap">
-              {row.storeName}
-            </span>
-            {row.storeId && (
-              <span className="font-mono text-[10.5px] text-theme-text-muted whitespace-nowrap">
-                ID: {row.storeId}
+        render: (_, row) => {
+          const uniqueStores = Array.from(new Set(row.items.map((it) => it.storeName || it.storeId).filter(Boolean)));
+          const isMultiStore = uniqueStores.length > 1;
+
+          if (isMultiStore) {
+            return (
+              <div className="flex flex-col gap-0.5 py-1">
+                <span className="font-semibold text-emerald-800 dark:text-emerald-300 text-xs whitespace-nowrap flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px]">storefront</span>
+                  <span>Đa gian hàng ({uniqueStores.length} Shop)</span>
+                </span>
+                <span className="text-[10.5px] text-theme-text-muted whitespace-nowrap truncate max-w-[280px]" title={uniqueStores.join(', ')}>
+                  {uniqueStores.join(', ')}
+                </span>
+              </div>
+            );
+          }
+
+          return (
+            <div className="flex flex-col gap-0.5 py-1">
+              <span className="font-semibold text-theme-text text-xs whitespace-nowrap">
+                {row.storeName}
               </span>
-            )}
-          </div>
-        ),
+              {row.storeId && (
+                <span className="font-mono text-[10.5px] text-theme-text-muted whitespace-nowrap">
+                  ID: {row.storeId}
+                </span>
+              )}
+            </div>
+          );
+        },
       },
       {
         key: 'customer',
@@ -603,12 +637,33 @@ export function AdminEscrowView() {
         key: 'totalAmount',
         title: 'Tổng Giá Trị Đơn',
         align: 'right',
-        minWidth: 160,
-        render: (_, row) => (
-          <span className="font-mono text-sm font-bold text-theme-text whitespace-nowrap">
-            {Number(row.totalAmount || 0).toLocaleString('vi-VN')} đ
-          </span>
-        ),
+        minWidth: 170,
+        render: (_, row) => {
+          const totalOrderItemsSubtotal = row.items.reduce((sum, it) => sum + it.subtotal, 0);
+          const totalStoreDiscount = row.items.reduce((sum, it) => sum + (it.storeVoucherDiscount || 0), 0);
+          const totalPlatformDiscount = row.items.reduce((sum, it) => sum + (it.platformVoucherDiscount || 0), 0);
+          const grandTotal = row.orderGrandTotal || Math.max(0, totalOrderItemsSubtotal - totalStoreDiscount - totalPlatformDiscount);
+
+          return (
+            <div className="flex flex-col items-end whitespace-nowrap">
+              <span className="font-mono text-sm font-bold text-theme-text">
+                {grandTotal.toLocaleString('vi-VN')} đ
+              </span>
+              <div className="flex flex-col items-end text-[10px] font-medium leading-tight mt-0.5">
+                {totalStoreDiscount > 0 && (
+                  <span className="text-rose-600">
+                    (-{totalStoreDiscount.toLocaleString('vi-VN')}đ Voucher Shop)
+                  </span>
+                )}
+                {totalPlatformDiscount > 0 && (
+                  <span className="text-teal-600">
+                    (-{totalPlatformDiscount.toLocaleString('vi-VN')}đ Voucher Sàn)
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        },
       },
       {
         key: 'overallStatus',
@@ -745,8 +800,17 @@ export function AdminEscrowView() {
                       </td>
 
                       {/* 4. Thành Tiền */}
-                      <td className="py-3.5 px-4 text-right font-mono text-xs font-bold text-theme-text whitespace-nowrap">
-                        {item.subtotal.toLocaleString('vi-VN')} đ
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex flex-col items-end">
+                          <span className="font-mono text-xs font-bold text-theme-text">
+                            {(item.effectiveSubtotal !== undefined ? item.effectiveSubtotal : item.subtotal).toLocaleString('vi-VN')} đ
+                          </span>
+                          {item.storeVoucherDiscount && item.storeVoucherDiscount > 0 ? (
+                            <span className="text-[10px] text-rose-600 font-medium">
+                              (Gốc: {item.subtotal.toLocaleString('vi-VN')}đ - Voucher Shop {item.storeVoucherDiscount.toLocaleString('vi-VN')}đ)
+                            </span>
+                          ) : null}
+                        </div>
                       </td>
 
                       {/* 5. Trạng Thái Dòng Tiền */}

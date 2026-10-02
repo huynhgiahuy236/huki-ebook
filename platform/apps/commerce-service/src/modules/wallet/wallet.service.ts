@@ -128,37 +128,105 @@ export class WalletService {
       }
     }
 
-    // Sync available balance from delivered/completed orders in DB
+    // Sync available balance from delivered/completed orders in DB with proper escrow release checks
     if (this.prisma.sellerOrder) {
       let sellerOrders = (await this.prisma.sellerOrder.findMany({
         where: { storeId },
-        include: { items: true },
+        include: {
+          items: true,
+          order: {
+            include: {
+              statusHistory: { orderBy: { createdAt: 'desc' } },
+            },
+          },
+        },
       })) || [];
-
-      if (sellerOrders.length === 0) {
-        sellerOrders = (await this.prisma.sellerOrder.findMany({
-          include: { items: true },
-        })) || [];
-      }
 
       let totalDeliveredNet = 0;
       let totalPendingNet = 0;
+      const now = Date.now();
 
       sellerOrders.forEach((so) => {
-        const isDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED';
-        const isCancelled = so.status === 'CANCELLED';
+        const order = so.order;
+        const histories = order?.statusHistory || [];
+        const isCancelled =
+          so.status === 'CANCELLED' ||
+          order?.status === 'CANCELLED' ||
+          order?.status === 'REFUNDED';
 
-        so.items.forEach((it) => {
-          const subtotal = Number(it.subtotal) || 0;
-          const fee = Math.round(subtotal * 0.05);
-          const net = subtotal - fee;
+        if (isCancelled) return;
 
-          if (isDelivered) {
+        const subtotal = Number(so.itemSubtotal) || 0;
+        const shippingFee = Number(so.shippingFee) || 0;
+        const grandTotal = Number(so.grandTotal) || 0;
+        const merchandiseNet = grandTotal > 0 ? Math.max(0, grandTotal - shippingFee) : subtotal;
+        const fee = Math.round(merchandiseNet * 0.05);
+        const net = Math.max(0, merchandiseNet - fee);
+
+        const freezeEntry = histories.find(
+          (h) =>
+            (h.toStatus === 'ESCROW_FROZEN' || h.toStatus === 'DISPUTE_OPENED') &&
+            (!h.sellerOrderId || h.sellerOrderId === so.id),
+        );
+        const unfreezeEntry = histories.find(
+          (h) =>
+            (h.toStatus === 'ESCROW_UNFROZEN' || h.toStatus === 'ESCROW_RELEASED' || h.toStatus.startsWith('RULING_')) &&
+            (!h.sellerOrderId || h.sellerOrderId === so.id),
+        );
+        const isFrozen = !!freezeEntry && (!unfreezeEntry || new Date(freezeEntry.createdAt) > new Date(unfreezeEntry.createdAt));
+
+        if (isFrozen) return;
+
+        const hasPhysical = so.items?.some((it) => it.format === 'PHYSICAL') ?? so.requiresShipping;
+
+        if (!hasPhysical) {
+          // Digital book: released upon successful payment
+          const isPaid = order?.paymentStatus === 'SUCCEEDED' || so.status === 'COMPLETED';
+          if (isPaid) {
             totalDeliveredNet += net;
-          } else if (!isCancelled) {
+          } else {
             totalPendingNet += net;
           }
-        });
+        } else {
+          // Physical book: requires delivery AND (buyer confirmation OR admin escrow release OR expired return window)
+          const isPhysicalDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED' || !!so.completedAt;
+
+          const isBuyerConfirmed = histories.some(
+            (h) =>
+              (h.toStatus === 'BUYER_CONFIRMED' ||
+                h.toStatus === 'ORDER_CONFIRMED' ||
+                (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) &&
+              (!h.sellerOrderId || h.sellerOrderId === so.id),
+          );
+
+          const isEscrowReleased = histories.some(
+            (h) =>
+              (h.toStatus === 'ESCROW_RELEASED' || h.toStatus === 'SETTLED') &&
+              (!h.sellerOrderId || h.sellerOrderId === so.id),
+          );
+
+          const deliveredHistory = histories.find(
+            (h) =>
+              (h.toStatus === 'DELIVERED' || h.toStatus === 'COMPLETED') &&
+              (!h.sellerOrderId || h.sellerOrderId === so.id),
+          );
+          const deliveredTimestamp = so.completedAt
+            ? new Date(so.completedAt).getTime()
+            : deliveredHistory
+            ? new Date(deliveredHistory.createdAt).getTime()
+            : 0;
+
+          // Holding window: 2 minutes in test mode / 120,000 ms
+          const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
+
+          const isReleased = isPhysicalDelivered && (isBuyerConfirmed || isEscrowReleased || isReturnWindowPassed);
+
+          if (isReleased) {
+            totalDeliveredNet += net;
+          } else {
+            totalPendingNet += net;
+          }
+        }
       });
 
       // Check debited/withdrawn amount
@@ -232,15 +300,6 @@ export class WalletService {
         orderBy: { completedAt: 'asc' },
       })) || [];
 
-      if (deliveredOrders.length === 0) {
-        deliveredOrders = (await this.prisma.sellerOrder.findMany({
-          where: {
-            status: { in: ['DELIVERED', 'COMPLETED'] },
-          },
-          include: { items: true, order: true },
-          orderBy: { completedAt: 'asc' },
-        })) || [];
-      }
 
       const existingTxs = await this.prisma.walletTransaction.findMany({
         where: { walletId: wallet.id },

@@ -2112,6 +2112,14 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const orderIds = orders.map((o) => o.id);
+    const voucherUsages = await this.voucherClient.getUsagesByOrderIds(orderIds);
+    const voucherMap = new Map<string, any[]>();
+    for (const u of voucherUsages) {
+      if (!voucherMap.has(u.orderId)) voucherMap.set(u.orderId, []);
+      voucherMap.get(u.orderId)!.push(u);
+    }
+
     const items: any[] = [];
 
     for (const order of orders) {
@@ -2121,6 +2129,7 @@ export class OrdersService {
 
       // Find order-specific or global COD remittance record
       const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
+      const orderVouchers = voucherMap.get(order.id) || [];
 
       for (const sellerOrder of order.sellerOrders) {
         for (const item of sellerOrder.items) {
@@ -2189,9 +2198,40 @@ export class OrdersService {
             }
           }
 
+          // Calculate effective revenue considering Store Vouchers vs Platform Vouchers
+          const storeVoucherUsages = orderVouchers.filter((v: any) => {
+            const isStoreScope = v.voucher?.scope === 'STORE' || v.scope === 'STORE' || Boolean(v.voucher?.storeId || v.storeId);
+            if (!isStoreScope) return false;
+            const targetStoreId = v.voucher?.storeId || v.storeId;
+            if (!targetStoreId) return true;
+            return String(targetStoreId).toLowerCase() === String(sellerOrder.storeId).toLowerCase();
+          });
+
+          let storeVoucherDiscount = 0;
+          if (storeVoucherUsages.length > 0) {
+            const totalStoreDiscount = storeVoucherUsages.reduce((sum: number, vu: any) => sum + (Number(vu.discount) || 0), 0);
+            const sellerOrderSubtotal = sellerOrder.items.reduce((sum: number, it: any) => sum + (Number(it.subtotal) || 0), 0);
+            if (sellerOrderSubtotal > 0) {
+              storeVoucherDiscount = Math.round(totalStoreDiscount * (Number(item.subtotal) / sellerOrderSubtotal));
+            } else {
+              storeVoucherDiscount = totalStoreDiscount;
+            }
+          }
+
+          const platformVoucherUsages = orderVouchers.filter((v: any) => (v.voucher?.scope === 'PLATFORM' || v.scope === 'PLATFORM') && !v.voucher?.storeId && !v.storeId);
+          let platformVoucherDiscount = 0;
+          if (platformVoucherUsages.length > 0) {
+            const totalPlatformDiscount = platformVoucherUsages.reduce((sum: number, vu: any) => sum + (Number(vu.discount) || 0), 0);
+            const totalOrderItemsSubtotal = order.sellerOrders.flatMap((so) => so.items).reduce((sum: number, it: any) => sum + (Number(it.subtotal) || 0), 0);
+            if (totalOrderItemsSubtotal > 0) {
+              platformVoucherDiscount = Math.round(totalPlatformDiscount * (Number(item.subtotal) / totalOrderItemsSubtotal));
+            }
+          }
+
           const subtotal = Number(item.subtotal);
-          const platformFee = Math.round(subtotal * 0.05); // 5% fee
-          const sellerNet = subtotal - platformFee; // 95% net revenue
+          const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
+          const platformFee = Math.round(effectiveSubtotal * 0.05); // 5% fee on net revenue
+          const sellerNet = effectiveSubtotal - platformFee; // 95% net revenue
 
           const shippingAddressText = [
             shipping.address || shipping.street,
@@ -2207,6 +2247,7 @@ export class OrdersService {
               id: item.id,
               orderId: order.id,
               orderCode: order.code,
+              orderGrandTotal: Number(order.grandTotal ?? 0),
               orderCreatedAt: order.createdAt.toISOString(),
               orderStatus: sellerOrder.status || order.status,
               paymentMethod: order.paymentMethod,
@@ -2224,8 +2265,17 @@ export class OrdersService {
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
               subtotal,
+              storeVoucherDiscount,
+              platformVoucherDiscount,
+              effectiveSubtotal,
               platformFee,
               sellerNet,
+              voucherInfo: storeVoucherUsages.length > 0 ? {
+                code: storeVoucherUsages[0].voucher?.code || storeVoucherUsages[0].code,
+                name: storeVoucherUsages[0].voucher?.name,
+                discount: storeVoucherDiscount,
+                scope: 'STORE',
+              } : null,
               escrowStatus,
               remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
                 isRemitted: true,
@@ -2288,6 +2338,14 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
     });
 
+    const orderIds = orders.map((o) => o.id);
+    const voucherUsages = await this.voucherClient.getUsagesByOrderIds(orderIds);
+    const voucherMap = new Map<string, any[]>();
+    for (const u of voucherUsages) {
+      if (!voucherMap.has(u.orderId)) voucherMap.set(u.orderId, []);
+      voucherMap.get(u.orderId)!.push(u);
+    }
+
     const items: any[] = [];
 
     for (const order of orders) {
@@ -2295,6 +2353,7 @@ export class OrdersService {
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
       const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
+      const orderVouchers = voucherMap.get(order.id) || [];
 
       for (const sellerOrder of order.sellerOrders) {
         const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
@@ -2361,9 +2420,23 @@ export class OrdersService {
             }
           }
 
+          // Calculate effective revenue considering Store Vouchers vs Platform Vouchers
+          const storeVoucherUsages = orderVouchers.filter((v: any) => v.voucher?.scope === 'STORE');
+          let storeVoucherDiscount = 0;
+          if (storeVoucherUsages.length > 0) {
+            const totalStoreDiscount = storeVoucherUsages.reduce((sum: number, vu: any) => sum + (Number(vu.discount) || 0), 0);
+            const sellerOrderSubtotal = sellerOrder.items.reduce((sum: number, it: any) => sum + (Number(it.subtotal) || 0), 0);
+            if (sellerOrderSubtotal > 0) {
+              storeVoucherDiscount = Math.round(totalStoreDiscount * (Number(item.subtotal) / sellerOrderSubtotal));
+            } else {
+              storeVoucherDiscount = totalStoreDiscount;
+            }
+          }
+
           const subtotal = Number(item.subtotal);
-          const platformFee = Math.round(subtotal * 0.05); // 5% fee
-          const sellerNet = subtotal - platformFee; // 95% net revenue
+          const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
+          const platformFee = Math.round(effectiveSubtotal * 0.05); // 5% fee on net revenue
+          const sellerNet = effectiveSubtotal - platformFee; // 95% net revenue
 
           const shippingAddressText = [
             shipping.address || shipping.street,
@@ -2396,8 +2469,16 @@ export class OrdersService {
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
               subtotal,
+              storeVoucherDiscount,
+              effectiveSubtotal,
               platformFee,
               sellerNet,
+              voucherInfo: storeVoucherUsages.length > 0 ? {
+                code: storeVoucherUsages[0].voucher?.code || storeVoucherUsages[0].code,
+                name: storeVoucherUsages[0].voucher?.name,
+                discount: storeVoucherDiscount,
+                scope: 'STORE',
+              } : null,
               escrowStatus,
               remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
                 isRemitted: true,
@@ -2478,8 +2559,24 @@ export class OrdersService {
 
     // When Platform Admin clicks "Bàn giao" (RELEASED): automatically credit 95% net revenue into seller wallet
     if (dto.status === 'RELEASED') {
+      const orderVouchers = await this.voucherClient.getUsagesByOrderIds([item.sellerOrder.orderId]);
+      const storeVoucherUsages = orderVouchers.filter((v: any) => v.voucher?.scope === 'STORE');
+      let storeVoucherDiscount = 0;
+      if (storeVoucherUsages.length > 0) {
+        const totalStoreDiscount = storeVoucherUsages.reduce((sum: number, vu: any) => sum + (Number(vu.discount) || 0), 0);
+        const sellerOrderItems = await this.prisma.orderItem.findMany({ where: { sellerOrderId: item.sellerOrder.id } });
+        const sellerOrderSubtotal = sellerOrderItems.reduce((sum: number, it: any) => sum + (Number(it.subtotal) || 0), 0);
+        if (sellerOrderSubtotal > 0) {
+          storeVoucherDiscount = Math.round(totalStoreDiscount * (Number(item.subtotal) / sellerOrderSubtotal));
+        } else {
+          storeVoucherDiscount = totalStoreDiscount;
+        }
+      }
+
       const subtotal = Number(item.subtotal);
-      const sellerNet = Math.round(subtotal * 0.95);
+      const effectiveSubtotal = Math.max(0, subtotal - storeVoucherDiscount);
+      const platformFee = Math.round(effectiveSubtotal * 0.05);
+      const sellerNet = effectiveSubtotal - platformFee;
       const storeId = item.sellerOrder.storeId;
       const ownerUserId = item.sellerOrder.ownerUserId;
 

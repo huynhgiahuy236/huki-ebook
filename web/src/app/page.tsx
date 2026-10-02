@@ -19,6 +19,7 @@ export default function HomePage() {
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
   const [realVouchers, setRealVouchers] = useState<any[]>([]);
   const [activeFlashSale, setActiveFlashSale] = useState<FlashSaleSlot | null>(null);
+  const [platformSalePhase, setPlatformSalePhase] = useState<'LIVE' | 'TEASER' | 'NONE'>('NONE');
   const [flashSeconds, setFlashSeconds] = useState(0);
 
   useEffect(() => {
@@ -51,17 +52,62 @@ export default function HomePage() {
     let mounted = true;
     const loadFlashSale = async () => {
       try {
-        const res = await flashSaleApi.getActiveFlashSales("PLATFORM");
-        if (!mounted || !res.success || !Array.isArray(res.data)) return;
-        const campaign = res.data[0] || null;
-        setActiveFlashSale(campaign);
-        setFlashSeconds(campaign?.remainingSeconds || 0);
+        const res = await flashSaleApi.getAll({ scope: "PLATFORM" });
+        if (!mounted) return;
+        if (res.success && Array.isArray(res.data)) {
+          const now = Date.now();
+          const platformSales = res.data.filter(
+            (s) => (s.scope === "PLATFORM" || !s.storeId) && s.status !== "CANCELLED" && s.status !== "ENDED"
+          );
+
+          // 1. Check for LIVE Platform Flash Sale
+          const liveSale = platformSales.find((s) => {
+            const sTime = new Date(s.startsAt).getTime();
+            const eTime = new Date(s.endsAt).getTime();
+            return s.status === "ACTIVE" && now >= sTime && now < eTime;
+          });
+
+          if (liveSale) {
+            setActiveFlashSale(liveSale);
+            setPlatformSalePhase("LIVE");
+            const rem = Math.max(0, Math.floor((new Date(liveSale.endsAt).getTime() - now) / 1000));
+            setFlashSeconds(rem);
+            return;
+          }
+
+          // 2. Check for TEASER / Announcement Platform Flash Sale
+          const teaserSale = platformSales.find((s) => {
+            const sTime = new Date(s.startsAt).getTime();
+            const eTime = new Date(s.endsAt).getTime();
+            return s.status !== "ENDED" && now < sTime && eTime > now;
+          });
+
+          if (teaserSale) {
+            setActiveFlashSale(teaserSale);
+            setPlatformSalePhase("TEASER");
+            const rem = Math.max(0, Math.floor((new Date(teaserSale.startsAt).getTime() - now) / 1000));
+            setFlashSeconds(rem);
+            return;
+          }
+
+          setActiveFlashSale(null);
+          setPlatformSalePhase("NONE");
+          setFlashSeconds(0);
+        } else {
+          setActiveFlashSale(null);
+          setPlatformSalePhase("NONE");
+          setFlashSeconds(0);
+        }
       } catch {
-        if (mounted) setActiveFlashSale(null);
+        if (mounted) {
+          setActiveFlashSale(null);
+          setPlatformSalePhase("NONE");
+          setFlashSeconds(0);
+        }
       }
     };
     loadFlashSale();
-    const poller = setInterval(loadFlashSale, 10_000);
+    const poller = setInterval(loadFlashSale, 5_000);
     return () => {
       mounted = false;
       clearInterval(poller);
@@ -80,22 +126,54 @@ export default function HomePage() {
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
   const [isHeroHovered, setIsHeroHovered] = useState(false);
 
+  const isPlatformLive = platformSalePhase === "LIVE";
+  const isPlatformTeaser = platformSalePhase === "TEASER";
+
   // Hero Slides with Real Photography Backgrounds
-  const heroSlides = useMemo(
-    () => [
-      {
-        id: "slide-1",
-        badge: "Hội Sách Tri Thức Mùa Xuất Bản 2026",
-        icon: "auto_awesome",
-        title: "Chăm sóc tâm hồn –\nTỏa sáng cùng tri thức",
-        desc: "Hơn 50.000 đầu sách tuyển chọn & Ebook bản quyền từ các NXB uy tín. Giao nhanh 2H nội thành.",
-        bgImage: "/banners/hero-library.jpg",
-        overlay:
-          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
-        primaryBtn: { text: "Khám phá ngay", to: "/books" },
-        secondaryBtn: { text: "Đọc thử Ebook", to: "/books?format=ebook" },
-        accent: "#C58F5E",
-      },
+  const heroSlides = useMemo(() => {
+    const defaultSlide1 = {
+      id: "slide-1",
+      badge: "Hội Sách Tri Thức Mùa Xuất Bản 2026",
+      icon: "auto_awesome",
+      title: "Chăm sóc tâm hồn –\nTỏa sáng cùng tri thức",
+      desc: "Hơn 50.000 đầu sách tuyển chọn & Ebook bản quyền từ các NXB uy tín. Giao nhanh 2H nội thành.",
+      bgImage: "/banners/hero-library.jpg",
+      overlay:
+        "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
+      primaryBtn: { text: "Khám phá ngay", to: "/books" },
+      secondaryBtn: { text: "Đọc thử Ebook", to: "/books?format=ebook" },
+      accent: "#C58F5E",
+    };
+
+    let firstSlide = defaultSlide1;
+    if ((isPlatformLive || isPlatformTeaser) && activeFlashSale) {
+      firstSlide = {
+        id: "slide-flash-sale",
+        badge: isPlatformLive
+          ? "🔥 FLASH SALE GIỜ VÀNG TOÀN SÀN ĐANG DIỄN RA"
+          : "⏰ SẮP DIỄN RA FLASH SALE TOÀN SÀN HUKI",
+        icon: "bolt",
+        title: activeFlashSale.name,
+        desc:
+          activeFlashSale.description ||
+          (isPlatformLive
+            ? `Giảm sốc tới ${activeFlashSale.discountPercent || 30}% toàn bộ sách được trợ giá bởi HUKI Sàn. Số lượng có hạn!`
+            : `Đợt Flash Sale trợ giá tới ${activeFlashSale.discountPercent || 30}% toàn sàn chuẩn bị diễn ra. Sẵn sàng săn deal ngay!`),
+        bgImage: activeFlashSale.bannerUrl || "/banners/hero-library.jpg",
+        overlay: isPlatformLive
+          ? "linear-gradient(to right, rgba(140, 20, 20, 0.94) 0%, rgba(140, 20, 20, 0.82) 50%, rgba(140, 20, 20, 0.25) 100%)"
+          : "linear-gradient(to right, rgba(15, 35, 70, 0.94) 0%, rgba(15, 35, 70, 0.82) 50%, rgba(15, 35, 70, 0.25) 100%)",
+        primaryBtn: {
+          text: isPlatformLive ? "Săn Flash Sale Ngay" : "Xem Chi Tiết Khung Giờ",
+          to: "/flash-sale",
+        },
+        secondaryBtn: { text: "Khám Phá Sách", to: "/books" },
+        accent: isPlatformLive ? "#EF4444" : "#3B82F6",
+      };
+    }
+
+    return [
+      firstSlide,
       {
         id: "slide-2",
         badge: "Không Gian Đọc Ebook DRM & Audio",
@@ -128,9 +206,8 @@ export default function HomePage() {
         },
         accent: "#F59E0B",
       },
-    ],
-    [],
-  );
+    ];
+  }, [isPlatformLive, isPlatformTeaser, activeFlashSale]);
 
   // Autoplay Hero Slider
   useEffect(() => {
@@ -258,6 +335,10 @@ export default function HomePage() {
         const book = realBooks.find((entry) => entry.id === item.bookId);
         return {
           id: item.bookId,
+          bookId: item.bookId,
+          storeId: book?.storeId || (book as any)?.store_id || book?.businessId || (book as any)?.business_id,
+          businessId: book?.businessId || (book as any)?.business_id || book?.storeId || (book as any)?.store_id,
+          book: book,
           title: book?.title || `Tác phẩm Flash Sale #${item.bookId.slice(0, 6)}`,
           author: book?.author?.name || "Tác giả HUKI",
           publisher: book?.publisher?.name || "Gian hàng HUKI",
@@ -398,6 +479,10 @@ export default function HomePage() {
 
         return {
           id: b.id,
+          bookId: b.id,
+          storeId: b.storeId || (b as any)?.store_id || b.businessId || (b as any)?.business_id,
+          businessId: b.businessId || (b as any)?.business_id || b.storeId || (b as any)?.store_id,
+          book: b,
           rank: idx + 1,
           title: b.title,
           author: b.author?.name || "Tác giả HUKI",
@@ -1524,6 +1609,65 @@ export default function HomePage() {
           SECTION 2: DẢI GOM MÃ GIẢM GIÁ 1-CHẠM (VOUCHER STRIP)
       ========================================================================= */}
       <section className="bg-emerald-900/5 rounded-2xl p-3.5 sm:p-4 border border-emerald-900/10">
+        {/* Flash Sale Banner Card inside Voucher Section when LIVE */}
+        {isPlatformLive && activeFlashSale && (
+          <Link
+            href="/flash-sale"
+            className="mb-3.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 rounded-2xl p-3.5 sm:p-4 text-white shadow-md hover:shadow-xl hover:scale-[1.006] transition-all flex flex-col md:flex-row md:items-center justify-between gap-3.5 border border-rose-300/40 relative overflow-hidden group cursor-pointer"
+          >
+            <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-yellow-400/20 blur-2xl pointer-events-none group-hover:scale-125 transition-transform"></div>
+            
+            <div className="flex items-center gap-3.5 relative z-10">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 text-white shadow-inner">
+                <span className="material-symbols-outlined text-2xl sm:text-3xl animate-bounce">bolt</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="bg-white text-rose-700 text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs tracking-wider">
+                    ⚡ FLASH SALE SÀN HUKI
+                  </span>
+                  <span className="text-amber-200 text-xs font-bold font-mono">
+                    Trợ giá độc quyền tới {activeFlashSale.discountPercent || 30}%
+                  </span>
+                </div>
+                <h3 className="text-sm sm:text-base font-black mt-1 font-editorial tracking-tight text-white line-clamp-1">
+                  {activeFlashSale.name}
+                </h3>
+                <p className="text-[11.5px] text-rose-100 line-clamp-1 mt-0.5 font-medium">
+                  {activeFlashSale.description || "Hàng trăm đầu sách tuyển chọn đang được trợ giá trực tiếp từ Sàn HUKI. Số lượng có hạn!"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 sm:gap-4 shrink-0 relative z-10 self-start md:self-auto">
+              <div className="flex items-center gap-1.5 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20">
+                <span className="text-[11px] text-rose-100 font-semibold mr-1 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-amber-300">timer</span>
+                  <span>Kết thúc sau:</span>
+                </span>
+                <div className="flex items-center gap-1 font-mono font-black text-xs sm:text-sm">
+                  <span className="bg-white text-rose-700 px-1.5 py-0.5 rounded shadow-xs">
+                    {flashCountdown.hours}
+                  </span>
+                  <span className="text-white">:</span>
+                  <span className="bg-white text-rose-700 px-1.5 py-0.5 rounded shadow-xs">
+                    {flashCountdown.minutes}
+                  </span>
+                  <span className="text-white">:</span>
+                  <span className="bg-white text-rose-700 px-1.5 py-0.5 rounded shadow-xs">
+                    {flashCountdown.seconds}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-white text-rose-700 group-hover:bg-amber-300 group-hover:text-rose-950 px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1 shadow-md transition-all">
+                <span>Săn Deal Ngay</span>
+                <span className="material-symbols-outlined text-sm font-bold group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+              </div>
+            </div>
+          </Link>
+        )}
+
         <div className="flex items-center justify-between mb-2.5">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#ac2c19] text-[20px]">

@@ -49,7 +49,8 @@ model Voucher {
   minFollowDays  Int?                  @default(0) @map("min_follow_days")
 
   // Relations
-  usages VoucherUsage[]
+  usages       VoucherUsage[]
+  savedByUsers UserSavedVoucher[]
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -83,6 +84,19 @@ enum VoucherStatus {
   INACTIVE
   EXPIRED
   USED_UP
+}
+
+model UserSavedVoucher {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  voucherId String   @map("voucher_id")
+  voucher   Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  savedAt   DateTime @default(now()) @map("saved_at")
+
+  @@unique([userId, voucherId])
+  @@index([userId])
+  @@index([voucherId])
+  @@map("user_saved_vouchers")
 }
 
 model VoucherUsage {

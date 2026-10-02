@@ -69,6 +69,12 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           active: pathname === '/library' || pathname.startsWith('/library/'),
         },
         {
+          label: 'Ví Voucher / Mã Giảm Giá',
+          href: '/vouchers?tab=wallet',
+          icon: 'confirmation_number',
+          active: pathname === '/vouchers',
+        },
+        {
           label: 'Ví HUKI & Xu Tích Lũy',
           href: '/profile/wallet',
           icon: 'account_balance_wallet',

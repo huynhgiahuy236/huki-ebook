@@ -339,6 +339,29 @@ export function AdminFlashSaleView() {
     }
   };
 
+  // File input ref for banner upload
+  const bannerFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast?.("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, SVG)", "warning");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast?.("Dung lượng ảnh banner không được vượt quá 5MB", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCreateForm((prev) => ({ ...prev, bannerUrl: reader.result as string }));
+      setCreateErrors((prev) => ({ ...prev, bannerUrl: "" }));
+      showToast?.("Đã tải ảnh banner từ thiết bị thành công!", "success");
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Create Campaign Validation
   const validateCreateForm = () => {
     const errs: Record<string, string> = {};
@@ -348,11 +371,14 @@ export function AdminFlashSaleView() {
       errs.name = "Tên sự kiện phải có ít nhất 5 ký tự.";
     }
 
-    if (createForm.bannerUrl.trim()) {
-      try {
-        new URL(createForm.bannerUrl.trim());
-      } catch {
-        errs.bannerUrl = "URL banner không đúng định dạng hợp lệ (vd: https://...).";
+    if (createForm.bannerUrl && createForm.bannerUrl.trim()) {
+      const bannerVal = createForm.bannerUrl.trim();
+      if (!bannerVal.startsWith("data:image/") && !bannerVal.startsWith("/") && !bannerVal.startsWith("blob:")) {
+        try {
+          new URL(bannerVal);
+        } catch {
+          errs.bannerUrl = "URL banner không đúng định dạng hợp lệ (vd: https://...).";
+        }
       }
     }
 
@@ -653,14 +679,72 @@ export function AdminFlashSaleView() {
               </div>
 
               <div>
-                <label className="block text-gray-700 font-bold mb-1">Ảnh Banner Khung Giờ (URL)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-gray-700 font-bold">Ảnh Banner Khung Giờ</label>
+                  <button
+                    type="button"
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    className="text-[11px] font-bold text-[#00875A] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">cloud_upload</span>
+                    <span>Tải ảnh từ máy</span>
+                  </button>
+                </div>
+
                 <input
-                  type="text"
-                  placeholder="https://..."
-                  value={createForm.bannerUrl}
-                  onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  type="file"
+                  ref={bannerFileInputRef}
+                  accept="image/*"
+                  onChange={handleBannerFileUpload}
+                  className="hidden"
                 />
+
+                <div className="relative flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="https://... hoặc tải từ máy"
+                    value={createForm.bannerUrl}
+                    onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createForm.bannerUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                      title="Xóa ảnh"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+
+                {createForm.bannerUrl && (
+                  <div className="mt-2 relative w-full h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-2xs group">
+                    <img
+                      src={createForm.bannerUrl}
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => bannerFileInputRef.current?.click()}
+                        className="px-2 py-1 rounded bg-white/30 backdrop-blur-md text-[10.5px] font-bold hover:bg-white/50 cursor-pointer"
+                      >
+                        Đổi ảnh khác
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                        className="px-2 py-1 rounded bg-red-600/80 backdrop-blur-md text-[10.5px] font-bold hover:bg-red-600 cursor-pointer"
+                      >
+                        Gỡ ảnh
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {createErrors.bannerUrl && (
                   <p className="text-red-500 text-[10.5px] mt-1">{createErrors.bannerUrl}</p>
                 )}

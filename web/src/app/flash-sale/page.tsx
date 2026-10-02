@@ -21,6 +21,9 @@ interface DisplayFlashItem extends FlashSaleItem {
   slug: string;
   author: string;
   format: string;
+  storeId?: string;
+  businessId?: string;
+  book?: any;
 }
 
 interface TimerInfo {
@@ -202,6 +205,9 @@ export default function FlashSalePage() {
     const matchedBook = catalogBooks.find((b) => b.id === item.bookId);
     return {
       ...item,
+      storeId: (item as any).storeId || matchedBook?.storeId || (matchedBook as any)?.store_id || (matchedBook as any)?.businessId,
+      businessId: (item as any).businessId || matchedBook?.businessId || (matchedBook as any)?.business_id || matchedBook?.storeId,
+      book: matchedBook,
       title:
         item.bookTitle ||
         matchedBook?.title ||
@@ -257,12 +263,15 @@ export default function FlashSalePage() {
       await addToCart(
         {
           id: `${item.bookId}-flash-sale`,
+          bookId: item.bookId,
           title: item.title,
           author: item.author,
           price: item.salePrice,
           originalPricePaper: item.originalPrice,
           cover: item.coverUrl,
           storeId: (item as any).storeId || (item as any).book?.storeId || "huki-official",
+          businessId: (item as any).businessId || (item as any).book?.businessId || (item as any).storeId || "huki-official",
+          book: (item as any).book,
         },
         item.format === "DIGITAL" ? "ebook" : "paper",
         1,

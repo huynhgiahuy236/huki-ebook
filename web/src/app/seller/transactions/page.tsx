@@ -96,8 +96,8 @@ function getTransactionTypeDetails(type: string): {
 }
 
 export default function SellerTransactionsPage() {
-  const { user, activeBusinessId } = useAuth();
-  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || '3094e54e-2549-42cc-92fb-14a8f8589277';
+  const { user, activeBusinessId, isLoading: isAuthLoading } = useAuth();
+  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
 
   const [transactions, setTransactions] = useState<WalletTransactionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -114,6 +114,10 @@ export default function SellerTransactionsPage() {
   const [selectedTx, setSelectedTx] = useState<WalletTransactionItem | null>(null);
 
   const fetchTransactions = useCallback(async () => {
+    if (!storeId) {
+      if (!isAuthLoading) setIsLoading(false);
+      return;
+    }
     setIsLoading(true);
     try {
       const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 100 });
@@ -125,7 +129,7 @@ export default function SellerTransactionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, isAuthLoading]);
 
   useEffect(() => {
     fetchTransactions();

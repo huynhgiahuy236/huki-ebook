@@ -106,16 +106,16 @@ export function SellerVouchersView() {
           const storesRes = await businessApi.getMyStores(bizId);
           if (storesRes.success && Array.isArray(storesRes.data)) {
             setStores(storesRes.data);
-            if (storesRes.data.length > 0 && !selectedStoreId) {
-              setSelectedStoreId(storesRes.data[0].id);
-            }
           }
         } catch {
           // ignore
         }
       }
 
-      const res = await getSellerVouchers({ limit: 100 });
+      const res = await getSellerVouchers({
+        limit: 100,
+        storeId: selectedStoreId || undefined,
+      });
       if (res.success && res.data) {
         let items: Voucher[] = [];
         if (Array.isArray(res.data)) {
@@ -1067,26 +1067,43 @@ export function SellerVouchersView() {
           onChange={setActiveTab}
         />
 
-        <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo mã hoặc tên voucher..."
-            className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
+          {stores.length > 1 && (
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="px-3 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
+              <option value="">Tất cả gian hàng của tôi ({stores.length})</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           )}
+
+          <div className="relative w-full md:w-72 shrink-0">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
+              search
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo mã hoặc tên voucher..."
+              className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <span className="material-symbols-outlined text-xs">close</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

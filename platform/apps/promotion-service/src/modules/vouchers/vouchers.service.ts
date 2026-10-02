@@ -252,6 +252,19 @@ export class VouchersService {
       return { valid: false, reason: 'Voucher not found' };
     }
 
+    // Check if voucher is in user's wallet (Mandatory Claim Rule)
+    if (userId && userId !== 'anonymous') {
+      const isSaved = await this.prisma.userSavedVoucher.findUnique({
+        where: { userId_voucherId: { userId, voucherId: voucher.id } },
+      });
+      if (!isSaved) {
+        return {
+          valid: false,
+          reason: 'Mã voucher này chưa được lưu vào Ví của bạn. Vui lòng lưu mã vào ví trước khi sử dụng!',
+        };
+      }
+    }
+
     // Check status
     if (voucher.status !== 'ACTIVE') {
       return { valid: false, reason: `Mã voucher hiện đang ở trạng thái: ${voucher.status}` };
@@ -293,10 +306,16 @@ export class VouchersService {
     }
 
     // Check scope
-    if (voucher.scope === 'STORE' && dto.storeId) {
+    if (voucher.scope === 'STORE') {
+      if (!dto.storeId) {
+        return {
+          valid: false,
+          reason: 'Voucher cửa hàng chỉ áp dụng khi giỏ hàng có sản phẩm của gian hàng phát hành',
+        };
+      }
       const relatedIds = await this.getRelatedStoreAndBusinessIds(dto.storeId);
       if (voucher.storeId && !relatedIds.includes(voucher.storeId)) {
-        return { valid: false, reason: 'Voucher is not valid for this store' };
+        return { valid: false, reason: 'Voucher không áp dụng cho gian hàng này' };
       }
     }
 
@@ -348,7 +367,7 @@ export class VouchersService {
         discount = Math.min(voucher.value, dto.orderSubtotal);
         break;
       case 'FREE_SHIPPING':
-        discount = 0;
+        discount = voucher.value || 30000;
         break;
     }
 
@@ -408,6 +427,306 @@ export class VouchersService {
         });
       }
     });
+  }
+
+  async isUserEligible(userId: string | undefined, voucher: any): Promise<boolean> {
+    if (!voucher || voucher.status !== 'ACTIVE') return false;
+    const now = new Date();
+    if (voucher.startsAt && new Date(voucher.startsAt) > now) return false;
+    if (voucher.expiresAt && new Date(voucher.expiresAt) < now) return false;
+    if (voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage) return false;
+
+    // Check user usage limit if user is known
+    if (userId && userId !== 'anonymous' && voucher.maxUsagePerUser) {
+      const userUsage = await this.prisma.voucherUsage.count({
+        where: { voucherId: voucher.id, userId },
+      });
+      if (userUsage >= voucher.maxUsagePerUser) {
+        return false;
+      }
+    }
+
+    if (voucher.scope === 'PLATFORM') {
+      if (voucher.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+        if (!userId || userId === 'anonymous') return false;
+        return this.checkIsNewCustomer(userId, null);
+      }
+      return true; // ALL
+    }
+
+    if (voucher.scope === 'STORE') {
+      if (voucher.targetAudience === 'ALL') return true;
+      if (voucher.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+        if (!userId || userId === 'anonymous') return false;
+        return this.checkIsNewCustomer(userId, voucher.storeId);
+      }
+      if (voucher.targetAudience === 'FOLLOWERS_ONLY') {
+        if (!userId || userId === 'anonymous') return false;
+        const followInfo = await this.checkUserFollowsStore(userId, voucher.storeId);
+        if (!followInfo.isFollower) return false;
+        if (voucher.minFollowDays && voucher.minFollowDays > 0) {
+          return followInfo.daysFollowed >= voucher.minFollowDays;
+        }
+        return true;
+      }
+    }
+
+    return true;
+  }
+
+  async getEligibleFeed(userId?: string) {
+    const now = new Date();
+    const allActive = await this.prisma.voucher.findMany({
+      where: {
+        status: 'ACTIVE',
+        startsAt: { lte: now },
+        expiresAt: { gte: now },
+      },
+      orderBy: [{ value: 'desc' }, { expiresAt: 'asc' }],
+    });
+
+    // Check eligibility
+    const eligibleVouchers: any[] = [];
+    for (const v of allActive) {
+      const eligible = await this.isUserEligible(userId, v);
+      if (eligible) {
+        eligibleVouchers.push(v);
+      }
+    }
+
+    // Check saved state
+    let savedIds = new Set<string>();
+    if (userId && userId !== 'anonymous') {
+      const saved = await this.prisma.userSavedVoucher.findMany({
+        where: { userId },
+        select: { voucherId: true },
+      });
+      savedIds = new Set(saved.map((s) => s.voucherId));
+    }
+
+    const platformVouchers = eligibleVouchers
+      .filter((v) => v.scope === 'PLATFORM')
+      .map((v) => ({
+        ...v,
+        isSaved: savedIds.has(v.id),
+      }));
+
+    const shopVouchers = eligibleVouchers
+      .filter((v) => v.scope === 'STORE')
+      .map((v) => ({
+        ...v,
+        isSaved: savedIds.has(v.id),
+      }));
+
+    // Group shop vouchers by storeId
+    const storeIds = Array.from(
+      new Set(shopVouchers.map((v) => v.storeId).filter(Boolean)),
+    ) as string[];
+    const storeMap = await this.getStoreDetailsMap(storeIds);
+
+    const storeGroupsMap = new Map<string, { store: any; vouchers: any[] }>();
+    for (const v of shopVouchers) {
+      const sId = v.storeId || 'unknown';
+      if (!storeGroupsMap.has(sId)) {
+        const storeInfo = storeMap.get(sId) || {
+          id: sId,
+          name: 'Gian hàng đối tác',
+          slug: sId,
+        };
+        storeGroupsMap.set(sId, { store: storeInfo, vouchers: [] });
+      }
+      storeGroupsMap.get(sId)!.vouchers.push(v);
+    }
+
+    return {
+      platformVouchers,
+      shopVouchersGrouped: Array.from(storeGroupsMap.values()),
+    };
+  }
+
+  async getHomepageFeed(userId?: string) {
+    const now = new Date();
+    // 1. Get eligible platform vouchers
+    const platformActive = await this.prisma.voucher.findMany({
+      where: {
+        scope: 'PLATFORM',
+        status: 'ACTIVE',
+        startsAt: { lte: now },
+        expiresAt: { gte: now },
+      },
+      orderBy: [{ value: 'desc' }, { expiresAt: 'asc' }],
+    });
+
+    const eligiblePlatform: any[] = [];
+    for (const v of platformActive) {
+      if (await this.isUserEligible(userId, v)) {
+        eligiblePlatform.push(v);
+      }
+    }
+
+    // 2. If user is logged in, find stores user follows and get eligible vouchers of those stores
+    const eligibleShopVouchers: any[] = [];
+    if (userId && userId !== 'anonymous') {
+      const followedStoreIds = await this.getUserFollowedStoreAndBusinessIds(userId);
+      if (followedStoreIds.length > 0) {
+        const shopActive = await this.prisma.voucher.findMany({
+          where: {
+            scope: 'STORE',
+            storeId: { in: followedStoreIds },
+            status: 'ACTIVE',
+            startsAt: { lte: now },
+            expiresAt: { gte: now },
+          },
+          orderBy: [{ value: 'desc' }, { expiresAt: 'asc' }],
+        });
+        for (const v of shopActive) {
+          if (await this.isUserEligible(userId, v)) {
+            eligibleShopVouchers.push(v);
+          }
+        }
+      }
+    }
+
+    // Get saved IDs
+    let savedIds = new Set<string>();
+    if (userId && userId !== 'anonymous') {
+      const saved = await this.prisma.userSavedVoucher.findMany({
+        where: { userId },
+        select: { voucherId: true },
+      });
+      savedIds = new Set(saved.map((s) => s.voucherId));
+    }
+
+    // Attach store info for shop vouchers
+    const allShopStoreIds = Array.from(
+      new Set(eligibleShopVouchers.map((v) => v.storeId).filter(Boolean)),
+    ) as string[];
+    const storeMap = await this.getStoreDetailsMap(allShopStoreIds);
+
+    const platformWithSaved = eligiblePlatform.map((v) => ({
+      ...v,
+      isSaved: savedIds.has(v.id),
+    }));
+
+    const shopWithSaved = eligibleShopVouchers.map((v) => ({
+      ...v,
+      isSaved: savedIds.has(v.id),
+      store: v.storeId ? storeMap.get(v.storeId) : undefined,
+    }));
+
+    return {
+      vouchers: [...platformWithSaved, ...shopWithSaved],
+      platformVouchers: platformWithSaved,
+      shopVouchers: shopWithSaved,
+    };
+  }
+
+  async saveToWallet(userId: string, voucherId: string) {
+    if (!userId || userId === 'anonymous') {
+      throwBadRequest(ErrorCode.AUTH_TOKEN_MISSING, 'Vui lòng đăng nhập để lưu voucher vào ví');
+    }
+    const voucher = await this.prisma.voucher.findUnique({
+      where: { id: voucherId },
+    });
+    if (!voucher) {
+      throwNotFound(ErrorCode.VOUCHER_NOT_FOUND, 'Không tìm thấy mã voucher');
+    }
+    const eligible = await this.isUserEligible(userId, voucher);
+    if (!eligible) {
+      throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, 'Bạn chưa đủ điều kiện để lưu voucher này');
+    }
+    await this.prisma.userSavedVoucher.upsert({
+      where: { userId_voucherId: { userId, voucherId } },
+      create: { userId, voucherId },
+      update: {},
+    });
+    return { success: true, message: 'Đã lưu voucher vào ví của bạn!' };
+  }
+
+  async unsaveFromWallet(userId: string, voucherId: string) {
+    if (!userId || userId === 'anonymous') {
+      throwBadRequest(ErrorCode.AUTH_TOKEN_MISSING, 'Vui lòng đăng nhập');
+    }
+    await this.prisma.userSavedVoucher.deleteMany({
+      where: { userId, voucherId },
+    });
+    return { success: true, message: 'Đã xóa voucher khỏi ví!' };
+  }
+
+  async getWalletVouchers(userId: string) {
+    if (!userId || userId === 'anonymous') {
+      return {
+        platform: { freeship: [], discount: [], all: [] },
+        stores: [],
+        totalCount: 0,
+      };
+    }
+    const savedRecords = await this.prisma.userSavedVoucher.findMany({
+      where: { userId },
+      include: { voucher: true },
+      orderBy: { savedAt: 'desc' },
+    });
+
+    const now = new Date();
+    const validSaved = savedRecords.filter((record) => {
+      const v = record.voucher;
+      if (!v) return false;
+      if (v.status !== 'ACTIVE') return false;
+      if (v.startsAt && new Date(v.startsAt) > now) return false;
+      if (v.expiresAt && new Date(v.expiresAt) < now) return false;
+      if (v.totalUsage > 0 && v.currentUsage >= v.totalUsage) return false;
+      return true;
+    });
+
+    // Also verify per-user max usage limit
+    const validVouchers: any[] = [];
+    for (const record of validSaved) {
+      const v = record.voucher;
+      if (v.maxUsagePerUser) {
+        const count = await this.prisma.voucherUsage.count({
+          where: { voucherId: v.id, userId },
+        });
+        if (count >= v.maxUsagePerUser) continue;
+      }
+      validVouchers.push({ ...v, savedAt: record.savedAt, isSaved: true });
+    }
+
+    const platformFreeship = validVouchers.filter(
+      (v) => v.scope === 'PLATFORM' && v.type === 'FREE_SHIPPING',
+    );
+    const platformDiscount = validVouchers.filter(
+      (v) => v.scope === 'PLATFORM' && v.type !== 'FREE_SHIPPING',
+    );
+    const shopVouchers = validVouchers.filter((v) => v.scope === 'STORE');
+
+    const storeIds = Array.from(
+      new Set(shopVouchers.map((v) => v.storeId).filter(Boolean)),
+    ) as string[];
+    const storeMap = await this.getStoreDetailsMap(storeIds);
+
+    const storeGroupsMap = new Map<string, { store: any; vouchers: any[] }>();
+    for (const v of shopVouchers) {
+      const sId = v.storeId || 'unknown';
+      if (!storeGroupsMap.has(sId)) {
+        const storeInfo = storeMap.get(sId) || {
+          id: sId,
+          name: 'Gian hàng đối tác',
+          slug: sId,
+        };
+        storeGroupsMap.set(sId, { store: storeInfo, vouchers: [] });
+      }
+      storeGroupsMap.get(sId)!.vouchers.push(v);
+    }
+
+    return {
+      platform: {
+        freeship: platformFreeship,
+        discount: platformDiscount,
+        all: [...platformFreeship, ...platformDiscount],
+      },
+      stores: Array.from(storeGroupsMap.values()),
+      totalCount: validVouchers.length,
+    };
   }
 
   async getUserVouchers(userId?: string) {
@@ -543,8 +862,25 @@ export class VouchersService {
     const where: any = {
       scope: 'STORE',
     };
-    if (storeId) {
-      where.storeId = storeId;
+
+    const targetLookupId = storeId || businessId;
+    if (targetLookupId && targetLookupId !== 'seller' && targetLookupId !== 'all') {
+      const relatedIds = await this.getRelatedStoreAndBusinessIds(targetLookupId);
+      if (relatedIds.length > 0) {
+        where.storeId = { in: relatedIds };
+      } else {
+        where.storeId = targetLookupId;
+      }
+    } else if (!targetLookupId) {
+      return {
+        items: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0,
+        },
+      };
     }
 
     const [items, total] = await this.prisma.$transaction([
@@ -649,15 +985,19 @@ export class VouchersService {
       const pgClient = new Client({ connectionString: bizDbUrl });
       await pgClient.connect();
       const res = await pgClient.query(
-        `SELECT id, business_id FROM stores WHERE id = $1 OR business_id = $1`,
+        `SELECT s.id as store_id, s.business_id, b.owner_id
+         FROM stores s
+         LEFT JOIN businesses b ON s.business_id = b.id
+         WHERE s.id = $1 OR s.business_id = $1 OR b.id = $1 OR b.owner_id = $1`,
         [id],
       );
       await pgClient.end();
       const ids = new Set<string>([id]);
       if (res.rows && res.rows.length > 0) {
         for (const row of res.rows) {
-          if (row.id) ids.add(row.id);
+          if (row.store_id) ids.add(row.store_id);
           if (row.business_id) ids.add(row.business_id);
+          if (row.owner_id) ids.add(row.owner_id);
         }
       }
       return Array.from(ids);
@@ -791,5 +1131,91 @@ export class VouchersService {
       },
       recentUsages,
     };
+  }
+
+  async getStoreDetailsMap(storeIds: string[]): Promise<Map<string, { id: string; name: string; slug: string; logo?: string; businessId?: string }>> {
+    const map = new Map<string, any>();
+    if (!storeIds || !storeIds.length) return map;
+    try {
+      const { Client } = require('pg');
+      const bizDbUrl =
+        process.env.BUSINESS_DATABASE_URL ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      const pgClient = new Client({ connectionString: bizDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
+        `SELECT id, name, slug, logo, business_id FROM stores WHERE id = ANY($1) OR business_id = ANY($1)`,
+        [storeIds],
+      );
+      await pgClient.end();
+      if (res.rows && res.rows.length > 0) {
+        for (const row of res.rows) {
+          const info = {
+            id: row.id,
+            name: row.name,
+            slug: row.slug,
+            logo: row.logo,
+            businessId: row.business_id,
+          };
+          map.set(row.id, info);
+          if (row.business_id) {
+            map.set(row.business_id, info);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch store details:', e);
+    }
+    return map;
+  }
+
+  private async getUserFollowedStoreAndBusinessIds(userId: string): Promise<string[]> {
+    if (!userId || userId === 'anonymous') return [];
+    try {
+      const { Client } = require('pg');
+      const bizDbUrl =
+        process.env.BUSINESS_DATABASE_URL ||
+        'postgresql://postgres:postgres123@localhost:5432/huki_business';
+      const pgClient = new Client({ connectionString: bizDbUrl });
+      await pgClient.connect();
+      const res = await pgClient.query(
+        `SELECT bf.business_id, s.id as store_id 
+         FROM business_followers bf
+         LEFT JOIN stores s ON s.business_id = bf.business_id
+         WHERE bf.user_id = $1`,
+        [userId],
+      );
+      await pgClient.end();
+      const ids = new Set<string>();
+      if (res.rows && res.rows.length > 0) {
+        for (const row of res.rows) {
+          if (row.business_id) ids.add(row.business_id);
+          if (row.store_id) ids.add(row.store_id);
+        }
+      }
+      return Array.from(ids);
+    } catch (e) {
+      console.warn('Could not fetch followed store IDs:', e);
+      return [];
+    }
+  }
+
+  async getUsagesByOrderIds(orderIds: string[]) {
+    if (!orderIds || !orderIds.length) return [];
+    return this.prisma.voucherUsage.findMany({
+      where: { orderId: { in: orderIds } },
+      include: {
+        voucher: {
+          select: {
+            id: true,
+            code: true,
+            scope: true,
+            storeId: true,
+            type: true,
+            value: true,
+          },
+        },
+      },
+    });
   }
 }

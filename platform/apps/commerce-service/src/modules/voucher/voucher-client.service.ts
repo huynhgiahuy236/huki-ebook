@@ -174,6 +174,24 @@ export class VoucherClientService {
     return result?.data || [];
   }
 
+  /**
+   * Get voucher usages for multiple orders
+   */
+  async getUsagesByOrderIds(orderIds: string[]): Promise<any[]> {
+    if (!orderIds || !orderIds.length) return [];
+    try {
+      const result = await this.request<any>('/vouchers/usages-by-orders', {
+        method: 'POST',
+        headers: this.internalHeaders(),
+        body: JSON.stringify({ orderIds }),
+      });
+      return Array.isArray(result) ? result : (result?.data || []);
+    } catch (error: any) {
+      this.logger.warn(`Failed to fetch voucher usages: ${error.message}`);
+      return [];
+    }
+  }
+
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const baseUrl =
       this.config.get<string>('PROMOTION_SERVICE_URL') ||
