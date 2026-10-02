@@ -297,6 +297,8 @@ export default function BookDetailPage() {
       if (res?.success) {
         setIsFollowingStore(true);
         showToast(`Đã theo dõi gian hàng ${publisherProfile.name}!`, 'success');
+        // Track follow store event cho recommendation engine
+        trackEvent.followStore?.(targetBizId, realBook?.categoryId);
       } else {
         showToast(res?.error?.message || 'Không thể theo dõi gian hàng', 'error');
       }
@@ -705,7 +707,14 @@ export default function BookDetailPage() {
                   <span className="material-symbols-outlined text-[16px]">chrome_reader_mode</span>Đọc Thử Bản Trực Tuyến
                 </Link>
                 <div className="grid grid-cols-2 gap-1.5 w-full">
-                  <button onClick={() => { setIsWishlisted(!isWishlisted); showToast(!isWishlisted ? 'Đã lưu vào Yêu thích!' : 'Đã bỏ yêu thích', 'info'); }} className={`h-8 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${isWishlisted ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
+                  <button onClick={() => {
+                    setIsWishlisted(!isWishlisted);
+                    showToast(!isWishlisted ? 'Đã lưu vào Yêu thích!' : 'Đã bỏ yêu thích', 'info');
+                    // Track wishlist event
+                    if (!isWishlisted) {
+                      trackEvent.addToWishlist(book.id, realBook?.categoryId);
+                    }
+                  }} className={`h-8 px-2 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1 transition-colors ${isWishlisted ? 'border-red-200 bg-red-50 text-red-600' : 'border-gray-200 hover:bg-gray-50 text-gray-700'}`}>
                     <span className="material-symbols-outlined text-[15px]">{isWishlisted ? 'favorite' : 'favorite_border'}</span>{isWishlisted ? 'Đã thích' : 'Yêu thích'}
                   </button>
                   <button onClick={() => { if (typeof window !== 'undefined') { navigator.clipboard?.writeText(window.location.href); showToast('Đã sao chép liên kết sách!', 'success'); } }} className="h-8 px-2 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold flex items-center justify-center gap-1 transition-colors">

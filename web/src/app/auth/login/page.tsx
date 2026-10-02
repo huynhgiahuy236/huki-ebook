@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { loginSchema } from '@/ui/utils/authValidation';
-import { formatAuthError } from '@/ui/api/authApi';
+import { formatAuthError, authApi } from '@/ui/api/authApi';
 
 function LoginForm() {
   const router = useRouter();
@@ -332,11 +332,9 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => {
-                  showToast({
-                    title: 'Google OAuth',
-                    message: 'Đăng nhập bằng Google đang sẵn sàng.',
-                    type: 'info',
-                  });
+                  // Redirect đến Google OAuth endpoint của backend
+                  const googleUrl = authApi.getGoogleAuthUrl('/onboarding');
+                  window.location.href = googleUrl;
                 }}
                 className="w-full h-12 flex items-center justify-center gap-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs sm:text-sm font-semibold text-slate-700 transition-colors cursor-pointer shadow-2xs"
               >

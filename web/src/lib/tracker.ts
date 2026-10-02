@@ -19,6 +19,9 @@ export enum TrackEventType {
   SEARCH_QUERY = 'SEARCH_QUERY',            // Searched for books
   BOUNCE = 'BOUNCE',                       // Viewed <3s then left
   FOLLOW_AUTHOR = 'FOLLOW_AUTHOR',          // Followed an author
+  FOLLOW_STORE = 'FOLLOW_STORE',            // Followed a publisher/business
+  CATEGORY_VIEW = 'CATEGORY_VIEW',          // Visited a category page
+  AUTHOR_VIEW = 'AUTHOR_VIEW',              // Visited author page
 
   // Purchase intent events
   ADD_TO_CART = 'ADD_TO_CART',
@@ -413,5 +416,26 @@ export const trackEvent = {
    */
   followAuthor: (authorId: string, categoryId?: string) => {
     getTracker().track(TrackEventType.FOLLOW_AUTHOR, { authorId, categoryId });
+  },
+
+  /**
+   * Track store/publisher follow
+   */
+  followStore: (storeId: string, categoryId?: string) => {
+    getTracker().track(TrackEventType.FOLLOW_STORE, { storeId, categoryId });
+  },
+
+  /**
+   * Track category page view
+   */
+  categoryView: (categoryId: string) => {
+    getTracker().track(TrackEventType.CATEGORY_VIEW, { categoryId });
+  },
+
+  /**
+   * Track author page view
+   */
+  authorView: (authorId: string, categoryId?: string) => {
+    getTracker().track(TrackEventType.AUTHOR_VIEW, { authorId, categoryId });
   },
 };

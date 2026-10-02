@@ -9,7 +9,7 @@ import { catalogApi, type BookData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
 import BookCard from "@/ui/components/common/BookCard";
-import { PersonalizedForYouSection } from "@/ui/components/recommendations/PersonalizedForYouSection";
+import { PersonalizedForYouSection, DailyRecommendationsSection } from "@/ui/components/recommendations";
 
 export default function HomePage() {
   const router = useRouter();
@@ -1806,9 +1806,10 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================================
-          PERSONALIZED RECOMMENDATIONS (For You)
+          PERSONALIZED RECOMMENDATIONS (For You + Daily)
       ========================================================================= */}
       <PersonalizedForYouSection limit={10} />
+      <DailyRecommendationsSection limit={12} />
 
       {/* =========================================================================
           SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS)

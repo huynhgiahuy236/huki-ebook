@@ -4,6 +4,7 @@ import { userApi, type UserProfile, type UpdateProfilePayload } from '../api/use
 import { businessApi, type BusinessData } from '../api/businessApi';
 import { tokenStorage } from '../api/tokenStorage';
 import { can as canPermission } from '../utils/permissions';
+import { getTracker } from '@/lib/tracker';
 import type { ApiResponse, UserSession, BusinessMembership } from '../api/types';
 
 export interface AuthContextType {
@@ -140,6 +141,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             let userData: any = (res.data as any).user || res.data;
             userData = await hydrateBusiness(userData);
             setUser(userData);
+            // Wire tracker với user đã đăng nhập
+            if (userData?.id) {
+              getTracker().setUserId(userData.id);
+            }
             if (Array.isArray(userData?.memberships) && userData.memberships.length > 0) {
               setActiveBusinessId(userData.memberships[0].businessId);
             }
@@ -184,6 +189,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         setUser(userData);
 
+        // Wire tracker với userId sau khi login thành công
+        if (userData?.id) {
+          getTracker().setUserId(userData.id);
+        }
+
         if (Array.isArray(userData?.memberships) && userData.memberships.length > 0) {
           setActiveBusinessId(userData.memberships[0].businessId);
         }
@@ -226,6 +236,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (accessToken && refreshToken && userData?.status === 'ACTIVE') {
           tokenStorage.setTokens({ accessToken, refreshToken });
           setUser(normalizeUserData(userData));
+          // Wire tracker với userId sau khi register thành công
+          if (userData?.id) {
+            getTracker().setUserId(userData.id);
+          }
         } else {
           tokenStorage.clearTokens();
           setUser(null);
@@ -258,6 +272,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       tokenStorage.clearTokens();
       setUser(null);
       setActiveBusinessId(null);
+      // Clear tracker userId khi logout
+      getTracker().clearUserId();
+      // Flush các event còn lại
+      getTracker().flush();
       setIsLoading(false);
     }
   };

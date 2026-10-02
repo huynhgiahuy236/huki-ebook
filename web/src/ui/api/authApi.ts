@@ -140,6 +140,29 @@ export const authApi = {
       skipAuth: true,
     });
   },
+
+  /**
+   * Lấy URL redirect tới Google OAuth (bắt đầu flow đăng nhập bằng Google)
+   */
+  getGoogleAuthUrl(redirectAfter: string = '/'): string {
+    const params = new URLSearchParams({
+      redirect: redirectAfter,
+      source: 'web',
+    });
+    return `${process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1'}/auth/google?${params.toString()}`;
+  },
+
+  /**
+   * Xử lý callback từ Google OAuth sau khi user authorize
+   * Backend sẽ tạo/đăng nhập user và trả về tokens + user info
+   */
+  async googleCallback(code: string, redirectAfter?: string): Promise<ApiResponse<LoginResponseData>> {
+    return apiClient<LoginResponseData>('/auth/google/callback', {
+      method: 'POST',
+      body: JSON.stringify({ code, redirect: redirectAfter }),
+      skipAuth: true,
+    });
+  },
 };
 
 /**

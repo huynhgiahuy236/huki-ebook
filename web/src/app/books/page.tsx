@@ -6,6 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import BookCard from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
+import { trackEvent } from '@/lib/tracker';
 
 const ITEMS_PER_PAGE = 16;
 
@@ -69,7 +70,11 @@ function CatalogPageContent() {
 
   useEffect(() => {
     setSearchTerm(searchQuery);
-  }, [searchQuery]);
+    // Track search event khi user tìm kiếm
+    if (searchQuery && searchQuery.trim()) {
+      trackEvent.searchQuery(searchQuery.trim(), selectedCat !== 'all' ? selectedCat : undefined);
+    }
+  }, [searchQuery, selectedCat]);
 
   const updateParam = (key: string, value: string | null) => {
     const params = new URLSearchParams(searchParams.toString());
