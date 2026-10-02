@@ -235,31 +235,39 @@ export default function SellerInventoryPage() {
     { key: 'OUT_OF_STOCK', label: 'Hết hàng (0)', count: metrics.outOfStockCount },
   ];
 
+  const [expandedBookIds, setExpandedBookIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedBookIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
+
   return (
-    <div className="w-full max-w-[1600px] mx-auto space-y-5">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
-            <span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center border border-indigo-200/60">
-              <span className="material-symbols-outlined text-[20px]">warehouse</span>
-            </span>
-            <span>Quản Lý Tồn Kho 3 Tầng</span>
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Quản Lý Tồn Kho &amp; Sách Giấy</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             Kiểm soát Tồn thực tế (On-Hand), Tạm giữ (Reserved) và Khả dụng (Available) với cơ chế khóa nguyên tử
           </p>
         </div>
-        <SellerActionButton
+        <button
           type="button"
-          variant="secondary"
-          size="sm"
-          icon="refresh"
-          loading={loading}
           onClick={fetchInventory}
+          disabled={loading}
+          className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-[0.98]"
         >
-          Làm Mới
-        </SellerActionButton>
+          <span className={`material-symbols-outlined text-[16px] text-slate-500 ${loading ? 'animate-spin text-[#00875A]' : ''}`}>
+            refresh
+          </span>
+          <span>Làm mới dữ liệu</span>
+        </button>
       </div>
 
       {/* 4 Metric Cards */}
@@ -562,138 +570,260 @@ export default function SellerInventoryPage() {
       </div>
 
       {/* Inventory Table Container */}
-      <SellerTableContainer minWidth="min-w-[1280px]">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
-              <th className="py-3.5 px-4">Sách & Thông Tin</th>
-              <th className="py-3.5 px-3 text-center">Tồn Thực (On-Hand)</th>
-              <th className="py-3.5 px-3 text-center">Tạm Giữ (Reserved)</th>
-              <th className="py-3.5 px-3 text-center">Khả Dụng (Available)</th>
-              <th className="py-3.5 px-3 text-center">Trạng Thái Kho</th>
-              <th className="py-3.5 px-4 text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-medium">
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
-                    <span className="text-xs">Đang tải dữ liệu kho...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : filteredBooks.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                    <span className="material-symbols-outlined text-4xl text-slate-300">inventory_2</span>
-                    <p className="font-medium text-slate-600">Không tìm thấy sách nào phù hợp.</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedBooks.map((book) => {
-                const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
-                const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
-                const available = Math.max(0, stock - reserved);
+      <SellerTableContainer>
+        {loading ? (
+          <div className="py-16 text-center text-slate-400">
+            <div className="flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined animate-spin text-xl text-[#00875A]">progress_activity</span>
+              <span className="text-xs">Đang tải dữ liệu kho...</span>
+            </div>
+          </div>
+        ) : filteredBooks.length === 0 ? (
+          <div className="py-16 text-center text-slate-400">
+            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
+              <span className="material-symbols-outlined text-4xl text-slate-300">inventory_2</span>
+              <p className="font-medium text-slate-600">Không tìm thấy sách nào phù hợp.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                  <th className="py-3.5 pl-4 pr-2 w-[34%]">Sách &amp; Phân Loại</th>
+                  <th className="py-3.5 px-3 w-[22%]">Tồn Thực &amp; Tạm Giữ</th>
+                  <th className="py-3.5 px-3 w-[16%] text-center">Khả Dụng</th>
+                  <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái</th>
+                  <th className="py-3.5 pl-2 pr-4 w-[14%] text-right">Thao Tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {paginatedBooks.map((book) => {
+                  const isExpanded = !!expandedBookIds[book.id];
+                  const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+                  const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+                  const available = Math.max(0, stock - reserved);
+                  const authorName = typeof book.author === 'object' ? book.author?.name : book.author || 'N/A';
 
-                return (
-                  <tr key={book.id} className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
-                    {/* Book info */}
-                    <td className="py-3.5 px-4 flex items-center gap-3">
-                      <div className="w-10 h-14 rounded-lg bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                        <img
-                          src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
-                          alt={book.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <div className="min-w-0 max-w-xs sm:max-w-md">
-                        <span className="font-bold text-slate-900 block truncate">{book.title}</span>
-                        <span className="text-[11px] text-slate-400 block truncate mt-0.5">
-                          ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {typeof book.author === 'object' ? book.author?.name : book.author || 'N/A'}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* On-hand */}
-                    <td className="py-3.5 px-3 text-center">
-                      <span className="font-bold text-slate-900 text-sm">{stock}</span>
-                    </td>
-
-                    {/* Reserved */}
-                    <td className="py-3.5 px-3 text-center">
-                      <span className={`font-bold text-sm ${reserved > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                        {reserved}
-                      </span>
-                    </td>
-
-                    {/* Available */}
-                    <td className="py-3.5 px-3 text-center">
-                      <span
-                        className={`font-bold text-sm ${
-                          available === 0
-                            ? 'text-rose-600'
-                            : available <= 5
-                            ? 'text-amber-600'
-                            : 'text-emerald-600'
+                  return (
+                    <React.Fragment key={book.id}>
+                      <tr
+                        onClick={() => toggleExpand(book.id)}
+                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
+                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
                         }`}
                       >
-                        {available}
-                      </span>
-                    </td>
+                        {/* 1. Sách & Phân loại */}
+                        <td className="py-3 pl-4 pr-2 align-middle">
+                          <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpand(book.id);
+                              }}
+                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
+                            >
+                              <span
+                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
+                                }`}
+                              >
+                                chevron_right
+                              </span>
+                            </button>
+                            <div className="w-8 h-11 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                              <img
+                                src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
+                                alt={book.title}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="font-bold text-slate-900 block truncate" title={book.title}>
+                                {book.title}
+                              </span>
+                              <span className="text-[11px] text-slate-400 block truncate">
+                                ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {authorName}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
 
-                    {/* Status Badge */}
-                    <td className="py-3.5 px-3 text-center">
-                      {available === 0 ? (
-                        <SellerStatusBadge variant="danger" dot text="Hết hàng (0)" />
-                      ) : available <= 5 ? (
-                        <SellerStatusBadge variant="warning" dot text={`Sắp hết (${available})`} />
-                      ) : (
-                        <SellerStatusBadge variant="success" dot text="Còn hàng" />
+                        {/* 2. Tồn thực & Tạm giữ */}
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="text-slate-500">Tồn thực:</span>
+                              <span className="font-bold text-slate-900">{stock}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              <span className="text-slate-400">Tạm giữ:</span>
+                              <span className={`font-semibold ${reserved > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                {reserved}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 3. Khả dụng */}
+                        <td className="py-3 px-3 align-middle text-center">
+                          <span
+                            className={`font-bold text-sm ${
+                              available === 0
+                                ? 'text-rose-600'
+                                : available <= 5
+                                ? 'text-amber-600'
+                                : 'text-[#00875A]'
+                            }`}
+                          >
+                            {available}
+                          </span>
+                        </td>
+
+                        {/* 4. Trạng thái */}
+                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
+                          {available === 0 ? (
+                            <SellerStatusBadge variant="danger" dot text="Hết hàng (0)" />
+                          ) : available <= 5 ? (
+                            <SellerStatusBadge variant="warning" dot text={`Sắp hết (${available})`} />
+                          ) : (
+                            <SellerStatusBadge variant="success" dot text="Còn hàng" />
+                          )}
+                        </td>
+
+                        {/* 5. Thao tác */}
+                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <SellerActionButton
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              icon="add_box"
+                              onClick={() => handleOpenAdjust(book, 'ADD')}
+                            >
+                              Nhập
+                            </SellerActionButton>
+
+                            <SellerActionButton
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              icon="tune"
+                              onClick={() => handleOpenAdjust(book, 'SET')}
+                            >
+                              Kiểm Kê
+                            </SellerActionButton>
+
+                            <SellerActionButton
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              icon="history"
+                              onClick={() => fetchLogs(book, 1)}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Subcards Detail Panel */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/60">
+                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                              {/* Card 1: Số liệu chi tiết kho */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">inventory_2</span>
+                                  <span>Chi Tiết Kho Vật Lý</span>
+                                </div>
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Tồn thực tế trong kho:</span>
+                                    <span className="font-bold text-slate-900">{stock} cuốn</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Tạm giữ chờ thanh toán:</span>
+                                    <span className="font-bold text-amber-600">{reserved} cuốn</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Khả dụng giao dịch:</span>
+                                    <span className="font-bold text-[#00875A]">{available} cuốn</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 2: Thông tin ấn bản & ISBN */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                  <span className="material-symbols-outlined text-[16px] text-amber-600">book</span>
+                                  <span>Thông Tin Ấn Bản</span>
+                                </div>
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Mã ISBN:</span>
+                                    <span className="font-mono font-semibold text-slate-800">{book.isbn || 'Chưa cập nhật'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Tác giả:</span>
+                                    <span className="font-medium text-slate-800">{authorName}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Cảnh báo tồn:</span>
+                                    <span className="font-semibold text-slate-800">
+                                      {available === 0 ? 'Hết sạch hàng' : available <= 5 ? 'Cần bổ sung gấp' : 'Ổn định'}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 3: Thao tác kho nhanh */}
+                              <div className="space-y-2 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">tune</span>
+                                    <span>Hành Động Nhanh</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-500 mt-2">
+                                    Thực hiện nhập thêm số lượng tồn hoặc mở bảng kiểm kê để cập nhật số thực tế.
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenAdjust(book, 'ADD');
+                                    }}
+                                    className="py-1.5 px-2 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">add_box</span>
+                                    <span>Nhập Thêm</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenAdjust(book, 'SET');
+                                    }}
+                                    className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">tune</span>
+                                    <span>Kiểm Kê</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        <SellerActionButton
-                          type="button"
-                          variant="primary"
-                          size="sm"
-                          icon="add_box"
-                          onClick={() => handleOpenAdjust(book, 'ADD')}
-                        >
-                          Nhập Kho
-                        </SellerActionButton>
-
-                        <SellerActionButton
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          icon="tune"
-                          onClick={() => handleOpenAdjust(book, 'SET')}
-                        >
-                          Điều Chỉnh
-                        </SellerActionButton>
-
-                        <SellerActionButton
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          icon="history"
-                          onClick={() => fetchLogs(book, 1)}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </SellerTableContainer>
 
       {/* Pagination */}

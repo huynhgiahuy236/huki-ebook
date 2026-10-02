@@ -182,8 +182,19 @@ export function AdminBookModerationView() {
     setCurrentPage(1);
   };
 
+  const [expandedRowIds, setExpandedRowIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandRow = (id: string) => {
+    setExpandedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. TOP HEADER & METRICS SUMMARY */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -313,154 +324,241 @@ export function AdminBookModerationView() {
         </div>
       </div>
 
-      {/* 4. MODERATION QUEUE TABLE - Tách cột riêng, không rớt dòng, cuộn ngang, zebra striping */}
+      {/* 4. MODERATION QUEUE TABLE - Compact Stacked Rows & Expandable Detail */}
       <AdminTableContainer>
-        <table className="w-full text-left text-xs border-collapse min-w-[1450px]">
+        <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
             <tr>
-              <th className="py-3 px-4 whitespace-nowrap">Tác Phẩm</th>
-              <th className="py-3 px-3 whitespace-nowrap">Tác Giả</th>
-              <th className="py-3 px-3 whitespace-nowrap">Nhà Xuất Bản</th>
-              <th className="py-3 px-3 whitespace-nowrap">Mã Sách / UUID</th>
-              <th className="py-3 px-3 whitespace-nowrap">Định Dạng</th>
-              <th className="py-3 px-3 whitespace-nowrap">Bảo Mật DRM</th>
-              <th className="py-3 px-3 whitespace-nowrap">Mã ISBN</th>
-              <th className="py-3 px-3 whitespace-nowrap">Quyết Định XB</th>
-              <th className="py-3 px-3 whitespace-nowrap">Giá Sách Giấy</th>
-              <th className="py-3 px-3 whitespace-nowrap">Giá Ebook</th>
-              <th className="py-3 px-3 whitespace-nowrap">Thời Gian Gửi</th>
-              <th className="py-3 px-3 whitespace-nowrap text-center">Trạng Thái</th>
-              <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+              <th className="py-3 px-2 w-8 text-center"></th>
+              <th className="py-3 px-2 w-10 text-center">STT</th>
+              <th className="py-3 px-4">Tác Phẩm &amp; Mã ISBN</th>
+              <th className="py-3 px-3">Tác Giả &amp; NXB</th>
+              <th className="py-3 px-3">Định Dạng &amp; DRM</th>
+              <th className="py-3 px-3">Giá Sách / Ebook</th>
+              <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {paginatedItems.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-12 text-center text-gray-400">
+                <td colSpan={7} className="py-12 text-center text-gray-400">
                   <span className="material-symbols-outlined text-4xl mb-2 text-gray-300">find_in_page</span>
                   <p className="font-semibold text-xs">Không tìm thấy hồ sơ sách nào phù hợp điều kiện lọc.</p>
                 </td>
               </tr>
             ) : (
-              paginatedItems.map((item, idx) => (
-                <tr
-                  key={item.id}
-                  className={`transition-colors group ${
-                    idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
-                  } hover:bg-emerald-50/40`}
-                >
-                  {/* Tác Phẩm */}
-                  <td className="py-3 px-4 whitespace-nowrap">
-                    <div className="flex items-center gap-2.5">
-                      <img 
-                        src={item.cover} 
-                        alt={item.title} 
-                        className="w-8 h-11 object-cover rounded-md shadow-2xs border border-gray-200 shrink-0"
-                      />
-                      <span className="font-bold text-gray-900 text-xs group-hover:text-[#00875A] transition-colors">
-                        {item.title}
-                      </span>
-                    </div>
-                  </td>
+              paginatedItems.map((item, idx) => {
+                const isExpanded = expandedRowIds.has(item.id);
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
 
-                  {/* Tác Giả */}
-                  <td className="py-3 px-3 whitespace-nowrap text-gray-700 font-medium">
-                    {item.author}
-                  </td>
-
-                  {/* Nhà Xuất Bản */}
-                  <td className="py-3 px-3 whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded bg-gray-100 text-gray-700 font-bold text-[10.5px]">
-                      {item.publisher}
-                    </span>
-                  </td>
-
-                  {/* Mã Sách / UUID */}
-                  <td className="py-3 px-3 whitespace-nowrap font-mono text-[10.5px] text-gray-400">
-                    #{item.id}
-                  </td>
-
-                  {/* Định Dạng */}
-                  <td className="py-3 px-3 whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
-                      item.format === 'hybrid' ? 'text-emerald-700' :
-                      item.format === 'ebook' ? 'text-purple-700' : 'text-blue-700'
-                    }`}>
-                      <span className="material-symbols-outlined text-[14px]">
-                        {item.format === 'hybrid' ? 'auto_stories' : item.format === 'ebook' ? 'devices' : 'menu_book'}
-                      </span>
-                      {item.formatLabel}
-                    </span>
-                  </td>
-
-                  {/* Bảo Mật DRM */}
-                  <td className="py-3 px-3 whitespace-nowrap text-[10.5px] text-gray-500 font-medium">
-                    {item.drmStatus}
-                  </td>
-
-                  {/* Mã ISBN */}
-                  <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-gray-800 font-semibold">
-                    {item.isbn}
-                  </td>
-
-                  {/* Quyết Định XB */}
-                  <td className="py-3 px-3 whitespace-nowrap font-mono text-[10.5px] text-gray-500">
-                    {item.licenseNo}
-                  </td>
-
-                  {/* Giá Sách Giấy */}
-                  <td className="py-3 px-3 whitespace-nowrap font-bold text-gray-900 text-xs">
-                    {item.price ? `${item.price.toLocaleString()}₫` : '-'}
-                  </td>
-
-                  {/* Giá Ebook */}
-                  <td className="py-3 px-3 whitespace-nowrap font-bold text-[#00875A] text-xs">
-                    {item.ebookPrice ? `${item.ebookPrice.toLocaleString()}₫` : '-'}
-                  </td>
-
-                  {/* Thời Gian Gửi */}
-                  <td className="py-3 px-3 whitespace-nowrap text-gray-500 text-[11px]">
-                    {item.submittedAt}
-                  </td>
-
-                  {/* Trạng Thái */}
-                  <td className="py-3 px-3 whitespace-nowrap text-center">
-                    <AdminStatusBadge
-                      variant={
-                        item.status === 'approved' ? 'success' :
-                        item.status === 'pending' ? 'warning' :
-                        item.status === 'need_update' ? 'danger' : 'neutral'
-                      }
-                      label={item.statusLabel}
-                    />
-                  </td>
-
-                  {/* Thao Tác */}
-                  <td className="py-3 px-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => setInspectingBook(item)}
-                        className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <span className="material-symbols-outlined text-[15px]">visibility</span>
-                        <span>Thẩm Định</span>
-                      </button>
-
-                      {item.status === 'pending' && (
+                return (
+                  <React.Fragment key={item.id}>
+                    {/* Dòng tóm tắt chính */}
+                    <tr
+                      className={`transition-colors group ${
+                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                      } hover:bg-emerald-50/50`}
+                    >
+                      {/* Mũi tên mở rộng */}
+                      <td className="py-3 px-2 text-center">
                         <button
-                          onClick={() => handleApprove(item.id)}
-                          disabled={actionLoadingId === item.id}
-                          className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
-                          title="Phê duyệt nhanh"
+                          type="button"
+                          onClick={() => toggleExpandRow(item.id)}
+                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-gray-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
                         >
-                          <span className="material-symbols-outlined text-[15px]">check</span>
-                          <span>Duyệt</span>
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                            chevron_right
+                          </span>
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      </td>
+
+                      {/* STT */}
+                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
+                        {itemIndex}
+                      </td>
+
+                      {/* Tác Phẩm & Mã ISBN */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-3">
+                          <img 
+                            src={item.cover} 
+                            alt={item.title} 
+                            className="w-9 h-12 object-cover rounded-lg shadow-2xs border border-gray-200 shrink-0"
+                          />
+                          <div className="min-w-0 max-w-[280px]">
+                            <span 
+                              onClick={() => toggleExpandRow(item.id)}
+                              className="font-bold text-gray-900 text-xs block truncate hover:text-[#00875A] transition-colors cursor-pointer"
+                            >
+                              {item.title}
+                            </span>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="font-mono text-[10px] text-gray-400">#{item.id?.substring(0, 8)}</span>
+                              <span className="text-gray-300">•</span>
+                              <span className="font-mono text-[10.5px] text-gray-600 font-medium">ISBN: {item.isbn}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Tác Giả & NXB */}
+                      <td className="py-3 px-3">
+                        <div className="font-semibold text-gray-900 text-xs truncate max-w-[180px]">{item.author}</div>
+                        <div className="text-[10.5px] text-gray-500 mt-0.5 truncate max-w-[180px]">{item.publisher}</div>
+                      </td>
+
+                      {/* Định Dạng & DRM */}
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`inline-flex items-center gap-1 font-bold text-[11px] ${
+                            item.format === 'hybrid' ? 'text-emerald-700' :
+                            item.format === 'ebook' ? 'text-purple-700' : 'text-blue-700'
+                          }`}>
+                            <span className="material-symbols-outlined text-[13px]">
+                              {item.format === 'hybrid' ? 'auto_stories' : item.format === 'ebook' ? 'devices' : 'menu_book'}
+                            </span>
+                            {item.formatLabel}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 truncate max-w-[160px]">{item.drmStatus}</div>
+                      </td>
+
+                      {/* Giá Sách / Ebook */}
+                      <td className="py-3 px-3">
+                        <div className="font-bold text-gray-900 text-xs">
+                          {item.price ? `${item.price.toLocaleString()}₫` : 'Miễn phí'}
+                        </div>
+                        {item.ebookPrice && (
+                          <div className="text-[10.5px] text-[#00875A] font-bold mt-0.5">
+                            Ebook: {item.ebookPrice.toLocaleString()}₫
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Trạng Thái & Thao Tác */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <AdminStatusBadge
+                            variant={
+                              item.status === 'approved' ? 'success' :
+                              item.status === 'pending' ? 'warning' :
+                              item.status === 'need_update' ? 'danger' : 'neutral'
+                            }
+                            label={item.statusLabel}
+                          />
+
+                          <button
+                            onClick={() => setInspectingBook(item)}
+                            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Thẩm định chi tiết"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            <span>Thẩm Định</span>
+                          </button>
+
+                          {item.status === 'pending' && (
+                            <button
+                              onClick={() => handleApprove(item.id)}
+                              disabled={actionLoadingId === item.id}
+                              className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                              title="Phê duyệt nhanh"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">check</span>
+                              <span>Duyệt</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Khối Master-Detail mở rộng (3-card subpanel) */}
+                    {isExpanded && (
+                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
+                        <td colSpan={7} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                            {/* Cột 1: Thông tin xuất bản & Hồ sơ */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
+                                <span className="material-symbols-outlined text-[14px]">menu_book</span>
+                                <span>Hồ Sơ &amp; Giấy Phép Xuất Bản</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                                <div>
+                                  <span className="text-gray-400 block">Quyết định XB:</span>
+                                  <span className="font-mono font-semibold text-gray-800">{item.licenseNo}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block">Số trang mẫu:</span>
+                                  <span className="font-semibold text-gray-800">{item.samplePages}/{item.totalPages} trang</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block">Kích thước file:</span>
+                                  <span className="font-semibold text-gray-800">{item.fileSize}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400 block">Thời gian gửi:</span>
+                                  <span className="font-semibold text-gray-800">{item.submittedAt}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Bảo mật DRM & Ghi chú */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
+                                <span className="material-symbols-outlined text-[14px]">lock</span>
+                                <span>Bảo Mật DRM &amp; Bản Quyền</span>
+                              </div>
+                              <div className="text-[11px] text-gray-700 space-y-1 pt-1">
+                                <div><span className="text-gray-400">Trạng thái DRM: </span><span className="font-semibold">{item.drmStatus}</span></div>
+                                <div><span className="text-gray-400">Ghi chú duyệt: </span><span className="text-gray-600">{item.notes}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Thao tác trực tiếp */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 text-emerald-800">
+                                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                                  <span>Hành Động Kiểm Duyệt</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Kiểm tra tệp DRM hoặc xem trước các trang mẫu trước khi kích hoạt phân phối.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <button
+                                  onClick={() => setInspectingBook(item)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">policy</span>
+                                  <span>Thẩm Định Đầy Đủ</span>
+                                </button>
+                                {item.status === 'pending' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleRequestEdit(item.id)}
+                                      className="px-3 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs transition-colors cursor-pointer"
+                                    >
+                                      Yêu Cầu Sửa
+                                    </button>
+                                    <button
+                                      onClick={() => setRejectReasonModal(item)}
+                                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
+                                    >
+                                      Từ Chối
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
             )}
           </tbody>
         </table>

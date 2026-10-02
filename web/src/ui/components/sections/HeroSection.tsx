@@ -102,7 +102,7 @@ export default function HeroSection() {
         <div className="flex flex-wrap items-center gap-2.5 mt-6">
           <Link
             href={currentSlide.primaryBtn.href}
-            className="px-4 py-2 rounded-xl bg-[#c58f5e] hover:bg-[#b07d4f] text-white text-xs font-bold shadow-md transition-all inline-flex items-center gap-1.5 transform hover:-translate-y-0.5"
+            className="px-4 py-2 rounded-xl bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold shadow-md transition-all inline-flex items-center gap-1.5 transform hover:-translate-y-0.5"
           >
             <span>{currentSlide.primaryBtn.text}</span>
             <span className="material-symbols-outlined text-sm">arrow_forward</span>

@@ -961,7 +961,7 @@ export function SellerFlashSaleView() {
   }, [slots, myItems, activeTab, searchQuery, user, activeBusinessId]);
 
   return (
-    <div className="w-full max-w-full min-w-0 space-y-6 animate-in fade-in duration-200 font-sans pb-16">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans pb-16">
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-emerald-500/10 p-6 rounded-3xl border border-amber-500/20 shadow-xs">
         <div className="flex items-center gap-3.5">

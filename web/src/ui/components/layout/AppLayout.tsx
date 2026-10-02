@@ -121,7 +121,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             <span className="material-symbols-outlined text-[18px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1 right-1 bg-[#ac2c19] text-white text-[7.5px] font-bold w-3 h-3 rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 right-1 bg-[#003b2b] text-white text-[7.5px] font-bold w-3 h-3 rounded-full flex items-center justify-center">
                 {totalItemsCount}
               </span>
             )}

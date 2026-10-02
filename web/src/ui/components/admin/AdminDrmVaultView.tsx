@@ -96,6 +96,17 @@ export function AdminDrmVaultView() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, currentPage, pageSize]);
 
+  const [expandedDrmIds, setExpandedDrmIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandDrm = (id: string) => {
+    setExpandedDrmIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const tabs = [
     { key: 'all', label: 'Tất Cả Khóa', count: drmLicenses.length },
     { key: 'secure', label: 'An Toàn Tuyệt Đối', count: drmLicenses.filter(d => d.securityStatus === 'secure').length },
@@ -103,7 +114,7 @@ export function AdminDrmVaultView() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -200,94 +211,173 @@ export function AdminDrmVaultView() {
         </div>
 
         {/* Table View */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
-            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+            <tr>
+              <th className="py-3 px-2 w-8 text-center"></th>
+              <th className="py-3 px-2 w-10 text-center">STT</th>
+              <th className="py-3 px-3.5">Tác Phẩm &amp; Mã Giấy Phép</th>
+              <th className="py-3 px-3.5">Thuật Toán &amp; Cụm KMS</th>
+              <th className="py-3 px-3.5">Độc Giả (Đang Đọc / Tổng Cấp)</th>
+              <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 font-normal">
+            {paginatedList.length === 0 ? (
               <tr>
-                <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Mã Giấy Phép DRM</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Tác Phẩm &amp; NXB</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Mã ISBN</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Thuật Toán Mã Hóa</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Cụm Máy Chủ KMS</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Khóa Vân Tay SHA-256</th>
-                <th className="py-3 px-3.5 whitespace-nowrap">Engine Watermark</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Đang Đọc</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Tổng Cấp</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                <th className="py-3 px-3.5 whitespace-nowrap text-right pr-4">Thao Tác</th>
+                <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <span className="material-symbols-outlined text-4xl text-gray-300 block mb-1">key_off</span>
+                  Không tìm thấy giấy phép DRM nào phù hợp
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-normal">
-              {paginatedList.length === 0 ? (
-                <tr>
-                  <td colSpan={12} className="py-12 text-center text-gray-400">
-                    <span className="material-symbols-outlined text-4xl text-gray-300 block mb-1">key_off</span>
-                    Không tìm thấy giấy phép DRM nào phù hợp
-                  </td>
-                </tr>
-              ) : (
-                paginatedList.map((item, idx) => {
-                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                  return (
+            ) : (
+              paginatedList.map((item, idx) => {
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                const isExpanded = expandedDrmIds.has(item.id);
+
+                return (
+                  <React.Fragment key={item.id}>
                     <tr
-                      key={item.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                      className={`transition-colors group ${
+                        isExpanded ? 'bg-purple-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                      } hover:bg-purple-50/40`}
                     >
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400">
-                        {itemIndex}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-bold text-purple-900">
-                        {item.id}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <div className="font-bold text-gray-900 text-xs">{item.bookTitle}</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">{item.publisher}</div>
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-[11px] text-gray-600">
-                        {item.isbn}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap font-semibold text-gray-800">
-                        {item.algorithm}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-600 text-[11px]">
-                        {item.encryptionCluster}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <span className="font-mono text-[10px] text-gray-600 bg-gray-100 px-2 py-0.5 rounded" title={item.keyFingerprint}>
-                          {item.keyFingerprint.slice(0, 24)}...
-                        </span>
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-[11px] text-emerald-700 font-medium">
-                        {item.watermarkEngine}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center font-bold text-gray-900">
-                        {item.activeReaders.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-gray-600 font-medium">
-                        {item.issuedLicenses.toLocaleString()}
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <AdminStatusBadge
-                          status={item.securityStatus === 'secure' ? 'ACTIVE' : 'WARNING'}
-                          label={item.statusLabel}
-                        />
-                      </td>
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right pr-4">
+                      {/* Chevron toggle */}
+                      <td className="py-3 px-2 text-center">
                         <button
-                          onClick={() => handleRotateKey(item.id)}
-                          className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold transition-colors cursor-pointer"
+                          type="button"
+                          onClick={() => toggleExpandDrm(item.id)}
+                          className="w-6 h-6 rounded-md hover:bg-purple-100 text-gray-500 hover:text-purple-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
                         >
-                          Luân Chuyển Khóa
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-purple-700' : ''}`}>
+                            chevron_right
+                          </span>
                         </button>
                       </td>
+
+                      {/* STT */}
+                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400">
+                        {itemIndex}
+                      </td>
+
+                      {/* Tác Phẩm & Mã Giấy Phép */}
+                      <td className="py-3 px-3.5">
+                        <div
+                          onClick={() => toggleExpandDrm(item.id)}
+                          className="font-bold text-gray-900 text-xs hover:text-purple-800 transition-colors cursor-pointer truncate max-w-[280px]"
+                        >
+                          {item.bookTitle}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono text-[10.5px] font-bold text-purple-900">{item.id}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-[10.5px] text-gray-500 truncate max-w-[160px]">{item.publisher}</span>
+                        </div>
+                      </td>
+
+                      {/* Thuật Toán & Cụm KMS */}
+                      <td className="py-3 px-3.5">
+                        <div className="font-semibold text-gray-800 text-xs">
+                          {item.algorithm}
+                        </div>
+                        <div className="text-[10.5px] text-gray-500 mt-0.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px] text-purple-600">cloud</span>
+                          <span>{item.encryptionCluster}</span>
+                        </div>
+                      </td>
+
+                      {/* Độc Giả */}
+                      <td className="py-3 px-3.5">
+                        <div className="text-xs font-bold text-gray-900">
+                          {item.activeReaders.toLocaleString()} <span className="font-normal text-[11px] text-gray-500">đang đọc</span>
+                        </div>
+                        <div className="text-[10.5px] text-gray-500 mt-0.5">
+                          Tổng cấp: {item.issuedLicenses.toLocaleString()}
+                        </div>
+                      </td>
+
+                      {/* Trạng Thái & Thao Tác */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <AdminStatusBadge
+                            status={item.securityStatus === 'secure' ? 'ACTIVE' : 'WARNING'}
+                            label={item.statusLabel}
+                          />
+
+                          <button
+                            onClick={() => handleRotateKey(item.id)}
+                            className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-800 text-[11px] font-bold transition-colors cursor-pointer"
+                            title="Luân chuyển khóa mã hóa"
+                          >
+                            Đổi Khóa
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+
+                    {/* Master-Detail Expandable Subcard (3 cards) */}
+                    {isExpanded && (
+                      <tr className="bg-purple-50/20 border-b border-purple-100">
+                        <td colSpan={6} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-purple-200/70 shadow-xs">
+                            {/* Cột 1: Cấu hình khóa */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">key</span>
+                                <span>Cấu Hình Khóa &amp; Fingerprint</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-gray-400">ISBN: </span><span className="font-mono font-semibold">{item.isbn}</span></div>
+                                <div><span className="text-gray-400">Vân tay SHA-256: </span><span className="font-mono text-[10px] text-gray-700 block break-all bg-gray-50 p-1 rounded border border-gray-100">{item.keyFingerprint}</span></div>
+                                <div><span className="text-gray-400">Cụm KMS: </span><span className="font-semibold">{item.encryptionCluster}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Watermark & Thu hồi */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">water_drop</span>
+                                <span>Chống Sao Chép &amp; Watermark</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-gray-400">Watermark Engine: </span><span className="font-semibold text-emerald-800">{item.watermarkEngine}</span></div>
+                                <div><span className="text-gray-400">Thiết bị thu hồi: </span><span className="font-semibold text-rose-700">{item.revokedDevices} thiết bị</span></div>
+                                <div><span className="text-gray-400">Trạng thái an ninh: </span><span className="font-semibold">{item.statusLabel}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Hành động quản trị */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px]">build</span>
+                                  <span>Thao Tác Bảo Mật DRM</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Luân chuyển khóa mới không làm gián đoạn trải nghiệm độc giả đang trực tuyến.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <button
+                                  onClick={() => handleRotateKey(item.id)}
+                                  className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">sync</span>
+                                  <span>Luân Chuyển Khóa (Rotate)</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
+          </tbody>
+        </table>
 
         <AdminPagination
           currentPage={currentPage}

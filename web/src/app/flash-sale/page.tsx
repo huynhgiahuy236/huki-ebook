@@ -427,7 +427,7 @@ export default function FlashSalePage() {
               onClick={() => setActiveTab("huki")}
               className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-bold text-sm transition-all cursor-pointer ${
                 activeTab === "huki"
-                  ? "bg-gradient-to-r from-[#ac2c19] to-[#c73924] text-white shadow-md shadow-red-500/20 scale-[1.02]"
+                  ? "bg-gradient-to-r from-[#003b2b] to-[#006953] text-white shadow-md shadow-emerald-900/20 scale-[1.02]"
                   : "bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60"
               }`}
             >
@@ -439,7 +439,7 @@ export default function FlashSalePage() {
                 className={`text-[11px] px-2 py-0.5 rounded-full font-black ${
                   activeTab === "huki"
                     ? "bg-white/25 text-white"
-                    : "bg-red-100 text-[#ac2c19]"
+                    : "bg-emerald-100 text-[#003b2b]"
                 }`}
               >
                 {totalPlatformItems} sách
@@ -1078,7 +1078,7 @@ export default function FlashSalePage() {
                               {/* Campaign Title & Countdown Bar */}
                               <div className="bg-[#FAF3EE] rounded-2xl p-3.5 sm:p-4 border border-[#EADBCE] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="flex items-center gap-2.5 min-w-0">
-                                  <div className="bg-[#ac2c19] text-white px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 shadow-2xs shrink-0">
+                                  <div className="bg-[#003b2b] text-white px-3 py-1 rounded-xl text-xs font-bold flex items-center gap-1 shadow-2xs shrink-0">
                                     <span className="material-symbols-outlined text-[15px]">
                                       local_fire_department
                                     </span>
@@ -1117,7 +1117,7 @@ export default function FlashSalePage() {
                                   return (
                                     <div
                                       key={item.id}
-                                      className="group bg-white rounded-xl border border-slate-200/90 p-3 flex flex-col justify-between hover:shadow-md hover:border-[#ac2c19]/40 transition-all relative"
+                                      className="group bg-white rounded-xl border border-slate-200/90 p-3 flex flex-col justify-between hover:shadow-md hover:border-[#003b2b]/40 transition-all relative"
                                     >
                                       <div>
                                         {/* Cover */}
@@ -1127,7 +1127,7 @@ export default function FlashSalePage() {
                                             alt={item.title}
                                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                           />
-                                          <div className="absolute top-1.5 left-1.5 z-20 bg-gradient-to-r from-rose-600 to-amber-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
+                                          <div className="absolute top-1.5 left-1.5 z-20 bg-gradient-to-r from-[#003b2b] to-[#006953] text-white font-black text-[9px] px-1.5 py-0.5 rounded-md shadow-xs flex items-center gap-0.5">
                                             <span className="material-symbols-outlined text-[11px]">
                                               bolt
                                             </span>
@@ -1137,7 +1137,7 @@ export default function FlashSalePage() {
 
                                         {/* Title */}
                                         <h3
-                                          className="text-xs font-semibold text-slate-800 line-clamp-2 leading-tight h-[30px] group-hover:text-[#ac2c19] transition-colors mb-1.5"
+                                          className="text-xs font-semibold text-slate-800 line-clamp-2 leading-tight h-[30px] group-hover:text-[#003b2b] transition-colors mb-1.5"
                                           title={item.title}
                                         >
                                           {item.title}
@@ -1145,7 +1145,7 @@ export default function FlashSalePage() {
 
                                         {/* Price Row */}
                                         <div className="flex items-center gap-1.5 flex-wrap">
-                                          <span className="text-sm font-extrabold text-rose-600">
+                                          <span className="text-sm font-extrabold text-[#003b2b]">
                                             {item.salePrice.toLocaleString("vi-VN")}₫
                                           </span>
                                           <span className="bg-rose-600 text-white text-[9px] font-bold px-1 py-0.2 rounded">

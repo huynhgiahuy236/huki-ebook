@@ -254,19 +254,15 @@ export default function SellerFinancialReportsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. HEADER & ACTION TOOLBAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-emerald-50 text-emerald-700 font-bold">
-              <span className="material-symbols-outlined text-[24px]">analytics</span>
-            </span>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-              Báo Cáo &amp; Phân Tích Doanh Thu
-            </h1>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Báo Cáo &amp; Phân Tích Doanh Thu</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
             Bảng phân tích kế toán chi tiết: đối soát doanh thu phát sinh, khấu trừ hoa hồng sàn 5%, dòng tiền ký quỹ và số dư khả dụng thực nhận.
           </p>
         </div>
@@ -275,9 +271,9 @@ export default function SellerFinancialReportsPage() {
           <button
             type="button"
             onClick={() => setShowFormulaModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 border border-blue-200 cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">calculate</span>
+            <span className="material-symbols-outlined text-[18px] text-slate-500">calculate</span>
             <span>Diễn Giải Công Thức Dòng Tiền</span>
           </button>
 

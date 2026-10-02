@@ -154,7 +154,7 @@ export default function BookPreviewPage() {
         
         {/* Book Cover Header in Sample */}
         <div className="text-center mb-12 pb-8 border-b border-current/15">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-[#ac2c19] bg-[#ac2c19]/10 px-3 py-1 rounded-full">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-[#003b2b] bg-[#e6f4f0] px-3 py-1 rounded-full border border-[#003b2b]/20">
             Bản Đọc Thử Miễn Phí (Sample Preview)
           </span>
           <h2 className="font-editorial text-3xl sm:text-4xl font-bold mt-4 mb-2">
@@ -174,7 +174,7 @@ export default function BookPreviewPage() {
             {currentChapter === 1 ? 'Lời Mở Đầu: Biến Cố Định Hình Thói Quen' : 'Chương 1: Sức Mạnh Bất Ngờ Của 1%'}
           </div>
 
-          <p className="first-letter:text-5xl first-letter:font-bold first-letter:float-left first-letter:mr-3 first-letter:text-[#ac2c19] first-letter:leading-none">
+          <p className="first-letter:text-5xl first-letter:font-bold first-letter:float-left first-letter:mr-3 first-letter:text-[#003b2b] first-letter:leading-none">
             Vào ngày cuối cùng của năm thứ hai trung học, tôi bị một chiếc gậy bóng chày đập thẳng vào mặt. Khi người bạn cùng lớp vung gậy hết lực, chiếc gậy tuột khỏi tay và bay thẳng về phía tôi, va mạnh vào giữa hai mắt. Ký ức về khoảnh khắc đó hoàn toàn biến mất.
           </p>
 
@@ -226,7 +226,7 @@ export default function BookPreviewPage() {
 
             <button
               onClick={handleBuyHybrid}
-              className="w-full sm:w-auto bg-[#ac2c19] text-white px-6 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-[#8e1404] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto bg-[#006953] text-white px-6 py-3 rounded-2xl font-bold text-xs sm:text-sm hover:bg-[#004d38] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">auto_stories</span>
               <span>Combo Hybrid: Sách In + Ebook (199.000đ)</span>

@@ -118,7 +118,7 @@ export default function HierarchicalSidebar({
           to: '/cart',
           icon: 'shopping_cart',
           badge: totalItemsCount > 0 ? totalItemsCount : null,
-          badgeColor: 'bg-[#ac2c19] text-white',
+          badgeColor: 'bg-[#003b2b] text-white',
         },
         {
           id: 'orders',
@@ -254,7 +254,7 @@ export default function HierarchicalSidebar({
                             <span
                               className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold shrink-0 whitespace-nowrap leading-none ${
                                 isActive
-                                  ? 'bg-[var(--theme-accent,#ac2c19)] text-white'
+                                  ? 'bg-[#006953] text-white'
                                   : 'bg-white/20 text-white'
                               }`}
                             >

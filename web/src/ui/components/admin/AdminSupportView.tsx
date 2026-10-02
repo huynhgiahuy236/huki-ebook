@@ -105,7 +105,7 @@ export function AdminSupportView() {
   ];
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>

@@ -16,93 +16,17 @@ export interface Palette {
   colors: PaletteColor;
 }
 
+// Brand Fixed Theme: Xanh lá HUKI Nguyên bản (#003B2B)
 export const COLOR_PALETTES: Palette[] = [
   {
     id: 'huki-original',
-    name: 'HUKI Original',
-    description: 'Thương hiệu HUKI cổ điển & Tri thức số',
+    name: 'HUKI Original (Xanh Lá)',
+    description: 'Thương hiệu HUKI xanh lá tri thức số',
     colors: {
       background: '#F2FBF9',
       surface: '#FFFFFF',
       secondary: '#006953',
       primary: '#003B2B'
-    }
-  },
-  {
-    id: 'sakura',
-    name: 'Sakura',
-    description: 'Hồng phấn hoa anh đào dịu êm & Thư thái',
-    colors: {
-      background: '#FCF8F8',
-      surface: '#FBEFEF',
-      secondary: '#F9DFDF',
-      primary: '#F5AFAF'
-    }
-  },
-  {
-    id: 'japanese-warm',
-    name: 'Japanese Warm',
-    description: 'Trang giấy ấm & Không gian thư viện Nhật',
-    colors: {
-      background: '#FBF8F1',
-      surface: '#F5EFE0',
-      secondary: '#E8DCB8',
-      primary: '#5C4033'
-    }
-  },
-  {
-    id: 'ocean',
-    name: 'Ocean',
-    description: 'Biển xanh tĩnh lặng & Thư giãn tinh thần',
-    colors: {
-      background: '#F0F7FB',
-      surface: '#E3F0F8',
-      secondary: '#BAE0F3',
-      primary: '#1A537E'
-    }
-  },
-  {
-    id: 'forest',
-    name: 'Forest',
-    description: 'Rừng thông yên tĩnh & Đọc sách chữa lành',
-    colors: {
-      background: '#F4F7F4',
-      surface: '#EBF1EB',
-      secondary: '#C8DBC8',
-      primary: '#2D5A3F'
-    }
-  },
-  {
-    id: 'lavender',
-    name: 'Lavender',
-    description: 'Oải hương mộng mơ & Nguồn cảm hứng',
-    colors: {
-      background: '#F8F6FC',
-      surface: '#F0EBF8',
-      secondary: '#DDD2F0',
-      primary: '#5A3D7A'
-    }
-  },
-  {
-    id: 'sunset',
-    name: 'Sunset',
-    description: 'Hoàng hôn rực rỡ & Khơi nguồn năng lượng',
-    colors: {
-      background: '#FDF6F0',
-      surface: '#FBEDE2',
-      secondary: '#F9D6BE',
-      primary: '#B84E20'
-    }
-  },
-  {
-    id: 'midnight',
-    name: 'Midnight',
-    description: 'Đêm sâu huyền bí & Tập trung tối đa',
-    colors: {
-      background: '#0B1120',
-      surface: '#1E293B',
-      secondary: '#334155',
-      primary: '#38BDF8'
     }
   }
 ];
@@ -126,13 +50,13 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
-  const [theme, setThemeState] = useState<string>('huki-original');
+  const [theme] = useState<string>('huki-original');
   const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
 
   useEffect(() => {
     try {
-      const savedTheme = localStorage.getItem('huki_color_theme');
-      if (savedTheme) setThemeState(savedTheme);
+      // Force default green theme, clear old custom themes
+      localStorage.setItem('huki_color_theme', 'huki-original');
       const savedDark = localStorage.getItem('huki_dark_mode') === 'true';
       setIsDarkMode(savedDark);
     } catch {
@@ -140,17 +64,10 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const currentPalette = COLOR_PALETTES.find(p => p.id === theme) || COLOR_PALETTES[0];
+  const currentPalette = COLOR_PALETTES[0];
 
-  const setTheme = (paletteId: string) => {
-    const valid = COLOR_PALETTES.some(p => p.id === paletteId);
-    const target = valid ? paletteId : 'huki-original';
-    setThemeState(target);
-    try {
-      localStorage.setItem('huki_color_theme', target);
-    } catch (e) {
-      console.warn('Could not persist theme to localStorage', e);
-    }
+  const setTheme = (_paletteId: string) => {
+    // Theme selection is disabled - permanently locked to HUKI Original Green
   };
 
   const toggleDarkMode = () => {
@@ -165,16 +82,25 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
-  // Synchronize with documentElement
+  // Synchronize CSS variables and dark mode with documentElement
   useEffect(() => {
     const root = document.documentElement;
-    root.setAttribute('data-theme', theme);
+    root.setAttribute('data-theme', 'huki-original');
+
+    // Bind primary brand green tokens
+    root.style.setProperty('--theme-primary', '#003B2B');
+    root.style.setProperty('--theme-secondary', '#006953');
+    root.style.setProperty('--theme-secondary-subtle', '#F2FBF9');
+    root.style.setProperty('--theme-accent', '#AC2C19');
+    root.style.setProperty('--theme-header-bg', '#003B2B');
+    root.style.setProperty('--theme-header-accent', '#94F5D6');
+
     if (isDarkMode) {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-  }, [theme, isDarkMode]);
+  }, [isDarkMode]);
 
   return (
     <ThemeContext.Provider

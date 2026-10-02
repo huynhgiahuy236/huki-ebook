@@ -69,7 +69,7 @@ export function DailyRecommendationsSection({
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
-          <span className="text-[11px] text-rose-600 font-semibold bg-rose-50 px-2 py-0.5 rounded-full uppercase tracking-wide">
+          <span className="text-[11px] text-[#003b2b] font-semibold bg-[#e6f4f0] border border-[#003b2b]/20 px-2 py-0.5 rounded-full uppercase tracking-wide">
             {todayStr}
           </span>
         </div>

@@ -4,7 +4,7 @@ import Link from 'next/link';
 export default function SellerFooter() {
   return (
     <footer className="bg-theme-surface border-t border-theme-border py-6 px-4 md:px-8 text-xs text-theme-text-muted mt-auto">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="max-w-[1600px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <span className="font-editorial font-bold text-theme-primary text-base">HUKI SELLER CENTER</span>
           <span>•</span>

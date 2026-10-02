@@ -221,8 +221,20 @@ export function AdminBusinessUpdateRequestsView() {
     setCurrentPage(1);
   };
 
+  const [expandedReqIds, setExpandedReqIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandReq = (id: string, req: any) => {
+    markAsRead(id);
+    setExpandedReqIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-fade-in font-sans">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-3">
         <div>
@@ -304,7 +316,7 @@ export function AdminBusinessUpdateRequestsView() {
         </div>
       </div>
 
-      {/* 3. Requests Table - Tách cột riêng, không rớt dòng, cuộn ngang, zebra striping */}
+      {/* 3. Requests Table - Compact Stacked Rows & Expandable Detail */}
       <AdminTableContainer>
         {loading ? (
           <div className="py-20 text-center text-gray-500">
@@ -324,16 +336,15 @@ export function AdminBusinessUpdateRequestsView() {
             </p>
           </div>
         ) : (
-          <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
+          <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
               <tr>
-                <th className="py-3 px-4 whitespace-nowrap">Thời Gian Gửi</th>
-                <th className="py-3 px-3 whitespace-nowrap">Tên Doanh Nghiệp (Hiện Tại)</th>
-                <th className="py-3 px-3 whitespace-nowrap">Mã Số Thuế</th>
-                <th className="py-3 px-3 whitespace-nowrap">Tên Đề Xuất Mới</th>
-                <th className="py-3 px-3 whitespace-nowrap">Trụ Sở / Chi Nhánh Mới</th>
-                <th className="py-3 px-3 whitespace-nowrap text-center">Trạng Thái</th>
-                <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                <th className="py-3 px-2 w-8 text-center"></th>
+                <th className="py-3 px-2 w-10 text-center">STT</th>
+                <th className="py-3 px-3.5">Doanh Nghiệp &amp; Mã Số Thuế</th>
+                <th className="py-3 px-3.5">Nội Dung Đề Xuất Thay Đổi</th>
+                <th className="py-3 px-3.5">Thời Gian Gửi</th>
+                <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -341,107 +352,185 @@ export function AdminBusinessUpdateRequestsView() {
                 const data = req.requestedData || {};
                 const isPending = req.status === 'PENDING';
                 const isUnread = isPending && !readMap[req.id];
+                const isExpanded = expandedReqIds.has(req.id);
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
 
                 return (
-                  <tr
-                    key={req.id}
-                    onClick={() => handleOpenDetail(req)}
-                    className={`transition-colors cursor-pointer group ${
-                      idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
-                    } hover:bg-emerald-50/40 ${isUnread ? 'border-l-4 border-l-rose-500' : ''}`}
-                  >
-                    {/* Thời Gian Gửi */}
-                    <td className="py-3 px-4 font-mono text-gray-500 text-[11px] whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        {isUnread && (
-                          <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse"></span>
-                        )}
-                        <span>{new Date(req.createdAt).toLocaleString('vi-VN')}</span>
-                      </div>
-                    </td>
-
-                    {/* Tên Doanh Nghiệp (Hiện Tại) */}
-                    <td className="py-3 px-3 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
-                          {req.business?.name || 'Chưa đặt tên'}
-                        </span>
-                        {isUnread && (
-                          <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold animate-pulse shrink-0">
-                            MỚI
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Mã Số Thuế */}
-                    <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px] text-gray-600 font-semibold">
-                      {req.business?.taxCode || 'N/A'}
-                    </td>
-
-                    {/* Tên Đề Xuất Mới */}
-                    <td className="py-3 px-3 whitespace-nowrap font-semibold text-[#00875A]">
-                      {data.name || req.business?.name || '-'}
-                    </td>
-
-                    {/* Trụ Sở / Chi Nhánh Mới */}
-                    <td className="py-3 px-3 whitespace-nowrap text-gray-600 text-[11px]">
-                      {Array.isArray(data.headquarters)
-                        ? `${data.headquarters.length} Trụ sở / chi nhánh`
-                        : data.address || 'Không đổi địa chỉ'}
-                    </td>
-
-                    {/* Trạng Thái */}
-                    <td className="py-3 px-3 whitespace-nowrap text-center">
-                      <AdminStatusBadge
-                        variant={
-                          req.status === 'APPROVED' ? 'success' :
-                          req.status === 'PENDING' ? 'warning' :
-                          req.status === 'REJECTED' ? 'danger' : 'neutral'
-                        }
-                        label={
-                          req.status === 'APPROVED' ? 'Đã phê duyệt' :
-                          req.status === 'PENDING' ? 'Chờ xét duyệt' :
-                          req.status === 'REJECTED' ? 'Đã từ chối' : req.status
-                        }
-                      />
-                    </td>
-
-                    {/* Thao Tác */}
-                    <td className="py-3 px-4 whitespace-nowrap text-right" onClick={(e: any) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-1.5">
+                  <React.Fragment key={req.id}>
+                    <tr
+                      className={`transition-colors group ${
+                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                      } hover:bg-emerald-50/40 ${isUnread ? 'border-l-4 border-l-rose-500' : ''}`}
+                    >
+                      {/* Chevron toggle */}
+                      <td className="py-3 px-2 text-center">
                         <button
                           type="button"
-                          onClick={() => handleOpenDetail(req)}
-                          className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold text-xs transition-colors cursor-pointer"
+                          onClick={() => toggleExpandReq(req.id, req)}
+                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-gray-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
                         >
-                          Xem so sánh
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                            chevron_right
+                          </span>
                         </button>
+                      </td>
 
-                        {isPending && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(req.id)}
-                              disabled={actionLoading}
-                              className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
-                            >
-                              Duyệt
-                            </button>
+                      {/* STT */}
+                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
+                        {itemIndex}
+                      </td>
 
-                            <button
-                              type="button"
-                              onClick={() => handleOpenReject(req)}
-                              disabled={actionLoading}
-                              className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-colors cursor-pointer border border-rose-200"
-                            >
-                              Từ chối
-                            </button>
-                          </>
+                      {/* Doanh nghiệp & MST */}
+                      <td className="py-3 px-3.5">
+                        <div className="flex items-center gap-2">
+                          <span
+                            onClick={() => toggleExpandReq(req.id, req)}
+                            className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors cursor-pointer block truncate max-w-[240px]"
+                          >
+                            {req.business?.name || 'Chưa đặt tên'}
+                          </span>
+                          {isUnread && (
+                            <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold animate-pulse shrink-0">
+                              MỚI
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono text-[10.5px] text-gray-500 mt-0.5">
+                          MST: {req.business?.taxCode || 'N/A'}
+                        </div>
+                      </td>
+
+                      {/* Thay đổi đề xuất */}
+                      <td className="py-3 px-3.5">
+                        <div className="text-gray-800 font-medium text-xs truncate max-w-[280px]">
+                          {data.name && data.name !== req.business?.name ? (
+                            <span className="text-[#00875A] font-bold">Đổi tên: {data.name}</span>
+                          ) : data.address ? (
+                            <span>Đổi trụ sở: {data.address}</span>
+                          ) : data.phone ? (
+                            <span>Đổi SĐT: {data.phone}</span>
+                          ) : (
+                            <span className="text-gray-500">Cập nhật hồ sơ thông tin chung</span>
+                          )}
+                        </div>
+                        {data.address && data.name && (
+                          <div className="text-[10.5px] text-gray-400 truncate max-w-[260px] mt-0.5">
+                            Trụ sở: {data.address}
+                          </div>
                         )}
-                      </div>
-                    </td>
-                  </tr>
+                      </td>
+
+                      {/* Thời Gian Gửi */}
+                      <td className="py-3 px-3.5 font-mono text-gray-500 text-[11px] whitespace-nowrap">
+                        {new Date(req.createdAt).toLocaleString('vi-VN')}
+                      </td>
+
+                      {/* Trạng Thái & Thao Tác */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <AdminStatusBadge
+                            variant={
+                              req.status === 'APPROVED' ? 'success' :
+                              req.status === 'PENDING' ? 'warning' : 'danger'
+                            }
+                            label={STATUS_CONFIG[req.status as keyof typeof STATUS_CONFIG]?.label || req.status}
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(req)}
+                            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">compare_arrows</span>
+                            <span>Đối Chiếu</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Master-Detail Expandable Subcard (3 cards) */}
+                    {isExpanded && (
+                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
+                        <td colSpan={6} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                            {/* Cột 1: Dữ liệu hiện tại */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">history</span>
+                                <span>Hồ Sơ Hiện Tại</span>
+                              </div>
+                              <div className="space-y-1 pt-1 text-[11px] text-gray-700">
+                                <div><span className="text-gray-400">Tên: </span><span className="font-semibold">{req.business?.name || 'N/A'}</span></div>
+                                <div><span className="text-gray-400">MST: </span><span className="font-mono">{req.business?.taxCode || 'N/A'}</span></div>
+                                <div><span className="text-gray-400">Địa chỉ: </span><span>{req.business?.address || 'N/A'}</span></div>
+                                <div><span className="text-gray-400">SĐT: </span><span>{req.business?.phone || 'N/A'}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Đề xuất mới */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                                <span>Thông Tin Mới Yêu Cầu Thay Đổi</span>
+                              </div>
+                              <div className="space-y-1 pt-1 text-[11px]">
+                                {data.name && <div><span className="text-gray-400">Tên mới: </span><span className="font-bold text-[#00875A]">{data.name}</span></div>}
+                                {data.taxCode && <div><span className="text-gray-400">MST mới: </span><span className="font-mono font-bold text-[#00875A]">{data.taxCode}</span></div>}
+                                {data.address && <div><span className="text-gray-400">Địa chỉ mới: </span><span className="font-medium text-[#00875A]">{data.address}</span></div>}
+                                {data.phone && <div><span className="text-gray-400">SĐT mới: </span><span className="font-medium text-[#00875A]">{data.phone}</span></div>}
+                                {req.reason && <div><span className="text-gray-400">Lý do: </span><span className="text-gray-600 italic">"{req.reason}"</span></div>}
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Thao tác thẩm định */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px]">rule</span>
+                                  <span>Thẩm Định Chỉnh Sửa</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Phê duyệt sẽ ghi đè trực tiếp thông tin vào cơ sở dữ liệu đối tác NXB.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <button
+                                  onClick={() => handleOpenDetail(req)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">compare_arrows</span>
+                                  <span>Xem So Sánh 2 Cột</span>
+                                </button>
+                                {isPending && (
+                                  <>
+                                    <button
+                                      onClick={() => handleApprove(req)}
+                                      disabled={actionLoading}
+                                      className="px-3 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">check</span>
+                                      <span>Duyệt</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setSelectedRequest(req);
+                                        setIsRejectModalOpen(true);
+                                      }}
+                                      disabled={actionLoading}
+                                      className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
+                                    >
+                                      Từ Chối
+                                    </button>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })}
             </tbody>

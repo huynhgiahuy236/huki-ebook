@@ -13,6 +13,16 @@ export function AdminVouchersView() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'UPCOMING' | 'EXPIRED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [groupBy, setGroupBy] = useState<'TYPE' | 'AUDIENCE' | 'NONE'>('TYPE');
+  const [expandedVoucherIds, setExpandedVoucherIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandVoucher = (id: string) => {
+    setExpandedVoucherIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // In-Page Expandable Studio Form (100% In-Page, Zero Modal)
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -293,7 +303,7 @@ export function AdminVouchersView() {
   };
 
   return (
-    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full pb-16 animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -993,19 +1003,17 @@ export function AdminVouchersView() {
               </div>
 
               {/* Group Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse min-w-[1100px]">
+              <div className="w-full">
+                <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                     <tr>
-                      <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Mã Voucher</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Tên Chiến Dịch &amp; Mức Giảm</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Đối Tượng</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Đơn Tối Thiểu</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Tiến Độ Lượt Dùng</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap">Thời Hạn</th>
-                      <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                      <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                      <th className="py-3 px-2 w-10 text-center"></th>
+                      <th className="py-3 px-2 w-12 text-center">STT</th>
+                      <th className="py-3 px-3.5">Mã &amp; Chiến Dịch</th>
+                      <th className="py-3 px-3.5">Mức Giảm &amp; Điều Kiện</th>
+                      <th className="py-3 px-3.5">Đối Tượng &amp; Hạn Dùng</th>
+                      <th className="py-3 px-3.5">Tiến Độ Lượt Dùng</th>
+                      <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1015,7 +1023,7 @@ export function AdminVouchersView() {
                       const discountLabel = isPercentage
                         ? `Giảm ${v.value}% (tối đa ${Number(v.maxDiscountAmount || 0).toLocaleString('vi-VN')}đ)`
                         : isFreeship
-                        ? `Miễn phí vận chuyển (tối đa ${Number(v.value || 0).toLocaleString('vi-VN')}đ)`
+                        ? `Miễn phí ship (tối đa ${Number(v.value || 0).toLocaleString('vi-VN')}đ)`
                         : `Giảm ${Number(v.value || 0).toLocaleString('vi-VN')}đ`;
 
                       const usagePercent = v.totalUsage > 0 ? Math.min(100, Math.round(((v.currentUsage || 0) / v.totalUsage) * 100)) : 0;
@@ -1027,81 +1035,245 @@ export function AdminVouchersView() {
                           ? 'Đã theo dõi'
                           : 'Tất cả bạn đọc';
 
+                      const isExpanded = expandedVoucherIds.has(v.id || v.code);
+
                       return (
-                        <tr
-                          key={v.id || v.code}
-                          className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                        >
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
-                            {idx + 1}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="font-mono font-extrabold text-[#00875A] bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 text-xs">
-                              {v.code}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className="font-bold text-gray-900 block">{v.name}</span>
-                            <span className="text-[10.5px] text-gray-500">{discountLabel}</span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-bold border ${
-                              v.targetAudience === 'NEW_CUSTOMERS_ONLY'
-                                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                                : v.targetAudience === 'FOLLOWERS_ONLY'
-                                ? 'bg-purple-50 text-purple-800 border-purple-200'
-                                : 'bg-gray-100 text-gray-700 border-gray-200'
-                            }`}>
-                              {targetAudienceLabel}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-gray-600 font-mono">
-                            {Number(v.minOrderAmount || 0) > 0 ? `${Number(v.minOrderAmount).toLocaleString('vi-VN')}đ` : 'Không giới hạn'}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap">
-                            <div className="flex flex-col gap-1 max-w-[130px]">
-                              <span className="text-[10.5px] font-bold text-gray-800">
-                                {v.currentUsage || 0} / {v.totalUsage > 0 ? `${v.totalUsage} lượt` : 'Không giới hạn'}
-                              </span>
-                              {v.totalUsage > 0 && (
-                                <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                                  <div
-                                    className="bg-emerald-600 h-full rounded-full"
-                                    style={{ width: `${usagePercent}%` }}
-                                  ></div>
+                        <React.Fragment key={v.id || v.code}>
+                          <tr className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
+                            {/* Expand arrow */}
+                            <td className="py-3 px-2 text-center">
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandVoucher(v.id || v.code)}
+                                className="w-7 h-7 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
+                                aria-label={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
+                              >
+                                <span className={`material-symbols-outlined text-[18px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-600 font-bold' : ''}`}>
+                                  chevron_right
+                                </span>
+                              </button>
+                            </td>
+
+                            {/* STT */}
+                            <td className="py-3 px-2 text-center font-mono text-[11px] text-gray-400">
+                              {idx + 1}
+                            </td>
+
+                            {/* Mã & Chiến Dịch */}
+                            <td className="py-3 px-3.5">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-mono font-extrabold text-[#00875A] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-xs w-fit">
+                                  {v.code}
+                                </span>
+                                <span className="font-bold text-gray-900 text-xs truncate max-w-[220px]" title={v.name}>
+                                  {v.name}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Mức Giảm & Điều Kiện */}
+                            <td className="py-3 px-3.5">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-bold text-gray-900 text-xs text-[#00875A]">
+                                  {discountLabel}
+                                </span>
+                                <span className="text-[11px] text-gray-500 font-mono">
+                                  {Number(v.minOrderAmount || 0) > 0 ? `Đơn từ ${Number(v.minOrderAmount).toLocaleString('vi-VN')}đ` : 'Mọi đơn hàng'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Đối Tượng & Hạn Dùng */}
+                            <td className="py-3 px-3.5">
+                              <div className="flex flex-col gap-1">
+                                <span className={`px-2 py-0.2 rounded-md text-[10px] font-bold border w-fit ${
+                                  v.targetAudience === 'NEW_CUSTOMERS_ONLY'
+                                    ? 'bg-blue-50 text-blue-800 border-blue-200'
+                                    : v.targetAudience === 'FOLLOWERS_ONLY'
+                                    ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                    : 'bg-gray-100 text-gray-700 border-gray-200'
+                                }`}>
+                                  {targetAudienceLabel}
+                                </span>
+                                <span className="text-gray-400 font-mono text-[10.5px]">
+                                  {v.expiresAt ? `Hạn: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}` : 'Vô thời hạn'}
+                                </span>
+                              </div>
+                            </td>
+
+                            {/* Tiến Độ Lượt Dùng */}
+                            <td className="py-3 px-3.5">
+                              <div className="flex flex-col gap-1 max-w-[140px]">
+                                <span className="text-[11px] font-bold text-gray-800 font-mono">
+                                  {v.currentUsage || 0} / {v.totalUsage > 0 ? `${v.totalUsage} lượt` : '∞'}
+                                </span>
+                                {v.totalUsage > 0 && (
+                                  <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className="bg-emerald-600 h-full rounded-full transition-all"
+                                      style={{ width: `${usagePercent}%` }}
+                                    ></div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Trạng Thái & Thao Tác */}
+                            <td className="py-3 px-3.5 text-right">
+                              <div className="flex flex-col items-end gap-1.5">
+                                {v.status === 'ACTIVE' ? (
+                                  <AdminStatusBadge status="success" label="Đang Hoạt Động" icon="check_circle" />
+                                ) : v.status === 'USED_UP' ? (
+                                  <AdminStatusBadge status="neutral" label="Đã Hết Lượt" />
+                                ) : (
+                                  <AdminStatusBadge status="neutral" label="Tạm Dừng" />
+                                )}
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => handleToggleVoucherStatus(v)}
+                                    className="px-2 py-0.5 rounded-md border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 font-bold text-[10.5px] cursor-pointer"
+                                  >
+                                    {v.status === 'ACTIVE' ? 'Tắt' : 'Bật'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteVoucher(v)}
+                                    className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[10.5px] cursor-pointer"
+                                  >
+                                    Xóa
+                                  </button>
                                 </div>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 text-[11px]">
-                            {v.expiresAt ? new Date(v.expiresAt).toLocaleDateString('vi-VN') : 'Vô thời hạn'}
-                          </td>
-                          <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                            {v.status === 'ACTIVE' ? (
-                              <AdminStatusBadge status="success" label="Đang Hoạt Động" icon="check_circle" />
-                            ) : v.status === 'USED_UP' ? (
-                              <AdminStatusBadge status="neutral" label="Đã Hết Lượt" />
-                            ) : (
-                              <AdminStatusBadge status="neutral" label="Tạm Dừng" />
-                            )}
-                          </td>
-                          <td className="py-3 px-4 whitespace-nowrap text-right">
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleToggleVoucherStatus(v)}
-                                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-gray-800 font-bold text-xs cursor-pointer"
-                              >
-                                {v.status === 'ACTIVE' ? 'Tắt' : 'Bật'}
-                              </button>
-                              <button
-                                onClick={() => handleDeleteVoucher(v)}
-                                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs cursor-pointer"
-                              >
-                                Xóa
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {/* Expandable Master-Detail Subcard */}
+                          {isExpanded && (
+                            <tr className="bg-[#F0FDF4]/30 border-b border-emerald-100">
+                              <td colSpan={7} className="p-4 sm:p-5">
+                                <div className="rounded-2xl border border-emerald-200/80 bg-white p-4 shadow-2xs flex flex-col gap-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                                    {/* Card 1: Quy chế chiết khấu */}
+                                    <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 flex flex-col gap-2">
+                                      <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                                        <span className="material-symbols-outlined text-[15px] text-[#00875A]">loyalty</span>
+                                        <span>Chi Tiết Ưu Đãi</span>
+                                      </div>
+                                      <div className="space-y-1.5 text-[11.5px]">
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Mã Voucher:</span>
+                                          <span className="font-mono font-bold text-[#00875A]">{v.code}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Loại Giảm Giá:</span>
+                                          <span className="font-semibold text-gray-900">{isPercentage ? 'Theo %' : isFreeship ? 'Miễn Phí Vận Chuyển' : 'Tiền Mặt Cố Định'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Mức Giảm:</span>
+                                          <span className="font-bold text-emerald-800">{isPercentage ? `${v.value}%` : `${Number(v.value || 0).toLocaleString('vi-VN')}₫`}</span>
+                                        </div>
+                                        {isPercentage && v.maxDiscountAmount && (
+                                          <div className="flex justify-between">
+                                            <span className="text-gray-500">Trần Giảm Tối Đa:</span>
+                                            <span className="font-mono text-gray-800">{Number(v.maxDiscountAmount).toLocaleString('vi-VN')}₫</span>
+                                          </div>
+                                        )}
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Đơn Hàng Tối Thiểu:</span>
+                                          <span className="font-mono text-gray-800">{Number(v.minOrderAmount || 0) > 0 ? `${Number(v.minOrderAmount).toLocaleString('vi-VN')}₫` : '0₫ (Không giới hạn)'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Card 2: Phân khúc & Hạn mức */}
+                                    <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 flex flex-col gap-2">
+                                      <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                                        <span className="material-symbols-outlined text-[15px] text-blue-600">group</span>
+                                        <span>Phân Khúc &amp; Giới Hạn</span>
+                                      </div>
+                                      <div className="space-y-1.5 text-[11.5px]">
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Đối Tượng Áp Dụng:</span>
+                                          <span className="font-bold text-gray-900">{targetAudienceLabel}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Tổng Lượt Phát Hành:</span>
+                                          <span className="font-mono font-semibold text-gray-800">{v.totalUsage > 0 ? `${v.totalUsage} lượt` : 'Vô hạn'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Đã Sử Dụng:</span>
+                                          <span className="font-mono font-bold text-emerald-700">{v.currentUsage || 0} lượt ({usagePercent}%)</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Giới Hạn / Khách:</span>
+                                          <span className="font-mono text-gray-800">{v.maxUsagePerUser || 1} lượt / độc giả</span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Card 3: Thời hạn & Hạch toán Sàn */}
+                                    <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200/80 flex flex-col gap-2">
+                                      <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                                        <span className="material-symbols-outlined text-[15px] text-purple-600">schedule</span>
+                                        <span>Thời Gian &amp; Hạch Toán</span>
+                                      </div>
+                                      <div className="space-y-1.5 text-[11.5px]">
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Bắt Đầu:</span>
+                                          <span className="font-mono text-gray-800">{v.startsAt ? new Date(v.startsAt).toLocaleString('vi-VN') : '—'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Kết Thúc:</span>
+                                          <span className="font-mono text-gray-800">{v.expiresAt ? new Date(v.expiresAt).toLocaleString('vi-VN') : 'Vô thời hạn'}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Nguồn Trợ Giá:</span>
+                                          <span className="font-bold text-[#00875A] bg-emerald-50 px-1.5 py-0.2 rounded">100% Ngân Sách Sàn HUKI</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                          <span className="text-gray-500">Phạm Vi Áp Dụng:</span>
+                                          <span className="font-medium text-gray-800">Toàn bộ gian hàng sàn</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Action Toolbar */}
+                                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-gray-100">
+                                    <span className="text-[11px] text-gray-500">
+                                      {v.description ? `Mô tả: "${v.description}"` : 'Mã khuyến mãi phát hành bởi ban quản trị Sàn HUKI'}
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(v.code);
+                                          showToast?.(`Đã sao chép mã ${v.code}!`, 'success');
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                                        <span>Sao chép mã</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleToggleVoucherStatus(v)}
+                                        className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer flex items-center gap-1 ${
+                                          v.status === 'ACTIVE'
+                                            ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                        }`}
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">{v.status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}</span>
+                                        <span>{v.status === 'ACTIVE' ? 'Tạm Dừng Hoạt Động' : 'Kích Hoạt Ngay'}</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>

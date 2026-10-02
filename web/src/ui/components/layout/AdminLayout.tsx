@@ -102,6 +102,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/publishers': { parent: 'Xét Duyệt Đối Tác', title: 'Nhà Xuất Bản' },
     '/admin/companies': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
     '/admin/stores': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Cửa Hàng' },
+    '/admin/seller-features': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý Tính Năng Seller' },
     '/admin/books': { parent: 'Quản Trị Catalog', title: 'Quản Lý Sách Toàn Sàn' },
     '/admin/book-moderation': { parent: 'Quản Trị Catalog', title: 'Kiểm Duyệt Sách' },
     '/admin/categories': { parent: 'Quản Trị Catalog', title: 'Danh Mục & Tác Giả' },
@@ -173,6 +174,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           icon: 'storefront',
           count: stats.pendingStores > 0 ? String(stats.pendingStores) : undefined,
           badgeColor: 'bg-amber-500 text-white font-bold',
+        },
+        {
+          label: 'Tính Năng Seller',
+          to: '/admin/seller-features',
+          icon: 'toggle_on',
         },
       ],
     },
@@ -290,7 +296,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 ADMIN
               </span>
             </div>
-            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+            <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
               Ban Quản Trị Hệ Thống
             </span>
           </Link>

@@ -307,16 +307,13 @@ export default function SellerBusinessProfilePage() {
   const isApproved = business?.status === 'APPROVED' || user?.role === 'BUSINESS';
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8 space-y-8 animate-fade-in relative pb-24">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. Header & Quick Actions */}
-      <header className="flex flex-col gap-4 border-b border-theme-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+      <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-1">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-theme-primary">
-            <span className="material-symbols-outlined text-base">verified_user</span>
-            <span>Kênh Người Bán &bull; Hồ Sơ Đối Tác</span>
-          </div>
-          <h1 className="font-editorial text-2xl sm:text-3xl font-bold text-on-surface">
-            Hồ Sơ Doanh Nghiệp &amp; Cửa Hàng
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Hồ Sơ Doanh Nghiệp &amp; Cửa Hàng</span>
           </h1>
           <p className="text-sm text-on-surface-variant leading-relaxed">
             Quản lý thông tin pháp nhân NXB, danh sách trụ sở chi nhánh và gửi yêu cầu cập nhật lên Admin Sàn.

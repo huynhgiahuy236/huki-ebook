@@ -8,11 +8,15 @@ import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import { useDebounce } from '../../utils/useDebounce';
+import { featureFlagsService, SellerFeature } from '../../services/featureFlagsService';
+import CustomModal from '../common/CustomModal';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
   { key: 'PENDING_APPROVAL', label: 'Chờ Xét Duyệt' },
   { key: 'APPROVED', label: 'Đã Phê Duyệt' },
+  { key: 'SUSPENDED', label: 'Tạm Ngưng / Khóa' },
   { key: 'REJECTED', label: 'Đã Từ Chối' },
 ];
 
@@ -120,11 +124,28 @@ function buildFullEnterpriseProfile(biz: any) {
 
 export function AdminBusinessesView() {
   const { showToast } = useToast();
-  const [businesses, setBusinesses] = useState<any[]>([]);;
+  const [businesses, setBusinesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedSearch = useDebounce(searchQuery, 250);
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
+
+  // Selection & Bulk Actions State
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [allFeatures, setAllFeatures] = useState<SellerFeature[]>([]);
+
+  // Feature Flag Modal for single business
+  const [featureModalBiz, setFeatureModalBiz] = useState<any>(null);
+
+  // Bulk Feature Flag Modal
+  const [bulkFeatureModalOpen, setBulkFeatureModalOpen] = useState(false);
+  const [bulkFeatureIds, setBulkFeatureIds] = useState<string[]>([]);
+  const [bulkFeatureAction, setBulkFeatureAction] = useState<'BLOCK' | 'UNBLOCK'>('BLOCK');
+
+  // Suspend Modal
+  const [suspendModalBiz, setSuspendModalBiz] = useState<any>(null);
+  const [suspendReason, setSuspendReason] = useState('');
 
   // Full Page Detail State
   const [selectedBiz, setSelectedBiz] = useState<any>(null);
@@ -211,14 +232,14 @@ export function AdminBusinessesView() {
     runAudit();
   }, [selectedBiz]);
 
-  // Bộ lọc danh sách
+  // Bộ lọc danh sách (sử dụng debouncedSearch)
   const filteredBusinesses = useMemo(() => {
     return businesses.filter((biz: any) => {
       if (activeTab !== 'ALL' && biz.status !== activeTab) {
         return false;
       }
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+      if (debouncedSearch.trim()) {
+        const q = debouncedSearch.toLowerCase();
         const matchName = biz.name?.toLowerCase().includes(q);
         const matchTax = biz.taxCode?.toLowerCase().includes(q);
         const matchEmail = biz.email?.toLowerCase().includes(q);
@@ -227,7 +248,17 @@ export function AdminBusinessesView() {
       }
       return true;
     });
-  }, [businesses, activeTab, searchQuery]);
+  }, [businesses, activeTab, debouncedSearch]);
+
+  // Load features list
+  useEffect(() => {
+    setAllFeatures(featureFlagsService.getAllFeatures());
+    const handleFeaturesUpdate = () => {
+      setAllFeatures(featureFlagsService.getAllFeatures());
+    };
+    window.addEventListener('huki_feature_flags_updated', handleFeaturesUpdate);
+    return () => window.removeEventListener('huki_feature_flags_updated', handleFeaturesUpdate);
+  }, []);
 
   // Đếm số lượng theo tab
   const counts = useMemo(() => {
@@ -235,6 +266,7 @@ export function AdminBusinessesView() {
       ALL: businesses.length,
       PENDING_APPROVAL: businesses.filter((b) => b.status === 'PENDING_APPROVAL').length,
       APPROVED: businesses.filter((b) => b.status === 'APPROVED').length,
+      SUSPENDED: businesses.filter((b) => b.status === 'SUSPENDED').length,
       REJECTED: businesses.filter((b) => b.status === 'REJECTED').length,
     };
   }, [businesses]);
@@ -257,7 +289,7 @@ export function AdminBusinessesView() {
       {
         key: 'stt',
         title: 'STT',
-        width: 60,
+        width: 50,
         align: 'center',
         render: (_val, _row, idx) => (
           <span className="font-mono text-theme-text-muted text-[11px] font-semibold">
@@ -267,17 +299,16 @@ export function AdminBusinessesView() {
       },
       {
         key: 'name',
-        title: 'Doanh Nghiệp',
-        minWidth: 260,
+        title: 'Doanh Nghiệp & Pháp Lý',
         sortable: true,
         render: (_val, biz) => (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 py-1">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-xs shrink-0">
               {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
             </div>
-            <div className="min-w-0 max-w-[240px]">
+            <div className="min-w-0 flex-1">
               <span
-                className="font-bold text-theme-text block truncate hover:text-theme-secondary cursor-pointer"
+                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words"
                 onClick={() => {
                   setSelectedBiz(biz);
                   setDetailTab('profile');
@@ -286,63 +317,52 @@ export function AdminBusinessesView() {
               >
                 {biz.name}
               </span>
-              <span className="text-[10px] text-theme-text-muted block truncate font-mono">
-                ID: {biz.id}
-              </span>
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                <span className="text-[10.5px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                  MST: {biz.taxCode || 'Chưa cấp'}
+                </span>
+                <span className="text-[10px] text-gray-400 font-mono">
+                  ID: {biz.id}
+                </span>
+              </div>
             </div>
           </div>
         ),
       },
       {
-        key: 'slug',
-        title: 'Mã Định Danh / Slug',
-        width: 150,
-        render: (val) => (
-          <span className="font-mono text-theme-text-muted bg-theme-surface-subtle px-2 py-0.5 rounded text-[11px]">
-            /{val || 'n-a'}
-          </span>
+        key: 'contact',
+        title: 'Đại Diện & Liên Hệ',
+        render: (_val, biz) => (
+          <div className="flex flex-col gap-0.5 py-1">
+            <span className="text-xs font-medium text-gray-800 break-words" title={biz.email || ''}>
+              {biz.email || <span className="text-gray-400 italic">Chưa có email</span>}
+            </span>
+            <span className="font-mono text-[11px] text-gray-500 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[13px] text-gray-400">call</span>
+              <span>{biz.phone || 'Chưa cập nhật SĐT'}</span>
+            </span>
+          </div>
         ),
       },
       {
-        key: 'taxCode',
-        title: 'Mã Số Thuế',
-        width: 140,
-        render: (val) => (
-          <span className="font-mono font-medium text-theme-text text-[11px]">
-            {val || <span className="text-theme-text-muted font-sans italic text-[11px]">Chưa cung cấp</span>}
-          </span>
-        ),
-      },
-      {
-        key: 'email',
-        title: 'Email Liên Hệ',
-        width: 180,
-        render: (val) => (
-          <span className="text-theme-text truncate block max-w-[170px]" title={val || ''}>
-            {val || <span className="text-theme-text-muted italic">Chưa có</span>}
-          </span>
-        ),
-      },
-      {
-        key: 'phone',
-        title: 'Số Điện Thoại',
-        width: 130,
-        render: (val) => (
-          <span className="font-mono text-theme-text">
-            {val || <span className="text-theme-text-muted font-sans italic text-[11px]">Chưa có</span>}
-          </span>
-        ),
-      },
-      {
-        key: 'createdAt',
-        title: 'Ngày Đăng Ký',
-        width: 130,
-        sortable: true,
-        render: (val) => (
-          <span className="text-theme-text-muted font-mono text-[11px]">
-            {val ? new Date(val).toLocaleDateString('vi-VN') : '—'}
-          </span>
-        ),
+        key: 'partnerType',
+        title: 'Loại Hình & Ngày Nộp',
+        render: (_val, biz) => {
+          const isPublisher = biz.name?.toUpperCase().includes('NXB') || biz.name?.toUpperCase().includes('XUẤT BẢN');
+          return (
+            <div className="flex flex-col gap-1 py-1">
+              <span className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-bold border w-fit ${
+                isPublisher ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+              }`}>
+                {isPublisher ? '🏛️ Nhà Xuất Bản' : '🏢 Nhà Phát Hành / DN'}
+              </span>
+              <span className="text-gray-400 font-mono text-[10.5px] flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">calendar_today</span>
+                <span>{biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: 'status',
@@ -371,17 +391,19 @@ export function AdminBusinessesView() {
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 180,
+        width: 260,
         align: 'right',
         render: (_val, biz) => {
           const isPending = biz.status === 'PENDING_APPROVAL';
+          const isSuspended = biz.status === 'SUSPENDED';
+          const isApproved = biz.status === 'APPROVED';
           const isBusy = actionLoadingId === biz.id;
           return (
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
               <AdminActionButton
                 variant="view"
                 icon="visibility"
-                label="Chi tiết"
+                label="Hồ sơ"
                 size="sm"
                 onClick={() => {
                   setSelectedBiz(biz);
@@ -389,12 +411,24 @@ export function AdminBusinessesView() {
                 }}
                 title="Xem chi tiết toàn trang"
               />
+
+              {/* Quản lý tính năng Seller */}
+              <button
+                type="button"
+                onClick={() => setFeatureModalBiz(biz)}
+                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                title="Quản lý tính năng Seller của DN này"
+              >
+                <span className="material-symbols-outlined text-[14px]">tune</span>
+                <span>Tính Năng</span>
+              </button>
+
               {isPending && (
                 <>
                   <AdminActionButton
                     variant="success"
                     icon="check"
-                    label="Phê Duyệt"
+                    label="Duyệt"
                     size="sm"
                     onClick={() => handleApprove(biz)}
                     disabled={isBusy}
@@ -413,6 +447,35 @@ export function AdminBusinessesView() {
                     title="Từ chối hồ sơ"
                   />
                 </>
+              )}
+
+              {isApproved && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSuspendModalBiz(biz);
+                    setSuspendReason('');
+                  }}
+                  disabled={isBusy}
+                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Khóa / Tạm ngưng hoạt động doanh nghiệp"
+                >
+                  <span className="material-symbols-outlined text-[14px]">block</span>
+                  <span>Khóa</span>
+                </button>
+              )}
+
+              {isSuspended && (
+                <button
+                  type="button"
+                  onClick={() => handleReactivate(biz)}
+                  disabled={isBusy}
+                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  title="Kích hoạt mở lại hoạt động doanh nghiệp"
+                >
+                  <span className="material-symbols-outlined text-[14px]">lock_open</span>
+                  <span>Mở Khóa</span>
+                </button>
               )}
             </div>
           );
@@ -498,6 +561,148 @@ export function AdminBusinessesView() {
     }
   };
 
+  // Xử lý tạm ngưng / khóa doanh nghiệp
+  const handleConfirmSuspend = async () => {
+    if (!suspendModalBiz || actionLoadingId) return;
+    setActionLoadingId(suspendModalBiz.id);
+    try {
+      const res = await adminApi.suspendBusiness(suspendModalBiz.id, suspendReason.trim() || undefined);
+      if (res.success) {
+        showToast?.({
+          title: 'Đã tạm ngưng doanh nghiệp',
+          message: `Doanh nghiệp "${suspendModalBiz.name}" đã được chuyển sang trạng thái Tạm ngưng.`,
+          type: 'warning',
+        });
+        setSuspendModalBiz(null);
+        setSuspendReason('');
+        fetchBusinesses();
+      } else {
+        showToast?.({
+          title: 'Khóa thất bại',
+          message: (typeof res.error === 'string' ? res.error : (res.error as any)?.message) || 'Không thể tạm ngưng doanh nghiệp lúc này.',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi thao tác',
+        message: err?.message || 'Có lỗi xảy ra khi tạm ngưng doanh nghiệp.',
+        type: 'error',
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Xử lý mở khóa / kích hoạt lại doanh nghiệp
+  const handleReactivate = async (biz: any) => {
+    if (!biz || actionLoadingId) return;
+    setActionLoadingId(biz.id);
+    try {
+      const res = await adminApi.reactivateBusiness(biz.id);
+      if (res.success) {
+        showToast?.({
+          title: 'Mở khóa thành công',
+          message: `Doanh nghiệp "${biz.name}" đã hoạt động trở lại bình thường!`,
+          type: 'success',
+        });
+        fetchBusinesses();
+      } else {
+        showToast?.({
+          title: 'Mở khóa thất bại',
+          message: (typeof res.error === 'string' ? res.error : (res.error as any)?.message) || 'Không thể kích hoạt lại.',
+          type: 'error',
+        });
+      }
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi thao tác',
+        message: err?.message || 'Có lỗi xảy ra khi kích hoạt lại doanh nghiệp.',
+        type: 'error',
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Bulk Actions
+  const handleBulkApprove = async () => {
+    if (selectedRowKeys.length === 0) return;
+    const pendingToApprove = businesses.filter((b) => selectedRowKeys.includes(b.id) && b.status === 'PENDING_APPROVAL');
+    if (pendingToApprove.length === 0) {
+      showToast?.({
+        title: 'Không có mục hợp lệ',
+        message: 'Các doanh nghiệp đã chọn không ở trạng thái Chờ xét duyệt.',
+        type: 'info',
+      });
+      return;
+    }
+
+    try {
+      await Promise.all(pendingToApprove.map((b) => adminApi.approveBusiness(b.id)));
+      showToast?.({
+        title: 'Phê duyệt hàng loạt thành công',
+        message: `Đã duyệt thành công ${pendingToApprove.length} doanh nghiệp!`,
+        type: 'success',
+      });
+      setSelectedRowKeys([]);
+      fetchBusinesses();
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi duyệt hàng loạt',
+        message: err?.message || 'Một số doanh nghiệp không thể phê duyệt.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleBulkSuspend = async () => {
+    if (selectedRowKeys.length === 0) return;
+    const activeToSuspend = businesses.filter((b) => selectedRowKeys.includes(b.id) && b.status === 'APPROVED');
+    if (activeToSuspend.length === 0) {
+      showToast?.({
+        title: 'Không có mục hợp lệ',
+        message: 'Chỉ có thể tạm ngưng các doanh nghiệp đang hoạt động (Đã phê duyệt).',
+        type: 'info',
+      });
+      return;
+    }
+
+    try {
+      await Promise.all(activeToSuspend.map((b) => adminApi.suspendBusiness(b.id, 'Tạm ngưng đồng loạt bởi Quản trị viên')));
+      showToast?.({
+        title: 'Tạm ngưng hàng loạt thành công',
+        message: `Đã tạm ngưng ${activeToSuspend.length} doanh nghiệp!`,
+        type: 'warning',
+      });
+      setSelectedRowKeys([]);
+      fetchBusinesses();
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi khóa hàng loạt',
+        message: err?.message || 'Có lỗi xảy ra khi khóa doanh nghiệp.',
+        type: 'error',
+      });
+    }
+  };
+
+  const handleApplyBulkFeatures = () => {
+    if (selectedRowKeys.length === 0 || bulkFeatureIds.length === 0) return;
+    featureFlagsService.bulkToggleBusinessFeatures(
+      selectedRowKeys,
+      bulkFeatureIds,
+      bulkFeatureAction === 'BLOCK'
+    );
+    showToast?.({
+      title: 'Cập nhật tính năng thành công',
+      message: `Đã ${bulkFeatureAction === 'BLOCK' ? 'chặn' : 'mở'} ${bulkFeatureIds.length} tính năng cho ${selectedRowKeys.length} doanh nghiệp!`,
+      type: 'success',
+    });
+    setBulkFeatureModalOpen(false);
+    setBulkFeatureIds([]);
+    setAllFeatures(featureFlagsService.getAllFeatures());
+  };
+
   // Helper render 1 ô thông tin thẩm định (Xanh / Đỏ / Vàng)
   const renderFieldAuditCard = (fieldKey: any, defaultLabel: any, declaredVal: any) => {
     const audit = auditResult?.fields?.[fieldKey];
@@ -567,7 +772,7 @@ export function AdminBusinessesView() {
     const isPending = selectedBiz.status === 'PENDING_APPROVAL';
 
     return (
-      <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-16 animate-fade-in">
+      <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
         
         {/* 1. TOP NAVIGATION & ACTION HEADER */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-4 z-20 backdrop-blur-md bg-white/95">
@@ -1248,7 +1453,7 @@ export function AdminBusinessesView() {
   // VIEW 2: BẢNG DANH SÁCH DOANH NGHIỆP TRUYỀN THỐNG
   // =========================================================================
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER & SUMMARY */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
@@ -1313,6 +1518,215 @@ export function AdminBusinessesView() {
         data={filteredBusinesses}
         keyField="id"
         loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedRowKeys}
+        onSelectionChange={(keys) => setSelectedRowKeys(keys as string[])}
+        bulkActionRender={(keys) => {
+          const selectedItems = businesses.filter((b) => keys.includes(b.id));
+          const pendingCount = selectedItems.filter((b) => b.status === 'PENDING_APPROVAL').length;
+          const activeCount = selectedItems.filter((b) => b.status === 'APPROVED').length;
+
+          return (
+            <div className="flex items-center gap-2 flex-wrap">
+              {pendingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkApprove}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                  <span>Duyệt {pendingCount} DN</span>
+                </button>
+              )}
+
+              {activeCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleBulkSuspend}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[15px]">block</span>
+                  <span>Khóa {activeCount} DN</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkFeatureIds([]);
+                  setBulkFeatureAction('BLOCK');
+                  setBulkFeatureModalOpen(true);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[15px]">toggle_on</span>
+                <span>Khóa/Mở Tính Năng ({keys.length})</span>
+              </button>
+            </div>
+          );
+        }}
+        expandable={true}
+        expandedRowRender={(biz: any) => {
+          const full = buildFullEnterpriseProfile(biz);
+          const isPending = biz.status === 'PENDING_APPROVAL';
+          const isBusy = actionLoadingId === biz.id;
+
+          return (
+            <div className="flex flex-col gap-4 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                {/* Card 1: Pháp Lý & Mã Số Thuế */}
+                <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-[#00875A]">apartment</span>
+                    <span>Hồ Sơ Pháp Lý &amp; CSDL Thuế</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11.5px]">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Tên Quốc Tế:</span>
+                      <span className="font-medium text-gray-800 text-right break-words">{full?.international_name || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Tên Viết Tắt:</span>
+                      <span className="font-semibold text-gray-900 text-right break-words">{full?.short_name || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Mã Số Thuế:</span>
+                      <span className="font-mono font-bold text-emerald-800">{full?.tax_code || 'Chưa cung cấp'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Loại Hình DN:</span>
+                      <span className="font-medium text-gray-700 text-right">{full?.business_type === 'CORPORATION' ? 'Công ty Cổ Phần' : 'Công ty TNHH'}</span>
+                    </div>
+                    <div className="pt-1 border-t border-gray-100 flex flex-col">
+                      <span className="text-gray-500 text-[10.5px]">Địa chỉ trụ sở chính:</span>
+                      <span className="font-medium text-gray-800 text-[11px] leading-snug mt-0.5 break-words">{full?.registered_address || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 2: Người Đại Diện Pháp Luật */}
+                <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-blue-600">badge</span>
+                    <span>Người Đại Diện Pháp Luật</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11.5px]">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Họ &amp; Tên:</span>
+                      <span className="font-bold text-gray-900 text-right break-words">{full?.rep_full_name || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Chức Vụ:</span>
+                      <span className="font-medium text-gray-700 text-right">{full?.rep_position || 'Người đại diện'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Số CCCD / CMND:</span>
+                      <span className="font-mono font-medium text-gray-800">{full?.rep_id_card_number || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">SĐT Liên Hệ:</span>
+                      <span className="font-mono text-gray-700">{full?.rep_phone || full?.phone || '—'}</span>
+                    </div>
+                    <div className="pt-1 border-t border-gray-100 flex flex-col">
+                      <span className="text-gray-500 text-[10.5px]">Email Đại Diện:</span>
+                      <span className="font-medium text-gray-800 text-[11px] break-words">{full?.rep_email || full?.email || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Ngân Hàng & Năng Lực Phát Hành */}
+                <div className="p-3.5 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-2">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1.5">
+                    <span className="material-symbols-outlined text-[15px] text-purple-600">account_balance</span>
+                    <span>Tài Khoản &amp; Năng Lực Sách</span>
+                  </div>
+                  <div className="space-y-1.5 text-[11.5px]">
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Số TK Ngân Hàng:</span>
+                      <span className="font-mono font-bold text-gray-900">{full?.bank_account_number || '—'}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-gray-500 text-[10.5px]">Ngân hàng:</span>
+                      <span className="font-medium text-gray-800 text-[11px] break-words">{full?.bank_name || '—'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Số GP Xuất Bản:</span>
+                      <span className="font-mono text-indigo-700 font-semibold">{full?.publishing_license_number || 'Chưa cấp'}</span>
+                    </div>
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Quy Mô Đầu Sách:</span>
+                      <span className="font-bold text-[#00875A]">{full?.estimated_book_count || 0} tựa sách</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-gray-200/60 bg-gray-50/50 p-2.5 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBiz(biz);
+                      setDetailTab('profile');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] border border-emerald-200 font-bold text-xs transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">verified</span>
+                    <span>Mở hồ sơ thẩm định 33 trường toàn trang</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedBiz(biz);
+                      setDetailTab('stores');
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">storefront</span>
+                    <span>Xem gian hàng ({biz.stores?.length || 0})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeatureModalBiz(biz)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">tune</span>
+                    <span>Quản lý tính năng Seller</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isPending && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRejectModalBiz(biz);
+                          setRejectReason('');
+                        }}
+                        disabled={isBusy}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">cancel</span>
+                        <span>Từ chối</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleApprove(biz)}
+                        disabled={isBusy}
+                        className="flex items-center gap-1 px-4 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                        <span>Phê duyệt ngay</span>
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        }}
         emptyTitle="Không tìm thấy doanh nghiệp nào"
         emptyMessage={searchQuery ? 'Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc trạng thái.' : 'Hiện không có hồ sơ nào trong danh mục này.'}
         emptyIcon="domain_disabled"
@@ -1326,7 +1740,235 @@ export function AdminBusinessesView() {
         }}
       />
 
-      {/* 4. REJECT IN-PAGE FORM */}
+      {/* 4. MODAL: QUẢN LÝ TÍNH NĂNG SELLER CHO 1 DOANH NGHIỆP */}
+      {featureModalBiz && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setFeatureModalBiz(null)}
+          title={`Tính Năng Seller: ${featureModalBiz.name}`}
+          size="lg"
+        >
+          <div className="p-4 flex flex-col gap-3.5 max-h-[75vh] overflow-hidden">
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+              <div>
+                <span className="font-bold text-slate-800">Doanh nghiệp: {featureModalBiz.name}</span>
+                <div className="text-slate-500 mt-0.5">MST: {featureModalBiz.taxCode || 'N/A'} • Email: {featureModalBiz.email}</div>
+              </div>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                featureModalBiz.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+              }`}>
+                {featureModalBiz.status}
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              Bật hoặc chặn các tính năng hoạt động của Seller dành riêng cho doanh nghiệp này. Nếu tính năng đang bảo trì toàn sàn (Global OFF), seller vẫn sẽ bị khóa.
+            </p>
+
+            <div className="flex-1 overflow-y-auto max-h-[380px] divide-y divide-slate-100 border border-slate-200 rounded-xl">
+              {allFeatures.map((feat) => {
+                const isBlockedForThisBiz = (feat.disabledBusinesses || []).includes(featureModalBiz.id);
+                const isGlobalDisabled = !feat.isEnabledGlobally;
+
+                return (
+                  <div key={feat.id} className="p-3 flex items-center justify-between gap-3 hover:bg-slate-50">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">{feat.name}</span>
+                        <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1 py-0.2 rounded">
+                          {feat.id}
+                        </span>
+                        {isGlobalDisabled && (
+                          <span className="text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.2 rounded">
+                            Bảo trì toàn sàn
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{feat.description}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        featureFlagsService.toggleBusinessForFeature(feat.id, featureModalBiz.id, !isBlockedForThisBiz);
+                        setAllFeatures(featureFlagsService.getAllFeatures());
+                      }}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0 ${
+                        isBlockedForThisBiz
+                          ? 'bg-rose-600 text-white hover:bg-rose-700'
+                          : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                      }`}
+                    >
+                      {isBlockedForThisBiz ? 'Đang Chặn (Bấm Mở)' : 'Được Phép (Bấm Chặn)'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setFeatureModalBiz(null)}
+                className="px-4 py-1.5 text-xs font-bold bg-[#003B2B] text-white rounded-xl hover:bg-[#00281D]"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* 5. MODAL: KHÓA / MỞ TÍNH NĂNG HÀNG LOẠT CHO CÁC DOANH NGHIỆP ĐƯỢC CHỌN */}
+      {bulkFeatureModalOpen && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setBulkFeatureModalOpen(false)}
+          title={`Quản Lý Tính Năng Cho ${selectedRowKeys.length} Doanh Nghiệp Đã Chọn`}
+          size="lg"
+        >
+          <div className="p-4 flex flex-col gap-3.5 max-h-[75vh] overflow-hidden">
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-slate-700">Hành động:</label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkFeatureAction('BLOCK')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    bulkFeatureAction === 'BLOCK' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  Chặn / Khóa tính năng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkFeatureAction('UNBLOCK')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    bulkFeatureAction === 'UNBLOCK' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  Mở khóa / Cấp quyền
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+              <span>Chọn các tính năng muốn áp dụng:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (bulkFeatureIds.length === allFeatures.length) {
+                    setBulkFeatureIds([]);
+                  } else {
+                    setBulkFeatureIds(allFeatures.map((f) => f.id));
+                  }
+                }}
+                className="text-[#003B2B] hover:underline cursor-pointer"
+              >
+                {bulkFeatureIds.length === allFeatures.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto max-h-[300px] divide-y divide-slate-100 border border-slate-200 rounded-xl">
+              {allFeatures.map((feat) => {
+                const checked = bulkFeatureIds.includes(feat.id);
+                return (
+                  <label key={feat.id} className="p-2.5 flex items-center gap-3 hover:bg-slate-50 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setBulkFeatureIds([...bulkFeatureIds, feat.id]);
+                        } else {
+                          setBulkFeatureIds(bulkFeatureIds.filter((id) => id !== feat.id));
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-slate-300 text-[#003B2B] focus:ring-[#003B2B]"
+                    />
+                    <div>
+                      <div className="text-xs font-bold text-slate-900">{feat.name}</div>
+                      <div className="text-[10px] text-slate-500">{feat.description}</div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setBulkFeatureModalOpen(false)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleApplyBulkFeatures}
+                disabled={bulkFeatureIds.length === 0}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-[#003B2B] hover:bg-[#00281D] disabled:opacity-50 rounded-xl transition-colors shadow-2xs cursor-pointer"
+              >
+                Áp Dụng Cho {selectedRowKeys.length} Doanh Nghiệp
+              </button>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* 6. MODAL: TẠM NGƯNG / KHÓA DOANH NGHIỆP */}
+      {suspendModalBiz && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setSuspendModalBiz(null)}
+          title={`Tạm Ngưng Doanh Nghiệp: ${suspendModalBiz.name}`}
+          size="md"
+        >
+          <div className="p-4 flex flex-col gap-3">
+            <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+              <span className="material-symbols-outlined text-[18px] text-rose-600 shrink-0">warning</span>
+              <div>
+                <p className="font-bold">Cảnh báo tạm ngưng hoạt động:</p>
+                <p className="mt-0.5">
+                  Tất cả gian hàng và sản phẩm sách thuộc doanh nghiệp <strong>{suspendModalBiz.name}</strong> sẽ tạm thời bị ẩn khỏi sàn thương mại và người bán sẽ bị khóa quyền truy cập Seller Hub.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Lý do tạm ngưng / Khóa tài khoản:
+              </label>
+              <textarea
+                rows={3}
+                value={suspendReason}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                placeholder="Nhập lý do khóa (VD: Vi phạm chính sách bản quyền, chưa hoàn thành đối soát tài chính...)"
+                className="w-full p-2.5 text-xs rounded-xl border border-slate-300 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSuspendModalBiz(null)}
+                className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSuspend}
+                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors shadow-2xs cursor-pointer"
+              >
+                Xác Nhận Khóa Doanh Nghiệp
+              </button>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* 7. REJECT IN-PAGE FORM */}
       {rejectModalBiz && (
         <div
           ref={rejectFormRef}
@@ -1437,3 +2079,4 @@ export function AdminBusinessesView() {
 }
 
 export default AdminBusinessesView;
+

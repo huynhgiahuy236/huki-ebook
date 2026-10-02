@@ -2156,11 +2156,12 @@ export default function CheckoutPage() {
                                                 onClick={() => isEligible && handleApplyStoreVoucher(sId, sv)}
                                                 className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
                                                   isSelected
-                                                    ? "bg-amber-600 text-white"
+                                                    ? "bg-[#003b2b] text-white"
                                                     : isEligible
-                                                      ? "bg-[#ac2c19] text-white hover:bg-[#8e2414]"
+                                                      ? "bg-[#003b2b] text-white hover:bg-[#00241a]"
                                                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
                                                 }`}
+                                                aria-label="Áp dụng mã giảm giá"
                                               >
                                                 {isSelected ? "Đang dùng" : isEligible ? "Áp dụng" : "Chưa đủ ĐK"}
                                               </button>

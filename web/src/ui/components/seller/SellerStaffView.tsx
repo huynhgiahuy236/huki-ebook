@@ -436,15 +436,13 @@ export function SellerStaffView() {
   }, [filteredMembers, currentPage, pageSize]);
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto space-y-5">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2.5">
-            <span className="w-9 h-9 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center border border-slate-200">
-              <span className="material-symbols-outlined text-[20px]">group</span>
-            </span>
-            <span>Phân Quyền & Quản Lý Nhân Sự</span>
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Phân Quyền &amp; Quản Lý Nhân Sự</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
             Cấp tài khoản nhân sự tức thì (Direct Provisioning) và phân quyền chi tiết theo 17 chức năng độc lập

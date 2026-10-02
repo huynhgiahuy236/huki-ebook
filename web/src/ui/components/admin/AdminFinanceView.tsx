@@ -695,97 +695,93 @@ export function AdminFinanceView() {
   const batchColumns: Column<any>[] = useMemo(
     () => [
       {
-        key: 'index',
-        title: 'STT',
-        align: 'center',
-        className: 'w-12 font-mono text-[11px] text-gray-400',
-        render: (_val, _item, index) => (currentPageBatches - 1) * pageSize + index + 1,
-      },
-      {
-        key: 'id',
-        title: 'Mã Kỳ Đối Soát',
+        key: 'batchPartner',
+        title: 'Kỳ Đối Soát & Đối Tác',
         sortable: true,
-        className: 'font-mono text-[11px] text-emerald-700 font-bold whitespace-nowrap',
-        render: (id: string) => `#${id}`,
+        render: (_val, batch) => (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono text-xs text-[#00875A] font-bold">#{batch.id}</span>
+              <span className="text-[10px] text-gray-400 bg-slate-100 px-1.5 py-0.2 rounded font-mono">{batch.period}</span>
+            </div>
+            <span className="font-bold text-gray-900 text-xs truncate max-w-[200px]" title={batch.publisher}>
+              {batch.publisher}
+            </span>
+          </div>
+        ),
       },
       {
-        key: 'publisher',
-        title: 'Nhà Xuất Bản',
+        key: 'ordersGross',
+        title: 'Đơn Hàng & GMV Doanh Số',
         sortable: true,
-        className: 'font-bold text-gray-900 whitespace-nowrap',
+        render: (_val, batch) => (
+          <div className="flex flex-col gap-0.5">
+            <span className="font-extrabold text-gray-900 font-mono text-xs">
+              {(batch.grossSales || 0).toLocaleString()}₫
+            </span>
+            <span className="text-[11px] text-gray-500 font-medium">
+              {(batch.ordersCount || 0).toLocaleString()} đơn hàng
+            </span>
+          </div>
+        ),
       },
       {
-        key: 'period',
-        title: 'Kỳ Đối Soát',
-        className: 'text-[11px] text-gray-500 whitespace-nowrap',
+        key: 'feesAndTax',
+        title: 'Phí Sàn 15% & Thuế',
+        render: (_val, batch) => (
+          <div className="flex flex-col gap-0.5 text-[11px]">
+            <span className="font-bold text-amber-700 font-mono">
+              -{(batch.platformFee || 0).toLocaleString()}₫ <span className="text-gray-400 font-normal">({batch.shareRatio || '85/15'})</span>
+            </span>
+            <span className="text-gray-500 font-mono text-[10.5px]">
+              Thuế: -{(batch.taxWithheld || 0).toLocaleString()}₫
+            </span>
+          </div>
+        ),
       },
       {
-        key: 'ordersCount',
-        title: 'Tổng Đơn',
+        key: 'netPayoutStatus',
+        title: 'Thực Nhận NXB & Trạng Thái',
+        render: (_val, batch) => (
+          <div className="flex flex-col gap-1">
+            <span className="font-extrabold text-xs text-[#00875A] font-mono">
+              {(batch.netPayout || 0).toLocaleString()}₫
+            </span>
+            <div>
+              {batch.status === 'paid' ? (
+                <AdminStatusBadge status="success" label="Đã Chuyển Khoản" icon="check_circle" />
+              ) : (
+                <AdminStatusBadge status="warning" label="Chờ Ký Duyệt" icon="hourglass_top" />
+              )}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'accountAction',
+        title: 'Tài Khoản & Thao Tác',
         align: 'right',
-        sortable: true,
-        className: 'font-mono text-gray-700 whitespace-nowrap',
-        render: (count: number) => `${count.toLocaleString()} đơn`,
-      },
-      {
-        key: 'grossSales',
-        title: 'GMV Doanh Số',
-        align: 'right',
-        sortable: true,
-        className: 'font-extrabold text-gray-900 font-mono whitespace-nowrap',
-        render: (sales: number) => `${sales.toLocaleString()}₫`,
-      },
-      {
-        key: 'shareRatio',
-        title: 'Tỷ Lệ Chia Sẻ',
-        className: 'text-[11px] text-gray-600 whitespace-nowrap',
-      },
-      {
-        key: 'platformFee',
-        title: 'Phí Sàn 15%',
-        align: 'right',
-        className: 'font-bold text-amber-700 font-mono whitespace-nowrap',
-        render: (fee: number) => `-${fee.toLocaleString()}₫`,
-      },
-      {
-        key: 'taxWithheld',
-        title: 'Thuế Khấu Trừ',
-        align: 'right',
-        className: 'text-[11px] text-gray-500 font-mono whitespace-nowrap',
-        render: (tax: number) => `-${tax.toLocaleString()}₫`,
-      },
-      {
-        key: 'netPayout',
-        title: 'Thực Nhận NXB',
-        align: 'right',
-        sortable: true,
-        className: 'font-extrabold text-xs text-[#00875A] font-mono whitespace-nowrap',
-        render: (net: number) => `${net.toLocaleString()}₫`,
-      },
-      {
-        key: 'bankAccount',
-        title: 'Tài Khoản Thụ Hưởng',
-        className: 'text-[11px] text-gray-600 max-w-[200px] truncate whitespace-nowrap',
-      },
-      {
-        key: 'status',
-        title: 'Trạng Thái',
-        align: 'center',
-        sortable: true,
-        className: 'whitespace-nowrap',
-        render: (status: string) =>
-          status === 'paid' ? (
-            <AdminStatusBadge status="success" label="Đã Chuyển Khoản" icon="check_circle" />
-          ) : (
-            <AdminStatusBadge status="warning" label="Chờ Ký Duyệt" icon="hourglass_top" />
-          ),
+        render: (_val, batch) => (
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-[10.5px] text-gray-600 font-mono max-w-[160px] truncate block" title={batch.bankAccount}>
+              {batch.bankAccount || 'Tài khoản mặc định'}
+            </span>
+            <button
+              type="button"
+              onClick={() => showToast(`Kỳ đối soát #${batch.id} - ${batch.publisher}: Thực nhận ${(batch.netPayout || 0).toLocaleString()}₫`, 'info')}
+              className="px-2 py-0.5 rounded-lg bg-gray-100 hover:bg-[#00875A] hover:text-white text-gray-700 font-semibold text-[10.5px] transition-colors cursor-pointer"
+            >
+              Chi Tiết
+            </button>
+          </div>
+        ),
       },
     ],
-    [currentPageBatches, pageSize]
+    [currentPageBatches, pageSize, showToast]
   );
 
   return (
-    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -1197,6 +1193,74 @@ export function AdminFinanceView() {
           data={paginatedBatches}
           columns={batchColumns}
           keyField="id"
+          expandable={true}
+          expandedRowRender={(batch) => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
+              {/* Card 1: Doanh thu & GMV */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">analytics</span>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Doanh Thu &amp; GMV Kỳ Đối Soát</h4>
+                </div>
+                <div className="text-[11px] space-y-1.5 text-gray-600">
+                  <div><span className="text-gray-400">Mã đợt:</span> <strong className="font-mono text-gray-900 font-bold">#{batch.id}</strong></div>
+                  <div><span className="text-gray-400">Đơn vị thụ hưởng:</span> <span className="font-semibold text-gray-800">{batch.publisher}</span></div>
+                  <div><span className="text-gray-400">Chu kỳ kế toán:</span> <span className="font-mono text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded">{batch.period}</span></div>
+                  <div><span className="text-gray-400">Tổng sản lượng:</span> <strong className="text-gray-900">{(batch.ordersCount || 0).toLocaleString()} đơn hàng</strong></div>
+                  <div><span className="text-gray-400">Tổng GMV gộp:</span> <strong className="font-mono text-gray-900 text-xs">{(batch.grossSales || 0).toLocaleString()}₫</strong></div>
+                </div>
+              </div>
+
+              {/* Card 2: Phí sàn & Khấu trừ */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                  <span className="material-symbols-outlined text-[16px] text-amber-600">account_balance</span>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Khấu Trừ Sàn &amp; Nghĩa Vụ Thuế</h4>
+                </div>
+                <div className="text-[11px] space-y-1.5 text-gray-600">
+                  <div><span className="text-gray-400">Tỷ lệ phân chia:</span> <strong className="text-gray-900">{batch.shareRatio || '85% NXB / 15% Sàn'}</strong></div>
+                  <div><span className="text-gray-400">Phí hoa hồng sàn:</span> <span className="font-mono font-bold text-amber-700">-{(batch.platformFee || 0).toLocaleString()}₫</span></div>
+                  <div><span className="text-gray-400">Thuế TNCN/TNDN tạm khấu:</span> <span className="font-mono text-gray-700">-{(batch.taxWithheld || 0).toLocaleString()}₫</span></div>
+                  <div className="pt-1 border-t border-slate-100"><span className="text-gray-400">Thực nhận sau khấu trừ:</span> <strong className="font-mono text-[#00875A] text-xs block">{(batch.netPayout || 0).toLocaleString()}₫</strong></div>
+                </div>
+              </div>
+
+              {/* Card 3: Thụ hưởng & Thao tác */}
+              <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                    <span className="material-symbols-outlined text-[16px] text-blue-600">credit_card</span>
+                    <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Thanh Toán &amp; Ký Duyệt</h4>
+                  </div>
+                  <div className="text-[11px] space-y-1 text-gray-600 mt-1">
+                    <div>Tài khoản ngân hàng: <span className="font-mono font-bold text-gray-800">{batch.bankAccount || 'Theo hợp đồng B2B'}</span></div>
+                    <div>Trạng thái: <span className={`font-semibold ${batch.status === 'paid' ? 'text-emerald-700' : 'text-amber-700'}`}>{batch.status === 'paid' ? 'Đã giải ngân chuyển khoản' : 'Chờ kế toán trưởng ký duyệt'}</span></div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => showToast(`Đã xuất báo cáo đối soát chi tiết kỳ #${batch.id}`, 'success')}
+                    className="flex-1 py-1.5 px-3 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">download</span>
+                    <span>Xuất Báo Cáo</span>
+                  </button>
+                  {batch.status !== 'paid' && (
+                    <button
+                      type="button"
+                      onClick={() => showToast(`Đã duyệt giải ngân kỳ đối soát #${batch.id} thành công!`, 'success')}
+                      className="py-1.5 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">check</span>
+                      <span>Ký Duyệt</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           emptyTitle="Chưa Có Kỳ Đối Soát Nào"
           emptyMessage="Không tìm thấy kỳ đối soát nào."
           pagination={{

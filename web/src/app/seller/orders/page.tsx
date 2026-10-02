@@ -128,8 +128,16 @@ function SellerOrdersContent() {
   const [trackingCode, setTrackingCode] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [expandedOrderIds, setExpandedOrderIds] = useState<Set<string>>(new Set());
 
-  // Sync activeTab when URL searchParams change
+  const toggleExpandOrder = (id: string) => {
+    setExpandedOrderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   useEffect(() => {
     const currentParam = searchParams.get('tab') || 'ALL';
     if (currentParam !== activeTab) {
@@ -674,71 +682,70 @@ function SellerOrdersContent() {
             </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs min-w-[1360px]">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-5 pr-2 w-10">
-                    <input
-                      type="checkbox"
-                      checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                    />
-                  </th>
-                  <th className="py-3.5 px-4 w-36">Mã Đơn Hàng</th>
-                  <th className="py-3.5 px-4 w-52">Khách Hàng &amp; Địa Chỉ</th>
-                  <th className="py-3.5 px-4 min-w-[340px]">Sản Phẩm Đặt Mua</th>
-                  <th className="py-3.5 px-4 w-36 text-right">Tổng Tiền</th>
-                  <th className="py-3.5 px-4 w-36 text-center">Thanh Toán</th>
-                  <th className="py-3.5 px-4 w-36 text-center">Trạng Thái</th>
-                  <th className="py-3.5 pl-4 pr-5 w-44 text-center">Thao Tác</th>
-                </tr>
-              </thead>
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                <th className="py-3.5 pl-4 pr-1 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedOrderIds.length === filteredOrders.length && filteredOrders.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                  />
+                </th>
+                <th className="py-3.5 px-2 w-8 text-center"></th>
+                <th className="py-3.5 px-3">Mã Đơn &amp; Ngày Tạo</th>
+                <th className="py-3.5 px-3">Khách Hàng &amp; Giao Nhận</th>
+                <th className="py-3.5 px-3">Sản Phẩm Đặt Mua</th>
+                <th className="py-3.5 px-3">Tổng Tiền &amp; Thanh Toán</th>
+                <th className="py-3.5 pl-3 pr-4 text-right">Trạng Thái &amp; Thao Tác</th>
+              </tr>
+            </thead>
 
-              <tbody className="divide-y divide-slate-100">
-                {paginatedOrders.map((order) => {
-                  const isSelected = selectedOrderIds.includes(order.id);
-                  const address = order.order?.shippingAddress || order.shippingAddress || {};
-                  const buyerName =
-                    address.recipientName ||
-                    address.fullName ||
-                    address.name ||
-                    order.order?.buyer?.fullName ||
-                    order.order?.buyer?.name ||
-                    order.order?.user?.fullName ||
-                    order.order?.user?.name ||
-                    order.buyerName ||
-                    order.recipientName ||
-                    'Khách Hàng';
-                  const buyerPhone =
-                    address.phone ||
-                    address.phoneNumber ||
-                    order.order?.buyer?.phone ||
-                    order.order?.user?.phone ||
-                    '—';
-                  const buyerAddress =
-                    address.fullAddress ||
-                    [address.line1 || address.address, address.ward, address.province || address.city]
-                      .filter(Boolean)
-                      .join(', ') ||
-                    address.address ||
-                    'Địa chỉ tiêu chuẩn';
+            <tbody className="divide-y divide-slate-100">
+              {paginatedOrders.map((order) => {
+                const isSelected = selectedOrderIds.includes(order.id);
+                const isExpanded = expandedOrderIds.has(order.id);
+                const address = order.order?.shippingAddress || order.shippingAddress || {};
+                const buyerName =
+                  address.recipientName ||
+                  address.fullName ||
+                  address.name ||
+                  order.order?.buyer?.fullName ||
+                  order.order?.buyer?.name ||
+                  order.order?.user?.fullName ||
+                  order.order?.user?.name ||
+                  order.buyerName ||
+                  order.recipientName ||
+                  'Khách Hàng';
+                const buyerPhone =
+                  address.phone ||
+                  address.phoneNumber ||
+                  order.order?.buyer?.phone ||
+                  order.order?.user?.phone ||
+                  '—';
+                const buyerAddress =
+                  address.fullAddress ||
+                  [address.line1 || address.address, address.ward, address.province || address.city]
+                    .filter(Boolean)
+                    .join(', ') ||
+                  address.address ||
+                  'Địa chỉ tiêu chuẩn';
 
-                  const items = order.items || [];
-                  const physicalItems = items.filter((it) => it.format !== 'DIGITAL' && it.format !== 'EBOOK');
-                  const ebookItems = items.filter((it) => it.format === 'DIGITAL' || it.format === 'EBOOK');
-                  const hasPhysical = physicalItems.length > 0 || (order.requiresShipping && ebookItems.length === 0);
+                const items = order.items || [];
+                const physicalItems = items.filter((it) => it.format !== 'DIGITAL' && it.format !== 'EBOOK');
+                const ebookItems = items.filter((it) => it.format === 'DIGITAL' || it.format === 'EBOOK');
+                const hasPhysical = physicalItems.length > 0 || (order.requiresShipping && ebookItems.length === 0);
 
-                  return (
+                return (
+                  <React.Fragment key={order.id}>
                     <tr
-                      key={order.id}
                       className={`hover:bg-slate-50/70 transition-colors ${
-                        isSelected ? 'bg-emerald-50/20' : 'bg-white'
+                        isExpanded ? 'bg-emerald-50/30' : isSelected ? 'bg-emerald-50/20' : 'bg-white'
                       }`}
                     >
                       {/* Checkbox */}
-                      <td className="py-3.5 pl-5 pr-2 align-middle">
+                      <td className="py-3.5 pl-4 pr-1 align-middle">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -747,8 +754,22 @@ function SellerOrdersContent() {
                         />
                       </td>
 
+                      {/* Mũi tên mở rộng */}
+                      <td className="py-3.5 px-2 text-center align-middle">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandOrder(order.id)}
+                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-slate-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết đơn'}
+                        >
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                            chevron_right
+                          </span>
+                        </button>
+                      </td>
+
                       {/* Mã đơn & Ngày tạo */}
-                      <td className="py-3.5 px-4 align-middle whitespace-nowrap">
+                      <td className="py-3.5 px-3 align-middle">
                         <Link
                           href={`/seller/orders/${order.id}`}
                           className="font-mono text-[12.5px] font-bold text-slate-900 hover:text-[#00875A] transition-colors block"
@@ -761,21 +782,21 @@ function SellerOrdersContent() {
                       </td>
 
                       {/* Khách hàng & Địa chỉ */}
-                      <td className="py-3.5 px-4 align-middle">
-                        <div className="font-semibold text-slate-800 text-[12.5px] truncate max-w-[200px]" title={buyerName}>
+                      <td className="py-3.5 px-3 align-middle">
+                        <div className="font-semibold text-slate-800 text-[12.5px] truncate max-w-[190px]" title={buyerName}>
                           {buyerName}
                         </div>
                         <div className="font-mono text-[11px] text-slate-400 mt-0.5">
                           {buyerPhone}
                         </div>
-                        <div className="text-[11px] text-slate-500 truncate max-w-[200px] mt-0.5" title={buyerAddress}>
+                        <div className="text-[10.5px] text-slate-500 truncate max-w-[190px] mt-0.5" title={buyerAddress}>
                           {buyerAddress}
                         </div>
                       </td>
 
                       {/* Danh sách sản phẩm */}
-                      <td className="py-3.5 px-4 align-middle min-w-[340px]">
-                        <div className="space-y-2">
+                      <td className="py-3.5 px-3 align-middle">
+                        <div className="space-y-1.5">
                           {items.slice(0, 2).map((item, idx) => {
                             const itTitle = item.title || item.bookTitle || 'Sách HUKI';
                             const itCover = item.coverImage || item.coverUrl || item.bookCoverUrl;
@@ -783,33 +804,33 @@ function SellerOrdersContent() {
                             const isEbook = item.format === 'DIGITAL' || item.format === 'EBOOK';
 
                             return (
-                              <div key={item.id || idx} className="flex items-center gap-2.5">
-                                <div className="w-8 h-10 rounded bg-slate-100 shrink-0 overflow-hidden border border-slate-200">
+                              <div key={item.id || idx} className="flex items-center gap-2">
+                                <div className="w-7 h-9 rounded bg-slate-100 shrink-0 overflow-hidden border border-slate-200">
                                   {itCover ? (
                                     <img src={itCover} alt={itTitle} className="w-full h-full object-cover" />
                                   ) : (
                                     <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                      <span className="material-symbols-outlined text-[15px]">menu_book</span>
+                                      <span className="material-symbols-outlined text-[13px]">menu_book</span>
                                     </div>
                                   )}
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                  <div className="flex items-center gap-1.5">
+                                  <div className="flex items-center gap-1">
                                     {isEbook ? (
-                                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                      <span className="px-1 py-0.2 rounded text-[9px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
                                         EBOOK
                                       </span>
                                     ) : (
-                                      <span className="px-1.5 py-0.2 rounded text-[9.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60">
+                                      <span className="px-1 py-0.2 rounded text-[9px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/60">
                                         SÁCH IN
                                       </span>
                                     )}
-                                    <span className="font-medium text-slate-900 text-[12.5px] truncate max-w-[240px]" title={itTitle}>
+                                    <span className="font-medium text-slate-900 text-xs truncate max-w-[200px]" title={itTitle}>
                                       {itTitle}
                                     </span>
                                   </div>
-                                  <span className="text-[11px] text-slate-500 font-mono mt-0.5">
-                                    SL: <strong className="text-slate-800 font-semibold">{item.quantity || 1}</strong> × {itPrice.toLocaleString('vi-VN')} đ
+                                  <span className="text-[10.5px] text-slate-500 font-mono">
+                                    SL: {item.quantity || 1} × {itPrice.toLocaleString('vi-VN')} đ
                                   </span>
                                 </div>
                               </div>
@@ -817,44 +838,35 @@ function SellerOrdersContent() {
                           })}
 
                           {items.length > 2 && (
-                            <p className="text-[11px] text-slate-400 italic">
+                            <p className="text-[10.5px] text-slate-400 italic">
                               + {items.length - 2} sản phẩm khác...
                             </p>
                           )}
                         </div>
                       </td>
 
-                      {/* Tổng tiền */}
-                      <td className="py-3.5 px-4 align-middle text-right whitespace-nowrap">
+                      {/* Tổng tiền & Thanh toán */}
+                      <td className="py-3.5 px-3 align-middle">
                         <span className="font-mono text-xs font-bold text-slate-900 block">
                           {order.grandTotal ? `${order.grandTotal.toLocaleString('vi-VN')} đ` : '0 đ'}
                         </span>
-                        {order.shippingFee !== undefined && order.shippingFee > 0 && (
-                          <span className="text-[10.5px] text-slate-400 block mt-0.5 font-mono">
-                            Ship: {order.shippingFee.toLocaleString('vi-VN')} đ
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                            <span>{order.order?.paymentMethod || 'PayOS'}</span>
                           </span>
-                        )}
+                          {order.shippingFee !== undefined && order.shippingFee > 0 && (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              Ship: {order.shippingFee.toLocaleString('vi-VN')} đ
+                            </span>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Thanh toán */}
-                      <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                          <span className="material-symbols-outlined text-[13px] text-slate-500">
-                            {order.order?.paymentMethod === 'COD' ? 'payments' : 'account_balance_wallet'}
-                          </span>
-                          <span>{order.order?.paymentMethod || 'PayOS / QR'}</span>
-                        </span>
-                      </td>
+                      {/* Trạng thái & Thao tác */}
+                      <td className="py-3.5 pl-3 pr-4 align-middle text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <SellerStatusBadge status={order.status} />
 
-                      {/* Trạng thái đơn */}
-                      <td className="py-3.5 px-4 align-middle text-center whitespace-nowrap">
-                        <SellerStatusBadge status={order.status} />
-                      </td>
-
-                      {/* Thao tác */}
-                      <td className="py-3.5 pl-4 pr-5 align-middle text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          {/* Xem chi tiết */}
                           <Link href={`/seller/orders/${order.id}`}>
                             <SellerActionButton
                               variant="view"
@@ -864,27 +876,17 @@ function SellerOrdersContent() {
                             />
                           </Link>
 
-                          {/* 1. Chờ Xác nhận (Áp dụng cho cả Sách In & Ebook) */}
                           {order.status === 'PENDING_CONFIRMATION' && (
-                            <>
-                              <SellerActionButton
-                                variant="success"
-                                label={hasPhysical ? "Xác nhận" : "Kích hoạt Ebook"}
-                                icon={hasPhysical ? "check" : "bolt"}
-                                size="sm"
-                                onClick={() => handleConfirm(order.id)}
-                                loading={actionLoading}
-                              />
-                              <SellerActionButton
-                                variant="danger"
-                                label="Hủy"
-                                size="sm"
-                                onClick={() => setActiveActionBox({ type: 'CANCEL', order })}
-                              />
-                            </>
+                            <SellerActionButton
+                              variant="success"
+                              label={hasPhysical ? "Xác nhận" : "Kích hoạt"}
+                              icon={hasPhysical ? "check" : "bolt"}
+                              size="sm"
+                              onClick={() => handleConfirm(order.id)}
+                              loading={actionLoading}
+                            />
                           )}
 
-                          {/* 2. Đã tiếp nhận -> Shop bấm Đóng gói */}
                           {order.status === 'CONFIRMED' && hasPhysical && (
                             <SellerActionButton
                               variant="info"
@@ -895,71 +897,90 @@ function SellerOrdersContent() {
                               loading={actionLoading}
                             />
                           )}
-
-                          {/* 3. Đang chuẩn bị -> Chờ Shipper đến lấy hàng */}
-                          {order.status === 'PREPARING' && hasPhysical && (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-purple-50 text-purple-800 border border-purple-200/80 shadow-2xs"
-                              title="Kiện hàng đã đóng gói, hệ thống đã phát thông tin sang Bưu Tá (Shipper) đến nhận"
-                            >
-                              <span className="material-symbols-outlined text-[14px] text-purple-600 animate-pulse">two_wheeler</span>
-                              <span>Chờ Shipper lấy hàng</span>
-                            </span>
-                          )}
-
-                          {/* 4. Đang vận chuyển -> Bưu tá đang giao */}
-                          {order.status === 'SHIPPED' && (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/80 shadow-2xs"
-                              title="Shipper đã nhận hàng và đang trên đường giao đến khách"
-                            >
-                              <span className="material-symbols-outlined text-[14px] text-sky-600">local_shipping</span>
-                              <span>Đang vận chuyển</span>
-                            </span>
-                          )}
-
-                          {/* 5. Đã giao / Hoàn tất */}
-                          {(order.status === 'DELIVERED' || order.status === 'COMPLETED') && (
-                            <div className="inline-flex items-center gap-1.5">
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                                <span className="material-symbols-outlined text-[14px] text-emerald-600">check_circle</span>
-                                <span>Đã giao</span>
-                              </span>
-                              {/* Dấu chấm than ! trong thời hạn đổi trả 2 phút */}
-                              {(() => {
-                                const rawTime = (order as any).deliveredAt || order.completedAt || (order as any).updatedAt;
-                                const elapsed = rawTime ? (Date.now() - new Date(rawTime).getTime()) / 1000 : 999;
-                                if (elapsed < 120) {
-                                  return (
-                                    <span
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-black bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs animate-pulse"
-                                      title="Đang trong thời hạn đổi trả 2 phút demo (Ký quỹ Escrow bảo vệ)"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px] text-amber-700 font-black">priority_high</span>
-                                      <span>Hạn Đổi Trả (2m)</span>
-                                    </span>
-                                  );
-                                }
-                                return (
-                                  <span
-                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-semibold bg-slate-100 text-slate-700 border border-slate-200/80"
-                                    title="Đã hết hạn đổi trả, ký quỹ Escrow đã tự động giải ngân vào Ví Gian Hàng"
-                                  >
-                                    <span className="material-symbols-outlined text-[12px] text-emerald-600">account_balance_wallet</span>
-                                    <span>Đã giải ngân</span>
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          )}
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+
+                    {/* Master-Detail Expandable Subcard (3 cards) */}
+                    {isExpanded && (
+                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
+                        <td colSpan={7} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                            {/* Cột 1: Thông tin người nhận & Địa chỉ */}
+                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">local_shipping</span>
+                                <span>Địa Chỉ Nhận Hàng &amp; Người Mua</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-slate-400">Người nhận: </span><span className="font-semibold text-slate-800">{buyerName}</span></div>
+                                <div><span className="text-slate-400">Số điện thoại: </span><span className="font-mono font-semibold text-slate-800">{buyerPhone}</span></div>
+                                <div><span className="text-slate-400">Địa chỉ: </span><span className="text-slate-700">{buyerAddress}</span></div>
+                                <div><span className="text-slate-400">Thời gian đặt: </span><span className="font-mono text-slate-600">{order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : '—'}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Chi tiết kiện hàng & Vận đơn */}
+                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">inventory</span>
+                                <span>Chi Tiết Kiện Hàng &amp; Vận Chuyển</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-slate-400">Đơn vị giao hàng: </span><span className="font-semibold">{order.carrier || (hasPhysical ? 'Chờ chọn bưu tá' : 'Ebook DRM Số')}</span></div>
+                                {order.trackingCode && <div><span className="text-slate-400">Mã vận đơn: </span><span className="font-mono font-bold text-purple-700">{order.trackingCode}</span></div>}
+                                <div><span className="text-slate-400">Tổng sản phẩm: </span><span className="font-semibold">{items.reduce((sum, it) => sum + (it.quantity || 1), 0)} cuốn ({items.length} đầu sách)</span></div>
+                                <div><span className="text-slate-400">Tổng thanh toán: </span><span className="font-bold text-slate-900">{order.grandTotal?.toLocaleString('vi-VN')} đ</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Hành động xử lý đơn */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                                  <span>Xử Lý Đơn Hàng</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                  Bàn giao bưu tá hoặc in phiếu gửi hàng trực tiếp từ hệ thống.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <Link
+                                  href={`/seller/orders/${order.id}`}
+                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">receipt_long</span>
+                                  <span>Mở Chi Tiết Đơn</span>
+                                </Link>
+                                {order.status === 'PREPARING' && hasPhysical && (
+                                  <button
+                                    onClick={() => setActiveActionBox({ type: 'SHIP', order })}
+                                    className="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">local_shipping</span>
+                                    <span>Bàn Giao Bưu Tá</span>
+                                  </button>
+                                )}
+                                {order.status === 'PENDING_CONFIRMATION' && (
+                                  <button
+                                    onClick={() => setActiveActionBox({ type: 'CANCEL', order })}
+                                    className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer"
+                                  >
+                                    Hủy Đơn
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         )}
 
         {/* Phân trang mặc định */}

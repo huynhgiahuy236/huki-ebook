@@ -617,7 +617,7 @@ export default function OrdersPage() {
                               <span className="text-xs text-gray-600 font-medium">
                                 Thành tiền ({totalItemsCount} món):
                               </span>
-                              <span className="text-sm sm:text-base font-bold text-[#ac2c19]">
+                              <span className="text-sm sm:text-base font-bold text-[#003b2b]">
                                 {Number(ord.grandTotal || ord.totalAmount || 0).toLocaleString('vi-VN')} ₫
                               </span>
                             </div>
@@ -627,7 +627,7 @@ export default function OrdersPage() {
                               <button
                                 type="button"
                                 onClick={() => router.push('/books')}
-                                className="px-3.5 py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white transition-colors text-xs font-semibold cursor-pointer"
+                                className="px-3.5 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white transition-colors text-xs font-semibold cursor-pointer"
                               >
                                 Mua Lại
                               </button>

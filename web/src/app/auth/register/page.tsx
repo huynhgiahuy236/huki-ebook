@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { registerSchema } from '@/ui/utils/authValidation';
 import { formatAuthError } from '@/ui/api/authApi';
+import GoogleAuthModal from '@/ui/components/auth/GoogleAuthModal';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
 
   // Đánh giá độ mạnh mật khẩu trực quan
   const getPasswordStrength = (pwd: string): { score: number; label: string; color: string; text: string } => {
@@ -470,13 +472,7 @@ export default function RegisterPage() {
 
               <button
                 type="button"
-                onClick={() => {
-                  showToast({
-                    title: 'Google OAuth',
-                    message: 'Tính năng Đăng ký bằng Google đang sẵn sàng kết nối.',
-                    type: 'info',
-                  });
-                }}
+                onClick={() => setShowGoogleModal(true)}
                 className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-semibold text-slate-700 transition-all cursor-pointer shadow-2xs active:scale-[0.99]"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -501,6 +497,15 @@ export default function RegisterPage() {
               </button>
             </div>
           </div>
+
+          {/* Google Auth Modal */}
+          {showGoogleModal && (
+            <GoogleAuthModal
+              isOpen={true}
+              onClose={() => setShowGoogleModal(false)}
+              redirectTarget="/onboarding"
+            />
+          )}
 
           {/* Footer: Bottom Links */}
           <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">

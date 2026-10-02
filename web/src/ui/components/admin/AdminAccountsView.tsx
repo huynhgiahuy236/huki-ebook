@@ -544,22 +544,21 @@ export function AdminAccountsView() {
         ),
       },
       {
-        key: 'fullName',
-        title: 'Người Dùng',
-        minWidth: 240,
+        key: 'accountInfo',
+        title: 'Tài Khoản & Danh Tính',
         sortable: true,
         render: (_val, u) => (
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-slate-200 border border-slate-300 shrink-0 overflow-hidden flex items-center justify-center font-bold text-slate-600 text-xs">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 shrink-0 overflow-hidden flex items-center justify-center font-bold text-[#003B2B] text-xs">
               {u.avatar ? (
                 <img src={u.avatar} alt={u.fullName} className="w-full h-full object-cover" />
               ) : (
                 u.fullName?.charAt(0)?.toUpperCase() || 'U'
               )}
             </div>
-            <div>
+            <div className="min-w-0">
               <span
-                className="font-bold text-theme-text hover:text-theme-secondary cursor-pointer block truncate"
+                className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer block truncate text-xs"
                 onClick={() => {
                   setInspectingUser(u);
                   setInspectingTab('info');
@@ -568,67 +567,63 @@ export function AdminAccountsView() {
               >
                 {u.fullName}
               </span>
-              <span className="text-[10px] text-theme-text-muted font-mono block">
-                ID: {u.id}
+              <span className="text-[11px] text-gray-500 font-mono block truncate" title={u.email}>
+                {u.email}
               </span>
             </div>
           </div>
         ),
       },
       {
-        key: 'email',
-        title: 'Email',
-        minWidth: 180,
-        render: (val) => (
-          <span className="font-mono text-[11px] text-theme-text-muted truncate block max-w-[170px]" title={val}>
-            {val}
-          </span>
+        key: 'contactRole',
+        title: 'Liên Hệ & Phân Quyền',
+        render: (_val, u) => (
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[13px] text-gray-400">call</span>
+              <span className="font-mono text-[11px] text-gray-800">
+                {u.phone || <span className="text-gray-400 italic">Chưa cập nhật SĐT</span>}
+              </span>
+            </div>
+            <div>{renderRoleBadge(u)}</div>
+          </div>
         ),
       },
       {
-        key: 'phone',
-        title: 'Số Điện Thoại',
-        width: 130,
-        render: (val) => (
-          <span className="font-mono text-[11px] text-theme-text">
-            {val || <span className="text-theme-text-muted italic">Chưa cập nhật</span>}
-          </span>
-        ),
-      },
-      {
-        key: 'role',
-        title: 'Vai Trò',
-        width: 140,
-        render: (_val, u) => renderRoleBadge(u),
-      },
-      {
-        key: 'status',
-        title: 'Trạng Thái',
-        width: 130,
+        key: 'statusSecurity',
+        title: 'Trạng Thái & Bảo Mật',
         align: 'center',
-        render: (val) => (
-          val === 'ACTIVE' ? (
-            <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
-          ) : (
-            <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
-          )
+        render: (_val, u) => (
+          <div className="flex flex-col items-center gap-1">
+            {u.status === 'ACTIVE' ? (
+              <AdminStatusBadge status="success" label="Hoạt động" icon="check_circle" />
+            ) : (
+              <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
+            )}
+            <span className="text-[10px] text-gray-400 font-mono">
+              ID: {u.id?.slice(0, 8)}...
+            </span>
+          </div>
         ),
       },
       {
         key: 'createdAt',
         title: 'Ngày Tham Gia',
-        width: 130,
         sortable: true,
         render: (val) => (
-          <span className="text-theme-text-muted text-[11px]">
-            {val ? new Date(val).toLocaleDateString('vi-VN') : 'Mới tạo'}
-          </span>
+          <div className="flex flex-col">
+            <span className="text-gray-900 font-medium text-xs">
+              {val ? new Date(val).toLocaleDateString('vi-VN') : 'Mới tạo'}
+            </span>
+            <span className="text-[10px] text-gray-400">
+              {val ? new Date(val).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : ''}
+            </span>
+          </div>
         ),
       },
       {
         key: 'actions',
         title: 'Thao Tác',
-        width: 220,
         align: 'right',
         render: (_val, u) => {
           const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';
@@ -669,11 +664,11 @@ export function AdminAccountsView() {
         },
       },
     ],
-    [currentPage, pageSize]
+    [currentPage, pageSize, renderRoleBadge]
   );
 
   return (
-    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -819,6 +814,75 @@ export function AdminAccountsView() {
         data={filteredUsers}
         keyField="id"
         loading={loading}
+        expandable={true}
+        expandedRowRender={(u) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">
+            {/* Card 1: Hồ sơ & Định danh */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                <span className="material-symbols-outlined text-[16px] text-[#00875A]">badge</span>
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Hồ Sơ &amp; Định Danh</h4>
+              </div>
+              <div className="text-[11px] space-y-1.5 text-gray-600">
+                <div><span className="text-gray-400">Họ và tên:</span> <strong className="text-gray-900 font-semibold">{u.fullName}</strong></div>
+                <div><span className="text-gray-400">Email:</span> <span className="font-mono text-gray-800">{u.email}</span></div>
+                <div><span className="text-gray-400">Số điện thoại:</span> <span className="font-mono text-gray-800">{u.phone || 'Chưa liên kết'}</span></div>
+                <div><span className="text-gray-400">Mã tài khoản:</span> <span className="font-mono text-[10px] text-gray-700 bg-slate-100 px-1.5 py-0.5 rounded">{u.id}</span></div>
+              </div>
+            </div>
+
+            {/* Card 2: Phân quyền & Vận hành */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2">
+              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                <span className="material-symbols-outlined text-[16px] text-blue-600">admin_panel_settings</span>
+                <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Quyền Hạn &amp; Đơn Vị</h4>
+              </div>
+              <div className="text-[11px] space-y-1.5 text-gray-600">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-gray-400">Vai trò:</span>
+                  {renderRoleBadge(u)}
+                </div>
+                <div><span className="text-gray-400">Gian hàng liên kết:</span> <strong className="text-gray-800">{u.businessName || u.storeName || 'Không có (Khách mua lẻ)'}</strong></div>
+                <div><span className="text-gray-400">Trạng thái:</span> <span className={`font-semibold ${u.status === 'ACTIVE' ? 'text-emerald-700' : 'text-rose-700'}`}>{u.status === 'ACTIVE' ? 'Đang hoạt động bình thường' : 'Đang bị khóa truy cập'}</span></div>
+                <div><span className="text-gray-400">Ngày tạo:</span> <span>{u.createdAt ? new Date(u.createdAt).toLocaleString('vi-VN') : 'Mới tạo'}</span></div>
+              </div>
+            </div>
+
+            {/* Card 3: Thao tác & Quản trị */}
+            <div className="bg-white p-3.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-2.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
+                  <span className="material-symbols-outlined text-[16px] text-amber-600">tune</span>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">Tác Vụ Quản Trị Sàn</h4>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Kiểm toán nhật ký hành động, phân quyền bảo mật hoặc điều chỉnh tài khoản người dùng
+                </p>
+              </div>
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInspectingUser(u);
+                    setInspectingTab('info');
+                  }}
+                  className="flex-1 py-1.5 px-3 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-[14px]">visibility</span>
+                  <span>Xem Chi Tiết</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(u)}
+                  className="py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-gray-800 font-semibold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[14px]">edit</span>
+                  <span>Chỉnh Sửa</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         emptyTitle="Không Tìm Thấy Người Dùng Nào"
         emptyMessage="Thử thay đổi từ khóa tìm kiếm hoặc đặt lại bộ lọc."
         emptyIcon="person_search"

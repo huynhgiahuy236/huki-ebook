@@ -29,7 +29,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         />
       </head>
       <body
-        className="h-full bg-[#f2fbf9] text-[#141d1c] font-sans antialiased selection:bg-[#ac2c19] selection:text-white"
+        className="h-full bg-[#f2fbf9] text-[#141d1c] font-sans antialiased selection:bg-[#003b2b] selection:text-white"
         suppressHydrationWarning
       >
         <Providers>

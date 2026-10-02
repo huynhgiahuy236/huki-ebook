@@ -273,6 +273,25 @@ export const adminApi = {
   },
 
   /**
+   * Tạm ngưng / Khóa tài khoản doanh nghiệp
+   */
+  async suspendBusiness(id: string, reason?: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/suspend`, {
+      method: 'POST',
+      body: reason ? JSON.stringify({ reason }) : undefined,
+    });
+  },
+
+  /**
+   * Kích hoạt lại doanh nghiệp đã bị tạm ngưng
+   */
+  async reactivateBusiness(id: string): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}/reactivate`, {
+      method: 'POST',
+    });
+  },
+
+  /**
    * Lấy danh sách cửa hàng (Stores) dành riêng cho Admin HUKI
    */
   async getStores(params: AdminStoreFilter = {}): Promise<ApiResponse<StoreData[]>> {

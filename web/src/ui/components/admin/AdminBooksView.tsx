@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
@@ -53,12 +54,22 @@ const FORMAT_CONFIG = {
 
 export function AdminBooksView() {
   const { showToast } = useToast();
-  const [books, setBooks] = useState<any[]>([]);;
+  const [books, setBooks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
+  const [expandedBookIds, setExpandedBookIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandRow = (id: string) => {
+    setExpandedBookIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Drawer / In-Page Form State
   const [selectedBook, setSelectedBook] = useState<any>(null);
@@ -248,7 +259,7 @@ export function AdminBooksView() {
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER & SUMMARY */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
@@ -329,20 +340,17 @@ export function AdminBooksView() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
+          <div className="w-full">
+            <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                 <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Tác Phẩm &amp; Bìa Sách</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[160px]">Tác Giả</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Thể Loại</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px] text-center">Định Dạng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px]">Giá Niêm Yết</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px]">Tồn Kho</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Mã Đối Tác</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px] text-center">Trạng Thái</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[150px] text-right">Kiểm Soát</th>
+                  <th className="py-3 px-2 w-10 text-center"></th>
+                  <th className="py-3 px-2 w-12 text-center">STT</th>
+                  <th className="py-3 px-3.5">Tác Phẩm &amp; Bìa Sách</th>
+                  <th className="py-3 px-3.5">Tác Giả &amp; NXB</th>
+                  <th className="py-3 px-3.5 text-center">Thể Loại &amp; Định Dạng</th>
+                  <th className="py-3 px-3.5">Giá &amp; Tồn Kho</th>
+                  <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -352,6 +360,7 @@ export function AdminBooksView() {
                   const isBusy = actionLoadingId === book.id;
                   const cover = book.coverImage || book.coverUrl || book.cover;
                   const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                  const isExpanded = expandedBookIds.has(book.id);
 
                   let statusVariant: any = 'neutral';
                   let statusLabel = 'Bản nháp';
@@ -380,128 +389,298 @@ export function AdminBooksView() {
                   }
 
                   return (
-                    <tr
-                      key={book.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
-                    >
-                      {/* STT */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400 font-semibold">
-                        {itemIndex}
-                      </td>
-
-                      {/* Cover + Title */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
-                            {cover ? (
-                              <img src={cover} alt={book.title} className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="material-symbols-outlined text-gray-400 text-[18px]">book</span>
-                            )}
-                          </div>
-                          <div className="min-w-0 max-w-[220px]">
-                            <span 
-                              className="font-bold text-gray-900 block truncate hover:text-[#00875A] cursor-pointer"
-                              onClick={() => setSelectedBook(book)}
-                              title={book.title}
-                            >
-                              {book.title}
-                            </span>
-                            <span className="text-[10px] text-gray-400 block truncate font-mono">
-                              ID: {book.id}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Author */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-800 font-medium">
-                        {book.author?.name || <span className="text-gray-400 italic text-[11px]">Đang cập nhật</span>}
-                      </td>
-
-                      {/* Category */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-600">
-                        {book.category?.name || <span className="text-gray-400 italic text-[11px]">Chưa phân loại</span>}
-                      </td>
-
-                      {/* Format */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold border ${formatBadge}`}>
-                          {formatLabel}
-                        </span>
-                      </td>
-
-                      {/* Price */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-bold text-gray-900 font-mono">
-                        {book.price ? `${book.price.toLocaleString('vi-VN')} đ` : 'Miễn phí'}
-                      </td>
-
-                      {/* Stock */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
-                        {book.format === 'DIGITAL' ? (
-                          <span className="text-gray-400 font-semibold text-[11px]">Vô hạn (Ebook)</span>
-                        ) : (
-                          <span className={`font-semibold ${Number(book.physicalDetails?.stock) <= 5 ? 'text-rose-600 font-bold' : 'text-gray-700'}`}>
-                            {book.physicalDetails?.stock ?? 0} cuốn
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Partner / Business */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono text-gray-500 text-[11px]">
-                        {book.businessId ? (
-                          <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-700">
-                            {book.businessId.slice(0, 10)}...
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <AdminStatusBadge variant={statusVariant} label={statusLabel} />
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                    <React.Fragment key={book.id}>
+                      {/* Dòng tóm tắt chính (Master Row) */}
+                      <tr
+                        className={`transition-colors group ${
+                          isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                        } hover:bg-emerald-50/50`}
+                      >
+                        {/* 1. Mũi tên mở rộng */}
+                        <td className="py-3 px-2 text-center">
                           <button
-                            onClick={() => setSelectedBook(book)}
-                            className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                            title="Xem chi tiết sách"
+                            type="button"
+                            onClick={() => toggleExpandRow(book.id)}
+                            className="w-6 h-6 rounded-md hover:bg-emerald-100 text-gray-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                            title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
                           >
-                            <span className="material-symbols-outlined text-[15px]">visibility</span>
-                            <span>Chi tiết</span>
+                            <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                              chevron_right
+                            </span>
                           </button>
+                        </td>
 
-                          {isSuspended ? (
-                            <button
-                              onClick={() => handleActivate(book)}
-                              disabled={isBusy}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1 shadow-2xs"
-                              title="Mở khóa phát hành lại sách"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">lock_open</span>
-                              <span>Mở khóa</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                setSuspendModalBook(book);
-                                setSuspendReason('');
-                              }}
-                              disabled={isBusy}
-                              className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold text-[11px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                              title="Khóa sách vi phạm chính sách"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">lock</span>
-                              <span>Khóa</span>
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                        {/* 2. STT */}
+                        <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
+                          {itemIndex}
+                        </td>
+
+                        {/* 3. Tác Phẩm & Bìa (Xếp chồng: Tiêu đề dòng 1 + ID dòng 2) */}
+                        <td className="py-3 px-3.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
+                              {cover ? (
+                                <img src={cover} alt={book.title} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="material-symbols-outlined text-gray-400 text-[18px]">book</span>
+                              )}
+                            </div>
+                            <div className="min-w-0 max-w-[260px]">
+                              <span
+                                className="font-bold text-gray-900 block truncate hover:text-[#00875A] cursor-pointer"
+                                onClick={() => toggleExpandRow(book.id)}
+                                title={book.title}
+                              >
+                                {book.title}
+                              </span>
+                              <span className="text-[10px] text-gray-400 block truncate font-mono mt-0.5">
+                                ID: {book.id} {book.isbn ? `• ISBN: ${book.isbn}` : ''}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 4. Tác Giả & NXB (Xếp chồng: Tác giả dòng 1 + NXB dòng 2) */}
+                        <td className="py-3 px-3.5">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-semibold text-gray-900 break-words">
+                              {book.author?.name || 'Tác giả HUKI'}
+                            </span>
+                            <span className="text-[10.5px] text-gray-500 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-[13px] text-gray-400 shrink-0">storefront</span>
+                              <span className="break-words">{book.publisher?.name || 'Gian hàng HUKI'}</span>
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 5. Thể Loại & Định Dạng (Xếp chồng: Thể loại dòng 1 + Badge định dạng dòng 2) */}
+                        <td className="py-3 px-3.5 text-center">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-gray-700 font-medium text-xs truncate max-w-[130px]">
+                              {book.category?.name || 'Văn học'}
+                            </span>
+                            <span className={`inline-block px-2 py-0.2 rounded-full text-[9.5px] font-bold border ${formatBadge}`}>
+                              {formatLabel}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 6. Giá & Tồn Kho (Xếp chồng: Giá dòng 1 + Tồn kho dòng 2) */}
+                        <td className="py-3 px-3.5">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-bold text-gray-900 font-mono text-[13px]">
+                              {book.price ? `${book.price.toLocaleString('vi-VN')} đ` : 'Miễn phí'}
+                            </span>
+                            <span className="text-[11px]">
+                              {book.format === 'DIGITAL' ? (
+                                <span className="text-[#006953] font-semibold text-[10.5px]">Vô hạn (Ebook)</span>
+                              ) : (
+                                <span className={Number(book.physicalDetails?.stock) <= 5 ? 'text-rose-600 font-bold' : 'text-gray-500 font-medium'}>
+                                  Kho: {book.physicalDetails?.stock ?? 0} cuốn
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* 7. Trạng Thái & Thao Tác Nhanh */}
+                        <td className="py-3 px-3.5 text-right">
+                          <div className="flex flex-col items-end gap-1.5">
+                            <AdminStatusBadge variant={statusVariant} label={statusLabel} />
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandRow(book.id)}
+                                className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-emerald-50 hover:text-emerald-800 text-gray-700 font-semibold text-[10.5px] transition-colors cursor-pointer flex items-center gap-0.5"
+                              >
+                                <span>{isExpanded ? 'Thu lại' : 'Chi tiết'}</span>
+                                <span className="material-symbols-outlined text-[12px]">
+                                  {isExpanded ? 'expand_less' : 'expand_more'}
+                                </span>
+                              </button>
+
+                              {isSuspended ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleActivate(book)}
+                                  disabled={isBusy}
+                                  className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10.5px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-0.5 shadow-2xs"
+                                  title="Mở khóa sách"
+                                >
+                                  <span className="material-symbols-outlined text-[12px]">lock_open</span>
+                                  <span>Mở</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSuspendModalBook(book);
+                                    setSuspendReason('');
+                                  }}
+                                  disabled={isBusy}
+                                  className="px-2 py-0.5 rounded-md bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-semibold text-[10.5px] transition-all cursor-pointer disabled:opacity-50 flex items-center gap-0.5"
+                                  title="Khóa sách vi phạm"
+                                >
+                                  <span className="material-symbols-outlined text-[12px]">lock</span>
+                                  <span>Khóa</span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Dòng thẻ chi tiết mở rộng (Expanded Detail Sub-Panel) */}
+                      {isExpanded && (
+                        <tr className="bg-emerald-50/20 border-b border-emerald-100/80 animate-in fade-in duration-200">
+                          <td colSpan={7} className="p-4 sm:p-5">
+                            <div className="bg-white rounded-2xl p-4.5 border border-emerald-200/70 shadow-xs space-y-4">
+                              {/* 3 Cột Chi Tiết Đầy Đủ */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                                {/* Cột 1: Xuất Bản & Định Danh */}
+                                <div className="space-y-2 p-3 bg-gray-50/80 rounded-xl border border-gray-200/60">
+                                  <span className="font-bold text-gray-900 flex items-center gap-1.5 text-[11.5px] uppercase tracking-wider text-emerald-900">
+                                    <span className="material-symbols-outlined text-[15px] text-emerald-700">menu_book</span>
+                                    Thông Tin Xuất Bản
+                                  </span>
+                                  <div className="space-y-1 text-gray-600 text-[11.5px]">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Tác giả:</span>
+                                      <span className="font-semibold text-gray-800">{book.author?.name || 'Chưa rõ'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">NXB / Phát hành:</span>
+                                      <span className="font-semibold text-gray-800">{book.publisher?.name || 'HUKI Sàn'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Mã ISBN:</span>
+                                      <span className="font-mono font-bold text-gray-800">{book.isbn || '978-604-x-xxxx'}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Ngôn ngữ:</span>
+                                      <span className="text-gray-800">{book.language || 'Tiếng Việt'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Cột 2: Phân Phối & Bản Quyền */}
+                                <div className="space-y-2 p-3 bg-gray-50/80 rounded-xl border border-gray-200/60">
+                                  <span className="font-bold text-gray-900 flex items-center gap-1.5 text-[11.5px] uppercase tracking-wider text-emerald-900">
+                                    <span className="material-symbols-outlined text-[15px] text-emerald-700">security</span>
+                                    Phân Phối &amp; Bản Quyền
+                                  </span>
+                                  <div className="space-y-1 text-gray-600 text-[11.5px]">
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Định dạng bán:</span>
+                                      <span className="font-semibold text-gray-800">{formatLabel}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Bảo vệ DRM:</span>
+                                      <span className="font-semibold text-emerald-700">
+                                        {book.format === 'DIGITAL' || book.format === 'BOTH' ? '✓ Mã hóa AES-256' : 'Không áp dụng'}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Giá bìa gốc:</span>
+                                      <span className="font-mono text-gray-500 line-through">
+                                        {(book.originalPrice || Math.round((book.price || 100000) * 1.3)).toLocaleString('vi-VN')} đ
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Tồn kho khả dụng:</span>
+                                      <span className="font-bold text-gray-900">
+                                        {book.format === 'DIGITAL' ? 'Vô hạn Ebook' : `${book.physicalDetails?.stock ?? 0} cuốn`}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Cột 3: Gian Hàng & Pháp Lý */}
+                                <div className="space-y-2 p-3 bg-gray-50/80 rounded-xl border border-gray-200/60">
+                                  <span className="font-bold text-gray-900 flex items-center gap-1.5 text-[11.5px] uppercase tracking-wider text-emerald-900">
+                                    <span className="material-symbols-outlined text-[15px] text-emerald-700">store</span>
+                                    Gian Hàng &amp; Pháp Lý
+                                  </span>
+                                  <div className="space-y-1 text-gray-600 text-[11.5px]">
+                                    <div className="flex justify-between items-start gap-2">
+                                      <span className="text-gray-400 shrink-0">Đối tác bán:</span>
+                                      <span className="font-semibold text-gray-800 break-words text-right">
+                                        {book.business?.name || book.storeName || 'Đối tác ủy quyền'}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Business ID:</span>
+                                      <span className="font-mono text-[10px] text-gray-500">
+                                        {book.businessId ? `${book.businessId.slice(0, 12)}...` : 'N/A'}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Tình trạng duyệt:</span>
+                                      <span className="font-semibold text-emerald-700">Đạt chuẩn chính sách</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-gray-400">Cập nhật lúc:</span>
+                                      <span className="font-mono text-gray-500">
+                                        {book.updatedAt ? new Date(book.updatedAt).toLocaleDateString('vi-VN') : 'Mới nhất'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Tác vụ hành động nhanh */}
+                              <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Link
+                                    href={`/book/${book.id}`}
+                                    target="_blank"
+                                    className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold flex items-center gap-1.5 transition-colors"
+                                  >
+                                    <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                                    <span>Xem trang người mua</span>
+                                  </Link>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedBook(book)}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[15px]">edit_note</span>
+                                    <span>Xem toàn bộ hồ sơ</span>
+                                  </button>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  {isSuspended ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleActivate(book)}
+                                      disabled={isBusy}
+                                      className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                    >
+                                      <span className="material-symbols-outlined text-[15px]">lock_open</span>
+                                      <span>Mở Khóa Phát Hành</span>
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSuspendModalBook(book);
+                                        setSuspendReason('');
+                                      }}
+                                      disabled={isBusy}
+                                      className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                                    >
+                                      <span className="material-symbols-outlined text-[15px]">lock</span>
+                                      <span>Khóa Vi Phạm Sách</span>
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

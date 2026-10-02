@@ -515,15 +515,14 @@ export function AdminEscrowView() {
     };
   }, [items]);
 
-  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (rộng rãi, không bị ép chữ)
+  // Định nghĩa các cột hiển thị của bảng Đơn Hàng Chính (5 cột tinh gọn, vừa khít 100% màn hình)
   const orderColumns = useMemo<Column<EscrowOrderGroup>[]>(
     () => [
       {
         key: 'orderCode',
         title: 'Mã Đơn & Ngày Đặt',
-        minWidth: 230,
         render: (_, row) => (
-          <div className="flex flex-col gap-1 py-1 whitespace-nowrap">
+          <div className="flex flex-col gap-1 py-1">
             <div className="flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[#00875A] text-[16px]">
                 shopping_bag
@@ -534,7 +533,7 @@ export function AdminEscrowView() {
             </div>
             <span
               suppressHydrationWarning
-              className="text-theme-text-muted font-normal text-[11.5px] flex items-center gap-1"
+              className="text-theme-text-muted font-normal text-[11px] flex items-center gap-1"
             >
               <span className="material-symbols-outlined text-[13px]">schedule</span>
               <span>{formatVietnamDateTime(row.orderCreatedAt)}</span>
@@ -543,35 +542,76 @@ export function AdminEscrowView() {
         ),
       },
       {
-        key: 'store',
-        title: 'Gian Hàng / Người Bán',
-        minWidth: 300,
+        key: 'storeAndCustomer',
+        title: 'Gian Hàng & Khách Hàng',
         render: (_, row) => {
           const uniqueStores = Array.from(new Set(row.items.map((it) => it.storeName || it.storeId).filter(Boolean)));
           const isMultiStore = uniqueStores.length > 1;
 
-          if (isMultiStore) {
-            return (
-              <div className="flex flex-col gap-0.5 py-1">
-                <span className="font-semibold text-emerald-800 dark:text-emerald-300 text-xs whitespace-nowrap flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[15px]">storefront</span>
+          return (
+            <div className="flex flex-col gap-1 py-1">
+              {isMultiStore ? (
+                <span className="font-semibold text-emerald-800 dark:text-emerald-300 text-xs flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">storefront</span>
                   <span>Đa gian hàng ({uniqueStores.length} Shop)</span>
                 </span>
-                <span className="text-[10.5px] text-theme-text-muted whitespace-nowrap truncate max-w-[280px]" title={uniqueStores.join(', ')}>
-                  {uniqueStores.join(', ')}
-                </span>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-theme-text">
+                  <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
+                  <span className="truncate max-w-[200px]" title={row.storeName}>{row.storeName}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted">
+                <span className="material-symbols-outlined text-[13px]">person</span>
+                <span className="font-medium text-slate-700 dark:text-slate-300">{row.customerName}</span>
+                <span>•</span>
+                <span className="font-mono">{row.customerPhone}</span>
               </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'paymentAndItems',
+        title: 'Thanh Toán & Số Món',
+        render: (_, row) => {
+          let paymentBadge = null;
+          if (row.paymentMethod === 'COD') {
+            if (row.remittanceInfo?.isRemitted) {
+              paymentBadge = (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
+                  <span>COD Đã Nộp Quỹ</span>
+                </span>
+              );
+            } else {
+              paymentBadge = (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  <span className="material-symbols-outlined text-[13px] text-amber-600">local_shipping</span>
+                  <span>COD Chờ Nộp</span>
+                </span>
+              );
+            }
+          } else {
+            paymentBadge = (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                <span className="material-symbols-outlined text-[13px] text-blue-600">account_balance</span>
+                <span>Cổng Quỹ PayOS</span>
+              </span>
             );
           }
 
           return (
-            <div className="flex flex-col gap-0.5 py-1">
-              <span className="font-semibold text-theme-text text-xs whitespace-nowrap">
-                {row.storeName}
-              </span>
-              {row.storeId && (
-                <span className="font-mono text-[10.5px] text-theme-text-muted whitespace-nowrap">
-                  ID: {row.storeId}
+            <div className="flex flex-col gap-1 py-1">
+              <div className="flex items-center gap-2">
+                {paymentBadge}
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-theme-surface-subtle border border-theme-border text-theme-text">
+                  {row.itemsCount} món
+                </span>
+              </div>
+              {row.remittanceInfo?.shipperName && (
+                <span className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                  Bưu tá: {row.remittanceInfo.shipperName}
                 </span>
               )}
             </div>
@@ -579,65 +619,9 @@ export function AdminEscrowView() {
         },
       },
       {
-        key: 'customer',
-        title: 'Khách Hàng',
-        minWidth: 200,
-        render: (_, row) => (
-          <div className="flex flex-col gap-0.5 py-1 whitespace-nowrap">
-            <span className="font-medium text-theme-text text-xs">
-              {row.customerName}
-            </span>
-            <span className="font-mono text-[11px] text-theme-text-muted">
-              {row.customerPhone}
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'payment',
-        title: 'Phương Thức Thanh Toán',
-        minWidth: 260,
-        render: (_, row) => {
-          if (row.paymentMethod === 'COD') {
-            if (row.remittanceInfo?.isRemitted) {
-              return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap">
-                  <span className="material-symbols-outlined text-[14px] text-emerald-600">verified</span>
-                  <span>COD: Bưu tá đã nộp Quỹ ({row.remittanceInfo.method})</span>
-                </span>
-              );
-            }
-            return (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 whitespace-nowrap">
-                <span className="material-symbols-outlined text-[14px] text-amber-600">local_shipping</span>
-                <span>COD: Bưu tá đang giao / chờ nộp</span>
-              </span>
-            );
-          }
-          return (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 whitespace-nowrap">
-              <span className="material-symbols-outlined text-[14px] text-blue-600">account_balance</span>
-              <span>PayOS Cổng Quỹ Sàn (Đã Thu)</span>
-            </span>
-          );
-        },
-      },
-      {
-        key: 'itemsCount',
-        title: 'Số Món',
-        align: 'center',
-        width: '100px',
-        render: (_, row) => (
-          <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-bold bg-theme-surface-subtle border border-theme-border text-theme-text whitespace-nowrap">
-            {row.itemsCount} món
-          </span>
-        ),
-      },
-      {
         key: 'totalAmount',
         title: 'Tổng Giá Trị Đơn',
         align: 'right',
-        minWidth: 170,
         render: (_, row) => {
           const totalOrderItemsSubtotal = row.items.reduce((sum, it) => sum + it.subtotal, 0);
           const totalStoreDiscount = row.items.reduce((sum, it) => sum + (it.storeVoucherDiscount || 0), 0);
@@ -645,11 +629,11 @@ export function AdminEscrowView() {
           const grandTotal = row.orderGrandTotal || Math.max(0, totalOrderItemsSubtotal - totalStoreDiscount - totalPlatformDiscount);
 
           return (
-            <div className="flex flex-col items-end whitespace-nowrap">
-              <span className="font-mono text-sm font-bold text-theme-text">
+            <div className="flex flex-col items-end">
+              <span className="font-mono text-[13px] font-bold text-theme-text">
                 {grandTotal.toLocaleString('vi-VN')} đ
               </span>
-              <div className="flex flex-col items-end text-[10px] font-medium leading-tight mt-0.5">
+              <div className="flex flex-col items-end text-[9.5px] font-medium leading-tight mt-0.5">
                 {totalStoreDiscount > 0 && (
                   <span className="text-rose-600">
                     (-{totalStoreDiscount.toLocaleString('vi-VN')}đ Voucher Shop)
@@ -669,7 +653,6 @@ export function AdminEscrowView() {
         key: 'overallStatus',
         title: 'Trạng Thái Dòng Tiền',
         align: 'center',
-        minWidth: 230,
         render: (_, row) => {
           const allReleased = row.items.every((i) => i.escrowStatus === 'RELEASED');
           const anyFrozen = row.items.some((i) => i.escrowStatus === 'FROZEN');
@@ -677,31 +660,31 @@ export function AdminEscrowView() {
           const anyRefunded = row.items.some((i) => i.escrowStatus === 'REFUNDED');
 
           return (
-            <div className="flex justify-center whitespace-nowrap">
+            <div className="flex justify-center">
               {anyFrozen ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-800 border border-rose-200/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                  <span>Có khiếu nại (Đóng băng)</span>
+                  <span>Đóng băng</span>
                 </span>
               ) : allReleased ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>Đã bàn giao cho Shop</span>
+                  <span>Đã bàn giao</span>
                 </span>
               ) : anyRefunded ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/80">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-800 border border-sky-200/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
-                  <span>Đã hoàn tiền khách</span>
+                  <span>Đã hoàn tiền</span>
                 </span>
               ) : anyPending ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/80">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-800 border border-blue-200/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                  <span>Chờ bưu tá thu COD</span>
+                  <span>Chờ thu COD</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200/80">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                  <span>Đang giữ dòng tiền</span>
+                  <span>Đang giữ</span>
                 </span>
               )}
             </div>
@@ -736,8 +719,8 @@ export function AdminEscrowView() {
             )}
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-theme-border/80 bg-theme-surface">
-            <table className="w-full text-left text-xs divide-y divide-theme-border/60 min-w-[1200px]">
+          <div className="rounded-xl border border-theme-border/80 bg-theme-surface overflow-hidden">
+            <table className="w-full text-left text-xs divide-y divide-theme-border/60">
               <thead className="bg-theme-surface-subtle text-[10.5px] uppercase font-bold text-theme-text-muted tracking-wider">
                 <tr>
                   <th className="py-2.5 px-4 w-[35%]">Sản Phẩm &amp; Phân Loại</th>

@@ -360,7 +360,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                   SELLER
                 </span>
               </div>
-              <span className="text-[7.5px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+              <span className="text-[7.5px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
                 Kênh NXB &amp; Tác Giả
               </span>
             </div>

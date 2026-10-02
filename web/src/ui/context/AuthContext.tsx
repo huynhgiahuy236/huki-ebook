@@ -16,6 +16,7 @@ export interface AuthContextType {
   activeBusinessId: string | null;
   setActiveBusinessId: React.Dispatch<React.SetStateAction<string | null>>;
   login: (emailOrPhone?: string, password?: string) => Promise<{ success: boolean; user?: UserSession; error?: string; code?: string }>;
+  loginWithGoogle: (googleData?: { email: string; fullName: string; avatar?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   logout: () => Promise<void>;
   register: (formData: { email: string; password?: string; name?: string; fullName?: string; phone?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   changePassword: (currentPassword?: string, newPassword?: string) => Promise<ApiResponse<{ message: string }>>;
@@ -385,6 +386,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Đăng nhập Google
+  const loginWithGoogle = async (googleData?: { email: string; fullName: string; avatar?: string }) => {
+    setAuthError(null);
+    setIsLoading(true);
+    try {
+      const email = googleData?.email || 'huynhgiahuy@gmail.com';
+      const fullName = googleData?.fullName || 'Huỳnh Gia Huy';
+
+      // Sinh Access Token và Refresh Token cho phiên Google
+      const encodedPayload = typeof window !== 'undefined' ? btoa(JSON.stringify({ email, fullName, time: Date.now() })) : 'google_auth';
+      const mockAccessToken = `huki_google_${encodedPayload}`;
+      const mockRefreshToken = `huki_google_refresh_${Date.now()}`;
+
+      tokenStorage.setTokens({
+        accessToken: mockAccessToken,
+        refreshToken: mockRefreshToken,
+      });
+
+      let userData: UserSession = {
+        id: `google_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+        email,
+        fullName,
+        name: fullName,
+        role: 'USER',
+        hasCompletedOnboarding: true,
+        avatar: googleData?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
+      };
+
+      userData = (await hydrateBusiness(userData)) || userData;
+      setUser(userData);
+
+      if (userData.id) {
+        getTracker().setUserId(userData.id);
+      }
+
+      setIsLoading(false);
+      return { success: true, user: userData };
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Lỗi đăng nhập Google.';
+      setAuthError(errorMsg);
+      setIsLoading(false);
+      return { success: false, error: errorMsg };
+    }
+  };
+
   const value: AuthContextType = useMemo(
     () => ({
       user,
@@ -395,6 +441,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activeBusinessId,
       setActiveBusinessId,
       login,
+      loginWithGoogle,
       logout,
       register,
       changePassword,

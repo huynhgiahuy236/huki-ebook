@@ -62,6 +62,14 @@ export default function SellerEscrowPage() {
 
   // Detail Modal
   const [selectedItem, setSelectedItem] = useState<SellerEscrowItem | null>(null);
+  const [expandedEscrowIds, setExpandedEscrowIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (id: string) => {
+    setExpandedEscrowIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
+  };
 
   const fetchEscrowItems = useCallback(async () => {
     setIsLoading(true);
@@ -225,19 +233,15 @@ export default function SellerEscrowPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-amber-50 text-amber-700 font-bold">
-              <span className="material-symbols-outlined text-[24px]">hourglass_top</span>
-            </span>
-            <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-              Quản Lý Tiền Đang Treo &amp; Ký Quỹ Escrow
-            </h1>
-          </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
+            <span>Quản Lý Tiền Đang Treo &amp; Ký Quỹ Escrow</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
             Theo dõi chi tiết từng cuốn sách trong tất cả đơn hàng: tình trạng giữ tiền bảo chứng, đếm ngược hạn đổi trả 2 phút và tiến trình giải ngân 95% về ví.
           </p>
         </div>
@@ -245,15 +249,15 @@ export default function SellerEscrowPage() {
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
             href="/seller/reports"
-            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 border border-blue-200 cursor-pointer"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[18px]">analytics</span>
+            <span className="material-symbols-outlined text-[18px] text-slate-500">analytics</span>
             <span>Xem Dashboard Báo Cáo</span>
           </Link>
           <button
             type="button"
             onClick={handleExportCSV}
-            className="px-4 py-2 text-xs font-bold rounded-xl bg-[#003B2B] text-white hover:bg-[#00271D] transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
+            className="px-4 py-2 text-xs font-bold rounded-xl bg-[#00875A] text-white hover:bg-[#003B2B] transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span>Xuất Bảng Ký Quỹ (CSV)</span>
@@ -454,142 +458,254 @@ export default function SellerEscrowPage() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-700">
-            <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200">
-              <tr>
-                <th className="p-3.5 whitespace-nowrap">Mã Đơn &amp; Thời Gian</th>
-                <th className="p-3.5 whitespace-nowrap">Khách Hàng &amp; Nhận Sách</th>
-                <th className="p-3.5">Tên Sách &amp; Phân Loại</th>
-                <th className="p-3.5 whitespace-nowrap">Phương Thức TT</th>
-                <th className="p-3.5 text-right whitespace-nowrap">Doanh Thu (100%)</th>
-                <th className="p-3.5 text-right whitespace-nowrap text-amber-700">Phí Sàn (5%)</th>
-                <th className="p-3.5 text-right whitespace-nowrap text-emerald-700 font-bold">Thực Nhận (95%)</th>
-                <th className="p-3.5 text-center whitespace-nowrap">Trạng Thái Ký Quỹ</th>
-                <th className="p-3.5 text-center whitespace-nowrap">Chi Tiết</th>
+        <div className="w-full overflow-hidden">
+          <table className="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
+                <th className="py-3.5 pl-4 pr-2 w-[24%]">Mã Đơn &amp; Thời Gian</th>
+                <th className="py-3.5 px-3 w-[28%]">Sách &amp; Phân Loại</th>
+                <th className="py-3.5 px-3 w-[22%]">Doanh Thu &amp; Thực Nhận</th>
+                <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái Ký Quỹ</th>
+                <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Chi Tiết</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-gray-500">
+                  <td colSpan={5} className="py-16 text-center text-slate-500">
                     <div className="flex items-center justify-center gap-2">
-                      <span className="w-5 h-5 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin"></span>
+                      <span className="w-5 h-5 rounded-full border-2 border-[#00875A] border-t-transparent animate-spin"></span>
                       <span>Đang tải bảng đối soát ký quỹ từ cơ sở dữ liệu...</span>
                     </div>
                   </td>
                 </tr>
               ) : paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-12 text-center text-gray-500">
+                  <td colSpan={5} className="py-16 text-center text-slate-400">
                     Không tìm thấy món hàng ký quỹ nào phù hợp với bộ lọc.
                   </td>
                 </tr>
               ) : (
-                paginatedItems.map((it) => (
-                  <tr key={it.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="p-3.5 align-top">
-                      <div className="font-bold text-gray-900 font-mono">{it.orderCode || it.orderId}</div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        {formatVietnamDateTime(it.orderCreatedAt)}
-                      </div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">ID: {it.id.slice(0, 8)}...</div>
-                    </td>
-                    <td className="p-3.5 align-top max-w-[200px]">
-                      <div className="font-semibold text-gray-900">{it.customerName || 'Khách hàng HuKi'}</div>
-                      <div className="text-[11px] text-gray-500">{it.customerPhone || '0901234567'}</div>
-                      <div className="text-[11px] text-gray-500 truncate mt-0.5" title={it.shippingAddress}>
-                        {it.shippingAddress || 'Nhận sách điện tử / Giao hàng tận nơi'}
-                      </div>
-                    </td>
-                    <td className="p-3.5 align-top max-w-[220px]">
-                      <div className="font-semibold text-gray-900 line-clamp-2">{it.bookTitle}</div>
-                      <div className="text-[11px] text-gray-500 mt-0.5">
-                        SL: <span className="font-bold text-gray-800">{it.quantity}</span> ×{' '}
-                        {formatVND(it.unitPrice)}
-                      </div>
-                      <div className="mt-1">
-                        <span
-                          className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                            it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook')
-                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          }`}
-                        >
-                          {it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook')
-                            ? '📱 Ebook Digital'
-                            : '📦 Sách Giấy Vật Lý'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="p-3.5 align-top whitespace-nowrap">
-                      <span
-                        className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-semibold ${
-                          it.paymentMethod === 'COD'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-blue-50 text-blue-700 border border-blue-200'
+                paginatedItems.map((it) => {
+                  const isExpanded = !!expandedEscrowIds[it.id];
+                  const orderCode = it.orderCode || it.orderId;
+                  const isDigital = it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook');
+
+                  return (
+                    <React.Fragment key={it.id}>
+                      <tr
+                        onClick={() => toggleExpand(it.id)}
+                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
+                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
                         }`}
                       >
-                        {it.paymentMethod === 'COD' ? '💵 Tiền Mặt COD' : '💳 PayOS / VietQR'}
-                      </span>
-                      {it.paymentStatus && (
-                        <div className="text-[10px] text-gray-500 mt-1">
-                          {it.paymentStatus === 'PAID' ? '✓ Đã Thanh Toán' : '⏳ Chờ Thanh Toán'}
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3.5 align-top text-right font-semibold text-gray-900 whitespace-nowrap">
-                      {formatVND(it.subtotal)}
-                    </td>
-                    <td className="p-3.5 align-top text-right font-semibold text-amber-700 whitespace-nowrap">
-                      -{formatVND(it.platformFee)}
-                    </td>
-                    <td className="p-3.5 align-top text-right font-black text-emerald-700 whitespace-nowrap">
-                      +{formatVND(it.sellerNet)}
-                    </td>
-                    <td className="p-3.5 align-top text-center whitespace-nowrap">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
-                          it.escrowStatus === 'RELEASED'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : it.escrowStatus === 'HOLDING'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : it.escrowStatus === 'PENDING_PAYMENT'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            it.escrowStatus === 'RELEASED'
-                              ? 'bg-emerald-500'
+                        {/* 1. Mã đơn & Thời gian */}
+                        <td className="py-3 pl-4 pr-2 align-middle">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpand(it.id);
+                              }}
+                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
+                            >
+                              <span
+                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
+                                }`}
+                              >
+                                chevron_right
+                              </span>
+                            </button>
+                            <div className="min-w-0">
+                              <span className="font-mono font-bold text-slate-900 block truncate">
+                                #{orderCode}
+                              </span>
+                              <span className="text-[11px] text-slate-400 block truncate mt-0.5">
+                                {formatVietnamDateTime(it.orderCreatedAt)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 2. Sách & Phân loại */}
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={it.bookTitle}>
+                              {it.bookTitle}
+                            </span>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                  isDigital
+                                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                }`}
+                              >
+                                {isDigital ? '📱 Ebook' : '📦 Sách Giấy'}
+                              </span>
+                              <span className="text-[11px] text-slate-400">
+                                SL: {it.quantity} × {formatVND(it.unitPrice)}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 3. Doanh thu & Thực nhận */}
+                        <td className="py-3 px-3 align-middle">
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="text-slate-400">Thu:</span>
+                              <span className="font-bold text-slate-800">{formatVND(it.subtotal)}</span>
+                              <span className="text-[10px] text-amber-700">(-5%)</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-xs">
+                              <span className="text-slate-400">Nhận:</span>
+                              <span className="font-bold text-[#00875A]">+{formatVND(it.sellerNet)}</span>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* 4. Trạng thái Ký Quỹ */}
+                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                              it.escrowStatus === 'RELEASED'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : it.escrowStatus === 'HOLDING'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : it.escrowStatus === 'PENDING_PAYMENT'
+                                ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                                : 'bg-rose-50 text-rose-800 border border-rose-200'
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                it.escrowStatus === 'RELEASED'
+                                  ? 'bg-[#00875A]'
+                                  : it.escrowStatus === 'HOLDING'
+                                  ? 'bg-amber-500 animate-pulse'
+                                  : it.escrowStatus === 'PENDING_PAYMENT'
+                                  ? 'bg-blue-500'
+                                  : 'bg-rose-500'
+                              }`}
+                            ></span>
+                            {it.escrowStatus === 'RELEASED'
+                              ? 'Đã giải ngân'
                               : it.escrowStatus === 'HOLDING'
-                              ? 'bg-amber-500 animate-pulse'
+                              ? 'Đang đếm ngược'
                               : it.escrowStatus === 'PENDING_PAYMENT'
-                              ? 'bg-blue-500'
-                              : 'bg-rose-500'
-                          }`}
-                        ></span>
-                        {it.escrowStatus === 'RELEASED'
-                          ? 'Đã giải ngân'
-                          : it.escrowStatus === 'HOLDING'
-                          ? 'Đang đếm ngược'
-                          : it.escrowStatus === 'PENDING_PAYMENT'
-                          ? 'Chờ thu COD'
-                          : 'Đóng băng'}
-                      </span>
-                    </td>
-                    <td className="p-3.5 align-top text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedItem(it)}
-                        className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors cursor-pointer"
-                      >
-                        Xem
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                              ? 'Chờ thu COD'
+                              : 'Đóng băng'}
+                          </span>
+                        </td>
+
+                        {/* 5. Chi tiết */}
+                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedItem(it)}
+                              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+                            >
+                              Chi Tiết
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Subcards Detail Panel */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/60">
+                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
+                              {/* Card 1: Doanh thu & Phân bổ */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">payments</span>
+                                  <span>Phân Bổ Tài Chính (100% / 5% / 95%)</span>
+                                </div>
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Doanh thu niêm yết:</span>
+                                    <span className="font-bold text-slate-900">{formatVND(it.subtotal)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Phí sàn HuKi (5%):</span>
+                                    <span className="font-semibold text-amber-700">-{formatVND(it.platformFee)}</span>
+                                  </div>
+                                  <div className="flex justify-between pt-1 border-t border-slate-100">
+                                    <span className="text-slate-600 font-bold">Thực nhận về ví (95%):</span>
+                                    <span className="font-black text-[#00875A]">+{formatVND(it.sellerNet)}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 2: Khách hàng & Vận chuyển */}
+                              <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                  <span className="material-symbols-outlined text-[16px] text-amber-600">person</span>
+                                  <span>Khách Hàng &amp; Địa Chỉ Nhận</span>
+                                </div>
+                                <div className="space-y-1.5 text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Người mua:</span>
+                                    <span className="font-semibold text-slate-900">{it.customerName || 'Khách hàng HuKi'}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-500">Phương thức TT:</span>
+                                    <span className="font-semibold text-slate-800">
+                                      {it.paymentMethod === 'COD' ? '💵 Tiền mặt COD' : '💳 PayOS / QR'}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    <span className="text-slate-500 block mb-0.5">Địa chỉ giao:</span>
+                                    <p className="bg-slate-50 p-1.5 rounded-lg text-slate-700 text-[11px] border border-slate-100 truncate" title={it.shippingAddress}>
+                                      {it.shippingAddress || 'Nhận sách điện tử / Giao tận nơi'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card 3: Tiến trình ký quỹ & Giải ngân */}
+                              <div className="space-y-2 flex flex-col justify-between">
+                                <div>
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">hourglass_top</span>
+                                    <span>Tiến Trình Ký Quỹ</span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-600 mt-2">
+                                    {it.escrowStatus === 'RELEASED'
+                                      ? '✓ Đã hoàn tất đối soát & giải ngân vào số dư khả dụng.'
+                                      : it.escrowStatus === 'HOLDING'
+                                      ? '⏳ Đang trong thời hạn bảo chứng test đổi trả 2 phút.'
+                                      : it.escrowStatus === 'PENDING_PAYMENT'
+                                      ? '🚚 Kiện hàng đang vận chuyển, chờ thu tiền COD.'
+                                      : '⚠️ Đang tạm khóa do có khiếu nại phát sinh.'}
+                                  </p>
+                                </div>
+                                <div className="pt-2">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedItem(it);
+                                    }}
+                                    className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                                  >
+                                    <span className="material-symbols-outlined text-[15px]">receipt_long</span>
+                                    <span>Mở Bảng Kê Đối Soát</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
               )}
             </tbody>
           </table>

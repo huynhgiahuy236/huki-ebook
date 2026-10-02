@@ -114,6 +114,17 @@ export function AdminPublisherLeadsView() {
     }
   };
 
+  const [expandedLeadIds, setExpandedLeadIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandLead = (id: string) => {
+    setExpandedLeadIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const filteredLeads = useMemo(() => {
     return leadsList.filter(item => {
       if (!searchQuery.trim()) return true;
@@ -136,7 +147,7 @@ export function AdminPublisherLeadsView() {
   }, [filteredLeads, currentPage]);
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full animate-fade-in-up">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
@@ -208,7 +219,7 @@ export function AdminPublisherLeadsView() {
         </div>
       </div>
 
-      {/* 4. LEADS TABLE */}
+      {/* 4. LEADS TABLE - Compact Stacked & Expandable Master-Detail */}
       <AdminTableContainer>
         {isLoading ? (
           <div className="py-16 flex flex-col items-center justify-center gap-3">
@@ -222,117 +233,192 @@ export function AdminPublisherLeadsView() {
             <p className="text-xs text-gray-400 mt-1">Khi có NXB nộp đơn qua /seller/register, hồ sơ sẽ hiển thị ngay tại đây.</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-900 border-collapse min-w-[1300px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] uppercase font-bold text-gray-500 border-b border-[#E2E8F0]">
-                <tr>
-                  <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[280px]">Đơn Vị / NXB Đăng Ký</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px]">Mã Số Thuế</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px]">Email Liên Hệ</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[130px]">Số Điện Thoại</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[220px]">Địa Chỉ Trụ Sở</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[120px]">Ngày Nộp</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[140px] text-center">Trạng Thái</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap min-w-[180px] text-right">Thao Tác Thẩm Định</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E2E8F0]">
-                {paginatedLeads.map((lead, idx) => {
-                  const isActionLoading = actionLoadingId === lead.id;
-                  const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+          <table className="w-full text-left text-xs text-gray-900 border-collapse">
+            <thead className="bg-[#F8FAFC] text-[10.5px] uppercase font-bold text-gray-500 border-b border-[#E2E8F0]">
+              <tr>
+                <th className="py-3 px-2 w-8 text-center"></th>
+                <th className="py-3 px-2 w-10 text-center">STT</th>
+                <th className="py-3 px-3.5">Đơn Vị / NXB Đăng Ký</th>
+                <th className="py-3 px-3.5">Mã Số Thuế &amp; Đại Diện</th>
+                <th className="py-3 px-3.5">Email &amp; Trụ Sở</th>
+                <th className="py-3 px-3.5">Ngày Nộp</th>
+                <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E2E8F0]">
+              {paginatedLeads.map((lead, idx) => {
+                const isActionLoading = actionLoadingId === lead.id;
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                const isExpanded = expandedLeadIds.has(lead.id);
 
-                  return (
+                return (
+                  <React.Fragment key={lead.id}>
                     <tr
-                      key={lead.id}
-                      className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
+                      className={`transition-colors group ${
+                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                      } hover:bg-emerald-50/40`}
                     >
+                      {/* Chevron toggle */}
+                      <td className="py-3 px-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandLead(lead.id)}
+                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-gray-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
+                        >
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                            chevron_right
+                          </span>
+                        </button>
+                      </td>
+
                       {/* STT */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center text-[11px] font-mono text-gray-400 font-semibold">
+                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
                         {itemIndex}
                       </td>
 
                       {/* Name */}
-                      <td className="py-3 px-3.5 whitespace-nowrap">
+                      <td className="py-3 px-3.5">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-800 font-bold text-xs flex items-center justify-center shrink-0 border border-amber-200">
                             {lead.code}
                           </div>
                           <div className="min-w-0 max-w-[240px]">
                             <div
-                              onClick={() => setSelectedLead(lead)}
+                              onClick={() => toggleExpandLead(lead.id)}
                               className="font-bold text-gray-900 leading-snug truncate hover:text-[#00875A] cursor-pointer"
                               title={lead.name}
                             >
                               {lead.name}
                             </div>
                             <div className="text-[10px] text-gray-400 font-mono truncate">
-                              ID: {lead.id}
+                              ID: {lead.id?.substring(0, 10)}...
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Tax code */}
-                      <td className="py-3 px-3.5 whitespace-nowrap font-mono font-semibold text-gray-800 text-[11px]">
-                        {lead.taxCode}
+                      {/* Tax code & rep */}
+                      <td className="py-3 px-3.5">
+                        <div className="font-mono font-semibold text-gray-800 text-[11px]">
+                          MST: {lead.taxCode}
+                        </div>
+                        <div className="text-[10.5px] text-gray-500 mt-0.5 truncate max-w-[180px]">
+                          {lead.phone || lead.rep}
+                        </div>
                       </td>
 
-                      {/* Email */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700">
-                        {lead.email || <span className="text-gray-400 italic">Chưa có</span>}
+                      {/* Contact & Address */}
+                      <td className="py-3 px-3.5">
+                        <div className="text-gray-800 font-medium text-[11.5px] truncate max-w-[200px]">
+                          {lead.email}
+                        </div>
+                        <div className="text-[10.5px] text-gray-400 truncate max-w-[220px]" title={lead.address}>
+                          {lead.address}
+                        </div>
                       </td>
 
-                      {/* Phone */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-700 font-mono">
-                        {lead.phone || <span className="text-gray-400 font-sans italic text-[11px]">Chưa có</span>}
-                      </td>
-
-                      {/* Address */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-600 text-[11px]" title={lead.address}>
-                        <div className="truncate max-w-[220px]">{lead.address}</div>
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-gray-500 font-mono text-[11px]">
+                      {/* Joined Date */}
+                      <td className="py-3 px-3.5 font-mono text-[11px] text-gray-500">
                         {lead.joinedDate}
                       </td>
 
-                      {/* Status */}
-                      <td className="py-3 px-3.5 whitespace-nowrap text-center">
-                        <AdminStatusBadge variant="warning" label="Chờ Thẩm Định" />
-                      </td>
-
                       {/* Actions */}
-                      <td className="py-2.5 px-3.5 whitespace-nowrap text-right">
+                      <td className="py-3 px-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          <AdminActionButton
-                            variant="view"
-                            icon="visibility"
-                            label="Chi tiết"
-                            size="sm"
-                            onClick={() => setSelectedLead(lead)}
-                            title="Xem chi tiết hồ sơ thẩm định"
-                          />
+                          <span className="px-2 py-0.5 rounded-full text-[10.5px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                            Chờ duyệt
+                          </span>
 
-                          <AdminActionButton
-                            variant="success"
-                            icon="check"
-                            label="Phê Duyệt"
-                            size="sm"
-                            disabled={isActionLoading}
-                            loading={isActionLoading}
+                          <button
+                            onClick={() => setSelectedLead(lead)}
+                            className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            <span>Hồ Sơ</span>
+                          </button>
+
+                          <button
                             onClick={() => handleApprove(lead.id, lead.name)}
-                            title="Phê duyệt đối tác xuất bản"
-                          />
+                            disabled={isActionLoading}
+                            className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">check</span>
+                            <span>Duyệt</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+
+                    {/* Master-Detail Expandable Subcard (3 cards) */}
+                    {isExpanded && (
+                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
+                        <td colSpan={7} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                            {/* Cột 1: Pháp lý */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">corporate_fare</span>
+                                <span>Pháp Lý &amp; Trụ Sở</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-gray-400">Tên Doanh Nghiệp: </span><span className="font-semibold text-gray-800">{lead.name}</span></div>
+                                <div><span className="text-gray-400">Mã Số Thuế: </span><span className="font-mono font-semibold text-gray-800">{lead.taxCode}</span></div>
+                                <div><span className="text-gray-400">Địa chỉ: </span><span className="text-gray-700">{lead.address}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Đại diện */}
+                            <div className="space-y-2 text-xs border-r border-gray-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">contact_phone</span>
+                                <span>Thông Tin Đại Diện &amp; Liên Lạc</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-gray-400">Hotline: </span><span className="font-semibold text-gray-800">{lead.phone || 'Chưa cung cấp'}</span></div>
+                                <div><span className="text-gray-400">Email: </span><span className="text-gray-800">{lead.email}</span></div>
+                                <div><span className="text-gray-400">Ngày đăng ký: </span><span className="font-medium text-gray-700">{lead.joinedDate}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Thao tác */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px]">gavel</span>
+                                  <span>Phê Duyệt / Quyết Định</span>
+                                </div>
+                                <p className="text-[11px] text-gray-500 mt-1">
+                                  Sau khi duyệt, tài khoản NXB sẽ được kích hoạt quyền tạo kho hàng và phát hành sách.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <button
+                                  onClick={() => setSelectedLead(lead)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">description</span>
+                                  <span>Xem Chi Tiết Đơn</span>
+                                </button>
+                                <button
+                                  onClick={() => handleApprove(lead.id, lead.name)}
+                                  disabled={isActionLoading}
+                                  className="px-3 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">check</span>
+                                  <span>Phê Duyệt Ngay</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </tbody>
+          </table>
         )}
 
         <AdminPagination

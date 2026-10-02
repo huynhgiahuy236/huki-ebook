@@ -209,22 +209,15 @@ export default function SellerFinancePage() {
     : (effectiveAvailableBalance + effectivePendingBalance);
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. HEADER & ACTIONS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mb-1">
-            <Link href="/seller/dashboard" className="hover:text-emerald-600 transition-colors">
-              Kênh Người Bán
-            </Link>
-            <span>/</span>
-            <span className="text-slate-900 dark:text-white font-medium">Tài Chính &amp; Ví Shop</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-emerald-600 text-3xl">account_balance_wallet</span>
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+            <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
             <span>Ví Số Dư &amp; Rút Tiền</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Quản lý số dư khả dụng thực nhận và thực hiện lệnh rút tiền về tài khoản ngân hàng chính chủ.
           </p>
         </div>
@@ -233,18 +226,18 @@ export default function SellerFinancePage() {
           <button
             type="button"
             onClick={handleRefreshAll}
-            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
             title="Tải lại dữ liệu"
           >
-            <span className={`material-symbols-outlined text-xl ${isWalletLoading ? 'animate-spin' : ''}`}>refresh</span>
+            <span className={`material-symbols-outlined text-[18px] ${isWalletLoading ? 'animate-spin text-[#00875A]' : ''}`}>refresh</span>
           </button>
           <button
             type="button"
             onClick={() => setIsWithdrawalModalOpen(true)}
             disabled={effectiveAvailableBalance <= 0}
-            className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm hover:shadow transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-4 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <span className="material-symbols-outlined text-lg">payments</span>
+            <span className="material-symbols-outlined text-base">payments</span>
             <span>Rút Tiền Về Ngân Hàng</span>
           </button>
         </div>

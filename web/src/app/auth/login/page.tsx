@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { loginSchema } from '@/ui/utils/authValidation';
 import { formatAuthError, authApi } from '@/ui/api/authApi';
+import GoogleAuthModal from '@/ui/components/auth/GoogleAuthModal';
 
 function LoginForm() {
   const router = useRouter();
@@ -19,6 +20,7 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const validateField = (field: string, value: string) => {
@@ -331,11 +333,7 @@ function LoginForm() {
 
               <button
                 type="button"
-                onClick={() => {
-                  // Redirect đến Google OAuth endpoint của backend
-                  const googleUrl = authApi.getGoogleAuthUrl('/onboarding');
-                  window.location.href = googleUrl;
-                }}
+                onClick={() => setShowGoogleModal(true)}
                 className="w-full h-12 flex items-center justify-center gap-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs sm:text-sm font-semibold text-slate-700 transition-colors cursor-pointer shadow-2xs"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -360,6 +358,15 @@ function LoginForm() {
               </button>
             </div>
           </div>
+
+          {/* Google Auth Modal */}
+          {showGoogleModal && (
+            <GoogleAuthModal
+              isOpen={true}
+              onClose={() => setShowGoogleModal(false)}
+              redirectTarget={searchParams.get('redirect') || searchParams.get('from') || '/'}
+            />
+          )}
 
           {/* Footer */}
           <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">

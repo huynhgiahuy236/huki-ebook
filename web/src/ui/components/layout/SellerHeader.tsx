@@ -53,7 +53,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
               SELLER
             </span>
           </div>
-          <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+          <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
             Kênh NXB &amp; Tác Giả
           </span>
         </Link>

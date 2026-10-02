@@ -108,6 +108,16 @@ export default function SellerProductsPage() {
     status: 'PUBLISHED',
   });
   const [isSavingBook, setIsSavingBook] = useState(false);
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
+
+  const toggleExpandProduct = (id: string) => {
+    setExpandedProductIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   // Load books from backend
   const loadBooks = useCallback(async () => {
@@ -720,17 +730,17 @@ export default function SellerProductsPage() {
       </div>
 
       {/* 5. PRODUCTS TABLE LIST */}
-      <SellerTableContainer minWidth="min-w-[1360px]">
+      <SellerTableContainer>
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
+            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80">
+              <th className="py-3.5 px-2 w-8 text-center"></th>
+              <th className="py-3.5 px-2 w-10 text-center">STT</th>
               <th className="py-3.5 px-4">Sản Phẩm &amp; Bìa</th>
-              <th className="py-3.5 px-3">Định Dạng</th>
+              <th className="py-3.5 px-3">Tác Giả &amp; NXB</th>
+              <th className="py-3.5 px-3">Định Dạng &amp; Tồn Kho</th>
               <th className="py-3.5 px-3">Giá Bán</th>
-              <th className="py-3.5 px-3">Tồn Kho</th>
-              <th className="py-3.5 px-3">Trạng Thái</th>
-              <th className="py-3.5 px-3">Ngày Tạo</th>
-              <th className="py-3.5 px-4 text-right">Thao Tác</th>
+              <th className="py-3.5 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -753,174 +763,246 @@ export default function SellerProductsPage() {
                 </td>
               </tr>
             ) : (
-              paginatedBooks.map((book) => {
+              paginatedBooks.map((book, idx) => {
                 const cover = book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
                 const isPublished = book.status === 'PUBLISHED';
                 const isDraft = book.status === 'DRAFT' || !book.status;
                 const stock = book.physicalDetails?.stock ?? 0;
                 const isLowStock = book.format !== 'DIGITAL' && stock > 0 && stock < 10;
                 const isOutOfStock = book.format !== 'DIGITAL' && stock === 0;
+                const isExpanded = expandedProductIds.has(book.id);
+                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
+                const authorName = typeof book.author === 'string' ? book.author : book.author?.name || 'Chưa cập nhật';
+                const publisherName = typeof book.publisher === 'string' ? book.publisher : book.publisher?.name || 'Tự xuất bản';
 
                 return (
-                  <tr key={book.id} className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
-                    {/* Product & Cover */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={cover}
-                          alt={book.title}
-                          className="w-10 h-14 object-cover rounded-md border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
-                          }}
-                        />
-                        <div className="min-w-0 max-w-xs sm:max-w-md">
-                          <Link
-                            href={`/books/${book.id}`}
-                            target="_blank"
-                            title={book.title}
-                            className="font-bold text-slate-900 hover:text-blue-600 line-clamp-2 transition-colors leading-snug break-words text-xs"
-                          >
-                            {book.title}
-                          </Link>
-                          <div className="flex items-center gap-1.5 mt-1 text-[11px] text-slate-400 font-mono">
-                            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">
-                              #{book.id.substring(0, 6).toUpperCase()}
+                  <React.Fragment key={book.id}>
+                    <tr
+                      className={`hover:bg-slate-50/60 transition-colors group ${
+                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                      }`}
+                    >
+                      {/* Chevron toggle */}
+                      <td className="py-3 px-2 text-center align-middle">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpandProduct(book.id)}
+                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-slate-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
+                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
+                        >
+                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
+                            chevron_right
+                          </span>
+                        </button>
+                      </td>
+
+                      {/* STT */}
+                      <td className="py-3 px-2 text-center text-[11px] font-mono text-slate-400 align-middle">
+                        {itemIndex}
+                      </td>
+
+                      {/* Product & Cover */}
+                      <td className="py-3 px-4 align-middle">
+                        <div className="flex items-center gap-3">
+                          <img
+                            src={cover}
+                            alt={book.title}
+                            className="w-9 h-12 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                          <div className="min-w-0 max-w-[260px]">
+                            <span
+                              onClick={() => toggleExpandProduct(book.id)}
+                              title={book.title}
+                              className="font-bold text-slate-900 hover:text-[#00875A] block truncate transition-colors leading-snug cursor-pointer text-xs"
+                            >
+                              {book.title}
                             </span>
-                            {book.slug && (
-                              <span className="truncate max-w-[140px] text-slate-400">
-                                · {book.slug}
+                            <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-slate-400 font-mono">
+                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                                #{book.id.substring(0, 6).toUpperCase()}
                               </span>
-                            )}
+                              {book.category?.name && (
+                                <span className="truncate text-slate-500 font-sans">
+                                  · {book.category.name}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Format */}
-                    <td className="py-3 px-3">
-                      {book.format === 'PHYSICAL' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200/60">
-                          <span className="material-symbols-outlined text-xs">menu_book</span>
-                          <span>Sách Giấy</span>
-                        </span>
-                      )}
-                      {book.format === 'DIGITAL' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 font-bold text-[11px] border border-purple-200/60">
-                          <span className="material-symbols-outlined text-xs">phonelink</span>
-                          <span>Ebook DRM</span>
-                        </span>
-                      )}
-                      {book.format === 'BOTH' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200/60">
-                          <span className="material-symbols-outlined text-xs">auto_stories</span>
-                          <span>Combo</span>
-                        </span>
-                      )}
-                      {!book.format && (
-                        <span className="text-slate-400 text-[11px]">Chưa xác định</span>
-                      )}
-                    </td>
+                      {/* Author & Publisher */}
+                      <td className="py-3 px-3 align-middle">
+                        <div className="font-semibold text-slate-800 text-xs truncate max-w-[160px]">{authorName}</div>
+                        <div className="text-[10.5px] text-slate-400 mt-0.5 truncate max-w-[160px]">{publisherName}</div>
+                      </td>
 
-                    {/* Price */}
-                    <td className="py-3 px-3 font-bold text-slate-900">
-                      {book.price != null && !isNaN(Number(book.price))
-                        ? Number(book.price).toLocaleString('vi-VN') + ' ₫'
-                        : '0 ₫'}
-                    </td>
+                      {/* Format & Stock */}
+                      <td className="py-3 px-3 align-middle">
+                        <div className="flex items-center gap-1">
+                          {book.format === 'PHYSICAL' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
+                              <span className="material-symbols-outlined text-xs">menu_book</span>
+                              <span>Sách Giấy</span>
+                            </span>
+                          )}
+                          {book.format === 'DIGITAL' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
+                              <span className="material-symbols-outlined text-xs">devices</span>
+                              <span>Ebook DRM</span>
+                            </span>
+                          )}
+                          {book.format === 'BOTH' && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              <span className="material-symbols-outlined text-xs">auto_stories</span>
+                              <span>Combo</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1 text-[11px]">
+                          {book.format === 'DIGITAL' ? (
+                            <span className="text-purple-600 font-semibold text-[10.5px]">DRM Vô hạn</span>
+                          ) : isOutOfStock ? (
+                            <span className="text-rose-600 font-bold text-[10.5px]">Hết hàng (0)</span>
+                          ) : isLowStock ? (
+                            <span className="text-amber-700 font-bold text-[10.5px]">Còn {stock} cuốn</span>
+                          ) : (
+                            <span className="text-slate-600 font-medium text-[10.5px]">{stock.toLocaleString('vi-VN')} cuốn</span>
+                          )}
+                        </div>
+                      </td>
 
-                    {/* Stock */}
-                    <td className="py-3 px-3">
-                      {book.format === 'DIGITAL' ? (
-                        <span className="text-purple-600 font-bold text-[11px] flex items-center gap-1">
-                          <span className="material-symbols-outlined text-xs">all_inclusive</span>
-                          <span>Ebook DRM</span>
+                      {/* Price */}
+                      <td className="py-3 px-3 align-middle">
+                        <span className="font-bold text-slate-900 block text-xs">
+                          {book.price != null && !isNaN(Number(book.price))
+                            ? Number(book.price).toLocaleString('vi-VN') + ' ₫'
+                            : '0 ₫'}
                         </span>
-                      ) : isOutOfStock ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 font-bold text-[11px] border border-rose-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                          <span>Hết hàng (0)</span>
-                        </span>
-                      ) : isLowStock ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200">
-                          <span className="material-symbols-outlined text-xs">warning</span>
-                          <span>Còn {stock} cuốn</span>
-                        </span>
-                      ) : (
-                        <span className="font-semibold text-slate-800 text-xs">
-                          {stock.toLocaleString('vi-VN')} cuốn
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Status */}
-                    <td className="py-3 px-3">
-                      {isPublished ? (
-                        <SellerStatusBadge variant="success" dot text="Đang Bán" />
-                      ) : isDraft ? (
-                        <SellerStatusBadge variant="warning" dot text="Bản Nháp" />
-                      ) : (
-                        <SellerStatusBadge variant="neutral" text={book.status || 'Ẩn'} />
-                      )}
-                    </td>
-
-                    {/* Created At */}
-                    <td className="py-3 px-3 text-slate-400 text-[11px]">
-                      {book.createdAt ? new Date(book.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {canUpdateProduct && (
-                          <SellerActionButton
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            icon="edit"
-                            onClick={() => openEditForm(book)}
-                          >
-                            Sửa
-                          </SellerActionButton>
+                        {book.originalPrice && book.originalPrice > (book.price || 0) && (
+                          <span className="text-[10px] text-slate-400 line-through block mt-0.5">
+                            {Number(book.originalPrice).toLocaleString('vi-VN')} ₫
+                          </span>
                         )}
+                      </td>
 
-                        {canUpdateProduct && (book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
-                          <SellerActionButton
-                            type="button"
-                            variant="neutral"
-                            size="sm"
-                            icon={book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}
-                            loading={actionLoadingId === book.id}
-                            onClick={() => handleVisibility(book)}
-                          >
-                            {book.status === 'PUBLISHED' ? 'Ẩn' : 'Mở bán'}
-                          </SellerActionButton>
-                        )}
+                      {/* Status & Actions */}
+                      <td className="py-3 px-4 text-right align-middle">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {isPublished ? (
+                            <SellerStatusBadge variant="success" dot text="Đang Bán" />
+                          ) : isDraft ? (
+                            <SellerStatusBadge variant="warning" dot text="Bản Nháp" />
+                          ) : (
+                            <SellerStatusBadge variant="neutral" text={book.status || 'Ẩn'} />
+                          )}
 
-                        {isDraft && (
-                          <SellerActionButton
-                            type="button"
-                            variant="primary"
-                            size="sm"
-                            icon="publish"
-                            loading={actionLoadingId === book.id}
-                            onClick={() => handlePublish(book.id, book.title)}
-                          >
-                            Xuất Bản
-                          </SellerActionButton>
-                        )}
+                          {canUpdateProduct && (
+                            <SellerActionButton
+                              type="button"
+                              variant="secondary"
+                              size="sm"
+                              icon="edit"
+                              onClick={() => openEditForm(book)}
+                            >
+                              Sửa
+                            </SellerActionButton>
+                          )}
 
-                        <Link href={`/books/${book.id}`} target="_blank">
-                          <SellerActionButton
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            icon="open_in_new"
-                          />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
+                          {isDraft && (
+                            <SellerActionButton
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              icon="publish"
+                              loading={actionLoadingId === book.id}
+                              onClick={() => handlePublish(book.id, book.title)}
+                            >
+                              Xuất Bản
+                            </SellerActionButton>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+
+                    {/* Master-Detail Expandable Subcard (3 cards) */}
+                    {isExpanded && (
+                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
+                        <td colSpan={7} className="p-4 sm:p-5">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                            {/* Cột 1: Thông số kho & kích thước */}
+                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">inventory_2</span>
+                                <span>Thông Số Kho &amp; Trọng Lượng</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-slate-400">Tồn kho thực tế: </span><span className="font-bold text-slate-800">{stock} cuốn</span></div>
+                                <div><span className="text-slate-400">Trọng lượng: </span><span className="font-semibold text-slate-700">{book.physicalDetails?.weight ? `${book.physicalDetails.weight}g` : '350g (Chuẩn)'}</span></div>
+                                <div><span className="text-slate-400">Kích thước: </span><span className="text-slate-700">{book.physicalDetails?.length ? `${book.physicalDetails.length} x ${book.physicalDetails.width} x ${book.physicalDetails.height} cm` : '14.5 x 20.5 x 2 cm'}</span></div>
+                                <div><span className="text-slate-400">Ngày tạo: </span><span className="text-slate-600">{book.createdAt ? new Date(book.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 2: Bảng giá & chiết khấu */}
+                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">sell</span>
+                                <span>Thông Tin Giá &amp; Chiết Khấu</span>
+                              </div>
+                              <div className="space-y-1.5 pt-1 text-[11px]">
+                                <div><span className="text-slate-400">Giá bán trên sàn: </span><span className="font-bold text-[#00875A] text-xs">{Number(book.price || 0).toLocaleString('vi-VN')} ₫</span></div>
+                                <div><span className="text-slate-400">Giá bìa niêm yết: </span><span className="text-slate-600">{book.originalPrice ? `${Number(book.originalPrice).toLocaleString('vi-VN')} ₫` : 'Bằng giá bán'}</span></div>
+                                <div><span className="text-slate-400">Danh mục phân loại: </span><span className="font-semibold text-slate-800">{book.category?.name || 'Sách tổng hợp'}</span></div>
+                              </div>
+                            </div>
+
+                            {/* Cột 3: Thao tác gian hàng */}
+                            <div className="space-y-2 text-xs flex flex-col justify-between">
+                              <div>
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+                                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                                  <span>Thao Tác Gian Hàng</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-1">
+                                  Cập nhật thông tin nhanh hoặc quản lý trạng thái hiển thị của tác phẩm.
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                <button
+                                  onClick={() => openEditForm(book)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">edit</span>
+                                  <span>Chỉnh Sửa Nhanh</span>
+                                </button>
+                                {canUpdateProduct && (book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
+                                  <button
+                                    onClick={() => handleVisibility(book)}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                                  >
+                                    <span className="material-symbols-outlined text-[14px]">{book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}</span>
+                                    <span>{book.status === 'PUBLISHED' ? 'Ẩn Tạm Thời' : 'Mở Bán Lại'}</span>
+                                  </button>
+                                )}
+                                <Link
+                                  href={`/books/${book.id}`}
+                                  target="_blank"
+                                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                                  <span>Xem Trang Sách</span>
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })
             )}

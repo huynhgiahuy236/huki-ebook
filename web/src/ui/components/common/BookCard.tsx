@@ -245,13 +245,8 @@ export default function BookCard({
     return (
       <article
         onClick={handleCardClick}
-        className={`bg-white border border-gray-200/80 rounded-xl p-3 flex flex-row items-center justify-between gap-3 hover:shadow-sm hover:border-[#ac2c19]/40 transition-all group relative ${mockClasses} ${className}`}
+        className={`bg-white border border-gray-200/80 rounded-xl p-3 flex flex-row items-center justify-between gap-3 hover:shadow-sm hover:border-[#ee4d2d]/40 transition-all group relative cursor-pointer ${className}`}
       >
-        {isMock && (
-          <span className="absolute top-2 right-2 z-30 bg-blue-100 text-blue-800 border border-blue-200 text-[8.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-wider">
-            MẪU (MOCK)
-          </span>
-        )}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="relative aspect-[3/4] w-20 rounded-lg overflow-hidden bg-gray-50 shadow-2xs shrink-0">
             <BookCover
@@ -268,17 +263,17 @@ export default function BookCard({
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-xs text-gray-900 group-hover:text-[#ac2c19] transition-colors line-clamp-2 leading-snug">
+            <h3 className="font-semibold text-xs text-gray-900 group-hover:text-[#003b2b] transition-colors line-clamp-2 leading-snug">
               {book.title}
             </h3>
             <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
 
             <div className="flex items-center gap-2 mt-1">
-              <span className={`text-xs font-bold ${isFlashSale ? 'text-rose-600 font-extrabold' : 'text-[#ac2c19]'}`}>
+              <span className="text-xs font-bold text-[#003b2b]">
                 {price.toLocaleString('vi-VN')} đ
               </span>
               {discountLabel && (
-                <span className={`${isFlashSale ? 'bg-rose-600' : 'bg-[#ac2c19]'} text-white text-[9px] font-bold px-1 py-0.2 rounded`}>
+                <span className="bg-[#e6f4f0] text-[#006953] text-[9px] font-bold px-1 py-0.2 rounded border border-[#006953]/30">
                   {discountLabel}
                 </span>
               )}
@@ -291,7 +286,7 @@ export default function BookCard({
             <button
               type="button"
               onClick={handleDirectBuy}
-              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
+              className="px-3 py-1.5 rounded-lg bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold transition-all shadow-2xs cursor-pointer flex items-center gap-1"
             >
               <span className="material-symbols-outlined text-[13px]">bolt</span>
               <span>Mua Ngay</span>
@@ -300,7 +295,7 @@ export default function BookCard({
               type="button"
               onClick={handleAddToCart}
               title="Thêm vào giỏ"
-              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
+              className="p-1.5 rounded-lg bg-[#e6f4f0] hover:bg-[#d0ebe3] text-[#003b2b] border border-[#003b2b]/20 transition-colors flex items-center justify-center cursor-pointer shadow-2xs"
             >
               <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
             </button>
@@ -309,7 +304,7 @@ export default function BookCard({
           <button
             type="button"
             onClick={handleAddToCart}
-            className="px-3 py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer"
+            className="px-3 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white text-xs font-semibold transition-colors shrink-0 cursor-pointer"
           >
             Thêm giỏ hàng
           </button>
@@ -318,21 +313,15 @@ export default function BookCard({
     );
   }
 
-  // 2. STANDARD / COMPACT / GRID VARIANT (Compact Ecommerce Card)
+  // 2. STANDARD / COMPACT / GRID VARIANT (Clean, Spacious, No Mock Data)
   return (
     <article
       onClick={handleCardClick}
-      className={`group bg-white rounded-xl border border-gray-200/80 p-2.5 flex flex-col justify-between hover:shadow-md hover:border-[#ac2c19]/40 transition-all relative ${mockClasses} ${className}`}
+      className={`group bg-white rounded-xl border border-slate-200/80 hover:border-[#00875A] hover:shadow-md transition-all flex flex-col justify-between p-3 relative cursor-pointer overflow-hidden ${className}`}
     >
-      {isMock && (
-        <span className="absolute top-1.5 right-1.5 z-30 bg-blue-100 text-blue-800 border border-blue-200 text-[8.5px] font-bold px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-wider">
-          MẪU (MOCK)
-        </span>
-      )}
-
-      <div>
-        {/* Compact Book Cover (Centered, aspect-3/4, max height) */}
-        <div className="relative aspect-[3/4] w-full max-h-[175px] mx-auto rounded-lg overflow-hidden bg-gray-50 mb-2 flex items-center justify-center">
+      <div className="flex flex-col flex-1">
+        {/* Spacious Book Cover Container */}
+        <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2.5 flex items-center justify-center border border-slate-100">
           <BookCover
             src={book.cover || book.coverUrl}
             title={book.title}
@@ -340,83 +329,67 @@ export default function BookCard({
             className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
           />
 
-          {isFlashSale && (
-            <div className="absolute top-1.5 left-1.5 z-20 bg-gradient-to-r from-rose-600 to-amber-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-md shadow-md flex items-center gap-0.5 animate-pulse">
-              <span className="material-symbols-outlined text-[11px]">bolt</span>
-              <span>FLASH SALE</span>
-            </div>
-          )}
+          {/* Genuine Format / Flash Sale Badges (Only shown when real) */}
+          <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1">
+            {isFlashSale && (
+              <span className="bg-rose-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+                ⚡ Flash Sale
+              </span>
+            )}
+            {formatType === 'ebook' && (
+              <span className="bg-[#00875A] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                Ebook
+              </span>
+            )}
+            {formatType === 'hybrid' && (
+              <span className="bg-indigo-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+                Combo
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Book Title (2 lines clamp, compact font) */}
+        {/* Authentic Book Title (No fake prefixes) */}
         <h3
-          className="text-[12px] sm:text-[12.5px] font-medium text-gray-800 line-clamp-2 leading-tight h-[32px] group-hover:text-[#ac2c19] transition-colors mb-1.5"
+          className="text-xs sm:text-[13px] font-bold text-slate-900 line-clamp-2 leading-snug group-hover:text-[#00875A] transition-colors mb-1 min-h-[32px]"
           title={book.title}
         >
           {book.title}
         </h3>
 
-        {/* Pricing Row: Red Price + Discount Badge */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className={`text-[13px] sm:text-[14px] font-bold ${isFlashSale ? 'text-rose-600 font-extrabold' : 'text-[#ac2c19]'}`}>
-            {price.toLocaleString('vi-VN')} đ
-          </span>
-          {discountLabel && (
-            <span className={`${isFlashSale ? 'bg-rose-600' : 'bg-[#ac2c19]'} text-white text-[9px] sm:text-[10px] font-bold px-1 py-0.2 rounded shadow-2xs`}>
-              {discountLabel}
-            </span>
-          )}
-        </div>
-
-        {/* Original Strikethrough Price */}
-        {originalPrice && originalPrice > price && (
-          <div className="text-[11px] text-gray-400 line-through leading-none mt-0.5">
-            {originalPrice.toLocaleString('vi-VN')} đ
-          </div>
+        {/* Author Name */}
+        {authorName && authorName !== 'Tác giả' && (
+          <p className="text-[11px] text-slate-500 truncate mb-1.5">{authorName}</p>
         )}
 
-        {/* Sales count */}
-        <div className="text-[10.5px] text-gray-500 mt-1 flex items-center justify-between">
-          <span>Đã bán {salesCount}</span>
-          {isFlashSale && (
-            <span className="text-[10px] text-rose-600 font-bold flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-[12px]">local_fire_department</span>
-              <span>Giá sốc</span>
+        {/* Pricing Row: Green Price + Original Strikethrough + Discount */}
+        <div className="flex items-baseline gap-1.5 flex-wrap mt-auto pt-1">
+          <span className="text-sm sm:text-[15px] font-extrabold text-[#00875A] font-mono">
+            {price.toLocaleString('vi-VN')}₫
+          </span>
+          {originalPrice && originalPrice > price && (
+            <span className="text-[11px] text-slate-400 line-through font-mono">
+              {originalPrice.toLocaleString('vi-VN')}₫
+            </span>
+          )}
+          {discountLabel && (
+            <span className="text-[9.5px] text-rose-600 bg-rose-50 border border-rose-200/60 px-1.5 py-0.2 rounded font-bold">
+              {discountLabel}
             </span>
           )}
         </div>
       </div>
 
-      {/* Action Buttons: If Flash Sale, show Mua Ngay + Cart Icon, else Thêm giỏ hàng */}
-      <div className="mt-2.5 pt-1">
-        {isFlashSale ? (
-          <div className="flex items-center gap-1.5 w-full">
-            <button
-              type="button"
-              onClick={handleDirectBuy}
-              className="flex-1 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white font-extrabold text-[11px] transition-all shadow-2xs hover:shadow-sm flex items-center justify-center gap-1 cursor-pointer uppercase tracking-wider"
-            >
-              <span className="material-symbols-outlined text-[13px]">bolt</span>
-              <span>Mua Ngay</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              title="Thêm vào giỏ hàng với giá Flash Sale"
-              className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all flex items-center justify-center cursor-pointer shrink-0 shadow-2xs hover:scale-105 active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleAddToCart}
-            className="w-full py-1.5 rounded-lg border border-[#ac2c19] text-[#ac2c19] hover:bg-[#ac2c19] hover:text-white transition-colors text-xs font-semibold text-center flex items-center justify-center gap-1 cursor-pointer"
-          >
-            Thêm giỏ hàng
-          </button>
-        )}
+      {/* Quick Add Button */}
+      <div className="mt-2.5 pt-2 border-t border-slate-100">
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          className="w-full py-1.5 rounded-lg border border-[#00875A]/40 text-[#00875A] hover:bg-[#00875A] hover:text-white transition-all text-[11.5px] font-bold text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-[0.98]"
+        >
+          <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+          <span>Thêm giỏ</span>
+        </button>
       </div>
     </article>
   );

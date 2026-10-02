@@ -285,7 +285,7 @@ export function SellerAppealsView() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="space-y-6 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-200">
       {/* Header & Store Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
         <div>
@@ -417,8 +417,8 @@ export function SellerAppealsView() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-xs uppercase text-zinc-500 font-semibold border-b border-zinc-200 dark:border-zinc-800">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-[10.5px] uppercase text-zinc-500 font-bold tracking-wider border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
                   <th className="px-5 py-3">Mức độ</th>
                   <th className="px-5 py-3">Lý do & Mã vi phạm</th>

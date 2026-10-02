@@ -423,7 +423,7 @@ export default function AuthorPage() {
                 </div>
                 <div className="flex items-center justify-between pt-2.5 border-t border-theme-border">
                   <div>
-                    <span className="font-bold text-[#ac2c19] text-base">{work.price.toLocaleString('vi-VN')}đ</span>
+                    <span className="font-bold text-[#003b2b] text-base">{work.price.toLocaleString('vi-VN')}đ</span>
                     <span className="block text-xs line-through text-slate-400">{work.originalPrice.toLocaleString('vi-VN')}đ</span>
                   </div>
                   <button
@@ -442,7 +442,7 @@ export default function AuthorPage() {
                       );
                       showToast(`Đã thêm "${work.title}" vào giỏ!`, 'success');
                     }}
-                    className="w-10 h-10 rounded-xl bg-theme-secondary-subtle hover:bg-[#ac2c19] hover:text-white text-on-surface transition-colors flex items-center justify-center shadow-xs cursor-pointer"
+                    className="w-10 h-10 rounded-xl bg-theme-secondary-subtle hover:bg-[#003b2b] hover:text-white text-on-surface transition-colors flex items-center justify-center shadow-xs cursor-pointer"
                     title="Thêm vào giỏ"
                   >
                     <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>

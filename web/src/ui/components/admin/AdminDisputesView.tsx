@@ -222,87 +222,69 @@ export function AdminDisputesView() {
         key: 'index',
         title: 'STT',
         align: 'center',
-        className: 'w-12 font-mono text-[11px] text-gray-400',
+        className: 'w-10 font-mono text-[11px] text-gray-400',
         render: (_val, _item, index) => (currentPage - 1) * pageSize + index + 1,
       },
       {
-        key: 'orderCode',
-        title: 'Mã Đơn Hàng',
+        key: 'orderInfo',
+        title: 'Đơn Hàng & Tác Phẩm',
+        minWidth: 260,
         sortable: true,
-        className: 'font-mono font-bold text-gray-900 whitespace-nowrap',
-        render: (code: string) => `#${code}`,
-      },
-      {
-        key: 'bookTitle',
-        title: 'Tên Sản Phẩm',
-        className: 'font-semibold text-gray-900 max-w-[180px] truncate whitespace-nowrap',
-        render: (title?: string) => (title ? `📚 ${title}` : '—'),
-      },
-      {
-        key: 'storeName',
-        title: 'Cửa Hàng / Shop',
-        sortable: true,
-        className: 'text-gray-700 font-medium max-w-[140px] truncate whitespace-nowrap',
-      },
-      {
-        key: 'customerName',
-        title: 'Khách Hàng',
-        className: 'text-gray-700 font-mono text-[11px] max-w-[130px] truncate whitespace-nowrap',
-      },
-      {
-        key: 'grandTotal',
-        title: 'Giá Trị Đơn',
-        sortable: true,
-        align: 'right',
-        className: 'font-bold text-[#00875A] font-mono whitespace-nowrap',
-        render: (total: number) => new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(total),
-      },
-      {
-        key: 'type',
-        title: 'Phân Loại',
-        align: 'center',
-        className: 'whitespace-nowrap',
-        render: (type: string) => {
-          const typeMeta = DISPUTE_TYPE_LABELS[type] || DISPUTE_TYPE_LABELS.OTHER;
-          return (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${typeMeta.color}`}>
-              {typeMeta.label}
-            </span>
-          );
-        },
-      },
-      {
-        key: 'description',
-        title: 'Mô Tả Vấn Đề',
-        className: 'text-gray-600 text-[11px] max-w-[180px] truncate whitespace-nowrap',
-      },
-      {
-        key: 'resolution',
-        title: 'Giải Pháp',
-        align: 'center',
-        className: 'font-bold text-gray-800 text-[11px] whitespace-nowrap',
-        render: (res: string) => (res === 'REFUND' ? 'Hoàn tiền' : res === 'REPLACE' ? 'Đổi hàng' : 'Hoàn 1 phần'),
-      },
-      {
-        key: 'evidence',
-        title: 'Bằng Chứng',
-        align: 'center',
-        className: 'whitespace-nowrap',
         render: (_val, item) => (
-          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-[10.5px] font-bold">
-            <span className="material-symbols-outlined text-[13px]">attach_file</span>
-            <span>{item.evidence?.length || 0} tệp</span>
+          <div className="flex flex-col gap-0.5 py-1">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#00875A] text-[15px]">shopping_bag</span>
+              <span className="font-mono font-bold text-gray-900 text-xs">#{item.orderCode}</span>
+              <span className="text-[10px] font-mono text-gray-400">ID: {item.id}</span>
+            </div>
+            <span className="text-gray-600 text-[11.5px] break-words" title={item.bookTitle}>
+              {item.bookTitle ? `📚 ${item.bookTitle}` : '—'}
+            </span>
           </div>
         ),
       },
       {
+        key: 'parties',
+        title: 'Gian Hàng & Khách Hàng',
+        render: (_val, item) => (
+          <div className="flex flex-col gap-0.5 py-1">
+            <span className="font-semibold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1 break-words" title={item.storeName}>
+              <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0">storefront</span>
+              <span>{item.storeName || 'Shop HUKI'}</span>
+            </span>
+            <span className="text-gray-500 font-mono text-[11px] flex items-center gap-1 break-words">
+              <span className="material-symbols-outlined text-[13px] text-gray-400 shrink-0">person</span>
+              <span>{item.customerName || 'Khách hàng'}</span>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'amountAndType',
+        title: 'Giá Trị & Phân Loại',
+        minWidth: 190,
+        render: (_val, item) => {
+          const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;
+          return (
+            <div className="flex flex-col gap-1 py-1">
+              <span className="font-bold text-[#00875A] font-mono text-[13px]">
+                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal || 0)}
+              </span>
+              <span className={`inline-block px-2 py-0.2 rounded-full text-[9.5px] font-bold border w-fit ${typeMeta.color}`}>
+                {typeMeta.label}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
         key: 'status',
         title: 'Trạng Thái / Phán Quyết',
+        width: 170,
         align: 'center',
-        className: 'whitespace-nowrap',
         render: (_val, item) => {
           const isPending = item.status === 'DISPUTE_OPENED' || item.status === 'UNDER_PLATFORM_REVIEW';
-          const rulingKey = item.ruling || item.status.replace('RULING_', '');
+          const rulingKey = item.ruling || item.status?.replace('RULING_', '');
           const rulingMeta = RULING_LABELS[rulingKey];
 
           if (isPending) {
@@ -328,24 +310,17 @@ export function AdminDisputesView() {
         },
       },
       {
-        key: 'createdAt',
-        title: 'Ngày Mở',
-        sortable: true,
-        className: 'text-gray-500 text-[11px] whitespace-nowrap',
-        render: (dateStr: string) => new Date(dateStr).toLocaleString('vi-VN'),
-      },
-      {
         key: 'actions',
         title: 'Thao Tác',
+        width: 110,
         align: 'right',
-        className: 'whitespace-nowrap',
         render: (_val, item) => (
           <button
             onClick={() => handleOpenDetail(item.id)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#00875A] hover:bg-[#00734c] text-white rounded-lg text-[11px] font-bold transition shadow-2xs cursor-pointer"
+            className="inline-flex items-center gap-1 px-3 py-1.5 bg-[#00875A] hover:bg-[#00734c] text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
           >
-            <span className="material-symbols-outlined text-[13px]">visibility</span>
-            <span>Thẩm định</span>
+            <span className="material-symbols-outlined text-[14px]">gavel</span>
+            <span>Xử lý</span>
           </button>
         ),
       },
@@ -354,7 +329,7 @@ export function AdminDisputesView() {
   );
 
   return (
-    <div className="flex flex-col gap-5 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
+    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-2">
         <div>
@@ -455,6 +430,108 @@ export function AdminDisputesView() {
         columns={columns}
         keyField="id"
         loading={loading}
+        expandable={true}
+        expandedRowRender={(item: DisputeItem) => {
+          const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;
+          const rulingKey = item.ruling || item.status?.replace('RULING_', '');
+          const rulingMeta = RULING_LABELS[rulingKey];
+
+          return (
+            <div className="flex flex-col gap-3.5 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Card 1: Khiếu nại từ khách */}
+                <div className="p-3 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1">
+                    <span className="material-symbols-outlined text-[15px] text-amber-600">report_problem</span>
+                    <span>Mô Tả Khiếu Nại &amp; Bằng Chứng</span>
+                  </div>
+                  <p className="text-gray-700 text-[11.5px] leading-relaxed italic bg-white p-2 rounded-lg border border-gray-100">
+                    "{item.description || 'Không có mô tả chi tiết'}"
+                  </p>
+                  <div className="flex items-center justify-between text-[11px] pt-1">
+                    <span className="text-gray-500">Giải pháp yêu cầu:</span>
+                    <span className="font-bold text-gray-900">
+                      {item.resolution === 'REFUND' ? 'Hoàn tiền 100%' : item.resolution === 'REPLACE' ? 'Đổi hàng mới' : 'Thỏa thuận'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-gray-500">Tệp đính kèm:</span>
+                    <span className="font-medium text-emerald-800 flex items-center gap-0.5">
+                      <span className="material-symbols-outlined text-[13px]">attach_file</span>
+                      <span>{item.evidence?.length || 0} minh chứng</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Card 2: Phán quyết trọng tài */}
+                <div className="p-3 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1">
+                    <span className="material-symbols-outlined text-[15px] text-[#00875A]">gavel</span>
+                    <span>Phán Quyết Trọng Tài Sàn</span>
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Trạng thái:</span>
+                      <span className="font-bold text-gray-900">{rulingMeta ? rulingMeta.label.split('(')[0] : 'Đang điều tra'}</span>
+                    </div>
+                    {item.rulingNotes && (
+                      <div className="flex flex-col bg-white p-1.5 rounded border border-gray-100 mt-1">
+                        <span className="text-[10px] text-gray-400 font-medium">Ghi chú phân xử:</span>
+                        <span className="text-gray-700 text-[11px] leading-tight">{item.rulingNotes}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-1">
+                      <span className="text-gray-500">Ngày tạo hồ sơ:</span>
+                      <span className="font-mono text-gray-700">{new Date(item.createdAt).toLocaleString('vi-VN')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card 3: Tài chính Escrow */}
+                <div className="p-3 rounded-xl bg-gray-50/80 border border-gray-200/80 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-gray-800 text-[11px] uppercase tracking-wider border-b border-gray-200/60 pb-1">
+                    <span className="material-symbols-outlined text-[15px] text-blue-600">account_balance_wallet</span>
+                    <span>Dòng Tiền Ký Quỹ Escrow</span>
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Giá trị đơn:</span>
+                      <span className="font-mono font-bold text-gray-900">
+                        {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.grandTotal || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Trạng thái Escrow:</span>
+                      <span className="font-semibold text-rose-700 bg-rose-50 px-1.5 py-0.2 rounded border border-rose-200">
+                        Đang đóng băng
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Phân loại lỗi:</span>
+                      <span className="font-semibold text-gray-800">{typeMeta.label}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Toolbar */}
+              <div className="flex items-center justify-between gap-3 pt-2.5 border-t border-gray-200/60 bg-gray-50/50 p-2 rounded-xl">
+                <span className="text-[11px] text-gray-500">
+                  Mã tranh chấp: <strong className="font-mono text-gray-700">#{item.id}</strong> • Mã đơn hàng: <strong className="font-mono text-gray-700">#{item.orderCode}</strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenDetail(item.id)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#00875A] hover:bg-[#00734c] text-white rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-[15px]">balance</span>
+                  <span>Mở Hồ Sơ Đối Chất &amp; Ban Hành Phán Quyết</span>
+                </button>
+              </div>
+            </div>
+          );
+        }}
         emptyTitle="Không Có Hồ Sơ Khiếu Nại Nào"
         emptyMessage="Không tìm thấy khiếu nại phù hợp với bộ lọc hiện tại."
         pagination={{

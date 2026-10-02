@@ -6,7 +6,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useTheme } from '@/ui/context/ThemeContext';
-import { booksData } from '@/ui/data/mockData';
+import { catalogApi, BookData } from '@/ui/api/catalogApi';
+import { useDebounce } from '@/ui/utils/useDebounce';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 
 interface StoreHeaderProps {
@@ -26,10 +27,88 @@ export default function StoreHeader({
   const { user, isLoggedIn, logout, hasRole } = useAuth();
   const { theme, setTheme, isDarkMode, toggleDarkMode, palettes, currentPalette } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 250);
+  const [apiSearchResults, setApiSearchResults] = useState<BookData[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  // Load search history from localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('huki_search_history');
+      if (saved) {
+        setSearchHistory(JSON.parse(saved));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const saveToHistory = (term: string) => {
+    const clean = term.trim();
+    if (!clean) return;
+    try {
+      const updated = [clean, ...searchHistory.filter((h) => h.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
+      setSearchHistory(updated);
+      localStorage.setItem('huki_search_history', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
+  const removeFromHistory = (term: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = searchHistory.filter((h) => h !== term);
+    setSearchHistory(updated);
+    try {
+      localStorage.setItem('huki_search_history', JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  };
+
+  const clearAllHistory = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSearchHistory([]);
+    try {
+      localStorage.removeItem('huki_search_history');
+    } catch {
+      // ignore
+    }
+  };
+
+  // Fetch real search results from backend catalogApi
+  useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      setApiSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+    let isCancelled = false;
+    setIsSearching(true);
+    catalogApi
+      .getPublicBooks({ search: debouncedQuery.trim(), limit: 6 })
+      .then((res) => {
+        if (!isCancelled && res && res.success && res.data) {
+          const items = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+          setApiSearchResults(items);
+        }
+      })
+      .catch((err) => {
+        console.warn('Search autocomplete error', err);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsSearching(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedQuery]);
 
   // Derived user display properties
   const userDisplayName = useMemo(() => {
@@ -57,44 +136,28 @@ export default function StoreHeader({
     return user.role || 'Hội viên';
   }, [user]);
 
-  // Live matching books for autocomplete
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
-    return booksData.filter(b => 
-      b.title.toLowerCase().includes(q) || 
-      b.author.toLowerCase().includes(q) || 
-      (b.category && b.category.toLowerCase().includes(q))
-    ).slice(0, 5);
-  }, [searchQuery]);
+  const TRENDING_KEYWORDS = [
+    'Thám Tử Lừng Danh Conan',
+    'Dế Mèn Phiêu Lưu Ký',
+    'Đắc Nhân Tâm',
+    'Kinh Tế Học',
+    'Vũ Trụ Trong Vỏ Hạt Dẻ',
+    'Manga',
+  ];
 
-  // Close dropdowns on click outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
-        setShowUserMenu(false);
-      }
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
-        setShowSearchSuggestions(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Close dropdowns on route change
-  useEffect(() => {
-    setShowUserMenu(false);
+  const handleSelectKeyword = (keyword: string) => {
+    setSearchQuery(keyword);
+    saveToHistory(keyword);
     setShowSearchSuggestions(false);
-  }, [pathname]);
+    router.push(`/books?q=${encodeURIComponent(keyword)}`);
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      saveToHistory(searchQuery.trim());
       setShowSearchSuggestions(false);
-      router.push(`/books?q=${encodeURIComponent(searchQuery)}`);
+      router.push(`/books?q=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 
@@ -182,7 +245,7 @@ export default function StoreHeader({
             <span className="font-editorial text-lg md:text-xl font-black tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
               HUKI EBOOK
             </span>
-            <span className="text-[7.5px] md:text-[8px] uppercase tracking-widest text-[#ac2c19] font-bold mt-0.5">
+            <span className="text-[7.5px] md:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
               Sách Số &amp; Sách In
             </span>
           </Link>
@@ -206,7 +269,7 @@ export default function StoreHeader({
               />
               <button
                 type="submit"
-                className="bg-[var(--theme-accent,#ac2c19)] text-white px-2.5 py-0.5 rounded-md text-[11px] font-semibold hover:bg-[var(--theme-accent-hover,#8e1404)] transition-colors ml-1 shrink-0 cursor-pointer shadow-2xs"
+                className="bg-[#003b2b] text-white px-2.5 py-0.5 rounded-md text-[11px] font-semibold hover:bg-[#00281d] transition-colors ml-1 shrink-0 cursor-pointer shadow-2xs"
               >
                 Tìm
               </button>
@@ -214,55 +277,148 @@ export default function StoreHeader({
           </form>
 
           {/* Live Search Autocomplete Popover */}
-          {showSearchSuggestions && searchQuery.trim().length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 bg-[var(--theme-surface,#ffffff)] rounded-xl shadow-xl border border-[var(--theme-border,#e8e5df)] p-2.5 z-50 animate-fade-in-up text-xs overflow-hidden">
-              <div className="text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider px-2 py-0.5 flex items-center justify-between">
-                <span>Gợi ý tác phẩm</span>
-                <span>{searchResults.length} kết quả</span>
-              </div>
+          {showSearchSuggestions && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 bg-[var(--theme-surface,#ffffff)] rounded-2xl shadow-2xl border border-[var(--theme-border,#e8e5df)] p-3 z-50 animate-fade-in-up text-xs overflow-hidden max-h-[460px] overflow-y-auto">
+              {/* Case 1: Search Query is Empty -> Show Search History & Trending */}
+              {!searchQuery.trim() ? (
+                <div className="flex flex-col gap-3">
+                  {/* Search History */}
+                  {searchHistory.length > 0 && (
+                    <div>
+                      <div className="flex items-center justify-between px-1 mb-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">history</span>
+                          <span>Lịch sử tìm kiếm</span>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={clearAllHistory}
+                          className="text-[10.5px] font-bold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Xóa tất cả
+                        </button>
+                      </div>
 
-              {searchResults.length > 0 ? (
-                <div className="divide-y divide-[var(--theme-border,#e8e5df)]/50 mt-1">
-                  {searchResults.map((b) => (
-                    <Link
-                      key={b.id}
-                      href={`/book/${b.id}`}
-                      onClick={() => setShowSearchSuggestions(false)}
-                      className="flex items-center gap-3 p-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-colors group"
-                    >
-                      <img src={b.cover} alt={b.title} className="w-9 h-12 rounded object-cover border border-black/10 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-[var(--theme-text,#17201f)] truncate group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
-                          {b.title}
-                        </p>
-                        <p className="text-[11px] text-[var(--theme-text-muted,#6b7280)] truncate">
-                          Tác giả: {b.author} • <span className="text-[var(--theme-primary,#003b2b)] font-semibold">{b.category}</span>
-                        </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {searchHistory.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => handleSelectKeyword(item)}
+                            className="group/item flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-emerald-50 hover:text-emerald-800 text-slate-700 rounded-lg text-xs font-medium cursor-pointer transition-colors"
+                          >
+                            <span>{item}</span>
+                            <button
+                              type="button"
+                              onClick={(e) => removeFromHistory(item, e)}
+                              className="text-slate-400 hover:text-rose-600 rounded-full p-0.5"
+                              title="Xóa khỏi lịch sử"
+                            >
+                              <span className="material-symbols-outlined text-[13px] block">close</span>
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                      <div className="text-right shrink-0">
-                        <span className="font-bold text-[var(--theme-accent,#ac2c19)] block">
-                          {((b as any).priceEbook || (b as any).pricePaper || 89000).toLocaleString('vi-VN')}đ
-                        </span>
-                        <span className="text-[9px] bg-[#006953]/10 text-[#006953] px-1.5 py-0.2 rounded font-bold">
-                          Ebook / Giấy
-                        </span>
-                      </div>
-                    </Link>
-                  ))}
+                    </div>
+                  )}
+
+                  {/* Trending Keywords */}
+                  <div>
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px] text-amber-500">trending_up</span>
+                      <span>Từ khóa phổ biến</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TRENDING_KEYWORDS.map((kw, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectKeyword(kw)}
+                          className="px-2.5 py-1 bg-emerald-50/60 hover:bg-emerald-100 text-[#003b2b] border border-emerald-200/60 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-102"
+                        >
+                          {kw}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="p-4 text-center text-[var(--theme-text-muted,#6b7280)]">
-                  Không tìm thấy sách nào khớp với "{searchQuery}"
+                /* Case 2: Search Query is typed -> Show Live Books Autocomplete */
+                <div>
+                  <div className="text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider px-1 py-0.5 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      {isSearching ? (
+                        <span className="material-symbols-outlined animate-spin text-[13px] text-[#003b2b]">progress_activity</span>
+                      ) : (
+                        <span className="material-symbols-outlined text-[13px]">auto_stories</span>
+                      )}
+                      <span>Gợi ý tác phẩm</span>
+                    </span>
+                    <span>{apiSearchResults.length} kết quả</span>
+                  </div>
+
+                  {isSearching && apiSearchResults.length === 0 ? (
+                    <div className="p-4 text-center text-slate-400 flex items-center justify-center gap-2">
+                      <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+                      <span>Đang tìm kiếm...</span>
+                    </div>
+                  ) : apiSearchResults.length > 0 ? (
+                    <div className="divide-y divide-slate-100 mt-1">
+                      {apiSearchResults.map((b) => {
+                        const coverSrc = b.coverImage || b.coverUrl || b.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=300&q=80';
+                        const authorName = typeof b.author === 'string' ? b.author : (b.author as any)?.name || 'Nhiều tác giả';
+                        const categoryName = typeof b.category === 'string' ? b.category : (b.category as any)?.name || 'Văn học & Tri thức';
+
+                        return (
+                          <Link
+                            key={b.id}
+                            href={`/book/${b.id}`}
+                            onClick={() => {
+                              saveToHistory(b.title);
+                              setShowSearchSuggestions(false);
+                            }}
+                            className="flex items-center gap-3 p-2 rounded-xl hover:bg-emerald-50/50 transition-colors group"
+                          >
+                            <img
+                              src={coverSrc}
+                              alt={b.title}
+                              className="w-9 h-12 rounded-md object-cover border border-black/10 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-bold text-slate-900 group-hover:text-[#003b2b] transition-colors line-clamp-1">
+                                {b.title}
+                              </p>
+                              <p className="text-[11px] text-slate-500 line-clamp-1">
+                                Tác giả: {authorName} • <span className="text-[#00875A] font-semibold">{categoryName}</span>
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="font-bold text-[#003b2b] block">
+                                {(b.price || 89000).toLocaleString('vi-VN')}đ
+                              </span>
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-bold">
+                                {b.format === 'DIGITAL' ? 'Ebook' : b.format === 'PHYSICAL' ? 'Sách Giấy' : 'Ebook + Giấy'}
+                              </span>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-4 text-center text-slate-400">
+                      Không tìm thấy sách nào khớp với "{searchQuery}"
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleSearch}
+                    className="w-full mt-2 py-2 rounded-xl bg-slate-50 hover:bg-[#003b2b] hover:text-white text-[#003b2b] font-bold text-center transition-colors text-xs flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <span>Xem tất cả kết quả cho "{searchQuery}"</span>
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
                 </div>
               )}
-
-              <button
-                onClick={handleSearch}
-                className="w-full mt-2 py-2 rounded-xl bg-[var(--theme-surface-subtle,#f8f6f1)] hover:bg-[var(--theme-primary,#003b2b)] hover:text-white text-[var(--theme-primary,#003b2b)] font-bold text-center transition-colors text-xs flex items-center justify-center gap-1"
-              >
-                <span>Xem tất cả kết quả cho "{searchQuery}"</span>
-                <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </button>
             </div>
           )}
         </div>
@@ -277,7 +433,7 @@ export default function StoreHeader({
           >
             <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-[var(--theme-accent,#ac2c19)] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1.5 -right-1.5 bg-[#003b2b] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                 {totalItemsCount > 99 ? '99+' : totalItemsCount}
               </span>
             )}
@@ -376,63 +532,20 @@ export default function StoreHeader({
                       <Link
                         href="/seller/register"
                         onClick={() => setShowUserMenu(false)}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold border border-amber-200/80 transition-colors"
+                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
                       >
                         <div className="flex items-center gap-2.5">
-                          <span className="material-symbols-outlined text-base text-amber-700">store</span>
+                          <span className="material-symbols-outlined text-base text-[#003b2b]">store</span>
                           <span>Đăng Ký Trở Thành NXB</span>
                         </div>
-                        <span className="material-symbols-outlined text-sm text-amber-700">chevron_right</span>
+                        <span className="material-symbols-outlined text-sm text-[#003b2b]">chevron_right</span>
                       </Link>
                     </div>
                   </div>
 
-                  {/* READING THEME / COLOR PALETTES PERSONALIZATION SECTION */}
+                  {/* Dark Mode Toggle */}
                   <div className="border-t border-[var(--theme-border,#e8e5df)] my-1.5 pt-1.5">
-                    <div className="px-2 py-1 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-[var(--theme-text-muted,#6b7280)] uppercase tracking-wider">
-                        <span className="material-symbols-outlined text-[13px] text-[var(--theme-primary,#003b2b)]">palette</span>
-                        <span>Giao Diện Đọc &amp; Màu Sắc</span>
-                      </div>
-                      <span className="text-[10px] font-bold text-[var(--theme-primary,#003b2b)] bg-[var(--theme-secondary-subtle,#e6f4f0)] px-2 py-0.5 rounded-full">
-                        {currentPalette?.name}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-1 my-1.5">
-                      {palettes.map((p) => {
-                        const isSelected = theme === p.id;
-                        return (
-                          <button
-                            key={p.id}
-                            type="button"
-                            onClick={() => setTheme(p.id)}
-                            className={`flex items-center justify-between p-1.5 rounded-xl text-[11px] transition-all cursor-pointer border ${
-                              isSelected
-                                ? 'bg-[var(--theme-secondary-subtle,#e6f4f0)] text-[var(--theme-primary,#003b2b)] border-[var(--theme-primary,#003b2b)]/40 font-bold shadow-2xs'
-                                : 'text-[var(--theme-text,#17201f)] border-transparent hover:bg-black/5 font-medium'
-                            }`}
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span
-                                className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0 shadow-2xs"
-                                style={{ backgroundColor: p.colors.primary }}
-                                title={p.name}
-                              />
-                              <span className="truncate text-left leading-none">{p.name}</span>
-                            </div>
-                            {isSelected && (
-                              <span className="material-symbols-outlined text-[13px] text-[var(--theme-primary,#003b2b)] font-bold shrink-0">
-                                check
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    {/* Dark Mode Toggle */}
-                    <div className="flex items-center justify-between px-2.5 py-1.5 border-t border-[var(--theme-border,#e8e5df)]/60 text-[11.5px] font-medium text-[var(--theme-text,#17201f)]">
+                    <div className="flex items-center justify-between px-2.5 py-1.5 text-[11.5px] font-medium text-[var(--theme-text,#17201f)]">
                       <div className="flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-[15px] text-[var(--theme-text-muted,#6b7280)]">
                           {isDarkMode ? 'dark_mode' : 'light_mode'}
@@ -443,7 +556,7 @@ export default function StoreHeader({
                         type="button"
                         onClick={toggleDarkMode}
                         className={`w-8 h-5 rounded-full p-0.5 flex items-center transition-colors cursor-pointer ${
-                          isDarkMode ? 'bg-[var(--theme-primary,#003b2b)]' : 'bg-gray-300'
+                          isDarkMode ? 'bg-[#003b2b]' : 'bg-gray-300'
                         }`}
                         aria-label="Chuyển đổi Dark mode"
                       >
@@ -457,7 +570,7 @@ export default function StoreHeader({
                   <button
                     type="button"
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-red-50 text-[var(--theme-accent,#ac2c19)] font-bold text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-emerald-50 text-[#003b2b] font-bold text-left transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-base">logout</span>
                     <span>Đăng Xuất Tài Khoản</span>
@@ -476,7 +589,7 @@ export default function StoreHeader({
               </Link>
               <Link
                 href="/auth/register"
-                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[var(--theme-accent,#ac2c19)] hover:bg-[var(--theme-accent-hover,#8e1404)] transition-all shadow-xs flex items-center gap-1"
+                className="px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-[#003b2b] hover:bg-[#00281d] transition-all shadow-xs flex items-center gap-1"
               >
                 <span className="material-symbols-outlined text-base">person_add</span>
                 <span className="hidden sm:inline">Đăng Ký</span>
