@@ -77,6 +77,13 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const isDirectParam = searchParams.get("direct") === "1";
+      if (!isDirectParam) {
+        sessionStorage.removeItem("huki_direct_checkout_item");
+        setDirectItem(null);
+        return;
+      }
       const stored = sessionStorage.getItem("huki_direct_checkout_item");
       if (stored) {
         try {
@@ -109,11 +116,13 @@ export default function CheckoutPage() {
     ? physicalItems.length > 0
     : hasPhysicalItems;
 
-  const rawSubtotal = checkedItems.reduce(
-    (sum: number, i: any) =>
-      sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
-    0
-  );
+  const rawSubtotal = useMemo(() => {
+    return checkedItems.reduce(
+      (sum: number, i: any) =>
+        sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+      0
+    );
+  }, [checkedItems]);
   const shippingFee = effectiveHasPhysical ? 30000 : 0;
   const grandTotal = rawSubtotal + shippingFee;
 
@@ -188,6 +197,9 @@ export default function CheckoutPage() {
   const [showVoucherDrawer, setShowVoucherDrawer] = useState<boolean>(false);
   const [expandedVoucherCode, setExpandedVoucherCode] = useState<string | null>(null);
   const [voucherError, setVoucherError] = useState<string>("");
+  const [showAllPlatformVouchers, setShowAllPlatformVouchers] = useState<boolean>(false);
+  const [showAllStoreVouchers, setShowAllStoreVouchers] = useState<Record<string, boolean>>({});
+  const [showAllShippingVouchers, setShowAllShippingVouchers] = useState<boolean>(false);
   const [availableVouchers, setAvailableVouchers] = useState<{
     platform: any[];
     stores: Record<string, any>;
@@ -197,68 +209,56 @@ export default function CheckoutPage() {
     stores: {},
     shipping: [],
   });
+  const [walletStoresInfo, setWalletStoresInfo] = useState<Array<{ id: string; businessId?: string; name: string }>>([]);
   const [, setIsLoadingVouchers] = useState<boolean>(false);
 
-  // Load available vouchers from backend
+  // Load saved vouchers from User's Wallet (Only saved vouchers in wallet can be used)
   useEffect(() => {
-    const loadVouchers = async () => {
+    const loadWalletVouchers = async () => {
+      if (!isLoggedIn) return;
       setIsLoadingVouchers(true);
       try {
-        let list: any[] = [];
-        const res = await voucherApi.getAvailableVouchers();
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          list = res.data;
-        } else {
-          const fallbackRes = await voucherApi.getPlatformVouchers();
-          if (fallbackRes.success && Array.isArray(fallbackRes.data)) {
-            list = fallbackRes.data;
+        const res = await voucherApi.getWalletVouchers();
+        if (res.success && res.data) {
+          const platformDiscount = res.data.platform?.discount || [];
+          const shippingFreeship = res.data.platform?.freeship || [];
+          const storeMap: Record<string, any[]> = {};
+          const storesInfo: Array<{ id: string; businessId?: string; name: string }> = [];
+
+          if (Array.isArray(res.data.stores)) {
+            res.data.stores.forEach((sg: any) => {
+              if (sg.store?.id) {
+                storesInfo.push({
+                  id: sg.store.id,
+                  businessId: sg.store.businessId,
+                  name: sg.store.name || "Gian hàng đối tác",
+                });
+              }
+              if (Array.isArray(sg.vouchers)) {
+                if (sg.store?.id) {
+                  storeMap[sg.store.id] = sg.vouchers;
+                }
+                if (sg.store?.businessId) {
+                  storeMap[sg.store.businessId] = sg.vouchers;
+                }
+              }
+            });
           }
+
+          setWalletStoresInfo(storesInfo);
+          setAvailableVouchers({
+            platform: platformDiscount,
+            shipping: shippingFreeship,
+            stores: storeMap,
+          });
         }
-        const platform = list.filter(
-          (v: any) => v.scope === "PLATFORM" && v.type !== "FREE_SHIPPING"
-        );
-        const shipping = list.filter((v: any) => v.type === "FREE_SHIPPING");
-        setAvailableVouchers((prev) => ({
-          ...prev,
-          platform,
-          shipping,
-        }));
-      } catch {
-        // ignore
+      } catch (err) {
+        console.warn("Failed to load wallet vouchers:", err);
       } finally {
         setIsLoadingVouchers(false);
       }
     };
-    loadVouchers();
-  }, [isLoggedIn]);
-
-  // Load store vouchers for all unique stores present in checkedItems
-  useEffect(() => {
-    if (checkedItems.length === 0) return;
-    const storeIds = Array.from(
-      new Set(
-        checkedItems
-          .map((item: any) => item.storeId || item.book?.storeId || item.store?.id)
-          .filter(Boolean)
-      )
-    );
-
-    storeIds.forEach(async (sId: any) => {
-      try {
-        const res = await voucherApi.getVouchersByStore(sId);
-        if (res.success && Array.isArray(res.data)) {
-          setAvailableVouchers((prev) => ({
-            ...prev,
-            stores: {
-              ...prev.stores,
-              [sId]: res.data,
-            },
-          }));
-        }
-      } catch {
-        // ignore
-      }
-    });
+    loadWalletVouchers();
   }, [isLoggedIn, checkedItems]);
 
   // Apply platform voucher
@@ -290,38 +290,170 @@ export default function CheckoutPage() {
     }
   };
 
+  // Canonical store groups present in current checkout order
+  const storeGroups = useMemo(() => {
+    const groups: {
+      canonicalId: string;
+      storeName: string;
+      allIds: Set<string>;
+      items: any[];
+      subtotal: number;
+    }[] = [];
+
+    // Map each bookId to actual server storeId from backend checkout preview
+    const serverBookStoreMap = new Map<string, string>();
+    (checkoutPreview?.groups || []).forEach((group: any) => {
+      (group.items || []).forEach((item: any) => {
+        if (item.bookId) {
+          serverBookStoreMap.set(item.bookId, group.storeId);
+        }
+      });
+    });
+
+    checkedItems.forEach((item: any) => {
+      const serverStoreId = item.bookId ? serverBookStoreMap.get(item.bookId) : undefined;
+
+      const rawIds = [
+        serverStoreId,
+        item.storeId !== "huki-official" ? item.storeId : undefined,
+        item.businessId !== "huki-official" ? item.businessId : undefined,
+        item.book?.storeId !== "huki-official" ? item.book?.storeId : undefined,
+        item.book?.businessId !== "huki-official" ? item.book?.businessId : undefined,
+        item.store?.id,
+        item.store?.businessId,
+        item.book?.business?.id,
+      ]
+        .filter(Boolean)
+        .map((id: any) => String(id).toLowerCase());
+
+      // Check if any raw ID or server ID matches a wallet store
+      const matchedWalletStore = walletStoresInfo.find((ws) =>
+        [ws.id, ws.businessId]
+          .filter(Boolean)
+          .some((id) => rawIds.includes(String(id).toLowerCase()))
+      );
+
+      if (matchedWalletStore) {
+        if (matchedWalletStore.id) rawIds.push(matchedWalletStore.id.toLowerCase());
+        if (matchedWalletStore.businessId) rawIds.push(matchedWalletStore.businessId.toLowerCase());
+      }
+
+      if (rawIds.length === 0) {
+        rawIds.push("huki-official");
+      }
+
+      let group = groups.find((g) => rawIds.some((id) => g.allIds.has(id)));
+      if (!group) {
+        const canonicalId = String(
+          matchedWalletStore?.id ||
+          matchedWalletStore?.businessId ||
+          serverStoreId ||
+          (item.storeId !== "huki-official" && item.storeId) ||
+          (item.book?.storeId !== "huki-official" && item.book?.storeId) ||
+          item.store?.id ||
+          (item.businessId !== "huki-official" && item.businessId) ||
+          (item.book?.businessId !== "huki-official" && item.book?.businessId) ||
+          "huki-official"
+        );
+        const storeName =
+          matchedWalletStore?.name ||
+          item.store?.name ||
+          item.book?.business?.name ||
+          item.book?.business?.displayName ||
+          item.book?.publisher ||
+          (canonicalId !== "huki-official" ? `Gian hàng (${canonicalId.slice(0, 8)}...)` : "Gian hàng HUKI");
+
+        group = {
+          canonicalId,
+          storeName,
+          allIds: new Set<string>(),
+          items: [],
+          subtotal: 0,
+        };
+        groups.push(group);
+      }
+
+      rawIds.forEach((id) => group!.allIds.add(id));
+      if (matchedWalletStore) {
+        if (matchedWalletStore.id) group.allIds.add(matchedWalletStore.id.toLowerCase());
+        if (matchedWalletStore.businessId) group.allIds.add(matchedWalletStore.businessId.toLowerCase());
+        if (group.storeName === "Gian hàng HUKI" || group.storeName.startsWith("Gian hàng (")) {
+          group.storeName = matchedWalletStore.name;
+        }
+      }
+
+      group.items.push(item);
+      group.subtotal += (Number(item.price) || 0) * (Number(item.quantity) || 1);
+    });
+
+    return groups;
+  }, [checkedItems, checkoutPreview, walletStoresInfo]);
+
+  // Active store IDs present in current checkout order
+  const activeStoreIds = useMemo(() => {
+    const ids = new Set<string>();
+    storeGroups.forEach((g) => {
+      ids.add(g.canonicalId);
+      g.allIds.forEach((id) => ids.add(id));
+    });
+    return Array.from(ids);
+  }, [storeGroups]);
+
   // Apply store voucher
   const handleApplyStoreVoucher = async (storeId: string, voucher: any) => {
-    const storeItems = checkedItems.filter(
-      (item: any) => (item.storeId || item.book?.storeId || item.store?.id) === storeId
+    const targetGroup = storeGroups.find(
+      (g) =>
+        g.canonicalId.toLowerCase() === String(storeId).toLowerCase() ||
+        g.allIds.has(String(storeId).toLowerCase())
     );
-    const storeSubtotal = storeItems.length > 0
-      ? storeItems.reduce(
-          (sum: number, item: any) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
-          0
-        )
-      : rawSubtotal;
+
+    if (!targetGroup || targetGroup.items.length === 0) {
+      showToast(
+        {
+          title: "Không thể áp dụng",
+          message: "Đơn hàng hiện tại không có sản phẩm nào thuộc gian hàng này.",
+        },
+        "warning"
+      );
+      return;
+    }
+    const storeSubtotal = targetGroup.subtotal;
+
+    if (voucher.minOrderAmount && storeSubtotal < voucher.minOrderAmount) {
+      showToast(
+        {
+          title: "Chưa đủ điều kiện",
+          message: `Đơn hàng của gian hàng này chưa đạt mức tối thiểu ${Number(voucher.minOrderAmount).toLocaleString("vi-VN")}đ (Hiện có: ${storeSubtotal.toLocaleString("vi-VN")}đ)`,
+        },
+        "warning"
+      );
+      return;
+    }
 
     try {
       const res = await voucherApi.validateVoucher({
         code: voucher.code,
         orderSubtotal: storeSubtotal,
-        storeId,
+        storeId: targetGroup.canonicalId,
       });
       if (res.success && res.data?.valid) {
         const discountVal = res.data.discount ?? 0;
+        const voucherData = {
+          code: voucher.code,
+          discount: discountVal,
+          name: voucher.name,
+          storeName: targetGroup.storeName,
+        };
+
         setAppliedStoreVouchers((prev) => ({
           ...prev,
-          [storeId]: {
-            code: voucher.code,
-            discount: discountVal,
-            name: voucher.name,
-          },
+          [targetGroup.canonicalId]: voucherData,
         }));
+
         showToast(
           {
             title: "Đã áp dụng Voucher Shop!",
-            message: `Giảm ${discountVal.toLocaleString("vi-VN")}đ cho gian hàng`,
+            message: `Giảm ${discountVal.toLocaleString("vi-VN")}đ cho gian hàng ${targetGroup.storeName}`,
           },
           "success"
         );
@@ -340,8 +472,17 @@ export default function CheckoutPage() {
   };
 
   const handleRemoveStoreVoucher = (storeId: string) => {
+    const targetGroup = storeGroups.find(
+      (g) =>
+        g.canonicalId.toLowerCase() === String(storeId).toLowerCase() ||
+        g.allIds.has(String(storeId).toLowerCase())
+    );
+
     setAppliedStoreVouchers((prev) => {
       const updated = { ...prev };
+      if (targetGroup) {
+        delete updated[targetGroup.canonicalId];
+      }
       delete updated[storeId];
       return updated;
     });
@@ -350,21 +491,24 @@ export default function CheckoutPage() {
   // Apply shipping voucher
   const handleApplyShippingVoucher = async (voucher: any) => {
     try {
+      const orderAmountForValidation = checkoutPreview?.itemSubtotal ?? rawSubtotal;
       const res = await voucherApi.validateVoucher({
         code: voucher.code,
-        orderSubtotal: shippingFee,
+        orderSubtotal: orderAmountForValidation,
       });
       if (res.success && res.data?.valid) {
+        const discountAmount = Number(res.data.discount) > 0 ? Number(res.data.discount) : (Number(voucher.value) || 30000);
         setAppliedShippingVoucher({
           code: voucher.code,
-          discount: res.data.discount,
-          label: `${voucher.name} - Giảm ${res.data.discount?.toLocaleString("vi-VN")}đ phí vận chuyển`,
+          discount: discountAmount,
+          value: Number(voucher.value) || 30000,
+          label: `${voucher.name || voucher.code} - Giảm ${discountAmount.toLocaleString("vi-VN")}đ phí vận chuyển`,
         });
         setVoucherError("");
         showToast(
           {
             title: "Đã áp dụng Freeship!",
-            message: `Giảm ${res.data.discount?.toLocaleString("vi-VN")}đ phí vận chuyển`,
+            message: `Giảm ${discountAmount.toLocaleString("vi-VN")}đ phí vận chuyển`,
           },
           "success"
         );
@@ -386,6 +530,105 @@ export default function CheckoutPage() {
     setAppliedShippingVoucher(null);
   };
 
+  // Apply manual voucher code
+  const handleApplyManualCode = async () => {
+    if (!voucherCodeInput.trim()) return;
+    const codeToTest = voucherCodeInput.trim().toUpperCase();
+    try {
+      // 1. Find in wallet first if present to know scope & storeId
+      let matchedWalletVoucher: any = null;
+      if (availableVouchers.platform.some((v) => v.code === codeToTest)) {
+        matchedWalletVoucher = availableVouchers.platform.find((v) => v.code === codeToTest);
+      } else if (availableVouchers.shipping.some((v) => v.code === codeToTest)) {
+        matchedWalletVoucher = availableVouchers.shipping.find((v) => v.code === codeToTest);
+      } else {
+        for (const [sId, sList] of Object.entries(availableVouchers.stores)) {
+          const found = (sList as any[]).find((v: any) => v.code === codeToTest);
+          if (found) {
+            matchedWalletVoucher = { ...found, storeId: sId };
+            break;
+          }
+        }
+      }
+
+      if (matchedWalletVoucher) {
+        if (matchedWalletVoucher.type === "FREE_SHIPPING") {
+          await handleApplyShippingVoucher(matchedWalletVoucher);
+        } else if (matchedWalletVoucher.scope === "STORE" || matchedWalletVoucher.storeId) {
+          const targetStoreId = matchedWalletVoucher.storeId;
+          const matchingGroup = storeGroups.find(
+            (g) =>
+              g.canonicalId.toLowerCase() === String(targetStoreId).toLowerCase() ||
+              g.allIds.has(String(targetStoreId).toLowerCase())
+          );
+          if (!matchingGroup) {
+            setVoucherError("Mã voucher này thuộc gian hàng khác, đơn hàng hiện tại không có sản phẩm của gian hàng này.");
+            return;
+          }
+          await handleApplyStoreVoucher(matchingGroup.canonicalId, matchedWalletVoucher);
+        } else {
+          await handleApplyPlatformVoucher(matchedWalletVoucher);
+        }
+        setVoucherCodeInput("");
+        setVoucherError("");
+        return;
+      }
+
+      // 2. If not matched directly in local wallet object, validate against API
+      const storeIdForValidation = storeGroups.length === 1 ? storeGroups[0].canonicalId : undefined;
+      let res = await voucherApi.validateVoucher({
+        code: codeToTest,
+        orderSubtotal: storeGroups.length === 1 ? storeGroups[0].subtotal : rawSubtotal,
+        storeId: storeIdForValidation,
+      });
+
+      // If multi-store order and direct check was not valid, test candidate store groups
+      if ((!res.success || !res.data?.valid) && storeGroups.length > 1) {
+        for (const group of storeGroups) {
+          try {
+            const testRes = await voucherApi.validateVoucher({
+              code: codeToTest,
+              orderSubtotal: group.subtotal,
+              storeId: group.canonicalId,
+            });
+            if (testRes.success && testRes.data?.valid) {
+              res = testRes;
+              break;
+            }
+          } catch {
+            // continue
+          }
+        }
+      }
+
+      if (res.success && res.data?.valid && res.data?.voucher) {
+        const v = res.data.voucher;
+        if (v.type === "FREE_SHIPPING") {
+          await handleApplyShippingVoucher(v);
+        } else if (v.scope === "STORE" && v.storeId) {
+          const matchingGroup = storeGroups.find(
+            (g) =>
+              g.canonicalId.toLowerCase() === String(v.storeId).toLowerCase() ||
+              g.allIds.has(String(v.storeId).toLowerCase())
+          );
+          if (!matchingGroup) {
+            setVoucherError("Mã voucher này thuộc gian hàng khác, đơn hàng hiện tại không có sản phẩm của gian hàng này.");
+            return;
+          }
+          await handleApplyStoreVoucher(matchingGroup.canonicalId, v);
+        } else {
+          await handleApplyPlatformVoucher(v);
+        }
+        setVoucherCodeInput("");
+        setVoucherError("");
+      } else {
+        setVoucherError(res.data?.reason || "Voucher không hợp lệ hoặc chưa được lưu vào ví");
+      }
+    } catch (err: any) {
+      setVoucherError(err?.message || "Không thể xác thực mã voucher");
+    }
+  };
+
   // Trigger checkout preview with vouchers
   useEffect(() => {
     if (!isLoggedIn || checkedItems.length === 0) return;
@@ -395,21 +638,19 @@ export default function CheckoutPage() {
       setIsLoadingSession(true);
       try {
         const platformVoucherCode = appliedPlatformVoucher?.code;
-        const storeVoucherCodes = Object.keys(appliedStoreVouchers).reduce(
-          (acc: Record<string, string>, storeId: string) => {
-            if (appliedStoreVouchers[storeId]?.code) {
-              acc[storeId] = appliedStoreVouchers[storeId].code;
-            }
-            return acc;
-          },
-          {}
-        );
+        const storeVoucherCodes: Record<string, string> = {};
+        storeGroups.forEach((g) => {
+          const applied = appliedStoreVouchers[g.canonicalId];
+          if (applied?.code) {
+            storeVoucherCodes[g.canonicalId] = applied.code;
+          }
+        });
         const shippingVoucherCode = appliedShippingVoucher?.code;
 
-        const res = await checkoutApi.previewCheckout({
+        const payload: any = {
           addressId: selectedAddressId || undefined,
           shippingAddress:
-            !selectedAddressId && hasPhysicalItems && activeAddress
+            !selectedAddressId && effectiveHasPhysical && activeAddress
               ? {
                   recipientName: activeAddress.name || user?.fullName || "Khách Hàng",
                   phone: activeAddress.phone || user?.phone || "0988123456",
@@ -424,7 +665,24 @@ export default function CheckoutPage() {
           storeVoucherCodes:
             Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
           shippingVoucherCode,
-        });
+        };
+
+        if (isDirectMode && directItem) {
+          payload.directItem = {
+            bookId: directItem.bookId || directItem.id,
+            format:
+              directItem.format === "DIGITAL" || directItem.type === "ebook"
+                ? "DIGITAL"
+                : "PHYSICAL",
+            quantity: Number(directItem.quantity) || 1,
+          };
+        } else {
+          payload.cartItemIds = checkedItems
+            .map((it: any) => it.id)
+            .filter(Boolean);
+        }
+
+        const res = await checkoutApi.previewCheckout(payload);
 
         if (isMounted && res.success && res.data?.sessionId) {
           setSessionId(res.data.sessionId);
@@ -443,8 +701,10 @@ export default function CheckoutPage() {
     };
   }, [
     isLoggedIn,
-    checkedItems.length,
-    hasPhysicalItems,
+    isDirectMode,
+    directItem,
+    checkedItems,
+    effectiveHasPhysical,
     activeAddress,
     selectedAddressId,
     note,
@@ -452,6 +712,7 @@ export default function CheckoutPage() {
     appliedPlatformVoucher,
     appliedStoreVouchers,
     appliedShippingVoucher,
+    storeGroups,
   ]);
 
   const serverUnitPrices = useMemo(() => {
@@ -471,25 +732,38 @@ export default function CheckoutPage() {
   const effectiveStoreDiscount =
     checkoutPreview?.storeDiscountTotal !== undefined && checkoutPreview?.storeDiscountTotal !== null
       ? Number(checkoutPreview.storeDiscountTotal)
-      : Object.values(appliedStoreVouchers).reduce(
-          (sum: number, v: any) => sum + (Number(v?.discount) || 0),
-          0
-        );
+      : storeGroups.reduce((sum, g) => {
+          const v = appliedStoreVouchers[g.canonicalId];
+          return sum + (Number(v?.discount) || 0);
+        }, 0);
 
   const effectiveDiscountTotal =
     checkoutPreview?.discountTotal !== undefined && checkoutPreview?.discountTotal !== null
       ? Number(checkoutPreview.discountTotal)
       : effectivePlatformDiscount + effectiveStoreDiscount;
 
-  const effectiveShippingDiscount =
-    checkoutPreview?.shippingDiscountTotal !== undefined && checkoutPreview?.shippingDiscountTotal !== null
-      ? Number(checkoutPreview.shippingDiscountTotal)
-      : Number(appliedShippingVoucher?.discount) || 0;
+  const physicalStoreCount = useMemo(() => {
+    const count = storeGroups.filter((g) =>
+      g.items.some((it: any) => it.type !== "ebook" && it.format !== "DIGITAL")
+    ).length;
+    return count > 0 ? count : effectiveHasPhysical ? 1 : 0;
+  }, [storeGroups, effectiveHasPhysical]);
+
+  const rawShippingFee = useMemo(() => {
+    return effectiveHasPhysical ? physicalStoreCount * 30000 : 0;
+  }, [effectiveHasPhysical, physicalStoreCount]);
 
   const effectiveShippingFee =
     checkoutPreview?.shippingTotal !== undefined && checkoutPreview?.shippingTotal !== null
       ? Number(checkoutPreview.shippingTotal)
-      : (effectiveHasPhysical ? 30000 : 0);
+      : rawShippingFee;
+
+  const effectiveShippingDiscount =
+    checkoutPreview?.shippingDiscountTotal !== undefined && checkoutPreview?.shippingDiscountTotal !== null
+      ? Number(checkoutPreview.shippingDiscountTotal)
+      : appliedShippingVoucher
+        ? Math.min(effectiveShippingFee, Number(appliedShippingVoucher.discount || appliedShippingVoucher.value || 30000))
+        : 0;
 
   const effectiveFinalShipping = Math.max(0, effectiveShippingFee - effectiveShippingDiscount);
 
@@ -554,7 +828,7 @@ export default function CheckoutPage() {
   };
 
   const handlePlaceOrder = async () => {
-    if (checkedItemsCount === 0) {
+    if (isDirectMode ? !directItem : checkedItemsCount === 0) {
       showToast(
         {
           title: "Giỏ hàng trống",
@@ -566,7 +840,7 @@ export default function CheckoutPage() {
       return;
     }
 
-    if (hasPhysicalItems && !hasValidAddress) {
+    if (effectiveHasPhysical && !hasValidAddress) {
       showToast(
         {
           title: "Thiếu địa chỉ nhận hàng",
@@ -585,44 +859,46 @@ export default function CheckoutPage() {
 
     if (isLoggedIn || hasToken) {
       try {
-        // 1. Sync checked items to server cart if missing
-        try {
-          const serverCartRes = await cartApi.getCart();
-          const serverItems =
-            serverCartRes.success && serverCartRes.data?.items
-              ? serverCartRes.data.items
-              : [];
+        // 1. Sync checked items to server cart ONLY if in Cart mode (NOT Direct mode)
+        if (!isDirectMode) {
+          try {
+            const serverCartRes = await cartApi.getCart();
+            const serverItems =
+              serverCartRes.success && serverCartRes.data?.items
+                ? serverCartRes.data.items
+                : [];
 
-          for (const item of checkedItems) {
-            const isUUID =
-              typeof item.bookId === "string" &&
-              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                item.bookId
-              );
-            if (isUUID) {
-              const apiFormat =
-                item.type === "physical" ||
-                item.format?.toLowerCase().includes("giấy")
-                  ? "PHYSICAL"
-                  : "DIGITAL";
-              const exists = serverItems.some(
-                (si: any) => si.bookId === item.bookId && si.format === apiFormat
-              );
-              if (!exists) {
-                try {
-                  await cartApi.addToCart({
-                    bookId: item.bookId,
-                    format: apiFormat,
-                    quantity: item.quantity || 1,
-                  });
-                } catch {
-                  // ignore
+            for (const item of checkedItems) {
+              const isUUID =
+                typeof item.bookId === "string" &&
+                /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                  item.bookId
+                );
+              if (isUUID) {
+                const apiFormat =
+                  item.type === "physical" ||
+                  item.format?.toLowerCase().includes("giấy")
+                    ? "PHYSICAL"
+                    : "DIGITAL";
+                const exists = serverItems.some(
+                  (si: any) => si.bookId === item.bookId && si.format === apiFormat
+                );
+                if (!exists) {
+                  try {
+                    await cartApi.addToCart({
+                      bookId: item.bookId,
+                      format: apiFormat,
+                      quantity: item.quantity || 1,
+                    });
+                  } catch {
+                    // ignore
+                  }
                 }
               }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
         }
 
         // 2. Generate or refresh checkout session
@@ -632,15 +908,13 @@ export default function CheckoutPage() {
             : "[VAT: Yêu cầu xuất hóa đơn điện tử]"
           : note.trim() || undefined;
 
-        const storeVoucherCodes = Object.keys(appliedStoreVouchers).reduce(
-          (acc: Record<string, string>, storeId: string) => {
-            if (appliedStoreVouchers[storeId]?.code) {
-              acc[storeId] = appliedStoreVouchers[storeId].code;
-            }
-            return acc;
-          },
-          {}
-        );
+        const storeVoucherCodes: Record<string, string> = {};
+        storeGroups.forEach((g) => {
+          const applied = appliedStoreVouchers[g.canonicalId];
+          if (applied?.code) {
+            storeVoucherCodes[g.canonicalId] = applied.code;
+          }
+        });
 
         const shippingAddressPayload = {
           recipientName: activeAddress?.name || user?.fullName || "Khách Hàng",
@@ -654,15 +928,30 @@ export default function CheckoutPage() {
           province: activeAddress?.province || "Hồ Chí Minh",
         };
 
-        const previewPayload = {
+        const previewPayload: any = {
           addressId: selectedAddressId || undefined,
-          shippingAddress: !selectedAddressId && hasPhysicalItems ? shippingAddressPayload : undefined,
+          shippingAddress: !selectedAddressId && effectiveHasPhysical ? shippingAddressPayload : undefined,
           note: finalNote,
           platformVoucherCode: appliedPlatformVoucher?.code,
           storeVoucherCodes:
             Object.keys(storeVoucherCodes).length > 0 ? storeVoucherCodes : undefined,
           shippingVoucherCode: appliedShippingVoucher?.code,
         };
+
+        if (isDirectMode && directItem) {
+          previewPayload.directItem = {
+            bookId: directItem.bookId || directItem.id,
+            format:
+              directItem.format === "DIGITAL" || directItem.type === "ebook"
+                ? "DIGITAL"
+                : "PHYSICAL",
+            quantity: Number(directItem.quantity) || 1,
+          };
+        } else {
+          previewPayload.cartItemIds = checkedItems
+            .map((it: any) => it.id)
+            .filter(Boolean);
+        }
 
         const previewRes = await checkoutApi.previewCheckout(previewPayload);
         if (!previewRes.success || !previewRes.data?.sessionId) {
@@ -750,6 +1039,9 @@ export default function CheckoutPage() {
               console.error("Failed to initiate PayOS link:", payErr);
             }
 
+            if (isDirectMode && typeof window !== "undefined") {
+              sessionStorage.removeItem("huki_direct_checkout_item");
+            }
             setCurrentOrderId(orderData.id);
             setCurrentOrderCode(orderData.code);
             setCurrentOrderGrandTotal(
@@ -1033,7 +1325,7 @@ export default function CheckoutPage() {
             </section>
 
             {/* Customer & Shipping Address Section */}
-            {hasPhysicalItems && (
+            {effectiveHasPhysical && (
               <section className="bg-[var(--theme-surface,#ffffff)] rounded-xl border border-[var(--theme-border,#e8e5df)] p-3.5 sm:p-4 shadow-2xs">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h2 className="font-editorial text-sm sm:text-base font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-1.5">
@@ -1468,43 +1760,67 @@ export default function CheckoutPage() {
                 )}
               </h2>
 
-              {/* Items Mini List */}
-              <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
-                {checkedItems.map((item: any) => (
-                  <Link
-                    key={item.id}
-                    href={`/book/${item.bookId || item.id}`}
-                    className="flex items-center justify-between gap-2 text-xs p-1.5 rounded-lg border border-transparent hover:border-[var(--theme-border,#e8e5df)]/70 hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all duration-150 group cursor-pointer"
-                  >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <img
-                        className="w-8 h-11 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
-                        alt={item.title}
-                        src={item.cover}
-                      />
-                      <div className="min-w-0">
-                        <span className="font-bold text-[12px] text-[var(--theme-text,#1c1b1f)] line-clamp-1 block group-hover:text-[var(--theme-primary,#003B2B)] transition-colors">
-                          {item.title}
+              {/* Items Grouped by Store List */}
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {storeGroups.map((group) => {
+                  const appliedVoucher = appliedStoreVouchers[group.canonicalId];
+                  return (
+                    <div
+                      key={group.canonicalId}
+                      className="rounded-lg border border-[var(--theme-border,#e8e5df)]/60 bg-[var(--theme-background,#F2FBF9)]/30 p-2 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between text-[11px] pb-1 border-b border-[var(--theme-border,#e8e5df)]/40">
+                        <span className="font-bold text-[var(--theme-text,#1c1b1f)] flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-amber-600">storefront</span>
+                          <span className="line-clamp-1">{group.storeName}</span>
                         </span>
-                        <span className="text-[10px] text-[var(--theme-text-muted,#49454f)]">
-                          x{item.quantity} · {item.format}
-                        </span>
-                        {serverUnitPrices.get(item.bookId)?.isFlashSale && (
-                          <span className="ml-1 text-[9px] font-bold text-rose-600">
-                            ⚡ Flash Sale
+                        {appliedVoucher && (
+                          <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 dark:bg-amber-950/40 px-1.5 py-0.2 rounded">
+                            -{Number(appliedVoucher.discount).toLocaleString("vi-VN")}đ
                           </span>
                         )}
                       </div>
+
+                      <div className="space-y-1">
+                        {group.items.map((item: any) => (
+                          <Link
+                            key={item.id}
+                            href={`/book/${item.bookId || item.id}`}
+                            className="flex items-center justify-between gap-2 text-xs p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-800/80 transition-all duration-150 group cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                className="w-7 h-10 rounded object-cover shrink-0 border border-[var(--theme-border,#e8e5df)]"
+                                alt={item.title}
+                                src={item.cover}
+                              />
+                              <div className="min-w-0">
+                                <span className="font-bold text-[11.5px] text-[var(--theme-text,#1c1b1f)] line-clamp-1 block group-hover:text-[var(--theme-primary,#003B2B)] transition-colors">
+                                  {item.title}
+                                </span>
+                                <span className="text-[9.5px] text-[var(--theme-text-muted,#49454f)]">
+                                  x{item.quantity} · {item.format}
+                                </span>
+                                {serverUnitPrices.get(item.bookId)?.isFlashSale && (
+                                  <span className="ml-1 text-[9px] font-bold text-rose-600">
+                                    ⚡ Flash Sale
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="font-bold text-[11.5px] text-[var(--theme-text,#1c1b1f)] shrink-0">
+                              {(
+                                (serverUnitPrices.get(item.bookId)?.unitPrice ||
+                                  item.price) * item.quantity
+                              ).toLocaleString("vi-VN")}
+                              đ
+                            </span>
+                          </Link>
+                        ))}
+                      </div>
                     </div>
-                    <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)] shrink-0">
-                      {(
-                        (serverUnitPrices.get(item.bookId)?.unitPrice ||
-                          item.price) * item.quantity
-                      ).toLocaleString("vi-VN")}
-                      đ
-                    </span>
-                  </Link>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Shopee-style Voucher Section */}
@@ -1553,7 +1869,7 @@ export default function CheckoutPage() {
                       />
                       <button
                         type="button"
-                        onClick={() => handleApplyPlatformVoucher({ code: voucherCodeInput })}
+                        onClick={handleApplyManualCode}
                         className="px-2.5 py-1 rounded-md bg-[var(--theme-primary,#003B2B)] text-white text-[11px] font-bold hover:opacity-90 cursor-pointer"
                       >
                         Áp Dụng
@@ -1561,9 +1877,21 @@ export default function CheckoutPage() {
                     </div>
 
                     {voucherError && (
-                      <p className="text-red-500 text-[10.5px] font-medium">
-                        {voucherError}
-                      </p>
+                      <div className="p-2 bg-red-50 border border-red-200 rounded-lg text-[11px] text-red-600 font-medium flex items-start gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-red-500 shrink-0 mt-0.5">
+                          error
+                        </span>
+                        <div>
+                          <p>{voucherError}</p>
+                          <Link
+                            href="/vouchers"
+                            target="_blank"
+                            className="text-[#003B2B] font-bold hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                          >
+                            <span>Mở Kho Voucher để lưu mã vào Ví &rarr;</span>
+                          </Link>
+                        </div>
+                      </div>
                     )}
 
                     {/* 1. Mã toàn sàn HUKI */}
@@ -1581,91 +1909,107 @@ export default function CheckoutPage() {
                         )}
                       </span>
                       {availableVouchers.platform.length > 0 ? (
-                        availableVouchers.platform.map((v: any) => {
-                          const isSelected = appliedPlatformVoucher?.code === v.code;
-                          const isEligible = rawSubtotal >= (v.minOrderAmount || 0);
-                          const isExpanded = expandedVoucherCode === v.code;
+                        <>
+                          <div className={showAllPlatformVouchers ? "space-y-1.5 max-h-60 overflow-y-auto pr-1" : "space-y-1.5"}>
+                            {(showAllPlatformVouchers ? availableVouchers.platform : availableVouchers.platform.slice(0, 3)).map((v: any) => {
+                              const isSelected = appliedPlatformVoucher?.code === v.code;
+                              const isEligible = rawSubtotal >= (v.minOrderAmount || 0);
+                              const isExpanded = expandedVoucherCode === v.code;
 
-                          return (
-                            <div
-                              key={v.code}
-                              className={`rounded-lg border transition-all text-xs overflow-hidden ${
-                                isSelected
-                                  ? "border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold"
-                                  : isEligible
-                                    ? "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/50"
-                                    : "opacity-40 cursor-not-allowed bg-black/5"
-                              }`}
+                              return (
+                                <div
+                                  key={v.code}
+                                  className={`rounded-lg border transition-all text-xs overflow-hidden ${
+                                    isSelected
+                                      ? "border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 font-bold"
+                                      : isEligible
+                                        ? "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-[var(--theme-primary,#003B2B)]/50"
+                                        : "opacity-40 cursor-not-allowed bg-black/5"
+                                  }`}
+                                >
+                                  <div className="p-2 flex items-center justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="font-bold text-[11.5px] text-[var(--theme-primary,#003B2B)]">
+                                          {v.code}
+                                        </span>
+                                        <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                                          ({v.type === "PERCENTAGE" ? `Giảm ${v.value}%` : `Giảm ${v.value?.toLocaleString("vi-VN")}đ`})
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedVoucherCode(isExpanded ? null : v.code);
+                                        }}
+                                        className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
+                                        title="Xem chi tiết điều kiện áp dụng"
+                                      >
+                                        <span>Điều kiện</span>
+                                        <span className="material-symbols-outlined text-[13px]">
+                                          {isExpanded ? "expand_less" : "expand_more"}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!isEligible}
+                                        onClick={() => isEligible && handleApplyPlatformVoucher(v)}
+                                        className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                          isSelected
+                                            ? "bg-emerald-600 text-white"
+                                            : "bg-[var(--theme-primary,#003B2B)] text-white hover:opacity-90"
+                                        }`}
+                                      >
+                                        {isSelected ? "Đang dùng" : "Dùng"}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Accordion Điều Kiện Chi Tiết */}
+                                  {isExpanded && (
+                                    <div className="px-2.5 py-2 bg-slate-50/90 border-t border-slate-200/70 text-[10.5px] text-slate-600 space-y-1 animate-in fade-in duration-150">
+                                      <div className="flex items-center gap-1.5 font-medium">
+                                        <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
+                                        <span>Đơn tối thiểu: <strong>{Number(v.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
+                                      </div>
+                                      {v.maxDiscountAmount && (
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
+                                          <span>Giảm tối đa: <strong>{Number(v.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
+                                        </div>
+                                      )}
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="material-symbols-outlined text-[13px] text-purple-600">public</span>
+                                        <span>Đối tượng: <strong>Mọi khách hàng trên sàn HUKI</strong></span>
+                                      </div>
+                                      {v.expiresAt && (
+                                        <div className="flex items-center gap-1.5 text-slate-400">
+                                          <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                          <span>HSD: {new Date(v.expiresAt).toLocaleDateString("vi-VN")}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {availableVouchers.platform.length > 3 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllPlatformVouchers((prev) => !prev)}
+                              className="w-full py-1 text-center text-[10.5px] font-bold text-[var(--theme-primary,#003B2B)] hover:underline flex items-center justify-center gap-0.5 cursor-pointer mt-1"
                             >
-                              <div className="p-2 flex items-center justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="font-bold text-[11.5px] text-[var(--theme-primary,#003B2B)]">
-                                      {v.code}
-                                    </span>
-                                    <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
-                                      ({v.type === "PERCENTAGE" ? `Giảm ${v.value}%` : `Giảm ${v.value?.toLocaleString("vi-VN")}đ`})
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1 shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedVoucherCode(isExpanded ? null : v.code);
-                                    }}
-                                    className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
-                                    title="Xem chi tiết điều kiện áp dụng"
-                                  >
-                                    <span>Điều kiện</span>
-                                    <span className="material-symbols-outlined text-[13px]">
-                                      {isExpanded ? "expand_less" : "expand_more"}
-                                    </span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    disabled={!isEligible}
-                                    onClick={() => isEligible && handleApplyPlatformVoucher(v)}
-                                    className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                                      isSelected
-                                        ? "bg-emerald-600 text-white"
-                                        : "bg-[var(--theme-primary,#003B2B)] text-white hover:opacity-90"
-                                    }`}
-                                  >
-                                    {isSelected ? "Đang dùng" : "Dùng"}
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Accordion Điều Kiện Chi Tiết */}
-                              {isExpanded && (
-                                <div className="px-2.5 py-2 bg-slate-50/90 border-t border-slate-200/70 text-[10.5px] text-slate-600 space-y-1 animate-in fade-in duration-150">
-                                  <div className="flex items-center gap-1.5 font-medium">
-                                    <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
-                                    <span>Đơn tối thiểu: <strong>{Number(v.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
-                                  </div>
-                                  {v.maxDiscountAmount && (
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
-                                      <span>Giảm tối đa: <strong>{Number(v.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
-                                    </div>
-                                  )}
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="material-symbols-outlined text-[13px] text-purple-600">public</span>
-                                    <span>Đối tượng: <strong>Mọi khách hàng trên sàn HUKI</strong></span>
-                                  </div>
-                                  {v.expiresAt && (
-                                    <div className="flex items-center gap-1.5 text-slate-400">
-                                      <span className="material-symbols-outlined text-[13px]">schedule</span>
-                                      <span>HSD: {new Date(v.expiresAt).toLocaleDateString("vi-VN")}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
+                              <span>{showAllPlatformVouchers ? "Thu gọn bớt" : `Xem tất cả ${availableVouchers.platform.length} voucher sàn`}</span>
+                              <span className="material-symbols-outlined text-[14px]">
+                                {showAllPlatformVouchers ? "expand_less" : "expand_more"}
+                              </span>
+                            </button>
+                          )}
+                        </>
                       ) : (
                         <p className="text-[10px] text-[var(--theme-text-muted,#49454f)] italic">
                           Không có voucher sàn khả dụng
@@ -1674,138 +2018,208 @@ export default function CheckoutPage() {
                     </div>
 
                     {/* 2. Voucher riêng của từng Gian Hàng (Store Vouchers) */}
-                    {Object.keys(availableVouchers.stores).length > 0 && (
-                      <div className="space-y-2 pt-2 border-t border-[var(--theme-border,#e8e5df)]/50">
-                        <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 block">
-                          Voucher Của Gian Hàng:
-                        </span>
-                        {Object.entries(availableVouchers.stores).map(([sId, storeVList]: [string, any]) => {
-                          if (!Array.isArray(storeVList) || storeVList.length === 0) return null;
-                          const appliedForThisStore = appliedStoreVouchers[sId];
+                    <div className="space-y-1 pt-2 border-t border-[var(--theme-border,#e8e5df)]/50">
+                      <span className="text-[10px] font-bold text-amber-900 dark:text-amber-200 block">
+                        Voucher Của Gian Hàng:
+                      </span>
+                      {(() => {
+                        const groupsWithVouchers = storeGroups
+                          .map((group) => {
+                            const seenCodes = new Set<string>();
+                            const storeVList: any[] = [];
 
-                          return (
-                            <div key={sId} className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5">
-                              <div className="flex items-center justify-between text-[10.5px]">
-                                <span className="font-bold text-slate-700 dark:text-slate-200">Shop ID: {sId.slice(0, 8)}...</span>
-                                {appliedForThisStore && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveStoreVoucher(sId)}
-                                    className="text-red-500 hover:underline text-[9.5px] cursor-pointer"
-                                  >
-                                    Bỏ chọn
-                                  </button>
-                                )}
-                              </div>
-                              <div className="space-y-1.5">
-                                {storeVList.map((sv: any) => {
-                                  const isSelected = appliedForThisStore?.code === sv.code;
-                                  const isExpanded = expandedVoucherCode === sv.code;
-
-                                  let audienceLabel = "Tất cả khách hàng";
-                                  let audienceIcon = "public";
-                                  if (sv.targetAudience === "FOLLOWERS_ONLY") {
-                                    if (sv.minFollowDays >= 365) {
-                                      audienceLabel = "💎 Tri Ân Kim Cương (Theo dõi ≥ 1 năm)";
-                                      audienceIcon = "diamond";
-                                    } else if (sv.minFollowDays >= 90) {
-                                      audienceLabel = "🥇 Fan Vàng (Theo dõi ≥ 90 ngày)";
-                                      audienceIcon = "workspace_premium";
-                                    } else if (sv.minFollowDays >= 30) {
-                                      audienceLabel = "🥈 Fan Bạc (Theo dõi ≥ 30 ngày)";
-                                      audienceIcon = "military_tech";
-                                    } else {
-                                      audienceLabel = "💖 Người theo dõi gian hàng";
-                                      audienceIcon = "favorite";
-                                    }
-                                  } else if (sv.targetAudience === "NEW_CUSTOMERS_ONLY") {
-                                    audienceLabel = "🆕 Khách hàng mới (Đơn hàng đầu tiên)";
-                                    audienceIcon = "person_add";
+                            // Look up vouchers matching canonicalId or any allIds
+                            const candidateKeys = [group.canonicalId, ...Array.from(group.allIds)];
+                            candidateKeys.forEach((key) => {
+                              const list = availableVouchers.stores[key];
+                              if (Array.isArray(list)) {
+                                list.forEach((v) => {
+                                  if (v?.code && !seenCodes.has(v.code)) {
+                                    seenCodes.add(v.code);
+                                    storeVList.push(v);
                                   }
+                                });
+                              }
+                            });
 
-                                  return (
-                                    <div
-                                      key={sv.id || sv.code}
-                                      className={`rounded-lg border transition-all text-xs overflow-hidden ${
-                                        isSelected
-                                          ? "border-amber-600 bg-amber-500/15 font-bold"
-                                          : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-amber-500/50"
-                                      }`}
-                                    >
-                                      <div className="p-2 flex items-center justify-between gap-2">
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="font-bold text-[11.5px] text-amber-800 dark:text-amber-300 font-mono">
-                                              {sv.code}
-                                            </span>
-                                            <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
-                                              ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                          <button
-                                            type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setExpandedVoucherCode(isExpanded ? null : sv.code);
-                                            }}
-                                            className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
-                                            title="Xem chi tiết điều kiện áp dụng"
-                                          >
-                                            <span>Điều kiện</span>
-                                            <span className="material-symbols-outlined text-[13px]">
-                                              {isExpanded ? "expand_less" : "expand_more"}
-                                            </span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleApplyStoreVoucher(sId, sv)}
-                                            className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
-                                              isSelected
-                                                ? "bg-amber-600 text-white"
-                                                : "bg-[#ac2c19] text-white hover:bg-[#8e2414]"
-                                            }`}
-                                          >
-                                            {isSelected ? "Đang dùng" : "Áp dụng"}
-                                          </button>
-                                        </div>
-                                      </div>
+                            return { group, storeVList };
+                          })
+                          .filter((item) => item.storeVList.length > 0);
 
-                                      {/* Accordion Điều Kiện Chi Tiết */}
-                                      {isExpanded && (
-                                        <div className="px-2.5 py-2 bg-amber-50/50 border-t border-amber-200/50 text-[10.5px] text-slate-700 space-y-1 animate-in fade-in duration-150">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
-                                            <span>Đơn tối thiểu: <strong>{Number(sv.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
-                                          </div>
-                                          {sv.maxDiscountAmount && (
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
-                                              <span>Giảm tối đa: <strong>{Number(sv.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
-                                            </div>
-                                          )}
-                                          <div className="flex items-center gap-1.5 font-medium">
-                                            <span className="material-symbols-outlined text-[13px] text-pink-600">{audienceIcon}</span>
-                                            <span>Đối tượng: <strong className="text-pink-800">{audienceLabel}</strong></span>
-                                          </div>
-                                          {sv.expiresAt && (
-                                            <div className="flex items-center gap-1.5 text-slate-400">
-                                              <span className="material-symbols-outlined text-[13px]">schedule</span>
-                                              <span>HSD: {new Date(sv.expiresAt).toLocaleDateString("vi-VN")}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
+                        if (groupsWithVouchers.length === 0) {
+                          return (
+                            <p className="text-[10px] text-[var(--theme-text-muted,#49454f)] italic">
+                              Không có voucher gian hàng khả dụng
+                            </p>
                           );
-                        })}
-                      </div>
-                    )}
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            {groupsWithVouchers.map(({ group, storeVList }) => {
+                              const sId = group.canonicalId;
+                              const storeSubtotal = group.subtotal;
+                              const appliedForThisStore = appliedStoreVouchers[sId];
+                              const isExpandedStore = Boolean(showAllStoreVouchers[sId]);
+                              const displayedStoreVouchers = isExpandedStore
+                                ? storeVList
+                                : storeVList.slice(0, 3);
+                              const storeDisplayName = group.storeName;
+
+                              return (
+                                <div key={sId} className="p-2 rounded-lg bg-amber-500/5 border border-amber-500/20 space-y-1.5">
+                                  <div className="flex items-center justify-between text-[10.5px]">
+                                    <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                                      <span className="material-symbols-outlined text-[14px] text-amber-600">storefront</span>
+                                      <span>{storeDisplayName}</span>
+                                      <span className="text-[10px] text-slate-500 font-normal">
+                                        ({storeSubtotal.toLocaleString("vi-VN")}đ)
+                                      </span>
+                                    </span>
+                                    {appliedForThisStore && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveStoreVoucher(sId)}
+                                        className="text-red-500 hover:underline text-[9.5px] cursor-pointer"
+                                      >
+                                        Bỏ chọn
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className={isExpandedStore ? "space-y-1.5 max-h-60 overflow-y-auto pr-1" : "space-y-1.5"}>
+                                    {displayedStoreVouchers.map((sv: any) => {
+                                      const isSelected = appliedForThisStore?.code === sv.code;
+                                      const isExpanded = expandedVoucherCode === sv.code;
+                                      const isEligible = storeSubtotal >= (sv.minOrderAmount || 0);
+
+                                      let audienceLabel = "Tất cả khách hàng";
+                                      let audienceIcon = "public";
+                                      if (sv.targetAudience === "FOLLOWERS_ONLY") {
+                                        if (sv.minFollowDays >= 365) {
+                                          audienceLabel = "💎 Tri Ân Kim Cương (Theo dõi ≥ 1 năm)";
+                                          audienceIcon = "diamond";
+                                        } else if (sv.minFollowDays >= 90) {
+                                          audienceLabel = "🥇 Fan Vàng (Theo dõi ≥ 90 ngày)";
+                                          audienceIcon = "workspace_premium";
+                                        } else if (sv.minFollowDays >= 30) {
+                                          audienceLabel = "🥈 Fan Bạc (Theo dõi ≥ 30 ngày)";
+                                          audienceIcon = "military_tech";
+                                        } else {
+                                          audienceLabel = "💖 Người theo dõi gian hàng";
+                                          audienceIcon = "favorite";
+                                        }
+                                      } else if (sv.targetAudience === "NEW_CUSTOMERS_ONLY") {
+                                        audienceLabel = "🆕 Khách hàng mới (Đơn hàng đầu tiên)";
+                                        audienceIcon = "person_add";
+                                      }
+
+                                      return (
+                                        <div
+                                          key={`${sId}-${sv.id || sv.code}`}
+                                          className={`rounded-lg border transition-all text-xs overflow-hidden ${
+                                            isSelected
+                                              ? "border-amber-600 bg-amber-500/15 font-bold"
+                                              : isEligible
+                                                ? "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-surface,#ffffff)] hover:border-amber-500/50"
+                                                : "opacity-40 cursor-not-allowed bg-black/5"
+                                          }`}
+                                        >
+                                          <div className="p-2 flex items-center justify-between gap-2">
+                                            <div className="flex-1 min-w-0">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-bold text-[11.5px] text-amber-800 dark:text-amber-300 font-mono">
+                                                  {sv.code}
+                                                </span>
+                                                <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
+                                                  ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
+                                                </span>
+                                              </div>
+                                            </div>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setExpandedVoucherCode(isExpanded ? null : sv.code);
+                                                }}
+                                                className="px-1.5 py-0.5 rounded text-[9.5px] text-slate-500 hover:text-slate-800 hover:bg-slate-100 flex items-center gap-0.5 cursor-pointer font-normal"
+                                                title="Xem chi tiết điều kiện áp dụng"
+                                              >
+                                                <span>Điều kiện</span>
+                                                <span className="material-symbols-outlined text-[13px]">
+                                                  {isExpanded ? "expand_less" : "expand_more"}
+                                                </span>
+                                              </button>
+                                              <button
+                                                type="button"
+                                                disabled={!isEligible}
+                                                onClick={() => isEligible && handleApplyStoreVoucher(sId, sv)}
+                                                className={`px-2 py-1 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                                                  isSelected
+                                                    ? "bg-amber-600 text-white"
+                                                    : isEligible
+                                                      ? "bg-[#ac2c19] text-white hover:bg-[#8e2414]"
+                                                      : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                                }`}
+                                              >
+                                                {isSelected ? "Đang dùng" : isEligible ? "Áp dụng" : "Chưa đủ ĐK"}
+                                              </button>
+                                            </div>
+                                          </div>
+
+                                          {/* Accordion Điều Kiện Chi Tiết */}
+                                          {isExpanded && (
+                                            <div className="px-2.5 py-2 bg-amber-50/50 border-t border-amber-200/50 text-[10.5px] text-slate-700 space-y-1 animate-in fade-in duration-150">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="material-symbols-outlined text-[13px] text-emerald-600">shopping_bag</span>
+                                                <span>Đơn tối thiểu: <strong>{Number(sv.minOrderAmount || 0).toLocaleString("vi-VN")}đ</strong></span>
+                                              </div>
+                                              {sv.maxDiscountAmount && (
+                                                <div className="flex items-center gap-1.5">
+                                                  <span className="material-symbols-outlined text-[13px] text-blue-600">savings</span>
+                                                  <span>Giảm tối đa: <strong>{Number(sv.maxDiscountAmount).toLocaleString("vi-VN")}đ</strong></span>
+                                                </div>
+                                              )}
+                                              <div className="flex items-center gap-1.5 font-medium">
+                                                <span className="material-symbols-outlined text-[13px] text-pink-600">{audienceIcon}</span>
+                                                <span>Đối tượng: <strong className="text-pink-800">{audienceLabel}</strong></span>
+                                              </div>
+                                              {sv.expiresAt && (
+                                                <div className="flex items-center gap-1.5 text-slate-400">
+                                                  <span className="material-symbols-outlined text-[13px]">schedule</span>
+                                                  <span>HSD: {new Date(sv.expiresAt).toLocaleDateString("vi-VN")}</span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {storeVList.length > 3 && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setShowAllStoreVouchers((prev) => ({
+                                          ...prev,
+                                          [sId]: !prev[sId],
+                                        }))
+                                      }
+                                      className="w-full py-1 text-center text-[10.5px] font-bold text-amber-800 dark:text-amber-300 hover:underline flex items-center justify-center gap-0.5 cursor-pointer mt-1"
+                                    >
+                                      <span>{isExpandedStore ? "Thu gọn bớt" : `Xem tất cả ${storeVList.length} voucher shop`}</span>
+                                      <span className="material-symbols-outlined text-[14px]">
+                                        {isExpandedStore ? "expand_less" : "expand_more"}
+                                      </span>
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
 
                     {/* 3. Mã Miễn Phí Vận Chuyển (Freeship) */}
                     {hasPhysicalItems && availableVouchers.shipping.length > 0 && (
@@ -1822,8 +2236,8 @@ export default function CheckoutPage() {
                             </button>
                           )}
                         </span>
-                        <div className="space-y-1.5">
-                          {availableVouchers.shipping.map((fv: any) => {
+                        <div className={showAllShippingVouchers ? "space-y-1.5 max-h-60 overflow-y-auto pr-1" : "space-y-1.5"}>
+                          {(showAllShippingVouchers ? availableVouchers.shipping : availableVouchers.shipping.slice(0, 3)).map((fv: any) => {
                             const isSelected = appliedShippingVoucher?.code === fv.code;
                             const isExpanded = expandedVoucherCode === fv.code;
 
@@ -1898,8 +2312,32 @@ export default function CheckoutPage() {
                             );
                           })}
                         </div>
+                        {availableVouchers.shipping.length > 3 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllShippingVouchers((prev) => !prev)}
+                            className="w-full py-1 text-center text-[10.5px] font-bold text-teal-800 dark:text-teal-300 hover:underline flex items-center justify-center gap-0.5 cursor-pointer mt-1"
+                          >
+                            <span>{showAllShippingVouchers ? "Thu gọn bớt" : `Xem tất cả ${availableVouchers.shipping.length} mã freeship`}</span>
+                            <span className="material-symbols-outlined text-[14px]">
+                              {showAllShippingVouchers ? "expand_less" : "expand_more"}
+                            </span>
+                          </button>
+                        )}
                       </div>
                     )}
+
+                    {/* Bottom link to full vouchers center */}
+                    <div className="pt-2 text-center border-t border-[var(--theme-border,#e8e5df)]/60 mt-2">
+                      <Link
+                        href="/vouchers"
+                        target="_blank"
+                        className="text-[11px] text-[#003B2B] font-bold hover:underline inline-flex items-center gap-1"
+                      >
+                        <span>Mở Kho Voucher để lưu thêm mã mới vào Ví</span>
+                        <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1928,8 +2366,8 @@ export default function CheckoutPage() {
                 )}
 
                 {/* 3. Voucher của Gian Hàng */}
-                {Object.values(appliedStoreVouchers).map((sv: any) => (
-                  <div key={sv.code} className="flex justify-between items-center text-amber-700 dark:text-amber-300">
+                {Object.entries(appliedStoreVouchers).map(([sId, sv]: [string, any]) => (
+                  <div key={`${sId}-${sv.code}`} className="flex justify-between items-center text-amber-700 dark:text-amber-300">
                     <span className="flex items-center gap-1.5">
                       <span className="material-symbols-outlined text-[15px]">storefront</span>
                       <span>Voucher Shop ({sv.code}):</span>
@@ -1947,31 +2385,23 @@ export default function CheckoutPage() {
                     <span>Phí vận chuyển:</span>
                   </span>
                   <span className="font-semibold text-[var(--theme-text,#1c1b1f)]">
-                    {effectiveShippingDiscount > 0 ? (
-                      <>
-                        <span className="line-through opacity-50 mr-1.5 text-[11px]">
-                          {effectiveShippingFee.toLocaleString("vi-VN")}đ
-                        </span>
-                        <span className="text-emerald-600 font-bold font-mono">
-                          {effectiveFinalShipping.toLocaleString("vi-VN")}đ
-                        </span>
-                      </>
+                    {effectiveShippingFee === 0 && effectiveHasPhysical ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                        MIỄN PHÍ
+                      </span>
                     ) : (
-                      effectiveShippingFee === 0 && hasPhysicalItems ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                          MIỄN PHÍ
-                        </span>
-                      ) : (
-                        `${effectiveShippingFee.toLocaleString("vi-VN")}đ`
-                      )
+                      `${effectiveShippingFee.toLocaleString("vi-VN")}đ`
                     )}
                   </span>
                 </div>
 
-                {/* 5. Giảm giá vận chuyển (nếu có mã Freeship) */}
+                {/* 5. Giảm giá vận chuyển (Mã Freeship) */}
                 {appliedShippingVoucher && effectiveShippingDiscount > 0 && (
-                  <div className="flex justify-between items-center text-teal-600 dark:text-teal-400 text-[11px] pl-5">
-                    <span>Mã Freeship ({appliedShippingVoucher.code}):</span>
+                  <div className="flex justify-between items-center text-teal-600 dark:text-teal-400">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                      <span>Mã Freeship ({appliedShippingVoucher.code}):</span>
+                    </span>
                     <span className="font-bold font-mono">
                       -{effectiveShippingDiscount.toLocaleString("vi-VN")}đ
                     </span>
@@ -1991,7 +2421,7 @@ export default function CheckoutPage() {
 
               <button
                 onClick={handlePlaceOrder}
-                disabled={isSubmitting || checkedItemsCount === 0}
+                disabled={isSubmitting || checkedItems.length === 0}
                 className="w-full h-10 bg-[var(--theme-primary,#003B2B)] hover:opacity-95 text-white rounded-lg font-bold text-xs shadow-2xs transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? (

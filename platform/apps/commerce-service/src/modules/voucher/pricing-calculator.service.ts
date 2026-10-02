@@ -262,41 +262,57 @@ export class PricingCalculatorService {
     groups: PricingStoreGroup[],
     storeVoucherCodes?: Record<string, string>,
   ): Promise<void> {
-    if (!storeVoucherCodes) return;
+    if (!storeVoucherCodes || Object.keys(storeVoucherCodes).length === 0) return;
 
     for (const group of groups) {
-      const voucherCode = storeVoucherCodes[group.storeId];
-      if (!voucherCode) continue;
+      let voucherCode = storeVoucherCodes[group.storeId] || (group.ownerUserId ? storeVoucherCodes[group.ownerUserId] : undefined);
+      let validated = false;
 
-      try {
-        const result = await this.voucherClient.validate(userId, {
-          code: voucherCode,
-          orderSubtotal: group.itemSubtotal,
-          storeId: group.storeId,
-        });
+      // 1. Try directly matched code if exists
+      if (voucherCode) {
+        try {
+          const result = await this.voucherClient.validate(userId, {
+            code: voucherCode,
+            orderSubtotal: group.itemSubtotal,
+            storeId: group.storeId,
+          });
 
-        if (result?.valid && result?.voucher) {
-          // Check scope
-          if (result.voucher.scope !== VoucherScope.STORE) {
-            throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại voucher cửa hàng');
+          if (result?.valid && result?.voucher) {
+            if (result.voucher.scope !== VoucherScope.STORE) {
+              throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại voucher cửa hàng');
+            }
+            group.storeVoucherDiscount = result.discount ?? 0;
+            group.storeVoucherCode = voucherCode;
+            group.storeVoucherType = result.voucher.type;
+            validated = true;
           }
+        } catch {
+          // Fall back to scanning other codes
+        }
+      }
 
-          // Check store match
-          if (result.voucher.storeId && result.voucher.storeId !== group.storeId) {
-            throwConflict(ErrorCode.VOUCHER_NOT_APPLICABLE, 'Voucher không áp dụng cho cửa hàng này');
+      // 2. If not validated yet, scan all provided store voucher codes to see if one matches this group
+      if (!validated) {
+        for (const [, code] of Object.entries(storeVoucherCodes)) {
+          if (code && code !== voucherCode) {
+            try {
+              const testRes = await this.voucherClient.validate(userId, {
+                code,
+                orderSubtotal: group.itemSubtotal,
+                storeId: group.storeId,
+              });
+              if (testRes?.valid && testRes?.voucher?.scope === VoucherScope.STORE) {
+                group.storeVoucherDiscount = testRes.discount ?? 0;
+                group.storeVoucherCode = code;
+                group.storeVoucherType = testRes.voucher.type;
+                validated = true;
+                break;
+              }
+            } catch {
+              // ignore
+            }
           }
-
-          group.storeVoucherDiscount = result.discount ?? 0;
-          group.storeVoucherCode = voucherCode;
-          group.storeVoucherType = result.voucher.type;
-        } else {
-          throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result?.reason || 'Voucher không hợp lệ');
         }
-      } catch (error: any) {
-        if (error.status === 400 || error.status === 404) {
-          throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, error.message || 'Voucher không hợp lệ');
-        }
-        throw error;
       }
     }
   }
@@ -311,7 +327,6 @@ export class PricingCalculatorService {
   ): Promise<number> {
     if (!platformVoucherCode) return 0;
 
-    const rawSubtotal = groups.reduce((sum, g) => sum + g.itemSubtotal, 0);
     const totalAfterStoreDiscount = groups.reduce(
       (sum, g) => sum + Math.max(0, g.itemSubtotal - g.storeVoucherDiscount),
       0,
@@ -322,7 +337,7 @@ export class PricingCalculatorService {
     try {
       const result = await this.voucherClient.validate(userId, {
         code: platformVoucherCode,
-        orderSubtotal: rawSubtotal,
+        orderSubtotal: totalAfterStoreDiscount,
       });
 
       if (result?.valid && result?.voucher) {
@@ -359,10 +374,13 @@ export class PricingCalculatorService {
     const totalShipping = groups.reduce((sum, g) => sum + g.shippingFee, 0);
     if (totalShipping === 0) return 0; // No shipping to discount
 
+    // Total order subtotal across all groups to check minimum order amount
+    const totalOrderSubtotal = groups.reduce((sum, g) => sum + g.itemSubtotal, 0);
+
     try {
       const result = await this.voucherClient.validate(userId, {
         code: shippingVoucherCode,
-        orderSubtotal: totalShipping,
+        orderSubtotal: totalOrderSubtotal,
       });
 
       if (result?.valid && result?.voucher) {
@@ -371,8 +389,9 @@ export class PricingCalculatorService {
           throwConflict(ErrorCode.VOUCHER_SCOPE_CONFLICT, 'Voucher không phải loại miễn phí vận chuyển');
         }
 
-        // Distribute shipping discount proportionally
-        const discount = result.discount ?? Math.min(totalShipping, result.voucher.value);
+        // Calculate actual shipping discount based on voucher value capped by total shipping fee
+        const voucherValue = Number(result.voucher.value) || 30000;
+        const discount = Math.min(totalShipping, voucherValue);
         const shippingDiscount = discount;
 
         // Distribute proportionally across groups with shipping
@@ -384,7 +403,7 @@ export class PricingCalculatorService {
 
         return shippingDiscount;
       } else {
-        throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result.reason || 'Voucher không hợp lệ');
+        throwBadRequest(ErrorCode.VOUCHER_NOT_APPLICABLE, result?.reason || 'Voucher không hợp lệ');
       }
     } catch (error: any) {
       if (error.status === 400 || error.status === 404) {

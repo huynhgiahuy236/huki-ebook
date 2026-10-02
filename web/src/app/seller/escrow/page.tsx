@@ -683,9 +683,21 @@ export default function SellerEscrowPage() {
 
               <div className="p-3 bg-gray-50 rounded-xl space-y-1.5">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Tổng Tiền Bán Sách (100%):</span>
+                  <span className="text-gray-600">Tổng Tiền Bán Niêm Yết:</span>
                   <span className="font-bold text-gray-900">{formatVND(selectedItem.subtotal)}</span>
                 </div>
+                {selectedItem.storeVoucherDiscount && selectedItem.storeVoucherDiscount > 0 ? (
+                  <div className="flex justify-between text-rose-600 font-medium">
+                    <span>Voucher Shop Tài Trợ ({selectedItem.voucherInfo?.code || 'Shop'}):</span>
+                    <span className="font-bold">-{formatVND(selectedItem.storeVoucherDiscount)}</span>
+                  </div>
+                ) : null}
+                {selectedItem.storeVoucherDiscount && selectedItem.storeVoucherDiscount > 0 ? (
+                  <div className="flex justify-between text-slate-700 font-medium pt-1 border-t border-dashed border-gray-200">
+                    <span>Doanh Thu Tính Phí:</span>
+                    <span className="font-bold">{formatVND(selectedItem.effectiveSubtotal || (selectedItem.subtotal - selectedItem.storeVoucherDiscount))}</span>
+                  </div>
+                ) : null}
                 <div className="flex justify-between text-amber-700">
                   <span>Phí Dịch Vụ Sàn HuKi (5%):</span>
                   <span className="font-bold">-{formatVND(selectedItem.platformFee)}</span>

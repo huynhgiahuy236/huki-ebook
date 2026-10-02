@@ -28,7 +28,7 @@ import { PricingCalculatorService, PricingItem, VoucherSelection } from "../vouc
 import { SanctionsService } from "../sanctions/sanctions.service";
 
 export interface CheckoutSnapshotItem {
-  cartItemId: string;
+  cartItemId?: string;
   bookId: string;
   storeId: string;
   ownerUserId: string;
@@ -104,81 +104,164 @@ export class CheckoutService {
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
     const cart = await this.cartService.getCartEntity(userId);
-    if (!cart!.items.length) throwBadRequest(ErrorCode.CART_EMPTY);
 
-    // Step 1: Build items from cart
-    const items: CheckoutSnapshotItem[] = await Promise.all(
-      cart!.items.map(async (item) => {
-        const book = item.book as any;
-        if (book.status !== BookStatus.PUBLISHED) {
-          throwConflict(ErrorCode.BOOK_NOT_FOUND);
+    let items: CheckoutSnapshotItem[] = [];
+
+    if (dto.directItem) {
+      const book = await this.prisma.book.findUnique({
+        where: { id: dto.directItem.bookId },
+        include: { physicalDetails: true, digitalDetails: true },
+      });
+      if (!book || book.status !== BookStatus.PUBLISHED) {
+        throwConflict(ErrorCode.BOOK_NOT_FOUND);
+      }
+
+      if (dto.directItem.format === CartItemFormat.PHYSICAL) {
+        if (
+          (book.format !== BookFormat.PHYSICAL && book.format !== BookFormat.BOTH) ||
+          !book.physicalDetails?.physicalEnabled
+        ) {
+          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
         }
+        if (
+          book.physicalDetails.stock - book.physicalDetails.reserved <
+          dto.directItem.quantity
+        ) {
+          throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
+        }
+      } else {
+        if (
+          (book.format !== BookFormat.DIGITAL && book.format !== BookFormat.BOTH) ||
+          !book.digitalDetails?.digitalEnabled
+        ) {
+          throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+        }
+      }
 
-        if (item.format === CartItemFormat.PHYSICAL) {
-          if (
-            ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
-            !book.physicalDetails?.physicalEnabled
-          ) {
-            throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
-          }
-          if (
-            book.physicalDetails.stock - book.physicalDetails.reserved <
-            item.quantity
-          ) {
-            throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
-          }
-        } else {
-          if (
-            ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
-            !book.digitalDetails?.digitalEnabled
-          ) {
-            throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+      const basePrice = Number(book.price);
+      const flashSale = await this.flashSales.quote(
+        userId,
+        book.id,
+        dto.directItem.quantity,
+      );
+      let unitPrice = basePrice;
+      if (flashSale.isFlashSale && flashSale.salePrice) {
+        unitPrice = Number(flashSale.salePrice);
+      } else {
+        const customDiscount = await this.flashSales.getCustomBookDiscount(book.id);
+        if (customDiscount) {
+          if (customDiscount.type === 'PERCENTAGE') {
+            const discountAmt = Math.round(basePrice * (Number(customDiscount.value) / 100));
+            unitPrice = Math.max(0, basePrice - discountAmt);
+          } else if (customDiscount.type === 'FIXED_AMOUNT') {
+            unitPrice = Math.max(0, basePrice - Number(customDiscount.value));
           }
         }
+      }
 
-        const basePrice = Number(book.price);
-        const flashSale = await this.flashSales.quote(
-          userId,
-          book.id,
-          item.quantity,
-        );
-        let unitPrice = basePrice;
-        if (flashSale.isFlashSale && flashSale.salePrice) {
-          unitPrice = Number(flashSale.salePrice);
-        } else {
-          const customDiscount = await this.flashSales.getCustomBookDiscount(book.id);
-          if (customDiscount) {
-            if (customDiscount.type === 'PERCENTAGE') {
-              const discountAmt = Math.round(basePrice * (Number(customDiscount.value) / 100));
-              unitPrice = Math.max(0, basePrice - discountAmt);
-            } else if (customDiscount.type === 'FIXED_AMOUNT') {
-              unitPrice = Math.max(0, basePrice - Number(customDiscount.value));
+      items = [{
+        cartItemId: '',
+        bookId: book.id,
+        storeId: book.storeId,
+        ownerUserId: book.ownerUserId,
+        title: book.title,
+        coverUrl: book.coverUrl,
+        isbn: book.isbn,
+        format: dto.directItem.format,
+        quantity: dto.directItem.quantity,
+        unitPrice,
+        subtotal: unitPrice * dto.directItem.quantity,
+        weight:
+          dto.directItem.format === CartItemFormat.PHYSICAL && book.physicalDetails
+            ? (book.physicalDetails.weight ?? 0) * dto.directItem.quantity
+            : 0,
+        isFlashSale: flashSale.isFlashSale,
+        flashSaleId: flashSale.flashSaleId,
+        flashSaleName: flashSale.flashSaleName,
+        maxPerUser: flashSale.maxPerUser,
+      }];
+    } else {
+      let rawCartItems = cart!.items;
+      if (dto.cartItemIds && dto.cartItemIds.length > 0) {
+        const selectedSet = new Set(dto.cartItemIds);
+        rawCartItems = rawCartItems.filter((it) => selectedSet.has(it.id));
+      }
+      if (!rawCartItems.length) throwBadRequest(ErrorCode.CART_EMPTY);
+
+      // Step 1: Build items from cart
+      items = await Promise.all(
+        rawCartItems.map(async (item) => {
+          const book = item.book as any;
+          if (book.status !== BookStatus.PUBLISHED) {
+            throwConflict(ErrorCode.BOOK_NOT_FOUND);
+          }
+
+          if (item.format === CartItemFormat.PHYSICAL) {
+            if (
+              ![BookFormat.PHYSICAL, BookFormat.BOTH].includes(book.format) ||
+              !book.physicalDetails?.physicalEnabled
+            ) {
+              throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
+            }
+            if (
+              book.physicalDetails.stock - book.physicalDetails.reserved <
+              item.quantity
+            ) {
+              throwConflict(ErrorCode.INVENTORY_INSUFFICIENT);
+            }
+          } else {
+            if (
+              ![BookFormat.DIGITAL, BookFormat.BOTH].includes(book.format) ||
+              !book.digitalDetails?.digitalEnabled
+            ) {
+              throwConflict(ErrorCode.BOOK_FORMAT_NOT_AVAILABLE);
             }
           }
-        }
-        return {
-          cartItemId: item.id,
-          bookId: book.id,
-          storeId: book.storeId,
-          ownerUserId: book.ownerUserId,
-          title: book.title,
-          coverUrl: book.coverUrl,
-          isbn: book.isbn,
-          format: item.format,
-          quantity: item.quantity,
-          unitPrice,
-          subtotal: unitPrice * item.quantity,
-          weight:
-            item.format === CartItemFormat.PHYSICAL && book.physicalDetails
-              ? book.physicalDetails.weight * item.quantity
-              : 0,
-          isFlashSale: flashSale.isFlashSale,
-          flashSaleId: flashSale.flashSaleId,
-          flashSaleName: flashSale.flashSaleName,
-          maxPerUser: flashSale.maxPerUser,
-        };
-      }),
-    );
+
+          const basePrice = Number(book.price);
+          const flashSale = await this.flashSales.quote(
+            userId,
+            book.id,
+            item.quantity,
+          );
+          let unitPrice = basePrice;
+          if (flashSale.isFlashSale && flashSale.salePrice) {
+            unitPrice = Number(flashSale.salePrice);
+          } else {
+            const customDiscount = await this.flashSales.getCustomBookDiscount(book.id);
+            if (customDiscount) {
+              if (customDiscount.type === 'PERCENTAGE') {
+                const discountAmt = Math.round(basePrice * (Number(customDiscount.value) / 100));
+                unitPrice = Math.max(0, basePrice - discountAmt);
+              } else if (customDiscount.type === 'FIXED_AMOUNT') {
+                unitPrice = Math.max(0, basePrice - Number(customDiscount.value));
+              }
+            }
+          }
+          return {
+            cartItemId: item.id,
+            bookId: book.id,
+            storeId: book.storeId,
+            ownerUserId: book.ownerUserId,
+            title: book.title,
+            coverUrl: book.coverUrl,
+            isbn: book.isbn,
+            format: item.format,
+            quantity: item.quantity,
+            unitPrice,
+            subtotal: unitPrice * item.quantity,
+            weight:
+              item.format === CartItemFormat.PHYSICAL && book.physicalDetails
+                ? book.physicalDetails.weight * item.quantity
+                : 0,
+            isFlashSale: flashSale.isFlashSale,
+            flashSaleId: flashSale.flashSaleId,
+            flashSaleName: flashSale.flashSaleName,
+            maxPerUser: flashSale.maxPerUser,
+          };
+        }),
+      );
+    }
 
     if (this.sanctionsService) {
       const distinctStoreIds = Array.from(new Set(items.map((item) => item.storeId)));
@@ -234,7 +317,7 @@ export class CheckoutService {
 
     // Step 4: Convert to pricing items
     const pricingItems: PricingItem[] = items.map((item) => ({
-      cartItemId: item.cartItemId,
+      cartItemId: item.cartItemId || '',
       bookId: item.bookId,
       storeId: item.storeId,
       ownerUserId: item.ownerUserId,
@@ -410,7 +493,7 @@ export class CheckoutService {
         if (voucherSelection.platformVoucherCode || voucherSelection.storeVoucherCodes || voucherSelection.shippingVoucherCode) {
           const pricingItems: PricingItem[] = snapshot.groups.flatMap((group) =>
             group.items.map((item) => ({
-              cartItemId: item.cartItemId,
+              cartItemId: item.cartItemId || '',
               bookId: item.bookId,
               storeId: item.storeId,
               ownerUserId: item.ownerUserId,
@@ -653,8 +736,20 @@ export class CheckoutService {
           data: { consumedAt: new Date() },
         });
 
-        // Clear cart items
-        await tx.cartItem.deleteMany({ where: { cartId: session.cartId } });
+        // Clear only purchased cart items if any were from the cart
+        const cartItemIdsToDelete = finalSnapshot.groups
+          .flatMap((group) => group.items)
+          .map((item) => item.cartItemId)
+          .filter((id): id is string => Boolean(id && id.length > 0));
+
+        if (cartItemIdsToDelete.length > 0) {
+          await tx.cartItem.deleteMany({
+            where: {
+              id: { in: cartItemIdsToDelete },
+              cartId: session.cartId,
+            },
+          });
+        }
 
         return { order, snapshot: finalSnapshot };
       });

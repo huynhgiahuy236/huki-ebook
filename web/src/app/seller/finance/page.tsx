@@ -52,8 +52,8 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 }
 
 export default function SellerFinancePage() {
-  const { user, activeBusinessId } = useAuth();
-  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || '3094e54e-2549-42cc-92fb-14a8f8589277';
+  const { user, activeBusinessId, isLoading: isAuthLoading } = useAuth();
+  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
 
   // Bank Info KYC
   const bankInfo: BankInfo = useMemo(() => {
@@ -81,6 +81,10 @@ export default function SellerFinancePage() {
 
   // Fetch Wallet Data
   const fetchWallet = useCallback(async () => {
+    if (!storeId) {
+      if (!isAuthLoading) setIsWalletLoading(false);
+      return;
+    }
     setIsWalletLoading(true);
     setWalletError(null);
     try {
@@ -95,10 +99,11 @@ export default function SellerFinancePage() {
     } finally {
       setIsWalletLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, isAuthLoading]);
 
   // Fetch Escrow Items Summary
   const fetchEscrowItems = useCallback(async () => {
+    if (isAuthLoading) return;
     try {
       const res = await walletApi.getSellerEscrowItems();
       if (res.success && Array.isArray(res.data)) {
@@ -107,10 +112,11 @@ export default function SellerFinancePage() {
     } catch (err) {
       console.warn('Lỗi tải dữ liệu tiền treo:', err);
     }
-  }, []);
+  }, [isAuthLoading]);
 
   // Fetch Recent Transactions
   const fetchRecentTransactions = useCallback(async () => {
+    if (!storeId) return;
     try {
       const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 5 });
       if (res.success && res.data?.items) {
@@ -123,6 +129,10 @@ export default function SellerFinancePage() {
 
   // Fetch Payout Requests History
   const fetchPayoutRequests = useCallback(async (pageNum = 1) => {
+    if (!storeId) {
+      if (!isAuthLoading) setIsPayoutsLoading(false);
+      return;
+    }
     setIsPayoutsLoading(true);
     try {
       const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 10 });
@@ -136,11 +146,12 @@ export default function SellerFinancePage() {
     } finally {
       setIsPayoutsLoading(false);
     }
-  }, [storeId]);
+  }, [storeId, isAuthLoading]);
 
   const handleRefreshAll = useCallback(async () => {
+    if (!storeId && isAuthLoading) return;
     await Promise.all([fetchWallet(), fetchEscrowItems(), fetchRecentTransactions(), fetchPayoutRequests(1)]);
-  }, [fetchWallet, fetchEscrowItems, fetchRecentTransactions, fetchPayoutRequests]);
+  }, [storeId, isAuthLoading, fetchWallet, fetchEscrowItems, fetchRecentTransactions, fetchPayoutRequests]);
 
   useEffect(() => {
     handleRefreshAll();

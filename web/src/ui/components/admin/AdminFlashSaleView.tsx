@@ -20,7 +20,7 @@ export function AdminFlashSaleView() {
   const [loading, setLoading] = useState(false);
   const [flashSales, setFlashSales] = useState<FlashSaleSlot[]>([]);
   const [catalogBooks, setCatalogBooks] = useState<BookData[]>([]);
-  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED' | 'CANCELLED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
   // In-Page Expandable Create Slot Form (100% In-Page, Zero Modal)
@@ -29,8 +29,14 @@ export function AdminFlashSaleView() {
     name: "",
     description: "",
     bannerUrl: "",
-    startsAt: new Date().toISOString().slice(0, 16),
-    endsAt: new Date(Date.now() + 3600000 * 4).toISOString().slice(0, 16),
+    registrationStartsAt: new Date().toISOString().slice(0, 16),
+    registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
+    startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
+    endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+    minStores: 1,
+    maxStores: 10,
+    discountPercent: 30,
+    maxPerUser: 1,
   });
   const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
   const [submittingCreate, setSubmittingCreate] = useState(false);
@@ -59,14 +65,14 @@ export function AdminFlashSaleView() {
   const fetchFlashSales = async () => {
     try {
       setLoading(true);
-      const res = await flashSaleApi.getAll();
+      const res = await flashSaleApi.getAll({ scope: 'PLATFORM' });
       if (res.success && res.data) {
         const list = Array.isArray(res.data)
           ? res.data
           : Array.isArray((res.data as any)?.items)
           ? (res.data as any).items
           : [];
-        setFlashSales(list);
+        setFlashSales(list.filter((s: FlashSaleSlot) => (s.scope === 'PLATFORM' || !s.storeId)));
       }
     } catch (err) {
       console.error("Failed to load flash sales:", err);
@@ -109,9 +115,23 @@ export function AdminFlashSaleView() {
     };
   }, [flashSales]);
 
+  // Check if a platform flash sale is currently active, registering or scheduled
+  const activePlatformSlot = useMemo(() => {
+    const now = new Date();
+    return flashSales.find(
+      (s) =>
+        (s.scope === "PLATFORM" || !s.storeId) &&
+        s.status !== "ENDED" &&
+        s.status !== "CANCELLED" &&
+        new Date(s.endsAt) > now,
+    );
+  }, [flashSales]);
+
   // Tab & Search Filtering
   const filteredFlashSales = useMemo(() => {
     return flashSales.filter((s) => {
+      if (s.scope && s.scope !== "PLATFORM") return false;
+      if (s.storeId) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = s.name?.toLowerCase().includes(q);
@@ -127,6 +147,7 @@ export function AdminFlashSaleView() {
   const groupedSessions = useMemo(() => {
     const live = filteredFlashSales.filter((s) => s.status === 'ACTIVE');
     const scheduled = filteredFlashSales.filter((s) => s.status === 'SCHEDULED');
+    const cancelled = filteredFlashSales.filter((s) => s.status === 'CANCELLED');
     const ended = filteredFlashSales.filter((s) => s.status === 'ENDED');
 
     const result = [];
@@ -142,10 +163,19 @@ export function AdminFlashSaleView() {
     if (scheduled.length > 0 || activeTab === 'SCHEDULED') {
       result.push({
         groupKey: 'SCHEDULED',
-        title: '⏳ Phiên Flash Sale Sắp Diễn Ra (Đã Lên Lịch)',
+        title: '⏳ Phiên Flash Sale Sắp Diễn Ra (Đã Lên Lịch / Đang Đăng Ký)',
         badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
         icon: 'schedule',
         sessions: scheduled,
+      });
+    }
+    if (cancelled.length > 0 || activeTab === 'CANCELLED') {
+      result.push({
+        groupKey: 'CANCELLED',
+        title: '🚫 Phiên Flash Sale Đã Hủy (Không Đủ Shop Tham Gia)',
+        badgeColor: 'bg-red-50 text-red-700 border-red-200',
+        icon: 'cancel',
+        sessions: cancelled,
       });
     }
     if (ended.length > 0 || activeTab === 'ENDED') {
@@ -309,6 +339,29 @@ export function AdminFlashSaleView() {
     }
   };
 
+  // File input ref for banner upload
+  const bannerFileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleBannerFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showToast?.("Vui lòng chọn tệp hình ảnh hợp lệ (PNG, JPG, WEBP, SVG)", "warning");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast?.("Dung lượng ảnh banner không được vượt quá 5MB", "warning");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCreateForm((prev) => ({ ...prev, bannerUrl: reader.result as string }));
+      setCreateErrors((prev) => ({ ...prev, bannerUrl: "" }));
+      showToast?.("Đã tải ảnh banner từ thiết bị thành công!", "success");
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Create Campaign Validation
   const validateCreateForm = () => {
     const errs: Record<string, string> = {};
@@ -318,23 +371,66 @@ export function AdminFlashSaleView() {
       errs.name = "Tên sự kiện phải có ít nhất 5 ký tự.";
     }
 
-    if (createForm.bannerUrl.trim()) {
-      try {
-        new URL(createForm.bannerUrl.trim());
-      } catch {
-        errs.bannerUrl = "URL banner không đúng định dạng hợp lệ (vd: https://...).";
+    if (createForm.bannerUrl && createForm.bannerUrl.trim()) {
+      const bannerVal = createForm.bannerUrl.trim();
+      if (!bannerVal.startsWith("data:image/") && !bannerVal.startsWith("/") && !bannerVal.startsWith("blob:")) {
+        try {
+          new URL(bannerVal);
+        } catch {
+          errs.bannerUrl = "URL banner không đúng định dạng hợp lệ (vd: https://...).";
+        }
       }
     }
 
-    if (!createForm.startsAt) errs.startsAt = "Vui lòng chọn thời gian bắt đầu.";
+    if (!createForm.registrationStartsAt) errs.registrationStartsAt = "Vui lòng chọn thời gian mở đăng ký.";
+    if (!createForm.registrationEndsAt) errs.registrationEndsAt = "Vui lòng chọn thời gian kết thúc đăng ký.";
+    if (!createForm.startsAt) errs.startsAt = "Vui lòng chọn thời gian bắt đầu mở bán.";
     if (!createForm.endsAt) errs.endsAt = "Vui lòng chọn thời gian kết thúc.";
+
+    if (createForm.registrationStartsAt && createForm.registrationEndsAt) {
+      const regS = new Date(createForm.registrationStartsAt).getTime();
+      const regE = new Date(createForm.registrationEndsAt).getTime();
+      if (regE <= regS) {
+        errs.registrationEndsAt = "Thời gian kết thúc đăng ký phải sau thời gian mở đăng ký.";
+      }
+    }
+
+    if (createForm.registrationEndsAt && createForm.startsAt) {
+      const regE = new Date(createForm.registrationEndsAt).getTime();
+      const s = new Date(createForm.startsAt).getTime();
+      if (s < regE + 2 * 60 * 1000 - 5000) {
+        errs.startsAt = "Thời gian bắt đầu áp dụng phải sau khi đóng đăng ký ít nhất 2 phút (thời gian đệm công bố trước cho khách hàng).";
+      }
+    }
 
     if (createForm.startsAt && createForm.endsAt) {
       const s = new Date(createForm.startsAt).getTime();
       const e = new Date(createForm.endsAt).getTime();
       if (e <= s) {
-        errs.endsAt = "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu.";
+        errs.endsAt = "Thời gian kết thúc phải diễn ra sau thời gian bắt đầu áp dụng.";
       }
+    }
+
+    const minSt = Number(createForm.minStores);
+    const maxSt = Number(createForm.maxStores);
+    if (isNaN(minSt) || minSt < 1 || minSt > 10) {
+      errs.minStores = "Số lượng cửa hàng tối thiểu phải từ 1 đến 10.";
+    }
+    if (isNaN(maxSt) || maxSt < 1 || maxSt > 10) {
+      errs.maxStores = "Số lượng cửa hàng tối đa phải từ 1 đến 10.";
+    }
+    if (!errs.minStores && !errs.maxStores && minSt > maxSt) {
+      errs.maxStores = "Số lượng tối đa phải lớn hơn hoặc bằng số tối thiểu.";
+    }
+
+    const discountPct = Number(createForm.discountPercent);
+    if (isNaN(discountPct) || discountPct < 20 || discountPct > 80) {
+      errs.discountPercent = "Số phần trăm trợ giá phải từ 20% đến 80%.";
+    }
+
+    const maxLimit = Number(createForm.maxPerUser);
+    if (isNaN(maxLimit) || maxLimit < 1) {
+      errs.maxPerUser = "Số lượng sản phẩm mua tối đa cho mỗi khách hàng phải từ 1 trở lên.";
     }
 
     setCreateErrors(errs);
@@ -354,8 +450,15 @@ export function AdminFlashSaleView() {
         name: createForm.name.trim(),
         description: createForm.description.trim() || undefined,
         bannerUrl: createForm.bannerUrl.trim() || undefined,
+        scope: "PLATFORM",
+        registrationStartsAt: new Date(createForm.registrationStartsAt).toISOString(),
+        registrationEndsAt: new Date(createForm.registrationEndsAt).toISOString(),
         startsAt: new Date(createForm.startsAt).toISOString(),
         endsAt: new Date(createForm.endsAt).toISOString(),
+        minStores: Number(createForm.minStores),
+        maxStores: Number(createForm.maxStores),
+        discountPercent: Number(createForm.discountPercent),
+        maxPerUser: Number(createForm.maxPerUser),
       });
 
       if (res.success) {
@@ -366,15 +469,21 @@ export function AdminFlashSaleView() {
           name: "",
           description: "",
           bannerUrl: "",
-          startsAt: new Date().toISOString().slice(0, 16),
-          endsAt: new Date(Date.now() + 3600000 * 4).toISOString().slice(0, 16),
+          registrationStartsAt: new Date().toISOString().slice(0, 16),
+          registrationEndsAt: new Date(Date.now() + 3600000 * 2).toISOString().slice(0, 16),
+          startsAt: new Date(Date.now() + 3600000 * 2 + 120000).toISOString().slice(0, 16),
+          endsAt: new Date(Date.now() + 3600000 * 6).toISOString().slice(0, 16),
+          minStores: 1,
+          maxStores: 10,
+          discountPercent: 30,
+          maxPerUser: 1,
         });
         fetchFlashSales();
       } else {
         showToast?.(res.error?.message || "Không thể tạo khung giờ Flash Sale", "error");
       }
-    } catch {
-      showToast?.("Lỗi máy chủ khi tạo khung giờ Flash Sale", "error");
+    } catch (err: any) {
+      showToast?.(err?.message || "Lỗi máy chủ khi tạo khung giờ Flash Sale", "error");
     } finally {
       setSubmittingCreate(false);
     }
@@ -439,19 +548,35 @@ export function AdminFlashSaleView() {
           </p>
         </div>
 
-        <button
-          onClick={() => setIsCreateFormOpen(!isCreateFormOpen)}
-          className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs cursor-pointer shrink-0 ${
-            isCreateFormOpen
-              ? "bg-gray-800 text-white hover:bg-gray-700"
-              : "bg-[#00875A] hover:bg-[#00734c] text-white"
-          }`}
-        >
-          <span className="material-symbols-outlined text-[17px]">
-            {isCreateFormOpen ? "expand_less" : "add_circle"}
-          </span>
-          <span>{isCreateFormOpen ? "Đóng Form Khung Giờ" : "Tạo Khung Giờ Mới"}</span>
-        </button>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          <button
+            disabled={!!activePlatformSlot}
+            onClick={() => setIsCreateFormOpen(!isCreateFormOpen)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl font-bold text-xs transition-all shadow-xs shrink-0 ${
+              activePlatformSlot
+                ? "bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300"
+                : isCreateFormOpen
+                ? "bg-gray-800 text-white hover:bg-gray-700 cursor-pointer"
+                : "bg-[#00875A] hover:bg-[#00734c] text-white cursor-pointer"
+            }`}
+          >
+            <span className="material-symbols-outlined text-[17px]">
+              {activePlatformSlot ? "lock" : isCreateFormOpen ? "expand_less" : "add_circle"}
+            </span>
+            <span>
+              {activePlatformSlot
+                ? "Đang Có Đợt Sàn Hoạt Động (Đã Khóa)"
+                : isCreateFormOpen
+                ? "Đóng Form Khung Giờ"
+                : "+ Thiết Lập Khung Giờ Mới Toàn Sàn"}
+            </span>
+          </button>
+          {activePlatformSlot && (
+            <p className="text-[11px] text-red-500 font-semibold text-right max-w-md">
+              ⚠️ Sàn hiện đang có 1 chương trình Flash Sale chưa kết thúc ("{activePlatformSlot.name}"). Không thể tạo thêm chương trình mới.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* 2. 4 TOP KPI METRIC CARDS */}
@@ -510,28 +635,29 @@ export function AdminFlashSaleView() {
                   Thiết Lập Khung Giờ Flash Sale Mới Toàn Sàn
                 </h3>
                 <p className="text-xs text-gray-500 mt-0.5">
-                  Khởi tạo phiên giờ vàng mới để mở cổng đăng ký và phân bổ sách khuyến mãi
+                  Khởi tạo phiên giờ vàng toàn sàn với bộ 4 mốc thời gian chuẩn và giới hạn số lượng Shop tham gia
                 </p>
               </div>
             </div>
 
             <button
               onClick={() => setIsCreateFormOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
+              className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
             >
               <span className="material-symbols-outlined text-lg">close</span>
             </button>
           </div>
 
           <form onSubmit={handleCreateCampaign} className="space-y-4 pt-4 text-xs">
+            {/* Thông tin cơ bản */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-gray-700 font-bold mb-1">
-                  Tên Khung Giờ / Sự Kiện <span className="text-red-500">*</span>
+                  Tên Chương Trình / Sự Kiện <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="VD: Flash Sale Giờ Vàng 20:00 - 24:00"
+                  placeholder="VD: Flash Sale Toàn Sàn Giờ Vàng 20:00 - 24:00"
                   value={createForm.name}
                   onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
                   className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-bold text-xs focus:border-[#00875A] focus:outline-none"
@@ -542,7 +668,7 @@ export function AdminFlashSaleView() {
               </div>
 
               <div>
-                <label className="block text-gray-700 font-bold mb-1">Mô Tả Phiên</label>
+                <label className="block text-gray-700 font-bold mb-1">Mô Tả Chương Trình</label>
                 <input
                   type="text"
                   placeholder="VD: Săn sale sách best-seller giảm sâu tới 50%"
@@ -553,46 +679,254 @@ export function AdminFlashSaleView() {
               </div>
 
               <div>
-                <label className="block text-gray-700 font-bold mb-1">Ảnh Banner Khung Giờ (URL)</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-gray-700 font-bold">Ảnh Banner Khung Giờ</label>
+                  <button
+                    type="button"
+                    onClick={() => bannerFileInputRef.current?.click()}
+                    className="text-[11px] font-bold text-[#00875A] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">cloud_upload</span>
+                    <span>Tải ảnh từ máy</span>
+                  </button>
+                </div>
+
                 <input
-                  type="text"
-                  placeholder="https://..."
-                  value={createForm.bannerUrl}
-                  onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  type="file"
+                  ref={bannerFileInputRef}
+                  accept="image/*"
+                  onChange={handleBannerFileUpload}
+                  className="hidden"
                 />
+
+                <div className="relative flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="https://... hoặc tải từ máy"
+                    value={createForm.bannerUrl}
+                    onChange={(e) => setCreateForm({ ...createForm, bannerUrl: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createForm.bannerUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                      title="Xóa ảnh"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
+                  )}
+                </div>
+
+                {createForm.bannerUrl && (
+                  <div className="mt-2 relative w-full h-20 rounded-xl overflow-hidden border border-gray-200 bg-gray-50 shadow-2xs group">
+                    <img
+                      src={createForm.bannerUrl}
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => bannerFileInputRef.current?.click()}
+                        className="px-2 py-1 rounded bg-white/30 backdrop-blur-md text-[10.5px] font-bold hover:bg-white/50 cursor-pointer"
+                      >
+                        Đổi ảnh khác
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCreateForm({ ...createForm, bannerUrl: "" })}
+                        className="px-2 py-1 rounded bg-red-600/80 backdrop-blur-md text-[10.5px] font-bold hover:bg-red-600 cursor-pointer"
+                      >
+                        Gỡ ảnh
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {createErrors.bannerUrl && (
+                  <p className="text-red-500 text-[10.5px] mt-1">{createErrors.bannerUrl}</p>
+                )}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">
-                  Thời Gian Bắt Đầu <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={createForm.startsAt}
-                  onChange={(e) => setCreateForm({ ...createForm, startsAt: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-medium text-xs focus:border-[#00875A] focus:outline-none"
-                />
-                {createErrors.startsAt && (
-                  <p className="text-red-500 text-[10.5px] mt-1">{createErrors.startsAt}</p>
-                )}
+            {/* Cấu hình Trợ Giá Sàn & Giới hạn mua mỗi khách hàng */}
+            <div className="p-3.5 bg-blue-50/60 rounded-2xl border border-blue-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-lg">percent</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 text-xs">Mức Trợ Giá Sàn & Giới Hạn Mua / Khách</h4>
+                  <p className="text-[11px] text-gray-500">
+                    Sàn quy định % giảm (20% - 80%) và số lượng tối đa mỗi khách được mua cho toàn bộ sách trong đợt
+                  </p>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-gray-700 font-bold mb-1">
-                  Thời Gian Kết Thúc <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="datetime-local"
-                  value={createForm.endsAt}
-                  onChange={(e) => setCreateForm({ ...createForm, endsAt: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-white border border-gray-300 font-medium text-xs focus:border-[#00875A] focus:outline-none"
-                />
-                {createErrors.endsAt && (
-                  <p className="text-red-500 text-[10.5px] mt-1">{createErrors.endsAt}</p>
-                )}
+              <div className="flex items-center gap-3 shrink-0">
+                <div>
+                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">% Trợ Giá Sàn (20-80%)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={20}
+                      max={80}
+                      value={createForm.discountPercent}
+                      onChange={(e) => setCreateForm({ ...createForm, discountPercent: Number(e.target.value) })}
+                      className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                    />
+                    <span className="absolute right-2 top-1.5 text-gray-400 text-xs pointer-events-none">%</span>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Max/Khách (Tối thiểu 1)</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      value={createForm.maxPerUser}
+                      onChange={(e) => setCreateForm({ ...createForm, maxPerUser: Number(e.target.value) })}
+                      className="w-24 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                    />
+                    <span className="absolute right-2 top-1.5 text-gray-400 text-[10px] pointer-events-none">cuốn</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {(createErrors.discountPercent || createErrors.maxPerUser) && (
+              <p className="text-red-500 text-[10.5px]">{createErrors.discountPercent || createErrors.maxPerUser}</p>
+            )}
+
+            {/* Giới hạn số lượng cửa hàng tham gia */}
+            <div className="p-3.5 bg-emerald-50/60 rounded-2xl border border-emerald-200/60 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-lg">storefront</span>
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 text-xs">Giới Hạn Số Lượng Cửa Hàng Tham Gia (Shop Quota)</h4>
+                  <p className="text-[11px] text-gray-500">
+                    Quy chuẩn sàn: Tối thiểu 1 Shop, tối đa 10 Shop tham gia vào đợt Flash Sale này
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <div>
+                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối thiểu (Shop)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={createForm.minStores}
+                    onChange={(e) => setCreateForm({ ...createForm, minStores: Number(e.target.value) })}
+                    className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-gray-600 font-bold mb-0.5">Tối đa (Shop)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={createForm.maxStores}
+                    onChange={(e) => setCreateForm({ ...createForm, maxStores: Number(e.target.value) })}
+                    className="w-20 px-2.5 py-1.5 rounded-lg border border-gray-300 bg-white font-mono font-bold text-xs text-center focus:border-[#00875A] focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            {(createErrors.minStores || createErrors.maxStores) && (
+              <p className="text-red-500 text-[10.5px]">{createErrors.minStores || createErrors.maxStores}</p>
+            )}
+
+            {/* Bộ 4 mốc thời gian */}
+            <div className="p-4 bg-gray-50/80 rounded-2xl border border-gray-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-gray-800 text-xs flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-sm text-[#00875A]">schedule</span>
+                  <span>Thiết Lập Bộ 4 Mốc Thời Gian Chuẩn Cho Sàn</span>
+                </span>
+                <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 font-medium">
+                  ⚡ 2 phút đệm công bố teaser cho khách hàng giữa Đóng ĐK & Mở Bán
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    1. Mở Đăng Ký Cho Shop <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={createForm.registrationStartsAt}
+                    onChange={(e) => setCreateForm({ ...createForm, registrationStartsAt: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createErrors.registrationStartsAt && (
+                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationStartsAt}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    2. Đóng Cổng Đăng Ký <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={createForm.registrationEndsAt}
+                    onChange={(e) => {
+                      const newRegEnd = e.target.value;
+                      const regEndTime = new Date(newRegEnd).getTime();
+                      const currentStartTime = new Date(createForm.startsAt).getTime();
+                      let updatedStartsAt = createForm.startsAt;
+                      if (currentStartTime < regEndTime + 120000) {
+                        updatedStartsAt = new Date(regEndTime + 120000).toISOString().slice(0, 16);
+                      }
+                      setCreateForm({
+                        ...createForm,
+                        registrationEndsAt: newRegEnd,
+                        startsAt: updatedStartsAt,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createErrors.registrationEndsAt && (
+                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.registrationEndsAt}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    3. Bắt Đầu Mở Bán <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={createForm.startsAt}
+                    onChange={(e) => setCreateForm({ ...createForm, startsAt: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createErrors.startsAt && (
+                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.startsAt}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-gray-700 font-bold mb-1">
+                    4. Kết Thúc Flash Sale <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={createForm.endsAt}
+                    onChange={(e) => setCreateForm({ ...createForm, endsAt: e.target.value })}
+                    className="w-full px-2.5 py-1.5 rounded-xl bg-white border border-gray-300 font-mono text-xs focus:border-[#00875A] focus:outline-none"
+                  />
+                  {createErrors.endsAt && (
+                    <p className="text-red-500 text-[10px] mt-0.5">{createErrors.endsAt}</p>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -607,14 +941,17 @@ export function AdminFlashSaleView() {
               <button
                 type="submit"
                 disabled={submittingCreate}
-                className="px-6 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors"
               >
                 {submittingCreate ? (
-                  <span>Đang khởi tạo...</span>
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                    <span>Đang Khởi Tạo...</span>
+                  </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-base">bolt</span>
-                    <span>Xác Nhận Tạo Khung Giờ</span>
+                    <span className="material-symbols-outlined text-sm">bolt</span>
+                    <span>Tạo Khung Giờ Flash Sale Sàn</span>
                   </>
                 )}
               </button>
@@ -673,7 +1010,7 @@ export function AdminFlashSaleView() {
         <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
           <span className="material-symbols-outlined text-4xl text-gray-300">bolt</span>
           <h3 className="text-sm font-bold text-gray-700 mt-2">Chưa có khung giờ Flash Sale nào trong mục này</h3>
-          <p className="text-xs text-gray-500 mt-1">Bấm "Tạo Khung Giờ Mới" để mở phiên giờ vàng đầu tiên!</p>
+          <p className="text-xs text-gray-500 mt-1">Bấm "+ Thiết Lập Khung Giờ Mới Toàn Sàn" để mở phiên giờ vàng đầu tiên!</p>
         </div>
       ) : (
         <div className="space-y-8">
@@ -693,6 +1030,7 @@ export function AdminFlashSaleView() {
                 {group.sessions.map((slot) => {
                   const isLive = slot.status === "ACTIVE";
                   const isScheduled = slot.status === "SCHEDULED";
+                  const isCancelled = slot.status === "CANCELLED";
                   const isStudioOpen = studioSlotId === slot.id;
 
                   return (
@@ -709,26 +1047,41 @@ export function AdminFlashSaleView() {
                             className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shrink-0 ${
                               isLive
                                 ? "bg-rose-50 text-rose-600 border border-rose-200"
+                                : isCancelled
+                                ? "bg-red-50 text-red-600 border border-red-200"
                                 : "bg-gray-100 text-gray-600 border border-gray-200"
                             }`}
                           >
-                            <span className="material-symbols-outlined text-2xl">bolt</span>
+                            <span className="material-symbols-outlined text-2xl">
+                              {isCancelled ? "cancel" : "bolt"}
+                            </span>
                           </div>
                           <div>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="font-extrabold text-gray-900 text-sm">{slot.name}</h3>
                               {isLive ? (
                                 <AdminStatusBadge status="danger" label="ĐANG DIỄN RA" icon="bolt" />
                               ) : isScheduled ? (
                                 <AdminStatusBadge status="warning" label="ĐÃ LÊN LỊCH" icon="schedule" />
+                              ) : isCancelled ? (
+                                <AdminStatusBadge status="danger" label="ĐÃ HỦY (KHÔNG ĐỦ SHOP)" icon="cancel" />
                               ) : (
                                 <AdminStatusBadge status="neutral" label="ĐÃ KẾT THÚC" />
                               )}
+                              <span className="px-2 py-0.5 rounded-full font-bold text-[10.5px] bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 font-mono">
+                                <span className="material-symbols-outlined text-[13px]">storefront</span>
+                                <span>Shop tham gia: {slot.participatingStoresCount || 0}/{slot.maxStores || 10}</span>
+                              </span>
                             </div>
-                            <div className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2 font-mono">
-                              <span>Bắt đầu: <strong>{new Date(slot.startsAt).toLocaleString("vi-VN")}</strong></span>
-                              <span>-</span>
-                              <span>Kết thúc: <strong>{new Date(slot.endsAt).toLocaleString("vi-VN")}</strong></span>
+                            <div className="text-[11px] text-gray-500 mt-1 flex items-center gap-3 flex-wrap font-mono">
+                              {slot.registrationStartsAt && slot.registrationEndsAt && (
+                                <span className="text-amber-800 bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60">
+                                  ĐK: <strong>{new Date(slot.registrationStartsAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit' })} - {new Date(slot.registrationEndsAt).toLocaleTimeString("vi-VN", { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })}</strong>
+                                </span>
+                              )}
+                              <span>
+                                Mở bán: <strong>{new Date(slot.startsAt).toLocaleString("vi-VN")}</strong> - <strong>{new Date(slot.endsAt).toLocaleString("vi-VN")}</strong>
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -759,10 +1112,11 @@ export function AdminFlashSaleView() {
                           </button>
                           <button
                             onClick={() => handleDeleteSlot(slot.id, slot.name)}
-                            className="p-1.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 cursor-pointer transition-colors"
-                            title="Xóa khung giờ"
+                            className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                            title="Xóa đợt Flash Sale này"
                           >
                             <span className="material-symbols-outlined text-sm">delete</span>
+                            <span className="hidden sm:inline">Xóa đợt</span>
                           </button>
                         </div>
                       </div>

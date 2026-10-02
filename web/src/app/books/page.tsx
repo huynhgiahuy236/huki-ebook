@@ -24,6 +24,9 @@ export interface CatalogBookItem {
   sales: string;
   cover: string;
   isMock: boolean;
+  storeId?: string;
+  businessId?: string;
+  book?: any;
 }
 
 function CatalogPageContent() {
@@ -124,6 +127,9 @@ function CatalogPageContent() {
       const discountPercent = rawRb.discountPercent;
       return {
         id: rb.id,
+        storeId: rb.storeId || rawRb.store_id || rb.businessId || rawRb.business_id,
+        businessId: rb.businessId || rawRb.business_id || rb.storeId || rawRb.store_id,
+        book: rawRb,
         title: rb.title,
         author: authorName,
         publisher: publisherName,

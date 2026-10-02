@@ -140,6 +140,9 @@ export default function CartPage() {
       showToast({ title: 'Chưa chọn ấn phẩm', message: 'Vui lòng tích chọn ít nhất 1 ấn phẩm khả dụng để tiến hành đặt hàng.' }, 'warning');
       return;
     }
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('huki_direct_checkout_item');
+    }
     router.push('/checkout');
   };
 

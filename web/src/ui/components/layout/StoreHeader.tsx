@@ -122,6 +122,14 @@ export default function StoreHeader({
         </div>
         <div className="flex items-center gap-3">
           <Link
+            href="/vouchers"
+            className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold text-emerald-200"
+          >
+            <span className="material-symbols-outlined text-[13px]">confirmation_number</span>
+            <span>Mã Giảm Giá</span>
+          </Link>
+          <span className="opacity-40">|</span>
+          <Link
             href="/flash-sale"
             className="hover:text-amber-300 transition-colors flex items-center gap-1 font-extrabold text-amber-300 animate-pulse"
           >
@@ -336,6 +344,18 @@ export default function StoreHeader({
                       <div className="flex items-center gap-2.5">
                         <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">local_shipping</span>
                         <span>Đơn Mua Của Tôi</span>
+                      </div>
+                      <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">chevron_right</span>
+                    </Link>
+
+                    <Link
+                      href="/vouchers?tab=wallet"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">confirmation_number</span>
+                        <span>Ví Voucher Của Tôi</span>
                       </div>
                       <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">chevron_right</span>
                     </Link>

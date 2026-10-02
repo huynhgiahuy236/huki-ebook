@@ -214,6 +214,14 @@ export interface SellerEscrowItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  storeVoucherDiscount?: number;
+  effectiveSubtotal?: number;
+  voucherInfo?: {
+    code: string;
+    name?: string;
+    discount: number;
+    scope: 'STORE' | 'PLATFORM';
+  } | null;
   platformFee: number;
   sellerNet: number;
   escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED';

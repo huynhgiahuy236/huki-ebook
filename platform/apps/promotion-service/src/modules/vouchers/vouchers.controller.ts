@@ -79,6 +79,85 @@ export class VouchersController {
     return this.vouchers.findAll(query);
   }
 
+  @Get('eligible-feed')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get eligible vouchers feed for user',
+    description: 'Returns vouchers filtered by user eligibility (platform + shop vouchers grouped by store).',
+  })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  async getEligibleFeed(
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
+    return this.vouchers.getEligibleFeed(effectiveUserId);
+  }
+
+  @Get('homepage-feed')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get homepage vouchers feed for user',
+    description: 'Returns platform vouchers and followed store vouchers that user is eligible for.',
+  })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  async getHomepageFeed(
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
+    return this.vouchers.getHomepageFeed(effectiveUserId);
+  }
+
+  @Get('wallet')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get user voucher wallet',
+    description: 'Returns all valid saved vouchers in user wallet (split into platform freeship, discount, and shop vouchers).',
+  })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  async getWallet(
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
+    return this.vouchers.getWalletVouchers(effectiveUserId);
+  }
+
+  @Post(':id/save')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Save voucher to wallet',
+    description: 'Saves a voucher to the user wallet after checking eligibility.',
+  })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  async saveToWallet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
+    return this.vouchers.saveToWallet(effectiveUserId, id);
+  }
+
+  @Delete(':id/save')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Unsave voucher from wallet',
+    description: 'Removes a voucher from the user wallet.',
+  })
+  @ApiHeader({ name: 'x-user-id', required: false, description: 'User ID' })
+  async unsaveFromWallet(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('x-user-id') userId: string,
+    @Req() req: Request,
+  ) {
+    const effectiveUserId = userId || this.extractUserIdFromRequest(req);
+    return this.vouchers.unsaveFromWallet(effectiveUserId, id);
+  }
+
   @Get('available')
   @ApiBearerAuth()
   @ApiOperation({
@@ -220,6 +299,17 @@ export class VouchersController {
       throwBadRequest(ErrorCode.VALIDATION_REQUIRED, 'orderId is required');
     }
     return this.vouchers.rollbackByOrderId(body.orderId);
+  }
+
+  @Post('usages-by-orders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get voucher usages by order IDs',
+    description: 'Returns voucher usages with voucher details for given order IDs.',
+  })
+  async getUsagesByOrders(@Body() body: { orderIds: string[] }) {
+    const usages = await this.vouchers.getUsagesByOrderIds(body?.orderIds || []);
+    return { data: usages };
   }
 
   private extractUserIdFromRequest(request: any): string {

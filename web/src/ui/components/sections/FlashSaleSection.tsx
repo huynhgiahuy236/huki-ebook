@@ -28,7 +28,7 @@ export default function FlashSaleSection() {
   useEffect(() => {
     const fetchFlashSale = async () => {
       try {
-        const res = await flashSaleApi.getActiveFlashSales();
+        const res = await flashSaleApi.getActiveFlashSales("PLATFORM");
         if (res.success && res.data && res.data.length > 0) {
           const sale = res.data[0];
           setFlashSale(sale);

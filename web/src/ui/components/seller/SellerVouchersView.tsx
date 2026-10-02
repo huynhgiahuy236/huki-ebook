@@ -106,16 +106,16 @@ export function SellerVouchersView() {
           const storesRes = await businessApi.getMyStores(bizId);
           if (storesRes.success && Array.isArray(storesRes.data)) {
             setStores(storesRes.data);
-            if (storesRes.data.length > 0 && !selectedStoreId) {
-              setSelectedStoreId(storesRes.data[0].id);
-            }
           }
         } catch {
           // ignore
         }
       }
 
-      const res = await getSellerVouchers({ limit: 100 });
+      const res = await getSellerVouchers({
+        limit: 100,
+        storeId: selectedStoreId || undefined,
+      });
       if (res.success && res.data) {
         let items: Voucher[] = [];
         if (Array.isArray(res.data)) {
@@ -388,20 +388,23 @@ export function SellerVouchersView() {
     const total = vouchers.length;
     const now = new Date();
     let active = 0;
+    let upcoming = 0;
     let inactive = 0;
     let expired = 0;
     let usedUp = 0;
 
     vouchers.forEach((v) => {
       const isExpired = new Date(v.expiresAt) < now;
+      const isUpcoming = new Date(v.startsAt) > now;
       const isUsedUp = v.totalUsage > 0 && v.currentUsage >= v.totalUsage;
       if (isExpired || v.status === 'EXPIRED') expired++;
       else if (isUsedUp || v.status === 'USED_UP') usedUp++;
       else if (v.status === 'INACTIVE') inactive++;
+      else if (isUpcoming && v.status === 'ACTIVE') upcoming++;
       else if (v.status === 'ACTIVE') active++;
     });
 
-    return { total, active, inactive, expired, usedUp };
+    return { total, active, upcoming, inactive, expired, usedUp };
   }, [vouchers]);
 
   // Filtered Vouchers
@@ -409,11 +412,14 @@ export function SellerVouchersView() {
     const now = new Date();
     return vouchers.filter((v) => {
       const isExpired = new Date(v.expiresAt) < now || v.status === 'EXPIRED';
+      const isUpcoming = new Date(v.startsAt) > now;
       const isUsedUp = (v.totalUsage > 0 && v.currentUsage >= v.totalUsage) || v.status === 'USED_UP';
 
       // Tab filter
       if (activeTab === 'ACTIVE') {
-        if (v.status !== 'ACTIVE' || isExpired || isUsedUp) return false;
+        if (v.status !== 'ACTIVE' || isUpcoming || isExpired || isUsedUp) return false;
+      } else if (activeTab === 'UPCOMING') {
+        if (v.status !== 'ACTIVE' || !isUpcoming || isExpired) return false;
       } else if (activeTab === 'INACTIVE') {
         if (v.status !== 'INACTIVE' || isExpired) return false;
       } else if (activeTab === 'EXPIRED') {
@@ -1052,6 +1058,7 @@ export function SellerVouchersView() {
           tabs={[
             { id: 'ALL', label: 'Tất Cả', count: counts.total },
             { id: 'ACTIVE', label: 'Đang Hoạt Động', count: counts.active },
+            { id: 'UPCOMING', label: 'Sắp Diễn Ra', count: counts.upcoming },
             { id: 'INACTIVE', label: 'Tạm Tắt', count: counts.inactive },
             { id: 'EXPIRED', label: 'Hết Hạn', count: counts.expired },
             { id: 'USED_UP', label: 'Hết Lượt Dùng', count: counts.usedUp },
@@ -1060,26 +1067,43 @@ export function SellerVouchersView() {
           onChange={setActiveTab}
         />
 
-        <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo mã hoặc tên voucher..."
-            className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto shrink-0">
+          {stores.length > 1 && (
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="px-3 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
+              <option value="">Tất cả gian hàng của tôi ({stores.length})</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
           )}
+
+          <div className="relative w-full md:w-72 shrink-0">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
+              search
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo mã hoặc tên voucher..."
+              className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+              >
+                <span className="material-symbols-outlined text-xs">close</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1122,6 +1146,7 @@ export function SellerVouchersView() {
               {paginatedVouchers.map((voucher) => {
                 const now = new Date();
                 const isExpired = new Date(voucher.expiresAt) < now;
+                const isUpcoming = new Date(voucher.startsAt) > now;
                 const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
                 const isActionLoading = actionLoadingId === voucher.id;
 
@@ -1137,9 +1162,12 @@ export function SellerVouchersView() {
                 } else if (voucher.status === 'INACTIVE') {
                   statusBadgeVariant = 'neutral';
                   statusLabel = 'Tạm Tắt';
+                } else if (isUpcoming) {
+                  statusBadgeVariant = 'info';
+                  statusLabel = 'Sắp Diễn Ra';
                 } else {
                   statusBadgeVariant = 'success';
-                  statusLabel = 'Hoạt Động';
+                  statusLabel = 'Đang Diễn Ra';
                 }
 
                 return (

@@ -9,6 +9,7 @@ import {
   IsArray,
   IsUrl,
   Min,
+  Max,
   MaxLength,
 } from "class-validator";
 import { Type } from "class-transformer";
@@ -18,6 +19,12 @@ export enum FlashSaleStatus {
   SCHEDULED = "SCHEDULED",
   ACTIVE = "ACTIVE",
   ENDED = "ENDED",
+  CANCELLED = "CANCELLED",
+}
+
+export enum FlashSaleScope {
+  PLATFORM = "PLATFORM",
+  SHOP = "SHOP",
 }
 
 export class CreateFlashSaleDto {
@@ -36,13 +43,59 @@ export class CreateFlashSaleDto {
   @IsOptional()
   bannerUrl?: string;
 
-  @ApiProperty({ example: "2026-08-01T00:00:00Z" })
+  @ApiPropertyOptional({ enum: FlashSaleScope, default: FlashSaleScope.PLATFORM })
+  @IsEnum(FlashSaleScope)
+  @IsOptional()
+  scope?: FlashSaleScope = FlashSaleScope.PLATFORM;
+
+  @ApiPropertyOptional({ description: "Store ID (if created by seller)" })
+  @IsOptional()
+  storeId?: string;
+
+  @ApiPropertyOptional({ example: "2026-08-01T00:00:00Z", description: "Thời gian mở đăng ký cho shop (Platform)" })
+  @IsDateString()
+  @IsOptional()
+  registrationStartsAt?: string;
+
+  @ApiPropertyOptional({ example: "2026-08-01T02:00:00Z", description: "Thời gian kết thúc đăng ký cho shop (Platform)" })
+  @IsDateString()
+  @IsOptional()
+  registrationEndsAt?: string;
+
+  @ApiProperty({ example: "2026-08-01T02:02:00Z", description: "Thời gian bắt đầu áp dụng Flash Sale" })
   @IsDateString()
   startsAt: string;
 
-  @ApiProperty({ example: "2026-08-31T23:59:59Z" })
+  @ApiProperty({ example: "2026-08-01T06:00:00Z", description: "Thời gian kết thúc Flash Sale" })
   @IsDateString()
   endsAt: string;
+
+  @ApiPropertyOptional({ example: 1, default: 1, description: "Số lượng cửa hàng tối thiểu tham gia (Platform)" })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  minStores?: number = 1;
+
+  @ApiPropertyOptional({ example: 10, default: 10, description: "Số lượng cửa hàng tối đa tham gia (Platform)" })
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  @IsOptional()
+  maxStores?: number = 10;
+
+  @ApiPropertyOptional({ example: 30, default: 30, description: "Số phần trăm trợ giá toàn sàn (20% - 80%)" })
+  @IsNumber()
+  @Min(20)
+  @Max(80)
+  @IsOptional()
+  discountPercent?: number = 30;
+
+  @ApiPropertyOptional({ example: 1, default: 1, description: "Số lượng sản phẩm tối đa cho mỗi khách hàng" })
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  maxPerUser?: number = 1;
 }
 
 export class CreateFlashSaleItemDto {
@@ -93,6 +146,16 @@ export class FlashSaleQueryDto {
   @IsEnum(FlashSaleStatus)
   @IsOptional()
   status?: FlashSaleStatus;
+
+  @ApiPropertyOptional({ enum: FlashSaleScope })
+  @IsEnum(FlashSaleScope)
+  @IsOptional()
+  scope?: FlashSaleScope;
+
+  @ApiPropertyOptional({ description: "Store ID" })
+  @IsUUID()
+  @IsOptional()
+  storeId?: string;
 }
 
 export class FlashSaleItemQueryDto {

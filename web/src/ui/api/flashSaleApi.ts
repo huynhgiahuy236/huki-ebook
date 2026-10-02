@@ -1,14 +1,19 @@
 import { apiClient } from "./apiClient";
 import type { ApiResponse } from "./types";
 
+export type FlashSaleScope = "PLATFORM" | "SHOP";
+
 export interface FlashSaleItem {
   id: string;
   flashSaleId: string;
   flashSaleName?: string;
+  scope?: FlashSaleScope;
+  storeId?: string | null;
   bookId: string;
   bookTitle?: string;
   bookSlug?: string;
   coverUrl?: string;
+  author?: string;
   originalPrice: number;
   salePrice: number;
   discount: number;
@@ -21,6 +26,7 @@ export interface FlashSaleItem {
   maxPerUser: number;
   startsAt: string;
   endsAt: string;
+  format?: string;
 }
 
 export interface FlashSaleSlot {
@@ -28,20 +34,49 @@ export interface FlashSaleSlot {
   name: string;
   description?: string;
   bannerUrl?: string;
+  scope?: FlashSaleScope;
+  storeId?: string | null;
+  storeName?: string;
+  storeAvatar?: string;
+  registrationStartsAt?: string | null;
+  registrationEndsAt?: string | null;
   startsAt: string;
   endsAt: string;
-  status: "SCHEDULED" | "ACTIVE" | "ENDED";
+  minStores?: number;
+  maxStores?: number;
+  discountPercent?: number;
+  maxPerUser?: number;
+  participatingStoresCount?: number;
+  isUserStoreParticipating?: boolean;
+  isRegistrationOpen?: boolean;
+  registrationRemainingSeconds?: number;
+  startsInSeconds?: number;
+  status: "SCHEDULED" | "ACTIVE" | "ENDED" | "CANCELLED";
   remainingSeconds: number;
   totalItems: number;
   items: FlashSaleItem[];
+}
+
+export interface ShopFlashSaleGroup {
+  storeId: string;
+  storeName: string;
+  storeAvatar: string;
+  campaigns: FlashSaleSlot[];
 }
 
 export interface CreateFlashSalePayload {
   name: string;
   description?: string;
   bannerUrl?: string;
+  scope?: FlashSaleScope;
+  registrationStartsAt?: string;
+  registrationEndsAt?: string;
   startsAt: string;
   endsAt: string;
+  minStores?: number;
+  maxStores?: number;
+  discountPercent?: number;
+  maxPerUser?: number;
 }
 
 export interface CreateFlashSaleItemPayload {
@@ -112,21 +147,33 @@ export function getCachedFlashSale(bookId: string): FlashSaleItem | null {
 }
 
 export const flashSaleApi = {
-  getAll: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales?limit=100", {
+  getAll: async (params?: { scope?: FlashSaleScope; status?: string }): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const query = new URLSearchParams({ limit: '100' });
+    if (params?.scope) query.set('scope', params.scope);
+    if (params?.status) query.set('status', params.status);
+    return apiClient<FlashSaleSlot[]>(`/flash-sales?${query.toString()}`, {
       method: "GET",
     });
   },
-  getTimeSlots: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/slots", { method: "GET" });
+  getTimeSlots: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/slots?scope=${scope}` : "/flash-sales/slots";
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
   },
 
-  getActiveFlashSales: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/active", { method: "GET" });
+  getActiveFlashSales: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/active?scope=${scope}` : "/flash-sales/active";
+    return apiClient<FlashSaleSlot[]>(url, { method: "GET" });
   },
 
-  getUpcomingFlashSales: async (): Promise<ApiResponse<FlashSaleSlot[]>> => {
-    return apiClient<FlashSaleSlot[]>("/flash-sales/upcoming", {
+  getGroupedShopFlashSales: async (): Promise<ApiResponse<ShopFlashSaleGroup[]>> => {
+    return apiClient<ShopFlashSaleGroup[]>("/flash-sales/shops/grouped", {
+      method: "GET",
+    });
+  },
+
+  getUpcomingFlashSales: async (scope?: FlashSaleScope): Promise<ApiResponse<FlashSaleSlot[]>> => {
+    const url = scope ? `/flash-sales/upcoming?scope=${scope}` : "/flash-sales/upcoming";
+    return apiClient<FlashSaleSlot[]>(url, {
       method: "GET",
     });
   },
@@ -268,6 +315,14 @@ export const flashSaleApi = {
     return apiClient<any>(`/flash-sales/seller/items/${itemId}`, {
       method: "PUT",
       body: JSON.stringify(payload),
+    });
+  },
+
+  sellerDeleteSlot: async (
+    slotId: string,
+  ): Promise<ApiResponse<any>> => {
+    return apiClient<any>(`/flash-sales/seller/slots/${slotId}`, {
+      method: "DELETE",
     });
   },
 };

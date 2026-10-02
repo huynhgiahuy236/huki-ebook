@@ -638,9 +638,36 @@ export default function BookDetailPage() {
       showToast('Sách giấy hiện đang tạm hết hàng!', 'error');
       return;
     }
-    const existing = cartItems?.find((i) => i.bookId === book.id || i.id === `${book.id}-${selectedFormat}`);
-    if (!existing) handleAddToCart();
-    router.push('/checkout');
+    if (flashSaleInfo && quantity > (flashSaleInfo.maxPerUser || 1)) {
+      showToast(`Flash Sale giới hạn tối đa ${flashSaleInfo.maxPerUser || 1} cuốn/khách`, 'warning');
+      return;
+    }
+
+    const buyFormat = selectedFormat === 'ebook' ? 'DIGITAL' : 'PHYSICAL';
+    const buyPrice = flashSaleInfo ? flashSaleInfo.salePrice : currentPrice.price;
+    const buyOriginalPrice = flashSaleInfo ? flashSaleInfo.originalPrice : currentPrice.originalPrice;
+
+    const directItem = {
+      id: `${book.id}-direct-${Date.now()}`,
+      bookId: book.id,
+      title: book.title,
+      author: typeof book.author === 'string' ? book.author : (book.author as any)?.name || 'Tác giả HUKI',
+      price: buyPrice,
+      originalPrice: buyOriginalPrice,
+      cover: book.cover || book.coverImage,
+      quantity: quantity || 1,
+      format: buyFormat,
+      type: buyFormat === 'DIGITAL' ? 'ebook' : 'physical',
+      storeId: realBook?.businessId || realBook?.storeId || storeInfo?.id || publisherProfile?.id || 'huki-official',
+      flashSaleId: flashSaleInfo?.flashSaleId,
+      isFlashSale: Boolean(flashSaleInfo?.isFlashSale),
+    };
+
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('huki_direct_checkout_item', JSON.stringify(directItem));
+    }
+
+    router.push('/checkout?direct=1');
   };
 
   return (

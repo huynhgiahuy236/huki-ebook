@@ -21,6 +21,7 @@ import {
   FlashSaleQueryDto,
   FlashSaleItemQueryDto,
   FlashSaleStatus,
+  FlashSaleScope,
   ValidateQuotaDto,
   ReserveFlashSaleDto,
   ReleaseFlashSaleOrderDto,
@@ -52,21 +53,27 @@ export class FlashSalesController {
   }
 
   @Get("active")
-  @ApiOperation({ summary: "Get active flash sales with items" })
-  getActive() {
-    return this.flashSales.getActiveFlashSales();
+  @ApiOperation({ summary: "Get active flash sales with items (optionally filtered by scope PLATFORM or SHOP)" })
+  getActive(@Query("scope") scope?: FlashSaleScope) {
+    return this.flashSales.getActiveFlashSales(scope);
+  }
+
+  @Get("shops/grouped")
+  @ApiOperation({ summary: "Get active shop flash sales grouped by store" })
+  getGroupedShops() {
+    return this.flashSales.getGroupedShopFlashSales();
   }
 
   @Get("upcoming")
   @ApiOperation({ summary: "Get upcoming flash sale campaigns" })
-  getUpcoming() {
-    return this.flashSales.getUpcomingFlashSales();
+  getUpcoming(@Query("scope") scope?: FlashSaleScope) {
+    return this.flashSales.getUpcomingFlashSales(scope);
   }
 
   @Get("slots")
   @ApiOperation({ summary: "Get all daily flash sale time slots" })
-  getTimeSlots() {
-    return this.flashSales.getTimeSlots();
+  getTimeSlots(@Query("scope") scope?: FlashSaleScope) {
+    return this.flashSales.getTimeSlots(scope);
   }
 
   @Get("items")

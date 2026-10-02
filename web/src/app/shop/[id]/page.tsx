@@ -236,6 +236,19 @@ export default function ShopPage() {
         const idRes = await businessApi.getBusinessById(identifier);
         if (idRes.success && idRes.data) {
           businessData = idRes.data;
+        } else {
+          // Fallback to match across all public businesses (by storeId, ownerId, slug)
+          const allBizRes = await businessApi.getPublicBusinesses({ limit: 100 });
+          if (allBizRes.success && Array.isArray(allBizRes.data)) {
+            const matched = allBizRes.data.find(
+              (b) =>
+                b.id === identifier ||
+                b.ownerId === identifier ||
+                b.slug === identifier ||
+                b.stores?.some((s) => s.id === identifier || s.slug === identifier),
+            );
+            if (matched) businessData = matched;
+          }
         }
       }
       setBusiness(businessData || null);
@@ -271,14 +284,34 @@ export default function ShopPage() {
         .getVouchersByStore(sId)
         .then((res) => {
           if (res.success && Array.isArray(res.data)) {
-            setShopVouchers(res.data.filter((v: any) => v.status === 'ACTIVE'));
+            const now = new Date();
+            setShopVouchers(
+              res.data.filter((v: any) => {
+                const starts = new Date(v.startsAt);
+                const expires = new Date(v.expiresAt);
+                return v.status === 'ACTIVE' && starts <= now && expires >= now;
+              })
+            );
           }
         })
         .catch(() => setShopVouchers([]));
-    }
-  }, [business]);
 
-  const handleSaveShopVoucher = (voucher: any) => {
+      if (user) {
+        voucherApi.getWalletVouchers().then((wRes) => {
+          if (wRes.success && wRes.data) {
+            const savedFromWallet: string[] = [];
+            wRes.data.platform?.all?.forEach((pv: any) => pv.code && savedFromWallet.push(pv.code));
+            wRes.data.stores?.forEach((sg: any) => {
+              sg.vouchers?.forEach((sv: any) => sv.code && savedFromWallet.push(sv.code));
+            });
+            setSavedVouchers(savedFromWallet);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [business, user]);
+
+  const handleSaveShopVoucher = async (voucher: any) => {
     if (!user) {
       showToast('Vui lòng đăng nhập để thu thập voucher ưu đãi!', 'warning');
       return;
@@ -302,8 +335,23 @@ export default function ShopPage() {
       showToast(`Mã ${code} đã có trong ví của bạn!`, 'info');
       return;
     }
-    setSavedVouchers((prev) => [...prev, code]);
-    showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+
+    if (voucher.id) {
+      try {
+        const res = await voucherApi.saveVoucher(voucher.id);
+        if (res.success) {
+          setSavedVouchers((prev) => [...prev, code]);
+          showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+        } else {
+          showToast((res as any)?.message || 'Không thể lưu mã voucher', 'error');
+        }
+      } catch (e: any) {
+        showToast(e?.message || 'Không thể lưu mã voucher', 'error');
+      }
+    } else {
+      setSavedVouchers((prev) => [...prev, code]);
+      showToast(`Đã lưu voucher ${code} vào ví của bạn thành công!`, 'success');
+    }
   };
 
   const handleFollow = () => {
@@ -334,12 +382,17 @@ export default function ShopPage() {
         else if (catStr.includes('van-hoc') || catStr.includes('literature')) catSlug = 'literature';
       }
 
+      const targetStoreId = business?.stores?.[0]?.id || business?.id || rb.storeId || rb.businessId || 'huki-official';
+      const targetBusinessId = business?.id || rb.businessId || targetStoreId;
+
       return {
         ...normalized,
         id: rb.id,
         title: rb.title,
         author: (typeof rb.author === 'object' ? rb.author?.name : rb.author) || 'Tác giả HUKI',
         publisher: business?.name || normalized.publisher,
+        storeId: targetStoreId,
+        businessId: targetBusinessId,
         category: catSlug,
         format: fmt,
         formatType: fmtType,

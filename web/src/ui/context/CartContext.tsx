@@ -12,6 +12,7 @@ export interface CartItem {
   author: string;
   publisher: string;
   storeId: string;
+  businessId?: string;
   format: string;
   apiFormat?: string;
   formatTag?: string;
@@ -131,17 +132,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Resolve store ID strictly from server book metadata
     const resolvedStoreId =
+      (serverItem.book?.storeId && serverItem.book.storeId !== 'huki-official' && serverItem.book.storeId) ||
+      (serverItem.book?.businessId && serverItem.book.businessId !== 'huki-official' && serverItem.book.businessId) ||
+      (serverItem.storeId && serverItem.storeId !== 'huki-official' && serverItem.storeId) ||
+      (serverItem.businessId && serverItem.businessId !== 'huki-official' && serverItem.businessId) ||
+      (existing?.storeId && existing.storeId !== 'huki-official' && existing.storeId) ||
       serverItem.book?.storeId ||
-      serverItem.book?.businessId ||
-      serverItem.storeId ||
       'huki-official';
+
+    const resolvedBusinessId =
+      (serverItem.book?.businessId && serverItem.book.businessId !== 'huki-official' && serverItem.book.businessId) ||
+      (serverItem.book?.storeId && serverItem.book.storeId !== 'huki-official' && serverItem.book.storeId) ||
+      (serverItem.businessId && serverItem.businessId !== 'huki-official' && serverItem.businessId) ||
+      (serverItem.storeId && serverItem.storeId !== 'huki-official' && serverItem.storeId) ||
+      (existing?.businessId && existing.businessId !== 'huki-official' && existing.businessId) ||
+      resolvedStoreId;
 
     // Resolve publisher/store dynamically from server book metadata
     const resolvedPublisher =
-      serverItem.book?.publisher ||
+      (serverItem.book?.publisher && serverItem.book.publisher !== 'Gian Hàng HUKI' && serverItem.book.publisher) ||
       serverItem.book?.business?.name ||
       serverItem.book?.business?.displayName ||
-      existing?.publisher ||
+      (existing?.publisher && existing.publisher !== 'Gian Hàng HUKI' && existing.publisher) ||
       'Gian Hàng HUKI';
 
     return {
@@ -152,6 +164,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       author: serverItem.book?.author || existing?.author || 'Đang cập nhật',
       publisher: resolvedPublisher,
       storeId: resolvedStoreId,
+      businessId: resolvedBusinessId,
       format: isPhysical ? 'Sách giấy' : isEbook ? 'Ebook Số' : existing?.format || 'Sách giấy',
       apiFormat: serverItem.format,
       formatTag: isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền',
@@ -322,22 +335,53 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let bookId = '';
 
       if (itemOrBook && typeof itemOrBook === 'object' && itemOrBook.title && itemOrBook.price) {
-        const isPhysical = itemOrBook.type === 'physical' || itemOrBook.format?.toLowerCase().includes('giấy');
+        const isEbook =
+          itemOrBook.type === 'ebook' ||
+          format === 'ebook' ||
+          (itemOrBook.format && (itemOrBook.format === 'Ebook Số' || itemOrBook.format === 'DIGITAL' || itemOrBook.format === 'ebook'));
+
+        const isCombo =
+          itemOrBook.type === 'hybrid' ||
+          itemOrBook.type === 'combo' ||
+          format === 'combo' ||
+          format === 'hybrid' ||
+          (itemOrBook.format && (itemOrBook.format.toLowerCase().includes('combo') || itemOrBook.format.toLowerCase().includes('hybrid')));
+
+        const isPhysical =
+          !isEbook &&
+          (itemOrBook.type === 'physical' ||
+            format === 'paper' ||
+            format === 'physical' ||
+            Boolean(isCombo) ||
+            (itemOrBook.format && (itemOrBook.format.toLowerCase().includes('giấy') || itemOrBook.format === 'PHYSICAL')));
+
         apiFormat = isPhysical ? 'PHYSICAL' : 'DIGITAL';
         bookId = itemOrBook.bookId || itemOrBook.id;
 
         const resolvedStoreId =
+          (itemOrBook.storeId && itemOrBook.storeId !== 'huki-official' && itemOrBook.storeId) ||
+          (itemOrBook.businessId && itemOrBook.businessId !== 'huki-official' && itemOrBook.businessId) ||
+          (itemOrBook.book?.storeId && itemOrBook.book.storeId !== 'huki-official' && itemOrBook.book.storeId) ||
+          (itemOrBook.book?.businessId && itemOrBook.book.businessId !== 'huki-official' && itemOrBook.book.businessId) ||
+          (itemOrBook as any).store?.id ||
+          (itemOrBook as any).business?.id ||
           itemOrBook.storeId ||
-          itemOrBook.businessId ||
-          itemOrBook.book?.storeId ||
-          itemOrBook.book?.businessId ||
           'huki-official';
 
+        const resolvedBusinessId =
+          (itemOrBook.businessId && itemOrBook.businessId !== 'huki-official' && itemOrBook.businessId) ||
+          (itemOrBook.storeId && itemOrBook.storeId !== 'huki-official' && itemOrBook.storeId) ||
+          (itemOrBook.book?.businessId && itemOrBook.book.businessId !== 'huki-official' && itemOrBook.book.businessId) ||
+          (itemOrBook.book?.storeId && itemOrBook.book.storeId !== 'huki-official' && itemOrBook.book.storeId) ||
+          (itemOrBook as any).business?.id ||
+          resolvedStoreId;
+
         const resolvedPublisher =
-          itemOrBook.publisher ||
+          (itemOrBook.publisher && itemOrBook.publisher !== 'Gian Hàng HUKI' && itemOrBook.publisher) ||
           itemOrBook.business?.displayName ||
           itemOrBook.business?.name ||
           itemOrBook.book?.publisher ||
+          itemOrBook.publisher ||
           'Gian Hàng HUKI';
 
         newItem = {
@@ -348,9 +392,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           author: itemOrBook.author || 'Đang cập nhật',
           publisher: resolvedPublisher,
           storeId: resolvedStoreId,
-          format: itemOrBook.format || (isPhysical ? 'Sách giấy' : 'Ebook Số'),
+          businessId: resolvedBusinessId,
+          format: itemOrBook.format || (isCombo ? 'Combo Hybrid' : isPhysical ? 'Sách giấy' : 'Ebook Số'),
           apiFormat,
-          formatTag: itemOrBook.formatTag || (isPhysical ? 'Bìa mềm cao cấp' : 'Ebook DRM Bản quyền'),
+          formatTag:
+            itemOrBook.formatTag ||
+            (isCombo
+              ? 'Sách Giấy + Ebook trọn đời'
+              : isPhysical
+                ? 'Bìa mềm cao cấp'
+                : 'Ebook DRM Bản quyền'),
           price: Number(itemOrBook.price),
           addedPrice: Number(itemOrBook.price),
           originalPrice: Number(itemOrBook.originalPrice || itemOrBook.price * 1.3),
@@ -374,14 +425,28 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const formatName = isEbook ? 'Ebook Số' : (isCombo ? 'Combo Hybrid' : 'Sách giấy');
 
         const resolvedStoreId =
+          (book.storeId && book.storeId !== 'huki-official' && book.storeId) ||
+          (book.businessId && book.businessId !== 'huki-official' && book.businessId) ||
+          (book.book?.storeId && book.book.storeId !== 'huki-official' && book.book.storeId) ||
+          (book.book?.businessId && book.book.businessId !== 'huki-official' && book.book.businessId) ||
+          (book as any).store?.id ||
+          (book as any).business?.id ||
           book.storeId ||
-          book.businessId ||
           'huki-official';
 
+        const resolvedBusinessId =
+          (book.businessId && book.businessId !== 'huki-official' && book.businessId) ||
+          (book.storeId && book.storeId !== 'huki-official' && book.storeId) ||
+          (book.book?.businessId && book.book.businessId !== 'huki-official' && book.book.businessId) ||
+          (book.book?.storeId && book.book.storeId !== 'huki-official' && book.book.storeId) ||
+          (book as any).business?.id ||
+          resolvedStoreId;
+
         const resolvedPublisher =
-          book.publisher ||
+          (book.publisher && book.publisher !== 'Gian Hàng HUKI' && book.publisher) ||
           book.business?.displayName ||
           book.business?.name ||
+          book.publisher ||
           'Gian Hàng HUKI';
 
         newItem = {
@@ -392,6 +457,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           author: book.author || 'Tác giả',
           publisher: resolvedPublisher,
           storeId: resolvedStoreId,
+          businessId: resolvedBusinessId,
           format: formatName,
           apiFormat,
           formatTag: isEbook ? 'Ebook DRM Bản quyền' : (isCombo ? 'Sách Giấy + Ebook trọn đời' : 'Bìa mềm cao cấp'),

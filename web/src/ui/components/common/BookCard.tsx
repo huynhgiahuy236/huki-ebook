@@ -24,6 +24,8 @@ export interface BookCardData {
   sales?: number | string;
   publisher?: string | { name?: string; displayName?: string } | null;
   shop?: string;
+  storeId?: string;
+  businessId?: string;
   format?: string | { name?: string } | null;
   formatType?: 'ebook' | 'physical' | 'hybrid' | string;
   hasEbook?: boolean;
@@ -139,9 +141,34 @@ export default function BookCard({
     if (isMock) return;
     e.preventDefault();
     e.stopPropagation();
+    const effectiveStoreId =
+      book.storeId ||
+      book.businessId ||
+      (book as any).store?.id ||
+      (book as any).business?.id ||
+      'huki-official';
+    const effectiveBusinessId =
+      book.businessId ||
+      book.storeId ||
+      (book as any).business?.id ||
+      effectiveStoreId;
+
+    const resolvedFormat =
+      formatType === 'hybrid'
+        ? 'Combo Hybrid'
+        : formatType === 'physical'
+          ? 'Sách giấy'
+          : 'Ebook Số';
+
+    const resolvedType =
+      formatType === 'hybrid' || formatType === 'physical'
+        ? 'physical'
+        : 'ebook';
+
     addToCart(
       {
         id: isFlashSale ? `${book.id}-flash-sale` : book.id,
+        bookId: book.id,
         title: book.title,
         price: price,
         priceEbook: book.priceEbook ?? price,
@@ -151,11 +178,18 @@ export default function BookCard({
         cover: book.cover || book.coverUrl,
         author: typeof book.author === 'string' ? book.author : authorName,
         publisher: publisher,
+        storeId: effectiveStoreId,
+        businessId: effectiveBusinessId,
+        format: resolvedFormat,
+        type: resolvedType,
         hasEbook: book.hasEbook ?? (formatType === 'ebook' || formatType === 'hybrid'),
         hasPaper: book.hasPaper ?? (formatType === 'physical' || formatType === 'hybrid'),
-        stock: book.stock ?? 99
+        stock: book.stock ?? 99,
+        book: (book as any).book || book,
+        store: (book as any).store,
+        business: (book as any).business,
       },
-      formatType === 'physical' ? 'paper' : 'ebook',
+      formatType === 'hybrid' ? 'hybrid' : formatType === 'physical' ? 'paper' : 'ebook',
       1
     );
   };
@@ -164,6 +198,18 @@ export default function BookCard({
     if (isMock) return;
     e.preventDefault();
     e.stopPropagation();
+
+    const effectiveStoreId =
+      book.storeId ||
+      book.businessId ||
+      (book as any).store?.id ||
+      (book as any).business?.id ||
+      'huki-official';
+    const effectiveBusinessId =
+      book.businessId ||
+      book.storeId ||
+      (book as any).business?.id ||
+      effectiveStoreId;
 
     const directItem = {
       id: `${book.id}-direct-flash-sale`,
@@ -176,7 +222,9 @@ export default function BookCard({
       quantity: 1,
       format: formatType === 'ebook' ? 'DIGITAL' : 'PHYSICAL',
       type: formatType === 'ebook' ? 'ebook' : 'physical',
-      storeId: typeof book.publisher === 'string' ? book.publisher : (book.shop || 'huki-official'),
+      storeId: effectiveStoreId,
+      businessId: effectiveBusinessId,
+      publisher: publisher,
       flashSaleId: flashSale?.flashSaleId,
       isFlashSale: isFlashSale,
     };
