@@ -127,6 +127,16 @@ export const businessApi = {
   },
 
   /**
+   * Cập nhật thông tin Doanh nghiệp (Owner) - ngân hàng, thông tin chung
+   */
+  async updateBusiness(id: string, payload: Partial<BusinessData>): Promise<ApiResponse<BusinessData>> {
+    return apiClient<BusinessData>(`/businesses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
    * Lấy danh sách tất cả Doanh nghiệp (Dành cho Public/Admin HUKI)
    */
   async getAllBusinesses(params?: { status?: string; search?: string; page?: number; limit?: number }): Promise<ApiResponse<BusinessData[]>> {

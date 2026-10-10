@@ -89,12 +89,13 @@ export default function SellerEscrowPage() {
     fetchEscrowItems();
   }, [fetchEscrowItems]);
 
-  // Comprehensive stats
+  // Comprehensive stats (Excluding cancelled orders)
   const stats = useMemo(() => {
-    const pendingItems = escrowItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
-    const holdingItems = escrowItems.filter((it) => it.escrowStatus === 'HOLDING');
-    const releasedItems = escrowItems.filter((it) => it.escrowStatus === 'RELEASED');
-    const frozenItems = escrowItems.filter((it) => it.escrowStatus === 'FROZEN');
+    const validItems = escrowItems.filter((it) => it.orderStatus !== 'CANCELLED' && (it as any).status !== 'CANCELLED');
+    const pendingItems = validItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
+    const holdingItems = validItems.filter((it) => it.escrowStatus === 'HOLDING');
+    const releasedItems = validItems.filter((it) => it.escrowStatus === 'RELEASED');
+    const frozenItems = validItems.filter((it) => it.escrowStatus === 'FROZEN');
 
     const sumNet = (arr: SellerEscrowItem[]) =>
       arr.reduce((s, it) => s + (Number(it.sellerNet) || Math.round(Number(it.subtotal || 0) * 0.95)), 0);
@@ -106,7 +107,7 @@ export default function SellerEscrowPage() {
     const totalEscrowHolding = pendingAmount + holdingAmount + frozenAmount;
 
     return {
-      totalCount: escrowItems.length,
+      totalCount: validItems.length,
       pendingCount: pendingItems.length,
       holdingCount: holdingItems.length,
       releasedCount: releasedItems.length,
@@ -122,6 +123,11 @@ export default function SellerEscrowPage() {
   // Filtering Logic
   const filteredItems = useMemo(() => {
     return escrowItems.filter((it) => {
+      // Exclude CANCELLED orders
+      if (it.orderStatus === 'CANCELLED' || (it as any).status === 'CANCELLED') {
+        return false;
+      }
+
       // 1. Status Filter
       if (activeStatusTab !== 'ALL' && it.escrowStatus !== activeStatusTab) {
         return false;
@@ -531,23 +537,39 @@ export default function SellerEscrowPage() {
 
                         {/* 2. Sách & Phân loại */}
                         <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={it.bookTitle}>
-                              {it.bookTitle}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span
-                                className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                  isDigital
-                                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                }`}
-                              >
-                                {isDigital ? '📱 Ebook' : '📦 Sách Giấy'}
+                          <div className="flex items-center gap-2.5">
+                            {it.coverUrl ? (
+                              <img
+                                src={it.coverUrl}
+                                alt={it.bookTitle}
+                                className="w-9 h-12 object-cover rounded-md border border-slate-200 shrink-0 shadow-2xs"
+                                onError={(e) => {
+                                  (e.currentTarget as HTMLElement).style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-9 h-12 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                                <span className="material-symbols-outlined text-base">menu_book</span>
+                              </div>
+                            )}
+                            <div className="flex flex-col gap-0.5 min-w-0">
+                              <span className="font-medium text-slate-900 text-xs line-clamp-1" title={it.bookTitle}>
+                                {it.bookTitle}
                               </span>
-                              <span className="text-[11px] text-slate-400">
-                                SL: {it.quantity} × {formatVND(it.unitPrice)}
-                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                                    isDigital
+                                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  }`}
+                                >
+                                  {isDigital ? '📱 Ebook' : '📦 Sách Giấy'}
+                                </span>
+                                <span className="text-[11px] text-slate-400">
+                                  SL: {it.quantity} × {formatVND(it.unitPrice)}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </td>

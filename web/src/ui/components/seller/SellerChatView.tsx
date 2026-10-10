@@ -1,546 +1,1119 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
+import { useAuth } from '@/ui/context/AuthContext';
+import UserAvatar from '@/ui/components/common/UserAvatar';
+import { chatService, type ChatConversation, type ChatMessage } from '@/ui/services/chatService';
+import { useChatSocket } from '@/ui/hooks/useChatSocket';
 
-interface Message {
-  id: number;
+export interface SellerChatMessage {
+  id: string | number;
   sender: 'customer' | 'seller';
   text: string;
   time: string;
-  status: 'read' | 'delivered' | 'sent';
+  status?: 'read' | 'delivered' | 'sent';
+  type?: 'text' | 'voucher' | 'order_update' | 'product_card';
+  voucherCode?: string;
+  discountText?: string;
+  orderId?: string;
 }
 
-interface Customer {
+export interface SellerChatCustomer {
   id: string;
+  userId?: string;
   name: string;
-  tier: string;
-  avatar: string;
+  tier?: 'VIP Gold' | 'VIP Bạc' | 'Khách mới' | 'VIP Platinum';
+  avatar?: string;
   isOnline: boolean;
   lastMsg: string;
   lastTime: string;
-  product: string;
-  productCover: string;
   unread: number;
   hasOrder: boolean;
   isVip: boolean;
-  orderCount: number;
-  totalSpent: string;
-  orderId: string;
-  orderStatus: string;
+  orderCount?: number;
+  totalSpent?: string;
+  orderId?: string;
+  orderStatus?: string;
+  product?: {
+    id?: string;
+    title: string;
+    price: number;
+    format: string;
+    cover: string;
+  };
 }
 
-export function SellerChatView() {
-  const { showToast } = useToast();
+export interface SellerChatViewProps {
+  initialCustomers?: SellerChatCustomer[];
+}
 
-  const [activeCustomer, setActiveCustomer] = useState('cust-1');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'unread' | 'orders' | 'vip'>('all');
+export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
+  const { showToast } = useToast();
+  const { user, activeBusinessId } = useAuth();
+
+  const storeId = activeBusinessId || user?.business?.id || user?.memberships?.[0]?.businessId || '';
+  const storeName = user?.business?.name || 'Kênh Người Bán';
+
+  // Danh sách khách hàng hội thoại (trống khi chưa có dữ liệu từ DB/API)
+  const [customers, setCustomers] = useState<SellerChatCustomer[]>(initialCustomers || []);
+  const [activeCustomerId, setActiveCustomerId] = useState<string>(initialCustomers?.[0]?.id || '');
+  const [filterTab, setFilterTab] = useState<'all' | 'unread' | 'orders' | 'vip'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [messageInput, setMessageInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<Message[]>([
-    {
-      id: 1,
-      sender: 'customer',
-      text: 'Shop ơi cuốn Atomic Habits bản in bìa mềm có còn ấn bản kèm bookmark chữ ký tác giả không ạ?',
-      time: '09:32',
-      status: 'read',
-    },
-    {
-      id: 2,
-      sender: 'seller',
-      text: 'Dạ chào bạn Minh Trí! Ấn bản bìa mềm đợt xuất bản mới 2026 của Alpha Books bên em vẫn có đính kèm bookmark mạ vàng và mã kích hoạt Ebook DRM đọc thử bạn nhé.',
-      time: '09:34',
-      status: 'read',
-    },
-    {
-      id: 3,
-      sender: 'customer',
-      text: 'Tuyệt quá, mình vừa đặt combo Hybrid trong đơn #HUKI-8892401 rồi, shop bọc chống sốc kỹ giúp mình nha.',
-      time: '09:35',
-      status: 'read',
-    },
-    {
-      id: 4,
-      sender: 'seller',
-      text: 'Dạ NXB đã nhận đơn hàng #HUKI-8892401 và đang tiến hành đóng hộp carton 3 lớp kèm túi khí chống sốc chuyên dụng gửi bạn trong sáng nay ạ!',
-      time: '09:36',
-      status: 'delivered',
-    },
-  ]);
+  const [internalNote, setInternalNote] = useState('');
 
-  const customers: Customer[] = [
-    {
-      id: 'cust-1',
-      name: 'Nguyễn Minh Trí',
-      tier: 'VIP Gold',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB66Vs3T1qKYDqHJH9T1YbF1U4F-iJmD5-ZtisJSZ_Rq5BWICkEw6cXnhsSYKwRtS5mj3YjqpAeCNSyzqeojzgLJKa1W2iElPm2MbYIdj1cEIRBaV1oxpeDtuwQmgQXIhneczrAaZmcIwDH-tVC2RSJfPrc1j_-WslD8Erf38EA2VLPQI5m8R_4MNUhqHLx3so4YhtcJvoRM2dLxgd7QNEXoq7X0AEMb2fldw1N2S9BH2BCpuGCf9-vLg',
-      isOnline: true,
-      lastMsg: 'Tuyệt quá, mình vừa đặt combo...',
-      lastTime: '09:36',
-      product: 'Atomic Habits (Combo)',
-      productCover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
-      unread: 0,
-      hasOrder: true,
-      isVip: true,
-      orderCount: 6,
-      totalSpent: '1.850.000 ₫',
-      orderId: 'HUKI-8892401',
-      orderStatus: 'Đang vận chuyển',
-    },
-    {
-      id: 'cust-2',
-      name: 'Lê Thu Trang',
-      tier: 'VIP Bạc',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBvuLfGBqC2eCGItcHyomrcsFnLsXIVIF0qADKLeXJE7UJ6PPQbFsoLKheDBJWWrbnoXxroA7jQwO5QNeHdHuTpr-lNiVvPR-_lEqG07T5EHhcj9UqGqJZ1gZDHp-PYZDkxfFEuwDysVNr6yyoDgJ705PbrwGp6m93iXnzUusjpbUOAqo_MjIvjyXU2jgasaYoEaDRuqcq9BIdraZLWdu7Au3hT-y1iYWnY14HNzKi7stkdmMcaAkkbyA',
-      isOnline: false,
-      lastMsg: 'Em vừa nhận Ebook trên Web Reader rồi ạ...',
-      lastTime: '10:15',
-      product: 'Tâm Lý Học Về Tiền',
-      productCover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB8jItzbAJIC3KVerOwstn03tRIb9-Ua-_Ayd_gJXO9Ljzl9MhNj9E0jAA-NsUZdlcrAYh-V2ydL0x4auN0rpQFmfG80dSCVsSRl5SygWjzwm7BSaLIqLpTnnqyIIR4e97uyqE1XtnC_P81L9aQbRcwNPrYEr2gurkLh4by197FvJhU0Rc1dzF-Bm0K87BOLnRHSI9EHxRG7plWfXbgyqj6v_e9exxMoCv0Rj7YRvJgy89bi5tRX8Gg5Q',
-      unread: 1,
-      hasOrder: true,
-      isVip: false,
-      orderCount: 3,
-      totalSpent: '520.000 ₫',
-      orderId: 'HUKI-8874102',
-      orderStatus: 'Đã hoàn tất',
-    },
-    {
-      id: 'cust-3',
-      name: 'Trần Đức Kiên',
-      tier: 'Khách mới',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBg_cN5aJIOUQ2qSbhdl2i4scTc1NloqDQjftD7FSLc9uyj1JfPDhD92m8FGhTRl4Ks7CLRukUa4A6PZqa0ZIvYHN6BUWuqDk4kc2i8XphW2bhjpJIv4LqaEBtRzFsV9JCJFnuCKG3AOIJQsN4pcbhMSswho7T8cncPvhdAlILvBdJfn9tqpsu3F-Ig_FjBMf2wbnh1erqUZQKHOBmk9e5YJJpXySN0E6-XuKbUSIkPljKRR0BsM1JGKg',
-      isOnline: true,
-      lastMsg: 'Shop nhớ bọc chống sốc giúp mình nhé...',
-      lastTime: '09:40',
-      product: 'Sapiens: Lược Sử Loài Người',
-      productCover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC2H3l5c7_JP2T-qUtp7DCY42wLc1tMDdyQtRiGNH8LsvYEqbyEo-qNhVf3Y-KZ7Q487upiQuJrXSnZxfwkuBjlnOUhC1ckdcF1tq3pOW3BN48BgA7QIETZbXRTXLru6om1zQx1itIhe8B9R80sk9RnkV5_68mjjA7MX-1fEj0FAiAaHcySuAI3OFkRnGBT7ggCfz9PSVO64-R_x7QgsvkfhnbJvxNjkHVXfNnXcJ0fyKqOB3TYw8ZYHQ',
-      unread: 0,
-      hasOrder: true,
-      isVip: false,
-      orderCount: 1,
-      totalSpent: '215.000 ₫',
-      orderId: 'HUKI-8899201',
-      orderStatus: 'Chờ giao hàng',
-    },
-    {
-      id: 'cust-4',
-      name: 'Võ Hoàng Nam',
-      tier: 'VIP Platinum',
-      avatar: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCpTUISg-tnfY2rrFojWmbuCx5z779iKnlLgbGz_GLAahWWB8eXP59pYu32VuchN8TAUY2t9FFU636fN99eX09aUYBV7b6QmulGn_6VlfW6R2AZMukgt2emUGXS1AtVlTbpptOBW26u9Jn8STRX4LVTj7ztimGDT-59XVaEH1_8M_qJYFji6Jbp9VnE5CS-fKcM02gS5paQmBxB6SqTKyBbyxLQiEGLIS50Z_MTn9u9Gj0HWMnrBpOetw',
-      isOnline: true,
-      lastMsg: 'Cảm ơn shop, Ebook DRM đọc rất mượt!',
-      lastTime: 'Hôm qua',
-      product: 'Deep Work',
-      productCover: 'https://lh3.googleusercontent.com/aida-public/AB6AXuB06UJjwmySkWO-lcfIpp-tQX2isyHgJfCNHFeVGqet945k-QEyOGtoBJmOY5mkW4OO0_fqjb2L8ZhZHezfPSJFZeluYgaOYIVJoLOWpi5X2Gqos_sc2M5ByrCMUK2PtGJD4BttxIBcmlvNhw_LflzwFjhtZ7uDkAd5d9LQ_7OZzMZEFUN7GmHdxAq5tAn-Dhpsn-QIx2iYBDYtJhNS0pomV2jRyIDclpVgHqvuJ1t2E0dSgSeMI8lWyQ',
-      unread: 0,
-      hasOrder: true,
-      isVip: true,
-      orderCount: 14,
-      totalSpent: '4.290.000 ₫',
-      orderId: 'HUKI-8860293',
-      orderStatus: 'Đã hoàn tất',
-    },
-  ];
+  // Tin nhắn theo từng khách hàng (trống khi chưa có dữ liệu từ DB/API)
+  const [messagesByCustomer, setMessagesByCustomer] = useState<Record<string, SellerChatMessage[]>>({});
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!messageInput.trim()) return;
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-    const newMsg: Message = {
-      id: Date.now(),
-      sender: 'seller',
-      text: messageInput.trim(),
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent',
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' });
+  }, []);
+
+  // Helper map API message sang SellerChatMessage
+  const mapApiMessageToSellerMessage = useCallback((msg: ChatMessage, currentStoreId?: string): SellerChatMessage => {
+    const isSeller = msg.senderType === 'BUSINESS' || (Boolean(currentStoreId) && msg.senderId === currentStoreId);
+    const timeStr = msg.createdAt
+      ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '';
+    const statusStr: 'read' | 'delivered' | 'sent' =
+      msg.status === 'READ' ? 'read' : msg.status === 'DELIVERED' ? 'delivered' : 'sent';
+
+    const typeStr: 'text' | 'voucher' | 'order_update' | 'product_card' =
+      msg.messageType === 'VOUCHER'
+        ? 'voucher'
+        : msg.messageType === 'ORDER'
+          ? 'order_update'
+          : msg.messageType === 'BOOK'
+            ? 'product_card'
+            : 'text';
+
+    return {
+      id: msg.id,
+      sender: isSeller ? 'seller' : 'customer',
+      text: msg.content,
+      time: timeStr,
+      status: statusStr,
+      type: typeStr,
+      voucherCode: msg.metadata?.voucherCode,
+      discountText: msg.metadata?.discountText,
+      orderId: msg.metadata?.orderId,
     };
+  }, []);
 
-    setChatMessages((prev) => [...prev, newMsg]);
-    setMessageInput('');
-  };
+  // 1. Tải danh sách hội thoại từ DB
+  useEffect(() => {
+    async function loadSellerConversations() {
+      if (!storeId) return;
+      try {
+        const res = await chatService.listConversations(storeId);
+        if (res.success && Array.isArray(res.data)) {
+          const mapped: SellerChatCustomer[] = res.data.map((conv: ChatConversation) => {
+            const custUser = conv.user;
+            const contextOrder = conv.context?.type === 'ORDER' ? conv.context.id : undefined;
+            return {
+              id: conv.id,
+              userId: custUser?.id,
+              name: custUser?.fullName || 'Khách Hàng',
+              avatar: custUser?.avatar,
+              tier: 'Khách mới',
+              isOnline: true,
+              lastMsg: conv.lastMessage?.content || 'Chưa có tin nhắn',
+              lastTime: conv.lastMessage?.createdAt
+                ? new Date(conv.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : '',
+              unread: conv.unreadCount || 0,
+              hasOrder: Boolean(contextOrder),
+              isVip: false,
+              orderId: contextOrder,
+              orderStatus: contextOrder ? 'Đang xử lý' : undefined,
+            };
+          });
+          setCustomers(mapped);
+          if (mapped.length > 0 && !activeCustomerId) {
+            setActiveCustomerId(mapped[0].id);
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi tải danh sách khách hàng:', err);
+      }
+    }
+    loadSellerConversations();
+  }, [storeId]);
 
-  const sendQuickReply = (text: string) => {
-    const newMsg: Message = {
-      id: Date.now(),
-      sender: 'seller',
-      text: text,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      status: 'sent',
-    };
-    setChatMessages((prev) => [...prev, newMsg]);
-    showToast?.('Đã gửi tin nhắn mẫu!', 'success');
-  };
+  // 2. Realtime Socket
+  const onMessageReceived = useCallback((incomingMsg: any) => {
+    const convId = incomingMsg.conversationId || incomingMsg.conversation?._id || incomingMsg.conversation?.id;
+    if (!convId) return;
 
-  const filteredCustomers = customers.filter((c) => {
-    const matchesSearch =
-      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      c.product.toLowerCase().includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
-    if (activeFilter === 'unread') return c.unread > 0;
-    if (activeFilter === 'orders') return c.hasOrder;
-    if (activeFilter === 'vip') return c.isVip;
-    return true;
+    const sellerMsg = mapApiMessageToSellerMessage(incomingMsg, storeId);
+
+    setMessagesByCustomer((prev) => {
+      const list = prev[convId] || [];
+      const existingIndex = list.findIndex((m) => String(m.id) === String(incomingMsg.id));
+      if (existingIndex !== -1) {
+        const next = [...list];
+        next[existingIndex] = sellerMsg;
+        return { ...prev, [convId]: next };
+      }
+
+      if (sellerMsg.sender === 'seller') {
+        const optIndex = list.findIndex(
+          (m) => m.sender === 'seller' && (String(m.id).startsWith('temp-') || String(m.id).startsWith('voucher-') || String(m.id).startsWith('msg-')) && m.text === sellerMsg.text
+        );
+        if (optIndex !== -1) {
+          const next = [...list];
+          next[optIndex] = sellerMsg;
+          return { ...prev, [convId]: next };
+        }
+      }
+
+      return {
+        ...prev,
+        [convId]: [...list, sellerMsg],
+      };
+    });
+
+    setCustomers((prev) => {
+      const exists = prev.some((c) => c.id === convId);
+      if (!exists) {
+        const custName = incomingMsg.senderType === 'USER' ? (incomingMsg.senderName || 'Khách Hàng') : 'Khách Hàng';
+        const newCust: SellerChatCustomer = {
+          id: convId,
+          userId: incomingMsg.senderId,
+          name: custName,
+          avatar: incomingMsg.senderAvatar,
+          tier: 'Khách mới',
+          isOnline: true,
+          lastMsg: incomingMsg.content || '',
+          lastTime: new Date(incomingMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          unread: convId === activeCustomerId ? 0 : 1,
+          hasOrder: false,
+          isVip: false,
+        };
+        return [newCust, ...prev];
+      }
+
+      return prev.map((c) => {
+        if (c.id === convId) {
+          const isCurrentActive = c.id === activeCustomerId;
+          return {
+            ...c,
+            lastMsg: incomingMsg.content || c.lastMsg,
+            lastTime: new Date(incomingMsg.createdAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            unread: isCurrentActive ? 0 : c.unread + 1,
+          };
+        }
+        return c;
+      });
+    });
+
+    if (convId === activeCustomerId && incomingMsg.senderType === 'USER') {
+      markAsRead(convId, storeId);
+    }
+  }, [storeId, activeCustomerId, mapApiMessageToSellerMessage]);
+
+  const onMessageRead = useCallback((receipt: any) => {
+    if (receipt?.conversationId) {
+      setMessagesByCustomer((prev) => {
+        const list = prev[receipt.conversationId];
+        if (!list) return prev;
+        return {
+          ...prev,
+          [receipt.conversationId]: list.map((m) =>
+            m.sender === 'seller' ? { ...m, status: 'read' as const } : m
+          ),
+        };
+      });
+    }
+  }, []);
+
+  const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead } = useChatSocket({
+    storeId,
+    onMessageReceived,
+    onMessageRead,
   });
 
-  const currentCustomer = customers.find((c) => c.id === activeCustomer) || customers[0];
+  // 3. Tải tin nhắn khi chọn khách hàng
+  useEffect(() => {
+    if (!activeCustomerId) return;
+    async function loadConversationMessages() {
+      try {
+        const res = await chatService.getMessages(activeCustomerId, { storeId });
+        if (res.success && Array.isArray(res.data)) {
+          const mapped = res.data.map((m: ChatMessage) => mapApiMessageToSellerMessage(m, storeId));
+          setMessagesByCustomer((prev) => ({
+            ...prev,
+            [activeCustomerId]: mapped,
+          }));
+          markAsRead(activeCustomerId, storeId);
+        }
+      } catch (err) {
+        console.error('Lỗi tải tin nhắn khách hàng:', err);
+      }
+    }
+    loadConversationMessages();
+    joinConversation(activeCustomerId, storeId);
+    return () => {
+      leaveConversation(activeCustomerId, storeId);
+    };
+  }, [activeCustomerId, storeId, mapApiMessageToSellerMessage, joinConversation, leaveConversation, markAsRead]);
+
+  // Khách hàng hiện tại đang mở chat
+  const currentCustomer = useMemo(() => {
+    if (!customers.length) return null;
+    return customers.find((c) => c.id === activeCustomerId) || customers[0] || null;
+  }, [customers, activeCustomerId]);
+
+  // Tin nhắn của khách hàng hiện tại
+  const currentMessages = useMemo(() => {
+    return (currentCustomer ? messagesByCustomer[currentCustomer.id] : []) || [];
+  }, [messagesByCustomer, currentCustomer]);
+
+  const lastMsg = currentMessages[currentMessages.length - 1];
+  const lastMsgKey = lastMsg ? `${lastMsg.id}-${lastMsg.time}` : '';
+
+  // Tự động cuộn xuống dưới cùng khi có tin nhắn mới hoặc chuyển khách hàng
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom('smooth');
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [currentMessages.length, activeCustomerId, lastMsgKey, scrollToBottom]);
+
+  // Bộ lọc danh sách khách hàng
+  const filteredCustomers = useMemo(() => {
+    return customers.filter((c) => {
+      const matchSearch =
+        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (c.orderId && c.orderId.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (c.product && c.product.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      if (!matchSearch) return false;
+
+      if (filterTab === 'unread') return c.unread > 0;
+      if (filterTab === 'orders') return c.hasOrder;
+      if (filterTab === 'vip') return c.isVip;
+      return true;
+    });
+  }, [customers, searchQuery, filterTab]);
+
+  // Gửi tin nhắn
+  const handleSendMessage = async (textToSend?: string) => {
+    const content = (textToSend || messageInput).trim();
+    if (!content || !currentCustomer) return;
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const tempId = `temp-${Date.now()}`;
+
+    const newMsg: SellerChatMessage = {
+      id: tempId,
+      sender: 'seller',
+      text: content,
+      time: timeStr,
+      status: 'sent',
+      type: 'text',
+    };
+
+    setMessagesByCustomer((prev) => ({
+      ...prev,
+      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), newMsg],
+    }));
+
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === currentCustomer.id ? { ...c, lastMsg: content, lastTime: timeStr, unread: 0 } : c
+      )
+    );
+
+    setMessageInput('');
+
+    try {
+      if (isConnected) {
+        await sendSocketMessage(currentCustomer.id, content, {
+          storeId,
+          messageType: 'TEXT',
+        });
+      } else {
+        await chatService.sendMessage(currentCustomer.id, {
+          content,
+          storeId,
+          messageType: 'TEXT',
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi gửi tin nhắn seller:', err);
+      showToast?.('Không thể gửi tin nhắn. Vui lòng kiểm tra lại kết nối!', 'error');
+    }
+  };
+
+  // Tặng voucher độc quyền
+  const handleSendVoucher = async () => {
+    if (!currentCustomer) return;
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const voucherCode = 'HUKIVIP15';
+    const discountText = 'Giảm 15% tối đa 50.000đ';
+    const content = 'Shop gửi tặng bạn mã Voucher độc quyền giảm 15% cho đơn hàng tiếp theo!';
+
+    const voucherMsg: SellerChatMessage = {
+      id: `voucher-${Date.now()}`,
+      sender: 'seller',
+      text: content,
+      time: timeStr,
+      status: 'sent',
+      type: 'voucher',
+      voucherCode,
+      discountText,
+    };
+
+    setMessagesByCustomer((prev) => ({
+      ...prev,
+      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), voucherMsg],
+    }));
+
+    try {
+      if (isConnected) {
+        await sendSocketMessage(currentCustomer.id, content, {
+          storeId,
+          messageType: 'VOUCHER',
+          metadata: { voucherCode, discountText },
+        });
+      } else {
+        await chatService.sendMessage(currentCustomer.id, {
+          content,
+          storeId,
+          messageType: 'VOUCHER',
+          metadata: { voucherCode, discountText },
+        });
+      }
+      showToast?.(`Đã gửi mã voucher ${voucherCode} đến ${currentCustomer.name}!`, 'success');
+    } catch (err) {
+      console.error('Lỗi gửi voucher seller:', err);
+      showToast?.('Không thể gửi mã voucher. Vui lòng thử lại!', 'error');
+    }
+  };
 
   return (
-    <div className="w-full h-full bg-background text-on-surface font-body-md flex flex-col overflow-hidden select-none">
-      {/* 3-Column Messenger Grid */}
-      <div className="flex-1 min-h-0 flex overflow-hidden h-full">
-        {/* 1. Left Sidebar: Conversations List (~280px) */}
-        <div className="w-72 lg:w-[280px] border-r border-theme-border flex flex-col h-full bg-surface-container-lowest shrink-0 overflow-hidden">
-          {/* Header Bar */}
-          <div className="p-3 border-b border-theme-border/70 space-y-2.5 shrink-0">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-primary text-xl font-bold">forum</span>
-                <h1 className="text-xs font-bold text-on-surface">Hộp Thư Khách Hàng</h1>
-              </div>
-              <span className="px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold text-[10px]">
-                {customers.length} khách
-              </span>
+    <div className="w-full h-screen flex flex-col bg-[#F8FAFC] text-slate-800 antialiased overflow-hidden font-sans select-none">
+      {/* 1. STANDALONE TOP HEADER (SELLER MESSENGER BAR) */}
+      <header className="h-14 sm:h-15 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs z-30">
+        {/* Left: Brand Logo & Navigation Back to Dashboard */}
+        <div className="flex items-center gap-3 sm:gap-4">
+          <Link href="/seller/dashboard" className="flex items-center gap-2 group">
+            <span className="font-editorial text-lg font-black tracking-tight text-[#003B2B] group-hover:text-emerald-700 transition-colors">
+              HUKI EBOOK
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-[#003B2B] text-white text-[10px] font-extrabold uppercase tracking-wider">
+              SELLER CHAT
+            </span>
+          </Link>
+
+          <span className="h-4 w-px bg-slate-200 hidden sm:block" />
+
+          <Link
+            href="/seller/dashboard"
+            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-800 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            <span>Về Kênh Người Bán</span>
+          </Link>
+        </div>
+
+        {/* Center: Active Shop Identity */}
+        <div className="hidden md:flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 border border-slate-200/90 rounded-full">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-bold text-slate-800">{storeName}</span>
+          <span className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+            Gian Hàng Trực Tuyến
+          </span>
+        </div>
+
+        {/* Right: Quick Portal Links & User Profile */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <Link
+            href="/"
+            target="_blank"
+            className="hidden lg:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 text-xs font-semibold transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">storefront</span>
+            <span>Về Sàn HUKI</span>
+          </Link>
+
+          <Link
+            href="/seller/products"
+            className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1"
+          >
+            <span className="material-symbols-outlined text-sm">inventory_2</span>
+            <span className="hidden sm:inline">Quản Lý Sách</span>
+          </Link>
+
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <UserAvatar
+              src={user?.avatar}
+              name={user?.fullName || storeName}
+              size="w-8 h-8"
+            />
+            <span className="text-xs font-bold text-slate-800 hidden sm:inline max-w-[120px] truncate">
+              {user?.fullName || storeName}
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* 2. MAIN 3-COLUMN MESSENGER WORKSPACE */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* ----------------- COLUMN 1: CUSTOMERS & CONVERSATIONS (LEFT) ----------------- */}
+        <aside className={`${activeCustomerId ? 'hidden md:flex' : 'flex'} w-full md:w-80 lg:w-88 border-r border-slate-200/90 bg-white flex-col shrink-0 h-full`}>
+
+          {/* Header & Unread Counter */}
+          <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black text-slate-900 tracking-tight font-serif">
+                Hộp Thư Khách Hàng
+              </h2>
+              {customers.some((c) => c.unread > 0) && (
+                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold animate-pulse">
+                  {customers.filter((c) => c.unread > 0).length} mới
+                </span>
+              )}
             </div>
 
-            {/* Search Input */}
+            <span className="text-xs text-slate-400 font-medium">
+              {customers.length} hội thoại
+            </span>
+          </div>
+
+          {/* Search Box */}
+          <div className="p-3.5 pb-2">
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-2.5 top-2 text-on-surface-variant text-sm">search</span>
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">
+                search
+              </span>
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm khách hàng..."
-                className="w-full pl-8 pr-2.5 py-1.5 bg-surface-container-low rounded-lg border border-theme-border/60 text-xs text-on-surface focus:outline-none focus:border-primary transition-all placeholder:text-on-surface-variant/60"
+                placeholder="Tìm khách hàng, mã đơn..."
+                className="w-full bg-slate-50 border border-slate-200/90 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
               />
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1 overflow-x-auto text-[10.5px] font-semibold scrollbar-none">
-              {[
-                { id: 'all' as const, label: 'Tất Cả' },
-                { id: 'unread' as const, label: 'Chưa Đọc' },
-                { id: 'orders' as const, label: 'Có Đơn' },
-                { id: 'vip' as const, label: 'VIP' },
-              ].map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setActiveFilter(f.id)}
-                  className={`px-2 py-0.5 rounded-md shrink-0 transition-all cursor-pointer ${
-                    activeFilter === f.id
-                      ? 'bg-primary text-white shadow-2xs font-bold'
-                      : 'bg-surface-container-low text-on-surface-variant hover:text-on-surface'
-                  }`}
-                >
-                  {f.label}
-                </button>
-              ))}
             </div>
           </div>
 
-          {/* Customer Threads List */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-1.5 space-y-0.5 custom-scroll">
+          {/* Filter Pills (All / Unread / Has Orders / VIP) */}
+          <div className="px-3.5 pb-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setFilterTab('all')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'all'
+                  ? 'bg-emerald-800 text-white shadow-2xs font-bold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+            >
+              Tất Cả
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('unread')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${filterTab === 'unread'
+                  ? 'bg-rose-600 text-white shadow-2xs font-bold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+            >
+              <span>Chưa Đọc</span>
+              {customers.filter((c) => c.unread > 0).length > 0 && (
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('orders')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'orders'
+                  ? 'bg-emerald-800 text-white shadow-2xs font-bold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+            >
+              Có Đơn Hàng
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterTab('vip')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'vip'
+                  ? 'bg-amber-600 text-white shadow-2xs font-bold'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+            >
+              Khách VIP
+            </button>
+          </div>
+
+          {/* Conversation List */}
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {filteredCustomers.map((cust) => {
-              const isSelected = activeCustomer === cust.id;
+              const isActive = cust.id === activeCustomerId;
               return (
                 <div
                   key={cust.id}
-                  onClick={() => setActiveCustomer(cust.id)}
-                  className={`p-2 rounded-xl flex items-start gap-2.5 cursor-pointer transition-all ${
-                    isSelected
-                      ? 'bg-primary/10 border border-primary/25 shadow-2xs'
-                      : 'hover:bg-surface-container-low border border-transparent'
-                  }`}
+                  onClick={() => {
+                    setActiveCustomerId(cust.id);
+                    // Đánh dấu đã đọc khi click
+                    setCustomers((prev) =>
+                      prev.map((c) => (c.id === cust.id ? { ...c, unread: 0 } : c))
+                    );
+                  }}
+                  className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${isActive
+                      ? 'bg-emerald-50/70 border-r-3 border-emerald-700'
+                      : 'hover:bg-slate-50'
+                    }`}
                 >
-                  <div className="relative shrink-0 mt-0.5">
-                    <img className="w-8 h-8 rounded-full object-cover shadow-2xs border border-theme-border bg-white" src={cust.avatar} alt={cust.name} />
+                  {/* Customer Avatar & Status */}
+                  <div className="relative shrink-0">
+                    <UserAvatar
+                      src={cust.avatar}
+                      name={cust.name}
+                      size="w-11 h-11"
+                    />
                     {cust.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-1 ring-white"></span>
+                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-2xs" />
                     )}
                   </div>
-                  <div className="flex-1 min-w-0 pr-0.5">
-                    <div className="flex items-center justify-between mb-0.5">
-                      <span className={`font-bold text-xs truncate ${isSelected ? 'text-primary' : 'text-on-surface'}`}>{cust.name}</span>
-                      <span className="text-[9.5px] text-on-surface-variant shrink-0">{cust.lastTime}</span>
+
+                  {/* Customer Preview Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1 mb-0.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-bold text-xs text-slate-900 truncate">
+                          {cust.name}
+                        </span>
+                        {cust.tier && (
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded shrink-0 ${cust.tier === 'VIP Gold'
+                              ? 'bg-amber-100 text-amber-800'
+                              : cust.tier === 'VIP Bạc'
+                                ? 'bg-slate-100 text-slate-700'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                            {cust.tier}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-400 shrink-0 font-medium">
+                        {cust.lastTime}
+                      </span>
                     </div>
-                    <div className="text-[10px] font-semibold text-primary truncate mb-0.5">
-                      📖 {cust.product}
-                    </div>
-                    <p className="text-[11px] text-on-surface-variant truncate">{cust.lastMsg}</p>
+
+                    <p className={`text-xs truncate ${cust.unread > 0 ? 'font-bold text-slate-900' : 'text-slate-500'
+                      }`}>
+                      {cust.lastMsg}
+                    </p>
+
+                    {/* Book Inquired By Customer */}
+                    {cust.product && (
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-800 font-semibold truncate bg-emerald-50/80 px-1.5 py-0.5 rounded">
+                        <span className="material-symbols-outlined text-xs shrink-0">menu_book</span>
+                        <span className="truncate">{cust.product.title}</span>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Unread Badge */}
                   {cust.unread > 0 && (
-                    <span className="w-3.5 h-3.5 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center shrink-0 shadow-2xs mt-1">
+                    <span className="w-4.5 h-4.5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 self-center">
                       {cust.unread}
                     </span>
                   )}
                 </div>
               );
             })}
+
+            {filteredCustomers.length === 0 && (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2">
+                <span className="material-symbols-outlined text-3xl">chat_bubble_outline</span>
+                <p className="text-xs font-semibold text-slate-700">Chưa có hội thoại nào</p>
+                <p className="text-[11px] text-slate-400 max-w-[200px]">Khi khách hàng gửi tin nhắn hoặc hỏi sách, danh sách sẽ hiển thị ở đây.</p>
+              </div>
+            )}
           </div>
 
-          {/* Store Status Bottom Footnote */}
-          <div className="p-2 border-t border-theme-border/60 flex items-center justify-between text-[10.5px] text-on-surface-variant bg-surface-container-low/40 shrink-0">
-            <span className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Gian hàng Trực Tuyến</span>
-            </span>
-            <span className="font-semibold text-primary">Alpha Books</span>
-          </div>
-        </div>
+        </aside>
 
-        {/* 2. Middle Column: Active Chat Stream */}
-        <div className="flex-1 flex flex-col h-full bg-surface-container-low/20 border-r border-theme-border overflow-hidden min-w-0">
-          {/* Active Chat Header */}
-          <div className="h-13 px-3 sm:px-4 bg-surface-container-lowest border-b border-theme-border/70 flex items-center justify-between shrink-0 shadow-2xs z-10">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="relative shrink-0">
-                <img className="w-7 h-7 rounded-full object-cover border border-theme-border bg-white" src={currentCustomer.avatar} alt={currentCustomer.name} />
-                <span className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ring-1 ring-white ${
-                  currentCustomer.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
-                }`}></span>
-              </div>
-              <div className="min-w-0">
-                <div className="font-bold text-xs text-on-surface flex items-center gap-1.5 truncate">
-                  <span className="truncate">{currentCustomer.name}</span>
-                  <span className="bg-amber-100 text-amber-900 text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0">
-                    {currentCustomer.tier}
-                  </span>
-                </div>
-                <div className="text-[10px] text-on-surface-variant flex items-center gap-1">
-                  <span className={currentCustomer.isOnline ? 'text-emerald-600 font-semibold' : 'text-on-surface-variant'}>
-                    {currentCustomer.isOnline ? '● Trực tuyến' : 'Ngoại tuyến'}
-                  </span>
-                  <span>•</span>
-                  <span>Đang hỏi: <strong className="text-on-surface truncate">{currentCustomer.product}</strong></span>
-                </div>
-              </div>
-            </div>
+        {/* ----------------- COLUMN 2: ACTIVE CHAT VIEWPORT & TOOLS (CENTER) ----------------- */}
+        <main className={`${!activeCustomerId ? 'hidden md:flex' : 'flex'} flex-1 flex-col bg-[#F8FAFC] min-w-0 overflow-hidden relative h-full`}>
 
-            {/* Header Right Quick Action Buttons */}
-            <div className="flex items-center gap-1 shrink-0">
-              <Link
-                href={`/orders/${currentCustomer.orderId}`}
-                className="hidden sm:inline-flex items-center gap-1 text-[10.5px] text-primary font-semibold bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors"
-                title="Xem đơn hàng"
-              >
-                <span className="material-symbols-outlined text-xs">receipt_long</span>
-                <span>#{currentCustomer.orderId}</span>
-              </Link>
-              
-              <button
-                type="button"
-                onClick={() => setShowRightPanel(!showRightPanel)}
-                className={`w-7 h-7 rounded-lg border border-theme-border transition-all flex items-center justify-center cursor-pointer shadow-2xs ${
-                  showRightPanel ? 'bg-primary text-white' : 'bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container'
-                }`}
-                title={showRightPanel ? "Thu gọn hồ sơ" : "Mở hồ sơ"}
-              >
-                <span className="material-symbols-outlined text-base">info</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Messages Stream */}
-          <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-3 custom-scroll">
-            {/* Timestamp Badge */}
-            <div className="text-center my-1">
-              <span className="text-[9.5px] bg-surface-container text-on-surface-variant px-2.5 py-0.5 rounded-full font-bold shadow-2xs border border-theme-border/50">
-                Hôm nay, 08/09/2026
-              </span>
-            </div>
-
-            {/* Product Reference Card */}
-            <div className="max-w-sm mx-auto p-2 rounded-xl bg-surface-container-lowest border border-theme-border/80 shadow-2xs flex items-center gap-2.5 my-1.5">
-              <div className="w-8 aspect-[3/4] rounded overflow-hidden border border-theme-border shrink-0 bg-surface-container">
-                <img className="w-full h-full object-cover" alt={currentCustomer.product} src={currentCustomer.productCover} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <span className="text-[8.5px] font-bold uppercase text-primary px-1 py-0.2 bg-primary/10 rounded">Sản phẩm khách xem</span>
-                <h4 className="font-bold text-[11px] text-on-surface truncate mt-0.5">{currentCustomer.product}</h4>
-                <div className="text-[10px] font-bold text-primary">Combo Sách In &amp; DRM</div>
-              </div>
-              <button
-                onClick={() => sendQuickReply(`Dạ tác phẩm "${currentCustomer.product}" đang có sẵn và được freeship ạ!`)}
-                className="px-2 py-1 rounded-md bg-primary text-white text-[10px] font-bold hover:opacity-90 transition-all shrink-0 cursor-pointer shadow-2xs"
-              >
-                Tư vấn nhanh
-              </button>
-            </div>
-
-            {/* Message Bubbles */}
-            {chatMessages.map((msg) => {
-              const isSeller = msg.sender === 'seller';
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isSeller ? 'justify-end' : 'justify-start'} items-end gap-1.5 group`}
-                >
-                  {!isSeller && (
-                    <img className="w-6 h-6 rounded-full object-cover shrink-0 border border-theme-border shadow-2xs mb-0.5 bg-white" src={currentCustomer.avatar} alt="Avatar" />
-                  )}
-                  <div className={`max-w-[80%] sm:max-w-[65%] py-2 px-3 rounded-2xl text-xs leading-relaxed shadow-2xs ${
-                    isSeller
-                      ? 'bg-primary text-white rounded-br-xs'
-                      : 'bg-surface-container-lowest text-on-surface border border-theme-border/80 rounded-bl-xs'
-                  }`}>
-                    <p className="whitespace-pre-line">{msg.text}</p>
-                    <div className={`flex items-center justify-end gap-1 text-[9px] mt-1 ${isSeller ? 'text-white/80' : 'text-on-surface-variant'}`}>
-                      <span>{msg.time}</span>
-                      {isSeller && (
-                        <span className="material-symbols-outlined text-[11px]">
-                          {msg.status === 'read' ? 'done_all' : 'done'}
+          {currentCustomer ? (
+            <>
+              {/* Customer Chat Header Bar */}
+              <div className="h-16 bg-white border-b border-slate-200/90 px-4 sm:px-5 flex items-center justify-between shrink-0 shadow-2xs">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCustomerId('')}
+                    className="md:hidden w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-600 -ml-1 mr-0.5 shrink-0 cursor-pointer"
+                    title="Quay lại danh sách hội thoại"
+                  >
+                    <span className="material-symbols-outlined text-xl">arrow_back</span>
+                  </button>
+                  <div className="relative shrink-0">
+                    <UserAvatar
+                      src={currentCustomer.avatar}
+                      name={currentCustomer.name}
+                      size="w-9 h-9 sm:w-10 sm:h-10"
+                    />
+                    {currentCustomer.isOnline && (
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-sm text-slate-900 truncate">
+                        {currentCustomer.name}
+                      </h3>
+                      {currentCustomer.tier && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                          {currentCustomer.tier}
                         </span>
                       )}
                     </div>
+                    <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      <span>{currentCustomer.isOnline ? 'Đang hoạt động' : 'Ngoại tuyến'}</span>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
 
-          {/* Quick Reply Suggestions Bar */}
-          <div className="px-3 py-1.5 bg-surface-container-lowest border-t border-theme-border/60 flex items-center gap-1.5 overflow-x-auto scrollbar-none text-xs shrink-0">
-            <span className="text-on-surface-variant font-bold shrink-0 text-[10px] flex items-center gap-0.5">
-              <span className="material-symbols-outlined text-xs text-primary">bolt</span> Gợi ý:
-            </span>
-            {[
-              'Dạ bên em còn ấn bản kèm bookmark ạ!',
-              'Ebook DRM đã kích hoạt trên Web Reader rồi ạ!',
-              'Gửi voucher 15% cho khách VIP',
-              'Đơn hàng đang đóng gói chống sốc 3 lớp ạ!',
-            ].map((chip, i) => (
-              <button
-                key={i}
-                onClick={() => sendQuickReply(chip)}
-                className="px-2 py-0.5 bg-surface-container-low hover:bg-primary hover:text-white rounded-full text-[10px] font-medium text-on-surface whitespace-nowrap transition-all border border-theme-border/50 cursor-pointer"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
+                {/* Right Header Action Icons */}
+                <div className="flex items-center gap-1.5 text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() => showToast?.('Đang kết nối cuộc gọi thoại hỗ trợ...', 'info')}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi thoại hỗ trợ"
+                  >
+                    <span className="material-symbols-outlined text-lg">call</span>
+                  </button>
 
-          {/* Chat Message Input Bar */}
-          <form onSubmit={handleSendMessage} className="p-2.5 bg-surface-container-lowest border-t border-theme-border/70 flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <button
-              type="button"
-              onClick={() => showToast?.('Mở bộ sưu tập ảnh đính kèm', 'info')}
-              className="p-1.5 hover:bg-surface-container text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer"
-              title="Đính kèm hình ảnh"
-            >
-              <span className="material-symbols-outlined text-lg">add_photo_alternate</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => showToast?.('Mở danh sách voucher gửi khách', 'info')}
-              className="p-1.5 hover:bg-surface-container text-on-surface-variant hover:text-primary rounded-lg transition-colors cursor-pointer"
-              title="Gửi voucher"
-            >
-              <span className="material-symbols-outlined text-lg">loyalty</span>
-            </button>
-            <input
-              type="text"
-              value={messageInput}
-              onChange={(e) => setMessageInput(e.target.value)}
-              placeholder="Nhập nội dung tư vấn... (Nhấn Enter để gửi)"
-              className="flex-1 px-3 py-1.5 bg-surface-container-low rounded-lg border border-theme-border/70 text-xs text-on-surface focus:outline-none focus:border-primary transition-all placeholder:text-on-surface-variant/60"
-            />
-            <button
-              type="submit"
-              disabled={!messageInput.trim()}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs transition-all shrink-0 cursor-pointer ${
-                messageInput.trim()
-                  ? 'bg-primary text-white hover:opacity-95 shadow-xs'
-                  : 'bg-surface-container text-on-surface-variant cursor-not-allowed opacity-60'
-              }`}
-            >
-              <span className="material-symbols-outlined text-sm">send</span>
-              <span>Gửi</span>
-            </button>
-          </form>
-        </div>
+                  <button
+                    type="button"
+                    onClick={() => showToast?.('Đang kết nối video tư vấn sách...', 'info')}
+                    className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Gọi video"
+                  >
+                    <span className="material-symbols-outlined text-lg">videocam</span>
+                  </button>
 
-        {/* 3. Right Sidebar: Customer CRM */}
-        {showRightPanel && (
-          <div className="w-60 lg:w-[250px] flex flex-col h-full bg-surface-container-lowest shrink-0 border-l border-theme-border/60 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scroll">
-              {/* Customer Profile Card */}
-              <div className="text-center pb-2.5 border-b border-theme-border/70 space-y-1.5">
-                <div className="relative inline-block mx-auto">
-                  <img className="w-11 h-11 rounded-full object-cover ring-2 ring-primary/10 shadow-2xs border border-theme-border bg-white" src={currentCustomer.avatar} alt={currentCustomer.name} />
-                  <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-1 ring-white ${
-                    currentCustomer.isOnline ? 'bg-emerald-500' : 'bg-slate-300'
-                  }`}></span>
+                  <button
+                    type="button"
+                    onClick={() => setShowRightPanel(!showRightPanel)}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${showRightPanel ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-slate-100'
+                      }`}
+                    title="Thông tin khách hàng & Đơn hàng"
+                  >
+                    <span className="material-symbols-outlined text-lg">info</span>
+                  </button>
                 </div>
-                <div>
-                  <h3 className="font-bold text-xs text-on-surface">{currentCustomer.name}</h3>
-                  <span className="inline-block bg-amber-100 text-amber-900 text-[9px] font-bold px-2 py-0.2 rounded-full mt-0.5">
-                    {currentCustomer.tier}
+              </div>
+
+              {/* Pinned Book Banner (Sản phẩm khách đang hỏi tư vấn) */}
+              {currentCustomer.product && (
+                <div className="bg-white/95 border-b border-slate-200 px-5 py-2.5 flex items-center justify-between gap-4 shadow-2xs">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-13 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
+                      <img
+                        src={currentCustomer.product.cover}
+                        alt="Product Cover"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                        Sản phẩm khách đang quan tâm:
+                      </div>
+                      <div className="font-bold text-xs text-slate-900 truncate">
+                        {currentCustomer.product.title}
+                      </div>
+                      <div className="text-xs font-mono font-bold text-emerald-700">
+                        {currentCustomer.product.price.toLocaleString('vi-VN')} ₫
+                        <span className="text-slate-400 font-sans font-normal text-[11px] ml-1.5">
+                          ({currentCustomer.product.format})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleSendMessage(`Dạ cuốn "${currentCustomer.product?.title}" bên em hiện đang sẵn hàng và đóng gói gửi ngay trong ngày ạ!`)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Báo Còn Hàng
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendVoucher}
+                      className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <span className="material-symbols-outlined text-sm">confirmation_number</span>
+                      <span>Tặng Voucher</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Message Stream History */}
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-5 space-y-4">
+
+                {/* Timestamp Divider */}
+                <div className="text-center my-2">
+                  <span className="px-3 py-1 rounded-full bg-slate-200/70 text-slate-500 text-[11px] font-semibold">
+                    Hôm nay, cuộc trò chuyện trực tiếp
                   </span>
                 </div>
+
+                {currentMessages.map((msg) => {
+                  const isSeller = msg.sender === 'seller';
+                  return (
+                    <div
+                      key={msg.id}
+                      className={`flex items-end gap-2.5 ${isSeller ? 'justify-end' : 'justify-start'}`}
+                    >
+                      {!isSeller && (
+                        <UserAvatar
+                          src={currentCustomer.avatar}
+                          name={currentCustomer.name}
+                          size="w-7 h-7"
+                        />
+                      )}
+
+                      <div className={`max-w-[70%] space-y-1.5 ${isSeller ? 'items-end' : 'items-start'}`}>
+
+                        {/* Voucher Special Card */}
+                        {msg.type === 'voucher' ? (
+                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md space-y-2">
+                            <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider">
+                              <span className="material-symbols-outlined text-base">confirmation_number</span>
+                              <span>Voucher Độc Quyền Dành Cho Khách Hàng</span>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-xl text-center font-mono font-black text-sm tracking-widest border border-white/30">
+                              {msg.voucherCode}
+                            </div>
+                            <p className="text-[11px] text-amber-100">{msg.discountText}</p>
+                          </div>
+                        ) : (
+                          /* Standard Text Bubble */
+                          <div
+                            className={`px-4 py-2.5 rounded-2xl text-xs leading-relaxed ${isSeller
+                                ? 'bg-emerald-800 text-white rounded-br-xs shadow-xs'
+                                : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-2xs'
+                              }`}
+                          >
+                            {msg.text}
+                          </div>
+                        )}
+
+                        <div className={`flex items-center gap-1 text-[10px] text-slate-400 ${isSeller ? 'justify-end' : 'justify-start'
+                          }`}>
+                          <span>{msg.time}</span>
+                          {isSeller && (
+                            <span className="material-symbols-outlined text-xs text-emerald-600 font-bold">
+                              done_all
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                <div ref={messagesEndRef} />
+
+                {currentMessages.length === 0 && (
+                  <div className="py-20 text-center text-slate-400 space-y-2">
+                    <span className="material-symbols-outlined text-4xl">mark_chat_unread</span>
+                    <p className="text-xs font-semibold">Chưa có tin nhắn nào trong hội thoại này</p>
+                    <p className="text-[11px]">Bấm vào các mẫu câu gợi ý bên dưới để bắt đầu tư vấn nhanh</p>
+                  </div>
+                )}
               </div>
 
-              {/* CRM Statistics */}
-              <div className="space-y-1.5 text-[11px]">
-                <div className="flex justify-between items-center p-2 bg-surface-container-low/70 rounded-lg border border-theme-border/60">
-                  <span className="text-on-surface-variant">Đơn thành công:</span>
-                  <span className="font-bold text-on-surface">{currentCustomer.orderCount} đơn</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-surface-container-low/70 rounded-lg border border-theme-border/60">
-                  <span className="text-on-surface-variant">Tổng chi tiêu:</span>
-                  <span className="font-bold text-primary">{currentCustomer.totalSpent}</span>
+              {/* Quick Seller Action Suggestion Chips (Gợi Ý Phản Hồi Nhanh) */}
+              <div className="px-5 py-2 bg-slate-50 border-t border-slate-200/80 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">
+                  Gợi ý:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage('Dạ bên em còn ấn bản kèm bookmark và quà tặng ạ!')}
+                  className="px-3 py-1 rounded-full bg-white border border-slate-200 hover:border-emerald-600 text-[11px] text-slate-700 hover:text-emerald-800 whitespace-nowrap transition-colors cursor-pointer shrink-0 shadow-2xs"
+                >
+                  Dạ bên em còn ấn bản kèm bookmark ạ!
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage('Ebook DRM đã kích hoạt trên Web Reader rồi ạ!')}
+                  className="px-3 py-1 rounded-full bg-white border border-slate-200 hover:border-emerald-600 text-[11px] text-slate-700 hover:text-emerald-800 whitespace-nowrap transition-colors cursor-pointer shrink-0 shadow-2xs"
+                >
+                  Ebook DRM đã kích hoạt trên Web Reader rồi ạ!
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage('Đơn hàng đang đóng gói và gửi đi trong sáng nay ạ!')}
+                  className="px-3 py-1 rounded-full bg-white border border-slate-200 hover:border-emerald-600 text-[11px] text-slate-700 hover:text-emerald-800 whitespace-nowrap transition-colors cursor-pointer shrink-0 shadow-2xs"
+                >
+                  Đơn hàng đang đóng gói và gửi đi ngay ạ!
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendVoucher}
+                  className="px-3 py-1 rounded-full bg-amber-50 border border-amber-300 hover:border-amber-500 text-[11px] text-amber-900 font-bold whitespace-nowrap transition-colors cursor-pointer shrink-0 shadow-2xs"
+                >
+                  Gửi voucher 15% cho khách VIP
+                </button>
+              </div>
+
+              {/* Message Input Box */}
+              <div className="p-4 bg-white border-t border-slate-200/90 flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => showToast?.('Tính năng đính kèm ảnh sách từ kho.', 'info')}
+                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Đính kèm ảnh thực tế"
+                >
+                  <span className="material-symbols-outlined text-xl">image</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSendVoucher}
+                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-amber-600 hover:bg-amber-50 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Gửi mã voucher độc quyền"
+                >
+                  <span className="material-symbols-outlined text-xl">confirmation_number</span>
+                </button>
+
+                <input
+                  type="text"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleSendMessage();
+                    }
+                  }}
+                  placeholder="Nhập nội dung tư vấn... (Nhấn Enter để gửi)"
+                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage()}
+                  disabled={!messageInput.trim()}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${messageInput.trim()
+                      ? 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    }`}
+                >
+                  <span>Gửi</span>
+                  <span className="material-symbols-outlined text-sm">send</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8 text-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                <span className="material-symbols-outlined text-3xl">chat</span>
+              </div>
+              <h3 className="text-sm font-bold text-slate-700">Chưa có cuộc trò chuyện nào</h3>
+              <p className="text-xs max-w-sm text-slate-500 leading-relaxed">
+                Hộp thư hỗ trợ người bán trao đổi trực tiếp với khách hàng, tư vấn ấn bản sách, giải đáp thắc mắc đơn hàng và gửi voucher ưu đãi.
+              </p>
+            </div>
+          )}
+
+        </main>
+
+        {/* ----------------- COLUMN 3: CUSTOMER CRM PANEL (RIGHT) ----------------- */}
+        {showRightPanel && currentCustomer && (
+          <aside className="hidden xl:flex w-80 lg:w-88 border-l border-slate-200/90 bg-white flex-col shrink-0 overflow-y-auto h-full">
+
+            {/* Customer Big Profile Banner */}
+            <div className="p-5 pb-4 text-center border-b border-slate-100 space-y-2">
+              <div className="relative inline-block mx-auto">
+                <UserAvatar
+                  src={currentCustomer.avatar}
+                  name={currentCustomer.name}
+                  size="w-18 h-18"
+                />
+                {currentCustomer.isOnline && (
+                  <span className="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white rounded-full" />
+                )}
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-slate-900">{currentCustomer.name}</h4>
+                <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">
+                    {currentCustomer.tier || 'Thành Viên'}
+                  </span>
+                  <span className="text-[11px] text-slate-400 font-mono">#{currentCustomer.id}</span>
                 </div>
               </div>
 
-              {/* Active Order Card */}
-              <div className="p-2.5 bg-surface-container-low/50 rounded-xl border border-theme-border/80 space-y-1.5 text-xs shadow-2xs">
+              {/* Action Buttons Row */}
+              <div className="flex items-center justify-center gap-4 pt-2 text-slate-600">
+                <button
+                  type="button"
+                  onClick={() => showToast?.(`Đang gọi đến khách ${currentCustomer.name}...`, 'info')}
+                  className="flex flex-col items-center gap-1 text-[10px] hover:text-emerald-800 cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-base">call</span>
+                  </div>
+                  <span>Gọi Khách</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => showToast?.('Đã tắt thông báo cho khách hàng này.', 'info')}
+                  className="flex flex-col items-center gap-1 text-[10px] hover:text-slate-800 cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-base">notifications_off</span>
+                  </div>
+                  <span>Tắt Báo</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => showToast?.('Xem lịch sử mua sắm của khách.', 'info')}
+                  className="flex flex-col items-center gap-1 text-[10px] hover:text-slate-800 cursor-pointer"
+                >
+                  <div className="w-9 h-9 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center">
+                    <span className="material-symbols-outlined text-base">history</span>
+                  </div>
+                  <span>Lịch Sử</span>
+                </button>
+              </div>
+            </div>
+
+            {/* CRM Stats (Tổng chi tiêu, số đơn tại shop) */}
+            <div className="p-4 border-b border-slate-100 grid grid-cols-2 gap-2 text-center">
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="text-[10px] font-semibold text-slate-400">Đơn thành công:</div>
+                <div className="text-base font-black text-slate-900 mt-0.5">
+                  {currentCustomer.orderCount || 0} đơn
+                </div>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <div className="text-[10px] font-semibold text-slate-400">Tổng chi tiêu:</div>
+                <div className="text-base font-black text-emerald-800 mt-0.5 font-mono">
+                  {currentCustomer.totalSpent || '0 ₫'}
+                </div>
+              </div>
+            </div>
+
+            {/* Đơn Hàng Gần Nhất (Recent Order Card) */}
+            {currentCustomer.orderId && (
+              <div className="p-4 border-b border-slate-100 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-primary">ĐƠN GẦN NHẤT</span>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-900">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                    ĐƠN GẦN NHẤT
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
                     {currentCustomer.orderStatus}
                   </span>
                 </div>
-                <div className="font-bold text-[11px] text-on-surface">#{currentCustomer.orderId}</div>
-                <div className="flex items-center gap-2 p-1.5 bg-surface-container-lowest rounded-lg border border-theme-border/60">
-                  <div className="w-7 aspect-[3/4] rounded overflow-hidden border border-theme-border shrink-0 bg-surface-container">
-                    <img className="w-full h-full object-cover" alt="Product" src={currentCustomer.productCover} />
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-900">
+                    <span>#{currentCustomer.orderId}</span>
+                    <span className="material-symbols-outlined text-sm text-slate-400">local_shipping</span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-[10.5px] text-on-surface truncate">{currentCustomer.product}</div>
-                    <div className="text-[9.5px] text-on-surface-variant">Sách In + Ebook DRM</div>
-                  </div>
+
+                  {currentCustomer.product && (
+                    <div className="flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                      <div className="w-8 h-10 rounded bg-white overflow-hidden shrink-0 border border-slate-200">
+                        <img src={currentCustomer.product.cover} alt="Book" className="w-full h-full object-cover" />
+                      </div>
+                      <div className="min-w-0 text-[11px]">
+                        <div className="font-semibold text-slate-800 truncate">{currentCustomer.product.title}</div>
+                        <div className="text-slate-400 text-[10px]">{currentCustomer.product.format}</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <Link
+                    href={`/seller/orders`}
+                    className="block text-center py-1.5 text-xs font-bold text-emerald-800 hover:text-emerald-900 hover:underline pt-1"
+                  >
+                    Xem Chi Tiết Đơn Hàng →
+                  </Link>
                 </div>
-
-                <Link
-                  href={`/orders/${currentCustomer.orderId}`}
-                  className="block text-center py-1 bg-surface-container-lowest hover:bg-surface-container border border-theme-border text-on-surface font-semibold rounded-lg text-[10px] transition-all"
-                >
-                  Xem Chi Tiết Đơn Hàng
-                </Link>
               </div>
-            </div>
+            )}
 
-            {/* Action Buttons Pinned at Bottom */}
-            <div className="p-2.5 bg-surface-container-lowest border-t border-theme-border/70 space-y-1.5 shrink-0">
+            {/* Seller Action Buttons (Tặng Voucher & Hỗ Trợ DRM) */}
+            <div className="p-4 border-b border-slate-100 space-y-2">
               <button
-                onClick={() => showToast?.('Đã gửi tặng Voucher 20k tới khách hàng!', 'success')}
-                className="w-full py-1.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-lg text-[11px] transition-all shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
+                type="button"
+                onClick={handleSendVoucher}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all"
               >
-                <span>🎁</span>
+                <span className="material-symbols-outlined text-sm">confirmation_number</span>
                 <span>Tặng Voucher Độc Quyền</span>
               </button>
+
               <button
-                onClick={() => showToast?.('Đã chuyển cuộc trò chuyện sang kỹ thuật DRM HUKI', 'info')}
-                className="w-full py-1.5 bg-surface-container-lowest border border-theme-border hover:bg-surface-container text-on-surface font-semibold rounded-lg text-[10.5px] transition-all cursor-pointer"
+                type="button"
+                onClick={() => showToast?.('Chuyển kỹ thuật DRM hỗ trợ thiết bị độc giả.', 'info')}
+                className="w-full py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
               >
-                Chuyển Kỹ Thuật DRM
+                <span className="material-symbols-outlined text-sm">security</span>
+                <span>Chuyên Viên Kỹ Thuật DRM</span>
               </button>
             </div>
-          </div>
+
+            {/* Ghi Chú Nội Bộ Về Khách Hàng (Internal Notes) */}
+            <div className="p-4 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-800">Ghi chú nội bộ</span>
+                <span className="text-[10px] text-slate-400">(Chỉ shop thấy)</span>
+              </div>
+              <textarea
+                value={internalNote}
+                onChange={(e) => setInternalNote(e.target.value)}
+                placeholder="VD: Khách thích bọc chống sốc kỹ, hay mua sách phát triển bản thân..."
+                rows={2}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-emerald-700 focus:bg-white resize-none"
+              />
+              {internalNote && (
+                <button
+                  type="button"
+                  onClick={() => showToast?.('Đã lưu ghi chú nội bộ về khách hàng.', 'success')}
+                  className="px-3 py-1 bg-slate-800 text-white rounded-lg text-[10px] font-bold float-right cursor-pointer"
+                >
+                  Lưu Ghi Chú
+                </button>
+              )}
+            </div>
+
+          </aside>
         )}
+
       </div>
+
     </div>
   );
 }
-
 export default SellerChatView;

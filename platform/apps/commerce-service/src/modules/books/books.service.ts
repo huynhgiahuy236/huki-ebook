@@ -108,7 +108,18 @@ export class BooksService {
     }
 
     const discountsMap = await this.getDiscountsMap([book!.id]);
-    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id));
+    const sales = await this.prisma.orderItem.aggregate({
+      _sum: { quantity: true },
+      where: {
+        bookId: book!.id,
+        sellerOrder: {
+          status: { not: 'CANCELLED' },
+          order: { status: { not: 'CANCELLED' } },
+        },
+      },
+    });
+    const soldCount = sales._sum.quantity || 0;
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount);
   }
 
   async findAll(query: BookListQueryDto) {
@@ -124,10 +135,19 @@ export class BooksService {
     if (query.author) where.authorId = query.author;
     if (query.publisher) where.publisherId = query.publisher;
     if (query.search) {
+      const rawSearch = query.search.trim();
       const search = normalizeCatalogText(query.search);
       where.OR = [
+        { title: { contains: rawSearch, mode: 'insensitive' } },
         { title: { contains: search, mode: 'insensitive' } },
         { normalizedTitle: { contains: search, mode: 'insensitive' } },
+        { isbn: { contains: rawSearch, mode: 'insensitive' } },
+        { author: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+        { author: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+        { publisher: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+        { publisher: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+        { category: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+        { category: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
       ];
     }
 
@@ -180,7 +200,25 @@ export class BooksService {
     const bookIds = books.map(b => b.id);
     const discountsMap = await this.getDiscountsMap(bookIds);
 
-    return paginate(books.map(b => this.serializeBook(b, false, discountsMap.get(b.id))), total, query.page, query.limit);
+    const salesMap = new Map<string, number>();
+    if (bookIds.length > 0) {
+      const salesGroup = await this.prisma.orderItem.groupBy({
+        by: ['bookId'],
+        _sum: { quantity: true },
+        where: {
+          bookId: { in: bookIds },
+          sellerOrder: {
+            status: { not: 'CANCELLED' },
+            order: { status: { not: 'CANCELLED' } },
+          },
+        },
+      });
+      for (const item of salesGroup) {
+        salesMap.set(item.bookId, item._sum.quantity || 0);
+      }
+    }
+
+    return paginate(books.map(b => this.serializeBook(b, false, discountsMap.get(b.id), salesMap.get(b.id) || 0)), total, query.page, query.limit);
   }
 
   async findOwned(query: BookListQueryDto, actor: BookActor) {
@@ -224,11 +262,20 @@ export class BooksService {
     if (query.format) conditions.push({ format: query.format });
     if (query.category) conditions.push({ categoryId: query.category });
     if (query.search) {
+      const rawSearch = query.search.trim();
       const search = normalizeCatalogText(query.search);
       conditions.push({
         OR: [
+          { title: { contains: rawSearch, mode: 'insensitive' } },
           { title: { contains: search, mode: 'insensitive' } },
           { normalizedTitle: { contains: search, mode: 'insensitive' } },
+          { isbn: { contains: rawSearch, mode: 'insensitive' } },
+          { author: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { author: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { publisher: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { publisher: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
+          { category: { is: { name: { contains: rawSearch, mode: 'insensitive' } } } },
+          { category: { is: { normalizedName: { contains: search, mode: 'insensitive' } } } },
         ],
       });
     }
@@ -282,7 +329,18 @@ export class BooksService {
     }
 
     const discountsMap = await this.getDiscountsMap([book!.id]);
-    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id));
+    const sales = await this.prisma.orderItem.aggregate({
+      _sum: { quantity: true },
+      where: {
+        bookId: book!.id,
+        sellerOrder: {
+          status: { not: 'CANCELLED' },
+          order: { status: { not: 'CANCELLED' } },
+        },
+      },
+    });
+    const soldCount = sales._sum.quantity || 0;
+    return this.serializeBook(book!, canAccess, discountsMap.get(book!.id), soldCount);
   }
 
   async update(id: string, dto: UpdateBookDto, actor: BookActor) {
@@ -480,7 +538,7 @@ export class BooksService {
     return map;
   }
 
-  private serializeBook(book: any, isPrivate: boolean, discount?: any) {
+  private serializeBook(book: any, isPrivate: boolean, discount?: any, soldCount: number = 0) {
     const physical = book.physicalDetails;
     const stock = physical?.stock ?? 0;
     const reserved = physical?.reserved ?? 0;
@@ -528,6 +586,9 @@ export class BooksService {
       coverUrl: book.coverUrl,
       publishedAt: book.publishedAt,
       viewCount: book.viewCount,
+      soldCount: Number(soldCount || 0),
+      sales: Number(soldCount || 0),
+      rating: 0,
       category: book.category,
       author: book.author,
       publisher: book.publisher,

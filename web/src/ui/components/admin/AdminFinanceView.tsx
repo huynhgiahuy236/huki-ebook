@@ -526,72 +526,37 @@ export function AdminFinanceView() {
       },
       {
         key: 'actions',
-        title: 'Thao Tác Xử Lý',
+        title: 'Nhật Ký Giải Ngân (Tự Động Qua PIN)',
         align: 'right',
         className: 'whitespace-nowrap',
         render: (_val, req) => (
-          <div>
-            {req.status === 'PENDING' && (
-              <div className="flex items-center justify-end gap-1.5">
-                <button
-                  onClick={() => handleOpenReviewModal(req, 'APPROVE')}
-                  className="px-2.5 py-1 rounded-lg bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[13px]">check</span>
-                  <span>Phê Duyệt</span>
-                </button>
-                <button
-                  onClick={() => handleOpenReviewModal(req, 'REJECT')}
-                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[13px]">close</span>
-                  <span>Từ Chối</span>
-                </button>
-              </div>
-            )}
-            {req.status === 'APPROVED' && (
-              <div className="flex items-center justify-end gap-1.5">
-                <button
-                  disabled={disbursingId === req.id}
-                  onClick={() => handleDisburseSingle(req.id)}
-                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[13px]">send</span>
-                  <span>{disbursingId === req.id ? 'Đang Chuyển...' : 'Giải Ngân'}</span>
-                </button>
-              </div>
-            )}
-            {req.status === 'FAILED' && (
-              <div className="flex items-center justify-end gap-1.5">
-                <button
-                  disabled={disbursingId === req.id}
-                  onClick={() => handleRetryDisburse(req.id)}
-                  className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] transition-colors cursor-pointer shadow-xs flex items-center gap-1 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[13px]">replay</span>
-                  <span>{disbursingId === req.id ? 'Đang Thử...' : 'Thử Lại'}</span>
-                </button>
-                <button
-                  onClick={() => handleOpenReviewModal(req, 'CANCEL_REFUND')}
-                  className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-[11px] transition-colors cursor-pointer flex items-center gap-1"
-                >
-                  <span className="material-symbols-outlined text-[13px]">undo</span>
-                  <span>Hủy &amp; Hoàn Tiền</span>
-                </button>
-              </div>
-            )}
-            {req.status === 'COMPLETED' && (
-              <span className="text-[11px] text-emerald-700 font-bold flex items-center justify-end gap-1">
-                <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                <span>Hoàn Tất</span>
+          <div className="flex items-center justify-end">
+            {req.status === 'COMPLETED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
+                <span className="material-symbols-outlined text-[13px]">verified</span>
+                <span>Tự động giải ngân (Mã PIN)</span>
+              </span>
+            ) : req.status === 'FAILED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 font-bold text-[11px] border border-rose-200">
+                <span className="material-symbols-outlined text-[13px]">error</span>
+                <span>Chuyển khoản thất bại</span>
+              </span>
+            ) : req.status === 'REJECTED' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 text-gray-500 font-medium text-[11px] border border-gray-200">
+                <span className="material-symbols-outlined text-[13px]">block</span>
+                <span>Đã hủy</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-medium text-[11px] border border-blue-200">
+                <span className="material-symbols-outlined text-[13px]">sync</span>
+                <span>Đã xác thực PIN — Đang hạch toán</span>
               </span>
             )}
-            {req.status === 'REJECTED' && <span className="text-[11px] text-gray-400 italic">Đã từ chối</span>}
           </div>
         ),
       },
     ],
-    [currentPageLive, pageSize, disbursingId]
+    [currentPageLive, pageSize]
   );
 
   const eodColumns: Column<EodReconciliationRunView>[] = useMemo(
@@ -882,7 +847,7 @@ export function AdminFinanceView() {
           }`}
         >
           <span className="material-symbols-outlined text-[16px]">payments</span>
-          <span>Yêu Cầu Rút Tiền ({liveRequests.length})</span>
+          <span>Nhật Ký Rút Tiền Seller ({liveRequests.length})</span>
         </button>
 
         <button
@@ -922,7 +887,7 @@ export function AdminFinanceView() {
         </button>
       </div>
 
-      {/* SECTION 1: LIVE PAYOUT REQUESTS REVIEW & DISBURSEMENT QUEUE */}
+      {/* SECTION 1: LIVE PAYOUT REQUESTS AUDIT LOG */}
       {viewSection === 'live_requests' && (
         <div className="space-y-4">
           {/* Filter & Search Bar */}
@@ -930,11 +895,10 @@ export function AdminFinanceView() {
             <AdminFilterTabs
               tabs={[
                 { key: 'ALL', label: 'Tất cả', count: liveRequests.length },
-                { key: 'PENDING', label: 'Chờ duyệt', count: pendingCount },
-                { key: 'APPROVED', label: 'Đã duyệt', count: approvedCount },
-                { key: 'COMPLETED', label: 'Đã chi', count: completedCount },
+                { key: 'COMPLETED', label: 'Đã giải ngân', count: completedCount },
+                { key: 'PENDING', label: 'Đang xử lý', count: pendingCount },
                 { key: 'FAILED', label: 'Chi lỗi', count: failedCount },
-                { key: 'REJECTED', label: 'Từ chối', count: rejectedCount },
+                { key: 'REJECTED', label: 'Đã hủy', count: rejectedCount },
               ]}
               activeTab={statusFilter}
               onChange={(tab) => {

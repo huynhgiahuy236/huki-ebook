@@ -96,6 +96,7 @@ export class TransformInterceptor<T>
             message: message ?? this.defaultMessage(response.statusCode),
             data: extractedData as T,
             pagination,
+            ...((data as any)?.summary ? { summary: (data as any).summary } : {}),
             meta,
           };
         }

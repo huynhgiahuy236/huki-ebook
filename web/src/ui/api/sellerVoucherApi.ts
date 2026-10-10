@@ -11,6 +11,7 @@ import type { ApiResponse } from './types';
 export type VoucherType = 'PERCENTAGE' | 'FIXED_AMOUNT' | 'FREE_SHIPPING';
 export type VoucherStatus = 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'USED_UP';
 export type VoucherTargetAudience = 'ALL' | 'FOLLOWERS_ONLY' | 'NEW_CUSTOMERS_ONLY';
+export type VoucherApplicableFormat = 'ALL' | 'DIGITAL' | 'PHYSICAL';
 
 export interface Voucher {
   id: string;
@@ -25,6 +26,7 @@ export interface Voucher {
   storeId?: string;
   store?: { id: string; name: string };
   targetAudience?: VoucherTargetAudience;
+  applicableFormat?: VoucherApplicableFormat;
   minFollowDays?: number;
   totalUsage: number;
   maxUsagePerUser?: number;
@@ -47,6 +49,7 @@ export interface CreateVoucherPayload {
   scope?: 'PLATFORM' | 'STORE';
   storeId?: string;
   targetAudience?: VoucherTargetAudience;
+  applicableFormat?: VoucherApplicableFormat;
   minFollowDays?: number;
   totalUsage?: number;
   maxUsagePerUser?: number;
@@ -64,6 +67,7 @@ export interface UpdateVoucherPayload {
   scope?: 'PLATFORM' | 'STORE';
   storeId?: string;
   targetAudience?: VoucherTargetAudience;
+  applicableFormat?: VoucherApplicableFormat;
   minFollowDays?: number;
   totalUsage?: number;
   maxUsagePerUser?: number;
@@ -394,6 +398,48 @@ export function formatFollowerRequirement(minFollowDays?: number): {
     label: 'Tất cả người theo dõi Shop',
     badge: 'Mọi Người Theo Dõi',
     icon: 'favorite',
+  };
+}
+
+/**
+ * Format applicable book format requirement for vouchers
+ */
+export function formatApplicableFormat(format?: VoucherApplicableFormat | string): {
+  label: string;
+  badge: string;
+  icon: string;
+  colorClass: string;
+  bgClass: string;
+  borderClass: string;
+} {
+  const f = (format || 'ALL').toUpperCase();
+  if (f === 'DIGITAL') {
+    return {
+      label: 'Chỉ áp dụng cho Ebook bản quyền DRM',
+      badge: '⚡ Chỉ Ebook DRM',
+      icon: 'bolt',
+      colorClass: 'text-emerald-700 dark:text-emerald-300',
+      bgClass: 'bg-emerald-50 dark:bg-emerald-950/40',
+      borderClass: 'border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200',
+    };
+  }
+  if (f === 'PHYSICAL') {
+    return {
+      label: 'Chỉ áp dụng cho Sách giấy vật lý',
+      badge: '📦 Chỉ Sách Giấy',
+      icon: 'inventory_2',
+      colorClass: 'text-amber-700 dark:text-amber-300',
+      bgClass: 'bg-amber-50 dark:bg-amber-950/40',
+      borderClass: 'border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200',
+    };
+  }
+  return {
+    label: 'Áp dụng cho mọi định dạng (Ebook & Sách giấy)',
+    badge: '📚 Cả Ebook & Sách Giấy',
+    icon: 'auto_stories',
+    colorClass: 'text-teal-700 dark:text-teal-300',
+    bgClass: 'bg-teal-50 dark:bg-teal-950/40',
+    borderClass: 'border-teal-200 dark:border-teal-800 text-teal-800 dark:text-teal-200',
   };
 }
 

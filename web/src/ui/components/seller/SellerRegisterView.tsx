@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, CreateBusinessPayload } from '@/ui/api/businessApi';
 import { taxRegistryService } from '@/ui/services/taxRegistryService';
+import CustomLocationSelector, { LocationChangePayload } from '@/ui/components/common/CustomLocationSelector';
 
 export function SellerRegisterView() {
   const router = useRouter();
@@ -19,7 +20,27 @@ export function SellerRegisterView() {
   const [isTaxVerified, setIsTaxVerified] = useState(false);
   const [, setTaxVerifiedSource] = useState('');
 
-  // Form State cho 5 Collections
+  // Check if business already exists
+  React.useEffect(() => {
+    const checkExisting = async () => {
+      try {
+        const res = await businessApi.getMyBusiness();
+        if (res.success && res.data) {
+          const b = (res.data as any)?.data || res.data;
+          if (b.status === 'APPROVED') {
+            router.replace('/seller/stores/setup');
+          } else if (b.status === 'PENDING_APPROVAL') {
+            router.replace('/seller/pending');
+          }
+        }
+      } catch {
+        // Not registered yet
+      }
+    };
+    checkExisting();
+  }, [router]);
+
+  // Form State cho hồ sơ doanh nghiệp & đối tác
   const [formData, setFormData] = useState({
     // 1. Collection: businesses (Pháp lý doanh nghiệp & Cửa hàng)
     businessType: 'LLC' as 'CORPORATION' | 'LLC' | 'INDIVIDUAL' | 'PARTNERSHIP',
@@ -53,24 +74,16 @@ export function SellerRegisterView() {
     operator_email: user?.email || '',
     authorization_letter_url: '',
 
-    // 3. Collection: business_bank_accounts & Bảo mật rút tiền gian hàng
-    account_holder_name: '',
-    account_number: '',
-    bank_name: '',
-    bank_branch: '',
-    is_default_bank: true,
-    withdrawal_pin: '',
-    confirm_withdrawal_pin: '',
-
-    // 4. Collection: business_warehouses
-    warehouse_street: '',
-    warehouse_ward: '',
-    warehouse_district: '',
+    // 3. Collection: business_warehouses (Địa chỉ kho vật lý lấy hàng)
     warehouse_province: '',
+    warehouse_province_code: '',
+    warehouse_ward: '',
+    warehouse_ward_code: '',
+    warehouse_street: '',
     warehouse_contact_name: '',
     warehouse_contact_phone: '',
 
-    // 5. Collection: business_compliance_docs
+    // 4. Collection: business_compliance_docs
     compliance_doc_type: 'GIAY_PHEP_XUAT_BAN_SO',
     compliance_doc_number: '',
     compliance_issue_date: '',
@@ -94,7 +107,6 @@ export function SellerRegisterView() {
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
       if (field === 'company_name' && typeof value === 'string') {
-        next.account_holder_name = value.toUpperCase();
         if (!prev.store_name || prev.store_name === prev.company_name) {
           next.store_name = value;
         }
@@ -106,6 +118,24 @@ export function SellerRegisterView() {
       setFieldErrors((prev) => {
         const next = { ...prev };
         delete next[field];
+        return next;
+      });
+    }
+  };
+
+  // Handle warehouse location change from CustomLocationSelector
+  const handleWarehouseLocationChange = (payload: LocationChangePayload) => {
+    setFormData((prev) => ({
+      ...prev,
+      warehouse_province: payload.province,
+      warehouse_province_code: payload.provinceCode || '',
+      warehouse_ward: payload.ward,
+      warehouse_ward_code: payload.wardCode || '',
+    }));
+    if (fieldErrors.warehouse_street) {
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next.warehouse_street;
         return next;
       });
     }
@@ -151,7 +181,6 @@ export function SellerRegisterView() {
         registered_province: data.registered_address?.province || prev.registered_province,
         rep_full_name: data.representative?.full_name || prev.rep_full_name,
         rep_position: data.representative?.position || prev.rep_position,
-        account_holder_name: data.company_name,
         ecommerce_industry_codes: (data.ecommerce_industry_codes || []).join(', ') || prev.ecommerce_industry_codes,
       }));
 
@@ -164,7 +193,7 @@ export function SellerRegisterView() {
 
       notify({
         title: 'Tra cứu CSDL thành công',
-        message: `Đã đối chiếu & tự động điền dữ liệu pháp nhân của "${data.company_name}". Vui lòng hoàn tất các thông tin liên hệ và tài khoản ngân hàng tiếp theo.`,
+        message: `Đã đối chiếu & tự động điền dữ liệu pháp nhân của "${data.company_name}". Vui lòng hoàn tất các thông tin người đại diện và kho hàng tiếp theo.`,
         type: 'success',
       });
     } else {
@@ -212,27 +241,8 @@ export function SellerRegisterView() {
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
         error = 'Địa chỉ email không đúng định dạng (VD: contact@company.vn).';
       }
-    } else if (field === 'account_holder_name') {
-      if (!trimmed) error = 'Tên chủ tài khoản ngân hàng không được để trống.';
-    } else if (field === 'account_number') {
-      if (!trimmed) error = 'Vui lòng nhập Số tài khoản ngân hàng.';
-      else if (!/^[0-9A-Za-z]{6,25}$/.test(trimmed.replace(/\s+/g, ''))) {
-        error = 'Số tài khoản không hợp lệ (từ 6 đến 25 ký tự).';
-      }
-    } else if (field === 'bank_name') {
-      if (!trimmed) error = 'Vui lòng nhập Tên ngân hàng nhận thanh toán.';
-    } else if (field === 'withdrawal_pin') {
-      if (!trimmed) error = 'Vui lòng thiết lập Mã PIN rút tiền gian hàng (6 số).';
-      else if (!/^[0-9]{6}$/.test(trimmed)) {
-        error = 'Mã PIN rút tiền phải bao gồm chính xác 6 chữ số.';
-      }
-    } else if (field === 'confirm_withdrawal_pin') {
-      if (!trimmed) error = 'Vui lòng xác nhận lại Mã PIN rút tiền.';
-      else if (trimmed !== formData.withdrawal_pin) {
-        error = 'Xác nhận mã PIN không khớp với mã PIN đã nhập.';
-      }
-    } else if (field === 'warehouse_street') {
-      if (!trimmed) error = 'Vui lòng nhập Địa chỉ kho xuất hàng lấy hàng.';
+    } else if (field === 'warehouse_ward') {
+      if (!trimmed) error = 'Vui lòng chọn Xã/Phường cho địa chỉ kho hàng.';
     } else if (field === 'warehouse_contact_phone') {
       if (!trimmed) error = 'Vui lòng nhập SĐT người liên hệ kho.';
       else if (!/^(0|\+84)[0-9]{9,10}$/.test(trimmed.replace(/\s+/g, ''))) {
@@ -279,26 +289,15 @@ export function SellerRegisterView() {
         errors.operator_email = 'Email người vận hành không đúng định dạng.';
       }
     } else if (step === 3) {
-      if (!formData.account_holder_name.trim()) errors.account_holder_name = 'Tên chủ tài khoản ngân hàng không được để trống.';
-      if (!formData.account_number.trim()) errors.account_number = 'Vui lòng nhập Số tài khoản ngân hàng.';
-      if (!formData.bank_name.trim()) errors.bank_name = 'Vui lòng nhập Tên ngân hàng nhận thanh toán.';
-      if (!formData.withdrawal_pin.trim()) errors.withdrawal_pin = 'Vui lòng thiết lập Mã PIN rút tiền gian hàng (6 số).';
-      else if (!/^[0-9]{6}$/.test(formData.withdrawal_pin.trim())) {
-        errors.withdrawal_pin = 'Mã PIN rút tiền phải bao gồm chính xác 6 chữ số numeric.';
-      }
-      if (!formData.confirm_withdrawal_pin.trim()) errors.confirm_withdrawal_pin = 'Vui lòng xác nhận lại Mã PIN rút tiền.';
-      else if (formData.confirm_withdrawal_pin.trim() !== formData.withdrawal_pin.trim()) {
-        errors.confirm_withdrawal_pin = 'Xác nhận mã PIN không khớp với mã PIN đã nhập.';
-      }
-    } else if (step === 4) {
-      if (!formData.warehouse_street.trim()) errors.warehouse_street = 'Vui lòng nhập Địa chỉ kho xuất hàng lấy hàng.';
+      if (!formData.warehouse_province.trim()) errors.warehouse_province = 'Vui lòng chọn Tỉnh/Thành phố cho kho hàng.';
+      if (!formData.warehouse_ward.trim()) errors.warehouse_ward = 'Vui lòng chọn Xã/Phường cho địa chỉ kho hàng.';
       if (!formData.warehouse_contact_phone.trim()) errors.warehouse_contact_phone = 'Vui lòng nhập SĐT thủ kho / người liên hệ.';
       else if (!/^(0|\+84)[0-9]{9,10}$/.test(formData.warehouse_contact_phone.trim().replace(/\s+/g, ''))) {
         errors.warehouse_contact_phone = 'Số điện thoại kho không hợp lệ.';
       }
-    } else if (step === 5) {
+    } else if (step === 4) {
       if (!formData.agreedDrmTerms) errors.agreedDrmTerms = 'Vui lòng đồng ý với cam kết bảo hộ bản quyền DRM HUKI.';
-    } else if (step === 6) {
+    } else if (step === 5) {
       if (!formData.agreedTerms) errors.agreedTerms = 'Vui lòng xác nhận tính trung thực và cam kết điều khoản sàn.';
     }
 
@@ -318,7 +317,7 @@ export function SellerRegisterView() {
 
   const handleNext = () => {
     if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, 6));
+      setCurrentStep((prev) => Math.min(prev + 1, 5));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -330,7 +329,7 @@ export function SellerRegisterView() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!validateStep(6)) return;
+    if (!validateStep(5)) return;
 
     setIsSubmitting(true);
 
@@ -351,11 +350,14 @@ export function SellerRegisterView() {
       email: formData.operator_email.trim(),
       phone: formData.operator_phone.trim(),
       businessType: formData.businessType,
-      bankName: formData.bank_name.trim(),
-      bankAccountNumber: formData.account_number.trim(),
-      bankAccountHolderName: formData.account_holder_name.trim() || formData.company_name.trim(),
-      bankBranch: formData.bank_branch.trim() || 'Chi nhánh TP. HCM',
     };
+
+    // Xây dựng địa chỉ kho hoàn chỉnh
+    const fullWarehouseAddress = [
+      formData.warehouse_street,
+      formData.warehouse_ward,
+      formData.warehouse_province,
+    ].filter(Boolean).join(', ');
 
     const fullProfile = {
       tax_code: formData.tax_code.trim(),
@@ -379,11 +381,10 @@ export function SellerRegisterView() {
       rep_phone: formData.operator_phone.trim(),
       rep_email: formData.operator_email.trim(),
       rep_permanent_address: fullRegisteredAddress,
-      bank_name: formData.bank_name.trim(),
-      bank_branch: formData.bank_branch.trim() || 'Chi nhánh TP. HCM',
-      bank_account_number: formData.account_number.trim(),
-      bank_account_holder_name: formData.account_holder_name.trim(),
-      withdrawal_pin: formData.withdrawal_pin.trim(),
+      // NOTE: bank details & PIN sẽ được thiết lập trong luồng Setup Store sau khi duyệt
+      warehouse_address: fullWarehouseAddress || fullRegisteredAddress,
+      warehouse_contact_name: formData.warehouse_contact_name.trim(),
+      warehouse_contact_phone: formData.warehouse_contact_phone.trim(),
       partner_type: 'PUBLISHER',
       publishing_license_number: formData.compliance_doc_number || 'GP-XB/2024-HUKI',
       license_issue_date: formData.compliance_issue_date || '2024-01-01',
@@ -425,7 +426,8 @@ export function SellerRegisterView() {
         if (refreshBusiness) {
           await refreshBusiness();
         }
-        router.push('/seller/business');
+        // Redirect về trang pending
+        router.push('/seller/pending');
       } else {
         const errorMsg = res.error?.message || 'Có lỗi phát sinh khi gửi hồ sơ đối tác. Vui lòng kiểm tra lại thông tin.';
         notify({
@@ -447,14 +449,13 @@ export function SellerRegisterView() {
   const stepTitles = [
     { num: 1, title: '1. Pháp Lý Doanh Nghiệp', desc: 'MST & Tra cứu CSDL' },
     { num: 2, title: '2. Người Đại Diện', desc: 'Đại diện & CCCD e-KYC' },
-    { num: 3, title: '3. Tài Khoản Ngân Hàng', desc: 'Đối soát & Chống rửa tiền' },
-    { num: 4, title: '4. Kho Hàng Vận Hành', desc: 'Địa chỉ lấy hàng vật lý' },
-    { num: 5, title: '5. Giấy Phép & DRM', desc: 'Xuất bản & Bản quyền số' },
-    { num: 6, title: '6. Xem Lại & Gửi', desc: 'Thẩm định hồ sơ' },
+    { num: 3, title: '3. Kho Hàng Vận Hành', desc: 'Địa chỉ lấy hàng vật lý' },
+    { num: 4, title: '4. Giấy Phép & DRM', desc: 'Xuất bản & Bản quyền số' },
+    { num: 5, title: '5. Xem Lại & Gửi', desc: 'Thẩm định hồ sơ' },
   ];
 
   return (
-    <main id="main-content" tabIndex={-1} className="min-h-screen bg-slate-50 text-slate-900 py-8 antialiased">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-[#FAF8F5] text-slate-900 py-8 antialiased">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between pb-6 border-b border-slate-200 gap-4">
@@ -473,14 +474,14 @@ export function SellerRegisterView() {
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-2xs self-start md:self-auto shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span className="text-xs text-slate-600 font-medium">
-              Tiến trình: <strong className="text-slate-900 font-bold">Bước {currentStep} / 6</strong>
+              Tiến trình: <strong className="text-slate-900 font-bold">Bước {currentStep} / 5</strong>
             </span>
           </div>
         </div>
 
-        {/* 6-Step Stepper Bar */}
+        {/* 5-Step Stepper Bar */}
         <section className="py-6">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
             {stepTitles.map((step) => {
               const isCompleted = step.num < currentStep;
               const isCurrent = step.num === currentStep;
@@ -492,11 +493,11 @@ export function SellerRegisterView() {
                   onClick={() => {
                     if (step.num < currentStep) setCurrentStep(step.num);
                   }}
-                  className={`p-3 rounded-xl border text-left transition-all ${
+                  className={`p-3.5 rounded-xl border text-left transition-all ${
                     isCurrent
-                      ? 'bg-white border-[#003b2b] ring-2 ring-[#003b2b]/15 shadow-sm'
+                      ? 'bg-white border-[#003B2B] ring-2 ring-[#003B2B]/15 shadow-sm'
                       : isCompleted
-                      ? 'bg-emerald-50/50 border-emerald-200 cursor-pointer hover:bg-emerald-50'
+                      ? 'bg-emerald-50/60 border-emerald-200 cursor-pointer hover:bg-emerald-50'
                       : 'bg-white/60 border-slate-200 opacity-60 cursor-not-allowed'
                   }`}
                 >
@@ -506,7 +507,7 @@ export function SellerRegisterView() {
                         isCompleted
                           ? 'bg-emerald-600 text-white'
                           : isCurrent
-                          ? 'bg-[#003b2b] text-white'
+                          ? 'bg-[#003B2B] text-white'
                           : 'bg-slate-100 text-slate-500'
                       }`}
                     >
@@ -556,190 +557,76 @@ export function SellerRegisterView() {
                       className={`w-full h-12 bg-white border rounded-xl px-4 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder-slate-400 outline-none transition-all shadow-2xs ${
                         fieldErrors.tax_code
                           ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                          : 'border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
+                          : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
                       }`}
                     />
+                    {fieldErrors.tax_code && (
+                      <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.tax_code}</p>
+                    )}
                   </div>
 
                   <button
                     type="button"
                     disabled={isLookingUpTax}
-                    onClick={() => handleLookupTaxCode(formData.tax_code)}
-                    className="h-12 px-5 bg-[#003B2B] hover:bg-[#00281d] text-white rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center justify-center gap-2 shrink-0 cursor-pointer disabled:opacity-60"
+                    onClick={() => handleLookupTaxCode()}
+                    className="h-12 px-5 bg-[#003B2B] hover:bg-[#00281d] text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 shrink-0"
                   >
                     {isLookingUpTax ? (
                       <>
                         <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                        <span>Đang đối chiếu CSDL...</span>
+                        <span>Đang tra cứu...</span>
                       </>
                     ) : (
                       <>
-                        <span className="material-symbols-outlined text-base">database</span>
-                        <span>Tra cứu &amp; Tự động điền</span>
+                        <span className="material-symbols-outlined text-base">search_insights</span>
+                        <span>Tra cứu CSDL</span>
                       </>
                     )}
                   </button>
                 </div>
 
-                {fieldErrors.tax_code && (
-                  <p className="text-xs text-red-500 font-medium">{fieldErrors.tax_code}</p>
-                )}
-
-                {/* Quick Sample MST Chips */}
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-xs text-slate-500">Mã mẫu thử nghiệm nhanh:</span>
-                  {taxRegistryService.getSampleTaxCodes().map((sample) => (
-                    <button
-                      key={sample.code}
-                      type="button"
-                      onClick={() => {
-                        handleChange('tax_code', sample.code);
-                        handleLookupTaxCode(sample.code);
-                      }}
-                      className="text-xs px-2.5 py-1 bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-lg text-slate-700 font-medium transition-colors cursor-pointer"
-                    >
-                      <strong>{sample.code}</strong> ({sample.name})
-                    </button>
-                  ))}
-                </div>
-
-                {/* Verification Inspection Table Card */}
                 {isTaxVerified && (
-                  <div className="p-4 sm:p-5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3">
-                    <div className="flex items-center justify-between border-b border-emerald-200 pb-2.5">
-                      <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs sm:text-sm">
-                        <span className="material-symbols-outlined text-emerald-600 text-lg">verified</span>
-                        <span>KẾT QUẢ ĐỐI CHIẾU CSDL DOANH NGHIỆP QUỐC GIA</span>
-                      </div>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white font-semibold text-[10px] uppercase">
-                        Đang hoạt động
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
-                      <div>
-                        <span className="text-slate-500 font-medium">Tên chính thức:</span>{' '}
-                        <strong className="text-slate-900">{formData.company_name}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Mã số thuế:</span>{' '}
-                        <strong className="font-mono text-emerald-800">{formData.tax_code}</strong>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Tên tiếng Anh:</span>{' '}
-                        <span className="text-slate-800">{formData.international_name || '—'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Tên viết tắt:</span>{' '}
-                        <span className="text-slate-800 font-semibold">{formData.short_name || '—'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Người đại diện pháp luật:</span>{' '}
-                        <strong className="text-slate-900">{formData.rep_full_name}</strong> ({formData.rep_position})
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Loại hình doanh nghiệp:</span>{' '}
-                        <span className="text-slate-800 font-semibold">{formData.businessType}</span>
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="text-slate-500 font-medium">Địa chỉ trụ sở / Địa chỉ thuế:</span>{' '}
-                        <span className="text-slate-900 font-medium">{formData.registered_street}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Ngày cấp:</span>{' '}
-                        <span className="text-slate-800 font-mono">{formData.issue_date || '—'}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-500 font-medium">Cơ quan quản lý:</span>{' '}
-                        <span className="text-slate-800">{formData.issue_place || '—'}</span>
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="text-slate-500 font-medium">Ngành nghề kinh doanh:</span>{' '}
-                        <span className="text-slate-800">{formData.ecommerce_industry_codes || '4791 (Bán lẻ TMĐT)'}</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 border-t border-emerald-200/60 text-[11px] text-emerald-800 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-sm text-emerald-600">info</span>
-                      <span>Toàn bộ thông tin đối chiếu trên đã được tự động điền vào form bên dưới. Bạn có thể kiểm tra lại trước khi bấm chuyển bước.</span>
-                    </div>
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800">
+                    <span className="material-symbols-outlined text-base text-emerald-600">verified</span>
+                    <span>Đã đối chiếu thành công với CSDL Doanh nghiệp Quốc Gia</span>
                   </div>
                 )}
               </div>
 
-              {/* Company Fields */}
+              {/* Thông tin chi tiết doanh nghiệp */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
+                <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên chính thức doanh nghiệp trên Giấy phép ĐKKD (company_name) <span className="text-red-500">*</span>
+                    Tên đầy đủ theo ĐKKD (company_name) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.company_name}
                     onChange={(e) => handleChange('company_name', e.target.value)}
                     onBlur={(e) => validateSingleField('company_name', e.target.value)}
-                    placeholder="CÔNG TY TNHH / CỔ PHẦN..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs"
+                    placeholder="CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH TP. HCM - FAHASA"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.company_name && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.company_name}</p>
                   )}
                 </div>
 
-                {/* BỔ SUNG TRƯỜNG: TÊN GIAN HÀNG / CỬA HÀNG HIỂN THỊ (store_name) */}
-                <div className="md:col-span-2 bg-emerald-50/40 p-4 rounded-xl border border-emerald-200/80">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="material-symbols-outlined text-emerald-700 text-lg">storefront</span>
-                    <label className="block text-xs font-bold text-emerald-950">
-                      Tên Gian Hàng / Cửa Hàng Hiển Thị (store_name) <span className="text-red-500">*</span>
-                    </label>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Tên Gian Hàng / Thương Hiệu hiển thị (store_name) <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="text"
                     value={formData.store_name}
                     onChange={(e) => handleChange('store_name', e.target.value)}
                     onBlur={(e) => validateSingleField('store_name', e.target.value)}
-                    placeholder="Ví dụ: Nhà Sách FAHASA Official, Nhà Sách Tuổi Thơ, CÔNG TY TNHH KIEN SELLER 2..."
-                    className={`w-full h-12 bg-white border rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs ${
-                      fieldErrors.store_name
-                        ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                        : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
-                    }`}
+                    placeholder="FAHASA Official Store"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-semibold text-emerald-800 outline-none transition-all shadow-2xs"
                   />
-                  {fieldErrors.store_name ? (
-                    <p className="mt-1.5 text-xs text-red-500 font-medium">{fieldErrors.store_name}</p>
-                  ) : (
-                    <p className="mt-1.5 text-[11px] text-emerald-800 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs text-emerald-600">info</span>
-                      Tên này sẽ là tên gian hàng chính thức hiển thị công khai cho độc giả và khách hàng nhìn thấy khi ghé thăm gian hàng hoặc mua sách trên sàn HUKI.
-                    </p>
+                  {fieldErrors.store_name && (
+                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.store_name}</p>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên tiếng nước ngoài / Tên quốc tế (international_name)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.international_name}
-                    onChange={(e) => handleChange('international_name', e.target.value)}
-                    placeholder="VIET INTELLECT DIGITAL CONTENT..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên viết tắt doanh nghiệp (short_name)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.short_name}
-                    onChange={(e) => handleChange('short_name', e.target.value)}
-                    placeholder="TRÍ TUỆ VIỆT BOOKS"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
                 </div>
 
                 <div>
@@ -749,7 +636,7 @@ export function SellerRegisterView() {
                   <select
                     value={formData.businessType}
                     onChange={(e) => handleChange('businessType', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   >
                     <option value="LLC">Công ty TNHH (Trách nhiệm hữu hạn)</option>
                     <option value="CORPORATION">Công ty Cổ Phần (Joint Stock)</option>
@@ -767,7 +654,7 @@ export function SellerRegisterView() {
                     value={formData.ecommerce_industry_codes}
                     onChange={(e) => handleChange('ecommerce_industry_codes', e.target.value)}
                     placeholder="4791 (Bán lẻ qua TMĐT), 5811 (Xuất bản sách)..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -779,7 +666,7 @@ export function SellerRegisterView() {
                     type="date"
                     value={formData.issue_date}
                     onChange={(e) => handleChange('issue_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -792,7 +679,7 @@ export function SellerRegisterView() {
                     value={formData.issue_place}
                     onChange={(e) => handleChange('issue_place', e.target.value)}
                     placeholder="Sở Kế hoạch và Đầu tư..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -806,7 +693,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('registered_street', e.target.value)}
                     onBlur={(e) => validateSingleField('registered_street', e.target.value)}
                     placeholder="Số nhà, tên đường, tầng tòa nhà, phường/xã, quận/huyện, tỉnh/thành phố..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.registered_street && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.registered_street}</p>
@@ -818,10 +705,10 @@ export function SellerRegisterView() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Ảnh chụp / Bản scan Giấy chứng nhận ĐKKD (license_document_url) <span className="text-red-500">*</span>
                   </label>
-                  <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003b2b] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
+                  <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                        <span className="material-symbols-outlined text-xl text-[#003b2b]">description</span>
+                        <span className="material-symbols-outlined text-xl text-[#003B2B]">description</span>
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900">
@@ -899,7 +786,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('rep_full_name', e.target.value)}
                     onBlur={(e) => validateSingleField('rep_full_name', e.target.value)}
                     placeholder="NGUYỄN VĂN HÙNG"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.rep_full_name && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.rep_full_name}</p>
@@ -915,7 +802,7 @@ export function SellerRegisterView() {
                     value={formData.rep_position}
                     onChange={(e) => handleChange('rep_position', e.target.value)}
                     placeholder="Giám đốc Điều hành / Tổng Giám đốc..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -929,7 +816,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('rep_id_card_number', e.target.value)}
                     onBlur={(e) => validateSingleField('rep_id_card_number', e.target.value)}
                     placeholder="Nhập 12 chữ số CCCD (VD: 079094002381)..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm font-mono text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-mono text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.rep_id_card_number && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.rep_id_card_number}</p>
@@ -944,7 +831,7 @@ export function SellerRegisterView() {
                     type="date"
                     value={formData.rep_id_card_issue_date}
                     onChange={(e) => handleChange('rep_id_card_issue_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -957,7 +844,7 @@ export function SellerRegisterView() {
                     value={formData.operator_name}
                     onChange={(e) => handleChange('operator_name', e.target.value)}
                     placeholder="Họ tên người quản lý gian hàng..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -971,7 +858,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('operator_phone', e.target.value)}
                     onBlur={(e) => validateSingleField('operator_phone', e.target.value)}
                     placeholder="0908123456"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.operator_phone && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.operator_phone}</p>
@@ -988,7 +875,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('operator_email', e.target.value)}
                     onBlur={(e) => validateSingleField('operator_email', e.target.value)}
                     placeholder="publisher@company.vn"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.operator_email && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.operator_email}</p>
@@ -1001,7 +888,7 @@ export function SellerRegisterView() {
                     Ảnh chụp giấy tờ tùy thân CCCD / Hộ chiếu người đại diện (e-KYC)
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-3.5 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003b2b] rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-colors">
+                    <div className="p-3.5 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-colors">
                       <span className="material-symbols-outlined text-2xl text-slate-500">badge</span>
                       <div className="text-xs font-semibold text-slate-800">
                         {formData.rep_id_card_front_url ? 'CCCD_Mat_Truoc_Da_Chon.jpg' : 'Mặt trước CCCD / Hộ chiếu'}
@@ -1023,7 +910,7 @@ export function SellerRegisterView() {
                       </label>
                     </div>
 
-                    <div className="p-3.5 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003b2b] rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-colors">
+                    <div className="p-3.5 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-colors">
                       <span className="material-symbols-outlined text-2xl text-slate-500">credit_card</span>
                       <div className="text-xs font-semibold text-slate-800">
                         {formData.rep_id_card_back_url ? 'CCCD_Mat_Sau_Da_Chon.jpg' : 'Mặt sau CCCD (Có mã vạch)'}
@@ -1051,152 +938,13 @@ export function SellerRegisterView() {
           )}
 
           {/* ========================================================================= */}
-          {/* BƯỚC 3: COLLECTION business_bank_accounts */}
+          {/* BƯỚC 3: COLLECTION business_warehouses */}
           {/* ========================================================================= */}
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  3. Thông Tin Tài Khoản Ngân Hàng &amp; Đối Soát Doanh Thu
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Tên chủ tài khoản tự động khóa khớp với tên pháp nhân doanh nghiệp để đảm bảo tuân thủ Luật Phòng chống rửa tiền (AML).
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên chủ tài khoản ngân hàng (account_holder_name) <span className="text-red-500">* (Đồng bộ theo Tên Pháp Nhân)</span>
-                  </label>
-                  <input
-                    type="text"
-                    disabled
-                    value={formData.account_holder_name || formData.company_name || 'Vui lòng tra cứu MST ở Bước 1'}
-                    className="w-full h-12 bg-slate-100 border border-slate-200 rounded-xl px-4 text-sm font-bold text-slate-700 cursor-not-allowed outline-none"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    🔒 Tên chủ tài khoản bắt buộc phải trùng khớp 100% với tên pháp nhân đăng ký kinh doanh.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Số tài khoản doanh nghiệp (account_number) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.account_number}
-                    onChange={(e) => handleChange('account_number', e.target.value)}
-                    onBlur={(e) => validateSingleField('account_number', e.target.value)}
-                    placeholder="Nhập số tài khoản ngân hàng..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm font-mono font-bold text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                  {fieldErrors.account_number && (
-                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.account_number}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên thương mại ngân hàng (bank_name) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.bank_name}
-                    onChange={(e) => handleChange('bank_name', e.target.value)}
-                    onBlur={(e) => validateSingleField('bank_name', e.target.value)}
-                    placeholder="Vietcombank / Techcombank / BIDV..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                  {fieldErrors.bank_name && (
-                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.bank_name}</p>
-                  )}
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Chi nhánh / Phòng giao dịch (bank_branch)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.bank_branch}
-                    onChange={(e) => handleChange('bank_branch', e.target.value)}
-                    placeholder="Chi nhánh TP.HCM / Chi nhánh Hà Nội..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                {/* THIẾT LẬP MÃ PIN RÚT TIỀN GIAN HÀNG (6 CHỮ SỐ) */}
-                <div className="md:col-span-2 bg-emerald-50/50 p-4 sm:p-5 rounded-2xl border border-emerald-200 space-y-3 mt-2">
-                  <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs sm:text-sm">
-                    <span className="material-symbols-outlined text-emerald-700 text-lg">shield_lock</span>
-                    <span>THIẾT LẬP MÃ PIN RÚT TIỀN GIAN HÀNG (6 SỐ BẢO MẬT)</span>
-                  </div>
-                  <p className="text-xs text-emerald-800 leading-relaxed">
-                    Mã PIN 6 số do bạn tự thiết lập sẽ được dùng để xác thực và bảo vệ toàn bộ các lệnh rút tiền từ ví gian hàng về tài khoản ngân hàng thụ hưởng sau này.
-                  </p>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Mã PIN rút tiền (6 chữ số) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={formData.withdrawal_pin}
-                        onChange={(e) => handleChange('withdrawal_pin', e.target.value)}
-                        onBlur={(e) => validateSingleField('withdrawal_pin', e.target.value)}
-                        placeholder="••••••"
-                        className={`w-full h-12 bg-white border rounded-xl px-4 text-center text-lg font-mono font-bold tracking-widest text-slate-900 outline-none transition-all shadow-2xs ${
-                          fieldErrors.withdrawal_pin
-                            ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                            : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
-                        }`}
-                      />
-                      {fieldErrors.withdrawal_pin && (
-                        <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.withdrawal_pin}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                        Xác nhận lại mã PIN (6 chữ số) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={formData.confirm_withdrawal_pin}
-                        onChange={(e) => handleChange('confirm_withdrawal_pin', e.target.value)}
-                        onBlur={(e) => validateSingleField('confirm_withdrawal_pin', e.target.value)}
-                        placeholder="••••••"
-                        className={`w-full h-12 bg-white border rounded-xl px-4 text-center text-lg font-mono font-bold tracking-widest text-slate-900 outline-none transition-all shadow-2xs ${
-                          fieldErrors.confirm_withdrawal_pin
-                            ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                            : 'border-emerald-300 hover:border-emerald-400 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15'
-                        }`}
-                      />
-                      {fieldErrors.confirm_withdrawal_pin && (
-                        <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.confirm_withdrawal_pin}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* BƯỚC 4: COLLECTION business_warehouses */}
-          {/* ========================================================================= */}
-          {currentStep === 4 && (
-            <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  4. Thông Tin Kho Xuất Hàng &amp; Vận Hành Lấy Hàng
+                  3. Thông Tin Kho Xuất Hàng &amp; Vận Hành Lấy Hàng
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Địa chỉ thực tế để các đơn vị vận chuyển (GHN, Viettel Post, Shopee Xpress) đến lấy sách khi có đơn mới.
@@ -1204,21 +952,36 @@ export function SellerRegisterView() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Địa chỉ kho - dùng CustomLocationSelector */}
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 mb-3">
+                    Địa chỉ kho hàng (Tỉnh/Thành + Xã/Phường) <span className="text-red-500">*</span>
+                  </label>
+                  <CustomLocationSelector
+                    province={formData.warehouse_province}
+                    provinceCode={formData.warehouse_province_code}
+                    ward={formData.warehouse_ward}
+                    wardCode={formData.warehouse_ward_code}
+                    onChange={handleWarehouseLocationChange}
+                    required={true}
+                  />
+                  {fieldErrors.warehouse_ward && (
+                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_ward}</p>
+                  )}
+                </div>
+
+                {/* Số nhà, tên đường */}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Địa chỉ kho hàng chi tiết (warehouse_address) <span className="text-red-500">*</span>
+                    Số nhà, tên đường, tầng (tùy chọn, bổ sung địa chỉ chi tiết)
                   </label>
                   <input
                     type="text"
                     value={formData.warehouse_street}
                     onChange={(e) => handleChange('warehouse_street', e.target.value)}
-                    onBlur={(e) => validateSingleField('warehouse_street', e.target.value)}
-                    placeholder="Số nhà, tên đường, tên kho, phường/xã, quận/huyện, tỉnh/thành..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    placeholder="VD: Số 123 Đường Nguyễn Trãi, Tầng 3, Tòa nhà ABC..."
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
-                  {fieldErrors.warehouse_street && (
-                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_street}</p>
-                  )}
                 </div>
 
                 <div>
@@ -1230,7 +993,7 @@ export function SellerRegisterView() {
                     value={formData.warehouse_contact_name}
                     onChange={(e) => handleChange('warehouse_contact_name', e.target.value)}
                     placeholder="Trần Văn Kho"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -1244,7 +1007,7 @@ export function SellerRegisterView() {
                     onChange={(e) => handleChange('warehouse_contact_phone', e.target.value)}
                     onBlur={(e) => validateSingleField('warehouse_contact_phone', e.target.value)}
                     placeholder="0918889999"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.warehouse_contact_phone && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_contact_phone}</p>
@@ -1255,13 +1018,13 @@ export function SellerRegisterView() {
           )}
 
           {/* ========================================================================= */}
-          {/* BƯỚC 5: COLLECTION business_compliance_docs */}
+          {/* BƯỚC 4: COLLECTION business_compliance_docs */}
           {/* ========================================================================= */}
-          {currentStep === 5 && (
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  5. Giấy Phép Ngành Nghề Đặc Thù &amp; Bản Quyền DRM
+                  4. Giấy Phép Ngành Nghề Đặc Thù &amp; Bản Quyền DRM
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Xác thực điều kiện phát hành sách, nội dung số có bản quyền và cam kết công nghệ DRM
@@ -1278,7 +1041,7 @@ export function SellerRegisterView() {
                     value={formData.compliance_doc_type}
                     onChange={(e) => handleChange('compliance_doc_type', e.target.value)}
                     placeholder="GIAY_PHEP_XUAT_BAN_SO / BRAND_AUTHORIZATION"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -1291,7 +1054,7 @@ export function SellerRegisterView() {
                     value={formData.compliance_doc_number}
                     onChange={(e) => handleChange('compliance_doc_number', e.target.value)}
                     placeholder="GP-XB-2026/88-HUKI"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -1303,7 +1066,7 @@ export function SellerRegisterView() {
                     type="date"
                     value={formData.compliance_issue_date}
                     onChange={(e) => handleChange('compliance_issue_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -1315,7 +1078,7 @@ export function SellerRegisterView() {
                     type="date"
                     value={formData.compliance_expiry_date}
                     onChange={(e) => handleChange('compliance_expiry_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003b2b] focus:ring-2 focus:ring-[#003b2b]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
@@ -1324,10 +1087,10 @@ export function SellerRegisterView() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Bản scan Giấy phép xuất bản / Hợp đồng ủy quyền tác quyền (document_urls)
                   </label>
-                  <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003b2b] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
+                  <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                        <span className="material-symbols-outlined text-xl text-[#003b2b]">folder_special</span>
+                        <span className="material-symbols-outlined text-xl text-[#003B2B]">folder_special</span>
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900">
@@ -1373,14 +1136,14 @@ export function SellerRegisterView() {
               </div>
 
               {/* DRM Terms Agreement */}
-              <div className="p-4 bg-[#003b2b]/5 border border-[#003b2b]/20 rounded-xl space-y-3">
+              <div className="p-4 bg-[#003B2B]/5 border border-[#003B2B]/20 rounded-xl space-y-3">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     id="agreedDrm"
                     checked={formData.agreedDrmTerms}
                     onChange={(e) => handleChange('agreedDrmTerms', e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded text-[#003b2b] focus:ring-[#003b2b] border-slate-300 cursor-pointer"
+                    className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
                   />
                   <label htmlFor="agreedDrm" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
                     <strong className="text-slate-900">Cam kết bản quyền &amp; Mã hóa DRM Tiêu chuẩn:</strong> Doanh nghiệp cam kết toàn bộ các ấn phẩm sách giấy, sách điện tử và sách nói đăng tải trên hệ sinh thái HUKI đều có đầy đủ hợp đồng chuyển nhượng tác quyền hợp pháp và đồng ý bảo vệ nội dung số thông qua chuẩn mã hóa bảo mật DRM của HUKI.
@@ -1394,13 +1157,13 @@ export function SellerRegisterView() {
           )}
 
           {/* ========================================================================= */}
-          {/* BƯỚC 6: XEM LẠI TỔNG QUAN & GỬI THẨM ĐỊNH */}
+          {/* BƯỚC 5: XEM LẠI TỔNG QUAN & GỬI THẨM ĐỊNH */}
           {/* ========================================================================= */}
-          {currentStep === 6 && (
+          {currentStep === 5 && (
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  6. Xem Lại Toàn Bộ Hồ Sơ &amp; Gửi Thẩm Định
+                  5. Xem Lại Toàn Bộ Hồ Sơ &amp; Gửi Thẩm Định
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Vui lòng rà soát lại thông tin đối chiếu trước khi gửi tới Ban thẩm định HUKI
@@ -1432,35 +1195,44 @@ export function SellerRegisterView() {
                   <div><span className="text-slate-500">Email:</span> <span className="text-slate-900">{formData.operator_email || 'Chưa nhập'}</span></div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 md:col-span-2">
                   <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
-                    <span>3. Ngân Hàng Đối Soát</span>
-                    <span className="text-emerald-700 font-semibold">✓ Khớp Tên DN</span>
-                  </div>
-                  <div><span className="text-slate-500">Chủ TK:</span> <strong className="text-slate-900">{formData.account_holder_name || formData.company_name || 'Chưa nhập'}</strong></div>
-                  <div><span className="text-slate-500">Số TK:</span> <span className="font-mono font-bold text-slate-900">{formData.account_number || 'Chưa nhập'}</span></div>
-                  <div><span className="text-slate-500">Ngân hàng:</span> <span className="text-slate-900">{formData.bank_name || 'Chưa nhập'}</span></div>
-                </div>
-
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                  <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
-                    <span>4. Kho Xuất Hàng</span>
+                    <span>3. Kho Xuất Hàng Vật Lý</span>
                     <span className="text-emerald-700 font-semibold">✓ Sẵn sàng</span>
                   </div>
-                  <div><span className="text-slate-500">Địa chỉ kho:</span> <span className="text-slate-900">{formData.warehouse_street || 'Chưa nhập'}</span></div>
-                  <div><span className="text-slate-500">Liên hệ kho:</span> <span className="text-slate-900">{formData.warehouse_contact_name || 'Thủ kho'} ({formData.warehouse_contact_phone || 'Chưa có SĐT'})</span></div>
+                  <div>
+                    <span className="text-slate-500">Địa chỉ kho:</span>{' '}
+                    <span className="text-slate-900 font-medium">
+                      {[formData.warehouse_street, formData.warehouse_ward, formData.warehouse_province].filter(Boolean).join(', ') || 'Chưa chọn'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Liên hệ kho:</span>{' '}
+                    <span className="text-slate-900">{formData.warehouse_contact_name || 'Thủ kho'} ({formData.warehouse_contact_phone || 'Chưa có SĐT'})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Note about bank setup */}
+              <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl flex items-start gap-3">
+                <span className="material-symbols-outlined text-emerald-700 shrink-0 text-xl">account_balance</span>
+                <div className="text-xs text-emerald-900">
+                  <strong className="block mb-0.5">Thiết lập tài khoản ngân hàng &amp; Mã PIN bảo mật</strong>
+                  <p className="text-emerald-800 leading-relaxed">
+                    Sau khi Ban quản trị sàn HUKI thẩm định và phê duyệt hồ sơ doanh nghiệp, bạn sẽ hoàn tất việc liên kết <strong>Tài khoản ngân hàng</strong> và thiết lập <strong>Mã PIN 6 số</strong> trong luồng Thiết Lập Gian Hàng.
+                  </p>
                 </div>
               </div>
 
               {/* Final Agreement */}
-              <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-2">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                 <div className="flex items-start gap-3">
                   <input
                     type="checkbox"
                     id="agreedFinal"
                     checked={formData.agreedTerms}
                     onChange={(e) => handleChange('agreedTerms', e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded text-[#003b2b] focus:ring-[#003b2b] border-slate-300 cursor-pointer"
+                    className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
                   />
                   <label htmlFor="agreedFinal" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
                     Tôi cam kết toàn bộ thông tin kê khai trên là hoàn toàn chính xác, đúng pháp luật và chịu trách nhiệm trước pháp luật về tính pháp lý của doanh nghiệp và quyền phát hành sách trên sàn HUKI.
@@ -1485,14 +1257,14 @@ export function SellerRegisterView() {
               </button>
             ) : (
               <Link
-                href="/seller/dashboard"
+                href="/seller"
                 className="h-12 px-6 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs sm:text-sm font-semibold inline-flex items-center transition-colors"
               >
-                Quay lại Trang Nhà Bán Hàng
+                Về Kênh Người Bán
               </Link>
             )}
 
-            {currentStep < 6 ? (
+            {currentStep < 5 ? (
               <button
                 type="button"
                 onClick={handleNext}

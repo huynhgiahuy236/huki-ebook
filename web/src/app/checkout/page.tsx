@@ -24,7 +24,7 @@ import PaymentCountdownModal from "@/ui/components/checkout/PaymentCountdownModa
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { user, isLoggedIn } = (useAuth() || {}) as any;
+  const { user, isLoggedIn, isLoading: authLoading } = (useAuth() || {}) as any;
   const {
     cartItems = [],
     checkedSubtotal = 0,
@@ -75,6 +75,19 @@ export default function CheckoutPage() {
 
   const [directItem, setDirectItem] = useState<any>(null);
 
+  // GUEST GUARD: Redirect to login if not authenticated, then redirect back to checkout
+  useEffect(() => {
+    // Wait for auth to finish loading
+    if (authLoading === undefined || authLoading === true) return;
+
+    if (!isLoggedIn) {
+      // Save current URL to return after login
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/checkout';
+      sessionStorage.setItem('huki_login_redirect', currentPath);
+      router.replace('/auth/login?redirect=' + encodeURIComponent(currentPath));
+    }
+  }, [isLoggedIn, authLoading, router]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const searchParams = new URLSearchParams(window.location.search);
@@ -110,11 +123,20 @@ export default function CheckoutPage() {
     return (cartItems || []).filter((i: any) => i.checked);
   }, [isDirectMode, directItem, cartItems]);
 
-  const ebookItems = checkedItems.filter((i: any) => i.type === "ebook");
-  const physicalItems = checkedItems.filter((i: any) => i.type === "physical");
-  const effectiveHasPhysical = isDirectMode
-    ? physicalItems.length > 0
-    : hasPhysicalItems;
+  const ebookItems = checkedItems.filter(
+    (i: any) => i.type === "ebook" || i.format === "DIGITAL" || (!i.format && i.type !== "physical") || i.format === "EBOOK"
+  );
+  const physicalItems = checkedItems.filter(
+    (i: any) => i.type === "physical" || i.format === "PHYSICAL" || (typeof i.format === "string" && i.format.toLowerCase().includes("giấy"))
+  );
+  const effectiveHasPhysical = physicalItems.length > 0;
+
+  // Auto-switch payment method to ONLINE_PAYMENT if pure digital/ebook order
+  useEffect(() => {
+    if (!effectiveHasPhysical && paymentMethod === "COD") {
+      setPaymentMethod("ONLINE_PAYMENT");
+    }
+  }, [effectiveHasPhysical, paymentMethod]);
 
   const rawSubtotal = useMemo(() => {
     return checkedItems.reduce(
@@ -263,10 +285,47 @@ export default function CheckoutPage() {
 
   // Apply platform voucher
   const handleApplyPlatformVoucher = async (voucher: any) => {
+    const appFormat = (voucher.applicableFormat || "ALL").toUpperCase();
+    let eligibleSubtotal = rawSubtotal;
+
+    if (appFormat === "DIGITAL") {
+      const ebookSubtotal = ebookItems.reduce(
+        (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+        0
+      );
+      if (ebookItems.length === 0 || ebookSubtotal <= 0) {
+        showToast(
+          {
+            title: "Không thể áp dụng",
+            message: "Voucher này chỉ áp dụng cho ấn phẩm Ebook DRM. Đơn hàng của bạn chưa có Ebook.",
+          },
+          "warning"
+        );
+        return;
+      }
+      eligibleSubtotal = ebookSubtotal;
+    } else if (appFormat === "PHYSICAL") {
+      const physicalSubtotal = physicalItems.reduce(
+        (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+        0
+      );
+      if (physicalItems.length === 0 || physicalSubtotal <= 0) {
+        showToast(
+          {
+            title: "Không thể áp dụng",
+            message: "Voucher này chỉ áp dụng cho Sách Giấy vật lý. Đơn hàng của bạn chưa có Sách Giấy.",
+          },
+          "warning"
+        );
+        return;
+      }
+      eligibleSubtotal = physicalSubtotal;
+    }
+
     try {
       const res = await voucherApi.validateVoucher({
         code: voucher.code,
-        orderSubtotal: rawSubtotal,
+        orderSubtotal: eligibleSubtotal,
       });
       if (res.success && res.data?.valid) {
         setAppliedPlatformVoucher({
@@ -278,7 +337,7 @@ export default function CheckoutPage() {
         showToast(
           {
             title: "Đã áp dụng Voucher!",
-            message: `Giảm ${res.data.discount?.toLocaleString("vi-VN")}đ`,
+            message: `Giảm ${res.data.discount?.toLocaleString("vi-VN")}đ (${appFormat === "DIGITAL" ? "Chỉ Ebook" : appFormat === "PHYSICAL" ? "Chỉ Sách Giấy" : "Toàn Đơn"})`,
           },
           "success"
         );
@@ -417,13 +476,49 @@ export default function CheckoutPage() {
       );
       return;
     }
-    const storeSubtotal = targetGroup.subtotal;
 
-    if (voucher.minOrderAmount && storeSubtotal < voucher.minOrderAmount) {
+    const appFormat = (voucher.applicableFormat || "ALL").toUpperCase();
+    const groupEbookItems = targetGroup.items.filter((i: any) => i.type === "ebook" || i.format === "DIGITAL");
+    const groupPhysicalItems = targetGroup.items.filter((i: any) => i.type === "physical" || i.format === "PHYSICAL");
+
+    let eligibleStoreSubtotal = targetGroup.subtotal;
+    if (appFormat === "DIGITAL") {
+      if (groupEbookItems.length === 0) {
+        showToast(
+          {
+            title: "Không thể áp dụng",
+            message: `Voucher "${voucher.code}" chỉ áp dụng cho Ebook DRM của gian hàng. Giỏ hàng chưa có Ebook từ shop này.`,
+          },
+          "warning"
+        );
+        return;
+      }
+      eligibleStoreSubtotal = groupEbookItems.reduce(
+        (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+        0
+      );
+    } else if (appFormat === "PHYSICAL") {
+      if (groupPhysicalItems.length === 0) {
+        showToast(
+          {
+            title: "Không thể áp dụng",
+            message: `Voucher "${voucher.code}" chỉ áp dụng cho Sách Giấy vật lý của gian hàng. Giỏ hàng chưa có Sách Giấy từ shop này.`,
+          },
+          "warning"
+        );
+        return;
+      }
+      eligibleStoreSubtotal = groupPhysicalItems.reduce(
+        (sum: number, i: any) => sum + (Number(i.price) || 0) * (Number(i.quantity) || 1),
+        0
+      );
+    }
+
+    if (voucher.minOrderAmount && eligibleStoreSubtotal < voucher.minOrderAmount) {
       showToast(
         {
           title: "Chưa đủ điều kiện",
-          message: `Đơn hàng của gian hàng này chưa đạt mức tối thiểu ${Number(voucher.minOrderAmount).toLocaleString("vi-VN")}đ (Hiện có: ${storeSubtotal.toLocaleString("vi-VN")}đ)`,
+          message: `Tổng tiền ${appFormat === "DIGITAL" ? "Ebook" : appFormat === "PHYSICAL" ? "Sách giấy" : "sản phẩm"} của shop chưa đạt mức tối thiểu ${Number(voucher.minOrderAmount).toLocaleString("vi-VN")}đ (Hiện có: ${eligibleStoreSubtotal.toLocaleString("vi-VN")}đ)`,
         },
         "warning"
       );
@@ -433,7 +528,7 @@ export default function CheckoutPage() {
     try {
       const res = await voucherApi.validateVoucher({
         code: voucher.code,
-        orderSubtotal: storeSubtotal,
+        orderSubtotal: eligibleStoreSubtotal,
         storeId: targetGroup.canonicalId,
       });
       if (res.success && res.data?.valid) {
@@ -443,6 +538,7 @@ export default function CheckoutPage() {
           discount: discountVal,
           name: voucher.name,
           storeName: targetGroup.storeName,
+          applicableFormat: appFormat,
         };
 
         setAppliedStoreVouchers((prev) => ({
@@ -453,7 +549,7 @@ export default function CheckoutPage() {
         showToast(
           {
             title: "Đã áp dụng Voucher Shop!",
-            message: `Giảm ${discountVal.toLocaleString("vi-VN")}đ cho gian hàng ${targetGroup.storeName}`,
+            message: `Giảm ${discountVal.toLocaleString("vi-VN")}đ cho gian hàng ${targetGroup.storeName} (${appFormat === "DIGITAL" ? "Chỉ Ebook" : appFormat === "PHYSICAL" ? "Chỉ Sách Giấy" : "Tất Cả Sách"})`,
           },
           "success"
         );
@@ -1016,47 +1112,12 @@ export default function CheckoutPage() {
 
           if (isOnline) {
             setIsSubmitting(false);
-            let payData = null;
-            try {
-              const initRes = await paymentApi.initiatePayment(orderData.id, {
-                returnUrl: `${typeof window !== "undefined" ? window.location.origin : ""}/order-success?orderId=${orderData.id}&code=${orderData.code}&paymentMethod=ONLINE_PAYMENT`,
-                cancelUrl:
-                  typeof window !== "undefined" ? window.location.href : "",
-              });
-              if (initRes.success && initRes.data) {
-                payData = initRes.data;
-              } else if (initRes.error) {
-                showToast(
-                  {
-                    title: "Lưu ý thanh toán PayOS",
-                    message:
-                      initRes.error.message || "Không thể tạo liên kết PayOS.",
-                  },
-                  "warning"
-                );
-              }
-            } catch (payErr) {
-              console.error("Failed to initiate PayOS link:", payErr);
-            }
-
             if (isDirectMode && typeof window !== "undefined") {
               sessionStorage.removeItem("huki_direct_checkout_item");
+            } else {
+              clearCart();
             }
-            setCurrentOrderId(orderData.id);
-            setCurrentOrderCode(orderData.code);
-            setCurrentOrderGrandTotal(
-              Number(orderData.grandTotal) || grandTotal
-            );
-            setActivePaymentData(payData);
-            setShowPaymentModal(true);
-            showToast(
-              {
-                title: "Đã tạo đơn hàng thành công!",
-                message:
-                  "Vui lòng quét mã VietQR để hoàn tất thanh toán trong vòng 2 phút (120s).",
-              },
-              "info"
-            );
+            router.push(`/checkout/payment/${orderData.id}`);
             return;
           }
 
@@ -1105,55 +1166,8 @@ export default function CheckoutPage() {
         return;
       }
     }
-
-    // Local / Guest fallback order flow
-    setTimeout(() => {
-      setIsSubmitting(false);
-      const isOnline = paymentMethod === "ONLINE_PAYMENT";
-      const fallbackCode = `ORD-${Date.now().toString(36).toUpperCase()}`;
-      const fallbackId =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `ord-${Date.now()}`;
-
-      if (isOnline) {
-        setCurrentOrderId(fallbackId);
-        setCurrentOrderCode(fallbackCode);
-        setCurrentOrderGrandTotal(grandTotal);
-        setShowPaymentModal(true);
-        if (isDirectMode && typeof window !== "undefined") {
-          sessionStorage.removeItem("huki_direct_checkout_item");
-        } else {
-          clearCart();
-        }
-        showToast(
-          {
-            title: "Đã tạo đơn hàng thành công!",
-            message:
-              "Vui lòng quét mã VietQR để hoàn tất thanh toán trong vòng 2 phút (120s).",
-          },
-          "info"
-        );
-        return;
-      }
-
-      if (isDirectMode && typeof window !== "undefined") {
-        sessionStorage.removeItem("huki_direct_checkout_item");
-      } else {
-        clearCart();
-      }
-      showToast(
-        {
-          title: "Đặt hàng thành công!",
-          message:
-            "Đơn hàng của bạn đã được ghi nhận thành công. Đang chuyển hướng...",
-        },
-        "success"
-      );
-      router.push(
-        `/order-success?orderId=${fallbackId}&code=${fallbackCode}&paymentMethod=COD`
-      );
-    }, 400);
+    // NOTE: Guest users are redirected to login at the top of this component.
+    // This code path should never be reached for unauthenticated users.
   };
 
   return (
@@ -1630,7 +1644,7 @@ export default function CheckoutPage() {
               </section>
             )}
 
-            {/* Payment Methods (COD is Active & Primary) */}
+            {/* Payment Methods */}
             <section className="bg-[var(--theme-surface,#ffffff)] rounded-xl border border-[var(--theme-border,#e8e5df)] p-3.5 sm:p-4 shadow-2xs">
               <h2 className="font-editorial text-sm sm:text-base font-bold text-[var(--theme-text,#1c1b1f)] mb-2.5 flex items-center gap-1.5">
                 <span className="w-1 h-4 bg-[var(--theme-primary,#003B2B)] rounded-full"></span>
@@ -1659,11 +1673,11 @@ export default function CheckoutPage() {
                           Thanh toán trực tuyến PayOS (VietQR)
                         </span>
                         <span className="bg-teal-500/15 text-teal-800 dark:text-teal-300 text-[9px] font-bold px-1.5 py-0.2 rounded border border-teal-500/20">
-                          Tức thì · 2 phút
+                          Tức thì · Tự động kích hoạt
                         </span>
                       </div>
                       <span className="text-[10.5px] text-[var(--theme-text-muted,#49454f)] block">
-                        Quét mã QR qua tất cả App Ngân hàng hoặc Ví điện tử
+                        Quét mã QR qua tất cả App Ngân hàng hoặc Ví điện tử — Mở khóa đọc ngay
                       </span>
                     </div>
                   </div>
@@ -1676,43 +1690,59 @@ export default function CheckoutPage() {
                   />
                 </label>
 
-                {/* COD (Active) */}
-                <label
-                  onClick={() => setPaymentMethod("COD")}
-                  className={`p-2.5 sm:p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${
-                    paymentMethod === "COD"
-                      ? "border border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 shadow-2xs"
-                      : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-7.5 h-7.5 rounded-lg bg-amber-600 text-white flex items-center justify-center text-xs shadow-2xs shrink-0">
-                      <span className="material-symbols-outlined text-[16px]">
-                        payments
-                      </span>
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)]">
-                          Thanh toán khi nhận hàng (COD)
+                {/* COD Option: Only enabled if order contains physical items */}
+                {effectiveHasPhysical ? (
+                  <label
+                    onClick={() => setPaymentMethod("COD")}
+                    className={`p-2.5 sm:p-3 rounded-lg border cursor-pointer flex items-center justify-between transition-all ${
+                      paymentMethod === "COD"
+                        ? "border border-[var(--theme-primary,#003B2B)] bg-[var(--theme-primary,#003B2B)]/10 shadow-2xs"
+                        : "border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/40 hover:border-[var(--theme-primary,#003B2B)]/40"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-7.5 h-7.5 rounded-lg bg-amber-600 text-white flex items-center justify-center text-xs shadow-2xs shrink-0">
+                        <span className="material-symbols-outlined text-[16px]">
+                          payments
                         </span>
-                        <span className="bg-amber-500/15 text-amber-800 dark:text-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded border border-amber-500/20">
-                          Tiền mặt
+                      </span>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)]">
+                            Thanh toán khi nhận hàng (COD)
+                          </span>
+                          <span className="bg-amber-500/15 text-amber-800 dark:text-amber-300 text-[9px] font-bold px-1.5 py-0.2 rounded border border-amber-500/20">
+                            Tiền mặt
+                          </span>
+                        </div>
+                        <span className="text-[10.5px] text-[var(--theme-text-muted,#49454f)] block">
+                          Thanh toán tiền mặt cho bưu tá khi nhận sách giấy
                         </span>
                       </div>
-                      <span className="text-[10.5px] text-[var(--theme-text-muted,#49454f)] block">
-                        Thanh toán tiền mặt cho bưu tá khi nhận sách giấy
+                    </div>
+                    <input
+                      type="radio"
+                      name="pay"
+                      checked={paymentMethod === "COD"}
+                      onChange={() => setPaymentMethod("COD")}
+                      className="w-3.5 h-3.5 text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
+                    />
+                  </label>
+                ) : (
+                  <div className="p-2.5 rounded-lg border border-dashed border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/30 opacity-70 flex items-center justify-between text-xs text-[var(--theme-text-muted,#49454f)]">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[18px] text-amber-600">
+                        info
+                      </span>
+                      <span>
+                        Đơn hàng <strong>Ebook số DRM</strong>: Không áp dụng COD. Sách được mở đọc ngay lập tức sau khi quét QR VietQR.
                       </span>
                     </div>
+                    <span className="text-[10px] font-bold bg-neutral-200 dark:bg-neutral-800 px-2 py-0.5 rounded shrink-0">
+                      Không COD
+                    </span>
                   </div>
-                  <input
-                    type="radio"
-                    name="pay"
-                    checked={paymentMethod === "COD"}
-                    onChange={() => setPaymentMethod("COD")}
-                    className="w-3.5 h-3.5 text-[var(--theme-primary,#003B2B)] focus:ring-[var(--theme-primary,#003B2B)] border-[var(--theme-border,#e8e5df)] cursor-pointer"
-                  />
-                </label>
+                )}
               </div>
             </section>
 
@@ -1724,7 +1754,11 @@ export default function CheckoutPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Ví dụ: Giao giờ hành chính, bọc thêm bìa chống sốc..."
+                  placeholder={
+                    effectiveHasPhysical
+                      ? "Ví dụ: Giao giờ hành chính, bọc thêm bìa chống sốc..."
+                      : "Ví dụ: Lời nhắn cho tác giả hoặc nhà xuất bản..."
+                  }
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   className="w-full px-3 py-1.5 rounded-lg border border-[var(--theme-border,#e8e5df)] bg-[var(--theme-background,#F2FBF9)]/50 text-xs text-[var(--theme-text,#1c1b1f)] focus:outline-none focus:border-[var(--theme-primary,#003B2B)]"
@@ -1936,6 +1970,16 @@ export default function CheckoutPage() {
                                         <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
                                           ({v.type === "PERCENTAGE" ? `Giảm ${v.value}%` : `Giảm ${v.value?.toLocaleString("vi-VN")}đ`})
                                         </span>
+                                        {v.applicableFormat === "DIGITAL" && (
+                                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                            ⚡ Chỉ Ebook
+                                          </span>
+                                        )}
+                                        {v.applicableFormat === "PHYSICAL" && (
+                                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                            📦 Chỉ Sách Giấy
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
@@ -2133,6 +2177,16 @@ export default function CheckoutPage() {
                                                 <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] font-medium">
                                                   ({sv.type === "PERCENTAGE" ? `Giảm ${sv.value}%` : `Giảm ${Number(sv.value).toLocaleString("vi-VN")}đ`})
                                                 </span>
+                                                {sv.applicableFormat === "DIGITAL" && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                    ⚡ Chỉ Ebook
+                                                  </span>
+                                                )}
+                                                {sv.applicableFormat === "PHYSICAL" && (
+                                                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                                    📦 Chỉ Sách Giấy
+                                                  </span>
+                                                )}
                                               </div>
                                             </div>
                                             <div className="flex items-center gap-1 shrink-0">

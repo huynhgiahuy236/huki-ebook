@@ -212,6 +212,8 @@ export default function OrdersPage() {
           if (effectiveStatus !== 'SHIPPED') return false;
         } else if (activeTab === 'COMPLETED') {
           if (effectiveStatus !== 'COMPLETED' && effectiveStatus !== 'DELIVERED') return false;
+        } else if (activeTab === 'REVIEWS') {
+          if (effectiveStatus !== 'COMPLETED' && effectiveStatus !== 'DELIVERED') return false;
         } else if (activeTab === 'CANCELLED') {
           if (effectiveStatus !== 'CANCELLED') return false;
         }
@@ -293,6 +295,7 @@ export default function OrdersPage() {
               { id: 'PREPARING', label: 'Đang chuẩn bị' },
               { id: 'SHIPPED', label: 'Đang vận chuyển' },
               { id: 'COMPLETED', label: 'Đã hoàn tất' },
+              { id: 'REVIEWS', label: 'Đánh Giá' },
               { id: 'CANCELLED', label: 'Đã hủy' },
               {
                 id: 'RETURNS',
@@ -495,6 +498,9 @@ export default function OrdersPage() {
                       minute: '2-digit',
                     });
 
+                    const firstItem = allItems[0];
+                    const chatShopUrl = `/account/messages?shop=${encodeURIComponent(storeId)}&storeName=${encodeURIComponent(storeName)}&orderId=${encodeURIComponent(ord.code || ord.id)}${firstItem ? `&bookTitle=${encodeURIComponent(firstItem.bookTitle || firstItem.title || '')}&bookCover=${encodeURIComponent(firstItem.bookCoverUrl || firstItem.coverUrl || '')}&bookPrice=${firstItem.price || firstItem.unitPrice || 0}` : ''}`;
+
                     return (
                       <article
                         key={ord.id}
@@ -513,12 +519,15 @@ export default function OrdersPage() {
 
                             {/* Chat with Store Button */}
                             <Link
-                              href={`/account/messages?shop=${encodeURIComponent(storeId)}`}
+                              href={chatShopUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className="px-2 py-0.5 rounded bg-rose-50 hover:bg-rose-100 text-rose-700 text-[11px] font-semibold border border-rose-200 flex items-center gap-1 transition-colors"
-                              title="Nhắn tin với Shop"
+                              title="Nhắn tin với Shop (Mở tab mới)"
                             >
                               <span className="material-symbols-outlined text-[13px]">chat</span>
                               <span>Chat</span>
+                              <span className="material-symbols-outlined text-[10px] -ml-0.5 opacity-70">open_in_new</span>
                             </Link>
 
                             {/* View Shop Link */}
@@ -623,7 +632,21 @@ export default function OrdersPage() {
                             </div>
 
                             {/* Buttons Group */}
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* Nút Đánh Giá nếu đơn hàng hoàn tất */}
+                              {(badge.text === 'HOÀN THÀNH' ||
+                                badge.text === 'ĐÃ NHẬN SÁCH' ||
+                                (ord.sellerOrders?.[0]?.status || ord.status) === 'COMPLETED' ||
+                                (ord.sellerOrders?.[0]?.status || ord.status) === 'DELIVERED') && (
+                                <Link
+                                  href={`/orders/${ord.id}/review`}
+                                  className="px-3.5 py-1.5 rounded-lg border border-[#006953] bg-[#006953]/10 text-[#006953] hover:bg-[#006953] hover:text-white transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                                >
+                                  <span className="material-symbols-outlined text-[15px]">rate_review</span>
+                                  <span>Đánh Giá</span>
+                                </Link>
+                              )}
+
                               <button
                                 type="button"
                                 onClick={() => router.push('/books')}
@@ -633,7 +656,7 @@ export default function OrdersPage() {
                               </button>
 
                               <Link
-                                href={`/account/messages?shop=${encodeURIComponent(storeId)}`}
+                                href={chatShopUrl}
                                 className="px-3.5 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors text-xs font-semibold cursor-pointer"
                               >
                                 Liên Hệ Người Bán

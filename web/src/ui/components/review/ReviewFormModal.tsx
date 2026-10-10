@@ -1,52 +1,65 @@
 'use client';
 
-import React, { useState } from 'react';
-import { reviewApi } from '@/ui/api/reviewApi';
+import React, { useState, useEffect } from 'react';
+import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
 import { orderApi } from '@/ui/api/orderApi';
 import { useToast } from '@/ui/context/ToastContext';
-import VerifiedPurchaseBadge from './VerifiedPurchaseBadge';
+import { useAuth } from '@/ui/context/AuthContext';
 
 export interface ReviewFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
   bookId: string;
-  bookTitle: string;
+  bookTitle?: string;
   bookCover?: string;
   bookAuthor?: string;
   defaultFormat?: 'PHYSICAL' | 'DIGITAL' | string;
   orderId?: string;
+  initialReview?: ReviewItemData | null;
 }
 
 /**
- * Task 67 — Canonical Review Form & Submission Modal
- * Compliant with POL-13 (REV-001, REV-002, REV-003)
+ * Compact, Streamlined In-Page Review Form (Supports Create & Edit Mode)
  */
 export default function ReviewFormModal({
   isOpen,
   onClose,
   onSuccess,
   bookId,
-  bookTitle,
-  bookCover,
-  bookAuthor,
   defaultFormat = 'PHYSICAL',
   orderId,
+  initialReview,
 }: ReviewFormModalProps) {
   const { showToast } = useToast();
+  const { user, isLoggedIn } = useAuth();
 
-  const [rating, setRating] = useState(5);
-  const [packagingRating, setPackagingRating] = useState(5);
-  const [deliveryRating, setDeliveryRating] = useState(5);
+  const [rating, setRating] = useState(initialReview?.rating || 5);
+  const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [selectedFormat, setSelectedFormat] = useState<'PHYSICAL' | 'DIGITAL'>(
-    defaultFormat === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL'
+    initialReview?.format === 'DIGITAL' || defaultFormat === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL'
   );
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [images, setImages] = useState<string[]>([]);
+  const [content, setContent] = useState(initialReview?.content || '');
+  const [images, setImages] = useState<string[]>(
+    initialReview?.images ? initialReview.images.map((img: any) => typeof img === 'string' ? img : img.url) : []
+  );
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialReview) {
+      setRating(initialReview.rating || 5);
+      setContent(initialReview.content || '');
+      setSelectedFormat(initialReview.format === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL');
+      setImages(initialReview.images ? initialReview.images.map((img: any) => typeof img === 'string' ? img : img.url) : []);
+    } else {
+      setRating(5);
+      setContent('');
+      setSelectedFormat(defaultFormat === 'DIGITAL' ? 'DIGITAL' : 'PHYSICAL');
+      setImages([]);
+    }
+  }, [initialReview, defaultFormat, isOpen]);
 
   if (!isOpen) return null;
 
@@ -55,7 +68,7 @@ export default function ReviewFormModal({
     if (!files || files.length === 0) return;
 
     if (images.length + files.length > 5) {
-      showToast('Tối đa 5 hình ảnh thực tế cho mỗi đánh giá.', 'warning');
+      showToast('Tối đa 5 hình ảnh cho mỗi đánh giá.', 'warning');
       return;
     }
 
@@ -65,11 +78,10 @@ export default function ReviewFormModal({
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.size > 5 * 1024 * 1024) {
-        showToast(`Tệp ${file.name} vượt quá dung lượng cho phép (5MB).`, 'error');
+        showToast(`Tệp ${file.name} vượt quá dung lượng (5MB).`, 'error');
         continue;
       }
 
-      // If orderId is available, upload through verified evidence pipeline
       if (orderId) {
         try {
           const res = await orderApi.uploadDisputeEvidence(orderId, file);
@@ -77,12 +89,9 @@ export default function ReviewFormModal({
             uploadedUrls.push(res.data.url);
             continue;
           }
-        } catch {
-          // Fallback to local DataURL preview
-        }
+        } catch { /* ignore */ }
       }
 
-      // Fallback local reader for preview/mock
       const url = await new Promise<string>((resolve) => {
         const reader = new FileReader();
         reader.onload = (ev) => resolve(ev.target?.result as string);
@@ -103,8 +112,8 @@ export default function ReviewFormModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!title.trim()) {
-      showToast('Vui lòng nhập tiêu đề nhận xét.', 'error');
+    if (!isLoggedIn) {
+      showToast('Vui lòng đăng nhập để gửi đánh giá theo chính sách POL-13.', 'warning');
       return;
     }
 
@@ -116,261 +125,192 @@ export default function ReviewFormModal({
     setIsSubmitting(true);
 
     try {
-      const res = await reviewApi.createBookReview(bookId, {
-        rating,
-        title: title.trim(),
-        content: content.trim(),
-        format: selectedFormat,
-        images: images.length > 0 ? images : undefined,
-      });
+      const autoTitle = content.trim().slice(0, 60).replace(/\n/g, ' ');
 
-      if (res?.success) {
-        const coinBonus = content.trim().length >= 50 && images.length > 0 ? 50 : 20;
-        showToast(
-          `Đã gửi đánh giá thành công! Bạn nhận được +${coinBonus} HUKI Xu thưởng.`,
-          'success'
-        );
-        onSuccess?.();
-        onClose();
-      } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {
-        showToast('Bạn đã gửi đánh giá cho sản phẩm này rồi.', 'info');
-        onClose();
-      } else if (res?.error?.code === 'REVIEW_PURCHASE_REQUIRED') {
-        showToast(
-          'Chính sách POL-13: Bạn chỉ có thể đánh giá sau khi hoàn tất đơn hàng cho tựa sách này.',
-          'error'
-        );
-      } else if (res?.error?.statusCode === 401) {
-        showToast('Vui lòng đăng nhập để gửi đánh giá.', 'warning');
+      if (initialReview?.id) {
+        // Edit existing review
+        const res = await reviewApi.updateReview(String(initialReview.id), {
+          rating,
+          title: autoTitle,
+          content: content.trim(),
+          images: images.length > 0 ? images : undefined,
+        });
+
+        if (res?.success) {
+          showToast('Đã cập nhật đánh giá thành công!', 'success');
+          onSuccess?.();
+          onClose();
+        } else if (res?.error?.statusCode === 401) {
+          showToast('Vui lòng đăng nhập để cập nhật đánh giá.', 'warning');
+        } else {
+          showToast(res?.error?.message || 'Không thể cập nhật đánh giá. Vui lòng thử lại sau.', 'error');
+        }
       } else {
-        // Fallback successful preview demo
-        showToast('Đã gửi đánh giá thành công! Cảm ơn đóng góp của bạn.', 'success');
-        onSuccess?.();
-        onClose();
+        // Create new review
+        const res = await reviewApi.createBookReview(bookId, {
+          rating,
+          title: autoTitle,
+          content: content.trim(),
+          format: selectedFormat,
+          images: images.length > 0 ? images : undefined,
+        });
+
+        if (res?.success) {
+          showToast('Đã gửi đánh giá thành công! Đánh giá đã được lưu vào hệ thống.', 'success');
+          onSuccess?.();
+          onClose();
+        } else if (res?.error?.code === 'REVIEW_ALREADY_EXISTS') {
+          showToast('Bạn đã gửi đánh giá cho sản phẩm này rồi.', 'info');
+          onClose();
+        } else if (res?.error?.code === 'REVIEW_PURCHASE_REQUIRED') {
+          showToast('Chỉ khách hàng đã mua và nhận sản phẩm này mới có thể đánh giá (theo chính sách POL-13).', 'error');
+        } else if (res?.error?.statusCode === 401) {
+          showToast('Vui lòng đăng nhập để gửi đánh giá.', 'warning');
+        } else {
+          showToast(res?.error?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.', 'error');
+        }
       }
-    } catch {
-      showToast('Đã gửi đánh giá thành công! Cảm ơn đóng góp của bạn.', 'success');
-      onSuccess?.();
-      onClose();
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi xảy ra khi xử lý đánh giá.', 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const isEligibleForBonus = content.trim().length >= 50 && images.length > 0;
+  const activeRating = hoverRating !== null ? hoverRating : rating;
+
+  const ratingDescriptions: Record<number, string> = {
+    5: 'Cực kỳ hài lòng (5/5)',
+    4: 'Hài lòng (4/5)',
+    3: 'Bình thường (3/5)',
+    2: 'Không hài lòng (2/5)',
+    1: 'Rất tệ (1/5)',
+  };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
-      <div
-        className="relative w-full max-w-xl bg-theme-surface border border-theme-border rounded-3xl shadow-2xl p-6 sm:p-8 my-8 text-on-surface"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-5 right-5 w-8 h-8 rounded-full bg-theme-bg text-[#6b7280] hover:text-on-surface flex items-center justify-center transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">close</span>
-        </button>
-
-        {/* Modal Header */}
-        <div className="flex items-center gap-3 pb-4 border-b border-theme-border mb-5">
-          <div className="w-10 h-10 rounded-2xl bg-[#006953]/10 text-[#006953] flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-xl">rate_review</span>
-          </div>
-          <div>
-            <h2 className="font-editorial text-xl font-bold leading-tight">
-              Viết Đánh Giá &amp; Cảm Nhận
-            </h2>
-            <p className="text-xs text-[#6b7280]">
-              Chia sẻ trải nghiệm đọc thực tế theo chính sách cộng đồng POL-13
-            </p>
-          </div>
-        </div>
-
-        {/* Book Preview Banner */}
-        <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-theme-secondary-subtle border border-theme-border mb-5">
-          {bookCover && (
-            <img
-              src={bookCover}
-              alt={bookTitle}
-              className="w-11 h-15 object-cover rounded-lg shadow-2xs shrink-0"
-            />
-          )}
-          <div className="min-w-0 flex-1">
-            <h4 className="font-bold text-xs sm:text-sm text-on-surface truncate">
-              {bookTitle}
-            </h4>
-            {bookAuthor && (
-              <p className="text-[11px] text-[#6b7280] truncate">{bookAuthor}</p>
-            )}
-            <div className="flex items-center gap-2 mt-1">
-              <VerifiedPurchaseBadge variant="compact" format={selectedFormat} />
-            </div>
-          </div>
-        </div>
-
-        {/* Reward Incentive Callout */}
-        <div className="flex items-center justify-between p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 mb-5">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-base text-amber-500">
-              monetization_on
-            </span>
-            <span>
-              {isEligibleForBonus
-                ? 'Đạt chuẩn nhận tối đa +50 HUKI Xu thưởng!'
-                : 'Viết ≥50 ký tự & đính kèm 1 ảnh để nhận +50 HUKI Xu (REV-002)'}
-            </span>
-          </div>
-          <span className="font-bold text-[11px] px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-2xs">
-            +50 Xu
-          </span>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* Format Selector */}
-          <div>
-            <label className="block font-bold text-on-surface mb-1.5">
-              Định dạng sách đã trải nghiệm:
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('PHYSICAL')}
-                className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  selectedFormat === 'PHYSICAL'
-                    ? 'border-[#006953] bg-[#006953]/10 text-[#006953] shadow-2xs'
-                    : 'border-theme-border bg-theme-bg text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm">menu_book</span>
-                <span>Sách Giấy In</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedFormat('DIGITAL')}
-                className={`py-2 px-3 rounded-xl border font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  selectedFormat === 'DIGITAL'
-                    ? 'border-[#006953] bg-[#006953]/10 text-[#006953] shadow-2xs'
-                    : 'border-theme-border bg-theme-bg text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                <span className="material-symbols-outlined text-sm">devices</span>
-                <span>Ebook DRM Bản Quyền</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Star Rating */}
-          <div className="text-center py-2 bg-theme-bg rounded-2xl border border-theme-border">
-            <span className="block font-bold text-on-surface mb-1">
-              Đánh giá chung:
-            </span>
-            <div className="flex items-center justify-center gap-1.5">
+    <div className="w-full bg-[#faf9f6] border border-gray-200/90 rounded-2xl p-4 sm:p-5 mb-5 shadow-2xs animate-in fade-in duration-150">
+      <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+        {/* Row 1: Stars Rating + Format Selector + Close */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200/80">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-bold text-gray-800 text-xs shrink-0">Đánh giá chung:</span>
+            <div className="flex items-center gap-0.5">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
                   type="button"
+                  onMouseEnter={() => setHoverRating(star)}
+                  onMouseLeave={() => setHoverRating(null)}
                   onClick={() => setRating(star)}
-                  className="p-1 hover:scale-125 transition-transform"
+                  className="p-0.5 hover:scale-125 transition-transform cursor-pointer"
                 >
                   <span
-                    className={`material-symbols-outlined text-3xl ${
-                      star <= rating ? 'text-[#fea619] fill-current' : 'text-gray-300'
+                    className={`material-symbols-outlined text-2xl transition-colors ${
+                      star <= activeRating ? 'text-[#fea619]' : 'text-slate-200'
                     }`}
+                    style={{ fontVariationSettings: "'FILL' 1" }}
                   >
                     star
                   </span>
                 </button>
               ))}
             </div>
-            <div className="text-[11px] font-bold text-theme-primary mt-0.5">
-              {rating === 5 && 'Tuyệt vời, cực kỳ hài lòng! (5/5)'}
-              {rating === 4 && 'Rất tốt, đúng như kỳ vọng. (4/5)'}
-              {rating === 3 && 'Bình thường, tạm ổn. (3/5)'}
-              {rating === 2 && 'Chưa hài lòng. (2/5)'}
-              {rating === 1 && 'Rất tệ, cần cải thiện. (1/5)'}
-            </div>
+            <span className="text-xs font-semibold text-[#006953]">
+              {ratingDescriptions[activeRating]}
+            </span>
           </div>
 
-          {/* Title */}
-          <div>
-            <label className="block font-bold text-on-surface mb-1">
-              Tiêu đề ngắn gọn về cảm nhận *
-            </label>
-            <input
-              type="text"
-              required
-              maxLength={200}
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ví dụ: Tác phẩm rất sâu sắc, bản in chất lượng cao"
-              className="w-full bg-theme-bg border border-theme-border rounded-xl px-3.5 py-2 text-xs text-on-surface focus:bg-theme-surface focus:border-theme-primary outline-none transition-colors"
-            />
-          </div>
-
-          {/* Content */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="font-bold text-on-surface">
-                Nội dung chi tiết &amp; bài học rút ra *
-              </label>
-              <span
-                className={`text-[10px] ${
-                  content.length < 10
-                    ? 'text-rose-500'
-                    : content.length >= 50
-                    ? 'text-[#006953] font-bold'
-                    : 'text-[#6b7280]'
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            {/* Compact Format Toggle */}
+            <div className="inline-flex p-0.5 rounded-lg bg-gray-200/70 text-[11px] font-semibold">
+              <button
+                type="button"
+                onClick={() => setSelectedFormat('PHYSICAL')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  selectedFormat === 'PHYSICAL'
+                    ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                {content.length}/2.000 ký tự (Tối thiểu 10)
-              </span>
+                Sách In
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedFormat('DIGITAL')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                  selectedFormat === 'DIGITAL'
+                    ? 'bg-white text-gray-900 shadow-2xs font-bold'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Ebook
+              </button>
             </div>
-            <textarea
-              rows={3}
-              required
-              minLength={10}
-              maxLength={2000}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Chia sẻ góc nhìn, đoạn trích yêu thích hoặc lý do bạn khuyên mọi người nên đọc tác phẩm này..."
-              className="w-full bg-theme-bg border border-theme-border rounded-xl p-3 text-xs text-on-surface focus:bg-theme-surface focus:border-theme-primary outline-none transition-colors"
-            ></textarea>
-          </div>
 
-          {/* Image Upload Gallery */}
-          <div>
-            <label className="block font-bold text-on-surface mb-1">
-              Hình ảnh thực tế (Tối đa 5 ảnh, ≤5MB):
-            </label>
-            <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-lg hover:bg-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center transition-colors cursor-pointer"
+              title="Đóng"
+            >
+              <span className="material-symbols-outlined text-base">close</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Content Textarea */}
+        <div className="relative">
+          <textarea
+            rows={3}
+            required
+            minLength={10}
+            maxLength={2000}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Chia sẻ cảm nhận, trải nghiệm đọc hoặc trích dẫn tâm đắc của bạn về cuốn sách này..."
+            className="w-full bg-white border border-gray-200 focus:border-[#006953] rounded-xl p-3 pb-6 text-xs text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#006953] transition-all resize-none"
+          />
+          <span
+            className={`absolute bottom-2 right-3 text-[10.5px] ${
+              content.length < 10
+                ? 'text-rose-500'
+                : content.length >= 50
+                ? 'text-[#006953] font-bold'
+                : 'text-gray-400'
+            }`}
+          >
+            {content.length}/2.000 ký tự (tối thiểu 10)
+          </span>
+        </div>
+
+        {/* Row 4: Photo Gallery + Anonymous + Submit Actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+          {/* Photos & Anonymous */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Image Thumbnails & Upload button */}
+            <div className="flex items-center gap-1.5">
               {images.map((img, idx) => (
                 <div
                   key={idx}
-                  className="relative w-14 h-14 rounded-xl overflow-hidden border border-theme-border shadow-2xs group"
+                  className="relative w-10 h-10 rounded-lg overflow-hidden border border-gray-200 shadow-2xs group shrink-0"
                 >
-                  <img src={img} alt="Uploaded" className="w-full h-full object-cover" />
+                  <img src={img} alt="Upload" className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(idx)}
-                    className="absolute top-1 right-1 w-4 h-4 bg-black/70 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute inset-0 bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[10px]">close</span>
+                    <span className="material-symbols-outlined text-xs">close</span>
                   </button>
                 </div>
               ))}
 
               {images.length < 5 && (
-                <label className="w-14 h-14 rounded-xl border border-dashed border-theme-border hover:border-theme-primary hover:bg-theme-secondary-subtle flex flex-col items-center justify-center text-gray-400 hover:text-theme-primary cursor-pointer transition-all">
-                  <span className="material-symbols-outlined text-lg">
+                <label className="h-8 px-2.5 rounded-lg border border-dashed border-gray-300 hover:border-[#006953] bg-white hover:bg-emerald-50/50 text-gray-500 hover:text-[#006953] flex items-center gap-1 cursor-pointer transition-all text-[11px] font-semibold shrink-0">
+                  <span className="material-symbols-outlined text-sm">
                     {isUploading ? 'progress_activity' : 'add_photo_alternate'}
                   </span>
-                  <span className="text-[8px] font-bold mt-0.5">
-                    {isUploading ? 'Đang tải' : 'Thêm ảnh'}
-                  </span>
+                  <span>{isUploading ? 'Tải...' : 'Thêm ảnh'}</span>
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp"
@@ -382,51 +322,47 @@ export default function ReviewFormModal({
                 </label>
               )}
             </div>
-          </div>
 
-          {/* Anonymous option */}
-          <div className="flex items-center gap-2 pt-1">
-            <input
-              type="checkbox"
-              id="modal-anonymous"
-              checked={isAnonymous}
-              onChange={(e) => setIsAnonymous(e.target.checked)}
-              className="w-3.5 h-3.5 rounded accent-theme-primary cursor-pointer"
-            />
-            <label
-              htmlFor="modal-anonymous"
-              className="text-xs text-[#6b7280] cursor-pointer select-none"
-            >
-              Đánh giá ẩn danh (Chỉ hiển thị chữ cái đầu tên người mua)
+            {/* Anonymous Toggle */}
+            <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={isAnonymous}
+                onChange={(e) => setIsAnonymous(e.target.checked)}
+                className="w-3.5 h-3.5 rounded accent-[#006953] cursor-pointer"
+              />
+              <span>Ẩn danh</span>
             </label>
           </div>
 
-          {/* Submit Actions */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-theme-border">
+          {/* Buttons */}
+          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-theme-border hover:bg-theme-secondary-subtle text-xs font-semibold text-gray-600 transition-colors"
+              className="px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 text-xs font-semibold text-gray-600 transition-colors cursor-pointer"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting || isUploading}
-              className="px-5 py-2.5 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              className="px-4 py-1.5 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
             >
               {isSubmitting ? (
-                <span>Đang gửi đánh giá...</span>
+                <span>Đang xử lý...</span>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-sm">send</span>
-                  <span>Gửi Đánh Giá</span>
+                  <span className="material-symbols-outlined text-sm">
+                    {initialReview ? 'save' : 'send'}
+                  </span>
+                  <span>{initialReview ? 'Lưu Thay Đổi' : 'Gửi Đánh Giá'}</span>
                 </>
               )}
             </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }

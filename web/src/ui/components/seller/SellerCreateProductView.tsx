@@ -8,6 +8,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { catalogApi, CategoryData, BookFormat, CatalogEntity } from '@/ui/api/catalogApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { can, PERMISSIONS, PermissionKey } from '@/ui/utils/permissions';
+import { aiAudioService, AiAudioPlan } from '@/ui/services/aiAudioService';
 
 // Slug Generator Utility
 function generateSlug(text: string) {
@@ -82,8 +83,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     language: 'Tiếng Việt',
     publishDate: new Date().toISOString().split('T')[0],
     isbn: '',
-    edition: 'Tái bản lần 1',
-    pages: 250,
+    edition: '',
+    pages: '',
     sku: '',
     categoryId: '',
     customCategoryName: '',
@@ -98,11 +99,11 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     originalPrice: '',
     ebookPrice: '',
     comboPrice: '',
-    stock: 100,
-    weight: 350,
-    length: 20.5,
-    width: 14.5,
-    height: 2.0,
+    stock: '',
+    weight: '',
+    length: '',
+    width: '',
+    height: '',
     allowOnlineRead: true,
     allowDownload: false,
     drmEnabled: true,
@@ -114,6 +115,12 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   const [newTag, setNewTag] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
 
+  // AI Audio Plan Subscription State (Mục 06 - Chỉ áp dụng Ebook)
+  const [enableAiAudio, setEnableAiAudio] = useState(false);
+  const [selectedAiPlanId, setSelectedAiPlanId] = useState('');
+  const [aiAudioPlans, setAiAudioPlans] = useState<AiAudioPlan[]>([]);
+  const [aiPaymentMethod, setAiPaymentMethod] = useState<'WALLET' | 'PAYOS' | 'QR_TRANSFER'>('WALLET');
+
   // Sync format if URL changes externally
   useEffect(() => {
     const urlFormat = getFormatFromUrl();
@@ -122,14 +129,15 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     }
   }, [pathname, searchParams]);
 
-  // Load categories, authors, publishers from Backend
+  // Load categories, authors, publishers & AI audio plans from Backend
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [categoryRes, authorRes, publisherRes] = await Promise.all([
+        const [categoryRes, authorRes, publisherRes, plans] = await Promise.all([
           catalogApi.getCategories(),
           catalogApi.getAuthors(),
           catalogApi.getPublishers(),
+          aiAudioService.getPlans().catch(() => []),
         ]);
         const categoryData = categoryRes.success && Array.isArray(categoryRes.data) ? categoryRes.data : [];
         const authorData = authorRes.success && Array.isArray(authorRes.data) ? authorRes.data : [];
@@ -138,12 +146,19 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         setCategories(categoryData);
         setAuthors(authorData);
         setPublishers(publisherData);
+
+        const activePlans = plans.filter((p) => p.status === 'ACTIVE');
+        setAiAudioPlans(activePlans);
+        if (activePlans.length > 0) {
+          const defaultPlan = activePlans.find((p) => p.price === 100000) || activePlans[0];
+          setSelectedAiPlanId(defaultPlan.id);
+        }
         
         setForm(prev => ({
           ...prev,
-          categoryId: prev.categoryId || categoryData[0]?.id || '',
-          authorId: prev.authorId || (authorData.length > 0 ? authorData[0].id : ''),
-          authorName: prev.authorName || (authorData.length > 0 ? authorData[0].name : ''),
+          categoryId: prev.categoryId || '',
+          authorId: prev.authorId || '',
+          authorName: prev.authorName || '',
           publisherName: currentBizName,
         }));
       } catch (err) {
@@ -164,14 +179,18 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       teaser: 'Tác phẩm kinh điển vượt thời gian về nghệ thuật giao tiếp và xây dựng các mối quan hệ bền vững.',
       description: 'Đắc Nhân Tâm là cuốn sách đầu tiên và hay nhất của mọi thời đại về nghệ thuật đối nhân xử thế, đem lại thành công và hạnh phúc cho hàng triệu độc giả trên toàn thế giới.',
       isbn: '978-604-58-1234-5',
-      pages: 320,
+      pages: '320',
+      edition: 'Tái bản lần 1',
       coverUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBldhgYiC5r8pQXi4qeHSTCtWbbqbNG3on0MvhA1aDlNqhPWUc0vxDN66WP08gQOhujNyn9ioDRAdk0WMZ2kusBW1UaNz_drE-pr1z6kDX__xWCUYXEou-HgS4oTKLU_PdZUYQU71wmsMrkWVQ2QQQ9TpzYAwBodRXxIwHfqU3BdZALmt5R3bfLCpA0TV9C5YDY7LX8yfeFuJj3ZWernvxTjnpvNMG56GL6j2j-E-XC_WY454GWEaLicw',
       physicalPrice: '128000',
       originalPrice: '160000',
       ebookPrice: '59000',
       comboPrice: '159000',
-      stock: 50,
-      weight: 400,
+      stock: '50',
+      weight: '400',
+      length: '20.5',
+      width: '14.5',
+      height: '2.0',
     }));
     setTags(['Kỹ năng sống', 'Giao tiếp', 'Phát triển bản thân']);
     setErrors({});
@@ -207,17 +226,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     }
   };
 
-  const handleRemoveTag = (tagToRemove: string) => {
-    setTags(tags.filter(t => t !== tagToRemove));
-  };
 
-  const scrollToSection = (id: string) => {
-    setActiveSection(id);
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  };
 
   // SEO Health & Score Analyzer
   const seoAudit = useMemo(() => {
@@ -304,6 +313,14 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     }
     return null;
   }, [selectedFormat, form.physicalPrice, form.ebookPrice, form.comboPrice]);
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id);
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // Form Validation
   const validateForm = (isDraft = false) => {
@@ -436,7 +453,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         return;
       }
 
-      let resolvedCategoryId = form.categoryId;
+      let resolvedCategoryId: string | undefined = undefined;
       if (categoryMode === 'CUSTOM' && form.customCategoryName?.trim()) {
         const catName = form.customCategoryName.trim();
         const existingCat = categories.find(c => c.name.toLowerCase() === catName.toLowerCase());
@@ -453,9 +470,16 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             console.warn('Could not create category on the fly', e);
           }
         }
+      } else if (categoryMode === 'EXISTING') {
+        const cat = categories.find(c => c.id === form.categoryId);
+        if (cat) {
+          resolvedCategoryId = cat.id;
+        } else if (categories.length > 0) {
+          resolvedCategoryId = categories[0].id;
+        }
       }
 
-      let resolvedAuthorId: string | undefined = form.authorId;
+      let resolvedAuthorId: string | undefined = undefined;
       if (authorMode === 'CUSTOM' && form.customAuthorName?.trim()) {
         const authName = form.customAuthorName.trim();
         const existingAuth = authors.find(a => a.name.toLowerCase() === authName.toLowerCase());
@@ -472,13 +496,21 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             console.warn('Could not create author on the fly', e);
           }
         }
-      } else if (authorMode === 'EXISTING' && form.authorId) {
-        resolvedAuthorId = form.authorId;
+      } else if (authorMode === 'EXISTING') {
+        const auth = authors.find(a => a.id === form.authorId);
+        if (auth) {
+          resolvedAuthorId = auth.id;
+        } else if (authors.length > 0) {
+          resolvedAuthorId = authors[0].id;
+        }
       }
 
       let resolvedPublisherId: string | undefined = undefined;
       if (publisherMode === 'PARTNER' && form.publisherId) {
-        resolvedPublisherId = form.publisherId;
+        const pub = publishers.find(p => p.id === form.publisherId);
+        if (pub) {
+          resolvedPublisherId = pub.id;
+        }
       }
 
       const payload = {
@@ -517,11 +549,33 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       if (res.success && res.data?.id) {
         const bookId = res.data.id;
 
+        // Nếu có kích hoạt gói giọng đọc AI cho Ebook (Chỉ áp dụng DIGITAL/BOTH)
+        if (hasDigital && enableAiAudio && selectedAiPlanId) {
+          try {
+            await aiAudioService.registerBookSubscription({
+              bookId,
+              bookTitle: form.title.trim(),
+              coverUrl: form.coverUrl?.trim() || undefined,
+              storeId: businessId || currentBizId || 'default-store',
+              storeName: currentBizName,
+              planId: selectedAiPlanId,
+              paymentMethod: aiPaymentMethod,
+            });
+            console.log('Đã đăng ký AI Audio Subscription vào PostgreSQL cho sách:', bookId);
+          } catch (e: any) {
+            console.warn('Lỗi đăng ký gói AI Voice:', e);
+            showToast?.(`Lưu ý kích hoạt AI Voice: ${e?.message || 'Có lỗi khi ghi nhận'}`, 'warning');
+          }
+        }
+
         if (hasDigital && form.ebookFile) {
-          const uploadRes = await catalogApi.uploadBookFile(bookId, form.ebookFile);
-          if (!uploadRes.success) {
-            showToast?.(uploadRes.error?.message || 'Đã tạo sách nhưng không thể tải tệp Ebook lên kho DRM.', 'error');
-            return;
+          try {
+            const uploadRes = await catalogApi.uploadBookFile(bookId, form.ebookFile);
+            if (!uploadRes.success) {
+              console.warn('Upload ebook file warning:', uploadRes.error);
+            }
+          } catch (e) {
+            console.warn('Could not upload ebook file', e);
           }
         }
 
@@ -534,10 +588,21 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         }
 
         if (!isDraft && form.publishMode === 'instant') {
-          const publishRes = await catalogApi.publishBook(bookId);
-          if (!publishRes.success) {
-            showToast?.(publishRes.error?.message || 'Đã lưu sản phẩm nhưng chưa thể kích hoạt phát hành ngay.', 'error');
-            return;
+          try {
+            const publishRes = await catalogApi.publishBook(bookId);
+            if (!publishRes.success) {
+              console.warn('Publish book immediate failed:', publishRes.error);
+              showToast?.(
+                publishRes.error?.message 
+                  ? `Đã tạo sách thành công! Lưu ý phát hành: ${publishRes.error.message}` 
+                  : 'Đã tạo sách ở trạng thái Bản Nháp! Bạn có thể kích hoạt phát hành trong danh sách sản phẩm.', 
+                'info'
+              );
+              router.push('/seller/products');
+              return;
+            }
+          } catch (e) {
+            console.warn('Publish request error', e);
           }
         }
 
@@ -553,8 +618,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       } else {
         showToast?.(res.error?.message || 'Có lỗi khi tạo sản phẩm sách.', 'error');
       }
-    } catch (err) {
-      showToast?.('Không thể kết nối đến máy chủ khi đăng sách.', 'error');
+    } catch (err: any) {
+      showToast?.(err?.message || 'Không thể kết nối đến máy chủ khi đăng sách.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -564,29 +629,41 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     ? (categories.find(c => c.id === form.categoryId)?.name || 'Chưa chọn danh mục')
     : (form.customCategoryName || 'Danh mục mới');
 
+  // Section Error Helpers
+  const sectionErrors = useMemo(() => ({
+    basic: Boolean(errors.title || errors.description),
+    taxonomy: Boolean(errors.categoryId || errors.customCategoryName || errors.authorId || errors.customAuthorName || errors.publisherId),
+    media: Boolean(errors.coverUrl),
+    pricing: Boolean(errors.physicalPrice || errors.ebookPrice || errors.comboPrice),
+    inventory: Boolean(errors.stock || errors.weight),
+    drm: Boolean(errors.ebookFile),
+  }), [errors]);
+
   const navItems = [
-    { id: 'sec-basic', label: '01 Cơ Bản', completed: !!form.title && !!form.description },
+    { id: 'sec-basic', label: '01 Cơ Bản', completed: !!form.title && !!form.description, hasError: sectionErrors.basic },
     { 
       id: 'sec-taxonomy', 
       label: '02 Phân Loại & Tác Giả', 
       completed: ((categoryMode === 'EXISTING' && !!form.categoryId) || (categoryMode === 'CUSTOM' && !!form.customCategoryName)) &&
-                 ((authorMode === 'EXISTING' && !!form.authorId) || (authorMode === 'CUSTOM' && !!form.customAuthorName))
+                 ((authorMode === 'EXISTING' && !!form.authorId) || (authorMode === 'CUSTOM' && !!form.customAuthorName)),
+      hasError: sectionErrors.taxonomy
     },
-    { id: 'sec-media', label: '03 Media & Bìa Sách', completed: !!form.coverUrl },
+    { id: 'sec-media', label: '03 Media & Bìa Sách', completed: !!form.coverUrl, hasError: sectionErrors.media },
     { 
       id: 'sec-pricing', 
       label: selectedFormat === 'BOTH' ? '04 Giá Kép Hybrid' : selectedFormat === 'PHYSICAL' ? '04 Giá Sách Giấy' : '04 Giá Ebook DRM', 
-      completed: selectedFormat === 'BOTH' ? (Number(form.comboPrice) > 0) : selectedFormat === 'PHYSICAL' ? (Number(form.physicalPrice) > 0) : (Number(form.ebookPrice) > 0)
+      completed: selectedFormat === 'BOTH' ? (Number(form.comboPrice) > 0) : selectedFormat === 'PHYSICAL' ? (Number(form.physicalPrice) > 0) : (Number(form.ebookPrice) > 0),
+      hasError: sectionErrors.pricing
     },
     ...(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH' ? [
-      { id: 'sec-inventory', label: '05 Kho Sách Giấy', completed: form.stock >= 0 && Number(form.weight) > 0 },
-      { id: 'sec-shipping', label: '06 Vận Chuyển', completed: Number(form.weight) > 0 }
+      { id: 'sec-inventory', label: '05 Kho Sách Giấy', completed: form.stock !== '' && Number(form.stock) >= 0 && Number(form.weight) > 0, hasError: sectionErrors.inventory },
+      { id: 'sec-shipping', label: '06 Vận Chuyển', completed: Number(form.weight) > 0, hasError: false }
     ] : []),
     ...(selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH' ? [
-      { id: 'sec-drm', label: '07 Tệp Ebook DRM', completed: !!form.ebookFile || form.publishMode === 'draft', drm: true }
+      { id: 'sec-drm', label: selectedFormat === 'DIGITAL' ? '06 Ebook & Giọng Đọc AI' : '07 Ebook & Giọng Đọc AI', completed: !!form.ebookFile || form.publishMode === 'draft', drm: true, hasError: sectionErrors.drm }
     ] : []),
-    { id: 'sec-seo', label: '08 Tối Ưu SEO', completed: seoAudit.score >= 70, seo: true },
-    { id: 'sec-publish', label: '09 Chế Độ Mở Bán', completed: true }
+    { id: 'sec-seo', label: '08 Tối Ưu SEO', completed: seoAudit.score >= 70, seo: true, hasError: false },
+    { id: 'sec-publish', label: '09 Chế Độ Mở Bán', completed: true, hasError: false }
   ];
 
   const getPageTitle = () => {
@@ -818,17 +895,104 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
           </div>
         </div>
 
-        {/* Main Grid: Form Sections + Sticky Quick Nav & Preview */}
+        {/* Setup Stepper Navigation (Order Status / Timeline Style) */}
+        <div className="bg-surface-container-lowest rounded-2xl p-4 sm:p-5 border border-theme-border/70 shadow-xs">
+          <div className="flex items-start justify-between w-full">
+            {[
+              { id: 'sec-basic', num: '1', title: 'Thông Tin Cơ Bản', short: 'Cơ Bản', done: !!form.title && !!form.description, hasError: sectionErrors.basic },
+              { id: 'sec-taxonomy', num: '2', title: 'Phân Loại & Tác Giả', short: 'Phân Loại', done: !!(form.categoryId || form.customCategoryName) && !!(form.authorId || form.customAuthorName), hasError: sectionErrors.taxonomy },
+              { id: 'sec-media', num: '3', title: 'Media & Bìa Sách', short: 'Bìa Sách', done: !!form.coverUrl, hasError: sectionErrors.media },
+              { id: 'sec-pricing', num: '4', title: 'Giá Bán & Định Dạng', short: 'Giá Bán', done: !!(form.physicalPrice || form.ebookPrice || form.comboPrice), hasError: sectionErrors.pricing },
+              ...(selectedFormat !== 'DIGITAL' ? [{ id: 'sec-inventory', num: '5', title: 'Kho & Vận Chuyển', short: 'Kho Hàng', done: form.stock !== '' && Number(form.stock) >= 0 && Number(form.weight) > 0, hasError: sectionErrors.inventory }] : []),
+              ...(selectedFormat !== 'PHYSICAL' ? [{ id: 'sec-drm', num: selectedFormat === 'DIGITAL' ? '5' : '6', title: 'Bảo Mật DRM', short: 'DRM Ebook', done: !!form.ebookFile, hasError: sectionErrors.drm }] : []),
+              { id: 'sec-seo', num: selectedFormat === 'BOTH' ? '7' : '6', title: 'Tối Ưu SEO', short: 'Tối Ưu SEO', done: seoAudit.score >= 70, hasError: false },
+            ].map((step, index, arr) => {
+              const isActive = activeSection === step.id;
+              const isLast = index === arr.length - 1;
+
+              return (
+                <div
+                  key={step.id}
+                  onClick={() => scrollToSection(step.id)}
+                  className="flex-1 flex flex-col items-center relative group cursor-pointer text-center"
+                >
+                  {/* Connecting Line to next step */}
+                  {!isLast && (
+                    <div
+                      className={`absolute top-4 left-1/2 w-full h-[2px] -z-0 transition-colors ${
+                        step.hasError
+                          ? 'bg-rose-300'
+                          : step.done && arr[index + 1].done
+                          ? 'bg-emerald-500'
+                          : step.done
+                          ? 'bg-emerald-300'
+                          : 'bg-surface-container-highest border-t border-dashed border-theme-border'
+                      }`}
+                    />
+                  )}
+
+                  {/* Numbered Step Circle */}
+                  <button
+                    type="button"
+                    className={`relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-200 cursor-pointer ${
+                      step.hasError
+                        ? 'bg-rose-500 text-white ring-4 ring-rose-200 shadow-rose-200 shadow-md animate-pulse'
+                        : isActive
+                        ? 'bg-primary text-white ring-4 ring-primary/20 shadow-md scale-110'
+                        : step.done
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'bg-surface-container-lowest border-2 border-theme-border text-on-surface-variant group-hover:border-primary group-hover:text-primary'
+                    }`}
+                  >
+                    {step.hasError ? (
+                      <span className="material-symbols-outlined text-base font-bold">priority_high</span>
+                    ) : step.done && !isActive ? (
+                      <span className="material-symbols-outlined text-base font-bold">check</span>
+                    ) : (
+                      <span>{step.num}</span>
+                    )}
+                  </button>
+
+                  {/* Text Description Below Circle */}
+                  <div className="mt-2.5 px-0.5 flex flex-col items-center">
+                    <span
+                      className={`text-xs font-bold leading-tight transition-colors ${
+                        step.hasError
+                          ? 'text-rose-600 font-extrabold'
+                          : isActive
+                          ? 'text-primary'
+                          : step.done
+                          ? 'text-emerald-700'
+                          : 'text-on-surface-variant group-hover:text-on-surface'
+                      }`}
+                    >
+                      {step.short}
+                    </span>
+                    <span className="hidden lg:block text-[10px] text-on-surface-variant/70 mt-0.5 leading-tight truncate max-w-[100px]">
+                      {step.title}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Main Grid: Form Sections + Right SEO & Preview */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
           {/* Left Column: Form Sections */}
           <div className="lg:col-span-8 space-y-4">
 
             {/* 01. Basic Info */}
-            <section id="sec-basic" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+            <section id="sec-basic" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+              sectionErrors.basic ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+            }`}>
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    sectionErrors.basic ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                  }`}>
                     01
                   </div>
                   <div>
@@ -840,16 +1004,25 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Tên Sách / Tác Phẩm <span className="text-red-500">*</span>
+                  Tên Sách / Tác Phẩm <span className="text-rose-500">*</span>
                 </label>
                 <input 
                   type="text"
                   value={form.title}
                   onChange={(e) => handleChange('title', e.target.value)}
                   placeholder="Ví dụ: Đắc Nhân Tâm – Nghệ Thuật Thu Phục Lòng Người"
-                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${errors.title ? 'border-red-500 ring-1 ring-red-500' : 'border-theme-border'} text-on-surface focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-all`}
+                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                    errors.title 
+                      ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500 focus:ring-1 focus:ring-rose-400' 
+                      : 'border-theme-border text-on-surface focus:border-primary focus:ring-1 focus:ring-primary'
+                  } focus:outline-hidden transition-all`}
                 />
-                {errors.title && <p className="text-[10px] text-red-500 mt-1">{errors.title}</p>}
+                {errors.title && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{errors.title}</span>
+                  </p>
+                )}
               </div>
 
               <div>
@@ -867,16 +1040,25 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Mô Tả Chi Tiết / Giới Thiệu Nội Dung <span className="text-red-500">*</span>
+                  Mô Tả Chi Tiết / Giới Thiệu Nội Dung <span className="text-rose-500">*</span>
                 </label>
                 <textarea 
                   rows={5}
                   value={form.description}
                   onChange={(e) => handleChange('description', e.target.value)}
                   placeholder="Nêu chi tiết nội dung, mục lục, đối tượng độc giả và lý do nên đọc cuốn sách này..."
-                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${errors.description ? 'border-red-500 ring-1 ring-red-500' : 'border-theme-border'} text-on-surface focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary transition-all`}
+                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                    errors.description 
+                      ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500 focus:ring-1 focus:ring-rose-400' 
+                      : 'border-theme-border text-on-surface focus:border-primary focus:ring-1 focus:ring-primary'
+                  } focus:outline-hidden transition-all`}
                 />
-                {errors.description && <p className="text-[10px] text-red-500 mt-1">{errors.description}</p>}
+                {errors.description && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{errors.description}</span>
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -904,18 +1086,134 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   <input 
                     type="number"
                     value={form.pages}
-                    onChange={(e) => handleChange('pages', Number(e.target.value))}
+                    onChange={(e) => handleChange('pages', e.target.value)}
+                    placeholder="VD: 250"
                     className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
                   />
+                </div>
+              </div>
+
+              {/* Từ khóa tìm kiếm & Thẻ SEO (Tags) */}
+              <div className="pt-2 border-t border-theme-border/60">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-on-surface flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-primary text-base">tag</span>
+                    <span>Từ Khóa Tìm Kiếm & Thẻ SEO (Tags)</span>
+                  </label>
+                  <span className="text-[11px] text-on-surface-variant">
+                    Đã thêm: <strong className="text-primary">{tags.length}</strong> từ khóa (tối thiểu 2 để chuẩn SEO)
+                  </span>
+                </div>
+
+                {/* Tag Input Box & Action */}
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={(e) => setNewTag(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTag();
+                        }
+                      }}
+                      placeholder="Nhập từ khóa tìm kiếm (VD: Kỹ năng sống, Giao tiếp, Dale Carnegie...) rồi nhấn Enter"
+                      className="w-full pl-3 pr-8 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary focus:ring-1 focus:ring-primary"
+                    />
+                    {newTag && (
+                      <button
+                        type="button"
+                        onClick={() => setNewTag('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:opacity-90 transition-all flex items-center gap-1 shadow-xs cursor-pointer shrink-0"
+                  >
+                    <span className="material-symbols-outlined text-xs">add</span>
+                    <span>Thêm Thẻ</span>
+                  </button>
+                </div>
+
+                {/* Displayed Tag Chips */}
+                {tags.length > 0 ? (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+                    {tags.map((tag, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-primary/10 text-primary text-xs font-semibold border border-primary/20"
+                      >
+                        #{tag}
+                        <button
+                          type="button"
+                          onClick={() => setTags(tags.filter((_, i) => i !== idx))}
+                          className="hover:text-rose-600 cursor-pointer text-sm leading-none"
+                          title="Xóa từ khóa này"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-200/80 mb-2 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm">info</span>
+                    Chưa có từ khóa nào. Hãy thêm ít nhất 2 từ khóa để đạt điểm SEO tối đa và giúp người đọc dễ tìm thấy sách.
+                  </p>
+                )}
+
+                {/* Quick Suggestion Chips */}
+                <div className="flex items-center flex-wrap gap-1.5 text-[11px] text-on-surface-variant">
+                  <span className="font-medium text-[10px] uppercase tracking-wider">Gợi ý nhanh:</span>
+                  {[
+                    'Kỹ năng sống',
+                    'Phát triển bản thân',
+                    'Kinh doanh & Khởi nghiệp',
+                    'Tâm lý học',
+                    'Văn học & Tiểu thuyết',
+                    'Công nghệ & Lập trình',
+                    'Lịch sử & Triết học',
+                  ].map((sug) => {
+                    const isAdded = tags.includes(sug);
+                    return (
+                      <button
+                        key={sug}
+                        type="button"
+                        onClick={() => {
+                          if (!isAdded) {
+                            setTags([...tags, sug]);
+                          }
+                        }}
+                        disabled={isAdded}
+                        className={`px-2 py-0.5 rounded-md text-[10px] transition-all cursor-pointer ${
+                          isAdded
+                            ? 'bg-surface-container text-on-surface-variant/50 cursor-not-allowed line-through'
+                            : 'bg-surface-container-highest hover:bg-primary/10 hover:text-primary text-on-surface-variant'
+                        }`}
+                      >
+                        + {sug}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </section>
 
             {/* 02. Taxonomy & Authors */}
-            <section id="sec-taxonomy" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+            <section id="sec-taxonomy" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+              sectionErrors.taxonomy ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+            }`}>
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    sectionErrors.taxonomy ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                  }`}>
                     02
                   </div>
                   <div>
@@ -929,7 +1227,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-on-surface">
-                    Danh Mục Sách <span className="text-red-500">*</span>
+                    Danh Mục Sách <span className="text-rose-500">*</span>
                   </label>
                   <div className="flex items-center gap-2 text-[10px]">
                     <button 
@@ -953,7 +1251,9 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   <select 
                     value={form.categoryId}
                     onChange={(e) => handleChange('categoryId', e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.categoryId ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary cursor-pointer`}
                   >
                     <option value="">-- Chọn thể loại --</option>
                     {categories.map(c => (
@@ -966,17 +1266,24 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     value={form.customCategoryName}
                     onChange={(e) => handleChange('customCategoryName', e.target.value)}
                     placeholder="Nhập tên thể loại mới..."
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.customCategoryName ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary`}
                   />
                 )}
-                {errors.categoryId && <p className="text-[10px] text-red-500 mt-1">{errors.categoryId}</p>}
+                {(errors.categoryId || errors.customCategoryName) && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{errors.categoryId || errors.customCategoryName}</span>
+                  </p>
+                )}
               </div>
 
               {/* Author */}
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="text-xs font-semibold text-on-surface">
-                    Tác Giả <span className="text-red-500">*</span>
+                    Tác Giả <span className="text-rose-500">*</span>
                   </label>
                   <div className="flex items-center gap-2 text-[10px]">
                     <button 
@@ -1002,8 +1309,17 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     onChange={(e) => {
                       const auth = authors.find(a => a.id === e.target.value);
                       setForm(prev => ({ ...prev, authorId: e.target.value, authorName: auth?.name || '' }));
+                      if (errors.authorId) {
+                        setErrors(prev => {
+                          const next = { ...prev };
+                          delete next.authorId;
+                          return next;
+                        });
+                      }
                     }}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.authorId ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary cursor-pointer`}
                   >
                     <option value="">-- Chọn tác giả có sẵn --</option>
                     {authors.map(a => (
@@ -1016,10 +1332,17 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     value={form.customAuthorName}
                     onChange={(e) => handleChange('customAuthorName', e.target.value)}
                     placeholder="Nhập tên tác giả..."
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.customAuthorName ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                    } text-on-surface focus:outline-hidden focus:border-primary`}
                   />
                 )}
-                {errors.authorId && <p className="text-[10px] text-red-500 mt-1">{errors.authorId}</p>}
+                {(errors.authorId || errors.customAuthorName) && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{errors.authorId || errors.customAuthorName}</span>
+                  </p>
+                )}
               </div>
 
               {/* Publisher Mode */}
@@ -1051,25 +1374,39 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 </div>
 
                 {publisherMode === 'PARTNER' && (
-                  <select 
-                    value={form.publisherId}
-                    onChange={(e) => handleChange('publisherId', e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
-                  >
-                    <option value="">-- Chọn Nhà xuất bản đối tác --</option>
-                    {publishers.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <div>
+                    <select 
+                      value={form.publisherId}
+                      onChange={(e) => handleChange('publisherId', e.target.value)}
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.publisherId ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' : 'border-theme-border'
+                      } text-on-surface focus:outline-hidden focus:border-primary cursor-pointer`}
+                    >
+                      <option value="">-- Chọn Nhà xuất bản đối tác --</option>
+                      {publishers.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                    {errors.publisherId && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.publisherId}</span>
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
             </section>
 
             {/* 03. Media & Cover */}
-            <section id="sec-media" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+            <section id="sec-media" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+              sectionErrors.media ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+            }`}>
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    sectionErrors.media ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                  }`}>
                     03
                   </div>
                   <div>
@@ -1081,16 +1418,25 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
-                  Đường Dẫn URL Ảnh Bìa (Cover Image) <span className="text-red-500">*</span>
+                  Đường Dẫn URL Ảnh Bìa (Cover Image) <span className="text-rose-500">*</span>
                 </label>
                 <input 
                   type="text"
                   value={form.coverUrl}
                   onChange={(e) => handleChange('coverUrl', e.target.value)}
                   placeholder="https://example.com/cover.jpg"
-                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${errors.coverUrl ? 'border-red-500 ring-1 ring-red-500' : 'border-theme-border'} text-on-surface focus:outline-hidden focus:border-primary`}
+                  className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                    errors.coverUrl 
+                      ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500 focus:ring-1 focus:ring-rose-400' 
+                      : 'border-theme-border text-on-surface focus:border-primary'
+                  } focus:outline-hidden transition-all`}
                 />
-                {errors.coverUrl && <p className="text-[10px] text-red-500 mt-1">{errors.coverUrl}</p>}
+                {errors.coverUrl && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">error</span>
+                    <span>{errors.coverUrl}</span>
+                  </p>
+                )}
               </div>
 
               {form.coverUrl && (
@@ -1112,10 +1458,14 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
             </section>
 
             {/* 04. Pricing */}
-            <section id="sec-pricing" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+            <section id="sec-pricing" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+              sectionErrors.pricing ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+            }`}>
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    sectionErrors.pricing ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                  }`}>
                     04
                   </div>
                   <div>
@@ -1129,48 +1479,75 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 {(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH') && (
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Giá Sách In (₫) <span className="text-red-500">*</span>
+                      Giá Sách In (₫) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"
                       value={form.physicalPrice}
                       onChange={(e) => handleChange('physicalPrice', e.target.value)}
                       placeholder="120000"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.physicalPrice 
+                          ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                          : 'border-theme-border text-on-surface focus:border-primary'
+                      } focus:outline-hidden font-mono`}
                     />
-                    {errors.physicalPrice && <p className="text-[10px] text-red-500 mt-1">{errors.physicalPrice}</p>}
+                    {errors.physicalPrice && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.physicalPrice}</span>
+                      </p>
+                    )}
                   </div>
                 )}
 
                 {(selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH') && (
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Giá Ebook DRM (₫) <span className="text-red-500">*</span>
+                      Giá Ebook DRM (₫) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"
                       value={form.ebookPrice}
                       onChange={(e) => handleChange('ebookPrice', e.target.value)}
                       placeholder="59000"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.ebookPrice 
+                          ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                          : 'border-theme-border text-on-surface focus:border-primary'
+                      } focus:outline-hidden font-mono`}
                     />
-                    {errors.ebookPrice && <p className="text-[10px] text-red-500 mt-1">{errors.ebookPrice}</p>}
+                    {errors.ebookPrice && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.ebookPrice}</span>
+                      </p>
+                    )}
                   </div>
                 )}
 
                 {selectedFormat === 'BOTH' && (
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Giá Combo Hybrid (₫) <span className="text-red-500">*</span>
+                      Giá Combo Hybrid (₫) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"
                       value={form.comboPrice}
                       onChange={(e) => handleChange('comboPrice', e.target.value)}
                       placeholder="149000"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.comboPrice 
+                          ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                          : 'border-theme-border text-on-surface focus:border-primary'
+                      } focus:outline-hidden font-mono`}
                     />
-                    {errors.comboPrice && <p className="text-[10px] text-red-500 mt-1">{errors.comboPrice}</p>}
+                    {errors.comboPrice && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.comboPrice}</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -1185,10 +1562,14 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
             {/* 05. Inventory & Shipping (Physical only) */}
             {(selectedFormat === 'PHYSICAL' || selectedFormat === 'BOTH') && (
-              <section id="sec-inventory" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+              <section id="sec-inventory" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+                sectionErrors.inventory ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+              }`}>
                 <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                      sectionErrors.inventory ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                    }`}>
                       05
                     </div>
                     <div>
@@ -1201,32 +1582,55 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Số Lượng Tồn Kho <span className="text-red-500">*</span>
+                      Số Lượng Tồn Kho <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"
                       value={form.stock}
-                      onChange={(e) => handleChange('stock', Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
+                      onChange={(e) => handleChange('stock', e.target.value)}
+                      placeholder="VD: 100"
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.stock 
+                          ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                          : 'border-theme-border text-on-surface focus:border-primary'
+                      } focus:outline-hidden font-mono`}
                     />
+                    {errors.stock && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.stock}</span>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">
-                      Khối Lượng (gram) <span className="text-red-500">*</span>
+                      Khối Lượng (gram) <span className="text-rose-500">*</span>
                     </label>
                     <input 
                       type="number"
                       value={form.weight}
-                      onChange={(e) => handleChange('weight', Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
+                      onChange={(e) => handleChange('weight', e.target.value)}
+                      placeholder="VD: 350"
+                      className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                        errors.weight 
+                          ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                          : 'border-theme-border text-on-surface focus:border-primary'
+                      } focus:outline-hidden font-mono`}
                     />
+                    {errors.weight && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">error</span>
+                        <span>{errors.weight}</span>
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-on-surface mb-1">Dài (cm)</label>
                     <input 
                       type="number"
                       value={form.length}
-                      onChange={(e) => handleChange('length', Number(e.target.value))}
+                      onChange={(e) => handleChange('length', e.target.value)}
+                      placeholder="VD: 20.5"
                       className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
                     />
                   </div>
@@ -1235,7 +1639,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     <input 
                       type="number"
                       value={form.width}
-                      onChange={(e) => handleChange('width', Number(e.target.value))}
+                      onChange={(e) => handleChange('width', e.target.value)}
+                      placeholder="VD: 14.5"
                       className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary font-mono"
                     />
                   </div>
@@ -1245,22 +1650,30 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
             {/* 06. DRM & Ebook File (Digital only) */}
             {(selectedFormat === 'DIGITAL' || selectedFormat === 'BOTH') && (
-              <section id="sec-drm" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
+              <section id="sec-drm" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+                sectionErrors.drm ? 'border-rose-300 ring-2 ring-rose-100 shadow-rose-100/30' : 'border-theme-border/70'
+              }`}>
                 <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                      sectionErrors.drm ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                    }`}>
                       06
                     </div>
                     <div>
-                      <h3 className="font-title-md text-sm font-bold text-on-surface">Bảo Mật DRM & Tệp Ebook</h3>
-                      <p className="text-[11px] text-on-surface-variant">Tải lên tệp PDF hoặc EPUB đã được mã hóa an toàn.</p>
+                      <h3 className="font-title-md text-sm font-bold text-on-surface">
+                        Bảo Mật DRM, Tệp Ebook &amp; Giọng Đọc AI
+                      </h3>
+                      <p className="text-[11px] text-on-surface-variant">
+                        Tải lên tệp PDF/EPUB và đăng ký gói phát hành Sách Nói AI bản quyền (Chỉ áp dụng Ebook).
+                      </p>
                     </div>
                   </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-on-surface mb-1">
-                    Đính Kèm Tệp Sách Điện Tử (PDF / EPUB)
+                    Đính Kèm Tệp Sách Điện Tử (PDF / EPUB) <span className="text-rose-500">*</span>
                   </label>
                   <input 
                     type="file"
@@ -1268,34 +1681,245 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     onChange={(e) => {
                       if (e.target.files && e.target.files[0]) {
                         setForm(prev => ({ ...prev, ebookFile: e.target.files![0] }));
+                        if (errors.ebookFile) {
+                          setErrors(prev => {
+                            const next = { ...prev };
+                            delete next.ebookFile;
+                            return next;
+                          });
+                        }
                       }
                     }}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border border-theme-border text-on-surface focus:outline-hidden focus:border-primary"
+                    className={`w-full px-3 py-2 text-xs rounded-xl bg-surface-container-lowest border ${
+                      errors.ebookFile 
+                        ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:border-rose-500' 
+                        : 'border-theme-border text-on-surface focus:border-primary'
+                    } focus:outline-hidden`}
                   />
+                  {errors.ebookFile && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1.5 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">error</span>
+                      <span>{errors.ebookFile}</span>
+                    </p>
+                  )}
                   {form.ebookFile && (
                     <p className="text-[11px] text-emerald-600 mt-1 font-semibold flex items-center gap-1">
                       <span className="material-symbols-outlined text-xs">check_circle</span>
                       Đã chọn: {form.ebookFile.name} ({(form.ebookFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                   )}
-                  {errors.ebookFile && <p className="text-[10px] text-red-500 mt-1">{errors.ebookFile}</p>}
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
-                  <label className="flex items-center gap-2 text-xs text-on-surface cursor-pointer">
-                    <input 
-                      type="checkbox"
-                      checked={form.drmEnabled}
-                      onChange={(e) => handleChange('drmEnabled', e.target.checked)}
-                      className="rounded text-primary focus:ring-primary"
-                    />
-                    <span>Kích hoạt mã hóa chống sao chép DRM</span>
-                  </label>
+                {/* KHỐI KẾT HỢP GIỌNG ĐỌC AI (CHỈ DÀNH CHO EBOOK DIGITAL) */}
+                <div className="pt-4 border-t border-theme-border/60 space-y-3">
+                  <div className="flex items-center justify-between p-3.5 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/40">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-[#00875A] text-white flex items-center justify-center shadow-xs shrink-0">
+                        <span className="material-symbols-outlined text-2xl">record_voice_over</span>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                            Kết Hợp Giọng Đọc AI (Phát Hành Sách Nói AI)
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00875A] text-white">
+                            Chỉ áp dụng Ebook
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                          Kích hoạt giọng đọc AI tự nhiên chuẩn Studio tiếng Việt truyền cảm, phát hành thêm phiên bản sách nói trên sàn.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Toggle switch */}
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={enableAiAudio}
+                        onChange={(e) => setEnableAiAudio(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00875A]"></div>
+                    </label>
+                  </div>
+
+                  {enableAiAudio && (
+                    <div className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-900/40 border border-slate-200/80 dark:border-slate-800 space-y-4 animate-in fade-in duration-200">
+                      {/* Chọn gói cước từ PostgreSQL */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
+                          Chọn Gói Cước Giọng Đọc AI (Phí bản quyền nộp về Sàn HUKI) <span className="text-rose-500">*</span>
+                        </label>
+
+                        {aiAudioPlans.length === 0 ? (
+                          <div className="p-4 text-center text-xs text-slate-400 bg-white rounded-xl border border-slate-200">
+                            Đang tải các gói cước từ hệ thống...
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {aiAudioPlans.map((plan) => {
+                              const isSelected = selectedAiPlanId === plan.id;
+                              return (
+                                <div
+                                  key={plan.id}
+                                  onClick={() => setSelectedAiPlanId(plan.id)}
+                                  className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between relative ${
+                                    isSelected
+                                      ? 'bg-emerald-50/70 border-[#00875A] ring-2 ring-emerald-500/20 shadow-xs'
+                                      : 'bg-white hover:bg-slate-50 border-slate-200/80'
+                                  }`}
+                                >
+                                  {plan.isPopular && (
+                                    <span className="absolute -top-2 right-3 bg-amber-500 text-white text-[9px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                                      Phổ biến nhất
+                                    </span>
+                                  )}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="font-bold text-xs text-slate-900">{plan.name}</span>
+                                      <span className={`w-4 h-4 rounded-full border flex items-center justify-center ${isSelected ? 'border-[#00875A] bg-[#00875A] text-white' : 'border-slate-300'}`}>
+                                        {isSelected && <span className="material-symbols-outlined text-[10px]">check</span>}
+                                      </span>
+                                    </div>
+                                    <div className="text-base font-black text-[#00875A]">
+                                      {plan.price.toLocaleString('vi-VN')} đ
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-medium">
+                                      Thời hạn: {plan.durationDays} ngày (~{Math.round(plan.durationDays / 30)} tháng)
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-2 line-clamp-2">
+                                      {plan.description}
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-3 pt-2 border-t border-slate-100 flex items-center gap-1 text-[10px] text-slate-600 font-medium">
+                                    <span className="material-symbols-outlined text-[12px] text-emerald-600">mic</span>
+                                    <span>{plan.voiceType}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Phương thức thanh toán nộp tiền về Admin */}
+                      <div className="pt-3 border-t border-slate-200/60">
+                        <label className="block text-xs font-bold text-slate-800 dark:text-slate-200 mb-2">
+                          Phương Thức Thanh Toán Phí Bản Quyền (Nộp về Admin HUKI)
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <label
+                            className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                              aiPaymentMethod === 'WALLET'
+                                ? 'bg-white border-[#00875A] shadow-xs'
+                                : 'bg-white/60 border-slate-200/80 hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="aiPaymentMethod"
+                              value="WALLET"
+                              checked={aiPaymentMethod === 'WALLET'}
+                              onChange={() => setAiPaymentMethod('WALLET')}
+                              className="text-[#00875A] focus:ring-[#00875A]"
+                            />
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm text-[#00875A]">account_balance_wallet</span>
+                                <span>Ví Doanh Nghiệp HUKI</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400">Trừ trực tiếp số dư (Tự động)</div>
+                            </div>
+                          </label>
+
+                          <label
+                            className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                              aiPaymentMethod === 'PAYOS'
+                                ? 'bg-white border-[#00875A] shadow-xs'
+                                : 'bg-white/60 border-slate-200/80 hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="aiPaymentMethod"
+                              value="PAYOS"
+                              checked={aiPaymentMethod === 'PAYOS'}
+                              onChange={() => setAiPaymentMethod('PAYOS')}
+                              className="text-[#00875A] focus:ring-[#00875A]"
+                            />
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm text-sky-600">qr_code_scanner</span>
+                                <span>PayOS VietQR</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400">Quét mã chuyển tiền nhanh</div>
+                            </div>
+                          </label>
+
+                          <label
+                            className={`p-3 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-all ${
+                              aiPaymentMethod === 'QR_TRANSFER'
+                                ? 'bg-white border-[#00875A] shadow-xs'
+                                : 'bg-white/60 border-slate-200/80 hover:bg-white'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="aiPaymentMethod"
+                              value="QR_TRANSFER"
+                              checked={aiPaymentMethod === 'QR_TRANSFER'}
+                              onChange={() => setAiPaymentMethod('QR_TRANSFER')}
+                              className="text-[#00875A] focus:ring-[#00875A]"
+                            />
+                            <div>
+                              <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
+                                <span className="material-symbols-outlined text-sm text-indigo-600">account_balance</span>
+                                <span>Chuyển Khoản Ngân Hàng</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400">Tài khoản sàn HUKI</div>
+                            </div>
+                          </label>
+                        </div>
+
+                        {/* Banner xác nhận dòng tiền */}
+                        <div className="mt-3 p-3 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-start gap-2.5 text-xs text-amber-900">
+                          <span className="material-symbols-outlined text-amber-600 text-lg shrink-0 mt-0.5">info</span>
+                          <div className="space-y-0.5">
+                            <p className="font-bold">Minh bạch dòng tiền &amp; Quyền lợi Sách Nói AI:</p>
+                            <p className="text-[11px] text-amber-800">
+                              Phí bản quyền sẽ được nộp 100% về tài khoản Admin Sàn HUKI và ghi log vào sổ cái giao dịch. Sau khi xuất bản, ấn bản Ebook này sẽ được gắn huy hiệu &quot;Sách Nói AI&quot;, tự động kích hoạt tính năng phát âm thanh trên Web Reader và xuất hiện trong chuyên mục Sách Nói toàn sàn.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
             )}
+          </div>
 
-            {/* 07. SEO Optimizer */}
+          {/* Right Column: SEO Tools & Live Preview */}
+          <aside className="lg:col-span-4 space-y-4">
+            {/* Store & Format Info Badge */}
+            <div className="bg-surface-container-lowest rounded-xl p-3.5 border border-theme-border/70 shadow-xs flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                  <span className="material-symbols-outlined text-base">storefront</span>
+                </div>
+                <div>
+                  <div className="text-[10px] text-on-surface-variant">Gian hàng xuất bản</div>
+                  <div className="font-bold text-on-surface truncate max-w-[170px]">{currentBizName}</div>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-bold">
+                {selectedFormat === 'BOTH' ? 'Hybrid (In + Ebook)' : selectedFormat === 'PHYSICAL' ? 'Sách Giấy' : 'Ebook DRM'}
+              </span>
+            </div>
+
+            {/* SEO & Meta Search Optimization Card */}
             <section id="sec-seo" className="bg-surface-container-lowest rounded-xl p-4 sm:p-5 border border-theme-border/70 shadow-xs space-y-4 scroll-mt-20">
               <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
                 <div className="flex items-center gap-2.5">
@@ -1303,118 +1927,180 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                     07
                   </div>
                   <div>
-                    <h3 className="font-title-md text-sm font-bold text-on-surface">Tối Ưu SEO & Thẻ Tìm Kiếm</h3>
-                    <p className="text-[11px] text-on-surface-variant">Xem trước cách sách hiển thị trên Google và các mạng xã hội.</p>
+                    <h3 className="font-title-md text-sm font-bold text-on-surface">Tối Ưu SEO & Tìm Kiếm</h3>
+                    <p className="text-[11px] text-on-surface-variant">Xem trước hiển thị Google và chấm điểm chuẩn SEO.</p>
                   </div>
                 </div>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${seoAudit.badge.color}`}>
+                <div className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${seoAudit.badge.color}`}>
                   {seoAudit.badge.text} ({seoAudit.score}/100)
-                </span>
+                </div>
               </div>
 
-              {/* Tag / Keyword Input */}
+              {/* Progress bar */}
+              <div>
+                <div className="flex items-center justify-between text-[11px] font-medium text-on-surface-variant mb-1">
+                  <span>Điểm tối ưu hóa SEO</span>
+                  <span className="font-bold text-on-surface">{seoAudit.score}/100</span>
+                </div>
+                <div className="h-2 rounded-full bg-surface-container overflow-hidden">
+                  <div 
+                    className={`h-full transition-all duration-500 ${
+                      seoAudit.score >= 80 ? 'bg-emerald-500' : seoAudit.score >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                    }`}
+                    style={{ width: `${seoAudit.score}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Live SERP Google Search Preview */}
+              <div className="rounded-xl border border-theme-border bg-surface-container-low/40 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-on-surface-variant font-semibold">
+                    <span className="material-symbols-outlined text-primary text-sm">search</span>
+                    <span>Xem trước Google Search</span>
+                  </div>
+                  <div className="flex items-center gap-1 bg-surface-container-lowest rounded-lg p-0.5 border border-theme-border text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setSerpDevice('mobile')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer ${
+                        serpDevice === 'mobile' ? 'bg-primary text-white' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      Mobile
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSerpDevice('desktop')}
+                      className={`px-2 py-0.5 rounded-md font-medium transition-colors cursor-pointer ${
+                        serpDevice === 'desktop' ? 'bg-primary text-white' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      Desktop
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-2xs font-sans text-left">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-[10px]">
+                      H
+                    </div>
+                    <div className="text-[11px] text-slate-700 leading-tight">
+                      <div className="font-medium text-slate-800">huki.vn</div>
+                      <div className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                        https://huki.vn/sach/{generateSlug(form.title) || 'ten-sach'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <h4 className="text-sm font-semibold text-[#1a0dab] hover:underline cursor-pointer line-clamp-2 leading-snug">
+                    {form.title ? `${form.title} | Mua Sách Chính Hãng Tại HUKI` : 'Tiêu Đề Sách | Sàn Thương Mại Điện Tử Sách HUKI'}
+                  </h4>
+
+                  <p className="text-xs text-[#4d5156] mt-1 line-clamp-2 leading-relaxed">
+                    {form.teaser || form.description || 'Mô tả tóm tắt của cuốn sách sẽ xuất hiện ở đây trên kết quả tìm kiếm Google. Hãy viết ngắn gọn từ 100 - 160 ký tự.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Tags Search Keywords */}
               <div>
                 <label className="block text-xs font-semibold text-on-surface mb-1">
                   Từ Khóa Tìm Kiếm (Tags)
                 </label>
-                <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                  {tags.map(t => (
-                    <span key={t} className="px-2.5 py-1 rounded-lg bg-surface-container text-[11px] font-medium text-on-surface flex items-center gap-1">
-                      {t}
-                      <button type="button" onClick={() => handleRemoveTag(t)} className="text-on-surface-variant hover:text-red-500 cursor-pointer">×</button>
+                <div className="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-surface-container-lowest border border-theme-border min-h-[42px]">
+                  {tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-medium"
+                    >
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => setTags(tags.filter((_, i) => i !== idx))}
+                        className="hover:text-rose-600 cursor-pointer text-xs"
+                      >
+                        ×
+                      </button>
                     </span>
                   ))}
                   {isAddingTag ? (
-                    <div className="flex items-center gap-1">
-                      <input 
+                    <div className="inline-flex items-center gap-1">
+                      <input
                         type="text"
                         value={newTag}
                         onChange={(e) => setNewTag(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTag(); } }}
-                        placeholder="Thêm tag..."
-                        className="px-2 py-0.5 text-xs rounded-lg border border-theme-border text-on-surface"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddTag();
+                          }
+                          if (e.key === 'Escape') {
+                            setIsAddingTag(false);
+                            setNewTag('');
+                          }
+                        }}
+                        placeholder="Nhập thẻ rồi nhấn Enter..."
+                        className="text-xs px-2 py-0.5 rounded border border-primary outline-hidden bg-background w-36"
+                        autoFocus
                       />
-                      <button type="button" onClick={handleAddTag} className="px-2 py-0.5 rounded-lg bg-primary text-white text-xs">Lưu</button>
+                      <button
+                        type="button"
+                        onClick={handleAddTag}
+                        className="px-2 py-0.5 rounded bg-primary text-white text-[11px] font-semibold cursor-pointer"
+                      >
+                        Lưu
+                      </button>
                     </div>
                   ) : (
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => setIsAddingTag(true)}
-                      className="px-2.5 py-1 rounded-lg border border-dashed border-theme-border text-[11px] font-semibold text-primary hover:bg-primary/5 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-dashed border-theme-border text-on-surface-variant hover:text-primary hover:border-primary text-xs font-medium cursor-pointer"
                     >
-                      + Thêm từ khóa
+                      <span className="material-symbols-outlined text-xs">add</span>
+                      Thêm từ khóa
                     </button>
                   )}
                 </div>
+                <p className="text-[10px] text-on-surface-variant mt-1">Gắn thẻ các chủ đề liên quan để tăng tỷ lệ tìm thấy trên sàn.</p>
               </div>
 
               {/* SEO Checklist */}
-              <div className="space-y-1.5 pt-2">
-                {seoAudit.checks.map((c) => (
-                  <div key={c.id} className="flex items-start gap-2 text-xs">
-                    <span className={`material-symbols-outlined text-sm ${c.status === 'pass' ? 'text-emerald-600' : c.status === 'warn' ? 'text-amber-500' : 'text-red-500'}`}>
-                      {c.status === 'pass' ? 'check_circle' : c.status === 'warn' ? 'warning' : 'cancel'}
-                    </span>
-                    <div>
-                      <p className="font-semibold text-on-surface">{c.label}</p>
-                      <p className="text-[10px] text-on-surface-variant">{c.tip}</p>
+              <div className="space-y-2 pt-2 border-t border-theme-border/60">
+                <span className="text-[11px] font-bold text-on-surface uppercase tracking-wider block">
+                  Danh Mục Kiểm Tra SEO
+                </span>
+                <div className="space-y-1.5">
+                  {seoAudit.checks.map((check) => (
+                    <div key={check.id} className="flex items-start gap-2 p-2 rounded-lg bg-surface-container-low/50 text-xs">
+                      <span
+                        className={`material-symbols-outlined text-sm mt-0.5 shrink-0 ${
+                          check.status === 'pass'
+                            ? 'text-emerald-600'
+                            : check.status === 'warn'
+                            ? 'text-amber-500'
+                            : 'text-rose-500'
+                        }`}
+                      >
+                        {check.status === 'pass' ? 'check_circle' : check.status === 'warn' ? 'warning' : 'cancel'}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-on-surface leading-tight">{check.label}</div>
+                        <div className="text-[11px] text-on-surface-variant leading-tight mt-0.5">{check.tip}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </section>
-          </div>
-
-          {/* Right Column: Quick Navigation & Live Preview */}
-          <aside className="lg:col-span-4 space-y-4">
-            
-            {/* Quick Navigation Menu */}
-            <div className="bg-surface-container-lowest rounded-xl p-4 border border-theme-border/70 shadow-xs sticky top-20">
-              <h4 className="font-title-md text-xs font-bold text-on-surface mb-2.5 uppercase tracking-wider">
-                Mục Lục Thiết Lập
-              </h4>
-              <nav className="space-y-1">
-                {navItems.map(item => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => scrollToSection(item.id)}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center justify-between transition-colors cursor-pointer ${
-                      activeSection === item.id ? 'bg-primary/10 text-primary font-bold' : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
-                    }`}
-                  >
-                    <span>{item.label}</span>
-                    {item.completed && (
-                      <span className="material-symbols-outlined text-xs text-emerald-600">check</span>
-                    )}
-                  </button>
-                ))}
-              </nav>
-
-              <hr className="my-3 border-theme-border/60" />
-
-              {/* Summary card */}
-              <div className="space-y-2 text-xs">
-                <div className="flex justify-between text-on-surface-variant">
-                  <span>Gian hàng:</span>
-                  <span className="font-semibold text-on-surface truncate max-w-[150px]">{currentBizName}</span>
-                </div>
-                <div className="flex justify-between text-on-surface-variant">
-                  <span>Danh mục:</span>
-                  <span className="font-semibold text-on-surface truncate max-w-[150px]">{displayCategoryName}</span>
-                </div>
-                <div className="flex justify-between text-on-surface-variant">
-                  <span>Tác giả:</span>
-                  <span className="font-semibold text-on-surface truncate max-w-[150px]">{displayAuthorName}</span>
-                </div>
-              </div>
-            </div>
           </aside>
         </div>
       </main>
 
-      {/* Sticky Bottom Action Footer */}
-      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border/70 px-6 sm:px-8 py-3.5 shadow-[0_-4px_24px_rgba(0,0,0,0.06)] flex flex-wrap items-center justify-between gap-4">
+      {/* Sticky Bottom Action Bar */}
+      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border py-3 px-4 sm:px-6 lg:px-8 flex items-center justify-between shadow-lg">
         <div className="flex items-center gap-2 text-xs text-on-surface-variant font-medium">
           <span className="material-symbols-outlined text-primary text-base">cloud_done</span>
           <span>Dữ liệu lưu trực tiếp vào CSDL Sàn HUKI</span>

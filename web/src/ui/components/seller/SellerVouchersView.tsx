@@ -22,10 +22,12 @@ import {
   formatDiscountValue,
   formatTargetAudience,
   formatFollowerRequirement,
+  formatApplicableFormat,
   type Voucher,
   type VoucherType,
   type VoucherStatus,
   type VoucherTargetAudience,
+  type VoucherApplicableFormat,
   type VoucherUsageStats,
   type CreateVoucherPayload,
   type UpdateVoucherPayload,
@@ -61,6 +63,7 @@ export function SellerVouchersView() {
   const [description, setDescription] = useState('');
   const [type, setType] = useState<VoucherType>('PERCENTAGE');
   const [targetAudience, setTargetAudience] = useState<VoucherTargetAudience>('ALL');
+  const [applicableFormat, setApplicableFormat] = useState<VoucherApplicableFormat>('ALL');
   const [minFollowDays, setMinFollowDays] = useState<number>(0);
   const [customDaysInput, setCustomDaysInput] = useState<string>('30');
   const [value, setValue] = useState('');
@@ -165,6 +168,7 @@ export function SellerVouchersView() {
     setDescription('');
     setType('PERCENTAGE');
     setTargetAudience('ALL');
+    setApplicableFormat('ALL');
     setMinFollowDays(0);
     setCustomDaysInput('30');
     setValue('10');
@@ -192,6 +196,7 @@ export function SellerVouchersView() {
     setDescription(voucher.description || '');
     setType(voucher.type);
     setTargetAudience(voucher.targetAudience || 'ALL');
+    setApplicableFormat(voucher.applicableFormat || 'ALL');
     const initialMinDays = voucher.minFollowDays || 0;
     setMinFollowDays(initialMinDays);
     setCustomDaysInput(initialMinDays > 0 ? initialMinDays.toString() : '30');
@@ -336,6 +341,7 @@ export function SellerVouchersView() {
           scope: 'STORE',
           storeId: storeIdToUse || undefined,
           targetAudience,
+          applicableFormat,
           minFollowDays: targetAudience === 'FOLLOWERS_ONLY' ? Number(minFollowDays) : 0,
           totalUsage: Number(totalUsage) || 0,
           maxUsagePerUser: Number(maxUsagePerUser) || 1,
@@ -366,6 +372,7 @@ export function SellerVouchersView() {
           scope: 'STORE',
           storeId: storeIdToUse || undefined,
           targetAudience,
+          applicableFormat,
           minFollowDays: targetAudience === 'FOLLOWERS_ONLY' ? Number(minFollowDays) : 0,
           totalUsage: Number(totalUsage) || 0,
           maxUsagePerUser: Number(maxUsagePerUser) || 1,
@@ -716,6 +723,100 @@ export function SellerVouchersView() {
                   onChange={(e) => setExpiresAt(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
                 />
+              </div>
+            </div>
+
+            {/* Applicable Book Format Selector */}
+            <div className="pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[17px] text-[#00875A]">auto_stories</span>
+                  <span>Định Dạng Sách Áp Dụng</span>
+                  <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[11px] text-slate-500">
+                  Phân loại điều kiện chiết khấu theo loại sách
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* 1. ALL FORMATS */}
+                <div
+                  onClick={() => setApplicableFormat('ALL')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    applicableFormat === 'ALL'
+                      ? 'border-[#00875A] bg-emerald-50/40 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${applicableFormat === 'ALL' ? 'bg-[#00875A] text-white' : 'bg-slate-100 text-slate-600'}`}>
+                        <span className="material-symbols-outlined text-[16px]">library_books</span>
+                      </div>
+                      <span className="font-bold text-xs text-slate-900">Tất Cả Định Dạng</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${applicableFormat === 'ALL' ? 'border-[#00875A] bg-[#00875A]' : 'border-slate-300'}`}>
+                      {applicableFormat === 'ALL' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Áp dụng giảm giá cho cả <strong>Ebook DRM</strong> và <strong>Sách Giấy</strong> trong đơn.
+                  </p>
+                </div>
+
+                {/* 2. DIGITAL ONLY */}
+                <div
+                  onClick={() => setApplicableFormat('DIGITAL')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    applicableFormat === 'DIGITAL'
+                      ? 'border-emerald-600 bg-emerald-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${applicableFormat === 'DIGITAL' ? 'bg-emerald-700 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
+                        <span className="material-symbols-outlined text-[16px]">bolt</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-xs text-slate-900">Chỉ Ebook Bản Quyền</span>
+                        <span className="ml-1.5 text-[9.5px] px-1.5 py-0.2 rounded-full bg-emerald-100 text-emerald-800 font-bold uppercase">DRM</span>
+                      </div>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${applicableFormat === 'DIGITAL' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'}`}>
+                      {applicableFormat === 'DIGITAL' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Chỉ tính giảm giá cho các cuốn <strong>Ebook</strong>. Kích hoạt đọc ngay tức thì.
+                  </p>
+                </div>
+
+                {/* 3. PHYSICAL ONLY */}
+                <div
+                  onClick={() => setApplicableFormat('PHYSICAL')}
+                  className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                    applicableFormat === 'PHYSICAL'
+                      ? 'border-amber-600 bg-amber-50/50 shadow-2xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${applicableFormat === 'PHYSICAL' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                      </div>
+                      <span className="font-bold text-xs text-slate-900">Chỉ Sách Giấy Vật Lý</span>
+                    </div>
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${applicableFormat === 'PHYSICAL' ? 'border-amber-600 bg-amber-600' : 'border-slate-300'}`}>
+                      {applicableFormat === 'PHYSICAL' && <div className="w-1.5 h-1.5 rounded-full bg-white"></div>}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-2">
+                    Chỉ áp dụng khi mua <strong>Sách Giấy</strong> (giao hàng bưu tá tận nơi).
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -1219,12 +1320,16 @@ export function SellerVouchersView() {
 
                       {/* Mức Giảm & Điều Kiện */}
                       <td className="py-3 px-3.5">
-                        <div className="flex flex-col gap-0.5">
+                        <div className="flex flex-col gap-1">
                           <span className="font-bold text-[#00875A] text-xs">
                             {formatDiscountValue(voucher.type, voucher.value)}
                           </span>
                           <span className="text-[11px] text-slate-500 font-mono">
                             Đơn từ {formatVND(voucher.minOrderAmount)}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 text-[9.5px] px-1.5 py-0.2 rounded font-bold border w-fit ${formatApplicableFormat(voucher.applicableFormat).borderClass} ${formatApplicableFormat(voucher.applicableFormat).bgClass}`}>
+                            <span className="material-symbols-outlined text-[11px]">{formatApplicableFormat(voucher.applicableFormat).icon}</span>
+                            <span>{formatApplicableFormat(voucher.applicableFormat).badge}</span>
                           </span>
                         </div>
                       </td>

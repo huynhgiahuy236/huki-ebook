@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
+import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { voucherApi } from '@/ui/api/voucherApi';
@@ -20,6 +21,7 @@ const MOCK_AVAILABLE_VOUCHERS = [
 
 export default function CartPage() {
   const router = useRouter();
+  const { isLoggedIn } = useAuth();
   const {
     cartItems = [],
     availableItems = [],
@@ -143,6 +145,15 @@ export default function CartPage() {
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('huki_direct_checkout_item');
     }
+
+    // Guest: redirect to login first, then back to checkout
+    if (!isLoggedIn) {
+      const currentPath = '/checkout';
+      sessionStorage.setItem('huki_login_redirect', currentPath);
+      router.push('/auth/login?redirect=' + encodeURIComponent(currentPath));
+      return;
+    }
+
     router.push('/checkout');
   };
 

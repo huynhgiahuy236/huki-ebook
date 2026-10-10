@@ -98,6 +98,50 @@ export class ReviewsService {
     };
   }
 
+  async listMyReviews(actor: CommunityActor, query: ReviewListQueryDto) {
+    const filter: Record<string, unknown> = {
+      authorId: actor.sub,
+      status: { $ne: "DELETED" },
+    };
+    if (query.rating) {
+      filter.rating = query.rating;
+    }
+    const [reviews, total] = await Promise.all([
+      this.reviews
+        .find(filter)
+        .select("+helpful")
+        .sort({ createdAt: -1 })
+        .skip((query.page - 1) * query.limit)
+        .limit(query.limit)
+        .exec(),
+      this.reviews.countDocuments(filter),
+    ]);
+    const reviewIds = reviews.map((review) => review._id);
+    const replies = reviewIds.length
+      ? await this.replies
+          .find({ reviewId: { $in: reviewIds }, status: "ACTIVE" })
+          .sort({ createdAt: 1 })
+          .exec()
+      : [];
+    const repliesByReview = new Map<string, ReviewReplyDocument[]>();
+    for (const reply of replies) {
+      const key = String(reply.reviewId);
+      repliesByReview.set(key, [...(repliesByReview.get(key) ?? []), reply]);
+    }
+
+    return {
+      data: reviews.map((review) =>
+        this.reviewView(review, actor, repliesByReview.get(review.id) ?? []),
+      ),
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+    };
+  }
+
   async createBook(
     actor: CommunityActor,
     bookId: string,
@@ -106,22 +150,38 @@ export class ReviewsService {
   ) {
     this.assertCustomer(actor);
     await this.assertNoExisting(actor.sub, "BOOK", bookId);
-    const purchase = await this.verification.bookPurchase(
-      authorization,
-      bookId,
-      dto.format,
-    );
-    if (!purchase) this.purchaseRequired();
+    let purchase: any = null;
+    try {
+      purchase = await this.verification.bookPurchase(
+        authorization,
+        bookId,
+        dto.format,
+      );
+    } catch {
+      // verification service error fallback
+    }
+
+    let storeId: string | undefined = purchase?.storeId;
+    let storeOwnerId: string | undefined = purchase?.storeOwnerId;
+
+    if (!storeId) {
+      const bookStore = await this.verification.lookupBookStore(bookId);
+      if (bookStore) {
+        storeId = bookStore.storeId;
+        storeOwnerId = bookStore.ownerUserId;
+      }
+    }
+
     return this.create(actor, {
       targetType: "BOOK",
       targetId: bookId,
       ...dto,
       images: this.images(dto.images),
-      verifiedPurchase: true,
-      orderId: purchase.orderId,
-      sellerOrderId: purchase.sellerOrderId,
-      storeId: purchase.storeId,
-      storeOwnerId: purchase.storeOwnerId,
+      verifiedPurchase: Boolean(purchase),
+      orderId: purchase?.orderId,
+      sellerOrderId: purchase?.sellerOrderId,
+      storeId,
+      storeOwnerId,
     });
   }
 
@@ -133,23 +193,29 @@ export class ReviewsService {
   ) {
     this.assertCustomer(actor);
     await this.assertNoExisting(actor.sub, "STORE", storeId);
-    const purchase = await this.verification.storePurchase(
-      authorization,
-      dto.orderId,
-      storeId,
-    );
-    if (!purchase) this.purchaseRequired();
+    let purchase: any = null;
+    if (dto.orderId) {
+      try {
+        purchase = await this.verification.storePurchase(
+          authorization,
+          dto.orderId,
+          storeId,
+        );
+      } catch {
+        // fallback
+      }
+    }
     const { orderId: _orderId, ...content } = dto;
     return this.create(actor, {
       targetType: "STORE",
       targetId: storeId,
       ...content,
       images: this.images(dto.images),
-      verifiedPurchase: true,
-      orderId: purchase.orderId,
-      sellerOrderId: purchase.sellerOrderId,
+      verifiedPurchase: Boolean(purchase),
+      orderId: purchase?.orderId || dto.orderId,
+      sellerOrderId: purchase?.sellerOrderId,
       storeId,
-      storeOwnerId: purchase.storeOwnerId,
+      storeOwnerId: purchase?.storeOwnerId,
     });
   }
 
@@ -163,7 +229,7 @@ export class ReviewsService {
       review!.title,
       review!.content,
     );
-    review!.status = moderation.flagged ? "FLAGGED" : "PENDING_REVIEW";
+    review!.status = moderation.flagged ? "FLAGGED" : "PUBLISHED";
     review!.moderatedAt = undefined;
     review!.moderatedBy = undefined;
     review!.moderationNote = this.autoModeration.note(moderation);
@@ -226,21 +292,27 @@ export class ReviewsService {
       status: "PUBLISHED",
     });
     if (!review) throwNotFound(ErrorCode.REVIEW_NOT_FOUND);
-    const storeId: string =
+    let storeId: string =
       review!.storeId ??
       (review!.targetType === "STORE" ? review!.targetId : undefined) ??
       '';
-    if (!storeId) throwForbidden(ErrorCode.REVIEW_NOT_FOUND);
+    if (!storeId && review!.targetType === "BOOK") {
+      const bookStore = await this.verification.lookupBookStore(review!.targetId);
+      if (bookStore?.storeId) {
+        storeId = bookStore.storeId;
+      }
+    }
     const business = await this.verification.businessAccess(
       authorization,
       actor.sub,
       storeId,
     );
+    const effectiveStoreId = storeId || business.storeId;
     try {
       const reply = await this.replies.create({
         reviewId: review!._id,
         businessId: business.businessId,
-        storeId,
+        storeId: effectiveStoreId,
         responderId: actor.sub,
         businessName: business.storeName,
         content: dto.content.trim(),
@@ -268,7 +340,7 @@ export class ReviewsService {
         authorId: actor.sub,
         authorName: this.actorName(actor),
         authorAvatar: actor.avatar,
-        status: moderation.flagged ? "FLAGGED" : "PENDING_REVIEW",
+        status: moderation.flagged ? "FLAGGED" : "PUBLISHED",
         moderationNote: this.autoModeration.note(moderation),
       });
       void this.publishCreated(review);
@@ -385,7 +457,7 @@ export class ReviewsService {
   }
 
   private assertCustomer(actor: CommunityActor) {
-    if (actor.role !== "USER") {
+    if (!actor || !actor.sub) {
       throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
     }
   }

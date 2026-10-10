@@ -226,6 +226,59 @@ export class PaymentsService
     };
   }
 
+  async simulateSuccess(userId: string, orderId: string) {
+    let payment = await this.prisma.payment.findFirst({
+      where: { orderId, order: { userId } },
+      include: {
+        order: {
+          include: { sellerOrders: { include: { items: true } } },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (!payment) {
+      const order = await this.prisma.order.findFirst({
+        where: { id: orderId, userId },
+        include: { sellerOrders: { include: { items: true } } },
+      });
+      if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
+
+      payment = await this.prisma.payment.create({
+        data: {
+          orderId: order.id,
+          amount: order.grandTotal,
+          method: PaymentMethod.ONLINE_PAYMENT,
+          provider: "PAYOS",
+          payosOrderId: String(Date.now()),
+          status: PaymentStatus.PENDING,
+        },
+        include: {
+          order: {
+            include: { sellerOrders: { include: { items: true } } },
+          },
+        },
+      });
+    }
+
+    const mockLinkInfo = {
+      transactions: [
+        {
+          reference: `SIMULATED-${Date.now()}`,
+          transactionDateTime: new Date().toISOString(),
+        },
+      ],
+    };
+
+    await this.completePaymentFromPayOS(payment, mockLinkInfo, payment.order);
+
+    return {
+      success: true,
+      message: "Thanh toán PayOS thành công (Mô phỏng Test dòng tiền)",
+      orderId,
+    };
+  }
+
   async completePaymentFromPayOS(payment: any, linkInfo: any, fullOrder?: any) {
     const orderData =
       fullOrder ||

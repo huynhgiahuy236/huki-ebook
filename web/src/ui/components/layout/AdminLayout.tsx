@@ -104,6 +104,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/stores': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Cửa Hàng' },
     '/admin/seller-features': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý Tính Năng Seller' },
     '/admin/books': { parent: 'Quản Trị Catalog', title: 'Quản Lý Sách Toàn Sàn' },
+    '/admin/ai-audiobooks': { parent: 'Quản Trị Catalog', title: 'Quản Trị Sách Nói AI & Gói Cước' },
     '/admin/book-moderation': { parent: 'Quản Trị Catalog', title: 'Kiểm Duyệt Sách' },
     '/admin/categories': { parent: 'Quản Trị Catalog', title: 'Danh Mục & Tác Giả' },
     '/admin/health': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Sức Khỏe Hệ Thống Microservices' },
@@ -191,6 +192,11 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           icon: 'menu_book',
           count: stats.totalBooks > 0 ? String(stats.totalBooks) : undefined,
           badgeColor: 'bg-slate-200 text-slate-700 font-semibold',
+        },
+        {
+          label: 'Sách Nói AI & Gói Cước',
+          to: '/admin/ai-audiobooks',
+          icon: 'record_voice_over',
         },
         {
           label: 'Kiểm Duyệt Sách',

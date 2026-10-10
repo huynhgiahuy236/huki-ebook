@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
@@ -18,6 +18,30 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user, completeOnboarding } = useAuth();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    // Chỉ hiển thị onboarding 1 lần lúc đăng ký: nếu đã hoàn tất thì điều hướng về trang chủ
+    if (user?.hasCompletedOnboarding) {
+      router.replace('/');
+      return;
+    }
+    if (typeof window !== 'undefined') {
+      const isCompleted = localStorage.getItem('huki_onboarding_completed');
+      if (isCompleted === 'true') {
+        router.replace('/');
+        return;
+      }
+      const stored = localStorage.getItem('huki_onboarding_preferences');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.hasCompletedOnboarding) {
+            router.replace('/');
+          }
+        } catch {}
+      }
+    }
+  }, [user, router]);
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -98,7 +122,16 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
+    try {
+      await completeOnboarding({});
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('huki_onboarding_completed', 'true');
+      localStorage.setItem('huki_onboarding_preferences', JSON.stringify({ hasCompletedOnboarding: true, skipped: true }));
+    }
+
     showToast({
       title: 'Đã lưu cấu hình cơ bản',
       message: 'Bạn có thể thay đổi lại sở thích trong Cài đặt tài khoản!',
@@ -140,6 +173,7 @@ export default function OnboardingPage() {
       };
 
       if (typeof window !== 'undefined') {
+        localStorage.setItem('huki_onboarding_completed', 'true');
         localStorage.setItem('huki_onboarding_preferences', JSON.stringify(preferences));
       }
 

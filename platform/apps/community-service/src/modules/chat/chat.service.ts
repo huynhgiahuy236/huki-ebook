@@ -44,15 +44,16 @@ export class ChatService {
     private readonly eventBus: RabbitMqEventBus,
   ) {}
 
-  async listConversations(actor: CommunityActor) {
+  async listConversations(actor: CommunityActor, storeId?: string) {
+    const effectiveId = storeId?.trim() || actor.sub;
     const conversations = await this.conversations
-      .find({ "participants.id": actor.sub })
+      .find({ "participants.id": effectiveId })
       .sort({ updatedAt: -1 })
       .limit(100)
       .exec();
 
     return {
-      data: conversations.map((item) => this.conversationView(item, actor.sub)),
+      data: conversations.map((item) => this.conversationView(item, effectiveId)),
     };
   }
 
@@ -61,14 +62,16 @@ export class ChatService {
     conversationId: string,
     query: ChatPaginationDto,
   ) {
+    const effectiveId = query.storeId?.trim() || actor.sub;
     const conversation = await this.requireConversation(
       conversationId,
       actor.sub,
+      query.storeId,
     );
     const result = await this.messagePage(conversationId, query);
     return {
       data: {
-        ...this.conversationView(conversation!, actor.sub),
+        ...this.conversationView(conversation!, effectiveId),
         messages: result.data,
         pagination: result.pagination,
       },
@@ -80,7 +83,7 @@ export class ChatService {
     conversationId: string,
     query: ChatPaginationDto,
   ) {
-    await this.requireConversation(conversationId, actor.sub);
+    await this.requireConversation(conversationId, actor.sub, query.storeId);
     return this.messagePage(conversationId, query);
   }
 
@@ -92,10 +95,11 @@ export class ChatService {
       throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
 
+    const contextType = dto.contextType || "ORDER";
+    const contextId = dto.contextId || dto.storeId || "GENERAL";
+
     const existing = await this.conversations.findOne({
       type: "USER_TO_STORE",
-      "context.type": dto.contextType,
-      "context.id": dto.contextId,
       participants: {
         $all: [
           { $elemMatch: { type: "USER", id: actor.sub } },
@@ -105,9 +109,20 @@ export class ChatService {
     });
 
     if (existing) {
+      let delivery: ChatDelivery | undefined;
+      if (dto.initialMessage?.trim()) {
+        delivery = await this.sendMessage(actor, existing.id, {
+          content: dto.initialMessage.trim(),
+          messageType: "TEXT",
+        });
+      }
       return {
         message: "Conversation already exists",
-        data: this.conversationView(existing!, actor.sub),
+        data: {
+          ...this.conversationView(existing, actor.sub),
+          messages: delivery ? [delivery.data] : [],
+        },
+        delivery,
       };
     }
 
@@ -118,24 +133,28 @@ export class ChatService {
         name: this.actorName(actor),
         avatar: actor.avatar,
       },
-      { type: "BUSINESS", id: dto.storeId, name: "Store" },
+      { type: "BUSINESS", id: dto.storeId, name: dto.storeName || "Store" },
     ];
     const conversation = await this.conversations.create({
       participants,
       type: "USER_TO_STORE",
-      context: { type: dto.contextType, id: dto.contextId },
+      context: { type: contextType, id: contextId },
       unreadCount: { [actor.sub]: 0, [dto.storeId]: 0 },
     });
-    const delivery = await this.sendMessage(actor, conversation.id, {
-      content: dto.initialMessage,
-      messageType: "TEXT",
-    });
+
+    let delivery: ChatDelivery | undefined;
+    if (dto.initialMessage?.trim()) {
+      delivery = await this.sendMessage(actor, conversation.id, {
+        content: dto.initialMessage.trim(),
+        messageType: "TEXT",
+      });
+    }
 
     return {
       message: "Conversation created",
       data: {
         ...this.conversationView(conversation!, actor.sub),
-        messages: [delivery.data],
+        messages: delivery ? [delivery.data] : [],
       },
       delivery,
     };
@@ -147,23 +166,27 @@ export class ChatService {
     dto: SendMessageDto,
   ): Promise<ChatDelivery> {
     this.validateAttachments(dto);
-    const conversation = await this.ensureWritable(actor, conversationId);
+    const conversation = await this.ensureWritable(actor, conversationId, dto.storeId);
+    const effectiveActorId = dto.storeId?.trim() || actor.sub;
 
-    const sender = this.participant(conversation!, actor.sub);
+    const sender = this.participant(conversation!, actor.sub, dto.storeId);
+    const isStoreActing = Boolean(dto.storeId && sender.type === "BUSINESS");
+
     const recipientIds = conversation!.participants
-      .filter((item) => item.id !== actor.sub)
+      .filter((item) => item.id !== effectiveActorId)
       .map((item) => item.id);
     const message = await this.messages.create({
       conversationId: conversation!._id,
-      senderType: sender!.type,
-      senderId: actor.sub,
-      senderName: this.actorName(actor, sender!.name),
-      senderAvatar: actor.avatar ?? sender!.avatar,
+      senderType: isStoreActing ? "BUSINESS" : sender!.type,
+      senderId: isStoreActing ? dto.storeId! : actor.sub,
+      senderName: isStoreActing ? sender!.name : this.actorName(actor, sender!.name),
+      senderAvatar: isStoreActing ? sender!.avatar : (actor.avatar ?? sender!.avatar),
       content: dto.content.trim(),
       messageType: dto.messageType ?? "TEXT",
       attachments: dto.attachments ?? [],
+      metadata: dto.metadata,
       status: "SENT",
-      readBy: [actor.sub],
+      readBy: [effectiveActorId],
     });
 
     const unreadIncrement = Object.fromEntries(
@@ -213,15 +236,18 @@ export class ChatService {
   async markRead(
     actor: CommunityActor,
     conversationId: string,
+    storeId?: string,
   ): Promise<ReadReceipt> {
     const conversation = await this.requireConversation(
       conversationId,
       actor.sub,
+      storeId,
     );
+    const effectiveActorId = storeId?.trim() || actor.sub;
     const unread = await this.messages
       .find({
         conversationId: conversation!._id,
-        senderId: { $ne: actor.sub },
+        senderId: { $ne: effectiveActorId },
         status: { $ne: "READ" },
       })
       .select("_id")
@@ -234,18 +260,18 @@ export class ChatService {
         { _id: { $in: unread.map((message) => message._id) } },
         {
           $set: { status: "READ", readAt },
-          $addToSet: { readBy: actor.sub },
+          $addToSet: { readBy: effectiveActorId },
         },
       );
     }
     await this.conversations.updateOne(
       { _id: conversation!._id },
-      { $set: { [`unreadCount.${this.safeMapKey(actor.sub)}`]: 0 } },
+      { $set: { [`unreadCount.${this.safeMapKey(effectiveActorId)}`]: 0 } },
     );
 
     return {
       conversationId,
-      readerId: actor.sub,
+      readerId: effectiveActorId,
       messageIds,
       readAt: readAt.toISOString(),
       participantIds: conversation!.participants.map((item) => item.id),
@@ -266,15 +292,18 @@ export class ChatService {
   async markConversationDelivered(
     actor: CommunityActor,
     conversationId: string,
+    storeId?: string,
   ) {
     const conversation = await this.requireConversation(
       conversationId,
       actor.sub,
+      storeId,
     );
+    const effectiveActorId = storeId?.trim() || actor.sub;
     const pending = await this.messages
       .find({
         conversationId: conversation!._id,
-        senderId: { $ne: actor.sub },
+        senderId: { $ne: effectiveActorId },
         status: "SENT",
       })
       .select("_id")
@@ -288,18 +317,20 @@ export class ChatService {
     return pending.map((message) => message.id);
   }
 
-  async requireParticipantIds(actor: CommunityActor, conversationId: string) {
+  async requireParticipantIds(actor: CommunityActor, conversationId: string, storeId?: string) {
     const conversation = await this.requireConversation(
       conversationId,
       actor.sub,
+      storeId,
     );
     return conversation!.participants.map((item) => item.id);
   }
 
-  async ensureWritable(actor: CommunityActor, conversationId: string) {
+  async ensureWritable(actor: CommunityActor, conversationId: string, storeId?: string) {
     const conversation = await this.requireConversation(
       conversationId,
       actor.sub,
+      storeId,
     );
     if (conversation!.status !== "ACTIVE") {
       throwBadRequest(ErrorCode.CHAT_BUSINESS_SUSPENDED);
@@ -307,19 +338,19 @@ export class ChatService {
     return conversation;
   }
 
-  private async requireConversation(id: string, actorId: string) {
+  private async requireConversation(id: string, actorId: string, storeId?: string) {
     if (!Types.ObjectId.isValid(id)) {
       throwNotFound(ErrorCode.CHAT_CONVERSATION_NOT_FOUND);
     }
     const conversation = await this.conversations.findById(id);
     if (!conversation) throwNotFound(ErrorCode.CHAT_CONVERSATION_NOT_FOUND);
-    this.participant(conversation!, actorId);
+    this.participant(conversation!, actorId, storeId);
     return conversation!;
   }
 
-  private participant(conversation: ConversationDocument, actorId: string) {
+  private participant(conversation: ConversationDocument, actorId: string, storeId?: string) {
     const participant = conversation.participants.find(
-      (item) => item.id === actorId,
+      (item) => item.id === actorId || (storeId && item.id === storeId),
     );
     if (!participant) {
       throwForbidden(ErrorCode.CHAT_BLOCKED);
@@ -394,6 +425,7 @@ export class ChatService {
       content: message.content,
       messageType: message.messageType,
       attachments: message.attachments,
+      metadata: (message as any).metadata,
       status: message.status,
       readBy: message.readBy,
       deliveredAt: message.deliveredAt,

@@ -86,7 +86,9 @@ function LoginForm() {
         type: 'success',
       });
 
-      const rawTarget = searchParams.get('redirect') || searchParams.get('from') || '/';
+      // Đọc redirect param hoặc sessionStorage (từ checkout guard)
+      const rawTarget = searchParams.get('redirect') || sessionStorage.getItem('huki_login_redirect') || '/';
+      sessionStorage.removeItem('huki_login_redirect');
 
       // Ưu tiên 1: Đổi mật khẩu bắt buộc
       if (res.user.mustChangePassword) {

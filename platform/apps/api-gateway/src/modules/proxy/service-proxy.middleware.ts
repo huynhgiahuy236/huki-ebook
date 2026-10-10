@@ -13,6 +13,7 @@ const ROUTES: Record<string, ServiceName> = {
   stores: 'business',
   members: 'business',
   books: 'commerce',
+  'ai-audio': 'commerce',
   reader: 'commerce',
   forensics: 'commerce',
   categories: 'commerce',

@@ -9,6 +9,7 @@ export const MESSAGE_TYPES = [
   "ORDER",
   "BOOK",
   "SYSTEM",
+  "VOUCHER",
 ] as const;
 export const MESSAGE_STATUSES = ["SENT", "DELIVERED", "READ"] as const;
 export const ATTACHMENT_TYPES = ["IMAGE", "FILE"] as const;
@@ -74,6 +75,9 @@ export class Message {
 
   @Prop({ type: [MessageAttachmentSchema], default: [] })
   attachments!: MessageAttachment[];
+
+  @Prop({ type: Object })
+  metadata?: Record<string, any>;
 
   @Prop({
     required: true,

@@ -7,6 +7,8 @@ import StoreHeader from './StoreHeader';
 import HierarchicalSidebar from './HierarchicalSidebar';
 import StoreFooter from './StoreFooter';
 import { useCart } from '@/ui/context/CartContext';
+import ScrollToTop from '@/ui/components/common/ScrollToTop';
+import FloatingAIChatbox from '@/ui/components/ai/FloatingAIChatbox';
 
 export interface LayoutContextType {
   isSidebarCollapsed: boolean;
@@ -137,6 +139,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span>Tài khoản</span>
           </Link>
         </nav>
+
+        {/* Floating Utilities: Scroll To Top & AI Chatbox */}
+        <ScrollToTop />
+        <FloatingAIChatbox />
       </div>
     </LayoutContext.Provider>
   );

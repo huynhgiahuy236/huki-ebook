@@ -7,6 +7,8 @@ import BookCard from '@/ui/components/common/BookCard';
 import EmptyState from '@/ui/components/common/EmptyState';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { trackEvent } from '@/lib/tracker';
+import { personalizationService, normalizeVietnameseText } from '@/ui/services/personalizationService';
+import { PersonalizedForYouSection } from '@/ui/components/recommendations/PersonalizedForYouSection';
 
 const ITEMS_PER_PAGE = 20; // 5 columns x 4 rows = 20 items per page (Shopee standard)
 
@@ -21,8 +23,8 @@ export interface CatalogBookItem {
   price: number;
   originalPrice?: number;
   discount?: string;
-  rating: number;
-  sales: string;
+  rating?: number;
+  sales?: string;
   cover: string;
   isMock: boolean;
   storeId?: string;
@@ -77,6 +79,7 @@ function CatalogPageContent() {
     setSearchTerm(searchQuery);
     if (searchQuery && searchQuery.trim()) {
       trackEvent.searchQuery(searchQuery.trim(), selectedCat !== 'all' ? selectedCat : undefined);
+      personalizationService.recordSearch(searchQuery.trim());
     }
   }, [searchQuery, selectedCat]);
 
@@ -162,8 +165,8 @@ function CatalogPageContent() {
         price: priceVal,
         originalPrice: originalPriceVal > priceVal ? originalPriceVal : undefined,
         discount: discountPercent ? `-${discountPercent}%` : '',
-        rating: Number(rawRb.rating || 5.0),
-        sales: rawRb.sales ? String(rawRb.sales) : '1.5k',
+        rating: rawRb.rating ? Number(rawRb.rating) : undefined,
+        sales: (rawRb.sales ?? rawRb.soldCount ?? rawRb.soldQuantity) ? String(rawRb.sales ?? rawRb.soldCount ?? rawRb.soldQuantity) : undefined,
         cover: coverUrl,
         isMock: false,
         location: rawRb.location || 'TP. Hồ Chí Minh'
@@ -196,17 +199,35 @@ function CatalogPageContent() {
       // Rating filter
       if (selectedRating !== 'all') {
         const minRating = Number(selectedRating);
-        if (!isNaN(minRating) && book.rating < minRating) return false;
+        if (!isNaN(minRating) && (book.rating ?? 0) < minRating) return false;
       }
 
       // Price range
       if (minP !== null && !isNaN(minP) && book.price < minP) return false;
       if (maxP !== null && !isNaN(maxP) && book.price > maxP) return false;
 
-      // Search term
+      // Search term (hỗ trợ tiếng Việt không dấu, tác giả, NXB, mô tả, isbn)
       if (searchTerm) {
-        const q = searchTerm.toLowerCase();
-        return book.title.toLowerCase().includes(q) || (book.author && book.author.toLowerCase().includes(q));
+        const rawQ = searchTerm.toLowerCase();
+        const normQ = normalizeVietnameseText(searchTerm);
+        const normTitle = normalizeVietnameseText(book.title || '');
+        const normAuthor = normalizeVietnameseText(book.author || '');
+        const normPublisher = normalizeVietnameseText(book.publisher || '');
+        const normCategory = normalizeVietnameseText(book.category || '');
+        const normDesc = normalizeVietnameseText(book.book?.description || '');
+        const isbn = String(book.book?.isbn || '').toLowerCase();
+
+        const match =
+          normTitle.includes(normQ) ||
+          normAuthor.includes(normQ) ||
+          normPublisher.includes(normQ) ||
+          normCategory.includes(normQ) ||
+          normDesc.includes(normQ) ||
+          book.title.toLowerCase().includes(rawQ) ||
+          (book.author && book.author.toLowerCase().includes(rawQ)) ||
+          isbn.includes(rawQ);
+
+        if (!match) return false;
       }
       return true;
     });
@@ -217,7 +238,7 @@ function CatalogPageContent() {
       if (selectedSort === 'price-high') return b.price - a.price;
       if (selectedSort === 'bestseller') return parseSales(b.sales) - parseSales(a.sales);
       if (selectedSort === 'new') return String(b.id).localeCompare(String(a.id));
-      return b.rating - a.rating;
+      return (b.rating ?? 0) - (a.rating ?? 0);
     });
   }, [allBooks, selectedCat, selectedFormat, selectedPublisher, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);
 
@@ -618,14 +639,24 @@ function CatalogPageContent() {
 
           {/* 5-Column Grid */}
           {filteredBooks.length === 0 ? (
-            <EmptyState
-              icon="search_off"
-              title="Không tìm thấy sản phẩm phù hợp"
-              description="Hãy thử từ khóa khác hoặc xóa bớt tiêu chí lọc."
-              actionText="Xóa tất cả bộ lọc"
-              actionLink="/books"
-              actionIcon="tune"
-            />
+            <div className="flex flex-col gap-6">
+              <EmptyState
+                icon="search_off"
+                title="Không tìm thấy sản phẩm phù hợp"
+                description={searchTerm ? `Không tìm thấy sách nào cho từ khóa "${searchTerm}". Hãy thử từ khóa khác hoặc tham khảo các gợi ý dưới đây.` : "Hãy thử từ khóa khác hoặc xóa bớt tiêu chí lọc."}
+                actionText="Xóa tất cả bộ lọc"
+                actionLink="/books"
+                actionIcon="tune"
+              />
+              <div className="mt-4">
+                <PersonalizedForYouSection
+                  title="💡 Gợi ý tương tự cho bạn"
+                  subtitle="Dựa trên thể loại yêu thích và các từ khóa tìm kiếm gần đây của bạn"
+                  currentSearchQuery={searchTerm}
+                  limit={10}
+                />
+              </div>
+            </div>
           ) : (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-2 sm:gap-2.5">
@@ -676,6 +707,17 @@ function CatalogPageContent() {
                   </div>
                 </div>
               )}
+
+              {/* Personalized recommendations row */}
+              <div className="mt-8 pt-4 border-t border-gray-100">
+                <PersonalizedForYouSection
+                  title={searchTerm ? `💡 Gợi ý tương tự cho "${searchTerm}"` : `✨ Gợi ý cho bạn`}
+                  subtitle="Được cá nhân hóa thông minh dựa trên lịch sử tìm kiếm và sở thích đọc sách của bạn"
+                  currentSearchQuery={searchTerm}
+                  excludeBookIds={new Set(paginatedBooks.map((b) => b.id))}
+                  limit={10}
+                />
+              </div>
             </>
           )}
         </main>

@@ -32,3 +32,33 @@ export async function loadPdfDocument(urlOrData: string | ArrayBuffer) {
     throw error;
   }
 }
+
+const pdfDocCache = new Map<string, any>();
+
+/**
+ * Trích xuất toàn bộ văn bản chữ thật của một trang PDF
+ */
+export async function extractPdfPageText(docOrUrl: any, pageNum: number): Promise<string> {
+  try {
+    let doc = docOrUrl;
+    if (typeof docOrUrl === 'string') {
+      if (pdfDocCache.has(docOrUrl)) {
+        doc = pdfDocCache.get(docOrUrl);
+      } else {
+        doc = await loadPdfDocument(docOrUrl);
+        pdfDocCache.set(docOrUrl, doc);
+      }
+    }
+    if (!doc || !doc.getPage) return '';
+    const page = await doc.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const strings = textContent.items
+      .map((item: any) => item.str)
+      .filter((s: string) => s && s.trim().length > 0);
+    return strings.join(' ').replace(/\s+/g, ' ').trim();
+  } catch (err) {
+    console.warn(`Lỗi trích xuất văn bản trang ${pageNum}:`, err);
+    return '';
+  }
+}
+

@@ -78,15 +78,18 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
       {/* Right Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Messenger / Chat Hộp Thư Khách Hàng (Deferred) */}
-        <div
-          className="relative flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-xl border border-theme-border opacity-40 cursor-not-allowed pointer-events-none select-none text-on-surface-variant bg-black/[0.02] dark:bg-white/[0.02] shrink-0"
-          title="Hộp thư & Tin nhắn khách hàng (Sắp ra mắt)"
-          aria-label="Tin nhắn (Sắp ra mắt)"
+        {/* Messenger / Chat Hộp Thư Khách Hàng */}
+        <Link
+          href="/seller/chat"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="relative flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-colors shrink-0"
+          title="Mở cửa sổ Chat & Tin nhắn chăm sóc khách hàng"
+          aria-label="Tin nhắn"
         >
-          <span className="material-symbols-outlined text-[17px] text-on-surface-variant">chat</span>
-          <span className="hidden 2xl:inline text-[11px] font-semibold text-on-surface-variant whitespace-nowrap">Tin nhắn</span>
-        </div>
+          <span className="material-symbols-outlined text-[17px] text-[#003B2B]">chat</span>
+          <span className="hidden 2xl:inline text-[11px] font-semibold whitespace-nowrap">Tin nhắn</span>
+        </Link>
 
         <Link
           href="/seller/product/create-hybrid"
@@ -101,6 +104,8 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
         <Link
           href="/"
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center gap-1 text-xs font-semibold text-theme-primary hover:bg-theme-secondary-subtle px-2 sm:px-2.5 py-1.5 rounded-xl border border-theme-border transition-colors shrink-0 whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[15px]">open_in_new</span>

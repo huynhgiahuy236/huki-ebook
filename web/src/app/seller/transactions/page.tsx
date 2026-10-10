@@ -71,6 +71,13 @@ function getTransactionTypeDetails(type: string): {
         isPositive: true,
         icon: 'check_circle',
       };
+    case 'CREDIT_PENDING':
+      return {
+        label: 'Tạm giữ ký quỹ Escrow (Chờ hạn đổi trả)',
+        badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+        isPositive: true,
+        icon: 'hourglass_top',
+      };
     case 'MOVE_AVAILABLE_TO_FROZEN':
       return {
         label: 'Đóng băng số dư do khiếu nại',
@@ -97,7 +104,7 @@ function getTransactionTypeDetails(type: string): {
 
 export default function SellerTransactionsPage() {
   const { user, activeBusinessId, isLoading: isAuthLoading } = useAuth();
-  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
+  const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || '501ece69-23b9-4126-9b5e-e3dc206d0c20';
 
   const [transactions, setTransactions] = useState<WalletTransactionItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -122,22 +129,19 @@ export default function SellerTransactionsPage() {
   };
 
   const fetchTransactions = useCallback(async () => {
-    if (!storeId) {
-      if (!isAuthLoading) setIsLoading(false);
-      return;
-    }
     setIsLoading(true);
     try {
       const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 100 });
       if (res.success && res.data) {
-        setTransactions(res.data.items || []);
+        const rawItems = Array.isArray(res.data) ? res.data : (res.data as any).items || [];
+        setTransactions(rawItems);
       }
     } catch (err) {
       console.warn('Lỗi tải nhật ký giao dịch:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [storeId, isAuthLoading]);
+  }, [storeId]);
 
   useEffect(() => {
     fetchTransactions();
@@ -145,7 +149,12 @@ export default function SellerTransactionsPage() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter((tx) => {
-      if (filterType === 'CREDIT' && tx.type !== 'CREDIT_AVAILABLE' && tx.type !== 'MOVE_PENDING_TO_AVAILABLE') {
+      if (
+        filterType === 'CREDIT' &&
+        tx.type !== 'CREDIT_AVAILABLE' &&
+        tx.type !== 'MOVE_PENDING_TO_AVAILABLE' &&
+        tx.type !== 'CREDIT_PENDING'
+      ) {
         return false;
       }
       if (filterType === 'DEBIT' && tx.type !== 'DEBIT_AVAILABLE') {
@@ -420,16 +429,32 @@ export default function SellerTransactionsPage() {
 
                       {/* 2. Loại giao dịch & Mô tả */}
                       <td className="py-3 px-3 align-middle">
-                        <div className="flex flex-col gap-1">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit ${typeMeta.badgeClass}`}
-                          >
-                            <span className="material-symbols-outlined text-[12px]">{typeMeta.icon}</span>
-                            <span>{typeMeta.label}</span>
-                          </span>
-                          <span className="font-medium text-slate-900 text-xs line-clamp-1" title={item.description || 'Giao dịch ví'}>
-                            {item.description || 'Giao dịch số dư ví'}
-                          </span>
+                        <div className="flex items-center gap-2.5">
+                          {(item.metadata as any)?.coverUrl ? (
+                            <img
+                              src={(item.metadata as any).coverUrl}
+                              alt="Book"
+                              className="w-8 h-11 object-cover rounded border border-slate-200 shrink-0 shadow-2xs"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
+                              <span className="material-symbols-outlined text-base">{typeMeta.icon}</span>
+                            </div>
+                          )}
+                          <div className="flex flex-col gap-0.5 min-w-0">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit ${typeMeta.badgeClass}`}
+                            >
+                              <span className="material-symbols-outlined text-[12px]">{typeMeta.icon}</span>
+                              <span>{typeMeta.label}</span>
+                            </span>
+                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={item.description || 'Giao dịch ví'}>
+                              {item.description || 'Giao dịch số dư ví'}
+                            </span>
+                          </div>
                         </div>
                       </td>
 

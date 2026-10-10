@@ -22,6 +22,7 @@ import { ReconciliationModule } from './modules/reconciliation/reconciliation.mo
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SanctionsModule } from './modules/sanctions/sanctions.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { AiAudioModule } from './modules/ai-audio/ai-audio.module';
 import { HealthController } from './health.controller';
 import { MonitoringModule } from '@huki/shared';
 
@@ -65,6 +66,7 @@ import { MonitoringModule } from '@huki/shared';
     PayoutModule,
     ReconciliationModule,
     CommerceEventsModule,
+    AiAudioModule,
     MonitoringModule,
   ],
   controllers: [HealthController],

@@ -9,9 +9,11 @@ import {
 } from "../../entities/conversation.schema";
 import { Message, MessageSchema } from "../../entities/message.schema";
 import { ChatController } from "./chat.controller";
+import { AiChatController } from "./ai-chat.controller";
 import { ChatAttachmentStorage } from "./chat-attachment.storage";
 import { ChatGateway } from "./chat.gateway";
 import { ChatService } from "./chat.service";
+import { AiChatService } from "./ai-chat.service";
 
 @Module({
   imports: [
@@ -22,9 +24,10 @@ import { ChatService } from "./chat.service";
       { name: Message.name, schema: MessageSchema },
     ]),
   ],
-  controllers: [ChatController],
+  controllers: [ChatController, AiChatController],
   providers: [
     ChatService,
+    AiChatService,
     ChatGateway,
     ChatAttachmentStorage,
     AuthenticatedCommunityGuard,

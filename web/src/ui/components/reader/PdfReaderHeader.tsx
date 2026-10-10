@@ -2,18 +2,23 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useReader } from '../../context/ReaderContext';
+import { aiAudioService } from '@/ui/services/aiAudioService';
+import AiVoiceNarratorBar from './AiVoiceNarratorBar';
 
 export interface PdfReaderHeaderProps {
   bookTitle?: string;
   bookAuthor?: string;
   bookId?: string;
+  pdfUrl?: string;
 }
 
 export default function PdfReaderHeader({
   bookTitle = 'Con Đường Phía Trước',
   bookAuthor = 'Bill Gates',
-  bookId = 'con-duong-phia-truoc'
+  bookId = 'con-duong-phia-truoc',
+  pdfUrl = '/books/Con_duong_phia_truoc__Bill_Gates.pdf'
 }: PdfReaderHeaderProps) {
   const {
     currentPage,
@@ -38,9 +43,38 @@ export default function PdfReaderHeader({
     setIsSettingsOpen
   } = useReader();
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const autoPlayParam = searchParams.get('autoplay') === 'true';
+
   const [inputPage, setInputPage] = useState(String(currentPage));
   const [showThemeMenu, setShowThemeMenu] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isAiAudioActive, setIsAiAudioActive] = useState<boolean>(false);
+  const [checkingAiAudio, setCheckingAiAudio] = useState<boolean>(true);
+  const [isAiVoiceOpen, setIsAiVoiceOpen] = useState<boolean>(false);
+  const [showInactiveModal, setShowInactiveModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!bookId) {
+      setCheckingAiAudio(false);
+      return;
+    }
+    setCheckingAiAudio(true);
+    aiAudioService.isBookAiAudioActive(bookId)
+      .then((active) => {
+        setIsAiAudioActive(active);
+        setCheckingAiAudio(false);
+        if (active && autoPlayParam) {
+          setIsAiVoiceOpen(true);
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi kiểm tra AI Audio subscription:', err);
+        setIsAiAudioActive(false);
+        setCheckingAiAudio(false);
+      });
+  }, [bookId, autoPlayParam]);
 
   useEffect(() => {
     setInputPage(String(currentPage));
@@ -84,13 +118,20 @@ export default function PdfReaderHeader({
     <header className="h-14 bg-[#18181b] border-b border-[#27272a] px-4 md:px-6 flex items-center justify-between z-40 shrink-0 text-white select-none">
       {/* Left Section: Back, TOC Drawer Toggle, Book Title & Author */}
       <div className="flex items-center gap-3 min-w-0">
-        <Link
-          href={`/book/${bookId}`}
-          className="p-2 rounded-lg text-zinc-300 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center"
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== 'undefined' && window.history.length > 1) {
+              router.back();
+            } else {
+              router.push(bookId ? `/book/${bookId}` : '/library');
+            }
+          }}
+          className="p-2 rounded-lg text-zinc-300 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center cursor-pointer"
           title="Quay lại"
         >
           <span className="material-symbols-outlined text-xl">arrow_back</span>
-        </Link>
+        </button>
 
         <button
           onClick={() => setShowToc(!showToc)}
@@ -220,6 +261,42 @@ export default function PdfReaderHeader({
           </span>
         </button>
 
+        {/* AI Audio Narrator Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (isAiAudioActive) {
+              setIsAiVoiceOpen(!isAiVoiceOpen);
+            } else {
+              setShowInactiveModal(true);
+            }
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            isAiAudioActive
+              ? isAiVoiceOpen
+                ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400'
+                : 'bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 shadow-xs'
+              : 'bg-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/60 border border-zinc-700'
+          }`}
+          title={
+            checkingAiAudio
+              ? 'Đang kiểm tra gói AI Voice...'
+              : isAiAudioActive
+              ? 'Nghe đọc sách bằng giọng AI kết hợp (Đã kích hoạt)'
+              : 'Chưa kích hoạt tính năng Giọng đọc AI'
+          }
+        >
+          <span className={`material-symbols-outlined text-base ${isAiAudioActive ? 'text-emerald-400' : 'text-zinc-400'}`}>
+            record_voice_over
+          </span>
+          <span className="hidden lg:inline">
+            {isAiAudioActive ? 'Giọng đọc AI' : 'Gói AI Voice'}
+          </span>
+          {isAiAudioActive && (
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          )}
+        </button>
+
         {/* Bookmark Toggle */}
         <button
           onClick={() => toggleBookmark(bookId, currentPage)}
@@ -301,6 +378,50 @@ export default function PdfReaderHeader({
           </span>
         </button>
       </div>
+
+      {/* Floating AI Voice Narrator Bar */}
+      {isAiAudioActive && isAiVoiceOpen && (
+        <AiVoiceNarratorBar
+          bookTitle={bookTitle}
+          bookAuthor={bookAuthor}
+          bookId={bookId}
+          pdfUrl={pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf'}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={(p) => setCurrentPage(p)}
+          onClose={() => setIsAiVoiceOpen(false)}
+          autoPlay={autoPlayParam}
+        />
+      )}
+
+      {/* Inactive AI Voice Notification Modal */}
+      {showInactiveModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#18181b] border border-zinc-700 rounded-2xl max-w-md w-full p-6 shadow-2xl text-white space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <span className="material-symbols-outlined text-2xl">record_voice_over</span>
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">Chưa kích hoạt Giọng đọc AI</h3>
+              <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">
+                Cuốn sách <span className="text-zinc-200 font-medium">"{bookTitle}"</span> hiện chưa được tác giả / nhà bán hàng đăng ký gói cước Giọng đọc AI kết hợp.
+              </p>
+              <p className="text-xs text-zinc-500 mt-2">
+                Các gói cước phát thanh AI Studio bản quyền được quản lý minh bạch từ 100.000đ/tháng tại HUKI Admin & Seller Center.
+              </p>
+            </div>
+            <div className="pt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowInactiveModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Đã hiểu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

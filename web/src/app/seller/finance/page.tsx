@@ -157,12 +157,13 @@ export default function SellerFinancePage() {
     handleRefreshAll();
   }, [handleRefreshAll]);
 
-  // Statistics
+  // Statistics (Excluding cancelled orders)
   const escrowStats = useMemo(() => {
-    const pendingPaymentItems = escrowItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
-    const holdingItems = escrowItems.filter((it) => it.escrowStatus === 'HOLDING');
-    const releasedItems = escrowItems.filter((it) => it.escrowStatus === 'RELEASED');
-    const frozenItems = escrowItems.filter((it) => it.escrowStatus === 'FROZEN');
+    const validItems = escrowItems.filter((it) => it.orderStatus !== 'CANCELLED' && (it as any).status !== 'CANCELLED');
+    const pendingPaymentItems = validItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
+    const holdingItems = validItems.filter((it) => it.escrowStatus === 'HOLDING');
+    const releasedItems = validItems.filter((it) => it.escrowStatus === 'RELEASED');
+    const frozenItems = validItems.filter((it) => it.escrowStatus === 'FROZEN');
 
     const totalReleasedAmount = releasedItems.reduce(
       (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
@@ -184,12 +185,26 @@ export default function SellerFinancePage() {
       0
     );
 
+    const activeHoldingCount = holdingItems.length + pendingPaymentItems.length;
+
+    const totalGrossGMV = validItems.reduce(
+      (sum, it) => sum + (Number(it.subtotal) || (Number(it.unitPrice) * Number(it.quantity)) || 0),
+      0
+    );
+    const totalNetRevenue = validItems.reduce(
+      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
+      0
+    );
+
     return {
       pendingPaymentCount: pendingPaymentItems.length,
       holdingCount: holdingItems.length,
       releasedCount: releasedItems.length,
       frozenCount: frozenItems.length,
-      totalCount: escrowItems.length,
+      activeHoldingCount,
+      totalCount: validItems.length,
+      totalGrossGMV,
+      totalNetRevenue,
       totalReleasedAmount,
       totalHoldingAmount,
       totalPendingPaymentAmount,
@@ -325,10 +340,10 @@ export default function SellerFinancePage() {
           </div>
           <div className="my-3">
             <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-              {formatVND(effectiveTotalBalance)}
+              {formatVND(escrowStats.totalGrossGMV || escrowStats.totalNetRevenue || effectiveTotalBalance)}
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              Tổng {escrowStats.totalCount} món hàng trên sàn HuKi
+              Tổng {escrowStats.totalCount} món hàng trên sàn HuKi (Thực nhận: {formatVND(escrowStats.totalNetRevenue)})
             </p>
           </div>
           <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
@@ -486,7 +501,7 @@ export default function SellerFinancePage() {
             </span>
             <div>
               <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                Tiền Đang Treo ({escrowStats.totalCount})
+                Tiền Đang Treo ({escrowStats.activeHoldingCount})
               </h4>
               <p className="text-xs text-slate-500 mt-0.5">
                 Quản lý ký quỹ, đếm ngược hạn đổi trả 2 phút.

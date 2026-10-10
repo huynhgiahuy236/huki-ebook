@@ -58,6 +58,13 @@ export interface BookData {
   businessId?: string;
   category?: CategoryData | null;
   createdAt?: string;
+  soldCount?: number;
+  sales?: number;
+  rating?: number;
+  averageRating?: number;
+  discountPercent?: number;
+  discountAmount?: number;
+  hasActiveDiscount?: boolean;
 }
 
 export interface CreateBookPayload {

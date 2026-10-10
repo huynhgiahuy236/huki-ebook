@@ -13,7 +13,11 @@ import {
 import { Server, Socket } from "socket.io";
 import { CommunityActor } from "../../common/community-auth.guard";
 import { ChatDelivery, ChatService, ReadReceipt } from "./chat.service";
-import { ConversationEventDto, SocketSendMessageDto } from "./dto/chat.dto";
+import {
+  ConversationEventDto,
+  ShopEventDto,
+  SocketSendMessageDto,
+} from "./dto/chat.dto";
 
 type AuthenticatedSocket = Socket & { data: { actor?: CommunityActor } };
 
@@ -116,6 +120,30 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.leaveConversation(client, dto);
   }
 
+  @SubscribeMessage("shop:join")
+  async joinShop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() dto: ShopEventDto,
+  ) {
+    if (dto?.storeId) {
+      await client.join(this.shopRoom(dto.storeId));
+      return { storeId: dto.storeId, joined: true };
+    }
+    return { joined: false };
+  }
+
+  @SubscribeMessage("shop:leave")
+  async leaveShop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() dto: ShopEventDto,
+  ) {
+    if (dto?.storeId) {
+      await client.leave(this.shopRoom(dto.storeId));
+      return { storeId: dto.storeId, joined: false };
+    }
+    return { joined: false };
+  }
+
   @SubscribeMessage("message:send")
   send(
     @ConnectedSocket() client: AuthenticatedSocket,
@@ -211,11 +239,12 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     try {
       const actor = this.actor(client);
-      await this.chat.requireParticipantIds(actor, dto.conversationId);
+      await this.chat.requireParticipantIds(actor, dto.conversationId, dto.storeId);
       await client.join(this.conversationRoom(dto.conversationId));
       const messageIds = await this.chat.markConversationDelivered(
         actor,
         dto.conversationId,
+        dto.storeId,
       );
       if (messageIds.length) {
         client
@@ -237,7 +266,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     try {
       const actor = this.actor(client);
-      await this.chat.requireParticipantIds(actor, dto.conversationId);
+      await this.chat.requireParticipantIds(actor, dto.conversationId, dto.storeId);
       await client.leave(this.conversationRoom(dto.conversationId));
       return { conversationId: dto.conversationId, joined: false };
     } catch (error) {
@@ -271,6 +300,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const receipt = await this.chat.markRead(
         this.actor(client),
         dto.conversationId,
+        dto.storeId,
       );
       this.publishReadReceipt(receipt);
       return receipt;
@@ -286,11 +316,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     try {
       const actor = this.actor(client);
-      await this.chat.requireParticipantIds(actor, dto.conversationId);
+      await this.chat.requireParticipantIds(actor, dto.conversationId, dto.storeId);
       await client.join(this.conversationRoom(dto.conversationId));
       const payload = {
         conversationId: dto.conversationId,
-        userId: actor.sub,
+        userId: dto.storeId || actor.sub,
         isTyping,
       };
       client
@@ -307,8 +337,14 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private targetRooms(conversationId: string, participantIds: string[]) {
     let target = this.server.to(this.conversationRoom(conversationId));
-    for (const id of participantIds) target = target.to(this.userRoom(id));
+    for (const id of participantIds) {
+      target = target.to(this.userRoom(id)).to(this.shopRoom(id));
+    }
     return target;
+  }
+
+  private shopRoom(id: string) {
+    return `shop:${id}`;
   }
 
   private actor(client: AuthenticatedSocket) {

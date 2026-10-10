@@ -43,10 +43,10 @@ export class BookListQueryDto {
   @Max(100)
   limit = 20;
 
-  @ApiPropertyOptional({ description: 'Title, ISBN, author or publisher', minLength: 2 })
+  @ApiPropertyOptional({ description: 'Title, ISBN, author or publisher', minLength: 1 })
   @IsOptional()
   @IsString()
-  @MinLength(2)
+  @MinLength(1)
   @MaxLength(100)
   search?: string;
 

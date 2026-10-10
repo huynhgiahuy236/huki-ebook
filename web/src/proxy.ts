@@ -1,5 +1,5 @@
 /**
- * Next.js Middleware - Route Handling
+ * Next.js Proxy - Route Handling
  *
  * Handles aliases & legacy route redirects to new Next.js App Router paths
  */
@@ -21,9 +21,10 @@ const legacyMappings: Record<string, string> = {
   "/orders/success": "/order-success",
   "/seller/product/create": "/seller/products/create",
   "/admin/business-update-requests": "/admin/business-requests",
+  "/account/orders": "/orders",
 };
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Skip static files, API routes, and Next.js internals

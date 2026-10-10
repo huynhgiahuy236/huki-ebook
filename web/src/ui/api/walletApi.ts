@@ -211,6 +211,7 @@ export interface SellerEscrowItem {
   customerPhone: string;
   bookId: string;
   bookTitle: string;
+  coverUrl?: string | null;
   quantity: number;
   unitPrice: number;
   subtotal: number;

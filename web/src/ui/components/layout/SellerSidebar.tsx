@@ -22,6 +22,7 @@ interface MenuItem {
   badgeColor?: string;
   permission?: PermissionKey;
   isDeferred?: boolean;
+  targetBlank?: boolean;
 }
 
 interface MenuGroup {
@@ -146,7 +147,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
           icon: 'storefront', 
           label: 'Xem Gian Hàng', 
-          permission: PERMISSIONS.STORE_VIEW 
+          permission: PERMISSIONS.STORE_VIEW,
+          targetBlank: true,
         },
       ]
     },
@@ -191,7 +193,14 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/chat', 
           icon: 'chat', 
           label: 'Tin Nhắn & Chat', 
-          isDeferred: true 
+          targetBlank: true,
+          permission: PERMISSIONS.STORE_VIEW 
+        },
+        { 
+          to: '/seller/reviews', 
+          icon: 'rate_review', 
+          label: 'Đánh Giá & Nhận Xét', 
+          permission: PERMISSIONS.STORE_VIEW 
         }
       ]
     },
@@ -216,8 +225,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/product/correction', 
           icon: 'edit_note', 
           label: 'Chỉnh Sửa Thông Tin Sách', 
-          permission: PERMISSIONS.PRODUCT_UPDATE,
-          isDeferred: true 
+          permission: PERMISSIONS.PRODUCT_UPDATE 
         },
         { 
           to: '/seller/inventory', 
@@ -424,6 +432,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                       <div className="flex items-center justify-center py-0.5">
                         <Link
                           href={item.to}
+                          target={item.targetBlank ? '_blank' : undefined}
+                          rel={item.targetBlank ? 'noopener noreferrer' : undefined}
                           className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 active:scale-95 ${
                             isItemActive
                               ? 'bg-[#00875A] text-white shadow-xs font-bold'
@@ -450,6 +460,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                       /* Expanded View */
                       <Link
                         href={item.to}
+                        target={item.targetBlank ? '_blank' : undefined}
+                        rel={item.targetBlank ? 'noopener noreferrer' : undefined}
                         onClick={isMobile ? onClose : undefined}
                         className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 select-none active:scale-[0.98] ${
                           isItemActive

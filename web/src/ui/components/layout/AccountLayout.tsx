@@ -29,6 +29,14 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
       ? 'Chủ Doanh Nghiệp'
       : 'Độc Giả Cá Nhân';
 
+  const isSeller = Boolean(
+    user?.role === 'BUSINESS' ||
+    user?.hasApprovedBusiness ||
+    user?.business ||
+    (Array.isArray(user?.memberships) && user.memberships.length > 0)
+  );
+  const chatUrl = isSeller ? '/seller/chat' : '/account/messages';
+
   const navGroups = [
     {
       title: 'TÀI KHOẢN',
@@ -38,6 +46,13 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           href: '/profile',
           icon: 'person',
           active: pathname === '/profile',
+        },
+        {
+          label: isSeller ? 'Chat Kênh Người Bán' : 'Tin Nhắn & Chat',
+          href: chatUrl,
+          icon: 'chat',
+          active: false,
+          targetBlank: true,
         },
         {
           label: 'Sổ Địa Chỉ Nhận Hàng',
@@ -79,6 +94,12 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           href: '/profile/wallet',
           icon: 'account_balance_wallet',
           active: pathname === '/profile/wallet',
+        },
+        {
+          label: 'Đánh Giá Của Tôi',
+          href: '/profile/reviews',
+          icon: 'rate_review',
+          active: pathname === '/profile/reviews',
         },
       ],
     },
@@ -128,16 +149,23 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
                       <Link
                         key={item.href}
                         href={item.href}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        target={(item as any).targetBlank ? '_blank' : undefined}
+                        rel={(item as any).targetBlank ? 'noopener noreferrer' : undefined}
+                        className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
                           item.active
                             ? 'bg-[#003B2B] text-white shadow-2xs font-semibold'
                             : 'text-gray-700 hover:bg-gray-100 hover:text-[#003B2B]'
                         }`}
                       >
-                        <span className={`material-symbols-outlined text-[16px] ${item.active ? 'text-white' : 'text-gray-400'}`}>
-                          {item.icon}
-                        </span>
-                        <span>{item.label}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`material-symbols-outlined text-[16px] ${item.active ? 'text-white' : 'text-gray-400'}`}>
+                            {item.icon}
+                          </span>
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        {(item as any).targetBlank && (
+                          <span className="material-symbols-outlined text-[13px] text-gray-400">open_in_new</span>
+                        )}
                       </Link>
                     ))}
                   </div>

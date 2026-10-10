@@ -421,7 +421,14 @@ function OrderSuccessContent() {
                   </div>
                 </div>
                 <div className="mt-6 pt-4 border-t border-emerald-200/60 flex flex-wrap items-center justify-between gap-3">
-                  <Link className="h-10 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer" href="/reader">
+                  <Link
+                    className="h-10 px-5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm cursor-pointer"
+                    href={
+                      digitalItems[0]?.bookId || digitalItems[0]?.id
+                        ? `/reader?book=${digitalItems[0]?.bookId || digitalItems[0]?.id}`
+                        : "/reader"
+                    }
+                  >
                     Đọc Ngay Bây Giờ
                     <span className="material-symbols-outlined text-[18px]" data-icon="arrow_forward">arrow_forward</span>
                   </Link>
@@ -701,7 +708,7 @@ function OrderSuccessContent() {
                   Tham gia phòng đọc ảo cùng 48.000+ thành viên mê sách, trao đổi góc nhìn và nhận điểm thưởng cho mỗi bài review chất lượng.
                 </p>
               </div>
-              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/account/orders">
+              <Link className="mt-4 font-title-md text-body-sm text-tertiary hover:underline flex items-center gap-1" href="/orders">
                 Xem Đơn Hàng &amp; Đánh Giá
                 <span className="material-symbols-outlined text-[16px]" data-icon="arrow_forward">arrow_forward</span>
               </Link>

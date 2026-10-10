@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNumber, IsOptional, IsPositive, IsString, IsUUID, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class WalletResponseDto {
   @ApiProperty({ description: 'Wallet ID' })
@@ -33,12 +34,14 @@ export class WalletResponseDto {
 export class WalletTransactionQueryDto {
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   page?: number = 1;
 
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(1)
   limit?: number = 20;

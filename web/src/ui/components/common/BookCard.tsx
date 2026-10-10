@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCart } from '../../context/CartContext';
 import { flashSaleApi, getCachedFlashSale, preloadActiveFlashSales } from '../../api/flashSaleApi';
+import { personalizationService } from '../../services/personalizationService';
 import BookCover from './BookCover';
 
 export interface BookCardData {
@@ -22,6 +23,8 @@ export interface BookCardData {
   reviewCount?: number | string;
   reviews?: number | string;
   sales?: number | string;
+  soldCount?: number | string;
+  soldQuantity?: number | string;
   publisher?: string | { name?: string; displayName?: string } | null;
   shop?: string;
   storeId?: string;
@@ -103,7 +106,7 @@ export default function BookCard({
 
   const isFlashSale = Boolean(flashSale?.salePrice);
   const basePrice = book.price ?? book.priceEbook ?? 0;
-  const baseOriginalPrice = book.originalPrice ?? book.originalPriceEbook ?? (basePrice > 0 ? Math.round(basePrice * 1.35) : undefined);
+  const baseOriginalPrice = book.originalPrice ?? book.originalPriceEbook;
 
   // Normalized book properties (with Flash Sale priority)
   const price = isFlashSale ? flashSale.salePrice : basePrice;
@@ -115,8 +118,77 @@ export default function BookCard({
     ? `-${flashSale.discountPercent}%`
     : (book.discount ?? (discountPercent ? `-${discountPercent}%` : null));
 
-  const rating = book.rating ?? 5.0;
-  const salesCount = book.sales ?? book.reviewCount ?? book.reviews ?? '1.2k';
+  // Wishlist state and sync with localStorage
+  const [isWishlisted, setIsWishlisted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !book?.id) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
+      setIsWishlisted(Array.isArray(saved) && saved.includes(book.id));
+    } catch {}
+
+    const handleWishlistEvent = (e: any) => {
+      if (e?.detail?.bookId === book.id) {
+        setIsWishlisted(Boolean(e.detail.wishlisted));
+      }
+    };
+    window.addEventListener('huki_wishlist_updated', handleWishlistEvent);
+    return () => {
+      window.removeEventListener('huki_wishlist_updated', handleWishlistEvent);
+    };
+  }, [book?.id]);
+
+  const handleToggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window === 'undefined' || !book?.id) return;
+    try {
+      const savedIds: string[] = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
+      let newIds: string[];
+      const willWishlist = !isWishlisted;
+      if (savedIds.includes(book.id)) {
+        newIds = savedIds.filter(id => id !== book.id);
+      } else {
+        newIds = [...savedIds, book.id];
+      }
+      setIsWishlisted(willWishlist);
+      localStorage.setItem('huki_wishlist_ids', JSON.stringify(newIds));
+
+      const savedBooks = JSON.parse(localStorage.getItem('huki_wishlist_books') || '{}');
+      if (willWishlist) {
+        savedBooks[book.id] = {
+          id: book.id,
+          title: book.title,
+          author: typeof book.author === 'object' && book.author !== null ? (book.author.name || 'Tác giả') : (book.author || book.authorName || 'Tác giả'),
+          coverUrl: book.cover || book.coverUrl,
+          price: price,
+        };
+      } else {
+        delete savedBooks[book.id];
+      }
+      localStorage.setItem('huki_wishlist_books', JSON.stringify(savedBooks));
+
+      window.dispatchEvent(new CustomEvent('huki_wishlist_updated', {
+        detail: { bookId: book.id, wishlisted: willWishlist }
+      }));
+    } catch (err) {
+      console.warn('Wishlist update error:', err);
+    }
+  };
+
+  // Authentic rating & sales strictly from DB - NO mock data, NO random seed
+  const rawRating = book.rating ?? (book as any).averageRating ?? 0;
+  const numRating = typeof rawRating === 'number' ? rawRating : (!isNaN(Number(rawRating)) ? Number(rawRating) : 0);
+  const displayRating = numRating > 0 ? numRating.toFixed(1) : '0';
+
+  const rawSales = book.sales ?? book.soldCount ?? book.soldQuantity ?? (book as any).salesCount ?? (book as any).orderCount ?? 0;
+  const salesNum = typeof rawSales === 'number' ? rawSales : (!isNaN(Number(rawSales)) ? Number(rawSales) : 0);
+  const formattedSales = salesNum >= 1000
+    ? `${(salesNum / 1000).toFixed(1)}k`
+    : `${salesNum}`;
+  const displaySales = formattedSales;
+
   const publisher = (typeof book.publisher === 'object' && book.publisher !== null)
     ? (book.publisher.displayName || book.publisher.name || 'HUKI Publisher')
     : (book.publisher ?? book.shop ?? 'HUKI Publisher');
@@ -134,6 +206,15 @@ export default function BookCard({
     if (target.closest('button') || target.closest('a')) {
       return;
     }
+    // Ghi nhận tương tác xem sách / bấm vô detail ngay lập tức để render lại gợi ý cá nhân hóa
+    try {
+      personalizationService.recordBookInteraction(
+        book.id,
+        (book as any).categoryId || (book as any).category?.id,
+        (book as any).categoryName || (book as any).category?.name || (typeof book.format === 'string' ? book.format : undefined),
+        authorName
+      );
+    } catch {}
     router.push(`/book/${book.id}`);
   };
 
@@ -248,13 +329,28 @@ export default function BookCard({
         className={`bg-white border border-gray-200/80 rounded-xl p-3 flex flex-row items-center justify-between gap-3 hover:shadow-sm hover:border-[#ee4d2d]/40 transition-all group relative cursor-pointer ${className}`}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
-          <div className="relative aspect-[3/4] w-20 rounded-lg overflow-hidden bg-gray-50 shadow-2xs shrink-0">
+          <div className="relative aspect-[3/4] w-20 rounded-lg overflow-hidden bg-gray-50 shadow-2xs shrink-0 group/cover">
             <BookCover
               src={book.cover || book.coverUrl}
               title={book.title}
               author={authorName}
               className="group-hover:scale-105 transition-transform duration-300"
             />
+            {/* Wishlist Button on List Variant */}
+            <button
+              type="button"
+              onClick={handleToggleWishlist}
+              className={`absolute top-1 right-1 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+                isWishlisted
+                  ? 'bg-rose-500 text-white shadow-rose-500/30'
+                  : 'bg-black/35 hover:bg-black/60 text-white/90 hover:text-white'
+              }`}
+              title={isWishlisted ? 'Bỏ khỏi yêu thích' : 'Thêm vào yêu thích'}
+            >
+              <span className={`material-symbols-outlined text-[13px] ${isWishlisted ? 'fill-current' : ''}`}>
+                {isWishlisted ? 'favorite' : 'favorite_border'}
+              </span>
+            </button>
             {isFlashSale && (
               <span className="absolute top-1 left-1 bg-gradient-to-r from-amber-500 to-rose-600 text-white font-black text-[8px] px-1 py-0.2 rounded shadow-xs flex items-center gap-0.5">
                 ⚡ SALE
@@ -267,6 +363,18 @@ export default function BookCard({
               {book.title}
             </h3>
             <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
+
+            {/* Rating & Sales (Luôn hiển thị rõ ràng) */}
+            <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
+              <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+                <span className="material-symbols-outlined text-[12px] fill-current">star</span>
+                <span>{displayRating}</span>
+              </div>
+              <span className="text-gray-300 text-[9px]">•</span>
+              <span className="text-gray-500 text-[10px]">
+                Đã bán {displaySales}
+              </span>
+            </div>
 
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs font-bold text-[#003b2b]">
@@ -321,13 +429,29 @@ export default function BookCard({
     >
       <div className="flex flex-col flex-1">
         {/* Spacious Book Cover Container */}
-        <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2.5 flex items-center justify-center border border-slate-100">
+        <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2.5 flex items-center justify-center border border-slate-100 group/cover">
           <BookCover
             src={book.cover || book.coverUrl}
             title={book.title}
             author={authorName}
             className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
           />
+
+          {/* Nút Yêu Thích (Wishlist Heart Button) */}
+          <button
+            type="button"
+            onClick={handleToggleWishlist}
+            className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+              isWishlisted
+                ? 'bg-rose-500 text-white shadow-rose-500/30 scale-105'
+                : 'bg-black/35 hover:bg-black/60 text-white/90 hover:text-white'
+            }`}
+            title={isWishlisted ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào yêu thích'}
+          >
+            <span className={`material-symbols-outlined text-[15px] ${isWishlisted ? 'fill-current' : ''}`}>
+              {isWishlisted ? 'favorite' : 'favorite_border'}
+            </span>
+          </button>
 
           {/* Genuine Format / Flash Sale Badges (Only shown when real) */}
           <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1">
@@ -359,8 +483,20 @@ export default function BookCard({
 
         {/* Author Name */}
         {authorName && authorName !== 'Tác giả' && (
-          <p className="text-[11px] text-slate-500 truncate mb-1.5">{authorName}</p>
+          <p className="text-[11px] text-slate-500 truncate mb-1">{authorName}</p>
         )}
+
+        {/* Authentic Rating & Sales (Luôn hiển thị chuẩn chỉnh từ DB) */}
+        <div className="flex items-center gap-1.5 mb-1.5 text-[11px] flex-wrap">
+          <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+            <span className="material-symbols-outlined text-[13px] fill-current">star</span>
+            <span>{displayRating}</span>
+          </div>
+          <span className="text-slate-300 text-[10px]">•</span>
+          <span className="text-slate-500 text-[10.5px]">
+            Đã bán {displaySales}
+          </span>
+        </div>
 
         {/* Pricing Row: Green Price + Original Strikethrough + Discount */}
         <div className="flex items-baseline gap-1.5 flex-wrap mt-auto pt-1">

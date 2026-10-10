@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import VerifiedPurchaseBadge from './VerifiedPurchaseBadge';
-import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
+import { reviewApi, ReviewItemData, ReviewReplyItem } from '@/ui/api/reviewApi';
 import { useToast } from '@/ui/context/ToastContext';
 
 export interface ReviewCardProps {
@@ -30,6 +30,8 @@ export interface ReviewCardProps {
   canReply?: boolean;
   onReplySuccess?: (reply: { id: string; content: string; business: { id: string; name: string }; createdAt: string }) => void;
   className?: string;
+  isOwner?: boolean;
+  onEdit?: () => void;
 }
 
 export default function ReviewCard({
@@ -38,6 +40,8 @@ export default function ReviewCard({
   canReply = false,
   onReplySuccess,
   className = '',
+  isOwner = false,
+  onEdit,
 }: ReviewCardProps) {
   const { showToast } = useToast();
   const [isHelpful, setIsHelpful] = useState(Boolean(review.isHelpful));
@@ -102,11 +106,13 @@ export default function ReviewCard({
     try {
       const res = await reviewApi.replyReview(String(review.id), { content: trimmed });
       if (res.data) {
-        const newReply = {
+        const newReply: ReviewReplyItem = {
           id: res.data.id,
           content: res.data.content,
           business: res.data.business,
+          responderId: 'seller',
           createdAt: res.data.createdAt,
+          updatedAt: new Date().toISOString(),
         };
         setReplies((prev) => [...prev, newReply]);
         setReplyText('');
@@ -144,6 +150,11 @@ export default function ReviewCard({
               <span className="font-bold text-xs sm:text-sm text-on-surface">
                 {review.author?.fullName || 'Độc giả HUKI'}
               </span>
+              {isOwner && (
+                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                  Đánh giá của bạn
+                </span>
+              )}
               {review.verifiedPurchase && (
                 <VerifiedPurchaseBadge
                   variant="pill"
@@ -163,18 +174,31 @@ export default function ReviewCard({
           </div>
         </div>
 
-        {/* Rating Stars */}
-        <div className="flex items-center gap-0.5 text-[#fea619] shrink-0">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <span
-              key={star}
-              className={`material-symbols-outlined text-sm sm:text-base ${
-                star <= review.rating ? 'fill-current text-[#fea619]' : 'text-gray-300'
-              }`}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+              title="Chỉnh sửa đánh giá của bạn"
             >
-              star
-            </span>
-          ))}
+              <span className="material-symbols-outlined text-[15px]">edit_note</span>
+              <span>Sửa đánh giá</span>
+            </button>
+          )}
+          <div className="flex items-center gap-0.5">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <span
+                key={star}
+                className={`material-symbols-outlined text-sm sm:text-base ${
+                  star <= review.rating ? 'text-[#fea619]' : 'text-slate-200'
+                }`}
+                style={{ fontVariationSettings: "'FILL' 1" }}
+              >
+                star
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 

@@ -258,4 +258,51 @@ export class BookAccessService {
       });
     }
   }
+
+  /**
+   * Lấy danh sách toàn bộ sách số trong tủ sách cá nhân từ cơ sở dữ liệu thật
+   */
+  async getUserLibrary(userId: string) {
+    const accesses = await this.prisma.bookAccess.findMany({
+      where: {
+        userId,
+        status: 'ACTIVE',
+      },
+      include: {
+        book: {
+          include: {
+            author: true,
+            publisher: true,
+            category: true,
+            digitalDetails: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    return accesses.map((acc) => ({
+      accessId: acc.id,
+      bookId: acc.bookId,
+      id: acc.bookId,
+      title: acc.book.title,
+      slug: acc.book.slug,
+      author: acc.book.author?.name || 'Tác giả HUKI',
+      publisher: acc.book.publisher?.name || 'NXB HUKI',
+      category: acc.book.category?.name || 'Sách Số',
+      categorySlug: acc.book.category?.slug,
+      coverUrl: acc.book.coverUrl,
+      cover: acc.book.coverUrl,
+      format: acc.book.format,
+      price: Number(acc.book.price),
+      readingProgress: acc.readingProgress,
+      lastReadAt: acc.lastReadAt || acc.updatedAt,
+      pdfKey: acc.book.digitalDetails?.pdfKey,
+      epubKey: acc.book.digitalDetails?.epubKey,
+      accessType: acc.accessType,
+      status: acc.status,
+    }));
+  }
 }

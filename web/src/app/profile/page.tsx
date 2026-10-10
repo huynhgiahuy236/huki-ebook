@@ -1,10 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import UserAvatar from '@/ui/components/common/UserAvatar';
+import { businessApi, BusinessData } from '@/ui/api/businessApi';
 
 export default function ProfilePage() {
   const { user, updateUserProfile } = useAuth();
@@ -12,6 +14,8 @@ export default function ProfilePage() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [business, setBusiness] = useState<BusinessData | null>(null);
+  const [loadingBusiness, setLoadingBusiness] = useState(false);
 
   const [formData, setFormData] = useState({
     fullName: user?.fullName || user?.name || '',
@@ -25,6 +29,26 @@ export default function ProfilePage() {
         phone: user.phone || '',
       });
     }
+  }, [user]);
+
+  // Load business info for seller status
+  useEffect(() => {
+    const loadBusiness = async () => {
+      if (!user) return;
+      setLoadingBusiness(true);
+      try {
+        const res = await businessApi.getMyBusiness();
+        if (res.success && res.data) {
+          const b = (res.data as any)?.data || res.data;
+          setBusiness(b);
+        }
+      } catch (err) {
+        console.error('Error loading business:', err);
+      } finally {
+        setLoadingBusiness(false);
+      }
+    };
+    loadBusiness();
   }, [user]);
 
   const displayName = user?.fullName || user?.name || user?.email?.split('@')[0] || 'Độc Giả HUKI';
@@ -151,6 +175,108 @@ export default function ProfilePage() {
                 <span>{roleLabel}</span>
               </div>
             </div>
+
+            {/* Seller Status - Hiển thị trạng thái đăng ký seller */}
+            {user?.hasApprovedBusiness && (
+              <div className="space-y-2">
+                <label className="font-bold text-gray-700 block">
+                  Trạng Thái Đăng Ký Nhà Bán Hàng
+                </label>
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-xl text-emerald-600">storefront</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-emerald-900 text-sm">
+                          {business?.name || 'Đối tác Nhà Bán Hàng HUKI'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold uppercase">
+                          {business?.status === 'APPROVED' ? 'Đã duyệt' : business?.status === 'PENDING_APPROVAL' ? 'Chờ duyệt' : business?.status || '—'}
+                        </span>
+                      </div>
+                      {business?.stores?.[0] && (
+                        <p className="text-xs text-emerald-700">
+                          Cửa hàng: <strong>{business.stores[0].name}</strong>
+                        </p>
+                      )}
+                      <Link
+                        href="/seller/business"
+                        className="inline-flex items-center gap-1 mt-2 text-xs text-emerald-700 hover:text-emerald-900 font-semibold hover:underline"
+                      >
+                        <span>Xem chi tiết hồ sơ doanh nghiệp</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Nếu đã gửi đơn nhưng chưa duyệt */}
+            {business && business.status === 'PENDING_APPROVAL' && !user?.hasApprovedBusiness && (
+              <div className="space-y-2">
+                <label className="font-bold text-gray-700 block">
+                  Trạng Thái Đăng Ký Nhà Bán Hàng
+                </label>
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-xl text-amber-600">hourglass_empty</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-bold text-amber-900 text-sm">
+                          {business.name || 'Hồ sơ đã gửi'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold uppercase">
+                          Đang chờ duyệt
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-700 mb-2">
+                        Hồ sơ đang được Ban thẩm định HUKI xử lý. Thời gian phê duyệt: 24-48h.
+                      </p>
+                      <Link
+                        href="/seller/pending"
+                        className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-semibold hover:underline"
+                      >
+                        <span>Xem trạng thái chờ duyệt</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Nếu chưa đăng ký seller */}
+            {!business && (
+              <div className="space-y-2">
+                <label className="font-bold text-gray-700 block">
+                  Trạng Thái Đăng Ký Nhà Bán Hàng
+                </label>
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-xl text-slate-400">store</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-slate-600 mb-2">
+                        Bạn chưa đăng ký trở thành Nhà Bán Hàng trên HUKI.
+                      </p>
+                      <Link
+                        href="/seller/register"
+                        className="inline-flex items-center gap-1 text-xs text-[#003B2B] hover:text-[#00281d] font-semibold hover:underline"
+                      >
+                        <span>Đăng ký ngay</span>
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Submit Button */}
             <div className="pt-3">

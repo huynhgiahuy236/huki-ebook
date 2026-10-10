@@ -195,7 +195,11 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             completedAt: o.completedAt,
           };
 
-          if (o.status === 'AVAILABLE' || o.sellerOrderStatus === 'PREPARING' || o.sellerOrderStatus === 'CONFIRMED') {
+          // Chỉ hiển thị đơn khi Seller đã bấm Xác Nhận (CONFIRMED) hoặc Chuẩn Bị Hàng (PREPARING)
+          const isConfirmedBySeller = o.sellerOrderStatus === 'CONFIRMED' || o.sellerOrderStatus === 'PREPARING';
+          const isPendingSeller = o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
+
+          if (o.status === 'AVAILABLE' && isConfirmedBySeller && !isPendingSeller) {
             available.push(item);
           } else if (o.status === 'PICKING_UP' || o.status === 'IN_TRANSIT' || o.sellerOrderStatus === 'SHIPPED') {
             active.push({ ...item, status: 'IN_TRANSIT' });
@@ -236,7 +240,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
             }
           } else {
-            available.push(item);
+            // Đơn hàng chưa được người bán xác nhận (PENDING_CONFIRMATION, PENDING_PAYMENT, v.v.)
+            // Tuyệt đối không đẩy vào danh sách khả dụng của Shipper
           }
         });
 

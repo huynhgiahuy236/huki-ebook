@@ -40,6 +40,11 @@ export class ChatPaginationDto {
   @Min(1)
   @Max(100)
   limit = 50;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  storeId?: string;
 }
 
 export class ChatIdParamDto {
@@ -86,6 +91,15 @@ export class SendMessageDto {
   @IsIn(MESSAGE_TYPES)
   messageType: MessageType = "TEXT";
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  storeId?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  metadata?: Record<string, any>;
+
   @ApiPropertyOptional({ type: [MessageAttachmentDto], maxItems: 10 })
   @IsOptional()
   @IsArray()
@@ -97,27 +111,46 @@ export class SendMessageDto {
 
 export class CreateConversationDto {
   @ApiProperty()
-  @IsUUID()
+  @IsString()
   storeId!: string;
 
-  @ApiProperty({ enum: CHAT_CONTEXT_TYPES })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  storeName?: string;
+
+  @ApiPropertyOptional({ enum: CHAT_CONTEXT_TYPES, default: "ORDER" })
+  @IsOptional()
   @IsIn(CHAT_CONTEXT_TYPES)
-  contextType!: ChatContextType;
+  contextType?: ChatContextType;
 
-  @ApiProperty()
-  @IsUUID()
-  contextId!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contextId?: string;
 
-  @ApiProperty({ minLength: 1, maxLength: 10_000 })
+  @ApiPropertyOptional({ minLength: 1, maxLength: 10_000 })
+  @IsOptional()
   @IsString()
   @Length(1, 10_000)
-  initialMessage!: string;
+  initialMessage?: string;
 }
 
 export class ConversationEventDto {
   @ApiProperty()
   @IsMongoId()
   conversationId!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  storeId?: string;
+}
+
+export class ShopEventDto {
+  @ApiProperty()
+  @IsString()
+  storeId!: string;
 }
 
 export class SocketSendMessageDto extends SendMessageDto {

@@ -43,9 +43,13 @@ export interface FootprintsDeletionResult {
 /**
  * Get personalized "For You" recommendations
  */
-export async function getForYouRecommendations(limit: number = 20): Promise<RecommendedBook[]> {
+export async function getForYouRecommendations(limit: number = 20, userId?: string): Promise<RecommendedBook[]> {
+  let url = `/analytics/recommendations/for-you?limit=${limit}`;
+  if (userId) {
+    url += `&userId=${encodeURIComponent(userId)}`;
+  }
   const response = await apiClient<{ data: RecommendedBook[] }>(
-    `/analytics/recommendations/for-you?limit=${limit}`,
+    url,
     { method: 'GET' }
   );
   return response.success ? response.data?.data || [] : [];

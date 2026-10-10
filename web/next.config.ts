@@ -29,6 +29,22 @@ const nextConfig: NextConfig = {
         destination: 'http://localhost:3002/api/v1/members/:path*',
       },
       {
+        source: '/api/v1/books/:id/reviews/:path*',
+        destination: 'http://localhost:3005/api/v1/books/:id/reviews/:path*',
+      },
+      {
+        source: '/api/v1/books/:id/reviews',
+        destination: 'http://localhost:3005/api/v1/books/:id/reviews',
+      },
+      {
+        source: '/api/v1/stores/:id/reviews/:path*',
+        destination: 'http://localhost:3005/api/v1/stores/:id/reviews/:path*',
+      },
+      {
+        source: '/api/v1/stores/:id/reviews',
+        destination: 'http://localhost:3005/api/v1/stores/:id/reviews',
+      },
+      {
         source: '/api/v1/books/:path*',
         destination: 'http://localhost:3003/api/v1/books/:path*',
       },
@@ -43,6 +59,10 @@ const nextConfig: NextConfig = {
       {
         source: '/api/v1/publishers/:path*',
         destination: 'http://localhost:3003/api/v1/publishers/:path*',
+      },
+      {
+        source: '/api/v1/ai-audio/:path*',
+        destination: 'http://localhost:3003/api/v1/ai-audio/:path*',
       },
       {
         source: '/api/v1/seller/:path*',
@@ -119,6 +139,14 @@ const nextConfig: NextConfig = {
       {
         source: '/api/v1/flash-sales/:path*',
         destination: 'http://localhost:3007/api/v1/flash-sales/:path*',
+      },
+      {
+        source: '/api/analytics/:path*',
+        destination: 'http://localhost:3008/api/v1/analytics/:path*',
+      },
+      {
+        source: '/api/v1/analytics/:path*',
+        destination: 'http://localhost:3008/api/v1/analytics/:path*',
       },
     ];
   },

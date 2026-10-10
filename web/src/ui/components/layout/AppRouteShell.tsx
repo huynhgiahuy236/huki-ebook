@@ -16,7 +16,10 @@ export default function AppRouteShell({ children }: AppRouteShellProps) {
   const isSellerRoute = pathname.startsWith('/seller');
   const isAdminRoute = pathname.startsWith('/admin');
   const isShipperRoute = pathname.startsWith('/shipper');
-  const isReaderRoute = pathname.startsWith('/reader') || pathname.startsWith('/read');
+  const isReaderRoute =
+    pathname.startsWith('/reader') ||
+    pathname.startsWith('/read') ||
+    /^\/library\/[^/]+/.test(pathname);
   const isInvoiceRoute = pathname.includes('/invoice');
   const isMessagesRoute = pathname.startsWith('/account/messages') || pathname.startsWith('/messages');
   const isOnboardingRoute = pathname.startsWith('/onboarding') || pathname.startsWith('/welcome');

@@ -35,6 +35,7 @@ export function AdminVouchersView() {
     minOrderAmount: number;
     maxDiscountAmount: number;
     targetAudience: 'ALL' | 'NEW_CUSTOMERS_ONLY' | 'FOLLOWERS_ONLY';
+    applicableFormat: 'ALL' | 'DIGITAL' | 'PHYSICAL';
     totalUsage: number;
     maxUsagePerUser: number;
     startsAt: string;
@@ -48,6 +49,7 @@ export function AdminVouchersView() {
     minOrderAmount: 100000,
     maxDiscountAmount: 50000,
     targetAudience: "ALL",
+    applicableFormat: "ALL",
     totalUsage: 1000,
     maxUsagePerUser: 1,
     startsAt: new Date().toISOString().slice(0, 16),
@@ -238,6 +240,7 @@ export function AdminVouchersView() {
         minOrderAmount: Number(voucherForm.minOrderAmount || 0),
         maxDiscountAmount: voucherForm.type === 'PERCENTAGE' && Number(voucherForm.maxDiscountAmount) > 0 ? Number(voucherForm.maxDiscountAmount) : undefined,
         targetAudience: voucherForm.targetAudience,
+        applicableFormat: voucherForm.applicableFormat,
         totalUsage: Number(voucherForm.totalUsage || 0),
         maxUsagePerUser: Number(voucherForm.maxUsagePerUser || 1),
         scope: 'PLATFORM',
@@ -257,6 +260,7 @@ export function AdminVouchersView() {
           minOrderAmount: 100000,
           maxDiscountAmount: 50000,
           targetAudience: "ALL",
+          applicableFormat: "ALL",
           totalUsage: 1000,
           maxUsagePerUser: 1,
           startsAt: new Date().toISOString().slice(0, 16),
@@ -715,7 +719,24 @@ export function AdminVouchersView() {
                       </p>
                     </td>
                     <td className="p-5">
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
+                        <div>
+                          <label className="block text-gray-700 font-bold mb-1 text-xs">
+                            Định Dạng Sách Áp Dụng
+                          </label>
+                          <select
+                            value={voucherForm.applicableFormat}
+                            onChange={(e: any) =>
+                              setVoucherForm({ ...voucherForm, applicableFormat: e.target.value })
+                            }
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-bold text-xs text-emerald-900 focus:border-[#00875A] focus:outline-none"
+                          >
+                            <option value="ALL">📚 Tất cả định dạng</option>
+                            <option value="DIGITAL">⚡ Chỉ Ebook DRM</option>
+                            <option value="PHYSICAL">📦 Chỉ Sách Giấy</option>
+                          </select>
+                        </div>
+
                         <div>
                           <label className="block text-gray-700 font-bold mb-1 text-xs">
                             Đối Tượng Thụ Hưởng

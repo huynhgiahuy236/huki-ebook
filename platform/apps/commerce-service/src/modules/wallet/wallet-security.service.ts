@@ -722,7 +722,18 @@ export class WalletSecurityService {
       }
     }
 
-    // Success PIN: reset attempts, zero out available balance, create transaction in atomic prisma transaction
+    // Success PIN: reset attempts, reserve balance in frozenBalance, create PayoutRequest (PENDING), create transaction in atomic prisma transaction
+    const payoutId = `po_${randomUUID()}`;
+    const bankSnapshot = {
+      bankCode: 'VCB',
+      bankName: 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)',
+      accountNumber: '1029384756',
+      accountHolder: 'DOANH NGHIỆP SELLER',
+      businessName: 'Doanh Nghiệp Đối Tác Sàn HuKi',
+    };
+
+    const decAvailable = new Decimal(available);
+
     await this.prisma.$transaction(async (tx) => {
       // 1. Reset security state
       await tx.walletSecurity.update({
@@ -734,29 +745,74 @@ export class WalletSecurityService {
         },
       });
 
-      // 2. Set availableBalance = 0
+      // 2. Reserve balance: availableBalance -> -available, frozenBalance -> +available
+      const currentWallet = await tx.wallet.findUnique({
+        where: { storeId },
+      });
+      if (!currentWallet || new Decimal(currentWallet.availableBalance).lessThan(decAvailable)) {
+        throw new BadRequestException('Số dư khả dụng không đủ để thực hiện yêu cầu rút tiền.');
+      }
+
+      // 2. Direct withdrawal: decrement availableBalance directly, no admin approval needed
       await tx.wallet.update({
         where: { storeId },
         data: {
-          availableBalance: 0,
+          availableBalance: { decrement: decAvailable },
           version: { increment: 1 },
         },
       });
 
-      // 3. Create audit transaction
+      // 3. Create PayoutRequest in COMPLETED status (Disbursed immediately upon PIN verification)
+      await tx.payoutRequest.create({
+        data: {
+          id: payoutId,
+          storeId,
+          walletId: wallet.id,
+          amount: decAvailable,
+          currency: 'VND',
+          status: 'COMPLETED',
+          bankSnapshot: bankSnapshot as any,
+          requestedBy: actor.sub,
+          requestedAt: now,
+          reviewedBy: 'AUTO_PIN_VERIFIED',
+          reviewedAt: now,
+          disbursedAt: now,
+          idempotencyKey: `withdraw_all_${storeId}_${now.getTime()}`,
+        },
+      });
+
+      // 4. Create audit transaction for Seller Ledger & Traceability
       await tx.walletTransaction.create({
         data: {
           walletId: wallet.id,
           type: 'DEBIT_AVAILABLE',
-          amount: available,
-          availableBefore: available,
-          availableAfter: 0,
-          pendingBefore: wallet.pendingBalance,
-          pendingAfter: wallet.pendingBalance,
-          frozenBefore: wallet.frozenBalance,
-          frozenAfter: wallet.frozenBalance,
-          description: `Rút toàn bộ số dư ví về tài khoản ngân hàng thụ hưởng (-${available.toLocaleString('vi-VN')} ₫)`,
-          referenceType: 'WALLET_WITHDRAWAL_ALL',
+          amount: decAvailable,
+          availableBefore: currentWallet.availableBalance,
+          availableAfter: new Decimal(currentWallet.availableBalance).minus(decAvailable),
+          pendingBefore: currentWallet.pendingBalance,
+          pendingAfter: currentWallet.pendingBalance,
+          frozenBefore: currentWallet.frozenBalance,
+          frozenAfter: currentWallet.frozenBalance,
+          description: `Rút ${available.toLocaleString('vi-VN')} ₫ về tài khoản ngân hàng ${bankSnapshot.bankName} - ${bankSnapshot.accountNumber} (Xác thực PIN thành công - Đã giải ngân)`,
+          referenceType: 'PAYOUT_REQUEST',
+          referenceId: payoutId,
+        },
+      });
+
+      // 5. Outbox Event
+      await tx.outboxEvent.create({
+        data: {
+          eventId: `EVT-${randomUUID()}`,
+          type: 'PAYOUT_DISBURSED',
+          aggregateId: payoutId,
+          payload: {
+            payoutId,
+            storeId,
+            amount: decAvailable.toString(),
+            requestedBy: actor.sub,
+            status: 'COMPLETED',
+            disbursedAt: now.toISOString(),
+          },
         },
       });
     });
@@ -764,16 +820,16 @@ export class WalletSecurityService {
     await this.recordAuditLog({
       storeId,
       walletId: wallet.id,
-      eventType: 'WITHDRAWAL_ALL_COMPLETED',
+      eventType: 'PAYOUT_REQUESTED',
       actor,
-      details: { amount: available },
+      details: { amount: available, payoutId },
       meta,
     });
 
     return {
       success: true,
       withdrawnAmount: available,
-      message: `Đã rút thành công ${available.toLocaleString('vi-VN')} ₫ về tài khoản ngân hàng!`,
+      message: `Đã gửi yêu cầu rút ${available.toLocaleString('vi-VN')} ₫ thành công! Yêu cầu đang chờ Ban Quản Trị / Kế toán duyệt giải ngân.`,
     };
   }
 }

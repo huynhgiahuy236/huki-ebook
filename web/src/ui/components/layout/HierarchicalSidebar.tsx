@@ -13,6 +13,7 @@ interface NavItem {
   icon: string;
   badge?: string | number | null;
   badgeColor?: string;
+  targetBlank?: boolean;
 }
 
 interface NavGroup {
@@ -37,6 +38,13 @@ export default function HierarchicalSidebar({
   const pathname = usePathname() || '';
   const { totalItemsCount } = useCart();
   const { user, isLoggedIn, hasRole } = useAuth();
+
+  const isSeller = Boolean(
+    user?.role === 'BUSINESS' ||
+    user?.hasApprovedBusiness ||
+    user?.business ||
+    (Array.isArray(user?.memberships) && user.memberships.length > 0)
+  );
 
   // Clean, focused, single-level Navigation Schema
   const allNavGroups: NavGroup[] = [
@@ -99,6 +107,7 @@ export default function HierarchicalSidebar({
           title: 'Trình Đọc Ebook',
           to: '/reader',
           icon: 'chrome_reader_mode',
+          targetBlank: true,
         },
       ],
     },
@@ -108,9 +117,10 @@ export default function HierarchicalSidebar({
       items: [
         {
           id: 'messages',
-          title: 'Tin Nhắn',
-          to: '/account/messages',
+          title: isSeller ? 'Chat Kênh Bán' : 'Tin Nhắn & Chat',
+          to: isSeller ? '/seller/chat' : '/account/messages',
           icon: 'chat',
+          targetBlank: true,
         },
         {
           id: 'cart',
@@ -123,7 +133,7 @@ export default function HierarchicalSidebar({
         {
           id: 'orders',
           title: 'Đơn Hàng',
-          to: '/account/orders',
+          to: '/orders',
           icon: 'receipt_long',
         },
       ],
@@ -207,6 +217,8 @@ export default function HierarchicalSidebar({
                         <div className="flex items-center justify-center py-0.5">
                           <Link
                             href={item.to}
+                            target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
+                            rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                             onClick={closeMobile}
                             className={`flex items-center justify-center w-9 h-9 rounded-xl transition-colors duration-150 relative shrink-0 ${
                               isActive
@@ -229,6 +241,8 @@ export default function HierarchicalSidebar({
                         /* Expanded Clean Item View with fixed h-9 and zero jitter */
                         <Link
                           href={item.to}
+                          target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
+                          rel={item.targetBlank || item.id === 'web-reader' ? 'noopener noreferrer' : undefined}
                           onClick={closeMobile}
                           className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-colors duration-150 shrink-0 ${
                             isActive

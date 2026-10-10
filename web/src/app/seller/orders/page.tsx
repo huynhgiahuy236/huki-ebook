@@ -215,31 +215,39 @@ function SellerOrdersContent() {
 
   // Order counts & metrics
   const counts = useMemo(() => {
-    const total = orders.length;
+    // Only count orders that have reached fulfillment stage (exclude unpaid online checkout orders)
+    const validOrders = orders.filter((o) => o.status !== 'PENDING_PAYMENT');
+    const total = validOrders.length;
     let pending = 0;
-    let preparing = 0;
+    let confirmed = 0;
+    let readyForPickup = 0;
     let shipped = 0;
     let completed = 0;
     let cancelled = 0;
 
-    orders.forEach((o) => {
+    validOrders.forEach((o) => {
       const s = o.status;
-      if (s === 'PENDING_CONFIRMATION' || s === 'PENDING_PAYMENT') pending++;
-      else if (s === 'CONFIRMED' || s === 'PREPARING') preparing++;
+      if (s === 'PENDING_CONFIRMATION') pending++;
+      else if (s === 'CONFIRMED') confirmed++;
+      else if (s === 'PREPARING') readyForPickup++;
       else if (s === 'SHIPPED') shipped++;
       else if (s === 'DELIVERED' || s === 'COMPLETED') completed++;
       else if (s === 'CANCELLED' || s === 'REFUNDED') cancelled++;
     });
 
-    return { total, pending, preparing, shipped, completed, cancelled };
+    return { total, pending, confirmed, readyForPickup, shipped, completed, cancelled };
   }, [orders]);
 
   // Filtered orders
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
+      // Unpaid online orders should never clutter Seller fulfillment workflow
+      if (order.status === 'PENDING_PAYMENT') return false;
+
       // Tab filter
-      if (activeTab === 'PENDING_CONFIRMATION' && order.status !== 'PENDING_CONFIRMATION' && order.status !== 'PENDING_PAYMENT') return false;
-      if (activeTab === 'PREPARING' && order.status !== 'PREPARING' && order.status !== 'CONFIRMED') return false;
+      if (activeTab === 'PENDING_CONFIRMATION' && order.status !== 'PENDING_CONFIRMATION') return false;
+      if (activeTab === 'CONFIRMED' && order.status !== 'CONFIRMED') return false;
+      if (activeTab === 'PREPARING' && order.status !== 'PREPARING') return false;
       if (activeTab === 'SHIPPED' && order.status !== 'SHIPPED') return false;
       if (activeTab === 'COMPLETED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED') return false;
       if (activeTab === 'CANCELLED' && order.status !== 'CANCELLED' && order.status !== 'REFUNDED') return false;
@@ -613,7 +621,8 @@ function SellerOrdersContent() {
           tabs={[
             { id: 'ALL', label: 'Tất Cả', count: counts.total },
             { id: 'PENDING_CONFIRMATION', label: 'Chờ Xác Nhận', count: counts.pending },
-            { id: 'PREPARING', label: 'Đang Chuẩn Bị', count: counts.preparing },
+            { id: 'CONFIRMED', label: 'Đang Đóng Gói', count: counts.confirmed },
+            { id: 'PREPARING', label: 'Chờ Đơn Vị Giao Hàng', count: counts.readyForPickup },
             { id: 'SHIPPED', label: 'Đang Giao', count: counts.shipped },
             { id: 'COMPLETED', label: 'Hoàn Tất', count: counts.completed },
             { id: 'CANCELLED', label: 'Đã Hủy', count: counts.cancelled },
@@ -879,8 +888,8 @@ function SellerOrdersContent() {
                           {order.status === 'PENDING_CONFIRMATION' && (
                             <SellerActionButton
                               variant="success"
-                              label={hasPhysical ? "Xác nhận" : "Kích hoạt"}
-                              icon={hasPhysical ? "check" : "bolt"}
+                              label={hasPhysical ? "Xác nhận & Đóng gói" : "Kích hoạt"}
+                              icon={hasPhysical ? "check_circle" : "bolt"}
                               size="sm"
                               onClick={() => handleConfirm(order.id)}
                               loading={actionLoading}
@@ -890,12 +899,19 @@ function SellerOrdersContent() {
                           {order.status === 'CONFIRMED' && hasPhysical && (
                             <SellerActionButton
                               variant="info"
-                              label="Đóng gói"
-                              icon="inventory_2"
+                              label="Chờ đơn vị giao hàng"
+                              icon="local_shipping"
                               size="sm"
                               onClick={() => handlePrepare(order.id)}
                               loading={actionLoading}
                             />
+                          )}
+
+                          {order.status === 'PREPARING' && hasPhysical && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-[11px] font-semibold border border-amber-200">
+                              <span className="material-symbols-outlined text-xs animate-pulse">schedule</span>
+                              <span>Chờ Shipper lấy</span>
+                            </span>
                           )}
                         </div>
                       </td>

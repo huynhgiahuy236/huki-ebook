@@ -2301,11 +2301,14 @@ export class OrdersService {
     const scope = await getSellerScope(actor);
     const storeIds = scope.isPlatformAdmin ? [] : scope.storeIds;
 
-    const whereOrder: any = {};
+    const whereOrder: any = {
+      status: { not: 'CANCELLED' },
+    };
     if (!scope.isPlatformAdmin && storeIds.length > 0) {
       whereOrder.sellerOrders = {
         some: {
           storeId: { in: storeIds },
+          status: { not: 'CANCELLED' },
         },
       };
     }
@@ -2314,9 +2317,22 @@ export class OrdersService {
       where: whereOrder,
       include: {
         sellerOrders: {
-          where: scope.isPlatformAdmin ? {} : { storeId: { in: storeIds } },
+          where: {
+            ...(scope.isPlatformAdmin ? {} : { storeId: { in: storeIds } }),
+            status: { not: 'CANCELLED' },
+          },
           include: {
-            items: true,
+            items: {
+              include: {
+                book: {
+                  select: {
+                    id: true,
+                    title: true,
+                    coverUrl: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -2349,6 +2365,7 @@ export class OrdersService {
     const items: any[] = [];
 
     for (const order of orders) {
+      if (order.status === 'CANCELLED') continue;
       const shipping = (order.shippingAddress as any) || {};
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
@@ -2356,6 +2373,7 @@ export class OrdersService {
       const orderVouchers = voucherMap.get(order.id) || [];
 
       for (const sellerOrder of order.sellerOrders) {
+        if (sellerOrder.status === 'CANCELLED') continue;
         const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
 
         for (const item of sellerOrder.items) {
@@ -2466,6 +2484,7 @@ export class OrdersService {
               customerPhone,
               bookId: item.bookId,
               bookTitle: item.bookTitle,
+              coverUrl: (item as any).book?.coverUrl || null,
               quantity: item.quantity,
               unitPrice: Number(item.unitPrice),
               subtotal,
@@ -3493,15 +3512,19 @@ export class OrdersService {
       const codAmount = paymentMethod === 'COD' ? Number(so.grandTotal) : 0;
       const shippingFee = Number(so.shippingFee) || 30000;
 
-      let shipperStatus: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' = 'AVAILABLE';
+      let shipperStatus: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'UNAVAILABLE' = 'UNAVAILABLE';
       if (so.status === SellerOrderStatus.SHIPPED) {
         shipperStatus = 'IN_TRANSIT';
       } else if (so.status === SellerOrderStatus.DELIVERED || so.status === SellerOrderStatus.COMPLETED) {
         shipperStatus = 'DELIVERED';
       } else if (so.status === SellerOrderStatus.CANCELLED) {
         shipperStatus = 'FAILED';
-      } else {
+      } else if (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING) {
+        // Đơn đã được người bán xác nhận hoặc đang chuẩn bị hàng -> Shipper mới có thể thấy và nhận đơn
         shipperStatus = 'AVAILABLE';
+      } else {
+        // PENDING_CONFIRMATION -> Người bán chưa duyệt đơn -> Shipper chưa thể thấy
+        shipperStatus = 'UNAVAILABLE';
       }
 
       return {

@@ -42,8 +42,11 @@ export class ChatController {
 
   @Get()
   @ApiOperation({ summary: "List user's conversations" })
-  list(@CurrentCommunityActor() actor: CommunityActor) {
-    return this.chat.listConversations(actor);
+  list(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Query('storeId') storeId?: string,
+  ) {
+    return this.chat.listConversations(actor, storeId);
   }
 
   @Post()
@@ -82,7 +85,7 @@ export class ChatController {
     @Body() dto: SendMessageDto,
     @UploadedFiles() files: Express.Multer.File[] = [],
   ) {
-    await this.chat.ensureWritable(actor, id);
+    await this.chat.ensureWritable(actor, id, dto.storeId);
     const uploaded = await this.attachmentStorage.uploadMany(id, files);
     const delivery = await this.chat.sendMessage(actor, id, {
       ...dto,
@@ -97,8 +100,9 @@ export class ChatController {
   async read(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ChatIdParamDto,
+    @Query('storeId') storeId?: string,
   ) {
-    const receipt = await this.chat.markRead(actor, id);
+    const receipt = await this.chat.markRead(actor, id, storeId);
     this.gateway.publishReadReceipt(receipt);
     return { message: "Marked as read" };
   }

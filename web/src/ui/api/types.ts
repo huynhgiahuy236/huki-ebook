@@ -56,6 +56,7 @@ export interface UserSession {
     name?: string;
     slug?: string;
     ownerId?: string;
+    status?: string;
     bankName?: string;
     bankAccountNumber?: string;
     bankAccountHolderName?: string;

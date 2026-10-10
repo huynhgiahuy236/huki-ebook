@@ -13,6 +13,7 @@ export interface Voucher {
   scope: 'PLATFORM' | 'STORE';
   storeId?: string;
   targetAudience?: 'ALL' | 'NEW_CUSTOMERS_ONLY' | 'FOLLOWERS_ONLY';
+  applicableFormat?: 'ALL' | 'DIGITAL' | 'PHYSICAL' | string;
   minFollowDays?: number;
   expiresAt: string;
   status: 'ACTIVE' | 'INACTIVE' | 'EXPIRED' | 'USED_UP';
@@ -187,6 +188,7 @@ export const voucherApi = {
     scope: 'PLATFORM' | 'STORE';
     storeId?: string;
     targetAudience?: 'ALL' | 'NEW_CUSTOMERS_ONLY' | 'LOYALTY_TIER' | string;
+    applicableFormat?: 'ALL' | 'DIGITAL' | 'PHYSICAL' | string;
     totalUsage?: number;
     maxUsagePerUser?: number;
     startsAt: string;

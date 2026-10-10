@@ -21,6 +21,7 @@ export interface EscrowTableItem {
   customerPhone: string;
   bookId: string;
   bookTitle: string;
+  coverUrl?: string | null;
   quantity: number;
   unitPrice: number;
   subtotal: number;
@@ -751,21 +752,37 @@ export function AdminEscrowView() {
                     <tr key={item.id} className="hover:bg-theme-surface-subtle/40 transition-colors">
                       {/* 1. Tên Sản Phẩm */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-start gap-2.5">
-                          {isDigital ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 mt-0.5 tracking-wide">
-                              EBOOK
-                            </span>
+                        <div className="flex items-center gap-2.5">
+                          {item.coverUrl ? (
+                            <img
+                              src={item.coverUrl}
+                              alt={item.bookTitle}
+                              className="w-8 h-11 object-cover rounded border border-slate-200 shrink-0 shadow-2xs"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = 'none';
+                              }}
+                            />
                           ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60 shrink-0 mt-0.5 tracking-wide">
-                              SÁCH IN
-                            </span>
+                            <div className="w-8 h-11 bg-slate-100 rounded border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
+                              <span className="material-symbols-outlined text-sm">menu_book</span>
+                            </div>
                           )}
                           <div className="flex flex-col min-w-0">
-                            <span className="font-semibold text-theme-text text-[13px] leading-snug">
-                              {item.bookTitle}
-                            </span>
-                            <span className="font-mono text-[10.5px] text-theme-text-muted mt-0.5">
+                            <div className="flex items-center gap-1.5">
+                              {isDigital ? (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100 shrink-0 tracking-wide">
+                                  EBOOK
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.2 rounded text-[9.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60 shrink-0 tracking-wide">
+                                  SÁCH IN
+                                </span>
+                              )}
+                              <span className="font-semibold text-theme-text text-[12.5px] leading-snug line-clamp-1" title={item.bookTitle}>
+                                {item.bookTitle}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-theme-text-muted mt-0.5">
                               Mã SP: {item.bookId}
                             </span>
                           </div>

@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/ui/context/AuthContext';
 
 export interface SellerPortalLayoutProps {
   children?: React.ReactNode;
@@ -8,7 +9,14 @@ export interface SellerPortalLayoutProps {
 
 export default function SellerPortalLayout({ children }: SellerPortalLayoutProps) {
   const pathname = usePathname() || '';
+  const { user } = useAuth();
+
   const isRegisterPage = pathname.includes('/register');
+  const isPendingPage = pathname.includes('/pending');
+  const isSetupPage = pathname.includes('/stores/setup');
+
+  const bizStatus = user?.business?.status;
+  const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF8F5] text-[#17201F] font-sans antialiased">
@@ -26,7 +34,7 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
                   HUKI EBOOK
                 </span>
                 <span className="text-[11px] uppercase font-bold tracking-wider text-[#006B50]">
-                  Kênh Người Bán & NXB
+                  Kênh Người Bán &amp; NXB
                 </span>
               </div>
             </Link>
@@ -34,12 +42,56 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
             <div className="h-6 w-px bg-[#E8E5DF] mx-2 hidden md:block"></div>
 
             <nav className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#59413C]">
-              <Link href="/seller" className={`hover:text-[#003B2B] transition-colors ${!isRegisterPage ? 'text-[#003B2B] font-bold' : ''}`}>
+              <Link
+                href="/seller"
+                className={`hover:text-[#003B2B] transition-colors ${
+                  !isRegisterPage && !isPendingPage && !isSetupPage ? 'text-[#003B2B] font-bold' : ''
+                }`}
+              >
                 Giới Thiệu Kênh Bán
               </Link>
-              <Link href="/seller/register" className={`hover:text-[#003B2B] transition-colors ${isRegisterPage ? 'text-[#003B2B] font-bold' : ''}`}>
-                Đăng Ký Đối Tác NXB
-              </Link>
+
+              {/* Dynamic Action Nav based on status */}
+              {isApprovedSeller ? (
+                <Link
+                  href="/seller/dashboard"
+                  className="hover:text-[#003B2B] transition-colors text-[#003B2B] font-bold flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-base">dashboard</span>
+                  <span>Bảng Điều Khiển Bán Hàng</span>
+                </Link>
+              ) : bizStatus === 'PENDING_APPROVAL' || isPendingPage ? (
+                <Link
+                  href="/seller/pending"
+                  className={`hover:text-[#003B2B] transition-colors flex items-center gap-1.5 ${
+                    isPendingPage ? 'text-amber-800 font-bold' : ''
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    Kiểm Tra Hồ Sơ Thẩm Định
+                  </span>
+                </Link>
+              ) : bizStatus === 'APPROVED' || isSetupPage ? (
+                <Link
+                  href="/seller/stores/setup"
+                  className={`hover:text-[#003B2B] transition-colors flex items-center gap-1.5 ${
+                    isSetupPage ? 'text-emerald-800 font-bold' : ''
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Thiết Lập Gian Hàng
+                  </span>
+                </Link>
+              ) : (
+                <Link
+                  href="/seller/register"
+                  className={`hover:text-[#003B2B] transition-colors ${isRegisterPage ? 'text-[#003B2B] font-bold' : ''}`}
+                >
+                  Đăng Ký Đối Tác NXB
+                </Link>
+              )}
             </nav>
           </div>
 
@@ -53,13 +105,25 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
               <span>Về Sàn HUKI Store</span>
             </Link>
 
-            <Link
-              href="/seller/dashboard"
-              className="inline-flex items-center gap-1.5 bg-[#003B2B] hover:bg-[#005140] text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
-            >
-              <span className="material-symbols-outlined text-[18px]">dashboard</span>
-              <span>Vào Kênh Quản Trị</span>
-            </Link>
+            {!isPendingPage && !isSetupPage ? (
+              <Link
+                href="/seller/dashboard"
+                className="inline-flex items-center gap-1.5 bg-[#003B2B] hover:bg-[#005140] text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl shadow-sm transition-all"
+              >
+                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+                <span>Vào Kênh Quản Trị</span>
+              </Link>
+            ) : isSetupPage ? (
+              <div className="hidden sm:inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-semibold px-3 py-2 rounded-xl">
+                <span className="material-symbols-outlined text-[16px] text-emerald-700">verified</span>
+                <span>Hồ sơ đã duyệt</span>
+              </div>
+            ) : (
+              <div className="hidden sm:inline-flex items-center gap-1.5 bg-amber-50 text-amber-900 border border-amber-200 text-xs font-semibold px-3 py-2 rounded-xl">
+                <span className="material-symbols-outlined text-[16px] text-amber-700">hourglass_top</span>
+                <span>Đang chờ duyệt</span>
+              </div>
+            )}
           </div>
         </div>
       </header>

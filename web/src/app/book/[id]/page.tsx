@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
@@ -17,6 +17,7 @@ import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge'
 import ReviewFormModal from '@/ui/components/review/ReviewFormModal';
 import { trackEvent, getTracker } from '@/lib/tracker';
 import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBooksSection';
+import { personalizationService } from '@/ui/services/personalizationService';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -64,7 +65,7 @@ export default function BookDetailPage() {
   const id = (params?.id as string) || '';
   const { addItem, cartItems } = useCart();
   const { showToast } = useToast();
-  const { user, isLoggedIn } = useAuth();
+  const { user, isLoggedIn, activeBusinessId } = useAuth();
 
   const [selectedFormat, setSelectedFormat] = useState<'ebook' | 'physical' | 'hybrid' | string>('ebook');
   const [quantity, setQuantity] = useState(1);
@@ -124,6 +125,16 @@ export default function BookDetailPage() {
           if (bookData.format === 'PHYSICAL') setSelectedFormat('physical');
           else if (bookData.format === 'DIGITAL') setSelectedFormat('ebook');
           else if (bookData.format === 'BOTH') setSelectedFormat('hybrid');
+
+          // Ghi nhận tương tác xem sách chi tiết cho cá nhân hóa
+          try {
+            personalizationService.recordBookInteraction(
+              bookData.id,
+              bookData.category?.id || bookData.categoryId,
+              bookData.category?.name || bookData.categoryName,
+              bookData.author?.name || bookData.authorName
+            );
+          } catch {}
         }
       })
       .catch(() => {
@@ -136,6 +147,15 @@ export default function BookDetailPage() {
               if (bookData.format === 'PHYSICAL') setSelectedFormat('physical');
               else if (bookData.format === 'DIGITAL') setSelectedFormat('ebook');
               else if (bookData.format === 'BOTH') setSelectedFormat('hybrid');
+
+              try {
+                personalizationService.recordBookInteraction(
+                  bookData.id,
+                  bookData.category?.id || bookData.categoryId,
+                  bookData.category?.name || bookData.categoryName,
+                  bookData.author?.name || bookData.authorName
+                );
+              } catch {}
             }
           })
           .catch((err) => console.warn('Could not fetch book detail:', err));
@@ -216,16 +236,19 @@ export default function BookDetailPage() {
     return () => window.clearInterval(timer);
   }, [flashSaleInfo?.endsAt]);
 
-  useEffect(() => {
+  const fetchBookReviews = useCallback(() => {
     const bookTargetId = realBook?.id || id;
     if (!bookTargetId) return;
 
     setIsLoadingReviews(true);
     reviewApi
-      .getBookReviews(bookTargetId, {
-        rating: reviewsFilterRating,
-        limit: 20,
-      })
+      .getBookReviews(
+        bookTargetId,
+        {
+          rating: reviewsFilterRating,
+          limit: 20,
+        }
+      )
       .then((res) => {
         if (res?.success && res.data) {
           setReviewsList(res.data.data || []);
@@ -241,6 +264,56 @@ export default function BookDetailPage() {
         setIsLoadingReviews(false);
       });
   }, [realBook?.id, id, reviewsFilterRating]);
+
+  const currentUserReview = useMemo(() => {
+    if (!user?.id) return null;
+    return reviewsList.find((r) => r.author?.id === user.id) || null;
+  }, [user?.id, reviewsList]);
+
+  // Prioritize placing user's own review at the top of the reviews list
+  const displayedReviews = useMemo(() => {
+    if (!currentUserReview) return reviewsList;
+    const myReview = reviewsList.find((r) => String(r.id) === String(currentUserReview.id));
+    if (!myReview) return reviewsList;
+    const others = reviewsList.filter((r) => String(r.id) !== String(currentUserReview.id));
+    return [myReview, ...others];
+  }, [reviewsList, currentUserReview]);
+
+  const isSellerOrAdmin = useMemo(() => {
+    if (!isLoggedIn || !user) return false;
+    return Boolean(
+      user.role === 'BUSINESS' ||
+      user.role === 'PLATFORM_ADMIN' ||
+      (user as any).role === 'SELLER' ||
+      Boolean((user as any).business) ||
+      Boolean(activeBusinessId)
+    );
+  }, [isLoggedIn, user, activeBusinessId]);
+
+  useEffect(() => {
+    fetchBookReviews();
+  }, [fetchBookReviews]);
+
+  // Real-time synchronization: cross-tab & local events
+  useEffect(() => {
+    const handleSync = (e?: any) => {
+      const targetId = realBook?.id || id;
+      if (!e?.detail?.bookId || e?.detail?.bookId === targetId) {
+        fetchBookReviews();
+      }
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'huki_review_sync') {
+        fetchBookReviews();
+      }
+    };
+    window.addEventListener('huki_review_created', handleSync);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('huki_review_created', handleSync);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchBookReviews, realBook?.id, id]);
 
   useEffect(() => {
     if (isLoggedIn && (storeInfo?.id || realBook?.businessId)) {
@@ -756,12 +829,20 @@ export default function BookDetailPage() {
                 {/* Rating & Sales */}
                 <div className="flex items-center gap-3 py-2 border-y border-[#e8e5df]/70 text-xs">
                   <div className="flex items-center gap-1 text-[#fea619]">
-                    <span className="material-symbols-outlined text-[15px] fill">star</span>
-                    <span className="font-bold text-[#17201f] text-xs">{book.rating || 5.0}</span>
-                    <span className="text-gray-400 text-[11px]">({(book.reviewCount || 1240).toLocaleString('vi-VN')} đánh giá)</span>
+                    <span className="material-symbols-outlined text-[15px] fill text-[#fea619]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                    <span className="font-bold text-[#17201f] text-xs">
+                      {reviewSummary && reviewSummary.totalReviews > 0
+                        ? reviewSummary.averageRating.toFixed(1)
+                        : realBook?.rating
+                        ? Number(realBook.rating).toFixed(1)
+                        : 'Chưa có'}
+                    </span>
+                    <span className="text-gray-400 text-[11px]">
+                      ({(reviewSummary ? reviewSummary.totalReviews : (reviewsList.length || realBook?.reviewCount || 0)).toLocaleString('vi-VN')} đánh giá)
+                    </span>
                   </div>
                   <span className="text-gray-200">|</span>
-                  <span className="text-gray-600 text-[11.5px]">Đã bán <strong className="text-[#17201f]">{(book.readCount || 8500).toLocaleString('vi-VN')}</strong> bản</span>
+                  <span className="text-gray-600 text-[11.5px]">Đã bán <strong className="text-[#17201f]">{(realBook?.soldCount || realBook?.readCount || 0).toLocaleString('vi-VN')}</strong> bản</span>
                 </div>
 
                 {/* 4 Specs Mini Grid */}
@@ -987,7 +1068,7 @@ export default function BookDetailPage() {
               </div>
               <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>
               <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs text-gray-500 flex-wrap">
-                <span className="flex items-center gap-1 text-[#fea619] font-bold"><span className="material-symbols-outlined text-sm fill">star</span>{publisherProfile.rating} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span></span>
+                <span className="flex items-center gap-1 text-[#fea619] font-bold"><span className="material-symbols-outlined text-sm fill" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>{publisherProfile.rating} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span></span>
                 <span className="text-gray-300">•</span><span>Phản hồi: <strong className="text-gray-800">{publisherProfile.responseRate}</strong></span>
                 <span className="text-gray-300">•</span><span>Bảo hộ: <strong className="text-[#006953]">HUKI DRM</strong></span>
               </div>
@@ -1056,7 +1137,7 @@ export default function BookDetailPage() {
           <div className="flex items-center border-b border-gray-200 px-4 sm:px-6 gap-6 sm:gap-8 overflow-x-auto text-xs sm:text-sm font-semibold">
             <button onClick={() => setActiveTab('intro')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'intro' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">menu_book</span>Giới Thiệu</button>
             <button onClick={() => setActiveTab('preview')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'preview' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">chrome_reader_mode</span>Đọc Thử Mẫu</button>
-            <button onClick={() => setActiveTab('reviews')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'reviews' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">star</span>Đánh Giá ({(book.reviewCount || 1240).toLocaleString('vi-VN')})</button>
+            <button onClick={() => setActiveTab('reviews')} className={`py-4 border-b-2 flex items-center gap-1.5 whitespace-nowrap transition-colors cursor-pointer ${activeTab === 'reviews' ? 'border-[#006953] text-[#006953] font-bold' : 'border-transparent text-gray-500 hover:text-gray-900'}`}><span className="material-symbols-outlined text-base">star</span>Đánh Giá ({((reviewSummary?.totalReviews ?? reviewsList.length) || 0).toLocaleString('vi-VN')})</button>
           </div>
 
           {activeTab === 'intro' && (
@@ -1152,28 +1233,39 @@ export default function BookDetailPage() {
                   <div className="text-center md:text-left shrink-0">
                     <div className="flex items-baseline gap-1.5 justify-center md:justify-start">
                       <span className="text-4xl sm:text-5xl font-black text-gray-900 font-editorial leading-none">
-                        {reviewSummary?.averageRating || book.rating || 5.0}
+                        {reviewSummary && reviewSummary.totalReviews > 0
+                          ? reviewSummary.averageRating.toFixed(1)
+                          : '0.0'}
                       </span>
                       <span className="text-sm text-gray-400 font-bold">/ 5.0</span>
                     </div>
                     <div className="flex text-[#fea619] justify-center md:justify-start mt-1.5 gap-0.5">
-                      {[1, 2, 3, 4, 5].map((i) => (
-                        <span key={i} className="material-symbols-outlined text-lg fill">
-                          star
-                        </span>
-                      ))}
+                      {[1, 2, 3, 4, 5].map((i) => {
+                        const avg = reviewSummary?.averageRating || 0;
+                        return (
+                          <span
+                            key={i}
+                            className={`material-symbols-outlined text-lg ${
+                              i <= Math.round(avg) && avg > 0 ? 'text-[#fea619]' : 'text-slate-200'
+                            }`}
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                          >
+                            star
+                          </span>
+                        );
+                      })}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
-                      {(reviewSummary?.totalReviews || reviewsList.length || book.reviewCount || 1240).toLocaleString('vi-VN')} đánh giá đã xác thực
+                      {((reviewSummary?.totalReviews ?? reviewsList.length) || 0).toLocaleString('vi-VN')} đánh giá đã xác thực
                     </div>
                   </div>
 
                   {/* Rating distribution progress bars */}
                   <div className="flex flex-col gap-1.5 border-l border-gray-200 pl-6 sm:pl-8 text-xs text-gray-600">
                     {[5, 4, 3, 2, 1].map((stars) => {
-                      const count = reviewSummary?.ratingDistribution?.[String(stars)] ?? (stars === 5 ? 85 : stars === 4 ? 12 : 3);
-                      const total = reviewSummary?.totalReviews || 100;
-                      const pct = Math.min(100, Math.round((count / (total || 1)) * 100));
+                      const count = reviewSummary?.ratingDistribution?.[String(stars)] ?? 0;
+                      const total = reviewSummary?.totalReviews || 0;
+                      const pct = total > 0 ? Math.min(100, Math.round((count / total) * 100)) : 0;
                       return (
                         <div key={stars} className="flex items-center gap-2.5">
                           <span className="w-9 font-semibold text-gray-700">{stars} sao</span>
@@ -1202,7 +1294,7 @@ export default function BookDetailPage() {
                     >
                       Tất cả
                     </button>
-                    {[5, 4, 3].map((r) => (
+                    {[5, 4, 3, 2, 1].map((r) => (
                       <button
                         key={r}
                         onClick={() => setReviewsFilterRating(r)}
@@ -1219,11 +1311,21 @@ export default function BookDetailPage() {
 
                   <button
                     type="button"
-                    onClick={() => setIsReviewModalOpen(true)}
-                    className="px-4 py-2.5 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
+                    onClick={() => setIsReviewModalOpen(!isReviewModalOpen)}
+                    className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0 ${
+                      currentUserReview ? 'bg-[#004d3d] hover:bg-[#003c30]' : 'bg-[#006953] hover:bg-[#00523c]'
+                    }`}
                   >
-                    <span className="material-symbols-outlined text-base">rate_review</span>
-                    <span>Viết Đánh Giá</span>
+                    <span className="material-symbols-outlined text-base">
+                      {isReviewModalOpen ? 'close' : currentUserReview ? 'edit_note' : 'rate_review'}
+                    </span>
+                    <span>
+                      {isReviewModalOpen
+                        ? 'Đóng Form'
+                        : currentUserReview
+                        ? 'Sửa Đánh Giá Của Bạn'
+                        : 'Viết Đánh Giá'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1233,28 +1335,47 @@ export default function BookDetailPage() {
                 isOpen={isReviewModalOpen}
                 onClose={() => setIsReviewModalOpen(false)}
                 onSuccess={() => {
-                  const bookTargetId = realBook?.id || id;
-                  if (bookTargetId) {
-                    reviewApi
-                      .getBookReviews(bookTargetId, {
-                        rating: reviewsFilterRating,
-                        limit: 20,
-                      })
-                      .then((res) => {
-                        if (res?.success && res.data) {
-                          setReviewsList(res.data.data || []);
-                          if (res.data.summary) setReviewSummary(res.data.summary);
-                        }
-                      })
-                      .catch(() => {});
-                  }
+                  fetchBookReviews();
                 }}
                 bookId={realBook?.id || id}
                 bookTitle={book.title}
                 bookCover={book.cover}
                 bookAuthor={book.author}
                 defaultFormat={selectedFormat === 'ebook' ? 'DIGITAL' : 'PHYSICAL'}
+                initialReview={currentUserReview}
               />
+
+              {/* User Already Reviewed Banner */}
+              {currentUserReview && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200/90 rounded-xl text-xs text-emerald-900 shadow-2xs">
+                  <div className="flex items-center gap-2.5">
+                    <span className="material-symbols-outlined text-emerald-700 text-xl shrink-0">check_circle</span>
+                    <div>
+                      <span className="font-bold text-emerald-800">Bạn đã đánh giá sản phẩm này ({currentUserReview.rating}★).</span>
+                      <span className="text-emerald-700 ml-1">Đánh giá đã được lưu vào hệ thống của tác phẩm.</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById('my-user-review');
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          el.classList.add('ring-2', 'ring-emerald-500', 'ring-offset-2');
+                          setTimeout(() => {
+                            el.classList.remove('ring-2', 'ring-emerald-500', 'ring-offset-2');
+                          }, 2500);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 font-bold text-emerald-800 hover:text-emerald-950 hover:bg-emerald-100 text-xs bg-white px-3 py-1.5 rounded-lg border border-emerald-300 shadow-2xs cursor-pointer active:scale-95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-sm">visibility</span>
+                      <span>Xem đánh giá</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Verified Purchase Info Banner */}
               <div className="flex items-center gap-2 p-3 bg-[#006953]/5 border border-[#006953]/15 rounded-xl text-xs text-[#006953]">
@@ -1273,58 +1394,45 @@ export default function BookDetailPage() {
                     </span>
                     <span>Đang tải đánh giá độc giả...</span>
                   </div>
-                ) : reviewsList.length > 0 ? (
-                  reviewsList.map((rev) => (
-                    <ReviewCard key={rev.id} review={rev} />
-                  ))
+                ) : displayedReviews.length > 0 ? (
+                  displayedReviews.map((rev) => {
+                    const isMyReview = currentUserReview && String(rev.id) === String(currentUserReview.id);
+                    return (
+                      <div
+                        key={rev.id}
+                        id={isMyReview ? 'my-user-review' : undefined}
+                        className={isMyReview ? 'rounded-2xl transition-all duration-300' : ''}
+                      >
+                        <ReviewCard
+                          review={rev}
+                          canReply={isSellerOrAdmin}
+                          isOwner={Boolean(isMyReview)}
+                          onEdit={isMyReview ? () => setIsReviewModalOpen(true) : undefined}
+                          onReplySuccess={() => fetchBookReviews()}
+                        />
+                      </div>
+                    );
+                  })
                 ) : (
-                  /* Canonical mock verified reviews fallback */
-                  [
-                    {
-                      id: 'mock-rev-1',
-                      author: {
-                        fullName: 'Nguyễn Văn An',
-                        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80&w=150',
-                      },
-                      rating: 5,
-                      title: 'Cuốn sách tuyệt vời, chất lượng in và bản quyền DRM rất an tâm',
-                      content: 'Sách rất hay và truyền cảm hứng thực sự. Đọc thử trực tuyến trên Web Reader rất mượt, giao diện chống mỏi mắt. Khi nhận sách in giấy xốp ngà cầm rất nhẹ tay, đóng gói cẩn thận chống sốc.',
-                      verifiedPurchase: true,
-                      format: 'PHYSICAL',
-                      createdAt: new Date(Date.now() - 2 * 86400000).toISOString(),
-                      helpfulCount: 24,
-                      isHelpful: false,
-                      images: [
-                        'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=300',
-                      ],
-                      replies: [
-                        {
-                          id: 'rep-1',
-                          content: 'Cảm ơn quý độc giả đã tin tưởng và ủng hộ ấn phẩm chính thức từ NXB. Chúc bạn có những phút giây đọc sách ý nghĩa!',
-                          business: { id: publisherProfile.id, name: publisherProfile.name },
-                          createdAt: new Date(Date.now() - 86400000).toISOString(),
-                        },
-                      ],
-                    },
-                    {
-                      id: 'mock-rev-2',
-                      author: {
-                        fullName: 'Trần Thị Mai',
-                        avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150',
-                      },
-                      rating: 5,
-                      title: 'Ebook tải về ứng dụng đọc liền, font chữ tiếng Việt rõ nét',
-                      content: 'Định dạng DRM đồng bộ nhanh chóng sang máy tính bảng. Tính năng highlight trích dẫn lưu lại vào sổ tay điện tử rất tiện để ôn tập kiến thức.',
-                      verifiedPurchase: true,
-                      format: 'DIGITAL',
-                      createdAt: new Date(Date.now() - 7 * 86400000).toISOString(),
-                      helpfulCount: 18,
-                      isHelpful: true,
-                      images: [],
-                    },
-                  ].map((rev) => (
-                    <ReviewCard key={rev.id} review={rev as any} />
-                  ))
+                  <div className="py-12 px-4 text-center bg-gray-50/50 rounded-2xl border border-dashed border-gray-200 flex flex-col items-center justify-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-emerald-50 text-[#006953] flex items-center justify-center">
+                      <span className="material-symbols-outlined text-2xl">rate_review</span>
+                    </div>
+                    <div className="max-w-md">
+                      <h4 className="text-sm font-bold text-gray-800 mb-1">Chưa có đánh giá nào</h4>
+                      <p className="text-xs text-gray-500 leading-relaxed">
+                        Sản phẩm này chưa có nhận xét từ độc giả. Hãy trở thành người đầu tiên đọc và để lại cảm nhận của bạn!
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewModalOpen(true)}
+                      className="mt-2 px-4 py-2 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">rate_review</span>
+                      <span>Viết Đánh Giá Đầu Tiên</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

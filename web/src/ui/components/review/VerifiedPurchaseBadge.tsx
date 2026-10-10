@@ -95,3 +95,5 @@ export default function VerifiedPurchaseBadge({
     </span>
   );
 }
+
+export { VerifiedPurchaseBadge };

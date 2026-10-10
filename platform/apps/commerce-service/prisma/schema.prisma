@@ -1176,3 +1176,72 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ============================================
+// AI AUDIOBOOK SUBSCRIPTIONS & REVENUE
+// ============================================
+
+model AiAudioPlan {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  price          Decimal  @db.Decimal(12, 2)
+  durationDays   Int      @map("duration_days")
+  description    String
+  voiceType      String   @map("voice_type")
+  isPopular      Boolean  @default(false) @map("is_popular")
+  status         String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  subscriptions  BookAiSubscription[]
+  transactions   AiRevenueTransaction[]
+
+  @@map("ai_audio_plans")
+}
+
+model BookAiSubscription {
+  id             String   @id @default(uuid())
+  bookId         String   @map("book_id")
+  bookTitle      String   @default("Tác phẩm Ebook") @map("book_title")
+  coverUrl       String?  @map("cover_url")
+  storeId        String   @map("store_id")
+  storeName      String   @default("Gian hàng HUKI") @map("store_name")
+  planId         String   @map("plan_id")
+  activatedAt    DateTime @default(now()) @map("activated_at")
+  expiresAt      DateTime @map("expires_at")
+  status         String   @default("ACTIVE") // ACTIVE, EXPIRED, CANCELLED
+  totalListens   Int      @default(0) @map("total_listens")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  plan           AiAudioPlan @relation(fields: [planId], references: [id])
+
+  @@unique([bookId, planId])
+  @@index([bookId])
+  @@index([storeId])
+  @@index([status])
+  @@map("book_ai_subscriptions")
+}
+
+model AiRevenueTransaction {
+  id             String   @id @default(uuid())
+  txnCode        String   @unique @map("txn_code")
+  storeId        String   @map("store_id")
+  storeName      String   @map("store_name")
+  bookId         String   @map("book_id")
+  bookTitle      String   @map("book_title")
+  planId         String?  @map("plan_id")
+  planName       String   @map("plan_name")
+  amount         Decimal  @db.Decimal(12, 2)
+  paymentMethod  String   @map("payment_method") // WALLET, PAYOS, QR_TRANSFER
+  status         String   @default("SUCCESS") // SUCCESS, REFUNDED
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  plan           AiAudioPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([storeId])
+  @@index([bookId])
+  @@index([status])
+  @@map("ai_revenue_transactions")
+}
+

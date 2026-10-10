@@ -11,7 +11,7 @@ describe("ReviewVerificationService", () => {
   const fetchMock = jest.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    fetchMock.mockReset();
     global.fetch = fetchMock;
   });
 
@@ -69,21 +69,16 @@ describe("ReviewVerificationService", () => {
   });
 
   it("verifies that a business actor belongs to the reviewed store", async () => {
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          data: {
-            id: "store-1",
-            name: "HUKI Store",
-            business: { id: "business-1" },
-          },
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ id: "member" }),
-      });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: {
+          id: "store-1",
+          name: "HUKI Store",
+          business: { id: "business-1" },
+        },
+      }),
+    });
 
     await expect(
       service.businessAccess("Bearer token", "actor-1", "store-1"),

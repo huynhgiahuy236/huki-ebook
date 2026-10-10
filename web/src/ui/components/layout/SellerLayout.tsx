@@ -73,7 +73,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
 
         {/* Main Content Area */}
         <div className={`min-w-0 flex-1 flex flex-col transition-all duration-300 ${isChatPage ? 'overflow-hidden min-h-0' : ''}`}>
-          <main id="main-content" className={`flex-1 min-w-0 p-3.5 sm:p-5 lg:p-6 ${isChatPage ? 'overflow-hidden min-h-0 flex flex-col' : ''}`}>
+          <main id="main-content" className={`flex-1 min-w-0 ${isChatPage ? 'overflow-hidden min-h-0 flex flex-col p-0' : 'p-3.5 sm:p-5 lg:p-6'}`}>
             {children}
           </main>
           {!isChatPage && !isProductFormPage && <SellerFooter />}

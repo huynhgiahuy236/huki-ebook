@@ -64,7 +64,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!rawUserData) return null;
     let userData = normalizeUserData(rawUserData);
     if (!userData) return null;
-    if (userData.role === 'PLATFORM_ADMIN' || userData.role === 'USER') return userData;
+    if (userData.role === 'PLATFORM_ADMIN') return userData;
     try {
       const bizRes = await businessApi.getMyBusiness();
       if (!bizRes.success || !bizRes.data) return userData;
@@ -91,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: bizRes.data.id,
             name: bizRes.data.name,
             ownerId: bizRes.data.ownerId,
+            status: bizRes.data.status,
             bankName: bizRes.data.bankName,
             bankAccountNumber: bizRes.data.bankAccountNumber,
             bankAccountHolderName: bizRes.data.bankAccountHolderName,
@@ -112,9 +113,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return {
         ...userData,
         business: {
+          ...bizRes.data,
           id: bizRes.data.id,
           name: bizRes.data.name,
           ownerId: bizRes.data.ownerId,
+          status: bizRes.data.status,
           currentMember: currentMember,
         },
         memberships: existingMemberships,

@@ -399,8 +399,8 @@ export default function ShopPage() {
         price: priceVal,
         originalPrice: originalPriceVal > priceVal ? originalPriceVal : undefined,
         discount: (rb as any).discountPercent ? `-${(rb as any).discountPercent}%` : '',
-        rating: Number((rb as any).rating || 5.0),
-        sales: (rb as any).sales ? String((rb as any).sales) : '1.8k',
+        rating: (rb as any).rating ? Number((rb as any).rating) : undefined,
+        sales: ((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) ? String((rb as any).sales ?? (rb as any).soldCount ?? (rb as any).soldQuantity) : undefined,
         cover: rb.coverUrl || rb.coverImage || '',
         isMock: false,
       };
@@ -603,7 +603,19 @@ export default function ShopPage() {
                 </Link>
               </>
             ) : (
-              <div className="relative flex-1 lg:flex-none">
+              <div className="flex items-center gap-2 flex-1 lg:flex-none">
+                <Link
+                  href={`/account/messages?shop=${encodeURIComponent(businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 rounded-xl border border-theme-border hover:border-[#003B2B] bg-white hover:bg-emerald-50 text-[#003B2B] font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                  title="Nhắn tin với gian hàng (Mở tab mới)"
+                >
+                  <span className="material-symbols-outlined text-base">chat</span>
+                  <span>Nhắn Tin</span>
+                  <span className="material-symbols-outlined text-xs opacity-70">open_in_new</span>
+                </Link>
+
                 {!isFollowed ? (
                   <button
                     type="button"
@@ -627,19 +639,21 @@ export default function ShopPage() {
 
                     {isFollowDropdownOpen && (
                       <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-theme-border p-1.5 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
-                        {/* Option 1: Nhắn tin (disabled) */}
-                        <div
-                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
-                          title="Chức năng nhắn tin đang được phát triển"
+                        {/* Option 1: Nhắn tin */}
+                        <Link
+                          href={`/account/messages?shop=${encodeURIComponent(businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setIsFollowDropdownOpen(false)}
+                          className="w-full px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-emerald-50 hover:text-emerald-800 flex items-center justify-between transition-colors mb-1"
+                          title="Nhắn tin với Shop (Mở tab mới)"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
-                            <span>Nhắn tin</span>
+                            <span className="material-symbols-outlined text-sm text-[#003B2B]">chat</span>
+                            <span>Nhắn tin với Shop</span>
                           </div>
-                          <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
-                            Sắp ra mắt
-                          </span>
-                        </div>
+                          <span className="material-symbols-outlined text-xs text-slate-400">open_in_new</span>
+                        </Link>
 
                         {/* Option 2: Hủy theo dõi */}
                         <button

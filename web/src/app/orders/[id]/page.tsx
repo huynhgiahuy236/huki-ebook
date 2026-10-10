@@ -492,16 +492,8 @@ export default function OrderDetailPage() {
               {(order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') && order.paymentMethod === 'ONLINE_PAYMENT' && (
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      const res = await paymentApi.initiatePayment(order.id);
-                      if (res.success && res.data) {
-                        setPayOsData(res.data);
-                      }
-                    } catch {
-                      // ignore
-                    }
-                    setShowPayOsModal(true);
+                  onClick={() => {
+                    router.push(`/checkout/payment/${order.id}`);
                   }}
                   className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer animate-pulse"
                 >
@@ -518,6 +510,16 @@ export default function OrderDetailPage() {
                 <span className="material-symbols-outlined text-base">print</span>
                 <span>In Biên Lai</span>
               </button>
+
+              {(order.status === 'COMPLETED' || order.status === 'DELIVERED') && (
+                <Link
+                  href={`/orders/${order.id}/review`}
+                  className="px-4 py-2 rounded-xl bg-[#006953] text-white text-xs font-bold hover:bg-[#00523c] transition-all shadow-xs inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-base">rate_review</span>
+                  <span>Đánh Giá Sản Phẩm</span>
+                </Link>
+              )}
 
               {order.status !== 'CANCELLED' && order.status !== 'COMPLETED' && order.status !== 'SHIPPED' && (
                 <button

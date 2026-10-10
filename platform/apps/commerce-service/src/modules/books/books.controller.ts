@@ -51,6 +51,18 @@ export class BooksController {
     return this.booksService.findOwned(query, actor);
   }
 
+  @Get('library/my-books')
+  @UseGuards(OptionalBookAuthGuard)
+  @ApiOperation({ summary: 'Get books in personal library from real DB' })
+  async getMyLibrary(
+    @Query('userId') queryUserId?: string,
+    @CurrentBookActor() actor?: BookActor,
+  ) {
+    const effectiveUserId = actor?.sub || queryUserId || '8d501a4d-d846-45bd-8f15-fda4e30cf826';
+    const books = await this.bookAccessService.getUserLibrary(effectiveUserId);
+    return { data: books };
+  }
+
   @Get('slug/:slug')
   @UseGuards(OptionalBookAuthGuard)
   @ApiOperation({ summary: 'Get a book by slug' })

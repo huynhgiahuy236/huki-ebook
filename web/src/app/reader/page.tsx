@@ -111,6 +111,7 @@ function ReaderContent() {
           bookTitle={currentBook.title}
           bookAuthor={currentBook.author}
           bookId={currentBook.id}
+          pdfUrl={currentBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf'}
         />
 
         {/* Main Reading Viewport & Drawer */}

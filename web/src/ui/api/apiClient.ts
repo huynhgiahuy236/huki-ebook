@@ -259,6 +259,22 @@ const BUSINESS_ERROR_TRANSLATIONS: Record<string, { title: string; message: stri
     title: 'Không tìm thấy sách',
     message: 'Cuốn sách bạn đang tìm không tồn tại hoặc đã ngừng phát hành.',
   },
+  BOOK_SLUG_EXISTS: {
+    title: 'Tên sách hoặc đường dẫn đã tồn tại',
+    message: 'Tên sách hoặc đường dẫn (URL) này đã được sử dụng trong gian hàng. Vui lòng thay đổi tên hoặc đường dẫn khác.',
+  },
+  AUTHOR_NOT_FOUND: {
+    title: 'Tác giả không tồn tại',
+    message: 'Tác giả được chọn không tồn tại hoặc chưa được kích hoạt trong hệ thống.',
+  },
+  PUBLISHER_NOT_FOUND: {
+    title: 'Nhà xuất bản không tồn tại',
+    message: 'Nhà xuất bản được chọn không tồn tại hoặc chưa được kích hoạt trong hệ thống.',
+  },
+  BOOK_FORMAT_NOT_AVAILABLE: {
+    title: 'Định dạng sách chưa đầy đủ',
+    message: 'Thông tin chi tiết về định dạng sách (Sách giấy hoặc Ebook DRM) chưa được cấu hình đầy đủ.',
+  },
   BOOK_OUT_OF_STOCK: {
     title: 'Sản phẩm đã hết hàng',
     message: 'Cuốn sách này tạm thời đã hết hàng trong kho. Vui lòng chọn tác phẩm khác.',

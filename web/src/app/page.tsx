@@ -5,16 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/ui/context/CartContext";
 import { useToast } from "@/ui/context/ToastContext";
+import { useAuth } from "@/ui/context/AuthContext";
 import { catalogApi, type BookData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
 import BookCard from "@/ui/components/common/BookCard";
-import { PersonalizedForYouSection, DailyRecommendationsSection } from "@/ui/components/recommendations";
+import { personalizationService } from "@/ui/services/personalizationService";
 
 export default function HomePage() {
   const router = useRouter();
   const { addToCart } = useCart();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   // Real Books from Backend Commerce Database
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
@@ -122,6 +124,8 @@ export default function HomePage() {
     );
     return () => clearInterval(timer);
   }, []);
+
+
 
   // Hero Slider State & Autoplay
   const [activeHeroSlide, setActiveHeroSlide] = useState(0);
@@ -235,12 +239,6 @@ export default function HomePage() {
   const [authorIndex, setAuthorIndex] = useState(0);
   const [isAuthorHovered, setIsAuthorHovered] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-
-  // AI Prompt State
-  const [aiInput, setAiInput] = useState(
-    "Tôi muốn tìm sách giúp cải thiện sự tập trung và làm việc sâu mà không bị kiệt sức...",
-  );
-  const [newsletterEmail, setNewsletterEmail] = useState("");
 
   // 1. VOUCHER LIST (Real from Backend Promotion Service + Demo items)
   const voucherList = useMemo(() => {
@@ -469,150 +467,50 @@ export default function HomePage() {
     seconds: String(flashSeconds % 60).padStart(2, "0"),
   };
 
-  // 3. BESTSELLERS (Real mapped items or curated mock items with isMock)
+  // 3. BESTSELLERS (Real mapped items strictly from DB - NO mock data, NO fake sales/ratings)
   const allBestsellers = useMemo(() => {
-    if (realBooks.length >= 6) {
-      return realBooks.slice(0, 12).map((b, idx) => {
-        const salePrice = b.price || 125000;
-        const origPrice = b.originalPrice && b.originalPrice > salePrice ? b.originalPrice : Math.round(salePrice * 1.3);
-        const discountPct = Math.round(((origPrice - salePrice) / origPrice) * 100);
+    if (!realBooks || realBooks.length === 0) return [];
 
-        return {
-          id: b.id,
-          bookId: b.id,
-          storeId: b.storeId || (b as any)?.store_id || b.businessId || (b as any)?.business_id,
-          businessId: b.businessId || (b as any)?.business_id || b.storeId || (b as any)?.store_id,
-          book: b,
-          rank: idx + 1,
-          title: b.title,
-          author: b.author?.name || "Tác giả HUKI",
-          publisher: b.publisher?.name || "HUKI Publisher",
-          cover: b.coverUrl || b.coverImage || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-          price: salePrice,
-          originalPrice: origPrice,
-          discount: `-${discountPct}%`,
-          discountPercent: discountPct,
-          rating: 5.0,
-          sales: `${350 - idx * 20}`,
-          category: b.format === "DIGITAL" ? "ebook" : "paper",
-          format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
-          formatType: b.format === "DIGITAL" ? "ebook" : "physical",
-          isMock: false,
-        };
-      });
-    }
+    // Sắp xếp theo lượt bán thật (soldCount) từ DB giảm dần
+    const sortedBySales = [...realBooks].sort((a, b) => {
+      const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
+      const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
+      return salesB - salesA;
+    });
 
-    // Mock bestseller items
-    return [
-      {
-        id: "mock-bs-1",
-        rank: 1,
-        title: "Nhà Giả Kim (The Alchemist)",
-        author: "Paulo Coelho",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 64000,
-        originalPrice: 80000,
-        discount: "-20%",
-        discountPercent: 20,
-        rating: 5.0,
-        sales: "38.2k",
-        category: "paper",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-bs-2",
-        rank: 2,
-        title: "Atomic Habits – Thay Đổi Tí Hon",
-        author: "James Clear",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 149000,
-        originalPrice: 189000,
-        discount: "-21%",
-        discountPercent: 21,
-        rating: 4.9,
-        sales: "15.4k",
-        category: "paper",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-bs-3",
-        rank: 3,
-        title: "Tâm Lý Học Về Tiền",
-        author: "Morgan Housel",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 149000,
-        originalPrice: 189000,
-        discount: "-21%",
-        discountPercent: 21,
-        rating: 4.9,
-        sales: "19.8k",
-        category: "paper",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-bs-4",
-        rank: 4,
-        title: "Tôi Thấy Hoa Vàng Trên Cỏ Xanh",
-        author: "Nguyễn Nhật Ánh",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 84000,
-        originalPrice: 105000,
-        discount: "-20%",
-        discountPercent: 20,
-        rating: 4.9,
-        sales: "12.6k",
-        category: "paper",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-bs-5",
-        rank: 5,
-        title: "Dám Bị Ghét (Bản Quyền Số)",
-        author: "Kishimi Ichiro",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 59000,
-        originalPrice: 89000,
-        discount: "-33%",
-        discountPercent: 33,
-        rating: 4.8,
-        sales: "17.5k",
-        category: "ebook",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-bs-6",
-        rank: 6,
-        title: "1984 – George Orwell",
-        author: "George Orwell",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 79000,
-        originalPrice: 99000,
-        discount: "-20%",
-        discountPercent: 20,
-        rating: 4.8,
-        sales: "9.8k",
-        category: "paper",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-    ];
+    return sortedBySales.slice(0, 18).map((b, idx) => {
+      const salePrice = b.price || 0;
+      const origPrice = b.originalPrice && b.originalPrice > salePrice ? b.originalPrice : undefined;
+      const discountPct = origPrice
+        ? Math.round(((origPrice - salePrice) / origPrice) * 100)
+        : (b.discountPercent || undefined);
+      const realSales = Number(b.soldCount ?? (b as any).sales ?? 0);
+      const realRating = Number(b.rating ?? (b as any).averageRating ?? 0);
+
+      return {
+        id: b.id,
+        bookId: b.id,
+        storeId: b.storeId || (b as any)?.store_id || b.businessId || (b as any)?.business_id,
+        businessId: b.businessId || (b as any)?.business_id || b.storeId || (b as any)?.store_id,
+        book: b,
+        rank: idx + 1,
+        title: b.title,
+        author: b.author?.name || (typeof b.author === "string" ? b.author : "Tác giả HUKI"),
+        publisher: b.publisher?.name || (typeof b.publisher === "string" ? b.publisher : "HUKI Publisher"),
+        cover: b.coverUrl || b.coverImage || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
+        price: salePrice,
+        originalPrice: origPrice,
+        discount: discountPct ? `-${discountPct}%` : undefined,
+        discountPercent: discountPct,
+        rating: realRating,
+        sales: realSales,
+        soldCount: realSales,
+        category: b.format === "DIGITAL" ? "ebook" : "paper",
+        format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
+        formatType: b.format === "DIGITAL" ? "ebook" : "physical",
+        isMock: false,
+      };
+    });
   }, [realBooks]);
 
   const filteredBestsellers = useMemo(() => {
@@ -620,6 +518,8 @@ export default function HomePage() {
     if (bestsellerTab === "ebook") return allBestsellers.filter((b) => b.category === "ebook");
     return allBestsellers;
   }, [bestsellerTab, allBestsellers]);
+
+
 
   // 4. OFFICIAL STORES
   const officialStores = useMemo(
@@ -1073,58 +973,41 @@ export default function HomePage() {
     ].slice(0, 6);
   }, [realBooks]);
 
-  // 6. GỢI Ý HÔM NAY (24 SÁCH - Real books have isMock=false, padded mock items have isMock=true)
+  // 6. GỢI Ý HÔM NAY (Section 11) - 100% Real Books from DB, Personalized Shopee-style, Zero Mock!
+  const [personalizationTick, setPersonalizationTick] = useState(0);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setPersonalizationTick((prev) => prev + 1);
+    };
+    window.addEventListener('huki:personalization_updated', handleUpdate);
+    window.addEventListener('huki:search_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('huki:personalization_updated', handleUpdate);
+      window.removeEventListener('huki:search_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
   const suggestedBooks = useMemo(() => {
-    const realItems = realBooks.map((b) => ({ ...b, isMock: false }));
-    if (realItems.length >= 24) {
-      return realItems.slice(0, 24);
-    }
+    if (!realBooks || realBooks.length === 0) return [];
 
-    const mockTitles = [
-      { title: "Nhà Giả Kim", author: "Paulo Coelho", price: 64000, orig: 80000, cat: "van-hoc" },
-      { title: "Atomic Habits – Thay Đổi Tí Hon", author: "James Clear", price: 149000, orig: 189000, cat: "ky-nang" },
-      { title: "Tâm Lý Học Về Tiền", author: "Morgan Housel", price: 149000, orig: 189000, cat: "kinh-te" },
-      { title: "Tôi Thấy Hoa Vàng Trên Cỏ Xanh", author: "Nguyễn Nhật Ánh", price: 84000, orig: 105000, cat: "van-hoc" },
-      { title: "Dám Bị Ghét", author: "Kishimi Ichiro", price: 59000, orig: 89000, cat: "tam-ly" },
-      { title: "1984 – Kỷ Nguyên Giám Sát", author: "George Orwell", price: 79000, orig: 99000, cat: "van-hoc" },
-      { title: "Cây Cam Ngọt Của Tôi", author: "José Mauro", price: 86000, orig: 108000, cat: "van-hoc" },
-      { title: "Chiến Binh Cầu Vồng", author: "Andrea Hirata", price: 94000, orig: 119000, cat: "van-hoc" },
-      { title: "Rừng Na Uy", author: "Haruki Murakami", price: 112000, orig: 140000, cat: "van-hoc" },
-      { title: "Hoàng Tử Bé", author: "Antoine de Saint-Exupéry", price: 45000, orig: 60000, cat: "thieu-nhi" },
-      { title: "Từ Tốt Đến Vĩ Đại", author: "Jim Collins", price: 148000, orig: 185000, cat: "kinh-te" },
-      { title: "Khởi Nghiệp Tinh Gọn", author: "Eric Ries", price: 136000, orig: 170000, cat: "kinh-te" },
-      { title: "Principles – Nguyên Tắc", author: "Ray Dalio", price: 225000, orig: 290000, cat: "kinh-te" },
-      { title: "Nhà Đầu Tư Thông Minh", author: "Benjamin Graham", price: 189000, orig: 245000, cat: "kinh-te" },
-      { title: "Tư Duy Nhanh Và Chậm", author: "Daniel Kahneman", price: 195000, orig: 260000, cat: "tam-ly" },
-      { title: "AI 2041: 10 Viễn Cảnh Tương Lai", author: "Kai-Fu Lee", price: 172000, orig: 215000, cat: "cong-nghe" },
-      { title: "Chip War: Cuộc Chiến Vi Mạch", author: "Chris Miller", price: 195000, orig: 245000, cat: "cong-nghe" },
-      { title: "Kỷ Nguyên AI", author: "Henry Kissinger", price: 145000, orig: 180000, cat: "cong-nghe" },
-      { title: "Clean Code", author: "Robert C. Martin", price: 210000, orig: 260000, cat: "cong-nghe" },
-      { title: "Sapiens: Lược Sử Loài Người", author: "Yuval Noah Harari", price: 135000, orig: 220000, cat: "lich-su" },
-      { title: "Homo Deus: Lược Sử Tương Lai", author: "Yuval Noah Harari", price: 145000, orig: 230000, cat: "lich-su" },
-      { title: "Hiểu Về Trái Tim", author: "Thích Minh Niệm", price: 85000, orig: 145000, cat: "tam-ly" },
-      { title: "Không Diệt Không Sinh Đừng Sợ Hãi", author: "Thích Nhất Hạnh", price: 72000, orig: 98000, cat: "tam-ly" },
-      { title: "Muôn Kiếp Nhân Sinh", author: "Nguyên Phong", price: 128000, orig: 168000, cat: "tam-linh" },
-    ];
+    // Tự động phân tích & chấm điểm theo Bé Cáo AI, Lịch sử Search, Onboarding và tương tác xem sách
+    const personalized = personalizationService.getPersonalizedRecommendations(realBooks as any, {
+      limit: 24,
+    });
 
-    const mockItems = mockTitles.map((item, idx) => ({
-      id: `mock-sug-${idx + 1}`,
-      title: item.title,
-      author: item.author,
-      publisher: "HUKI Publisher",
-      cover: `https://images.unsplash.com/photo-${1544716278 + (idx % 10) * 1000}-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80`,
-      price: item.price,
-      originalPrice: item.orig,
-      discount: `-${Math.round(((item.orig - item.price) / item.orig) * 100)}%`,
-      rating: 5.0,
-      sales: `${100 + idx * 45}`,
-      format: "Sách giấy",
-      formatType: "physical",
-      isMock: true,
+    return personalized.map((b) => ({
+      ...b,
+      format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
+      formatType: b.format === "DIGITAL" ? "ebook" : "physical",
+      rating: Number(b.rating ?? (b as any).averageRating ?? 0),
+      sales: Number(b.soldCount ?? (b as any).sales ?? 0),
+      soldCount: Number(b.soldCount ?? (b as any).sales ?? 0),
+      isMock: false,
     }));
-
-    return [...realItems, ...mockItems].slice(0, 24);
-  }, [realBooks]);
+  }, [realBooks, personalizationTick]);
 
   // 7. AUTHORS LIST
   const authorsList = useMemo(
@@ -1804,11 +1687,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* =========================================================================
-          PERSONALIZED RECOMMENDATIONS (For You + Daily)
-      ========================================================================= */}
-      <PersonalizedForYouSection limit={10} />
-      <DailyRecommendationsSection limit={12} />
 
       {/* =========================================================================
           SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS)
@@ -2551,170 +2429,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* =========================================================================
-          SECTION 14: BANNER TUYỂN DỤNG SELLER / NXB
-      ========================================================================= */}
-      <section className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 rounded-2xl p-5 sm:p-7 text-white border border-emerald-500/20 flex flex-col md:flex-row items-center justify-between gap-5 shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-[28px]">
-              storefront
-            </span>
-          </div>
-          <div>
-            <span className="bg-emerald-400/20 text-emerald-300 text-[10.5px] uppercase font-bold px-2 py-0.5 rounded">
-              DÀNH CHO TÁC GIẢ &amp; NHÀ SÁCH
-            </span>
-            <h3 className="text-[17px] sm:text-[19px] font-bold text-white mt-1">
-              Trở Thành Người Bán Trên HUKI EBOOK
-            </h3>
-            <p className="text-[12px] text-white/80 mt-0.5 max-w-xl">
-              Dễ dàng mở gian hàng phân phối Sách Giấy &amp; Ebook có bảo vệ bản
-              quyền DRM. Tiếp cận hơn 250.000 độc giả trung thành.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-emerald-200">
-              <span>✔ Miễn phí mở shop</span>
-              <span>•</span>
-              <span>✔ Bảo vệ DRM chống sao chép</span>
-              <span>•</span>
-              <span>✔ Rút tiền linh hoạt 24/7</span>
-            </div>
-          </div>
-        </div>
-
-        <Link
-          href="/seller/register"
-          className="px-5 py-2.5 rounded-xl bg-[#003b2b] hover:bg-[#00241a] text-white text-[13px] font-bold transition-all shrink-0 shadow-sm flex items-center gap-1.5 cursor-pointer"
-        >
-          <span>Đăng ký bán hàng ngay</span>
-          <span className="material-symbols-outlined text-[16px]">
-            arrow_forward
-          </span>
-        </Link>
-      </section>
-
-      {/* =========================================================================
-          SECTION 15: TRỢ LÝ AI GỢI Ý SÁCH & BẢN TIN ƯU ĐÃI
-      ========================================================================= */}
-      <section className="bg-white rounded-2xl p-6 sm:p-7 border border-emerald-900/10 shadow-2xs flex flex-col items-center gap-3 text-center">
-        <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#003B2B] flex items-center justify-center">
-          <span className="material-symbols-outlined text-[24px]">
-            smart_toy
-          </span>
-        </div>
-        <h3 className="text-[17px] sm:text-[19px] font-bold text-gray-900">
-          Chưa Biết Nên Đọc Gì Hôm Nay? Hãy Để HUKI AI Lắng Nghe Bạn
-        </h3>
-        <p className="text-[12.5px] text-gray-500 max-w-lg">
-          Nhập tâm trạng, khó khăn hiện tại hay chủ đề bạn tò mò, AI sẽ phân
-          tích và gợi ý chính xác cuốn sách dành riêng cho bạn.
-        </p>
-
-        <div className="w-full max-w-xl mt-1 bg-gray-50 border border-gray-200 rounded-xl p-1.5 flex flex-col sm:flex-row items-center gap-1.5 focus-within:border-[#003B2B] transition-all">
-          <div className="flex-1 flex items-center px-2.5 w-full">
-            <span className="material-symbols-outlined text-[#003B2B] text-[18px] mr-2">
-              auto_awesome
-            </span>
-            <input
-              type="text"
-              value={aiInput}
-              onChange={(e) => setAiInput(e.target.value)}
-              className="w-full bg-transparent border-none text-gray-900 text-[12.5px] focus:outline-none"
-            />
-          </div>
-          <button
-            onClick={() => {
-              showToast(
-                "HUKI AI đang phân tích dữ liệu độc giả và gợi ý sách...",
-                "info",
-              );
-              router.push(`/books?q=${encodeURIComponent(aiInput)}`);
-            }}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg bg-[#003B2B] text-white text-[12px] font-semibold hover:bg-[#00241A] flex items-center justify-center gap-1 transition-colors shrink-0 cursor-pointer"
-          >
-            <span>Gợi ý thông minh</span>
-            <span className="material-symbols-outlined text-[16px]">
-              magic_button
-            </span>
-          </button>
-        </div>
-
-        <div className="flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-gray-500 mt-1">
-          <span>Ví dụ câu hỏi hay:</span>
-          <span
-            onClick={() => setAiInput("Sách về tâm lý vượt qua trì hoãn")}
-            className="bg-gray-100 px-2 py-0.5 rounded-full cursor-pointer hover:text-[#003B2B]"
-          >
-            &ldquo;Sách vượt qua trì hoãn&rdquo;
-          </span>
-          <span
-            onClick={() => setAiInput("Tiểu thuyết trinh thám ly kỳ cuối tuần")}
-            className="bg-gray-100 px-2 py-0.5 rounded-full cursor-pointer hover:text-[#003B2B]"
-          >
-            &ldquo;Trinh thám ly kỳ&rdquo;
-          </span>
-          <span
-            onClick={() =>
-              setAiInput("Sách nhập môn đầu tư chứng khoán cho người mới")
-            }
-            className="bg-gray-100 px-2 py-0.5 rounded-full cursor-pointer hover:text-[#003B2B]"
-          >
-            &ldquo;Nhập môn đầu tư&rdquo;
-          </span>
-        </div>
-      </section>
-
-      {/* Newsletter Strip */}
-      <section
-        style={{
-          background:
-            "linear-gradient(135deg, var(--theme-hero-from, #00382B) 0%, var(--theme-hero-via, #004D38) 100%)",
-        }}
-        className="rounded-2xl text-white p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-5 border border-white/15 shadow-sm"
-      >
-        <div className="max-w-md">
-          <div className="flex items-center gap-1.5 text-emerald-300 text-[11px] font-bold uppercase tracking-wider mb-1">
-            <span className="material-symbols-outlined text-[16px]">mail</span>{" "}
-            BẢN TIN SALON VĂN HỌC
-          </div>
-          <h3 className="text-lg sm:text-xl font-bold text-white">
-            Nhận Ngay Mã Ưu Đãi 20% Cho Đơn Hàng Đầu Tiên
-          </h3>
-          <p className="text-[12px] text-white/85 mt-1 leading-relaxed">
-            Cập nhật review sách từ các dịch giả uy tín, danh mục sách tặng miễn
-            phí và vé tham dự giao lưu tác giả.
-          </p>
-        </div>
-
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (newsletterEmail.trim()) {
-              showToast(
-                `Đã gửi mã giảm 20% tới ${newsletterEmail}! Vui lòng kiểm tra hộp thư.`,
-                "success",
-              );
-              setNewsletterEmail("");
-            }
-          }}
-          className="w-full md:w-auto flex flex-col sm:flex-row items-center gap-2"
-        >
-          <input
-            type="email"
-            required
-            value={newsletterEmail}
-            onChange={(e) => setNewsletterEmail(e.target.value)}
-            placeholder="Nhập địa chỉ email của bạn..."
-            className="w-full sm:w-[280px] px-3.5 py-2.5 rounded-xl bg-white text-gray-900 text-[13px] focus:outline-none border-none shadow-sm placeholder:text-gray-500"
-          />
-          <button
-            type="submit"
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-[#003b2b] hover:bg-[#00241a] text-white text-[13px] font-bold transition-all shrink-0 shadow-sm cursor-pointer"
-          >
-            Đăng ký ngay
-          </button>
-        </form>
-      </section>
     </div>
   );
 }

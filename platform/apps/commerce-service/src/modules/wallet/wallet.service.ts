@@ -11,6 +11,7 @@ import { WalletTransactionType, Wallet } from '../../../prisma/generated/client'
 import { BookActor } from '../../common/book-auth.guard';
 
 import { WalletTransactionQueryDto } from './dto/wallet.dto';
+import { getSellerScope, resolveStoreAndBusinessIds } from '../../common/seller-scope.util';
 
 export interface WalletTransactionRef {
   referenceType?: string;
@@ -122,8 +123,33 @@ export class WalletService {
       });
     }
 
+    // Resolve candidate store & business IDs
+    const resolvedIds = await resolveStoreAndBusinessIds(storeId, actor);
+    const candidateStoreIds = new Set<string>(resolvedIds);
+    let scope: any = null;
+    try {
+      scope = await getSellerScope(actor);
+      scope?.storeIds?.forEach((id: string) => candidateStoreIds.add(id));
+      scope?.businessIds?.forEach((id: string) => candidateStoreIds.add(id));
+    } catch {
+      // ignore
+    }
+    const storeIdList = Array.from(candidateStoreIds);
+
+    const candidateWallets = await this.prisma.wallet.findMany({
+      where: { storeId: { in: storeIdList } },
+    });
+    const walletIds = candidateWallets.map((w) => w.id);
+    if (!walletIds.includes(wallet.id)) walletIds.push(wallet.id);
+
     if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
-      if (wallet.ownerUserId !== actor.sub && (actor as any)?.storeId !== wallet.storeId) {
+      const isAuthorized =
+        scope?.isPlatformAdmin ||
+        wallet.ownerUserId === actor.sub ||
+        scope?.ownerUserIds?.includes(wallet.ownerUserId) ||
+        storeIdList.includes(wallet.storeId) ||
+        storeIdList.includes(storeId);
+      if (!isAuthorized) {
         throw new ForbiddenException('Access denied: Unauthorized store wallet');
       }
     }
@@ -131,7 +157,7 @@ export class WalletService {
     // Sync available balance from delivered/completed orders in DB with proper escrow release checks
     if (this.prisma.sellerOrder) {
       let sellerOrders = (await this.prisma.sellerOrder.findMany({
-        where: { storeId },
+        where: { storeId: { in: storeIdList } },
         include: {
           items: true,
           order: {
@@ -231,7 +257,7 @@ export class WalletService {
 
       // Check debited/withdrawn amount
       const transactions = await this.prisma.walletTransaction.findMany({
-        where: { walletId: wallet.id },
+        where: { walletId: { in: walletIds } },
       });
 
       const totalWithdrawn = transactions
@@ -283,59 +309,155 @@ export class WalletService {
       });
     }
 
+    // Resolve candidate store IDs and wallets
+    const resolvedIds = await resolveStoreAndBusinessIds(storeId, actor);
+    const candidateStoreIds = new Set<string>(resolvedIds);
+    let scope: any = null;
+    try {
+      scope = await getSellerScope(actor);
+      scope?.storeIds?.forEach((id: string) => candidateStoreIds.add(id));
+      scope?.businessIds?.forEach((id: string) => candidateStoreIds.add(id));
+    } catch {
+      // ignore
+    }
+    const storeIdList = Array.from(candidateStoreIds);
+
+    const candidateWallets = await this.prisma.wallet.findMany({
+      where: { storeId: { in: storeIdList } },
+    });
+    const walletIds = candidateWallets.map((w) => w.id);
+    if (!walletIds.includes(wallet.id)) walletIds.push(wallet.id);
+
     if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
-      if (wallet.ownerUserId !== actor.sub && (actor as any)?.storeId !== wallet.storeId) {
+      const isAuthorized =
+        scope?.isPlatformAdmin ||
+        wallet.ownerUserId === actor.sub ||
+        scope?.ownerUserIds?.includes(wallet.ownerUserId) ||
+        storeIdList.includes(wallet.storeId) ||
+        storeIdList.includes(storeId);
+      if (!isAuthorized) {
         throw new ForbiddenException('Access denied: Unauthorized store wallet');
       }
     }
 
-    // Ensure all delivered items have transaction records in DB
+    // Ensure all orders have transaction audit records in DB
     if (this.prisma.sellerOrder) {
-      let deliveredOrders = (await this.prisma.sellerOrder.findMany({
+      const sellerOrders = (await this.prisma.sellerOrder.findMany({
         where: {
-          storeId,
-          status: { in: ['DELIVERED', 'COMPLETED'] },
+          storeId: { in: storeIdList },
+          status: { notIn: ['CANCELLED'] },
         },
-        include: { items: true, order: true },
-        orderBy: { completedAt: 'asc' },
+        include: {
+          items: {
+            include: {
+              book: {
+                select: {
+                  coverUrl: true,
+                },
+              },
+            },
+          },
+          order: {
+            include: {
+              statusHistory: { orderBy: { createdAt: 'desc' } },
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
       })) || [];
 
-
       const existingTxs = await this.prisma.walletTransaction.findMany({
-        where: { walletId: wallet.id },
+        where: { walletId: { in: walletIds } },
       });
       const loggedItemIds = new Set(existingTxs.map((t) => t.referenceId).filter(Boolean));
 
       let currentRunning = existingTxs.reduce((sum, t) => {
-        return t.type === 'CREDIT_AVAILABLE' ? sum + t.amount.toNumber() : sum - t.amount.toNumber();
+        return t.type === 'CREDIT_AVAILABLE' || t.type === 'MOVE_PENDING_TO_AVAILABLE'
+          ? sum + t.amount.toNumber()
+          : t.type === 'DEBIT_AVAILABLE'
+          ? sum - t.amount.toNumber()
+          : sum;
       }, 0);
 
-      for (const so of deliveredOrders) {
+      const now = Date.now();
+
+      for (const so of sellerOrders) {
+        const order = so.order;
+        const histories = order?.statusHistory || [];
+        const deliveredHistory = histories.find(
+          (h) => (h.toStatus === 'DELIVERED' || h.toStatus === 'COMPLETED') && (!h.sellerOrderId || h.sellerOrderId === so.id),
+        );
+        const deliveredTimestamp = so.completedAt
+          ? new Date(so.completedAt).getTime()
+          : deliveredHistory
+          ? new Date(deliveredHistory.createdAt).getTime()
+          : 0;
+
+        const isPhysicalDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED' || !!so.completedAt;
+        const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
+        const isBuyerConfirmed = histories.some(
+          (h) => (h.toStatus === 'BUYER_CONFIRMED' || h.toStatus === 'ORDER_CONFIRMED' || (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) && (!h.sellerOrderId || h.sellerOrderId === so.id),
+        );
+        const isReleased = !so.requiresShipping || (isPhysicalDelivered && (isBuyerConfirmed || isReturnWindowPassed));
+
         for (const item of so.items) {
           if (!loggedItemIds.has(item.id)) {
             const subtotal = Number(item.subtotal) || 0;
             const fee = Math.round(subtotal * 0.05);
             const net = subtotal - fee;
-            const prev = currentRunning;
-            currentRunning += net;
 
-            await this.prisma.walletTransaction.create({
-              data: {
-                walletId: wallet.id,
-                type: 'CREDIT_AVAILABLE',
-                amount: new Decimal(net),
-                availableBefore: new Decimal(prev),
-                availableAfter: new Decimal(currentRunning),
-                pendingBefore: new Decimal(0),
-                pendingAfter: new Decimal(0),
-                frozenBefore: new Decimal(0),
-                frozenAfter: new Decimal(0),
-                referenceType: 'ORDER_ITEM',
-                referenceId: item.id,
-                description: `Cộng doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${so.order?.code || so.code || 'N/A'} (95% thực nhận sau phí sàn 5%)`,
-                createdAt: so.completedAt || new Date(),
-              },
-            });
+            if (isReleased) {
+              const prev = currentRunning;
+              currentRunning += net;
+
+              await this.prisma.walletTransaction.create({
+                data: {
+                  walletId: wallet.id,
+                  type: 'CREDIT_AVAILABLE',
+                  amount: new Decimal(net),
+                  availableBefore: new Decimal(prev),
+                  availableAfter: new Decimal(currentRunning),
+                  pendingBefore: new Decimal(0),
+                  pendingAfter: new Decimal(0),
+                  frozenBefore: new Decimal(0),
+                  frozenAfter: new Decimal(0),
+                  referenceType: 'ORDER_ITEM',
+                  referenceId: item.id,
+                  description: `Giải ngân doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${order?.code || so.code || 'N/A'} (95% thực nhận sau phí sàn 5%)`,
+                  metadata: {
+                    coverUrl: (item as any).book?.coverUrl || null,
+                    bookTitle: item.bookTitle,
+                    orderCode: order?.code || so.code,
+                  },
+                  createdAt: so.completedAt || so.createdAt || new Date(),
+                },
+              });
+              loggedItemIds.add(item.id);
+            } else {
+              await this.prisma.walletTransaction.create({
+                data: {
+                  walletId: wallet.id,
+                  type: 'CREDIT_PENDING',
+                  amount: new Decimal(net),
+                  availableBefore: new Decimal(currentRunning),
+                  availableAfter: new Decimal(currentRunning),
+                  pendingBefore: new Decimal(0),
+                  pendingAfter: new Decimal(net),
+                  frozenBefore: new Decimal(0),
+                  frozenAfter: new Decimal(0),
+                  referenceType: 'ORDER_ITEM',
+                  referenceId: item.id,
+                  description: `Tạm giữ doanh thu bán sách [${item.bookTitle}] (SL: ${item.quantity}) - Đơn hàng #${order?.code || so.code || 'N/A'} vào ký quỹ Escrow (Chờ hạn đổi trả 2 phút)`,
+                  metadata: {
+                    coverUrl: (item as any).book?.coverUrl || null,
+                    bookTitle: item.bookTitle,
+                    orderCode: order?.code || so.code,
+                  },
+                  createdAt: so.createdAt || new Date(),
+                },
+              });
+              loggedItemIds.add(item.id);
+            }
           }
         }
       }
@@ -347,13 +469,13 @@ export class WalletService {
 
     const [items, total] = await Promise.all([
       this.prisma.walletTransaction.findMany({
-        where: { walletId: wallet.id },
+        where: { walletId: { in: walletIds } },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
       this.prisma.walletTransaction.count({
-        where: { walletId: wallet.id },
+        where: { walletId: { in: walletIds } },
       }),
     ]);
 

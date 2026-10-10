@@ -143,6 +143,19 @@ export class StoreReviewsController {
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
+  @Get("me")
+  @ApiOperation({
+    summary: "List current user reviews",
+    description: "Returns paginated reviews submitted by current user.",
+  })
+  @ApiResponse({ status: 200, description: "Paginated user reviews" })
+  myReviews(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Query() query: ReviewListQueryDto,
+  ) {
+    return this.reviews.listMyReviews(actor, query);
+  }
+
   @Patch(":id")
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   @ApiOperation({

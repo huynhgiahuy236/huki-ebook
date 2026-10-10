@@ -52,6 +52,12 @@ export const paymentApi = {
     });
   },
 
+  simulateSuccess: async (orderId: string): Promise<ApiResponse<any>> => {
+    return apiClient<any>(`/payments/orders/${orderId}/simulate-success`, {
+      method: 'POST',
+    });
+  },
+
   requestRefund: async (
     orderId: string,
     payload: { amount?: number; reason: string }

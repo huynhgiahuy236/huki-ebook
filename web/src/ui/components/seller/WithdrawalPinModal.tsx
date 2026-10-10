@@ -387,34 +387,54 @@ export default function WithdrawalPinModal({
         )}
 
         {/* ========================================================================= */}
-        {/* MÀN HÌNH THÀNH CÔNG: RÚT TIỀN HOÀN TẤT */}
+        {/* MÀN HÌNH THÀNH CÔNG: ĐÃ RÚT TIỀN THÀNH CÔNG BẰNG MÃ PIN */}
         {/* ========================================================================= */}
         {step === 'SUCCESS' && (
-          <div className="py-6 space-y-4 text-center">
+          <div className="py-5 space-y-4 text-center">
             <div className="w-14 h-14 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center shadow-xs">
-              <span className="material-symbols-outlined text-3xl">verified</span>
+              <span className="material-symbols-outlined text-3xl">task_alt</span>
             </div>
             <div className="space-y-1.5">
-              <h4 className="font-bold text-emerald-600 dark:text-emerald-400 text-lg">
-                Rút Tiền Thành Công!
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                <span className="material-symbols-outlined text-[13px]">verified</span>
+                <span>Rút Tiền Thành Công (Giải Ngân Ngay)</span>
+              </span>
+              <h4 className="font-bold text-slate-900 dark:text-white text-lg">
+                Rút Tiền Về Ngân Hàng Thành Công!
               </h4>
-              <p className="font-mono text-2xl font-black text-slate-900 dark:text-white">
+              <p className="font-mono text-2xl font-black text-emerald-700 dark:text-emerald-400">
                 {formatVND(withdrawnAmount)}
               </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-xs mx-auto">
-                Lệnh rút tiền đã được thực hiện thành công về tài khoản <strong className="text-slate-900 dark:text-white">{bankInfo.bankName}</strong> (STK: {bankInfo.accountNumber}).
-              </p>
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
-                Số dư ví đã chuyển về 0 ₫ và đã ghi nhận vào tab <strong>Nhật Ký Biến Động Ví</strong>.
+              <p className="text-xs text-slate-600 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+                Lệnh rút tiền đã được thực hiện ngay lập tức qua mã PIN giao dịch. Số tiền đã được chuyển thẳng về tài khoản <strong className="text-slate-900 dark:text-white">{bankInfo.bankName}</strong> (STK: {bankInfo.accountNumber}).
               </p>
             </div>
+
+            {/* Quy trình tức thì */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left space-y-2">
+              <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block uppercase tracking-wider">
+                Chi tiết giao dịch rút tiền:
+              </span>
+              <div className="grid grid-cols-3 gap-1.5 text-center text-[10.5px]">
+                <div className="p-1.5 rounded-lg bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300">
+                  1. Xác thực PIN ✓
+                </div>
+                <div className="p-1.5 rounded-lg bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300">
+                  2. Trừ ví khả dụng ✓
+                </div>
+                <div className="p-1.5 rounded-lg bg-emerald-100/70 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold border border-emerald-300">
+                  3. Tiền về tài khoản ✓
+                </div>
+              </div>
+            </div>
+
             <div className="pt-2">
               <button
                 type="button"
                 onClick={onClose}
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-xs sm:text-sm font-bold text-white shadow-md transition-all cursor-pointer"
               >
-                Hoàn Tất
+                Hoàn Tất / Đóng Cửa Sổ
               </button>
             </div>
           </div>

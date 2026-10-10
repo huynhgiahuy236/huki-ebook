@@ -7,6 +7,7 @@ import { useCart } from '@/ui/context/CartContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useTheme } from '@/ui/context/ThemeContext';
 import { catalogApi, BookData } from '@/ui/api/catalogApi';
+import { personalizationService } from '@/ui/services/personalizationService';
 import { useDebounce } from '@/ui/utils/useDebounce';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 
@@ -35,6 +36,13 @@ export default function StoreHeader({
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const isSeller = Boolean(
+    user?.role === 'BUSINESS' ||
+    user?.hasApprovedBusiness ||
+    user?.business ||
+    (Array.isArray(user?.memberships) && user.memberships.length > 0)
+  );
+  const chatUrl = isSeller ? '/seller/chat' : '/account/messages';
 
   // Load search history from localStorage
   useEffect(() => {
@@ -52,9 +60,9 @@ export default function StoreHeader({
     const clean = term.trim();
     if (!clean) return;
     try {
+      personalizationService.recordSearch(clean);
       const updated = [clean, ...searchHistory.filter((h) => h.toLowerCase() !== clean.toLowerCase())].slice(0, 8);
       setSearchHistory(updated);
-      localStorage.setItem('huki_search_history', JSON.stringify(updated));
     } catch {
       // ignore
     }
@@ -439,6 +447,20 @@ export default function StoreHeader({
             )}
           </Link>
 
+          {/* Chat / Tin Nhắn - Opens in New Tab */}
+          {isLoggedIn && (
+            <Link
+              href={chatUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-9 h-9 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative"
+              title={isSeller ? "Hộp thư Chat Kênh Người Bán (Mở tab mới)" : "Tin nhắn của bạn (Mở tab mới)"}
+              aria-label="Tin nhắn"
+            >
+              <span className="material-symbols-outlined text-[19px]">chat</span>
+            </Link>
+          )}
+
           {/* User Account / Auth Buttons */}
           {isLoggedIn ? (
             <div ref={userMenuRef} className="relative">
@@ -517,6 +539,20 @@ export default function StoreHeader({
                     </Link>
 
                     <Link
+                      href={chatUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-semibold transition-colors"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="material-symbols-outlined text-base text-[var(--theme-primary,#003b2b)]">chat</span>
+                        <span>{isSeller ? 'Chat Kênh Người Bán' : 'Tin Nhắn & Chat'}</span>
+                      </div>
+                      <span className="material-symbols-outlined text-sm text-[var(--theme-text-muted,#6b7280)]">open_in_new</span>
+                    </Link>
+
+                    <Link
                       href="/profile/addresses"
                       onClick={() => setShowUserMenu(false)}
                       className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] text-[var(--theme-text,#17201f)] font-semibold transition-colors"
@@ -529,17 +565,59 @@ export default function StoreHeader({
                     </Link>
 
                     <div className="pt-1">
-                      <Link
-                        href="/seller/register"
-                        onClick={() => setShowUserMenu(false)}
-                        className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <span className="material-symbols-outlined text-base text-[#003b2b]">store</span>
-                          <span>Đăng Ký Trở Thành NXB</span>
-                        </div>
-                        <span className="material-symbols-outlined text-sm text-[#003b2b]">chevron_right</span>
-                      </Link>
+                      {user?.business?.status === 'PENDING_APPROVAL' ? (
+                        <Link
+                          href="/seller/pending"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold border border-amber-200/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-base text-amber-700">hourglass_top</span>
+                            <span>Kiểm Tra Hồ Sơ NXB</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                            Chờ duyệt
+                          </span>
+                        </Link>
+                      ) : user?.business?.status === 'APPROVED' && user?.role !== 'BUSINESS' ? (
+                        <Link
+                          href="/seller/stores/setup"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-base text-[#003B2B]">storefront</span>
+                            <span>Thiết Lập Gian Hàng</span>
+                          </div>
+                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/70 px-2 py-0.5 rounded-full">
+                            Đã duyệt
+                          </span>
+                        </Link>
+                      ) : user?.role === 'BUSINESS' || user?.hasApprovedBusiness ? (
+                        <Link
+                          href="/seller/dashboard"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-base text-[#003B2B]">dashboard</span>
+                            <span>Kênh Quản Trị Người Bán</span>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-[#003B2B]">chevron_right</span>
+                        </Link>
+                      ) : (
+                        <Link
+                          href="/seller/register"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="material-symbols-outlined text-base text-[#003b2b]">store</span>
+                            <span>Đăng Ký Trở Thành NXB</span>
+                          </div>
+                          <span className="material-symbols-outlined text-sm text-[#003b2b]">chevron_right</span>
+                        </Link>
+                      )}
                     </div>
                   </div>
 

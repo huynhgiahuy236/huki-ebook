@@ -33,6 +33,17 @@ export class PaymentsController {
     return this.payments.initiate(actor.sub, orderId, dto);
   }
 
+  @Post('orders/:orderId/simulate-success')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({ summary: 'Simulate PayOS payment success for fast testing and money flow' })
+  simulateSuccess(
+    @CurrentBookActor() actor: BookActor,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+  ) {
+    return this.payments.simulateSuccess(actor.sub, orderId);
+  }
+
   @Get('orders/:orderId')
   @ApiBearerAuth()
   @UseGuards(AuthenticatedGuard)
