@@ -11,12 +11,14 @@ import { BookFormat, BookStatus } from '../../../prisma/generated/client';
 import { throwConflict, throwNotFound, throwForbidden, throwBadRequest } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 import { SanctionsService } from '../sanctions/sanctions.service';
+import { DrmVaultService } from './drm-vault.service';
 
 @Injectable()
 export class BooksService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly sanctionsService?: SanctionsService,
+    @Optional() private readonly drmVaultService?: DrmVaultService,
   ) {}
 
   async create(dto: CreateBookDto, actor: BookActor) {
@@ -84,6 +86,16 @@ export class BooksService {
 
       return created;
     });
+
+    // Tự động cấp phép DRM nếu là sách số (DIGITAL hoặc BOTH)
+    if (format === BookFormat.DIGITAL || format === BookFormat.BOTH) {
+      try {
+        await this.drmVaultService?.provisionLicenseForBook(book.id);
+      } catch (err) {
+        // Log warning nhưng không chặn luồng tạo sách
+        console.warn(`[DRM Auto-provision] Không thể cấp khóa ngay cho sách ${book.id}:`, err);
+      }
+    }
 
     return this.findOne(book.id, actor);
   }

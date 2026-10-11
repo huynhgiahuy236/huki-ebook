@@ -288,7 +288,7 @@ export class PaymentsService
       }));
     if (!orderData) return;
 
-    if (orderData.status === "CANCELLED") {
+    if (orderData.status === "CANCELLED" && !orderData.cancelReason?.includes("Hết hạn thanh toán")) {
       this.logger.warn(
         `Received PayOS payment callback for already cancelled order: ${orderData.id}. Rejecting resurrection.`,
       );
@@ -324,18 +324,23 @@ export class PaymentsService
       });
       if (updated.count === 0) return;
 
+      const hasPhysicalOrders = orderData.sellerOrders.some((so: any) => so.requiresShipping);
+
       await tx.order.update({
         where: { id: payment.orderId },
         data: {
           paymentStatus: PaymentStatus.SUCCEEDED,
-          status: "PROCESSING",
+          status: hasPhysicalOrders ? "PROCESSING" : "COMPLETED",
           cancelledAt: null,
           cancelReason: null,
         },
       });
+
+      // 1. Physical seller orders: require seller fulfillment confirmation
       await tx.sellerOrder.updateMany({
         where: {
           orderId: payment.orderId,
+          requiresShipping: true,
           status: {
             in: [
               SellerOrderStatus.PENDING_PAYMENT,
@@ -345,6 +350,20 @@ export class PaymentsService
         },
         data: {
           status: SellerOrderStatus.PENDING_CONFIRMATION,
+          cancelledAt: null,
+          cancelReason: null,
+        },
+      });
+
+      // 2. Digital Ebook orders: AUTOMATICALLY COMPLETED & ACTIVATED IMMEDIATELY (No manual approval needed!)
+      await tx.sellerOrder.updateMany({
+        where: {
+          orderId: payment.orderId,
+          requiresShipping: false,
+        },
+        data: {
+          status: SellerOrderStatus.COMPLETED,
+          completedAt: new Date(),
           cancelledAt: null,
           cancelReason: null,
         },

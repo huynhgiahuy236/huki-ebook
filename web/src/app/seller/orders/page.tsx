@@ -1,12 +1,13 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { orderApi } from '@/ui/api/orderApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
 import {
   SellerStatusBadge,
@@ -157,9 +158,12 @@ function SellerOrdersContent() {
   const businessId = user?.business?.id || activeBusinessId || undefined;
   const canViewOrders = can(PERMISSIONS.ORDER_VIEW, businessId, user);
 
-  // Load Business Name and Orders
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const isInitialLoadDoneRef = useRef(false);
+
+  // Load Business Name and Orders (supports silent background refresh)
+  const loadData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       let bizId = user?.business?.id || activeBusinessId;
       if (!bizId) {
@@ -190,9 +194,36 @@ function SellerOrdersContent() {
           : Array.isArray((raw as { items?: SellerOrder[] })?.items)
           ? ((raw as { items: SellerOrder[] }).items)
           : [];
+
+        // Check if there are newly arrived orders (excluding PENDING_PAYMENT)
+        if (isInitialLoadDoneRef.current) {
+          const newOrders = items.filter(
+            (o) => o.status !== 'PENDING_PAYMENT' && !knownOrderIdsRef.current.has(o.id)
+          );
+          if (newOrders.length > 0) {
+            const newest = newOrders[0];
+            const orderCode = newest.code || newest.id.slice(0, 8);
+            showToast({
+              type: 'order',
+              title: 'Nổ đơn hàng mới!',
+              message: `Đơn hàng #${orderCode} vừa được đặt thành công (${newest.grandTotal ? Number(newest.grandTotal).toLocaleString('vi-VN') + ' đ' : 'Hoàn tất'}).`,
+              playSound: true,
+              actionUrl: `/seller/orders?tab=${newest.status}`,
+              actionLabel: 'Xử lý ngay',
+            });
+          }
+        }
+
+        // Cache known order IDs
+        items.forEach((o) => knownOrderIdsRef.current.add(o.id));
+        isInitialLoadDoneRef.current = true;
+
         setOrders(items);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('huki_orders_updated'));
+        }
       } else {
-        setOrders([]);
+        if (!silent) setOrders([]);
         if (orderRes.error?.code === 'AUTHZ_ROLE_INSUFFICIENT') {
           showToast?.({
             title: 'Chưa đồng bộ quyền Người Bán',
@@ -203,14 +234,40 @@ function SellerOrdersContent() {
       }
     } catch (err) {
       console.error('Error fetching seller orders:', err);
-      setOrders([]);
+      if (!silent) setOrders([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [user, activeBusinessId, setActiveBusinessId, showToast]);
 
   useEffect(() => {
     loadData();
+  }, [loadData]);
+
+  // Periodic heartbeat polling every 4 seconds to guarantee realtime across devices/sessions
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        loadData(true);
+      }
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [loadData]);
+
+  // Instant cross-tab sync via BroadcastChannel / LocalStorage
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') {
+        loadData(true);
+      } else if (msg.type === 'ORDER_STATUS_CHANGED' || msg.type === 'ORDER_CANCELLED') {
+        loadData(true);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [loadData]);
 
   // Order counts & metrics
@@ -460,7 +517,7 @@ function SellerOrdersContent() {
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => loadData(false)}
             disabled={loading}
             className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-[0.98]"
           >
@@ -885,15 +942,22 @@ function SellerOrdersContent() {
                             />
                           </Link>
 
-                          {order.status === 'PENDING_CONFIRMATION' && (
+                          {order.status === 'PENDING_CONFIRMATION' && hasPhysical && (
                             <SellerActionButton
                               variant="success"
-                              label={hasPhysical ? "Xác nhận & Đóng gói" : "Kích hoạt"}
-                              icon={hasPhysical ? "check_circle" : "bolt"}
+                              label="Xác nhận & Đóng gói"
+                              icon="check_circle"
                               size="sm"
                               onClick={() => handleConfirm(order.id)}
                               loading={actionLoading}
                             />
+                          )}
+
+                          {order.status === 'PENDING_CONFIRMATION' && !hasPhysical && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                              <span className="material-symbols-outlined text-[14px]">auto_awesome</span>
+                              Tự động kích hoạt
+                            </span>
                           )}
 
                           {order.status === 'CONFIRMED' && hasPhysical && (

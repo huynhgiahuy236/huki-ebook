@@ -1,4 +1,5 @@
-const { PrismaClient } = require('./apps/commerce-service/prisma/generated/client');
+const path = require('path');
+const { PrismaClient } = require(path.resolve(__dirname, '../apps/commerce-service/prisma/generated/client'));
 const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient({

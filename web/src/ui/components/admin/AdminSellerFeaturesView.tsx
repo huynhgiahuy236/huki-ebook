@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { featureFlagsService, SellerFeature } from '@/ui/services/featureFlagsService';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { businessApi, BusinessData } from '@/ui/api/businessApi';
 import { useDebounce } from '@/ui/utils/useDebounce';
 import CustomModal from '@/ui/components/common/CustomModal';
@@ -44,7 +45,16 @@ export default function AdminSellerFeaturesView() {
       setFeatures(featureFlagsService.getAllFeatures());
     };
     window.addEventListener('huki_feature_flags_updated', handleUpdate);
-    return () => window.removeEventListener('huki_feature_flags_updated', handleUpdate);
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'FEATURE_FLAGS_UPDATED') {
+        handleUpdate();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('huki_feature_flags_updated', handleUpdate);
+      unsubscribe();
+    };
   }, []);
 
   const loadData = async () => {

@@ -17,6 +17,8 @@ import { ReaderController } from './reader.controller';
 import { ReaderService } from './reader.service';
 import { ForensicTrackingController } from './forensic-tracking.controller';
 import { ForensicTrackingService } from './forensic-tracking.service';
+import { DrmVaultController } from './drm-vault.controller';
+import { DrmVaultService } from './drm-vault.service';
 
 @Module({
   controllers: [
@@ -27,6 +29,7 @@ import { ForensicTrackingService } from './forensic-tracking.service';
     BookPublishingController,
     ReaderController,
     ForensicTrackingController,
+    DrmVaultController,
   ],
   providers: [
     BooksService,
@@ -37,11 +40,12 @@ import { ForensicTrackingService } from './forensic-tracking.service';
     BookAccessService,
     ReaderService,
     ForensicTrackingService,
+    DrmVaultService,
     CloudinaryCoverStorage,
     R2EbookStorage,
     { provide: COVER_STORAGE, useExisting: CloudinaryCoverStorage },
     { provide: EBOOK_STORAGE, useExisting: R2EbookStorage },
   ],
-  exports: [BooksService, BookAccessService, ReaderService, ForensicTrackingService],
+  exports: [BooksService, BookAccessService, ReaderService, ForensicTrackingService, DrmVaultService],
 })
 export class BooksModule {}

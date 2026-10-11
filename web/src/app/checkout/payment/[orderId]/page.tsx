@@ -7,6 +7,7 @@ import { orderApi, BuyerOrder } from '@/ui/api/orderApi';
 import { paymentApi, PaymentView } from '@/ui/api/paymentApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export default function PayOSPaymentPage() {
   const params = useParams();
@@ -101,8 +102,21 @@ export default function PayOSPaymentPage() {
   }, [timeLeftSeconds]);
 
   // 3. Auto-poll status every 4 seconds to detect real webhook payments
+  // 3. Realtime listener & Auto-poll status
   useEffect(() => {
     if (!orderId || !order) return;
+
+    // Realtime bus listener (triggers in <50ms without waiting for 4-sec poll)
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED' &&
+        (msg.payload as any)?.orderId === orderId
+      ) {
+        showToast('Thanh toán PayOS thành công! Đang chuyển hướng...', 'success');
+        window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(order?.code || '')}&paymentMethod=ONLINE_PAYMENT`;
+      }
+    });
+
     const pollInterval = setInterval(async () => {
       try {
         const res = await paymentApi.getOrderPayment(orderId);
@@ -113,8 +127,16 @@ export default function PayOSPaymentPage() {
             res.data.payments?.some((p) => p.status === 'SUCCEEDED');
           if (isPaid) {
             clearInterval(pollInterval);
+            realtimeSyncBus.publish('ORDER_PAYMENT_SUCCEEDED', {
+              orderId: order?.id || orderId,
+              orderCode: order?.code || res.data.orderCode || '',
+              grandTotal: order?.grandTotal,
+              sellerOrders: order?.sellerOrders,
+            });
             showToast('Thanh toán thành công! Đang chuyển hướng...', 'success');
-            router.replace(`/order-success?orderId=${order.id}&code=${order.code}&paymentMethod=ONLINE_PAYMENT`);
+            setTimeout(() => {
+              window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(order?.code || res.data?.orderCode || '')}&paymentMethod=ONLINE_PAYMENT`;
+            }, 350);
           }
         }
       } catch {
@@ -122,7 +144,10 @@ export default function PayOSPaymentPage() {
       }
     }, 4000);
 
-    return () => clearInterval(pollInterval);
+    return () => {
+      unsubscribe();
+      clearInterval(pollInterval);
+    };
   }, [orderId, order, router, showToast]);
 
   // 4. Copy to clipboard helper
@@ -137,15 +162,26 @@ export default function PayOSPaymentPage() {
 
   // 5. Action 1: Simulate Payment Success (Fast flow & Escrow test)
   const handleSimulateSuccess = async () => {
-    if (!orderId || !order) return;
+    if (!orderId) return;
     setIsSimulating(true);
     try {
       const res = await paymentApi.simulateSuccess(orderId);
       if (res.success) {
+        const targetCode = order?.code || (res.data as any)?.orderCode || '';
+        const targetUrl = `/order-success?orderId=${orderId}&code=${encodeURIComponent(targetCode)}&paymentMethod=ONLINE_PAYMENT`;
+
+        realtimeSyncBus.publish('ORDER_PAYMENT_SUCCEEDED', {
+          orderId,
+          orderCode: targetCode,
+          grandTotal: order?.grandTotal,
+          sellerOrders: order?.sellerOrders,
+        });
         showToast('Xác nhận thanh toán thành công! Dòng tiền đã được ghi nhận.', 'success');
+        
+        // Guaranteed navigation after bus broadcast
         setTimeout(() => {
-          router.replace(`/order-success?orderId=${order.id}&code=${order.code}&paymentMethod=ONLINE_PAYMENT`);
-        }, 600);
+          window.location.href = targetUrl;
+        }, 350);
       } else {
         showToast(res.error?.message || 'Không thể mô phỏng thanh toán.', 'error');
         setIsSimulating(false);
@@ -171,6 +207,10 @@ export default function PayOSPaymentPage() {
         reason: 'Khách hàng hủy thanh toán trực tuyến PayOS',
       });
       if (res.success) {
+        realtimeSyncBus.publish('ORDER_CANCELLED', {
+          orderId: order.id,
+          orderCode: order.code,
+        });
         showToast('Đã hủy giao dịch và đơn hàng thành công.', 'info');
         router.replace('/cart');
       } else {

@@ -16,6 +16,9 @@ export interface SellerFeature {
   updatedBy: string;
 }
 
+import { realtimeSyncBus } from './realtimeSyncBus';
+import { adminNotificationService } from './adminNotificationService';
+
 const STORAGE_KEY = 'huki_seller_feature_flags';
 
 export const DEFAULT_SELLER_FEATURES: SellerFeature[] = [
@@ -121,15 +124,57 @@ export const DEFAULT_SELLER_FEATURES: SellerFeature[] = [
 ];
 
 class FeatureFlagsService {
+  private cache: SellerFeature[] | null = null;
+  private isSyncing = false;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.syncFromServer();
+      window.addEventListener('focus', () => this.syncFromServer());
+      setInterval(() => this.syncFromServer(), 3000);
+    }
+  }
+
+  public async syncFromServer(): Promise<SellerFeature[]> {
+    if (typeof window === 'undefined' || this.isSyncing) return this.getStoredFeatures();
+    this.isSyncing = true;
+    try {
+      const res = await fetch('/api/seller/feature-flags', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data)) {
+          const serverList: SellerFeature[] = json.data;
+          const currentStored = this.getStoredFeatures();
+          const isChanged = JSON.stringify(serverList) !== JSON.stringify(currentStored);
+          this.cache = serverList;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverList));
+          if (isChanged) {
+            realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', serverList);
+          }
+          return serverList;
+        }
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      this.isSyncing = false;
+    }
+    return this.getStoredFeatures();
+  }
+
   private getStoredFeatures(): SellerFeature[] {
+    if (this.cache) return this.cache;
     if (typeof window === 'undefined') return DEFAULT_SELLER_FEATURES;
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (!data) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SELLER_FEATURES));
+        this.cache = DEFAULT_SELLER_FEATURES;
         return DEFAULT_SELLER_FEATURES;
       }
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      this.cache = parsed;
+      return parsed;
     } catch (e) {
       console.error('Error reading feature flags from storage', e);
       return DEFAULT_SELLER_FEATURES;
@@ -137,11 +182,12 @@ class FeatureFlagsService {
   }
 
   private saveFeatures(features: SellerFeature[]): void {
+    this.cache = features;
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(features));
-      // Dispatch custom event for real-time reactivity across tabs/components
-      window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: features }));
+      // Dispatch real-time cross-tab sync message
+      realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', features);
     } catch (e) {
       console.error('Error saving feature flags', e);
     }
@@ -157,19 +203,64 @@ class FeatureFlagsService {
 
   public toggleGlobalFeature(featureId: string, isEnabled: boolean, maintenanceReason?: string): void {
     const features = this.getStoredFeatures();
+    const targetFeat = features.find(f => f.id === featureId);
+    const featName = targetFeat?.name || featureId;
+    const finalReason = isEnabled ? '' : (maintenanceReason || 'Tính năng đang được nâng cấp bảo trì');
+
     const updated = features.map(f => {
       if (f.id === featureId) {
         return {
           ...f,
           isEnabledGlobally: isEnabled,
-          maintenanceReason: isEnabled ? '' : (maintenanceReason || 'Tính năng đang được nâng cấp bảo trì'),
+          maintenanceReason: finalReason,
           updatedAt: new Date().toISOString(),
           updatedBy: 'Admin HuKi',
         };
       }
       return f;
     });
+
     this.saveFeatures(updated);
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/seller/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'TOGGLE_GLOBAL',
+          featureId,
+          isEnabled,
+          maintenanceReason: finalReason,
+        }),
+      }).catch(() => {});
+    }
+
+    // Synchronize announcement notification
+    try {
+      if (!isEnabled) {
+        adminNotificationService.createNotification({
+          id: `maint-${featureId}`,
+          title: `[Tạm bảo trì] ${featName}`,
+          summary: finalReason,
+          content: `Hệ thống HUKI đang tiến hành bảo trì, nâng cấp tính năng "${featName}".\n\nLý do: ${finalReason}\n\nTrong thời gian này, quý đối tác Seller tạm thời không thể sử dụng tính năng này. Chúng tôi sẽ mở lại tính năng ngay khi hoàn tất. Trân trọng cảm ơn sự thông cảm của Quý Đối Tác!`,
+          category: 'MAINTENANCE',
+          severity: 'WARNING',
+          targetType: 'ALL',
+          channels: ['TOP_BAR', 'BELL'],
+          isPinnedTop: true,
+          isDismissible: true,
+          scheduleType: 'INSTANT',
+          status: 'ACTIVE',
+          authorName: 'Hệ Thống Quản Trị HUKI',
+          actionUrl: '/seller/notifications',
+          actionLabel: 'Xem Chi Tiết',
+        });
+      } else {
+        adminNotificationService.deleteNotification(`maint-${featureId}`);
+      }
+    } catch (e) {
+      console.warn('Failed to auto-sync maintenance announcement:', e);
+    }
   }
 
   public updateFeatureDetails(featureId: string, updates: Partial<SellerFeature>): void {
@@ -186,6 +277,14 @@ class FeatureFlagsService {
       return f;
     });
     this.saveFeatures(updated);
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/seller/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'UPDATE', featureId, updates }),
+      }).catch(() => {});
+    }
   }
 
   public toggleBusinessForFeature(featureId: string, businessId: string, block: boolean): void {
@@ -208,6 +307,14 @@ class FeatureFlagsService {
       return f;
     });
     this.saveFeatures(updated);
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/seller/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'TOGGLE_BUSINESS', featureId, businessId, block }),
+      }).catch(() => {});
+    }
   }
 
   public bulkToggleBusinessFeatures(businessIds: string[], featureIds: string[], block: boolean): void {
@@ -229,6 +336,14 @@ class FeatureFlagsService {
       return f;
     });
     this.saveFeatures(updated);
+
+    if (typeof window !== 'undefined') {
+      fetch('/api/seller/feature-flags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'BULK_TOGGLE', businessIds, featureIds, block }),
+      }).catch(() => {});
+    }
   }
 
   /**

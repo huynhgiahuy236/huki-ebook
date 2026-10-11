@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
+import { soundEffects } from '@/ui/utils/soundEffects';
+
+import SellerNotificationBell from '../seller/SellerNotificationBell';
 
 export interface SellerHeaderProps {
   isSidebarCollapsed: boolean;
@@ -11,6 +14,12 @@ export interface SellerHeaderProps {
 export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggleMobileSidebar }: SellerHeaderProps) {
   const { user } = useAuth();
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
+
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    setIsMuted(soundEffects.getIsMuted());
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between shadow-2xs min-h-[54px] h-[54px] gap-2 sm:gap-3">
@@ -78,6 +87,25 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
       {/* Right Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* Chuông Thông Báo Realtime & Bản Tin Sàn */}
+        <SellerNotificationBell />
+
+        {/* Nút Bật/Tắt Âm Thanh Thông Báo & Nổ Đơn */}
+        <button
+          type="button"
+          onClick={() => {
+            const newMuted = soundEffects.toggleMute();
+            setIsMuted(newMuted);
+          }}
+          className="flex items-center justify-center w-8 sm:w-9 h-8 sm:h-9 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-all cursor-pointer shadow-2xs active:scale-95"
+          title={isMuted ? "Bật âm thanh chuông thông báo & đơn hàng" : "Tắt âm thanh chuông thông báo & đơn hàng"}
+          aria-label="Bật/Tắt âm thanh"
+        >
+          <span className="material-symbols-outlined text-[19px] text-[#003B2B]">
+            {isMuted ? 'volume_off' : 'volume_up'}
+          </span>
+        </button>
+
         {/* Messenger / Chat Hộp Thư Khách Hàng */}
         <Link
           href="/seller/chat"

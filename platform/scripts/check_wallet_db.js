@@ -1,4 +1,5 @@
-const { PrismaClient } = require('./apps/commerce-service/prisma/generated/client');
+const path = require('path');
+const { PrismaClient } = require(path.resolve(__dirname, '../apps/commerce-service/prisma/generated/client'));
 const prisma = new PrismaClient({
   datasources: { db: { url: 'postgresql://postgres:postgres123@localhost:5432/huki_commerce' } },
 });

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { useReader } from '@/ui/context/ReaderContext';
 import { booksData } from '@/ui/data/mockData';
+import { catalogApi, type BookData } from '@/ui/api/catalogApi';
+import { adminDrmApi } from '@/ui/api/adminDrmApi';
 import PdfReaderHeader from '@/ui/components/reader/PdfReaderHeader';
 import PdfReaderFooter from '@/ui/components/reader/PdfReaderFooter';
 import PdfThumbnailList from '@/ui/components/reader/PdfThumbnailList';
@@ -29,18 +31,85 @@ function ReaderContent() {
     isHighlighterActive,
   } = useReader();
 
+  const [realBook, setRealBook] = useState<BookData | null>(null);
   const [accessStatus, setAccessStatus] = useState<'LOADING' | 'ALLOWED' | 'REVOKED' | 'UNAUTHORIZED'>('ALLOWED');
   const [accessMessage, setAccessMessage] = useState<string>('');
+  const [drmFingerprint, setDrmFingerprint] = useState<string>('');
 
-  const currentBook = useMemo(() => {
+  // Sách mock fallback nếu không tìm thấy sách thật trong DB
+  const fallbackMockBook = useMemo(() => {
     return booksData.find(b => b.id === targetBookId) || booksData[0];
   }, [targetBookId]);
 
+  // 1. Tải thông tin sách thật từ CSDL Commerce Service
   useEffect(() => {
-    setActiveBookId(currentBook.id);
-    setTotalPages(currentBook.pages || 166);
+    let isMounted = true;
 
-    // Check if query or storage indicates revoked state for demo/integration
+    async function loadBookData() {
+      try {
+        let res = await catalogApi.getBookById(targetBookId);
+        if (!res.data && res.error) {
+          // Thử tìm theo slug nếu targetBookId là slug
+          res = await catalogApi.getBookBySlug(targetBookId);
+        }
+
+        if (isMounted && res.data) {
+          setRealBook(res.data);
+        }
+      } catch (err) {
+        console.warn('Không thể nạp sách thật từ CSDL, fallback sang mock:', err);
+      }
+    }
+
+    loadBookData();
+    return () => {
+      isMounted = false;
+    };
+  }, [targetBookId]);
+
+  // Thông tin tổng hợp của cuốn sách (ưu tiên sách thật từ DB)
+  const currentTitle = realBook?.title || fallbackMockBook.title;
+  const currentAuthor = realBook?.author?.name || fallbackMockBook.author || 'Tác giả HUKI';
+  const effectiveBookId = realBook?.id || fallbackMockBook.id;
+  const currentPdfUrl = fallbackMockBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf';
+
+  // 2. Kích hoạt phiên đọc DRM & Heartbeat thiết bị độc giả
+  useEffect(() => {
+    setActiveBookId(effectiveBookId);
+    setTotalPages(fallbackMockBook.pages || 166);
+
+    // Tạo deviceId ngẫu nhiên bền vững trong localStorage
+    let deviceId = '';
+    if (typeof window !== 'undefined') {
+      deviceId = localStorage.getItem('huki_drm_device_id') || '';
+      if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('huki_drm_device_id', deviceId);
+      }
+    }
+
+    // Gửi tín hiệu kích hoạt phiên đọc tới DRM Vault
+    adminDrmApi.startSession(effectiveBookId, {
+      userId: 'reader_user',
+      deviceId: deviceId || 'web_browser_01',
+      deviceName: navigator?.userAgent?.includes('Mac') ? 'MacBook Pro Reader' : 'Windows PC Reader',
+    }).then(res => {
+      if (res.data?.keyFingerprint) {
+        setDrmFingerprint(res.data.keyFingerprint);
+      }
+    }).catch(err => {
+      console.warn('DRM session start failed:', err);
+    });
+
+    // Giải phóng phiên đọc khi độc giả thoát
+    return () => {
+      adminDrmApi.endSession(effectiveBookId).catch(() => {});
+    };
+  }, [effectiveBookId, setActiveBookId, setTotalPages, fallbackMockBook.pages]);
+
+  // 3. Tiến độ đọc sách & khôi phục trang
+  useEffect(() => {
+    // Check if query or storage indicates revoked state
     const isRevoked = searchParams.get('revoked') === 'true';
     if (isRevoked) {
       setAccessStatus('REVOKED');
@@ -51,24 +120,24 @@ function ReaderContent() {
     const queryPage = searchParams.get('page');
     if (queryPage) {
       const p = parseInt(queryPage, 10);
-      if (!isNaN(p) && p >= 1 && p <= (currentBook.pages || 166)) {
+      if (!isNaN(p) && p >= 1 && p <= (fallbackMockBook.pages || 166)) {
         setCurrentPage(p);
         return;
       }
     }
 
     try {
-      const savedProgress = localStorage.getItem(`huki_progress_${currentBook.id}`);
+      const savedProgress = localStorage.getItem(`huki_progress_${effectiveBookId}`);
       if (savedProgress) {
         const parsed = JSON.parse(savedProgress);
-        if (parsed.page && parsed.page >= 1 && parsed.page <= (currentBook.pages || 166)) {
+        if (parsed.page && parsed.page >= 1 && parsed.page <= (fallbackMockBook.pages || 166)) {
           setCurrentPage(parsed.page);
         }
       }
     } catch (e) {
       console.warn('Lỗi đọc tiến độ:', e);
     }
-  }, [currentBook, searchParams, setActiveBookId, setTotalPages, setCurrentPage]);
+  }, [effectiveBookId, searchParams, setCurrentPage, fallbackMockBook.pages]);
 
   // Handle Access Revoked state (Task 50 / POL-04 EC-002)
   if (accessStatus === 'REVOKED') {
@@ -104,29 +173,29 @@ function ReaderContent() {
   }
 
   return (
-    <DRMGuard bookTitle={currentBook.title}>
+    <DRMGuard bookTitle={currentTitle}>
       <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#121212] select-none text-white">
         {/* Top Header Navigation */}
         <PdfReaderHeader
-          bookTitle={currentBook.title}
-          bookAuthor={currentBook.author}
-          bookId={currentBook.id}
-          pdfUrl={currentBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf'}
+          bookTitle={currentTitle}
+          bookAuthor={currentAuthor}
+          bookId={effectiveBookId}
+          pdfUrl={currentPdfUrl}
         />
 
         {/* Main Reading Viewport & Drawer */}
         <div className="flex-1 flex overflow-hidden relative">
           {/* Left Drawer: 166 Trang thu nhỏ */}
           <PdfThumbnailList
-            totalPages={currentBook.pages || 166}
-            bookId={currentBook.id}
+            totalPages={fallbackMockBook.pages || 166}
+            bookId={effectiveBookId}
           />
 
           {/* Floating Highlighter Toolbar */}
           {isHighlighterActive && (
             <div className="absolute top-3 right-6 z-40 animate-fade-in">
               <PdfHighlightToolbar
-                bookId={currentBook.id}
+                bookId={effectiveBookId}
                 pageNum={currentPage}
               />
             </div>
@@ -135,9 +204,9 @@ function ReaderContent() {
           {/* Center PDF Canvas Viewport */}
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-[#121212]">
             <PdfCanvasViewer
-              pdfUrl={currentBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf'}
-              bookTitle={currentBook.title}
-              bookId={currentBook.id}
+              pdfUrl={currentPdfUrl}
+              bookTitle={currentTitle}
+              bookId={effectiveBookId}
             />
           </main>
         </div>
@@ -145,7 +214,7 @@ function ReaderContent() {
         {/* Bottom Status & Shortcut Bar */}
         <PdfReaderFooter />
 
-        {/* Typography & Appearance Settings Drawer (Task 52) */}
+        {/* Typography & Appearance Settings Drawer */}
         <ReaderSettingsPanel />
       </div>
     </DRMGuard>

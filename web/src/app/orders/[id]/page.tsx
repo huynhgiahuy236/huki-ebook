@@ -12,6 +12,7 @@ import DisputeModal from '@/ui/components/order/DisputeModal';
 import ReturnRequestModal from '@/ui/components/order/ReturnRequestModal';
 import PaymentCountdownModal from '@/ui/components/checkout/PaymentCountdownModal';
 import { paymentApi } from '@/ui/api/paymentApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -125,6 +126,22 @@ export default function OrderDetailPage() {
 
   useEffect(() => {
     fetchOrderDetail();
+  }, [fetchOrderDetail]);
+
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'ORDER_STATUS_CHANGED' ||
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        msg.type === 'ORDER_CANCELLED'
+      ) {
+        fetchOrderDetail();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [fetchOrderDetail]);
 
   const handleCancelSubOrder = async () => {

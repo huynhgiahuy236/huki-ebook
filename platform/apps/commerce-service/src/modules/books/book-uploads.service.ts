@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -7,6 +7,7 @@ import { BooksService } from './books.service';
 import { serializeDigitalDetails } from './digital-books.service';
 import { COVER_STORAGE, CoverStorage, EBOOK_STORAGE, EbookStorage } from './storage/storage.interfaces';
 import { BookFormat } from '../../../prisma/generated/client';
+import { DrmVaultService } from './drm-vault.service';
 
 export enum PdfFileKind {
   SOURCE = 'SOURCE',
@@ -23,6 +24,7 @@ export class BookUploadsService {
     private readonly configService: ConfigService,
     @Inject(COVER_STORAGE) private readonly coverStorage: CoverStorage,
     @Inject(EBOOK_STORAGE) private readonly ebookStorage: EbookStorage,
+    @Optional() private readonly drmVaultService?: DrmVaultService,
   ) { }
 
   async uploadCover(bookId: string, file: Express.Multer.File | undefined, actor: BookActor) {
@@ -84,6 +86,15 @@ export class BookUploadsService {
 
       const oldKey = kind === PdfFileKind.SOURCE ? details.pdfKey : details.previewPdfKey;
       if (oldKey) await this.safeDeleteEbook(oldKey);
+
+      // Tự động đảm bảo sách có giấy phép DRM Vault khi có file nguồn
+      if (kind === PdfFileKind.SOURCE) {
+        try {
+          await this.drmVaultService?.provisionLicenseForBook(bookId);
+        } catch (err) {
+          this.logger.warn(`Không thể tự động cấp DRM cho sách ${bookId}: ${String(err)}`);
+        }
+      }
     } catch (error) {
       await this.safeDeleteEbook(key);
       throw error;

@@ -9,7 +9,7 @@ import BookCover from '@/ui/components/common/BookCover';
 type FilterTab = 'all' | 'reading' | 'favorite' | 'completed' | 'want_to_read';
 
 export default function LibraryPage() {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [books, setBooks] = useState<UserLibraryBook[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -44,11 +44,20 @@ export default function LibraryPage() {
   // 2. Tải sách thật từ cơ sở dữ liệu (PostgreSQL / commerce-service)
   useEffect(() => {
     let isMounted = true;
+
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (!user?.id) {
+      setBooks([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
 
-    const effectiveUserId = user?.id || '8d501a4d-d846-45bd-8f15-fda4e30cf826';
-
-    libraryApi.getMyLibrary(effectiveUserId)
+    libraryApi.getMyLibrary(user.id)
       .then((data) => {
         if (!isMounted) return;
         setBooks(data);
@@ -57,13 +66,14 @@ export default function LibraryPage() {
       .catch((err) => {
         if (!isMounted) return;
         console.error('Lỗi tải tủ sách cá nhân từ DB:', err);
+        setBooks([]);
         setIsLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, isAuthLoading]);
 
   // 3. Toggle yêu thích trực tiếp trong tủ sách
   const handleToggleFavorite = (bookId: string, e: React.MouseEvent) => {
@@ -380,6 +390,8 @@ export default function LibraryPage() {
                 <h3 className="font-bold text-base sm:text-lg text-slate-900">
                   {searchQuery
                     ? 'Không tìm thấy sách phù hợp'
+                    : !user
+                    ? 'Bạn chưa đăng nhập'
                     : activeTab === 'favorite'
                     ? 'Chưa có sách nào trong danh sách yêu thích'
                     : activeTab === 'reading'
@@ -389,19 +401,40 @@ export default function LibraryPage() {
                 <p className="text-xs text-slate-500 leading-relaxed">
                   {searchQuery
                     ? `Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc tìm kiếm "${searchQuery}".`
+                    : !user
+                    ? 'Vui lòng đăng nhập để xem tủ sách cá nhân và tiếp tục đọc các ấn bản số đã sở hữu.'
                     : activeTab === 'favorite'
                     ? 'Bấm nút trái tim trên bìa bất kỳ cuốn sách nào để lưu vào danh sách yêu thích tiện theo dõi.'
-                    : 'Khám phá hàng ngàn tựa sách bản quyền số DRM trên sàn HUKI để bắt đầu hành trình đọc sách của bạn.'}
+                    : 'Bạn chưa sở hữu tựa sách số nào trong tủ sách. Khám phá hàng ngàn tựa sách bản quyền số DRM trên sàn HUKI để bắt đầu hành trình đọc sách của bạn.'}
                 </p>
               </div>
-              <div className="pt-2">
-                <Link
-                  href="/books"
-                  className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined text-base">explore</span>
-                  <span>Khám Phá Kho Sách Ngay</span>
-                </Link>
+              <div className="pt-2 flex items-center justify-center gap-3">
+                {!user ? (
+                  <>
+                    <Link
+                      href="/login"
+                      className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-base">login</span>
+                      <span>Đăng Nhập Ngay</span>
+                    </Link>
+                    <Link
+                      href="/books"
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-5 py-2.5 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-base">explore</span>
+                      <span>Khám Phá Sách</span>
+                    </Link>
+                  </>
+                ) : (
+                  <Link
+                    href="/books"
+                    className="bg-[#00875A] hover:bg-[#00704A] text-white px-6 py-2.5 rounded-xl text-xs font-bold transition-all shadow-md inline-flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-base">explore</span>
+                    <span>Khám Phá Kho Sách Ngay</span>
+                  </Link>
+                )}
               </div>
             </div>
           ) : (

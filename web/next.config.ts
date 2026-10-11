@@ -93,6 +93,10 @@ const nextConfig: NextConfig = {
         destination: 'http://localhost:3003/api/v1/admin/finance/:path*',
       },
       {
+        source: '/api/v1/admin/drm/:path*',
+        destination: 'http://localhost:3003/api/v1/admin/drm/:path*',
+      },
+      {
         source: '/api/v1/sanctions/:path*',
         destination: 'http://localhost:3003/api/v1/sanctions/:path*',
       },

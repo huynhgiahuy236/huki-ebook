@@ -5,10 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { orderApi } from '@/ui/api/orderApi';
 import { useAuth } from '@/ui/context/AuthContext';
+import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 export default function OrdersPage() {
   const { user, isLoggedIn } = useAuth();
+  const { showToast } = useToast();
   const router = useRouter();
 
   const [orders, setOrders] = useState<any[]>([]);
@@ -28,8 +31,17 @@ export default function OrdersPage() {
     totalPages: 1,
   });
 
-  const fetchOrders = useCallback(async () => {
-    setIsLoading(true);
+  // Modal hủy đơn cho Buyer
+  const [cancelModal, setCancelModal] = useState<{ open: boolean; orderId: string | null; orderCode: string; reason: string }>({
+    open: false,
+    orderId: null,
+    orderCode: '',
+    reason: '',
+  });
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const res = await orderApi.getBuyerOrders({
         page: currentPage,
@@ -58,14 +70,56 @@ export default function OrdersPage() {
           });
         }
       } else {
-        setOrders([]);
+        if (!silent) setOrders([]);
       }
     } catch {
-      setOrders([]);
+      if (!silent) setOrders([]);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [currentPage, pageSize]);
+
+  // Realtime subscription & heartbeat polling
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type.startsWith('ORDER_')) {
+        fetchOrders(true);
+      }
+    });
+
+    const timer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchOrders(true);
+      }
+    }, 4000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(timer);
+    };
+  }, [fetchOrders]);
+
+  const handleConfirmCancel = async () => {
+    if (!cancelModal.orderId) return;
+    setIsCancelling(true);
+    try {
+      const res = await orderApi.cancelBuyerOrder(cancelModal.orderId, {
+        reason: cancelModal.reason.trim() || 'Người mua đổi ý / không còn nhu cầu',
+      });
+      if (res.success) {
+        showToast?.({ title: 'Thành công', message: `Đơn hàng #${cancelModal.orderCode} đã được hủy thành công.`, type: 'success' });
+        setCancelModal({ open: false, orderId: null, orderCode: '', reason: '' });
+        realtimeSyncBus.publish('ORDER_CANCELLED', { orderId: cancelModal.orderId });
+        fetchOrders(true);
+      } else {
+        showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể hủy đơn hàng', type: 'error' });
+      }
+    } catch {
+      showToast?.({ title: 'Lỗi', message: 'Lỗi kết nối khi hủy đơn hàng', type: 'error' });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const fetchReturnRequests = useCallback(async () => {
     try {
@@ -632,44 +686,92 @@ export default function OrdersPage() {
                             </div>
 
                             {/* Buttons Group */}
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {/* Nút Đánh Giá nếu đơn hàng hoàn tất */}
-                              {(badge.text === 'HOÀN THÀNH' ||
-                                badge.text === 'ĐÃ NHẬN SÁCH' ||
-                                (ord.sellerOrders?.[0]?.status || ord.status) === 'COMPLETED' ||
-                                (ord.sellerOrders?.[0]?.status || ord.status) === 'DELIVERED') && (
-                                <Link
-                                  href={`/orders/${ord.id}/review`}
-                                  className="px-3.5 py-1.5 rounded-lg border border-[#006953] bg-[#006953]/10 text-[#006953] hover:bg-[#006953] hover:text-white transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer shadow-2xs"
-                                >
-                                  <span className="material-symbols-outlined text-[15px]">rate_review</span>
-                                  <span>Đánh Giá</span>
-                                </Link>
-                              )}
+                            {(() => {
+                              const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
+                              const isPendingPayment = effectiveStatus === 'PENDING_PAYMENT' || ord.paymentStatus === 'PENDING';
+                              const isPendingConfirmation = effectiveStatus === 'PENDING_CONFIRMATION' || effectiveStatus === 'PENDING';
+                              const isCompleted = effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
+                              const isCancelled = effectiveStatus === 'CANCELLED';
+                              const firstDigitalItem = allItems.find((it: any) => it.format === 'DIGITAL' || it.format === 'EBOOK');
 
-                              <button
-                                type="button"
-                                onClick={() => router.push('/books')}
-                                className="px-3.5 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white transition-colors text-xs font-semibold cursor-pointer"
-                              >
-                                Mua Lại
-                              </button>
+                              return (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {/* 1. Nút Thanh Toán Ngay (chỉ khi đơn chưa thanh toán online) */}
+                                  {isPendingPayment && (
+                                    <Link
+                                      href={`/checkout/payment/${ord.id}`}
+                                      className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">payments</span>
+                                      <span>Thanh Toán Ngay</span>
+                                    </Link>
+                                  )}
 
-                              <Link
-                                href={chatShopUrl}
-                                className="px-3.5 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors text-xs font-semibold cursor-pointer"
-                              >
-                                Liên Hệ Người Bán
-                              </Link>
+                                  {/* 2. Nút Hủy Đơn (khi đơn đang Chờ xác nhận hoặc Chờ thanh toán) */}
+                                  {(isPendingConfirmation || isPendingPayment) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setCancelModal({ open: true, orderId: ord.id, orderCode: ord.code, reason: '' })}
+                                      className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 transition-colors text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">cancel</span>
+                                      <span>Hủy Đơn</span>
+                                    </button>
+                                  )}
 
-                              <Link
-                                href={`/orders/${ord.id}`}
-                                className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
-                              >
-                                <span>Chi Tiết &amp; Tiến Trình</span>
-                                <span className="material-symbols-outlined text-sm">arrow_forward</span>
-                              </Link>
-                            </div>
+                                  {/* 3. Nút Đọc Sách Ngay (nếu đơn hoàn tất và có sách số Ebook) */}
+                                  {isCompleted && firstDigitalItem && (
+                                    <Link
+                                      href={`/reader/${firstDigitalItem.bookId || firstDigitalItem.id}`}
+                                      className="px-3.5 py-1.5 rounded-lg border border-indigo-600 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">menu_book</span>
+                                      <span>Đọc Sách Ngay</span>
+                                    </Link>
+                                  )}
+
+                                  {/* 4. Nút Đánh Giá (nếu đơn hàng đã hoàn tất) */}
+                                  {isCompleted && (
+                                    <Link
+                                      href={`/orders/${ord.id}/review`}
+                                      className="px-3.5 py-1.5 rounded-lg border border-[#006953] bg-[#006953]/10 text-[#006953] hover:bg-[#006953] hover:text-white transition-colors text-xs font-bold inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                                    >
+                                      <span className="material-symbols-outlined text-[15px]">rate_review</span>
+                                      <span>Đánh Giá</span>
+                                    </Link>
+                                  )}
+
+                                  {/* 5. Nút Mua Lại: CHỈ HIỂN THỊ KHI ĐƠN ĐÃ HOÀN TẤT HOẶC ĐÃ HỦY */}
+                                  {(isCompleted || isCancelled) && (
+                                    <button
+                                      type="button"
+                                      onClick={() => router.push('/books')}
+                                      className="px-3.5 py-1.5 rounded-lg border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white transition-colors text-xs font-semibold cursor-pointer inline-flex items-center gap-1"
+                                    >
+                                      <span className="material-symbols-outlined text-[14px]">replay</span>
+                                      <span>Mua Lại</span>
+                                    </button>
+                                  )}
+
+                                  {/* 6. Nút Liên Hệ Người Bán (Shop Chat) */}
+                                  <Link
+                                    href={chatShopUrl}
+                                    className="px-3.5 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 transition-colors text-xs font-semibold cursor-pointer"
+                                  >
+                                    Liên Hệ Người Bán
+                                  </Link>
+
+                                  {/* 7. Nút Chi Tiết & Tiến Trình */}
+                                  <Link
+                                    href={`/orders/${ord.id}`}
+                                    className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00241A] text-white transition-colors text-xs font-bold shadow-2xs inline-flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <span>Chi Tiết &amp; Tiến Trình</span>
+                                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                                  </Link>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
                       </article>
@@ -708,6 +810,70 @@ export default function OrdersPage() {
               >
                 Sau
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Modal Hủy Đơn Hàng Cho Người Mua */}
+        {cancelModal.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2 text-rose-600 font-bold text-base">
+                  <span className="material-symbols-outlined text-xl">cancel</span>
+                  <span>Xác Nhận Hủy Đơn Hàng</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCancelModal({ open: false, orderId: null, orderCode: '', reason: '' })}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-lg">close</span>
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Bạn có chắc chắn muốn hủy đơn hàng <b>#{cancelModal.orderCode}</b>? Sau khi hủy, đơn hàng sẽ không thể phục hồi.
+              </p>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Lý do hủy đơn <span className="text-slate-400 font-normal">(tùy chọn)</span>
+                </label>
+                <textarea
+                  value={cancelModal.reason}
+                  onChange={(e) => setCancelModal((prev) => ({ ...prev, reason: e.target.value }))}
+                  placeholder="Nhập lý do hủy (ví dụ: Thay đổi địa chỉ, Đổi ý, Muốn mua sản phẩm khác...)"
+                  rows={3}
+                  className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-[#00875A] resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCancelModal({ open: false, orderId: null, orderCode: '', reason: '' })}
+                  disabled={isCancelling}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCancel}
+                  disabled={isCancelling}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isCancelling ? (
+                    <>
+                      <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                      <span>Đang hủy...</span>
+                    </>
+                  ) : (
+                    <span>Đồng Ý Hủy Đơn</span>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

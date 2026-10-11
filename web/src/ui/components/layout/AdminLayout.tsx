@@ -7,6 +7,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import { adminApi } from '@/ui/api/adminApi';
 import { businessApi } from '@/ui/api/businessApi';
+import { soundEffects } from '@/ui/utils/soundEffects';
 
 export interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -19,6 +20,18 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    setIsMuted(soundEffects.getIsMuted());
+    const onMuteChange = (e: Event) => {
+      const customEvent = e as CustomEvent<boolean>;
+      setIsMuted(Boolean(customEvent.detail));
+    };
+    window.addEventListener('huki_mute_toggled', onMuteChange);
+    return () => window.removeEventListener('huki_mute_toggled', onMuteChange);
+  }, []);
 
   // Số lượng thực tế lấy từ Gateway Backend
   const [stats, setStats] = useState({
@@ -117,6 +130,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/return-requests': { parent: 'Tài Chính & Vận Hành', title: 'Quản Lý Yêu Cầu Đổi Trả' },
     '/admin/disputes': { parent: 'Tài Chính & Vận Hành', title: 'Trọng Tài Khiếu Nại & Tranh Chấp' },
     '/admin/shippers': { parent: 'Tài Chính & Vận Hành', title: 'Quản Lý Đội Ngũ Bưu Tá (Shipper)' },
+    '/admin/notifications': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Quản Lý & Phát Sóng Thông Báo' },
     '/admin/vouchers': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Mã Giảm Giá Toàn Sàn (Voucher)' },
     '/admin/flash-sales': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Flash Sale Giờ Vàng Toàn Sàn' },
     '/admin/marketing': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Tiếp Thị & Banner Trang Chủ' },
@@ -141,20 +155,25 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   interface AdminMenuSection {
     group: string;
+    icon: string;
     items: AdminMenuItem[];
   }
 
   const menuSections: AdminMenuSection[] = [
     {
-      group: 'TỔNG QUAN HỆ THỐNG',
+      group: 'TỔNG QUAN & BÁO CÁO',
+      icon: 'monitoring',
       items: [
-        { label: 'Bảng Điều Hành', to: '/admin/dashboard', icon: 'dashboard' },
-        { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
+        { label: 'Bảng Điều Hành Sàn', to: '/admin/dashboard', icon: 'dashboard' },
+        { label: 'Báo Cáo Thống Kê', to: '/admin/reports', icon: 'bar_chart' },
       ],
     },
     {
-      group: 'XÉT DUYỆT ĐỐI TÁC',
+      group: 'NGƯỜI DÙNG & ĐỐI TÁC',
+      icon: 'domain',
       items: [
+        { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
+        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
         {
           label: 'Duyệt Doanh Nghiệp',
           to: '/admin/businesses',
@@ -184,7 +203,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       ],
     },
     {
-      group: 'QUẢN TRỊ CATALOG',
+      group: 'QUẢN TRỊ CATALOG & DRM',
+      icon: 'menu_book',
       items: [
         {
           label: 'Sách Toàn Sàn',
@@ -216,27 +236,36 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       ],
     },
     {
-      group: 'QUẢN LÝ ƯU ĐÃI & TRUYỀN THÔNG',
+      group: 'VẬN HÀNH & GIAO VẬN',
+      icon: 'local_shipping',
       items: [
+        { label: 'Đội Ngũ Bưu Tá', to: '/admin/shippers', icon: 'local_shipping' },
+      ],
+    },
+    {
+      group: 'HẬU MÃI & TRỌNG TÀI',
+      icon: 'gavel',
+      items: [
+        { label: 'Yêu Cầu Đổi Trả', to: '/admin/return-requests', icon: 'assignment_return' },
+        { label: 'Trọng Tài Khiếu Nại', to: '/admin/disputes', icon: 'gavel' },
+      ],
+    },
+    {
+      group: 'TÀI CHÍNH SÀN',
+      icon: 'account_balance_wallet',
+      items: [
+        { label: 'Tài Khoản Trung Gian (Escrow)', to: '/admin/escrow', icon: 'account_balance_wallet' },
+        { label: 'Tài Chính & Kế Toán (Ledger)', to: '/admin/finance', icon: 'payments' },
+      ],
+    },
+    {
+      group: 'TIẾP THỊ & HỆ THỐNG',
+      icon: 'campaign',
+      items: [
+        { label: 'Phát Sóng Thông Báo', to: '/admin/notifications', icon: 'campaign' },
         { label: 'Voucher Giảm Giá', to: '/admin/vouchers', icon: 'confirmation_number' },
         { label: 'Flash Sale Giờ Vàng', to: '/admin/flash-sales', icon: 'bolt' },
         { label: 'Tiếp Thị & Banner', to: '/admin/marketing', icon: 'campaign' },
-      ],
-    },
-    {
-      group: 'TÀI CHÍNH & VẬN HÀNH',
-      items: [
-        { label: 'Tài Khoản Trung Gian', to: '/admin/escrow', icon: 'account_balance_wallet' },
-        { label: 'Yêu Cầu Đổi Trả', to: '/admin/return-requests', icon: 'assignment_return' },
-        { label: 'Tài Chính & Kế Toán', to: '/admin/finance', icon: 'payments' },
-        { label: 'Trọng Tài Khiếu Nại', to: '/admin/disputes', icon: 'gavel' },
-        { label: 'Đội Ngũ Bưu Tá', to: '/admin/shippers', icon: 'local_shipping' },
-        { label: 'Báo Cáo Thống Kê', to: '/admin/reports', icon: 'bar_chart' },
-      ],
-    },
-    {
-      group: 'HẠ TẦNG KỸ THUẬT',
-      items: [
         {
           label: 'Sức Khỏe Hệ Thống',
           to: '/admin/health',
@@ -244,11 +273,24 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           count: stats.healthStatus === 'ok' ? 'Online' : 'Degraded',
           badgeColor: stats.healthStatus === 'ok' ? 'bg-emerald-500 text-white font-bold' : 'bg-rose-500 text-white font-bold',
         },
-        { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
         { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings' },
       ],
     },
   ];
+
+  // Tự động mở accordion của nhóm chứa route hiện tại
+  useEffect(() => {
+    menuSections.forEach((sec) => {
+      const hasActive = sec.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+      if (hasActive) {
+        setOpenSections((prev) => ({ ...prev, [sec.group]: true }));
+      }
+    });
+  }, [pathname]);
+
+  const toggleSection = (group: string) => {
+    setOpenSections((prev) => ({ ...prev, [group]: !prev[group] }));
+  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -334,6 +376,31 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </span>
           </Link>
 
+          {/* Sound Mute Toggle Button */}
+          <button
+            type="button"
+            onClick={() => {
+              const newMuted = soundEffects.toggleMute();
+              setIsMuted(newMuted);
+            }}
+            className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-gray-600 hover:text-[#003B2B] transition-colors relative shadow-2xs cursor-pointer"
+            title={isMuted ? "Bật âm thanh chuông thông báo" : "Tắt âm thanh chuông thông báo"}
+            aria-label="Bật/Tắt âm thanh"
+          >
+            <span className="material-symbols-outlined text-[18px]">
+              {isMuted ? 'volume_off' : 'volume_up'}
+            </span>
+          </button>
+
+          {/* Admin Notification Bell */}
+          <Link
+            href="/admin/notifications"
+            className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-gray-600 hover:text-[#003B2B] transition-colors relative shadow-2xs"
+            title="Quản lý & Phát sóng thông báo tới người bán"
+          >
+            <span className="material-symbols-outlined text-[18px]">campaign</span>
+          </Link>
+
           {/* Profile & Avatar */}
           <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-[#E2E8F0]">
             <UserAvatar user={user} className="w-7 h-7 rounded-xl border border-[#E2E8F0]" />
@@ -360,119 +427,142 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* 2. BODY CONTAINER: SIDEBAR + MAIN CONTENT */}
       <div className="flex-1 flex overflow-hidden">
-        {/* DESKTOP SIDEBAR - Chuẩn Home HierarchicalSidebar (#003B2B) không bị lệch và ẩn thanh cuộn */}
+        {/* DESKTOP SIDEBAR - Chuẩn Accordion 7 Phân Hệ (#003B2B) */}
         <aside
           className={`
             hidden lg:flex flex-col
             bg-[#003B2B] text-white border-r border-[#00281D]
             shrink-0 transition-all duration-300 select-none shadow-md
-            ${isSidebarCollapsed ? 'w-[60px]' : 'w-[235px]'}
+            ${isSidebarCollapsed ? 'w-[60px]' : 'w-[245px]'}
           `}
         >
-          <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 flex flex-col gap-3.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            {menuSections.map((sec, sIdx) => (
-              <div key={sIdx} className="flex flex-col gap-1">
-                {!isSidebarCollapsed && (
-                  <div className="px-2.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-widest text-white/50">
-                    {sec.group}
-                  </div>
-                )}
-                {sec.items.map((item, iIdx) => {
-                  if ((item as any).isDeferred) {
-                    return (
-                      <div key={iIdx} className="relative group">
-                        {isSidebarCollapsed ? (
-                          <div className="flex items-center justify-center py-0.5">
-                            <div className="flex items-center justify-center w-9 h-9 rounded-xl opacity-40 text-white/50 cursor-not-allowed">
-                              <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
-                            </div>
-                            <div className="opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50">
-                              {item.label} (Sắp ra mắt)
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between px-2.5 h-9 rounded-xl text-[12.5px] font-medium opacity-40 text-white/50 cursor-not-allowed">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
-                              <span className="truncate">{item.label}</span>
-                            </div>
-                            <span className="text-[8px] px-1 py-0.2 rounded font-bold text-white/60 bg-white/10 border border-white/10 whitespace-nowrap shrink-0 ml-1">
-                              Sớm
-                            </span>
-                          </div>
-                        )}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 flex flex-col gap-2.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            {menuSections.map((sec, sIdx) => {
+              const isSectionOpen = openSections[sec.group] ?? true;
+              const hasActiveChild = sec.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+
+              return (
+                <div key={sIdx} className="flex flex-col gap-0.5">
+                  {!isSidebarCollapsed ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSection(sec.group)}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-widest transition-colors cursor-pointer select-none ${
+                        hasActiveChild ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
+                      }`}
+                      title={`Bấm để ${isSectionOpen ? 'thu gọn' : 'mở rộng'} ${sec.group}`}
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="material-symbols-outlined text-[13px] opacity-75">{sec.icon}</span>
+                        <span className="truncate">{sec.group}</span>
                       </div>
-                    );
-                  }
+                      <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${isSectionOpen ? 'rotate-180 text-white' : 'text-white/40'}`}>
+                        expand_more
+                      </span>
+                    </button>
+                  ) : (
+                    <div className="my-1.5 border-t border-white/10" title={sec.group} />
+                  )}
 
-                  const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
-                  return (
-                    <div key={iIdx} className="relative group">
-                      {isSidebarCollapsed ? (
-                        /* Collapsed Icon-Only View - Căn giữa chuẩn w-9 h-9 với floating tooltip */
-                        <div className="flex items-center justify-center py-0.5">
-                          <Link
-                            href={item.to}
-                            className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-150 relative shrink-0 ${
-                              isActive
-                                ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
-                                : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
-                            {item.count && (
-                              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-400 ring-2 ring-[#003B2B] animate-pulse" />
-                            )}
-                          </Link>
+                  {/* Items Container */}
+                  {(isSidebarCollapsed || isSectionOpen) && (
+                    <div className={`flex flex-col gap-1 ${!isSidebarCollapsed ? 'pl-1 pr-0.5 mt-0.5 animate-in fade-in-0 duration-200' : ''}`}>
+                      {sec.items.map((item, iIdx) => {
+                        if ((item as any).isDeferred) {
+                          return (
+                            <div key={iIdx} className="relative group">
+                              {isSidebarCollapsed ? (
+                                <div className="flex items-center justify-center py-0.5">
+                                  <div className="flex items-center justify-center w-9 h-9 rounded-xl opacity-40 text-white/50 cursor-not-allowed">
+                                    <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
+                                  </div>
+                                  <div className="opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50">
+                                    {item.label} (Sắp ra mắt)
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-between px-2.5 h-9 rounded-xl text-[12.5px] font-medium opacity-40 text-white/50 cursor-not-allowed">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
+                                    <span className="truncate">{item.label}</span>
+                                  </div>
+                                  <span className="text-[8px] px-1 py-0.2 rounded font-bold text-white/60 bg-white/10 border border-white/10 whitespace-nowrap shrink-0 ml-1">
+                                    Sớm
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        }
 
-                          {/* Floating Tooltip khi hover */}
-                          <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-2.5 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50 flex items-center gap-1.5">
-                            <span>{item.label}</span>
-                            {item.count && (
-                              <span className="px-1.5 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black">
-                                {item.count}
-                              </span>
+                        const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
+                        return (
+                          <div key={iIdx} className="relative group">
+                            {isSidebarCollapsed ? (
+                              /* Collapsed Icon-Only View */
+                              <div className="flex items-center justify-center py-0.5">
+                                <Link
+                                  href={item.to}
+                                  className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-150 relative shrink-0 ${
+                                    isActive
+                                      ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
+                                      : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
+                                  }`}
+                                >
+                                  <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                                  {item.count && (
+                                    <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-400 ring-2 ring-[#003B2B] animate-pulse" />
+                                  )}
+                                </Link>
+
+                                <div className="opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150 absolute left-full ml-2.5 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50 flex items-center gap-1.5">
+                                  <span>{item.label}</span>
+                                  {item.count && (
+                                    <span className="px-1.5 py-0.2 rounded bg-rose-500 text-white text-[9px] font-black">
+                                      {item.count}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              /* Expanded Clean Item View */
+                              <Link
+                                href={item.to}
+                                className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 ${
+                                  isActive
+                                    ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
+                                    : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <span
+                                    className={`material-symbols-outlined text-[18px] shrink-0 ${
+                                      isActive ? 'text-[#003B2B] font-bold' : 'text-white/75 group-hover:text-white'
+                                    }`}
+                                  >
+                                    {item.icon}
+                                  </span>
+                                  <span className="truncate leading-none min-w-0">{item.label}</span>
+                                </div>
+                                {item.count && (
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${
+                                      item.badgeColor || (isActive ? 'bg-[#003B2B]/15 text-[#003B2B]' : 'bg-rose-500 text-white animate-pulse')
+                                    }`}
+                                  >
+                                    {item.count}
+                                  </span>
+                                )}
+                              </Link>
                             )}
                           </div>
-                        </div>
-                      ) : (
-                        /* Expanded Clean Item View */
-                        <Link
-                          href={item.to}
-                          className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 ${
-                            isActive
-                              ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
-                              : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <span
-                              className={`material-symbols-outlined text-[18px] shrink-0 ${
-                                isActive ? 'text-[#003B2B] font-bold' : 'text-white/75 group-hover:text-white'
-                              }`}
-                            >
-                              {item.icon}
-                            </span>
-                            <span className="truncate leading-none min-w-0">{item.label}</span>
-                          </div>
-                          {item.count && (
-                            <span
-                              className={`text-[9px] px-1.5 py-0.2 rounded-full font-black whitespace-nowrap shrink-0 ${
-                                isActive
-                                  ? 'bg-[#003B2B]/15 text-[#003B2B]'
-                                  : 'bg-rose-500 text-white animate-pulse'
-                              }`}
-                            >
-                              {item.count}
-                            </span>
-                          )}
-                        </Link>
-                      )}
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Sidebar Footer */}
@@ -497,7 +587,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative w-64 max-w-[80vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
+            <div className="relative w-72 max-w-[85vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
               <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/10">
                 <div className="flex flex-col select-none">
                   <div className="flex items-center gap-1.5">
@@ -520,57 +610,63 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3.5 custom-scrollbar">
-                {menuSections.map((sec, sIdx) => (
-                  <div key={sIdx} className="flex flex-col gap-1">
-                    <div className="px-2.5 pb-0.5 text-[9px] font-extrabold uppercase tracking-widest text-white/50">
-                      {sec.group}
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 custom-scrollbar">
+                {menuSections.map((sec, sIdx) => {
+                  const isSectionOpen = openSections[sec.group] ?? true;
+                  const hasActiveChild = sec.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+
+                  return (
+                    <div key={sIdx} className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleSection(sec.group)}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold uppercase tracking-widest text-left ${
+                          hasActiveChild ? 'text-white bg-white/15' : 'text-white/60 hover:text-white'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[14px]">{sec.icon}</span>
+                          <span>{sec.group}</span>
+                        </div>
+                        <span className={`material-symbols-outlined text-[14px] transition-transform ${isSectionOpen ? 'rotate-180' : ''}`}>
+                          expand_more
+                        </span>
+                      </button>
+
+                      {isSectionOpen && (
+                        <div className="flex flex-col gap-1 pl-1">
+                          {sec.items.map((item, iIdx) => {
+                            const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
+                            return (
+                              <Link
+                                key={iIdx}
+                                href={item.to}
+                                onClick={() => setIsMobileMenuOpen(false)}
+                                className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${
+                                  isActive
+                                    ? 'bg-white text-[#003B2B] shadow-xs font-bold'
+                                    : 'text-white/80 hover:bg-white/10 hover:text-white'
+                                }`}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <span className={`material-symbols-outlined text-[17px] ${isActive ? 'text-[#003B2B]' : 'text-white/70'}`}>
+                                    {item.icon}
+                                  </span>
+                                  <span>{item.label}</span>
+                                </div>
+                                {item.count && (
+                                  <span className="text-[9px] px-1.5 py-0.2 rounded-full font-black bg-rose-500 text-white">
+                                    {item.count}
+                                  </span>
+                                )}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    {sec.items.map((item, iIdx) => {
-                      if (item.isDeferred) {
-                        return (
-                          <div
-                            key={iIdx}
-                            className="flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold opacity-40 text-white/50 cursor-not-allowed"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
-                              <span>{item.label}</span>
-                            </div>
-                            <span className="text-[8px] px-1.5 py-0.2 rounded font-bold text-white/60 bg-white/10">
-                              Sớm
-                            </span>
-                          </div>
-                        );
-                      }
-                      const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
-                      return (
-                        <Link
-                          key={iIdx}
-                          href={item.to}
-                          onClick={() => setIsMobileMenuOpen(false)}
-                          className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${
-                            isActive
-                              ? 'bg-white text-[#003B2B] shadow-xs font-bold'
-                              : 'text-white/80 hover:bg-white/10 hover:text-white'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`material-symbols-outlined text-[17px] ${isActive ? 'text-[#003B2B]' : 'text-white/70'}`}>
-                              {item.icon}
-                            </span>
-                            <span>{item.label}</span>
-                          </div>
-                          {item.count && (
-                            <span className="text-[9px] px-1.5 py-0.2 rounded-full font-black bg-rose-500 text-white">
-                              {item.count}
-                            </span>
-                          )}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

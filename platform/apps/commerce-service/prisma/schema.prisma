@@ -211,6 +211,7 @@ model Book {
   readerBookmarks ReaderBookmark[]
   readingProgresses ReadingProgress[]
   forensicEvidences ForensicEvidence[]
+  drmLicense      DrmLicense?
 
   @@unique([storeId, slug])
   @@index([storeId, status])
@@ -1243,5 +1244,72 @@ model AiRevenueTransaction {
   @@index([bookId])
   @@index([status])
   @@map("ai_revenue_transactions")
+}
+
+// ============================================
+// DRM VAULT & KEY MANAGEMENT
+// ============================================
+
+enum DrmSecurityStatus {
+  SECURE
+  UPGRADE_NEEDED
+  REVOKED
+}
+
+model DrmLicense {
+  id                 String            @id @default(uuid())
+  licenseCode        String            @unique @map("license_code") // DRM-LIC-xxxx
+  bookId             String            @unique @map("book_id")
+  algorithm          String            @default("AES-GCM-256 (Chuẩn Quân Đội)")
+  encryptionCluster  String            @default("Singapore SG1 (AWS KMS)") @map("encryption_cluster")
+  keyFingerprint     String            @map("key_fingerprint")
+  watermarkEngine    String            @default("Dynamic Reader Email Canvas") @map("watermark_engine")
+  securityStatus     DrmSecurityStatus @default(SECURE) @map("security_status")
+  statusLabel        String            @default("An Toàn Tuyệt Đối") @map("status_label")
+  masterKeyEncrypted String            @map("master_key_encrypted")
+  chunkSizeKb        Int               @default(1024) @map("chunk_size_kb")
+  issuedLicenses     Int               @default(0) @map("issued_licenses")
+  activeReaders      Int               @default(0) @map("active_readers")
+  revokedDevices     Int               @default(0) @map("revoked_devices")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  updatedAt          DateTime          @updatedAt @map("updated_at")
+
+  book               Book              @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  auditLogs          DrmAuditLog[]
+
+  @@index([securityStatus])
+  @@map("drm_licenses")
+}
+
+model DrmDevice {
+  id            String    @id @default(uuid())
+  userId        String    @map("user_id")
+  deviceId      String    @map("device_id")
+  deviceName    String?   @map("device_name")
+  deviceModel   String?   @map("device_model")
+  ipAddress     String?   @map("ip_address")
+  isRevoked     Boolean   @default(false) @map("is_revoked")
+  revokedAt     DateTime? @map("revoked_at")
+  revokedReason String?   @map("revoked_reason")
+  lastActiveAt  DateTime  @default(now()) @map("last_active_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@unique([userId, deviceId])
+  @@index([userId, isRevoked])
+  @@map("drm_devices")
+}
+
+model DrmAuditLog {
+  id         String      @id @default(uuid())
+  licenseId  String?     @map("license_id")
+  action     String      // ROTATE_KEY, INTEGRITY_SCAN, REVOKE_DEVICE
+  details    String
+  operatorId String?     @map("operator_id")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  license    DrmLicense? @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+
+  @@index([licenseId, createdAt])
+  @@map("drm_audit_logs")
 }
 

@@ -58,7 +58,10 @@ export class BooksController {
     @Query('userId') queryUserId?: string,
     @CurrentBookActor() actor?: BookActor,
   ) {
-    const effectiveUserId = actor?.sub || queryUserId || '8d501a4d-d846-45bd-8f15-fda4e30cf826';
+    const effectiveUserId = actor?.sub || queryUserId;
+    if (!effectiveUserId) {
+      return { data: [] };
+    }
     const books = await this.bookAccessService.getUserLibrary(effectiveUserId);
     return { data: books };
   }

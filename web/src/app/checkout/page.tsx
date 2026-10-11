@@ -12,6 +12,7 @@ import { checkoutApi } from "@/ui/api/checkoutApi";
 import { paymentApi } from "@/ui/api/paymentApi";
 import { voucherApi } from "@/ui/api/voucherApi";
 import { tokenStorage } from "@/ui/api/tokenStorage";
+import { realtimeSyncBus } from "@/ui/services/realtimeSyncBus";
 import CustomLocationSelector from "@/ui/components/common/CustomLocationSelector";
 import AddressMapPreview from "@/ui/components/common/AddressMapPreview";
 import PaymentCountdownModal from "@/ui/components/checkout/PaymentCountdownModal";
@@ -1110,6 +1111,15 @@ export default function CheckoutPage() {
             }
           }
 
+          // Broadcast realtime order created event to Seller Portal & Admin
+          realtimeSyncBus.publish('ORDER_CREATED', {
+            orderId: orderData.id,
+            orderCode: orderData.code,
+            grandTotal: orderData.grandTotal,
+            paymentMethod: isOnline ? 'ONLINE_PAYMENT' : 'COD',
+            sellerOrders: confirmRes.data.sellerOrders || [],
+          });
+
           if (isOnline) {
             setIsSubmitting(false);
             if (isDirectMode && typeof window !== "undefined") {
@@ -1133,9 +1143,11 @@ export default function CheckoutPage() {
             },
             "success"
           );
-          router.push(
-            `/order-success?orderId=${orderData.id}&code=${orderData.code}&paymentMethod=COD`
-          );
+          setTimeout(() => {
+            router.push(
+              `/order-success?orderId=${orderData.id}&code=${orderData.code}&paymentMethod=COD`
+            );
+          }, 300);
           return;
         } else {
           setIsSubmitting(false);

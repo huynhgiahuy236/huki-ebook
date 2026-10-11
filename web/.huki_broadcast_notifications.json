@@ -1,0 +1,108 @@
+[
+  {
+    "title": "ádadasdsas",
+    "summary": "ádsadasdasd",
+    "content": "ấdasdsadasdasdasda",
+    "category": "MAINTENANCE",
+    "severity": "INFO",
+    "targetType": "ALL",
+    "channels": [
+      "TOP_BAR",
+      "BELL"
+    ],
+    "isPinnedTop": true,
+    "isDismissible": true,
+    "scheduleType": "INSTANT",
+    "status": "ACTIVE",
+    "authorName": "Ban Quản Trị HUKI",
+    "actionUrl": "sdasd",
+    "actionLabel": "ádas",
+    "id": "notif-1791722396406-5277",
+    "createdAt": "2026-10-11T12:39:56.406Z",
+    "updatedAt": "2026-10-11T12:39:56.421Z",
+    "readByBusinessIds": [
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+    ],
+    "dismissedByBusinessIds": []
+  },
+  {
+    "id": "notif-escrow-recon",
+    "title": "Kỳ đối soát & Quyết toán Escrow định kỳ (Kỳ 15 hàng tháng)",
+    "summary": "Hệ thống tự động kết chuyển doanh thu các đơn hàng hoàn tất vào Ví Khả Dụng trước 24:00.",
+    "content": "Kính gửi Quý Nhà Xuất Bản và Đối Tác Bán Hàng,\n\nTheo quy chế vận hành sàn HUKI, hôm nay là kỳ đối soát doanh thu tự động định kỳ giữa tháng. Toàn bộ tiền giữ ký quỹ (Escrow) của các đơn hàng giao thành công và hết thời hạn đổi trả (sau 7 ngày) sẽ được giải ngân vào Ví Khả Dụng của gian hàng.\n\nQuý đối tác vui lòng kiểm tra mục [Tài chính & Doanh thu > Lịch sử Giao dịch Ví] để đối chiếu chi tiết.",
+    "category": "FINANCE",
+    "severity": "INFO",
+    "targetType": "ALL",
+    "channels": [
+      "TOP_BAR",
+      "BELL"
+    ],
+    "isPinnedTop": true,
+    "isDismissible": true,
+    "scheduleType": "RECURRING",
+    "recurringRule": "BI_MONTHLY",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-11T08:37:47.848Z",
+    "updatedAt": "2026-10-11T08:37:47.848Z",
+    "authorName": "Ban Quản Trị HUKI",
+    "readByBusinessIds": [
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+    ],
+    "dismissedByBusinessIds": [],
+    "actionUrl": "/seller/finance",
+    "actionLabel": "Xem Ví Escrow"
+  },
+  {
+    "id": "notif-maintenance-system",
+    "title": "Thông báo kế hoạch bảo trì cổng thanh toán trực tuyến & DRMVault",
+    "summary": "Hệ thống bảo trì máy chủ mã hóa DRM từ 01:00 đến 03:00 sáng mai. Tính năng xuất bản tạm ngắt trong khung giờ này.",
+    "content": "Ban Quản Trị HUKI xin thông báo kế hoạch nâng cấp hạ tầng mã hóa chống sao chép DRM và hạ tầng cụm thanh toán VietQR:\n\n- Thời gian dự kiến: 01:00 - 03:00 (Sáng mai)\n- Ảnh hưởng: Trong khoảng thời gian này, tính năng tải file EPUB/PDF mới lên sàn và đối soát sẽ tạm ngắt kết nối. Các tính năng bán hàng và đọc sách của độc giả vẫn hoạt động bình thường.\n\nTrân trọng cảm ơn sự hợp tác của Quý Đối Tác!",
+    "category": "MAINTENANCE",
+    "severity": "WARNING",
+    "targetType": "ALL",
+    "channels": [
+      "TOP_BAR",
+      "BELL"
+    ],
+    "isPinnedTop": true,
+    "isDismissible": true,
+    "scheduleType": "INSTANT",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-11T00:37:47.848Z",
+    "updatedAt": "2026-10-11T00:37:47.848Z",
+    "authorName": "Bộ Phận Kỹ Thuật HUKI",
+    "readByBusinessIds": [
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+    ],
+    "dismissedByBusinessIds": [],
+    "actionUrl": "/seller/notifications",
+    "actionLabel": "Xem Lịch Bảo Trì"
+  },
+  {
+    "id": "notif-policy-copyright",
+    "title": "Cập nhật quy định kiểm duyệt bản quyền tác phẩm Ebook & Giấy phép NXB",
+    "summary": "Mọi ấn bản số phát hành từ tháng này phải đính kèm hợp đồng chuyển nhượng quyền tác giả hợp lệ.",
+    "content": "Nhằm đảm bảo tuân thủ nghiêm ngặt Luật Xuất Bản và bảo vệ quyền tác giả trong thời đại AI, Ban Quản Trị HUKI cập nhật biểu mẫu cam kết quyền sở hữu trí tuệ khi đăng tải tác phẩm sách số.\n\nCác ấn bản chưa bổ sung đủ tài liệu hợp lệ trước ngày 30 hàng tháng sẽ tạm chuyển về trạng thái Lưu Nháp.",
+    "category": "POLICY",
+    "severity": "CRITICAL",
+    "targetType": "SEGMENT",
+    "targetSegment": "DIGITAL_SELLERS",
+    "channels": [
+      "BELL",
+      "MODAL"
+    ],
+    "isPinnedTop": false,
+    "isDismissible": true,
+    "scheduleType": "INSTANT",
+    "status": "ACTIVE",
+    "createdAt": "2026-10-10T12:37:47.848Z",
+    "updatedAt": "2026-10-10T12:37:47.848Z",
+    "authorName": "Phòng Pháp Lý HUKI",
+    "readByBusinessIds": [
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+    ],
+    "dismissedByBusinessIds": [],
+    "actionUrl": "/seller/product/correction",
+    "actionLabel": "Kiểm Tra Danh Mục"
+  }
+]

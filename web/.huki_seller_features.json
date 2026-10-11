@@ -1,0 +1,101 @@
+[
+  {
+    "id": "FLASH_SALE",
+    "name": "Chương trình Flash Sale",
+    "category": "marketing",
+    "description": "Cho phép Người bán đăng ký sản phẩm tham gia Flash Sale theo khung giờ hệ thống.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T15:09:30.130Z",
+    "updatedBy": "Admin HuKi"
+  },
+  {
+    "id": "VOUCHERS",
+    "name": "Mã giảm giá & Voucher Cửa hàng",
+    "category": "marketing",
+    "description": "Tạo mã voucher giảm giá, hoàn xu và mã tri ân khách hàng riêng cho từng gian hàng.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "DISCOUNTS",
+    "name": "Chương trình Combo & Khuyến mãi",
+    "category": "marketing",
+    "description": "Thiết lập mua kèm deal sốc, mua nhiều giảm sâu và combo trọn bộ tác phẩm.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "DIGITAL_PUBLISHING",
+    "name": "Xuất bản Sách điện tử (DRM / Ebook)",
+    "category": "inventory",
+    "description": "Đăng tải bản đọc thử, đóng gói file EPUB/PDF có mã hóa bảo vệ bản quyền DRM HuKi.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "BULK_UPLOAD",
+    "name": "Nhập sách hàng loạt (Excel / CSV)",
+    "category": "inventory",
+    "description": "Tải file mẫu và nhập thông tin hàng trăm đầu sách cùng lúc vào kho lưu trữ.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "WITHDRAWALS",
+    "name": "Rút tiền & Quyết toán Escrow",
+    "category": "finance",
+    "description": "Yêu cầu chuyển doanh thu từ Ví Escrow bảo đảm về tài khoản ngân hàng doanh nghiệp.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "RETURNS_MANAGEMENT",
+    "name": "Quản lý & Xử lý Trả hàng / Hoàn tiền",
+    "category": "operations",
+    "description": "Tiếp nhận yêu cầu khiếu nại, phản hồi bằng chứng và duyệt đổi trả từ người mua.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "STAFF_MANAGEMENT",
+    "name": "Phân quyền & Quản lý Nhân viên",
+    "category": "operations",
+    "description": "Thêm tài khoản nhân viên vận hành kho, thủ kho, kế toán với phân quyền theo vai trò.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.303Z",
+    "updatedBy": "Admin System"
+  },
+  {
+    "id": "CUSTOMER_CHAT",
+    "name": "Tin nhắn CSKH & Tư vấn Trực tuyến",
+    "category": "customer",
+    "description": "Trò chuyện thời gian thực với độc giả, giải đáp thắc mắc và gửi ưu đãi trực tiếp.",
+    "isEnabledGlobally": true,
+    "maintenanceReason": "",
+    "disabledBusinesses": [],
+    "updatedAt": "2026-10-11T12:38:20.305Z",
+    "updatedBy": "Admin System"
+  }
+]

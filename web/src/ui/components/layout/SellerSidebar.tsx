@@ -7,6 +7,10 @@ import { orderApi } from '../../api/orderApi';
 import { useAuth } from '../../context/AuthContext';
 import { can, PERMISSIONS, type PermissionKey } from '../../utils/permissions';
 
+import { featureFlagsService } from '@/ui/services/featureFlagsService';
+import { adminNotificationService } from '@/ui/services/adminNotificationService';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+
 export interface SellerSidebarProps {
   isCollapsed: boolean;
   toggleSidebar: () => void;
@@ -23,16 +27,21 @@ interface MenuItem {
   permission?: PermissionKey;
   isDeferred?: boolean;
   targetBlank?: boolean;
+  featureFlag?: string;
 }
 
 interface MenuGroup {
   title: string;
+  icon?: string;
   items: MenuItem[];
 }
 
 export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, onClose }: SellerSidebarProps) {
   const pathname = usePathname() || '';
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
+  const [unreadAdminNotifs, setUnreadAdminNotifs] = useState(0);
+  const [, setFeatureVersion] = useState(0);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [badges, setBadges] = useState<{
     stores: number;
     products: number;
@@ -83,17 +92,17 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         }
       } catch { /* ignore */ }
       try {
-        const ordersRes = await orderApi.getSellerOrders(bizId);
+        const ordersRes = await orderApi.getSellerOrders(bizId ? { limit: 100, business: bizId } : { limit: 100 });
         if (ordersRes.success && ordersRes.data) {
           const list: Array<{ status?: string }> = Array.isArray(ordersRes.data)
             ? ordersRes.data
             : Array.isArray((ordersRes.data as { items?: unknown[] }).items)
             ? (ordersRes.data as { items: Array<{ status?: string }> }).items
             : [];
-          const pending = list.filter((o) => o.status === 'PENDING_CONFIRMATION' || o.status === 'PENDING_PAYMENT').length;
-          const preparing = list.filter((o) => o.status === 'PREPARING' || o.status === 'CONFIRMED').length;
-          counts.orders = pending;
-          counts.pendingOrders = preparing || pending;
+          const validOrders = list.filter((o) => o.status !== 'PENDING_PAYMENT');
+          const pending = validOrders.filter((o) => o.status === 'PENDING_CONFIRMATION').length;
+          counts.orders = validOrders.length;
+          counts.pendingOrders = pending;
         }
       } catch { /* ignore */ }
 
@@ -122,26 +131,73 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
 
     window.addEventListener('huki_noti_updated', handleSync);
     window.addEventListener('storage', handleSync);
+    window.addEventListener('huki_orders_updated', fetchBadges);
+
+    const syncAdminNotifs = () => {
+      const bizId = user?.business?.id || activeBusinessId || undefined;
+      const notifs = adminNotificationService.getForSeller(bizId, true);
+      const unread = notifs.filter(n => !bizId || !n.readByBusinessIds?.includes(bizId)).length;
+      setUnreadAdminNotifs(unread);
+    };
+
+    syncAdminNotifs();
+    window.addEventListener('huki_admin_notifications_updated', syncAdminNotifs);
+
+    const syncFeatures = () => {
+      setFeatureVersion(v => v + 1);
+    };
+    window.addEventListener('huki_feature_flags_updated', syncFeatures);
+
+    const unsubscribeBus = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'FEATURE_FLAGS_UPDATED') {
+        syncFeatures();
+      }
+      if (msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' || msg.type === 'NOTIFICATION_READ') {
+        syncAdminNotifs();
+      }
+      if (msg.type.startsWith('ORDER_')) {
+        fetchBadges();
+      }
+    });
+
+    const badgeTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchBadges();
+      }
+    }, 4000);
 
     return () => {
       cancelled = true;
+      clearInterval(badgeTimer);
       window.removeEventListener('huki_noti_updated', handleSync);
       window.removeEventListener('storage', handleSync);
+      window.removeEventListener('huki_orders_updated', fetchBadges);
+      window.removeEventListener('huki_admin_notifications_updated', syncAdminNotifs);
+      window.removeEventListener('huki_feature_flags_updated', syncFeatures);
+      unsubscribeBus();
     };
   }, [user, activeBusinessId, setActiveBusinessId]);
 
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
 
-  // Nhóm menu chuẩn
+  // 7 Nhóm phân hệ Accordion chuẩn sàn TMĐT
   const menuGroups: MenuGroup[] = [
     {
       title: 'TỔNG QUAN GIAN HÀNG',
+      icon: 'store',
       items: [
         { 
           to: '/seller/dashboard', 
           icon: 'dashboard', 
           label: 'Bảng Tổng Quan (Dashboard)', 
           permission: PERMISSIONS.DASHBOARD_VIEW 
+        },
+        { 
+          to: '/seller/notifications', 
+          icon: 'notifications', 
+          label: 'Trung Tâm Thông Báo', 
+          badge: unreadAdminNotifs || null,
+          badgeColor: 'bg-rose-500',
         },
         { 
           to: `/shop/${user?.business?.slug || user?.business?.id || activeBusinessId || 'alpha-books'}`, 
@@ -153,7 +209,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       ]
     },
     {
-      title: 'BÁN HÀNG & ĐƠN HÀNG',
+      title: 'QUẢN LÝ ĐƠN HÀNG',
+      icon: 'receipt_long',
       items: [
         { 
           to: '/seller/orders', 
@@ -181,7 +238,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/returns', 
           icon: 'assignment_return', 
           label: 'Yêu Cầu Đổi Trả', 
-          permission: PERMISSIONS.ORDER_VIEW 
+          permission: PERMISSIONS.ORDER_VIEW,
+          featureFlag: 'RETURNS_MANAGEMENT',
         },
         { 
           to: '/seller/replacement-orders', 
@@ -189,23 +247,11 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           label: 'Đơn Hàng Đổi Mới', 
           permission: PERMISSIONS.ORDER_VIEW 
         },
-        { 
-          to: '/seller/chat', 
-          icon: 'chat', 
-          label: 'Tin Nhắn & Chat', 
-          targetBlank: true,
-          permission: PERMISSIONS.STORE_VIEW 
-        },
-        { 
-          to: '/seller/reviews', 
-          icon: 'rate_review', 
-          label: 'Đánh Giá & Nhận Xét', 
-          permission: PERMISSIONS.STORE_VIEW 
-        }
       ]
     },
     {
-      title: 'SẢN PHẨM & KHO HÀNG',
+      title: 'SẢN PHẨM & TỒN KHO',
+      icon: 'menu_book',
       items: [
         { 
           to: '/seller/products', 
@@ -231,7 +277,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/inventory', 
           icon: 'inventory', 
           label: 'Quản Lý Tồn Kho (3 Tầng)', 
-          permission: PERMISSIONS.INVENTORY_UPDATE 
+          permission: PERMISSIONS.INVENTORY_UPDATE,
+          featureFlag: 'BULK_UPLOAD',
         },
         { 
           to: '/seller/product/create-physical', 
@@ -242,30 +289,61 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       ]
     },
     {
-      title: 'QUẢN LÝ ƯU ĐÃI',
+      title: 'CHĂM SÓC KHÁCH HÀNG (CRM)',
+      icon: 'support_agent',
+      items: [
+        { 
+          to: '/seller/chat', 
+          icon: 'chat', 
+          label: 'Tin Nhắn & Chat', 
+          targetBlank: true,
+          permission: PERMISSIONS.STORE_VIEW,
+          featureFlag: 'CUSTOMER_CHAT',
+        },
+        { 
+          to: '/seller/reviews', 
+          icon: 'rate_review', 
+          label: 'Đánh Giá & Nhận Xét', 
+          permission: PERMISSIONS.STORE_VIEW 
+        },
+        { 
+          to: '/seller/followers', 
+          icon: 'group', 
+          label: 'Người Theo Dõi', 
+          permission: PERMISSIONS.STORE_VIEW 
+        },
+      ]
+    },
+    {
+      title: 'CÔNG CỤ MARKETING',
+      icon: 'campaign',
       items: [
         { 
           to: '/seller/promotions/discounts', 
           icon: 'sell', 
           label: 'Giảm Giá Tự Do', 
-          permission: PERMISSIONS.PRODUCT_UPDATE 
+          permission: PERMISSIONS.PRODUCT_UPDATE,
+          featureFlag: 'DISCOUNTS',
         },
         { 
           to: '/seller/promotions/vouchers', 
           icon: 'confirmation_number', 
           label: 'Voucher Giảm Giá', 
-          permission: PERMISSIONS.PRODUCT_UPDATE 
+          permission: PERMISSIONS.PRODUCT_UPDATE,
+          featureFlag: 'VOUCHERS',
         },
         { 
           to: '/seller/promotions/flash-sale', 
           icon: 'bolt', 
           label: 'Flash Sale (Giờ Vàng)', 
-          permission: PERMISSIONS.PRODUCT_UPDATE 
+          permission: PERMISSIONS.PRODUCT_UPDATE,
+          featureFlag: 'FLASH_SALE',
         }
       ]
     },
     {
-      title: 'TÀI CHÍNH & DOANH THU',
+      title: 'VÍ & TÀI CHÍNH',
+      icon: 'account_balance_wallet',
       items: [
         { 
           to: '/seller/reports', 
@@ -277,7 +355,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/finance', 
           icon: 'account_balance_wallet', 
           label: 'Số Dư Ví & Rút Tiền', 
-          permission: PERMISSIONS.FINANCE_VIEW 
+          permission: PERMISSIONS.FINANCE_VIEW,
+          featureFlag: 'WITHDRAWALS',
         },
         { 
           to: '/seller/escrow', 
@@ -294,14 +373,9 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       ]
     },
     {
-      title: 'CỬA HÀNG & NHÂN SỰ',
+      title: 'THIẾT LẬP SHOP',
+      icon: 'settings',
       items: [
-        { 
-          to: '/seller/followers', 
-          icon: 'group', 
-          label: 'Người Theo Dõi', 
-          permission: PERMISSIONS.STORE_VIEW 
-        },
         { 
           to: '/seller/business', 
           icon: 'domain', 
@@ -321,7 +395,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           to: '/seller/staff', 
           icon: 'badge', 
           label: 'Danh Sách Nhân Viên', 
-          permission: PERMISSIONS.MEMBER_VIEW 
+          permission: PERMISSIONS.MEMBER_VIEW,
+          featureFlag: 'STAFF_MANAGEMENT',
         },
         { 
           to: '/seller/staff?action=provision', 
@@ -332,6 +407,22 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       ]
     }
   ];
+
+  // Tự động mở accordion của nhóm chứa route hiện tại
+  useEffect(() => {
+    const nextOpen: Record<string, boolean> = {};
+    menuGroups.forEach((group) => {
+      const hasActive = group.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+      if (hasActive) {
+        nextOpen[group.title] = true;
+      }
+    });
+    setOpenGroups((prev) => ({ ...prev, ...nextOpen }));
+  }, [pathname]);
+
+  const toggleGroup = (title: string) => {
+    setOpenGroups((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
 
   const visibleMenuGroups = menuGroups
     .map((group) => ({
@@ -355,7 +446,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         isCollapsed ? 'w-[64px] p-2' : 'w-[250px] p-3'
       }`}
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         {/* Mobile Header with Close button */}
         {isMobile && (
           <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 -m-3 mb-3">
@@ -383,18 +474,36 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           </div>
         )}
 
-        {visibleMenuGroups.map((group, gIdx) => (
-          <div key={gIdx} className="space-y-1">
-            {/* Group Title or Divider */}
-            {isCollapsed ? (
-              <div className="my-2 border-t border-[#00875A]/15" title={group.title}></div>
-            ) : (
-              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#00875A] flex items-center justify-between select-none">
-                <span>{group.title}</span>
-              </div>
-            )}
+        {visibleMenuGroups.map((group, gIdx) => {
+          const isGroupOpen = openGroups[group.title] ?? true;
+          const hasActiveChild = group.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
 
-            <div className="space-y-1">
+          return (
+            <div key={gIdx} className="space-y-0.5">
+              {/* Group Title or Accordion Header */}
+              {isCollapsed ? (
+                <div className="my-2 border-t border-[#00875A]/15" title={group.title}></div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className={`w-full px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg flex items-center justify-between select-none cursor-pointer transition-colors ${
+                    hasActiveChild ? 'text-[#00875A] bg-[#00875A]/8' : 'text-slate-500 hover:text-[#00875A] hover:bg-slate-50'
+                  }`}
+                  title={`Bấm để ${isGroupOpen ? 'thu gọn' : 'mở rộng'} ${group.title}`}
+                >
+                  <div className="flex items-center gap-1.5 truncate">
+                    {group.icon && <span className="material-symbols-outlined text-[14px]">{group.icon}</span>}
+                    <span className="truncate">{group.title}</span>
+                  </div>
+                  <span className={`material-symbols-outlined text-[14px] transition-transform duration-200 ${isGroupOpen ? 'rotate-180 text-[#00875A]' : 'text-slate-400'}`}>
+                    expand_more
+                  </span>
+                </button>
+              )}
+
+              {(isCollapsed || isGroupOpen) && (
+                <div className={`space-y-1 ${!isCollapsed ? 'pl-1 pr-0.5 mt-0.5 animate-in fade-in-0 duration-200' : ''}`}>
               {group.items.map((item, iIdx) => {
                 if (item.isDeferred) {
                   return (
@@ -417,6 +526,44 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                           <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-slate-400 bg-slate-100 border border-slate-200 whitespace-nowrap shrink-0 ml-1.5">
                             Sớm
                           </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                // Check Feature Flag status
+                const featCheck = item.featureFlag
+                  ? featureFlagsService.isFeatureAccessible(item.featureFlag, currentBizId)
+                  : { accessible: true };
+                const isFeatureDisabled = !featCheck.accessible;
+
+                if (isFeatureDisabled) {
+                  return (
+                    <div key={iIdx} className="relative group/dis">
+                      {isCollapsed ? (
+                        <div className="flex items-center justify-center py-0.5">
+                          <div className="flex items-center justify-center w-10 h-10 rounded-xl opacity-40 text-slate-400 bg-slate-100/70 cursor-not-allowed">
+                            <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
+                          </div>
+                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-opacity duration-150 absolute left-full ml-2.5 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-xl whitespace-nowrap z-50">
+                            <div className="font-bold text-amber-300">{item.label} (Bảo trì)</div>
+                            <div className="text-[10px] text-slate-300 font-normal">{featCheck.reason || 'Đang bảo trì nâng cấp'}</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] opacity-40 text-slate-400 bg-slate-50/70 border border-slate-200/50 cursor-not-allowed select-none relative">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="material-symbols-outlined text-[19px] shrink-0 text-slate-400">{item.icon}</span>
+                            <span className="truncate leading-none">{item.label}</span>
+                          </div>
+                          <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold text-amber-800 bg-amber-100 border border-amber-200 whitespace-nowrap shrink-0">
+                            Bảo trì
+                          </span>
+                          {/* Tooltip on hover */}
+                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-opacity duration-150 absolute bottom-full left-2 mb-1.5 px-3 py-1.5 bg-slate-900 text-white text-[11px] rounded-xl shadow-xl whitespace-normal max-w-xs z-50 leading-relaxed">
+                            <span className="font-bold text-amber-400">Tạm bảo trì:</span> {featCheck.reason || 'Tính năng đang được nâng cấp bởi Ban quản trị sàn'}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -491,9 +638,11 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                 );
               })}
             </div>
-          </div>
-        ))}
-      </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
 
       {/* Sidebar Bottom Controls */}
       <div className="p-2.5 border-t border-[#00875A]/15 bg-slate-50/70 flex flex-col gap-1 shrink-0 -mx-3 -mb-3 mt-auto">

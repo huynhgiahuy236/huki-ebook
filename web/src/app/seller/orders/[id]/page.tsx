@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { orderApi } from '@/ui/api/orderApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
 import {
   SellerStatusBadge,
@@ -170,6 +171,22 @@ export default function SellerOrderDetailPage() {
 
   useEffect(() => {
     fetchOrderDetail();
+  }, [fetchOrderDetail]);
+
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'ORDER_STATUS_CHANGED' ||
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        msg.type === 'ORDER_CANCELLED'
+      ) {
+        fetchOrderDetail();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [fetchOrderDetail]);
 
   const handleConfirm = async () => {

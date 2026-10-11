@@ -1,5 +1,6 @@
 import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
+import { realtimeSyncBus } from '../services/realtimeSyncBus';
 
 export type SellerOrderStatus =
   | 'PENDING_PAYMENT'
@@ -161,29 +162,49 @@ export const orderApi = {
   },
 
   confirmOrder: async (id: string): Promise<ApiResponse<SellerOrder>> => {
-    return apiClient<SellerOrder>(`/seller/orders/${id}/confirm`, { method: 'PATCH' });
+    const res = await apiClient<SellerOrder>(`/seller/orders/${id}/confirm`, { method: 'PATCH' });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'CONFIRMED' });
+    }
+    return res;
   },
 
   prepareOrder: async (id: string): Promise<ApiResponse<SellerOrder>> => {
-    return apiClient<SellerOrder>(`/seller/orders/${id}/prepare`, { method: 'PATCH' });
+    const res = await apiClient<SellerOrder>(`/seller/orders/${id}/prepare`, { method: 'PATCH' });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'PREPARING' });
+    }
+    return res;
   },
 
   shipOrder: async (id: string, payload: ShipOrderPayload): Promise<ApiResponse<SellerOrder>> => {
-    return apiClient<SellerOrder>(`/seller/orders/${id}/ship`, {
+    const res = await apiClient<SellerOrder>(`/seller/orders/${id}/ship`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'SHIPPED', payload });
+    }
+    return res;
   },
 
   deliverOrder: async (id: string): Promise<ApiResponse<SellerOrder>> => {
-    return apiClient<SellerOrder>(`/seller/orders/${id}/deliver`, { method: 'PATCH' });
+    const res = await apiClient<SellerOrder>(`/seller/orders/${id}/deliver`, { method: 'PATCH' });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'DELIVERED' });
+    }
+    return res;
   },
 
   cancelSellerOrder: async (id: string, payload: CancelOrderPayload): Promise<ApiResponse<SellerOrder>> => {
-    return apiClient<SellerOrder>(`/seller/orders/${id}/cancel`, {
+    const res = await apiClient<SellerOrder>(`/seller/orders/${id}/cancel`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_CANCELLED', { sellerOrderId: id, status: 'CANCELLED', payload });
+    }
+    return res;
   },
 
   getBuyerOrders: async (params?: OrderQuery): Promise<ApiResponse<{ items: BuyerOrder[]; pagination?: OrderPagination }>> => {

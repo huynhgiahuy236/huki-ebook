@@ -24,8 +24,11 @@ export interface UserLibraryBook {
 
 export const libraryApi = {
   async getMyLibrary(userId?: string): Promise<UserLibraryBook[]> {
+    if (!userId) {
+      return [];
+    }
     try {
-      const q = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+      const q = `?userId=${encodeURIComponent(userId)}`;
       const res = await apiClient<UserLibraryBook[]>(`/books/library/my-books${q}`, { skipAuth: false });
       if (res && res.data && Array.isArray(res.data)) {
         return res.data;
