@@ -203,6 +203,19 @@ export const orderApi = {
     });
     if (res.success) {
       realtimeSyncBus.publish('ORDER_CANCELLED', { sellerOrderId: id, status: 'CANCELLED', payload });
+      if (res.data?.items) {
+        res.data.items.forEach((it) => {
+          if (it.bookId) {
+            realtimeSyncBus.publish('INVENTORY_UPDATED', {
+              bookId: it.bookId,
+              action: 'RELEASED',
+              quantityDelta: it.quantity,
+              bookTitle: it.title,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        });
+      }
     }
     return res;
   },
@@ -226,17 +239,54 @@ export const orderApi = {
   },
 
   cancelBuyerOrder: async (id: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {
-    return apiClient<BuyerOrder>(`/orders/${id}/cancel`, {
+    const res = await apiClient<BuyerOrder>(`/orders/${id}/cancel`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_CANCELLED', { orderId: id, status: 'CANCELLED', payload });
+      if (res.data?.sellerOrders) {
+        res.data.sellerOrders.forEach((so) => {
+          so.items?.forEach((it) => {
+            if (it.bookId) {
+              realtimeSyncBus.publish('INVENTORY_UPDATED', {
+                bookId: it.bookId,
+                action: 'RELEASED',
+                quantityDelta: it.quantity,
+                bookTitle: it.title,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          });
+        });
+      }
+    }
+    return res;
   },
 
   cancelBuyerSubOrder: async (orderId: string, sellerOrderId: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {
-    return apiClient<BuyerOrder>(`/orders/${orderId}/seller-orders/${sellerOrderId}/cancel`, {
+    const res = await apiClient<BuyerOrder>(`/orders/${orderId}/seller-orders/${sellerOrderId}/cancel`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('ORDER_CANCELLED', { orderId, sellerOrderId, status: 'CANCELLED', payload });
+      if (res.data?.sellerOrders) {
+        const foundSo = res.data.sellerOrders.find((s) => s.id === sellerOrderId);
+        foundSo?.items?.forEach((it) => {
+          if (it.bookId) {
+            realtimeSyncBus.publish('INVENTORY_UPDATED', {
+              bookId: it.bookId,
+              action: 'RELEASED',
+              quantityDelta: it.quantity,
+              bookTitle: it.title,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        });
+      }
+    }
+    return res;
   },
 
   requestCancelBuyerSubOrder: async (orderId: string, sellerOrderId: string, payload: CancelOrderPayload): Promise<ApiResponse<BuyerOrder>> => {

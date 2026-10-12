@@ -13,7 +13,20 @@ export type SyncEventType =
   | 'ORDER_CREATED'
   | 'ORDER_PAYMENT_SUCCEEDED'
   | 'ORDER_STATUS_CHANGED'
-  | 'ORDER_CANCELLED';
+  | 'ORDER_CANCELLED'
+  | 'INVENTORY_UPDATED';
+
+export interface InventoryUpdatePayload {
+  bookId: string;
+  storeId?: string;
+  totalStock?: number;
+  reservedStock?: number;
+  availableStock?: number;
+  action: 'RESERVED' | 'COMMITTED' | 'RELEASED' | 'MANUAL_ADJUST';
+  quantityDelta?: number;
+  updatedAt?: string;
+  bookTitle?: string;
+}
 
 export interface SyncMessage<T = unknown> {
   type: SyncEventType;
@@ -69,6 +82,18 @@ class RealtimeSyncBus {
             }
           } catch {}
         }
+        if (e.key === 'huki_latest_inventory_event' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data?.type) {
+              this.notifyListeners({
+                type: data.type,
+                payload: data.payload,
+                timestamp: data.t || Date.now(),
+              });
+            }
+          } catch {}
+        }
       });
     }
   }
@@ -109,6 +134,15 @@ class RealtimeSyncBus {
           );
         } catch {}
       }
+      if (type === 'INVENTORY_UPDATED') {
+        try {
+          localStorage.setItem(
+            'huki_latest_inventory_event',
+            JSON.stringify({ type, payload, t: Date.now() })
+          );
+          window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: payload }));
+        } catch {}
+      }
     }
   }
 
@@ -129,6 +163,9 @@ class RealtimeSyncBus {
       }
       if (message.type === 'NOTIFICATION_READ') {
         window.dispatchEvent(new CustomEvent('huki_notification_read', { detail: message.payload }));
+      }
+      if (message.type === 'INVENTORY_UPDATED') {
+        window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: message.payload }));
       }
     }
 

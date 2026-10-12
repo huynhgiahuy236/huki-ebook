@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, Optional } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { Prisma, CartItemFormat } from '../../../prisma/generated/client';
@@ -10,6 +11,7 @@ export class InventoryReservationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
+    @Optional() private readonly eventEmitter?: EventEmitter2,
   ) {}
 
   async reserve(tx: Prisma.TransactionClient, orderId: string, items: any[]): Promise<void> {
@@ -71,6 +73,18 @@ export class InventoryReservationService {
           note: `Khóa tạm giữ ${item.quantity} cuốn cho đơn hàng ${orderId}`,
         },
       });
+
+      // RT-03: Emit realtime inventory updated event
+      this.eventEmitter?.emit('inventory.updated', {
+        bookId: item.bookId,
+        orderId,
+        action: 'RESERVED',
+        quantityDelta: item.quantity,
+        totalStock: details.stock,
+        reservedStock: details.reserved + item.quantity,
+        availableStock: Math.max(0, details.stock - details.reserved - item.quantity),
+        updatedAt: new Date().toISOString(),
+      });
     }
   }
 
@@ -126,6 +140,18 @@ export class InventoryReservationService {
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
         data: { status: 'RELEASED', releasedAt: new Date() },
+      });
+
+      // RT-03: Emit realtime inventory updated event
+      this.eventEmitter?.emit('inventory.updated', {
+        bookId: reservation.bookId,
+        orderId,
+        action: 'RELEASED',
+        quantityDelta: reservation.quantity,
+        totalStock: details?.stock ?? 0,
+        reservedStock: details ? Math.max(0, details.reserved - reservation.quantity) : 0,
+        availableStock: details ? Math.max(0, details.stock - Math.max(0, details.reserved - reservation.quantity)) : 0,
+        updatedAt: new Date().toISOString(),
       });
     }
 
@@ -184,6 +210,18 @@ export class InventoryReservationService {
           orderId,
           note: `Trừ kho thực tế khi đơn hàng ${orderId} thanh toán thành công`,
         },
+      });
+
+      // RT-03: Emit realtime inventory updated event
+      this.eventEmitter?.emit('inventory.updated', {
+        bookId: reservation.bookId,
+        orderId,
+        action: 'COMMITTED',
+        quantityDelta: reservation.quantity,
+        totalStock: updated.stock,
+        reservedStock: updated.reserved,
+        availableStock: available,
+        updatedAt: new Date().toISOString(),
       });
     }
   }

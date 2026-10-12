@@ -12,6 +12,8 @@ import {
   SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import { useRealtimeInventory } from '@/ui/hooks/useRealtimeInventory';
+import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 
 interface InventoryBook {
   id: string;
@@ -69,6 +71,60 @@ export default function SellerInventoryPage() {
   const [logPage, setLogPage] = useState(1);
   const [logTotalPages, setLogTotalPages] = useState(1);
 
+  // RT-03: Realtime 3-Tier Inventory hook
+  const { highlightedBooks, broadcastUpdate } = useRealtimeInventory({
+    onUpdate: (payload: InventoryUpdatePayload) => {
+      setBooks((prevBooks) => {
+        return prevBooks.map((b) => {
+          const isTarget =
+            b.id === payload.bookId ||
+            (payload.bookTitle && b.title && b.title.trim().toLowerCase() === payload.bookTitle.trim().toLowerCase());
+
+          if (isTarget) {
+            const currentStock = Number(b.stock ?? b.physicalDetails?.stock ?? 0);
+            const currentReserved = Number(b.reserved ?? b.physicalDetails?.reserved ?? 0);
+            const delta = payload.quantityDelta || 0;
+
+            let newStock = payload.totalStock !== undefined ? payload.totalStock : currentStock;
+            let newReserved = payload.reservedStock !== undefined ? payload.reservedStock : currentReserved;
+
+            if (payload.action === 'RESERVED' && payload.reservedStock === undefined) {
+              newReserved = currentReserved + delta;
+            } else if (payload.action === 'RELEASED' && payload.reservedStock === undefined) {
+              newReserved = Math.max(0, currentReserved - delta);
+            } else if (payload.action === 'COMMITTED' && payload.reservedStock === undefined) {
+              newReserved = Math.max(0, currentReserved - delta);
+              newStock = Math.max(0, currentStock - delta);
+            }
+
+            return {
+              ...b,
+              stock: newStock,
+              reserved: newReserved,
+              physicalDetails: {
+                ...b.physicalDetails,
+                stock: newStock,
+                reserved: newReserved,
+              },
+            };
+          }
+          return b;
+        });
+      });
+
+      const actionText =
+        payload.action === 'RESERVED'
+          ? 'vừa được tạm giữ cho đơn hàng mới'
+          : payload.action === 'RELEASED'
+          ? 'vừa được giải phóng lại kho'
+          : payload.action === 'COMMITTED'
+          ? 'đã xuất kho thực tế'
+          : 'vừa được cập nhật tồn kho';
+
+      showToast?.(`⚡ Tồn kho "${payload.bookTitle || 'sách'}" ${actionText}!`, 'info');
+    },
+  });
+
   const fetchInventory = useCallback(async () => {
     try {
       setLoading(true);
@@ -110,6 +166,21 @@ export default function SellerInventoryPage() {
 
   useEffect(() => {
     fetchInventory();
+  }, [fetchInventory]);
+
+  // Listen to order lifecycle changes to keep inventory synced with backend
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'ORDER_CREATED' ||
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        msg.type === 'ORDER_CANCELLED' ||
+        msg.type === 'ORDER_STATUS_CHANGED'
+      ) {
+        fetchInventory();
+      }
+    });
+    return () => unsub();
   }, [fetchInventory]);
 
   // Compute Metrics
@@ -184,6 +255,15 @@ export default function SellerInventoryPage() {
     e.preventDefault();
     if (!adjustState?.book) return;
 
+    const currentReserved = Number(adjustState.book.reserved ?? adjustState.book.physicalDetails?.reserved ?? 0);
+    const prevStock = Number(adjustState.book.stock ?? adjustState.book.physicalDetails?.stock ?? 0);
+    const currentAvailable = Math.max(0, prevStock - currentReserved);
+
+    if (adjustState.operation === 'SUBTRACT' && adjustState.quantity > currentAvailable) {
+      showToast?.(`Không thể trừ ${adjustState.quantity} cuốn vì vượt quá số lượng khả dụng (${currentAvailable} cuốn). Số còn lại đang tạm giữ cho khách!`, 'error');
+      return;
+    }
+
     try {
       setAdjustState((prev) => (prev ? { ...prev, submitting: true } : null));
       await catalogApi.updateInventory(adjustState.book.id, {
@@ -197,6 +277,28 @@ export default function SellerInventoryPage() {
         `Đã cập nhật tồn kho cho "${adjustState.book.title}" thành công!`,
         'success'
       );
+
+      // RT-03: Broadcast realtime inventory update for other tabs / buyers
+      const newStock =
+        adjustState.operation === 'ADD'
+          ? prevStock + Number(adjustState.quantity)
+          : adjustState.operation === 'SUBTRACT'
+          ? Math.max(0, prevStock - Number(adjustState.quantity))
+          : Number(adjustState.quantity);
+
+      const newAvailable = Math.max(0, newStock - currentReserved);
+
+      broadcastUpdate({
+        bookId: adjustState.book.id,
+        action: 'MANUAL_ADJUST',
+        totalStock: newStock,
+        reservedStock: currentReserved,
+        availableStock: newAvailable,
+        quantityDelta: Number(adjustState.quantity),
+        bookTitle: adjustState.book.title,
+        updatedAt: new Date().toISOString(),
+      });
+
       setAdjustState(null);
       await fetchInventory();
     } catch (err: any) {
@@ -318,125 +420,295 @@ export default function SellerInventoryPage() {
       </div>
 
       {/* In-Page Collapsible Adjust Box (NO POPUP) */}
-      {adjustState?.book && (
-        <div className="p-5 rounded-2xl bg-white border-2 border-indigo-200 shadow-sm space-y-4 animate-in fade-in slide-in-from-top-3 duration-200">
-          <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
-            <div className="flex items-center gap-2 text-indigo-700">
-              <span className="material-symbols-outlined text-lg">
-                {adjustState.operation === 'ADD' ? 'add_box' : 'tune'}
-              </span>
-              <h3 className="font-bold text-sm text-slate-900">
-                {adjustState.operation === 'ADD' ? 'Nhập Thêm Tồn Kho' : 'Điều Chỉnh / Kiểm Kê Tồn Kho'} · {adjustState.book.title}
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAdjustState(null)}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-base">close</span>
-            </button>
-          </div>
+      {adjustState?.book && (() => {
+        const curStock = Number(adjustState.book.stock ?? adjustState.book.physicalDetails?.stock ?? 0);
+        const curReserved = Number(adjustState.book.reserved ?? adjustState.book.physicalDetails?.reserved ?? 0);
+        const curAvailable = Math.max(0, curStock - curReserved);
 
-          <form onSubmit={handleSaveAdjust} className="space-y-4 text-xs">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Phương thức thay đổi:</label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {[
-                    { id: 'ADD', label: '+ Thêm' },
-                    { id: 'SUBTRACT', label: '- Trừ' },
-                    { id: 'SET', label: '= Đặt lại' },
-                  ].map((op) => (
-                    <button
-                      key={op.id}
-                      type="button"
-                      onClick={() =>
-                        setAdjustState((p) =>
-                          p
-                            ? {
-                                ...p,
-                                operation: op.id as any,
-                                reason: (op.id === 'ADD' ? 'RESTOCK' : op.id === 'SUBTRACT' ? 'DAMAGED' : 'MANUAL_ADJUSTMENT') as any,
-                              }
-                            : null
-                        )
-                      }
-                      className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-colors cursor-pointer ${
-                        adjustState.operation === op.id
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-bold'
-                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {op.label}
-                    </button>
-                  ))}
+        let projectedStock = curStock;
+        if (adjustState.operation === 'ADD') {
+          projectedStock = curStock + Number(adjustState.quantity);
+        } else if (adjustState.operation === 'SUBTRACT') {
+          projectedStock = Math.max(0, curStock - Number(adjustState.quantity));
+        } else {
+          projectedStock = Number(adjustState.quantity);
+        }
+        const projectedAvailable = Math.max(0, projectedStock - curReserved);
+        const isSubOverLimit = adjustState.operation === 'SUBTRACT' && adjustState.quantity > curAvailable;
+
+        return (
+          <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-sky-50/50 border-2 border-indigo-200 shadow-md space-y-5 animate-in fade-in slide-in-from-top-3 duration-200">
+            {/* Header info */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-indigo-100/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-xs">
+                  <span className="material-symbols-outlined text-lg">
+                    {adjustState.operation === 'ADD' ? 'add_box' : adjustState.operation === 'SUBTRACT' ? 'indeterminate_check_box' : 'tune'}
+                  </span>
+                </span>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                    {adjustState.operation === 'ADD' ? 'Nhập Thêm Tồn Kho' : adjustState.operation === 'SUBTRACT' ? 'Trừ / Xuất Hủy Tồn Kho' : 'Kiểm Kê / Đặt Lại Tồn Kho'}
+                    <span className="text-xs font-medium text-slate-500">· {adjustState.book.title}</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    ISBN: {adjustState.book.isbn || 'Chưa cập nhật'} · Thao tác cập nhật sẽ đồng bộ tức thì cho Khách Mua hàng
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdjustState(null)}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                title="Đóng form điều chỉnh"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdjust} className="space-y-5 text-xs">
+              {/* Row 1: Phương thức & Lý do */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">1. Phương thức điều chỉnh:</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'ADD', label: '+ Thêm kho', desc: 'Nhập hàng', icon: 'add' },
+                      { id: 'SUBTRACT', label: '- Trừ kho', desc: 'Xuất / Hỏng', icon: 'remove' },
+                      { id: 'SET', label: '= Đặt lại', desc: 'Kiểm kê', icon: 'restart_alt' },
+                    ].map((op) => (
+                      <button
+                        key={op.id}
+                        type="button"
+                        onClick={() =>
+                          setAdjustState((p) =>
+                            p
+                              ? {
+                                  ...p,
+                                  operation: op.id as any,
+                                  quantity: op.id === 'ADD' ? 10 : 1,
+                                  reason: (op.id === 'ADD' ? 'RESTOCK' : op.id === 'SUBTRACT' ? 'DAMAGED' : 'MANUAL_ADJUSTMENT') as any,
+                                }
+                              : null
+                          )
+                        }
+                        className={`py-2 px-2.5 rounded-xl text-left border transition-all cursor-pointer flex flex-col justify-between ${
+                          adjustState.operation === op.id
+                            ? 'border-indigo-600 bg-white ring-2 ring-indigo-500/20 text-indigo-700 shadow-xs'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="font-bold text-xs flex items-center gap-1">
+                          <span className="material-symbols-outlined text-sm">{op.icon}</span>
+                          {op.label}
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">{op.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">2. Lý do điều chỉnh:</label>
+                  <select
+                    value={adjustState.reason}
+                    onChange={(e) => setAdjustState((p) => p ? { ...p, reason: e.target.value as any } : null)}
+                    className="w-full h-11 px-3 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer shadow-2xs font-medium"
+                  >
+                    <option value="RESTOCK">Nhập thêm hàng từ Nhà Xuất Bản / Đối tác (RESTOCK)</option>
+                    <option value="MANUAL_ADJUSTMENT">Kiểm kê định kỳ thực tế (MANUAL_ADJUSTMENT)</option>
+                    <option value="DAMAGED">Hàng lỗi, rách hỏng trong kho (DAMAGED)</option>
+                    <option value="RETURNED">Khách đổi trả hàng vào lại kho (RETURNED)</option>
+                    <option value="CORRECTION">Sửa sai lệch số liệu kho (CORRECTION)</option>
+                  </select>
                 </div>
               </div>
 
+              {/* Row 2: Bộ chọn số lượng tiện lợi (Stepper + Quick Chips) */}
+              <div className="bg-white p-4 rounded-xl border border-indigo-100 shadow-2xs space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label className="block text-xs font-bold text-slate-800">
+                    3. {adjustState.operation === 'SET' ? 'Số lượng tồn mới sau kiểm kê:' : 'Số lượng thay đổi:'}
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Bấm nhanh các mốc bên dưới hoặc gõ trực tiếp
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Stepper controls */}
+                  <div className="flex items-center border-2 border-indigo-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setAdjustState((p) => p ? { ...p, quantity: Math.max(1, p.quantity - 1) } : null)}
+                      className="w-10 h-10 flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer border-r border-indigo-100"
+                      title="Giảm 1"
+                    >
+                      <span className="material-symbols-outlined text-base">remove</span>
+                    </button>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={adjustState.quantity}
+                      onChange={(e) =>
+                        setAdjustState((p) =>
+                          p ? { ...p, quantity: Math.max(0, parseInt(e.target.value) || 0) } : null
+                        )
+                      }
+                      className="w-20 sm:w-28 h-10 text-center text-sm font-extrabold text-indigo-900 bg-white focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setAdjustState((p) => p ? { ...p, quantity: p.quantity + 1 } : null)}
+                      className="w-10 h-10 flex items-center justify-center text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors cursor-pointer border-l border-indigo-100"
+                      title="Tăng 1"
+                    >
+                      <span className="material-symbols-outlined text-base">add</span>
+                    </button>
+                  </div>
+
+                  {/* Quick Preset Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                    {adjustState.operation === 'ADD' ? (
+                      [1, 5, 10, 20, 50, 100].map((step) => (
+                        <button
+                          key={step}
+                          type="button"
+                          onClick={() => setAdjustState((p) => p ? { ...p, quantity: step } : null)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            adjustState.quantity === step
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100'
+                          }`}
+                        >
+                          +{step}
+                        </button>
+                      ))
+                    ) : adjustState.operation === 'SUBTRACT' ? (
+                      <>
+                        {[1, 2, 5, 10, 20].map((step) => (
+                          <button
+                            key={step}
+                            type="button"
+                            onClick={() => setAdjustState((p) => p ? { ...p, quantity: step } : null)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              adjustState.quantity === step
+                                ? 'bg-rose-600 text-white shadow-xs'
+                                : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                            }`}
+                          >
+                            -{step}
+                          </button>
+                        ))}
+                        {curAvailable > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setAdjustState((p) => p ? { ...p, quantity: curAvailable } : null)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors cursor-pointer"
+                          >
+                            Tối đa khả dụng ({curAvailable})
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {[0, 10, 20, 50, 100].map((target) => (
+                          <button
+                            key={target}
+                            type="button"
+                            onClick={() => setAdjustState((p) => p ? { ...p, quantity: target } : null)}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                              adjustState.quantity === target
+                                ? 'bg-indigo-600 text-white shadow-xs'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                            }`}
+                          >
+                            ={target}
+                          </button>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => setAdjustState((p) => p ? { ...p, quantity: curStock } : null)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+                        >
+                          Giữ như cũ ({curStock})
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Live Preview & Invariant Protection Banner */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-indigo-600">analytics</span>
+                    Dự kiến tồn kho sau khi lưu:
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-slate-600">
+                      Tồn thực: <strong className="text-slate-900">{curStock}</strong> ➔ <strong className="text-indigo-700">{projectedStock}</strong>
+                    </span>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-amber-700">
+                      Tạm giữ: <strong>{curReserved}</strong> (giữ nguyên đơn hàng)
+                    </span>
+                    <span className="text-slate-400">·</span>
+                    <span className="text-emerald-700">
+                      Khả dụng: <strong className="text-slate-900">{curAvailable}</strong> ➔ <strong className="text-emerald-700">{projectedAvailable}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {isSubOverLimit && (
+                  <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base shrink-0">warning</span>
+                    <span>
+                      Cảnh báo: Bạn đang trừ <strong>{adjustState.quantity}</strong> cuốn, nhưng chỉ còn <strong>{curAvailable}</strong> cuốn khả dụng ({curReserved} cuốn đang bị khách tạm giữ). Vui lòng giảm số lượng trừ!
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Row 4: Ghi chú */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                  {adjustState.operation === 'SET' ? 'Tồn mới sau kiểm kê:' : 'Số lượng thay đổi:'}
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">4. Ghi chú (Tùy chọn):</label>
                 <input
-                  type="number"
-                  min="1"
-                  required
-                  value={adjustState.quantity}
-                  onChange={(e) => setAdjustState((p) => p ? { ...p, quantity: Math.max(0, parseInt(e.target.value) || 0) } : null)}
-                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
+                  type="text"
+                  placeholder="Ví dụ: Nhập 50 cuốn từ đợt in mới NXB Kim Đồng..."
+                  value={adjustState.note}
+                  onChange={(e) => setAdjustState((p) => p ? { ...p, note: e.target.value } : null)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500 shadow-2xs"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Lý do điều chỉnh:</label>
-                <select
-                  value={adjustState.reason}
-                  onChange={(e) => setAdjustState((p) => p ? { ...p, reason: e.target.value as any } : null)}
-                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+              {/* Actions */}
+              <div className="pt-2 border-t border-indigo-100 flex items-center justify-end gap-2.5">
+                <SellerActionButton
+                  type="button"
+                  variant="neutral"
+                  size="sm"
+                  onClick={() => setAdjustState(null)}
                 >
-                  <option value="RESTOCK">Nhập thêm hàng từ NXB (RESTOCK)</option>
-                  <option value="MANUAL_ADJUSTMENT">Kiểm kê định kỳ (MANUAL_ADJUSTMENT)</option>
-                  <option value="DAMAGED">Hàng lỗi / rách hỏng (DAMAGED)</option>
-                  <option value="RETURNED">Khách trả hàng (RETURNED)</option>
-                  <option value="CORRECTION">Sửa sai lệch số liệu (CORRECTION)</option>
-                </select>
+                  Hủy
+                </SellerActionButton>
+                <SellerActionButton
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  loading={adjustState.submitting}
+                  disabled={isSubOverLimit || adjustState.quantity <= 0}
+                  icon="check"
+                >
+                  Xác Nhận Cập Nhật
+                </SellerActionButton>
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú (Tùy chọn):</label>
-              <input
-                type="text"
-                placeholder="Ví dụ: Nhập 50 cuốn từ đợt in mới..."
-                value={adjustState.note}
-                onChange={(e) => setAdjustState((p) => p ? { ...p, note: e.target.value } : null)}
-                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
-              <SellerActionButton
-                type="button"
-                variant="neutral"
-                size="sm"
-                onClick={() => setAdjustState(null)}
-              >
-                Hủy
-              </SellerActionButton>
-              <SellerActionButton
-                type="submit"
-                variant="primary"
-                size="sm"
-                loading={adjustState.submitting}
-                icon="check"
-              >
-                Xác Nhận Cập Nhật
-              </SellerActionButton>
-            </div>
-          </form>
-        </div>
-      )}
+            </form>
+          </div>
+        );
+      })()}
 
       {/* In-Page Collapsible History Log Box (NO POPUP) */}
       {logBook && (
@@ -604,13 +876,20 @@ export default function SellerInventoryPage() {
                   const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
                   const available = Math.max(0, stock - reserved);
                   const authorName = typeof book.author === 'object' ? book.author?.name : book.author || 'N/A';
+                  const highlightInfo = highlightedBooks[book.id];
 
                   return (
                     <React.Fragment key={book.id}>
                       <tr
                         onClick={() => toggleExpand(book.id)}
-                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
+                        className={`transition-all duration-300 cursor-pointer ${
+                          highlightInfo
+                            ? highlightInfo.action === 'RESERVED'
+                              ? 'bg-amber-50 border-l-4 border-amber-500 animate-pulse'
+                              : 'bg-emerald-50 border-l-4 border-emerald-500 animate-pulse'
+                            : isExpanded
+                            ? 'bg-emerald-50/40 hover:bg-emerald-50/50'
+                            : 'hover:bg-emerald-50/30 bg-white'
                         }`}
                       >
                         {/* 1. Sách & Phân loại */}
@@ -640,9 +919,21 @@ export default function SellerInventoryPage() {
                               />
                             </div>
                             <div className="min-w-0">
-                              <span className="font-bold text-slate-900 block truncate" title={book.title}>
-                                {book.title}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-slate-900 block truncate" title={book.title}>
+                                  {book.title}
+                                </span>
+                                {highlightInfo && (
+                                  <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                    highlightInfo.action === 'RESERVED'
+                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  }`}>
+                                    <span className="material-symbols-outlined text-[11px]">bolt</span>
+                                    <span>{highlightInfo.action === 'RESERVED' ? 'Giữ chỗ' : 'Vừa cập nhật'}</span>
+                                  </span>
+                                )}
+                              </div>
                               <span className="text-[11px] text-slate-400 block truncate">
                                 ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {authorName}
                               </span>

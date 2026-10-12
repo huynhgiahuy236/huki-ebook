@@ -18,6 +18,7 @@ import ReviewFormModal from '@/ui/components/review/ReviewFormModal';
 import { trackEvent, getTracker } from '@/lib/tracker';
 import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBooksSection';
 import { personalizationService } from '@/ui/services/personalizationService';
+import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -314,6 +315,107 @@ export default function BookDetailPage() {
       window.removeEventListener('storage', handleStorage);
     };
   }, [fetchBookReviews, realBook?.id, id]);
+
+  // RT-03: Realtime inventory reservation watcher for this book
+  useEffect(() => {
+    const handleInventorySync = (msg: any) => {
+      if (msg.type === 'INVENTORY_UPDATED' && msg.payload) {
+        const payload = msg.payload as InventoryUpdatePayload;
+        const currentTargetId = realBook?.id || id;
+        const currentSlug = realBook?.slug;
+
+        const isTarget =
+          payload.bookId === currentTargetId ||
+          payload.bookId === currentSlug ||
+          payload.bookId === id ||
+          Boolean(
+            payload.bookTitle &&
+            realBook?.title &&
+            payload.bookTitle.trim().toLowerCase() === realBook.title.trim().toLowerCase()
+          );
+
+        if (isTarget) {
+          setRealBook((prev: any) => {
+            if (!prev) return prev;
+            const currentStock = Number(prev.stock ?? prev.physicalDetails?.stock ?? 0);
+            const currentReserved = Number(prev.reserved ?? prev.physicalDetails?.reserved ?? 0);
+            const delta = payload.quantityDelta || 0;
+
+            let nextStock = payload.totalStock !== undefined ? payload.totalStock : currentStock;
+            let nextReserved = payload.reservedStock !== undefined ? payload.reservedStock : currentReserved;
+
+            if (payload.action === 'RESERVED' && payload.reservedStock === undefined) {
+              nextReserved = currentReserved + delta;
+            } else if (payload.action === 'RELEASED' && payload.reservedStock === undefined) {
+              nextReserved = Math.max(0, currentReserved - delta);
+            } else if (payload.action === 'COMMITTED' && payload.reservedStock === undefined) {
+              nextReserved = Math.max(0, currentReserved - delta);
+              nextStock = Math.max(0, currentStock - delta);
+            }
+
+            const nextAvailable = payload.availableStock !== undefined
+              ? payload.availableStock
+              : Math.max(0, nextStock - nextReserved);
+
+            return {
+              ...prev,
+              stock: nextStock,
+              reserved: nextReserved,
+              available: nextAvailable,
+              physicalDetails: {
+                ...(prev.physicalDetails || {}),
+                stock: nextStock,
+                reserved: nextReserved,
+              },
+            };
+          });
+
+          // Also re-fetch authoritative data from backend
+          if (id) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+            const queryApi = isUuid ? catalogApi.getBookById(id) : catalogApi.getBookBySlug(id);
+            queryApi
+              .then((res) => {
+                const fresh = (res?.data as any)?.data || res?.data;
+                if (fresh && (fresh.id || fresh.title)) {
+                  setRealBook(fresh);
+                }
+              })
+              .catch(() => {});
+          }
+
+          if (payload.action === 'RESERVED') {
+            showToast('⚡ Cuốn sách này vừa có khách đặt đơn giữ chỗ!', 'warning');
+          } else if (payload.action === 'RELEASED') {
+            showToast('⚡ Tồn kho khả dụng vừa được cộng lại (đơn hủy hoặc hết hạn)!', 'info');
+          } else if (payload.action === 'MANUAL_ADJUST') {
+            showToast('⚡ Người bán vừa cập nhật lại số lượng tồn kho sách!', 'info');
+          } else if (payload.action === 'COMMITTED') {
+            showToast('⚡ Đã có giao dịch thanh toán thành công cho cuốn sách này!', 'info');
+          }
+        }
+      } else if (msg.type === 'ORDER_CANCELLED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') {
+        // Re-fetch to ensure stock is 100% in sync with database
+        if (id) {
+          const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+          const queryApi = isUuid ? catalogApi.getBookById(id) : catalogApi.getBookBySlug(id);
+          queryApi
+            .then((res) => {
+              const fresh = (res?.data as any)?.data || res?.data;
+              if (fresh && (fresh.id || fresh.title)) {
+                setRealBook(fresh);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    };
+
+    const unsubscribe = realtimeSyncBus.subscribe(handleInventorySync);
+    return () => {
+      unsubscribe();
+    };
+  }, [realBook?.id, realBook?.slug, realBook?.title, id, showToast]);
 
   useEffect(() => {
     if (isLoggedIn && (storeInfo?.id || realBook?.businessId)) {
@@ -966,9 +1068,13 @@ export default function BookDetailPage() {
 
                 <div>
                   {isOutOfStock ? (
-                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11.5px] font-semibold">
+                    <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11.5px] font-semibold animate-pulse">
                       <span className="material-symbols-outlined text-[16px]">error</span>
-                      <span>Tạm hết hàng</span>
+                      <span>
+                        {book.reserved && book.reserved > 0
+                          ? 'Tạm hết hàng (Đang có người giữ chỗ)'
+                          : 'Tạm hết hàng'}
+                      </span>
                     </div>
                   ) : isLowStock ? (
                     <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-[11.5px] font-semibold animate-pulse">

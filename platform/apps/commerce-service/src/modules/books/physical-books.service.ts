@@ -108,6 +108,18 @@ export class PhysicalBooksService {
     // Synchronize available stock to Redis atomic counter
     await this.redisService.syncStock(bookId, result.available);
 
+    // RT-03: Emit realtime inventory updated event
+    this.eventEmitter.emit('inventory.updated', {
+      bookId,
+      storeId: book.storeId,
+      title: book.title,
+      totalStock: result.details.stock,
+      reservedStock: result.details.reserved,
+      availableStock: result.available,
+      action: 'MANUAL_ADJUST',
+      updatedAt: new Date().toISOString(),
+    });
+
     if (result.available <= (result.details as any).lowStockThreshold) {
       this.eventEmitter.emit('stock.low', {
         bookId,
