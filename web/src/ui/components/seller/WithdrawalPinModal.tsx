@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { walletApi } from '../../api/walletApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface BankInfo {
   bankName: string;
@@ -142,6 +143,14 @@ export default function WithdrawalPinModal({
         const amountDrawn = res.data?.withdrawnAmount || availableBalance;
         setWithdrawnAmount(amountDrawn);
         setStep('SUCCESS');
+
+        // Bắn tín hiệu Realtime cho Admin Finance Desk và Seller Finance
+        realtimeSyncBus.publish('PAYOUT_REQUESTED', {
+          storeId,
+          amount: amountDrawn,
+          timestamp: Date.now(),
+        });
+
         if (onSuccess) {
           await onSuccess();
         }

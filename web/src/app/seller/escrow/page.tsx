@@ -4,6 +4,9 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { walletApi, type SellerEscrowItem } from '@/ui/api/walletApi';
+import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { useToast } from '@/ui/context/ToastContext';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0đ';
@@ -45,6 +48,8 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 
 export default function SellerEscrowPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const storeId = (user as any)?.business?.id || (user as any)?.storeId || '501ece69-23b9-4126-9b5e-e3dc206d0c20';
   const [escrowItems, setEscrowItems] = useState<SellerEscrowItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -71,8 +76,8 @@ export default function SellerEscrowPage() {
     }));
   };
 
-  const fetchEscrowItems = useCallback(async () => {
-    setIsLoading(true);
+  const fetchEscrowItems = useCallback(async (isSilent?: boolean) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const res = await walletApi.getSellerEscrowItems();
       if (res.success && Array.isArray(res.data)) {
@@ -81,13 +86,58 @@ export default function SellerEscrowPage() {
     } catch (err) {
       console.warn('Lỗi tải danh sách tiền đang treo:', err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchEscrowItems();
   }, [fetchEscrowItems]);
+
+  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & RealtimeSyncBus
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      fetchEscrowItems(true);
+    }, 3500);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      const payload = msg.payload as any;
+      const isCurrentStore = !payload?.storeId || payload.storeId === storeId;
+
+      if ((msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') && isCurrentStore) {
+        fetchEscrowItems(true);
+        showToast?.('Khách vừa thanh toán đơn hàng mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+      } else if ((msg.type === 'ESCROW_RELEASED' || msg.type === 'WALLET_BALANCE_UPDATED') && isCurrentStore) {
+        fetchEscrowItems(true);
+        showToast?.('Tiền hàng đã hoàn tất đổi trả và giải ngân thành công!', 'info');
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [storeId, fetchEscrowItems, showToast]);
+
+  const handleAutoReleaseItem = useCallback((item: SellerEscrowItem) => {
+    realtimeSyncBus.publish('ESCROW_RELEASED', {
+      storeId,
+      amount: item.sellerNet,
+      orderId: item.orderId,
+      orderCode: item.orderCode,
+    });
+
+    setEscrowItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, escrowStatus: 'RELEASED' } : it))
+    );
+
+    showToast?.(
+      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! Tiền đã được giải ngân sang Số Dư Khả Dụng!`,
+      'success'
+    );
+
+    fetchEscrowItems(true);
+  }, [storeId, fetchEscrowItems, showToast]);
 
   // Comprehensive stats (Excluding cancelled orders)
   const stats = useMemo(() => {
@@ -589,38 +639,8 @@ export default function SellerEscrowPage() {
                           </div>
                         </td>
 
-                        {/* 4. Trạng thái Ký Quỹ */}
                         <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
-                              it.escrowStatus === 'RELEASED'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : it.escrowStatus === 'HOLDING'
-                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                                : it.escrowStatus === 'PENDING_PAYMENT'
-                                ? 'bg-blue-50 text-blue-800 border border-blue-200'
-                                : 'bg-rose-50 text-rose-800 border border-rose-200'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                it.escrowStatus === 'RELEASED'
-                                  ? 'bg-[#00875A]'
-                                  : it.escrowStatus === 'HOLDING'
-                                  ? 'bg-amber-500 animate-pulse'
-                                  : it.escrowStatus === 'PENDING_PAYMENT'
-                                  ? 'bg-blue-500'
-                                  : 'bg-rose-500'
-                              }`}
-                            ></span>
-                            {it.escrowStatus === 'RELEASED'
-                              ? 'Đã giải ngân'
-                              : it.escrowStatus === 'HOLDING'
-                              ? 'Đang đếm ngược'
-                              : it.escrowStatus === 'PENDING_PAYMENT'
-                              ? 'Chờ thu COD'
-                              : 'Đóng băng'}
-                          </span>
+                          <EscrowTableBadge item={it} onAutoRelease={handleAutoReleaseItem} />
                         </td>
 
                         {/* 5. Chi tiết */}

@@ -11,6 +11,9 @@ import {
   type WalletTransactionItem,
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
+import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { useToast } from '@/ui/context/ToastContext';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0đ';
@@ -43,6 +46,7 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 
 export default function SellerFinancialReportsPage() {
   const { user, activeBusinessId } = useAuth();
+  const { showToast } = useToast();
   const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || '501ece69-23b9-4126-9b5e-e3dc206d0c20';
 
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -58,8 +62,8 @@ export default function SellerFinancialReportsPage() {
   const [activeTab, setActiveTab] = useState<'ITEMS' | 'TRANSACTIONS' | 'PAYOUTS'>('ITEMS');
   const [showFormulaModal, setShowFormulaModal] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
+  const fetchData = useCallback(async (isSilent?: boolean) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const [wRes, escRes, txRes, pRes] = await Promise.all([
         walletApi.getStoreWallet(storeId),
@@ -83,13 +87,80 @@ export default function SellerFinancialReportsPage() {
     } catch (err) {
       console.warn('Lỗi tải báo cáo tài chính:', err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [storeId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & RealtimeSyncBus
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      fetchData(true);
+    }, 3500);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      const payload = msg.payload as any;
+      const isCurrentStore = !payload?.storeId || payload.storeId === storeId;
+
+      if ((msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') && isCurrentStore) {
+        fetchData(true);
+        showToast?.('Khách vừa thanh toán đơn hàng VietQR/PayOS mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+      } else if ((msg.type === 'ESCROW_RELEASED' || msg.type === 'WALLET_BALANCE_UPDATED') && isCurrentStore) {
+        fetchData(true);
+        showToast?.('Tiền hàng đã được giải ngân thành công vào Số Dư Khả Dụng!', 'info');
+      } else if (msg.type === 'PAYOUT_APPROVED' && isCurrentStore) {
+        fetchData(true);
+        showToast?.('Lệnh rút tiền của bạn đã được Kế Toán Sàn phê duyệt!', 'success');
+      } else if (msg.type === 'PAYOUT_DISBURSED' && isCurrentStore) {
+        fetchData(true);
+        showToast?.('Tiền rút đã được ngân hàng giải ngân thành công về STK của bạn!', 'success');
+      } else if (msg.type === 'PAYOUT_REJECTED' && isCurrentStore) {
+        fetchData(true);
+        showToast?.(`Lệnh rút tiền bị từ chối: ${payload?.reason || ''}. Tiền đã hoàn lại ví khả dụng!`, 'error');
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [storeId, fetchData, showToast]);
+
+  const handleAutoReleaseItem = useCallback((item: SellerEscrowItem) => {
+    // 1. Publish Realtime Sync event
+    realtimeSyncBus.publish('ESCROW_RELEASED', {
+      storeId,
+      amount: item.sellerNet,
+      orderId: item.orderId,
+      orderCode: item.orderCode,
+    });
+
+    // 2. Optimistically update local escrow items and wallet
+    setEscrowItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, escrowStatus: 'RELEASED' } : it))
+    );
+    setWallet((prev) =>
+      prev
+        ? {
+            ...prev,
+            availableBalance: Number(prev.availableBalance) + Number(item.sellerNet),
+            pendingBalance: Math.max(0, Number(prev.pendingBalance) - Number(item.sellerNet)),
+          }
+        : prev
+    );
+
+    // 3. Notify toast
+    showToast?.(
+      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
+      'success'
+    );
+
+    // 4. Silently fetch from server
+    fetchData(true);
+  }, [storeId, fetchData, showToast]);
 
   // Filtered Escrow Items based on date and excluding cancelled orders
   const filteredItems = useMemo(() => {
@@ -971,27 +1042,7 @@ export default function SellerFinancialReportsPage() {
                         +{formatVND(it.sellerNet)}
                       </td>
                       <td className="p-3.5 text-center">
-                        {it.escrowStatus === 'RELEASED' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                            <span>Đã Giải Ngân</span>
-                          </span>
-                        ) : it.escrowStatus === 'HOLDING' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            <span className="material-symbols-outlined text-[13px] animate-spin">hourglass_top</span>
-                            <span>Ký Quỹ Đổi Trả (2p)</span>
-                          </span>
-                        ) : it.escrowStatus === 'PENDING_PAYMENT' ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            <span className="material-symbols-outlined text-[13px]">local_shipping</span>
-                            <span>Đang Giao Hàng</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                            <span className="material-symbols-outlined text-[13px]">lock</span>
-                            <span>Khiếu Nại Đóng Băng</span>
-                          </span>
-                        )}
+                        <EscrowTableBadge item={it} onAutoRelease={handleAutoReleaseItem} />
                       </td>
                     </tr>
                   ))

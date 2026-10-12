@@ -111,12 +111,16 @@ export default function EscrowCountdown({
     };
   }, [frozen, isCompleted, secondsLeft]);
 
-  // When countdown finishes, mark as completed (disables returns) without auto-releasing funds to allow Admin manual handover
+  // When countdown finishes, automatically release escrow funds to seller (Zero-F5 Shopee flow)
   useEffect(() => {
     if (secondsLeft <= 0 && !isCompleted && !frozen) {
       setIsCompleted(true);
+      if (!hasTriggeredReleaseRef.current) {
+        hasTriggeredReleaseRef.current = true;
+        if (onReleaseEscrow) onReleaseEscrow({ subOrderId, orderId, auto: true });
+      }
     }
-  }, [secondsLeft, isCompleted, frozen]);
+  }, [secondsLeft, isCompleted, frozen, onReleaseEscrow, subOrderId, orderId]);
 
   const formatTime = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);

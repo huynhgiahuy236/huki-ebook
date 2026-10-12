@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '../../context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import {
   payoutApi,
   reconciliationApi,
@@ -148,8 +149,8 @@ export function AdminFinanceView() {
     },
   ]);
 
-  const fetchLivePayoutRequests = useCallback(async () => {
-    setIsLoadingLive(true);
+  const fetchLivePayoutRequests = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoadingLive(true);
     setLiveError(null);
     try {
       const res = await payoutApi.getAllPayoutRequests();
@@ -162,13 +163,34 @@ export function AdminFinanceView() {
       console.warn('[AdminFinance] Could not load from backend:', err);
       setLiveRequests([]);
     } finally {
-      setIsLoadingLive(false);
+      if (!isSilent) setIsLoadingLive(false);
     }
   }, []);
 
   useEffect(() => {
     fetchLivePayoutRequests();
   }, [fetchLivePayoutRequests]);
+
+  // Silent Background Polling (3.5s) & Lắng nghe sự kiện rút tiền thời gian thực
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      fetchLivePayoutRequests(true);
+    }, 3500);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'PAYOUT_REQUESTED') {
+        fetchLivePayoutRequests(true);
+        showToast('Có yêu cầu rút tiền mới từ gian hàng vừa được gửi!', 'info');
+      } else if (msg.type === 'PAYOUT_APPROVED' || msg.type === 'PAYOUT_REJECTED' || msg.type === 'PAYOUT_DISBURSED') {
+        fetchLivePayoutRequests(true);
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [fetchLivePayoutRequests, showToast]);
 
   const handleOpenReviewModal = (req: PayoutRequestView, action: 'APPROVE' | 'REJECT' | 'CANCEL_REFUND') => {
     setSelectedRequest(req);
@@ -199,8 +221,14 @@ export function AdminFinanceView() {
         const res = await payoutApi.cancelFailedAndRefund(selectedRequest.id, rejectReason.trim());
         if (res.success) {
           showToast(`Đã hủy lệnh thất bại và hoàn tiền cho gian hàng ${selectedRequest.storeId}`, 'info');
+          realtimeSyncBus.publish('PAYOUT_REJECTED', {
+            payoutId: selectedRequest.id,
+            storeId: selectedRequest.storeId,
+            amount: selectedRequest.amount,
+            reason: rejectReason.trim(),
+          });
           handleCloseReviewModal();
-          await fetchLivePayoutRequests();
+          await fetchLivePayoutRequests(true);
         } else {
           showToast(res.error?.message || 'Không thể hủy và hoàn tiền.', 'error');
         }
@@ -213,11 +241,22 @@ export function AdminFinanceView() {
         if (res.success) {
           if (reviewAction === 'APPROVE') {
             showToast(`Đã phê duyệt lệnh rút tiền ${selectedRequest.id.slice(0, 8)} thành công. Trạng thái chuyển sang APPROVED.`, 'success');
+            realtimeSyncBus.publish('PAYOUT_APPROVED', {
+              payoutId: selectedRequest.id,
+              storeId: selectedRequest.storeId,
+              amount: selectedRequest.amount,
+            });
           } else {
             showToast(`Đã từ chối lệnh rút tiền ${selectedRequest.id.slice(0, 8)}. Tiền đóng băng đã được hoàn trả về số dư khả dụng gian hàng.`, 'info');
+            realtimeSyncBus.publish('PAYOUT_REJECTED', {
+              payoutId: selectedRequest.id,
+              storeId: selectedRequest.storeId,
+              amount: selectedRequest.amount,
+              reason: rejectReason.trim(),
+            });
           }
           handleCloseReviewModal();
-          await fetchLivePayoutRequests();
+          await fetchLivePayoutRequests(true);
         } else {
           showToast(res.error?.message || 'Không thể xử lý phê duyệt.', 'error');
         }
@@ -236,10 +275,14 @@ export function AdminFinanceView() {
       const res = await payoutApi.disbursePayout(payoutId);
       if (res.success && res.data?.success) {
         showToast(`Giải ngân thành công! Mã giao dịch: ${res.data.providerRef}`, 'success');
+        realtimeSyncBus.publish('PAYOUT_DISBURSED', {
+          payoutId,
+          providerRef: res.data.providerRef,
+        });
       } else {
         showToast(res.data?.failureReason || res.error?.message || 'Chuyển khoản ngân hàng thất bại.', 'error');
       }
-      await fetchLivePayoutRequests();
+      await fetchLivePayoutRequests(true);
     } catch (err: any) {
       showToast(err?.message || 'Lỗi khi gọi API giải ngân.', 'error');
     } finally {
@@ -254,10 +297,14 @@ export function AdminFinanceView() {
       const res = await payoutApi.retryPayout(payoutId);
       if (res.success && res.data?.success) {
         showToast(`Thử lại giải ngân thành công! Mã giao dịch: ${res.data.providerRef}`, 'success');
+        realtimeSyncBus.publish('PAYOUT_DISBURSED', {
+          payoutId,
+          providerRef: res.data.providerRef,
+        });
       } else {
         showToast(res.data?.failureReason || res.error?.message || 'Thử lại chuyển khoản thất bại.', 'error');
       }
-      await fetchLivePayoutRequests();
+      await fetchLivePayoutRequests(true);
     } catch (err: any) {
       showToast(err?.message || 'Lỗi khi gọi API thử lại.', 'error');
     } finally {
@@ -928,7 +975,7 @@ export function AdminFinanceView() {
                 <span className="material-symbols-outlined text-base">error</span>
                 <span>{liveError}</span>
               </div>
-              <button onClick={fetchLivePayoutRequests} className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold">
+              <button onClick={() => fetchLivePayoutRequests()} className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold">
                 Thử lại
               </button>
             </div>

@@ -79,8 +79,8 @@ Dưới đây là ví dụ minh họa cách một sự kiện đơn hàng luân 
 | **2** | Tồn kho biến động | 🔒 Khóa nút Mua nếu hết hàng | 📊 Cột Reserved tăng, Available giảm | ⏳ (Chưa nhận tin) | 📋 Cập nhật tồn kho toàn sàn |
 | **3** | Shop đóng gói sách xong | 📦 Nhận tin "Shop đã chuẩn bị hàng" | 🚚 Đơn chuyển sang Chờ bưu tá | 🔔 Reo chuông trên Sàn Đơn Chờ Nhận | 👁️ Giám sát đơn đang chuẩn bị |
 | **4** | Shipper bấm Nhận Đơn | 🛵 Nhận tin "Bưu tá [Tên] đang đến lấy" | 🛵 Nhận thông báo tên bưu tá | 📋 Đơn nhảy vào Đơn Đang Giao | 📍 Giám sát lộ trình điều phối |
-| **5** | Giao thành công & Thu COD | 🎉 Nhận thông báo giao thành công + Mở đọc ebook | ⏳ Tiền 85% vào Tiền Ký Quỹ Escrow | 💵 Nợ COD và tiền công cộng vào ví | 💰 Sổ cái ghi nhận doanh thu sàn 15% |
-| **6** | Hết 7 ngày đổi trả (Hoàn tất) | ⭐️ Gợi ý đánh giá sách | 💰 Tiền tự động chuyển sang Ví Khả Dụng | ✅ Hoàn tất đối soát COD | 🏛️ Đóng hồ sơ đơn hàng |
+| **5** | Giao thành công & Thu COD | 🎉 Nhận thông báo giao thành công + Mở đọc/đánh giá | ⏳ **Kích hoạt ngay đếm ngược 2 phút Ký Quỹ Escrow (RT-06)** | 💵 Nợ COD và tiền công cộng vào ví | 💰 Sổ cái ghi nhận nợ COD bưu tá & phí sàn 15% |
+| **6** | Hết 2 phút đổi trả (Hoàn tất) | ⭐️ Gợi ý đánh giá sách | 💰 Tiền tự động chuyển sang Số Dư Khả Dụng (rút được) | ✅ Hoàn tất đối soát nộp COD | 🏛️ Đóng hồ sơ đơn hàng |
 
 ---
 
@@ -95,11 +95,11 @@ Hệ thống được bóc tách thành **10 Module độc lập**, mỗi module
 | 📄 [**RT-03**](./RT-03-INVENTORY-RESERVATION.md) | **Tồn Kho 3 Tầng & Khóa Tồn Kho** | Seller, Buyer | Khóa hàng khi checkout, nhả kho khi hủy, chống overselling | ✅ **Hoàn thành** |
 | 📄 [**RT-04**](./RT-04-SELLER-FEATURES-TOGGLE.md) | **Bật/Tắt Tính Năng Seller (Switch)** | Admin, Seller | Làm mờ và chặn quyền Seller tức thì khi bảo trì | ✅ **Hoàn thành** |
 | 📄 [**RT-05**](./RT-05-DRM-ACTIVE-READERS.md) | **Phiên Đọc Sách DRM & Active Readers** | Admin, Buyer | Heartbeat 30s, đếm bạn đọc online, hủy đọc lậu từ xa | ✅ **Hoàn thành** |
-| 📄 [**RT-06**](./RT-06-WALLET-FINANCE-ESCROW.md) | **Ví Người Bán, Escrow & Duyệt Payout** | Admin, Seller | Nổ số dư ví 85/15, kế toán kép, duyệt rút tiền có mã PIN | ⏳ *Kế tiếp* |
-| 📄 [**RT-07**](./RT-07-COMMUNITY-LIVE-CHAT.md) | **Hội Thoại Chat Trực Tiếp (Live Chat)** | Seller, Buyer | Nhắn tin tức thì, Typing indicator, trạng thái Đã xem | 📋 *Chờ duyệt* |
+| 📄 [**RT-06**](./RT-06-WALLET-FINANCE-ESCROW.md) | **Ví Người Bán, Escrow & Duyệt Payout** | Admin, Seller | Nổ số dư ví 85/15, kế toán kép, đếm ngược 2 phút, duyệt rút tiền | ✅ **Hoàn thành** |
+| 📄 [**RT-07**](./RT-07-COMMUNITY-LIVE-CHAT.md) | **Hội Thoại Chat Trực Tiếp (Live Chat)** | Seller, Buyer | Nhắn tin tức thì, Typing indicator, trạng thái Đã xem | ⏳ *Kế tiếp* |
 | 📄 [**RT-08**](./RT-08-DISPUTE-RMA-ARBITRATION.md) | **Đổi Trả Hàng (RMA) & Trọng Tài Sàn** | Admin, Seller, Buyer | Khiếu nại hàng lỗi, phán quyết Admin kích hoạt hoàn tiền | 📋 *Chờ duyệt* |
-| 📄 [**RT-09**](./RT-09-SHIPPING-TRACKING.md) | **Hành Trình Giao Vận & Vận Đơn AWB** | Seller, Buyer, Shipper | Timeline giao hàng 5 bước, webhook hãng vận chuyển | 📋 *Chờ duyệt* |
-| 📄 [**RT-10**](./RT-10-SHIPPER-DISPATCH-COD.md) | **Bưu Tá Điều Phối, Tranh Đơn & Ví COD** | Shipper, Seller, Admin | Sàn đơn chờ nhận, khóa tranh đơn nguyên tử, nợ COD | 📋 *Chờ duyệt* |
+| 📄 [**RT-09**](./RT-09-SHIPPING-TRACKING.md) | **Hành Trình Giao Vận & Vận Đơn AWB** | Seller, Buyer, Shipper | Timeline giao hàng 5 bước, webhook hãng vận chuyển, chốt mốc Escrow | 🚀 **Sẵn sàng thi công** |
+| 📄 [**RT-10**](./RT-10-SHIPPER-DISPATCH-COD.md) | **Bưu Tá Điều Phối, Tranh Đơn & Ví COD** | Shipper, Seller, Admin | Sàn đơn chờ nhận, chuông báo, tranh đơn nguyên tử, nợ COD | 🚀 **Sẵn sàng thi công** |
 
 ---
 

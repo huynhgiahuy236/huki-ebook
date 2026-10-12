@@ -2422,7 +2422,11 @@ export class OrdersService {
           } else {
             // For PHYSICAL book:
             // 1. If delivered: check 2-minute test return window (120 seconds)
-            const deliveredTimestamp = sellerOrder.completedAt ? new Date(sellerOrder.completedAt).getTime() : 0;
+            const deliveredTimestamp = sellerOrder.completedAt
+              ? new Date(sellerOrder.completedAt).getTime()
+              : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
+              ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
+              : 0;
             const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
 
             if (isPhysicalDelivered) {
@@ -2476,7 +2480,11 @@ export class OrdersService {
               paymentStatus: order.paymentStatus,
               shippingAddress: shippingAddressText,
               format: item.format,
-              deliveredAt: sellerOrder.completedAt ? sellerOrder.completedAt.toISOString() : null,
+              deliveredAt: sellerOrder.completedAt
+                ? sellerOrder.completedAt.toISOString()
+                : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
+                ? (sellerOrder.updatedAt || order.updatedAt).toISOString()
+                : null,
               requiresShipping: sellerOrder.requiresShipping,
               storeId: sellerOrder.storeId,
               storeName: sellerOrder.storeId,

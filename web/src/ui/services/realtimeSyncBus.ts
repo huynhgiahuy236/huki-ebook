@@ -19,7 +19,13 @@ export type SyncEventType =
   | 'DRM_READER_LEFT'
   | 'DRM_LICENSE_REVOKED'
   | 'DRM_LICENSE_RESTORED'
-  | 'DRM_ACTIVE_READERS_CHANGED';
+  | 'DRM_ACTIVE_READERS_CHANGED'
+  | 'PAYOUT_REQUESTED'
+  | 'PAYOUT_APPROVED'
+  | 'PAYOUT_REJECTED'
+  | 'PAYOUT_DISBURSED'
+  | 'WALLET_BALANCE_UPDATED'
+  | 'ESCROW_RELEASED';
 
 export interface InventoryUpdatePayload {
   bookId: string;
@@ -111,6 +117,30 @@ class RealtimeSyncBus {
             }
           } catch {}
         }
+        if (e.key === 'huki_latest_payout_event' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data?.type) {
+              this.notifyListeners({
+                type: data.type,
+                payload: data.payload,
+                timestamp: data.t || Date.now(),
+              });
+            }
+          } catch {}
+        }
+        if (e.key === 'huki_latest_wallet_event' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data?.type) {
+              this.notifyListeners({
+                type: data.type,
+                payload: data.payload,
+                timestamp: data.t || Date.now(),
+              });
+            }
+          } catch {}
+        }
       });
     }
   }
@@ -167,6 +197,24 @@ class RealtimeSyncBus {
             JSON.stringify({ type, payload, t: Date.now() })
           );
           window.dispatchEvent(new CustomEvent('huki_drm_event', { detail: { type, payload } }));
+        } catch {}
+      }
+      if (type.startsWith('PAYOUT_')) {
+        try {
+          localStorage.setItem(
+            'huki_latest_payout_event',
+            JSON.stringify({ type, payload, t: Date.now() })
+          );
+          window.dispatchEvent(new CustomEvent('huki_payout_event', { detail: { type, payload } }));
+        } catch {}
+      }
+      if (type === 'WALLET_BALANCE_UPDATED' || type === 'ESCROW_RELEASED') {
+        try {
+          localStorage.setItem(
+            'huki_latest_wallet_event',
+            JSON.stringify({ type, payload, t: Date.now() })
+          );
+          window.dispatchEvent(new CustomEvent('huki_wallet_event', { detail: { type, payload } }));
         } catch {}
       }
     }

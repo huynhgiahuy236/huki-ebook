@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
+import { useToast } from '@/ui/context/ToastContext';
 import {
   walletApi,
   payoutApi,
@@ -55,6 +56,7 @@ function formatVietnamDateTime(dateStr?: string | null): string {
 
 export default function SellerFinancePage() {
   const { user, activeBusinessId, isLoading: isAuthLoading } = useAuth();
+  const { showToast } = useToast();
   const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
 
   // Bank Info KYC
@@ -81,6 +83,10 @@ export default function SellerFinancePage() {
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutTotalPages, setPayoutTotalPages] = useState(1);
 
+  // Realtime balance pulse indicator
+  const [hasBalancePulse, setHasBalancePulse] = useState(false);
+  const prevBalanceRef = useRef<number | null>(null);
+
   // RT-04 Realtime Feature Flag check for WITHDRAWALS
   const [featureVersion, setFeatureVersion] = useState(0);
 
@@ -98,25 +104,31 @@ export default function SellerFinancePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, featureVersion]);
 
-  // Fetch Wallet Data
-  const fetchWallet = useCallback(async () => {
+  // Fetch Wallet Data (supports silent background updates)
+  const fetchWallet = useCallback(async (isSilent = false) => {
     if (!storeId) {
       if (!isAuthLoading) setIsWalletLoading(false);
       return;
     }
-    setIsWalletLoading(true);
+    if (!isSilent) setIsWalletLoading(true);
     setWalletError(null);
     try {
       const res = await walletApi.getStoreWallet(storeId);
       if (res.success && res.data) {
         setWallet(res.data);
+        const avail = Number(res.data.availableBalance) || 0;
+        if (prevBalanceRef.current !== null && prevBalanceRef.current !== avail) {
+          setHasBalancePulse(true);
+          setTimeout(() => setHasBalancePulse(false), 2000);
+        }
+        prevBalanceRef.current = avail;
       } else {
-        setWalletError(res.error?.message || 'Không thể tải thông tin số dư ví.');
+        if (!isSilent) setWalletError(res.error?.message || 'Không thể tải thông tin số dư ví.');
       }
     } catch (err: any) {
-      setWalletError(err?.message || 'Lỗi kết nối máy chủ khi tải ví.');
+      if (!isSilent) setWalletError(err?.message || 'Lỗi kết nối máy chủ khi tải ví.');
     } finally {
-      setIsWalletLoading(false);
+      if (!isSilent) setIsWalletLoading(false);
     }
   }, [storeId, isAuthLoading]);
 
@@ -147,12 +159,12 @@ export default function SellerFinancePage() {
   }, [storeId]);
 
   // Fetch Payout Requests History
-  const fetchPayoutRequests = useCallback(async (pageNum = 1) => {
+  const fetchPayoutRequests = useCallback(async (pageNum = 1, isSilent = false) => {
     if (!storeId) {
       if (!isAuthLoading) setIsPayoutsLoading(false);
       return;
     }
-    setIsPayoutsLoading(true);
+    if (!isSilent) setIsPayoutsLoading(true);
     try {
       const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 10 });
       if (res.success && res.data) {
@@ -163,7 +175,7 @@ export default function SellerFinancePage() {
     } catch (err) {
       console.warn('Lỗi tải lịch sử yêu cầu rút tiền:', err);
     } finally {
-      setIsPayoutsLoading(false);
+      if (!isSilent) setIsPayoutsLoading(false);
     }
   }, [storeId, isAuthLoading]);
 
@@ -175,6 +187,55 @@ export default function SellerFinancePage() {
   useEffect(() => {
     handleRefreshAll();
   }, [handleRefreshAll]);
+
+  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Realtime) & Lắng nghe RealtimeSyncBus
+  useEffect(() => {
+    if (!storeId) return;
+
+    const pollTimer = setInterval(() => {
+      fetchWallet(true);
+      fetchEscrowItems();
+      fetchPayoutRequests(payoutPage, true);
+    }, 3500);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      const payload = msg.payload as any;
+      const isCurrentStore = !payload?.storeId || payload.storeId === storeId;
+
+      if ((msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') && isCurrentStore) {
+        fetchWallet(true);
+        fetchEscrowItems();
+        fetchRecentTransactions();
+        showToast?.('Khách vừa thanh toán đơn hàng VietQR/PayOS mới! Tiền đã nổ vào mục Tiền Ký Quỹ Đang Giữ.', 'success');
+      } else if (msg.type === 'PAYOUT_REQUESTED' && isCurrentStore) {
+        fetchWallet(true);
+        fetchPayoutRequests(1, true);
+      } else if (msg.type === 'PAYOUT_APPROVED' && isCurrentStore) {
+        fetchWallet(true);
+        fetchPayoutRequests(payoutPage, true);
+        showToast?.('Lệnh rút tiền của bạn đã được Kế Toán Sàn phê duyệt!', 'success');
+      } else if (msg.type === 'PAYOUT_REJECTED' && isCurrentStore) {
+        fetchWallet(true);
+        fetchPayoutRequests(payoutPage, true);
+        const reason = payload?.reason ? `: ${payload.reason}` : '';
+        showToast?.(`Lệnh rút tiền bị từ chối${reason}. Tiền đã được hoàn lại số dư khả dụng!`, 'error');
+      } else if (msg.type === 'PAYOUT_DISBURSED' && isCurrentStore) {
+        fetchWallet(true);
+        fetchPayoutRequests(payoutPage, true);
+        showToast?.('Tiền rút đã được ngân hàng giải ngân thành công về STK của bạn!', 'success');
+      } else if ((msg.type === 'WALLET_BALANCE_UPDATED' || msg.type === 'ESCROW_RELEASED') && isCurrentStore) {
+        fetchWallet(true);
+        fetchEscrowItems();
+        fetchRecentTransactions();
+        showToast?.('Số dư ví vừa được giải phóng tiền hàng thành công vào Số Dư Khả Dụng!', 'success');
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [storeId, payoutPage, fetchWallet, fetchEscrowItems, fetchPayoutRequests, fetchRecentTransactions, showToast]);
 
   // Statistics (Excluding cancelled orders)
   const escrowStats = useMemo(() => {
@@ -302,7 +363,7 @@ export default function SellerFinancePage() {
           </div>
           <button
             type="button"
-            onClick={fetchWallet}
+            onClick={() => fetchWallet()}
             className="px-3 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold hover:bg-rose-700 transition-colors"
           >
             Thử Lại
