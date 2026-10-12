@@ -86,3 +86,12 @@ Rooms:
 * **Test Case 1 (4-Party Sync):** Shipper bấm lần lượt `PICKED_UP` $\to$ `DELIVERED` $\to$ Xác nhận đồng thời cả 4 màn hình (Buyer, Seller, Shipper, Admin) cập nhật đúng trong < 300ms.
 * **Test Case 2 (Escrow Handover):** Khi Shipper bấm `DELIVERED`, kiểm tra màn hình Seller bắt đầu đếm ngược 120 giây đổi trả ngay lập tức mà không cần reload F5.
 * **Test Case 3 (Idempotent Delivery Event):** Giả lập shipper bấm xác nhận giao nhiều lần $\to$ Hệ thống chỉ xử lý và chốt mốc `completedAt` duy nhất 1 lần.
+
+---
+
+## 🏆 6. KẾT QUẢ NGHIỆM THU (HOÀN THÀNH 100%)
+
+* ✅ **Timeline 5 bước đồng bộ 4 bên:** Tự động sáng đèn khi bưu tá lấy hàng (`PICKED_UP`), đang giao (`OUT_FOR_DELIVERY`), và giao thành công (`DELIVERED`).
+* ✅ **Chốt chặn mốc `deliveredAt`:** Khóa chặt thời gian bàn giao để làm căn cứ kích hoạt bộ đếm ngược 2 phút ký quỹ tại `RT-06`.
+* ✅ **Khối Sổ Cái Đối Soát Minh Bạch:** Tích hợp `OrderStatusHistory` trên trang chi tiết đơn hàng của Buyer và Modal của Admin.
+

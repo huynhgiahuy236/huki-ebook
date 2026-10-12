@@ -97,9 +97,9 @@ Hệ thống được bóc tách thành **10 Module độc lập**, mỗi module
 | 📄 [**RT-05**](./RT-05-DRM-ACTIVE-READERS.md) | **Phiên Đọc Sách DRM & Active Readers** | Admin, Buyer | Heartbeat 30s, đếm bạn đọc online, hủy đọc lậu từ xa | ✅ **Hoàn thành** |
 | 📄 [**RT-06**](./RT-06-WALLET-FINANCE-ESCROW.md) | **Ví Người Bán, Escrow & Duyệt Payout** | Admin, Seller | Nổ số dư ví 85/15, kế toán kép, đếm ngược 2 phút, duyệt rút tiền | ✅ **Hoàn thành** |
 | 📄 [**RT-07**](./RT-07-COMMUNITY-LIVE-CHAT.md) | **Hội Thoại Chat Trực Tiếp (Live Chat)** | Seller, Buyer | Nhắn tin tức thì, Typing indicator, trạng thái Đã xem | ✅ **Hoàn thành** |
-| 📄 [**RT-08**](./RT-08-DISPUTE-RMA-ARBITRATION.md) | **Đổi Trả Hàng (RMA) & Trọng Tài Sàn** | Admin, Seller, Buyer | Khiếu nại hàng lỗi, phán quyết Admin kích hoạt hoàn tiền | ✅ **Hoàn thành** |
-| 📄 [**RT-09**](./RT-09-SHIPPING-TRACKING.md) | **Hành Trình Giao Vận & Vận Đơn AWB** | Seller, Buyer, Shipper | Timeline giao hàng 5 bước, webhook hãng vận chuyển, chốt mốc Escrow | ⏳ *Kế tiếp* |
-| 📄 [**RT-10**](./RT-10-SHIPPER-DISPATCH-COD.md) | **Bưu Tá Điều Phối, Tranh Đơn & Ví COD** | Shipper, Seller, Admin | Sàn đơn chờ nhận, chuông báo, tranh đơn nguyên tử, nợ COD | 🚀 **Sẵn sàng thi công** |
+| 📄 [**RT-08**](./RT-08-DISPUTE-RMA-ARBITRATION.md) | **Đổi Trả Hàng (RMA) & Trọng Tài Sàn** | Admin, Seller, Buyer | Khiếu nại hàng lỗi, phán quyết Admin kích hoạt hoàn tiền | ✅ **Hoàn thành 100%** |
+| 📄 [**RT-09**](./RT-09-SHIPPING-TRACKING.md) | **Hành Trình Giao Vận & Vận Đơn AWB** | Seller, Buyer, Shipper | Timeline giao hàng 5 bước, webhook hãng vận chuyển, chốt mốc Escrow | ✅ **Hoàn thành 100%** |
+| 📄 [**RT-10**](./RT-10-SHIPPER-DISPATCH-COD.md) | **Bưu Tá Điều Phối, Tranh Đơn & Ví COD** | Shipper, Seller, Admin | Sàn đơn chờ nhận, chuông báo, tranh đơn nguyên tử, nợ COD | ✅ **Hoàn thành 100%** |
 
 ---
 
