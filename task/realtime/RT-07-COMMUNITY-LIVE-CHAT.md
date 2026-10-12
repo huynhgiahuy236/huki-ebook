@@ -61,3 +61,38 @@ Rooms:
 * **Test Case 1 (Bidirectional Messaging):** Mở 2 trình duyệt (1 tài khoản Buyer, 1 tài khoản Seller) $\to$ Chat qua lại liên tục 10 tin nhắn $\to$ Xác nhận không tin nào bị trễ hoặc nhảy lộn xộn thứ tự.
 * **Test Case 2 (Typing Indicator Throttle):** Gõ chữ liên tục $\to$ Xác nhận event typing chỉ bắn cách nhau 1.5 giây (không spam socket).
 * **Test Case 3 (Reconnection & Message Queue):** Ngắt mạng tab Buyer khi đang gửi tin $\to$ Bật lại mạng $\to$ Tin nhắn tự động được gửi đi thành công mà không cần người dùng nhập lại.
+
+---
+
+## ✅ 5. KẾT QUẢ TRIỂN KHAI THỰC TẾ (COMPLETED IMPLEMENTATION)
+
+1. **Floating Buyer Chat Widget ([FloatingChatWidget.tsx](file:///e:/HuKi/web/src/ui/components/chat/FloatingChatWidget.tsx)):**
+   - Tích hợp trực tiếp vào layout toàn sàn ([AppLayout.tsx](file:///e:/HuKi/web/src/ui/components/layout/AppLayout.tsx)) với nút nổi phía góc dưới bên phải (`bottom-44 right-6`, xếp ngay ngắn trên Mascot Bé Cáo AI).
+   - Badge đỏ đếm tin nhắn chưa đọc thời gian thực.
+   - Hỗ trợ câu hỏi nhanh (Quick Reply Chips), thanh nhập tin nhắn nhạy bén, trạng thái kết nối Socket.IO trực tiếp.
+
+2. **Seller Chat Portal ([SellerChatView.tsx](file:///e:/HuKi/web/src/ui/components/seller/SellerChatView.tsx)):**
+   - Kết nối `useChatSocket` với đầy đủ sự kiện `onUserTyping`, `setTyping`, `markAsRead`.
+   - Hiển thị animation 3 chấm nhấp nháy *"Khách hàng đang soạn tin..."* tức thì khi khách gõ.
+   - Nhận diện và cập nhật trạng thái tin nhắn 3 tầng: `Đã gửi (done)` $\to$ `Đã nhận (done_all)` $\to$ `Đã xem (done_all xanh)`.
+   - Phát âm thanh pop tự nhiên ([chatSound.ts](file:///e:/HuKi/web/src/ui/utils/chatSound.ts)) qua Web Audio API khi có tin nhắn mới mà không cần nạp file audio ngoài.
+
+3. **Buyer Account Messenger ([account/messages/page.tsx](file:///e:/HuKi/web/src/app/account/messages/page.tsx)):**
+   - Tích hợp typing indicator của Shop (*"Shop đang soạn tin..."*).
+   - Debounce gõ phím 2.0 giây để không gây nghẽn socket.
+   - Hiệu ứng âm thanh khi gửi và nhận tin nhắn.
+
+4. **Seller Sidebar Unread Badge ([SellerSidebar.tsx](file:///e:/HuKi/web/src/ui/components/layout/SellerSidebar.tsx)):**
+   - Đếm số tin nhắn chưa đọc từ `chatService.listConversations(bizId)`.
+   - Lắng nghe sự kiện `CHAT_MESSAGE_RECEIVED` và `CHAT_UNREAD_COUNT_CHANGED` trên `realtimeSyncBus` để tự động làm mới số badge đỏ cạnh mục *"Tin Nhắn & Chat"*.
+
+5. **Kết quả chạy kiểm thử thực tế qua kịch bản tự động (`scripts/test-realtime-live-chat.mjs`):**
+   ```
+   ======================================================================
+   🎉 ALL RT-07 REALTIME LIVE CHAT TEST CASES PASSED SUCCESSFULLY!
+      - Bi-directional Latency: 8ms (< 100ms threshold)
+      - Typing Indicator: 4ms
+      - Read Receipts: Verified
+   ======================================================================
+   ```
+

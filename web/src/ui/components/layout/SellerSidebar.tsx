@@ -10,6 +10,7 @@ import { can, PERMISSIONS, type PermissionKey } from '../../utils/permissions';
 import { featureFlagsService } from '@/ui/services/featureFlagsService';
 import { adminNotificationService } from '@/ui/services/adminNotificationService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { chatService } from '@/ui/services/chatService';
 
 export interface SellerSidebarProps {
   isCollapsed: boolean;
@@ -48,7 +49,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
     orders: number;
     pendingOrders: number;
     businessUpdates: number;
-  }>({ stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0 });
+    unreadChat: number;
+  }>({ stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0, unreadChat: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -65,7 +67,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       }
       if (!bizId || cancelled) return;
 
-      const counts = { stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0 };
+      const counts = { stores: 0, products: 0, orders: 0, pendingOrders: 0, businessUpdates: 0, unreadChat: 0 };
       try {
         const storesRes = await businessApi.getMyStores(bizId);
         if (storesRes.success && Array.isArray(storesRes.data)) counts.stores = storesRes.data.length;
@@ -103,6 +105,12 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           const pending = validOrders.filter((o) => o.status === 'PENDING_CONFIRMATION').length;
           counts.orders = validOrders.length;
           counts.pendingOrders = pending;
+        }
+      } catch { /* ignore */ }
+      try {
+        const convRes = await chatService.listConversations(bizId);
+        if (convRes.success && Array.isArray(convRes.data)) {
+          counts.unreadChat = convRes.data.reduce((sum: number, c: any) => sum + (c.unreadCount || 0), 0);
         }
       } catch { /* ignore */ }
 
@@ -156,6 +164,9 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         syncAdminNotifs();
       }
       if (msg.type.startsWith('ORDER_')) {
+        fetchBadges();
+      }
+      if (msg.type === 'CHAT_MESSAGE_RECEIVED' || msg.type === 'CHAT_UNREAD_COUNT_CHANGED') {
         fetchBadges();
       }
     });
@@ -298,6 +309,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           targetBlank: true,
           permission: PERMISSIONS.STORE_VIEW,
           featureFlag: 'CUSTOMER_CHAT',
+          badge: badges.unreadChat || null,
+          badgeColor: 'bg-rose-500',
         },
         { 
           to: '/seller/reviews', 

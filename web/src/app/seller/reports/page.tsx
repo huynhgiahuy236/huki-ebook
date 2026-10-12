@@ -14,13 +14,7 @@ import {
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
-
-function formatVND(amount?: number | string | null): string {
-  if (amount === undefined || amount === null || amount === '') return '0đ';
-  const num = typeof amount === 'number' ? amount : Number(amount);
-  if (isNaN(num)) return '0đ';
-  return `${Math.round(num).toLocaleString('vi-VN')}đ`;
-}
+import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -198,132 +192,15 @@ export default function SellerFinancialReportsPage() {
   }, [escrowItems, dateRange, customStartDate, customEndDate]);
 
   // Financial Computations & Unified Data
+  // Financial Computations & Unified Data via Centralized Engine
   const stats = useMemo(() => {
-    let totalGrossGMV = 0; // 100% Tổng giá trị đơn sách
-    let totalPlatformFee = 0; // 5% phí sàn
-    let totalNetRevenue = 0; // 95% thực nhận về Shop
-
-    // Phân loại phương thức thanh toán
-    let codGMV = 0;
-    let codNet = 0;
-    let codCount = 0;
-
-    let payosGMV = 0;
-    let payosNet = 0;
-    let payosCount = 0;
-
-    // Phân loại giai đoạn dòng tiền (Pipeline)
-    // 1. Tiền lúc đang giao hàng (dự kiến để kiểm soát đơn)
-    let inTransitGross = 0;
-    let inTransitNet = 0;
-    let inTransitCount = 0;
-
-    // 2. Tiền ký quỹ (Sàn giữ trong thời gian đổi trả 2 phút test)
-    let holdingGross = 0;
-    let holdingNet = 0;
-    let holdingCount = 0;
-
-    // 3. Tiền đã giải ngân sang ví
-    let releasedGross = 0;
-    let releasedNet = 0;
-    let releasedCount = 0;
-
-    // 4. Tiền đóng băng tranh chấp
-    let frozenGross = 0;
-    let frozenNet = 0;
-    let frozenCount = 0;
-
-    filteredItems.forEach((it) => {
-      const subtotal = Number(it.subtotal) || (Number(it.unitPrice) * Number(it.quantity)) || 0;
-      const fee = Number(it.platformFee) || Math.round(subtotal * 0.05);
-      const net = Number(it.sellerNet) || (subtotal - fee);
-
-      totalGrossGMV += subtotal;
-      totalPlatformFee += fee;
-      totalNetRevenue += net;
-
-      // Phân chia theo hình thức thanh toán: COD vs Chuyển khoản (VietQR / PayOS)
-      if (it.paymentMethod === 'COD') {
-        codGMV += subtotal;
-        codNet += net;
-        codCount++;
-      } else {
-        payosGMV += subtotal;
-        payosNet += net;
-        payosCount++;
-      }
-
-      // Phân chia theo giai đoạn dòng tiền
-      if (it.escrowStatus === 'PENDING_PAYMENT') {
-        // Đang giao hàng / Chờ shipper thu tiền COD
-        inTransitGross += subtotal;
-        inTransitNet += net;
-        inTransitCount++;
-      } else if (it.escrowStatus === 'HOLDING') {
-        // Đã giao hàng, đang trong thời hạn đổi trả 2 phút
-        holdingGross += subtotal;
-        holdingNet += net;
-        holdingCount++;
-      } else if (it.escrowStatus === 'RELEASED') {
-        // Đã hoàn tất thời gian đổi trả -> Tiền đã giải ngân sang ví
-        releasedGross += subtotal;
-        releasedNet += net;
-        releasedCount++;
-      } else if (it.escrowStatus === 'FROZEN') {
-        frozenGross += subtotal;
-        frozenNet += net;
-        frozenCount++;
-      }
+    return calculateSellerFinancials({
+      escrowItems: filteredItems,
+      wallet,
+      payouts,
+      transactions,
     });
-
-    // Tính tổng tiền đã rút về ngân hàng (Withdrawn) từ transactions hoặc payout requests
-    const txDebitTotal = transactions
-      .filter((t) => t.type === 'DEBIT_AVAILABLE')
-      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
-
-    const payoutCompletedTotal = payouts
-      .filter((p) => p.status === 'COMPLETED')
-      .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-
-    const totalWithdrawn = Math.max(txDebitTotal, payoutCompletedTotal);
-
-    // Số dư khả dụng hiện tại trong ví (có thể bấm rút về bất kỳ lúc nào)
-    const availableBalance = wallet?.availableBalance !== undefined && wallet?.availableBalance !== null
-      ? Number(wallet.availableBalance)
-      : Math.max(0, releasedNet - totalWithdrawn);
-
-    const pendingBalance = wallet?.pendingBalance !== undefined && wallet?.pendingBalance !== null
-      ? Number(wallet.pendingBalance)
-      : (holdingNet + inTransitNet);
-
-    return {
-      totalGrossGMV,
-      totalPlatformFee,
-      totalNetRevenue,
-      codGMV,
-      codNet,
-      codCount,
-      payosGMV,
-      payosNet,
-      payosCount,
-      inTransitGross,
-      inTransitNet,
-      inTransitCount,
-      holdingGross,
-      holdingNet,
-      holdingCount,
-      releasedGross,
-      releasedNet,
-      releasedCount,
-      frozenGross,
-      frozenNet,
-      frozenCount,
-      totalWithdrawn,
-      availableBalance,
-      pendingBalance,
-      totalOrdersCount: filteredItems.length,
-    };
-  }, [filteredItems, transactions, payouts, wallet]);
+  }, [filteredItems, wallet, payouts, transactions]);
 
   // Export CSV Function
   const handleExportCSV = () => {

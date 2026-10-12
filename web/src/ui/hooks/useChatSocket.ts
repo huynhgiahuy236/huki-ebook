@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { tokenStorage } from '../api/tokenStorage';
 import type { ChatMessage } from '../services/chatService';
+import { realtimeSyncBus } from '../services/realtimeSyncBus';
 
 export interface UseChatSocketOptions {
   storeId?: string;
@@ -82,6 +83,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
         setTimeout(() => seenMessageIds.delete(msgId), 5000);
       }
       callbacksRef.current.onMessageReceived?.(msg);
+      realtimeSyncBus.publish('CHAT_MESSAGE_RECEIVED', msg);
     };
     socket.on('message:new', handleNewMessage);
     socket.on('new_message', handleNewMessage);
@@ -121,8 +123,15 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     };
   }, [storeId]);
 
+  const isValidConversationId = (id?: string): boolean => {
+    if (!id || typeof id !== 'string') return false;
+    if (id.startsWith('temp-')) return false;
+    return /^[0-9a-fA-F]{24}$/.test(id);
+  };
+
   // Join vào room hội thoại cụ thể
   const joinConversation = useCallback((conversationId: string, currentStoreId?: string) => {
+    if (!isValidConversationId(conversationId)) return;
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:join', {
         conversationId,
@@ -133,6 +142,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   // Rời khỏi room hội thoại
   const leaveConversation = useCallback((conversationId: string, currentStoreId?: string) => {
+    if (!isValidConversationId(conversationId)) return;
     if (socketRef.current?.connected) {
       socketRef.current.emit('conversation:leave', {
         conversationId,
@@ -153,6 +163,11 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
     }
   ): Promise<ChatMessage | null> => {
     return new Promise((resolve, reject) => {
+      if (!isValidConversationId(conversationId)) {
+        reject(new Error('Mã hội thoại chưa sẵn sàng trong cơ sở dữ liệu'));
+        return;
+      }
+
       if (!socketRef.current?.connected) {
         reject(new Error('Socket chưa được kết nối'));
         return;
@@ -181,6 +196,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   // Đánh dấu đã đọc qua Socket
   const markAsRead = useCallback((conversationId: string, currentStoreId?: string) => {
+    if (!isValidConversationId(conversationId)) return;
     if (socketRef.current?.connected) {
       socketRef.current.emit('message:read', {
         conversationId,
@@ -191,6 +207,7 @@ export function useChatSocket(options: UseChatSocketOptions = {}) {
 
   // Báo trạng thái đang soạn tin (typing)
   const setTyping = useCallback((conversationId: string, isTyping: boolean, currentStoreId?: string) => {
+    if (!isValidConversationId(conversationId)) return;
     if (socketRef.current?.connected) {
       socketRef.current.emit(isTyping ? 'typing:start' : 'typing:stop', {
         conversationId,

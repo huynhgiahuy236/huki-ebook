@@ -9,6 +9,7 @@ import StoreFooter from './StoreFooter';
 import { useCart } from '@/ui/context/CartContext';
 import ScrollToTop from '@/ui/components/common/ScrollToTop';
 import FloatingAIChatbox from '@/ui/components/ai/FloatingAIChatbox';
+import FloatingChatWidget from '@/ui/components/chat/FloatingChatWidget';
 
 export interface LayoutContextType {
   isSidebarCollapsed: boolean;
@@ -140,9 +141,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </Link>
         </nav>
 
-        {/* Floating Utilities: Scroll To Top & AI Chatbox */}
+        {/* Floating Utilities: Scroll To Top, AI Chatbox & Buyer Store Live Chat */}
         <ScrollToTop />
         <FloatingAIChatbox />
+        <FloatingChatWidget />
       </div>
     </LayoutContext.Provider>
   );

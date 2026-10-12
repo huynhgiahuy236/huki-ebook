@@ -100,14 +100,21 @@ export default function ShipperWalletView() {
           </div>
 
           <div>
-            <Link
-              href="/shipper/wallet/remit"
-              className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[17px]">qr_code_2</span>
-              <span>Nộp Tiền COD Qua PayOS (QR)</span>
-              <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-            </Link>
+            {wallet.codDebt > 0 ? (
+              <Link
+                href="/shipper/wallet/remit"
+                className="w-full py-2.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[17px]">qr_code_2</span>
+                <span>Nộp Tiền COD Qua PayOS ({wallet.codDebt.toLocaleString('vi-VN')}đ)</span>
+                <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+              </Link>
+            ) : (
+              <div className="w-full py-2.5 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold flex items-center justify-center gap-2">
+                <span className="material-symbols-outlined text-[17px] text-[#00875A]">check_circle</span>
+                <span>Đã nộp đủ COD (Không có công nợ tồn)</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

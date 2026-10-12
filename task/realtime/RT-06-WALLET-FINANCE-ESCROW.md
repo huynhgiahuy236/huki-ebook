@@ -71,7 +71,7 @@ Rooms:
 1. **Đối với Ebook (Sách số):**
    * Thanh toán 100% qua PayOS (VietQR).
    * Không có khâu giao vận / Shipper. Khách thanh toán xong $\to$ Cấp ngay quyền truy cập sách số (`bookAccess: ACTIVE`).
-   * Dòng tiền: Sàn ghi nhận 15% phí sàn; 85% doanh thu sách số được ghi nhận vào ví Seller theo chu kỳ đối soát (hoặc khả dụng ngay).
+   * Dòng tiền: Sàn ghi nhận 5% phí sàn; 95% doanh thu sách số được ghi nhận vào ví Seller theo chu kỳ đối soát (hoặc khả dụng ngay).
 2. **Đối với Sách Giấy (Physical Book) - Thanh toán PayOS:**
    * Khách quét mã PayOS $\to$ Tiền vào tài khoản trung gian của Sàn, ví Seller hiển thị `Đang Giao Hàng (Tạm Giữ)`.
    * **Shipper là người gác cổng mốc thời gian:** Khi sách đang trên đường giao (`IN_TRANSIT`), đồng hồ đổi trả **tuyệt đối KHÔNG chạy**.
@@ -83,15 +83,15 @@ Rooms:
    * Shipper được giữ tiền cước vận chuyển (ví dụ 30.000đ) và ghi nhận Nợ COD với Sàn (ví dụ 108.000đ).
    * Shipper bấm `DELIVERED` $\to$ Kích hoạt bộ đếm 2 phút đổi trả cho Seller.
    * Shipper quét mã VietQR PayOS nộp 108.000đ về quỹ Sàn $\to$ Nợ COD trên ví Shipper về 0đ.
-   * Khi hết 2 phút $\to$ 85% tiền sách (91.800đ) chuyển vào `Số Dư Khả Dụng` của Shop.
+   * Khi hết 2 phút $\to$ 95% tiền sách (179.550đ/cuốn 189.000đ) chuyển vào `Số Dư Khả Dụng` của Shop.
 
 ---
 
 ## 🎯 3. KẾT QUẢ ĐẠT ĐƯỢC (EXPECTED OUTCOME)
 
-1. Khi khách hàng xác nhận nhận hàng hoặc hết thời hạn khiếu nại 7 ngày:
+1. Khi khách hàng xác nhận nhận hàng hoặc hết thời hạn đổi trả 2 phút:
    * Màn hình Ví của Seller nổ số dư: Số tiền từ "Tiền Ký Quỹ Đang Giữ" tự động nhảy sang "Số Dư Khả Dụng" trong vòng **< 100ms**.
-   * Bảng lịch sử giao dịch thêm 1 dòng: `+425.000đ - Tiền hàng đơn #ORD-xxxx (85%)`.
+   * Bảng lịch sử giao dịch thêm 1 dòng: `+179.550đ - Tiền hàng đơn #ORD-xxxx (95%)`.
 2. Khi Seller tạo lệnh rút tiền $\to$ Màn hình Admin Kế Toán xuất hiện ngay lập tức yêu cầu rút tiền mới mà Admin không cần F5.
 3. Khi Admin bấm "Phê duyệt chuyển khoản" $\to$ Trạng thái trên màn hình Seller đổi sang màu xanh `ĐÃ GIẢI NGÂN`.
 
@@ -99,7 +99,7 @@ Rooms:
 
 ## 🧪 4. KẾ HOẠCH KIỂM THỬ & KẾT QUẢ ĐỐI SOÁT THỰC TẾ (VERIFIED & COMPLETED)
 
-* **Test Case 1 (Escrow Release to Available - Chuẩn Shopee 85/15):**
+* **Test Case 1 (Escrow Release to Available - Chuẩn Shopee 95/5):**
   - Khi đơn hàng hoàn tất (`COMPLETED`/`DELIVERED`) $\to$ Hệ thống nổ sự kiện `ESCROW_RELEASED` & `WALLET_BALANCE_UPDATED`.
   - Tiền chuyển từ `pendingBalance` sang `availableBalance` tự động. Toast thông báo nổ ngay lập tức, animation xung nhịp màu xanh hiển thị số dư mới.
 * **Test Case 2 (Payout Lifecycle Sync - Bàn Kế Toán Sàn & Ví Người Bán):**

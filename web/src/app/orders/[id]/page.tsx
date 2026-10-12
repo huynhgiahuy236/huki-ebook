@@ -12,7 +12,8 @@ import DisputeModal from '@/ui/components/order/DisputeModal';
 import ReturnRequestModal from '@/ui/components/order/ReturnRequestModal';
 import PaymentCountdownModal from '@/ui/components/checkout/PaymentCountdownModal';
 import { paymentApi } from '@/ui/api/paymentApi';
-import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { realtimeSyncBus, type SyncMessage } from '@/ui/services/realtimeSyncBus';
+import { playChatChimeSound } from '@/ui/utils/chatSound';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -38,9 +39,9 @@ export default function OrderDetailPage() {
   const [returnModal, setReturnModal] = useState<{ open: boolean; item: any; storeName: string; subOrderId?: string }>({ open: false, item: null, storeName: '' });
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
-  const fetchOrderDetail = useCallback(async () => {
+  const fetchOrderDetail = useCallback(async (isSilent?: boolean) => {
     if (!id) return;
-    setIsLoading(true);
+    if (!isSilent) setIsLoading(true);
     setNotFound(false);
 
     try {
@@ -120,29 +121,73 @@ export default function OrderDetailPage() {
         setNotFound(true);
       }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [id]);
 
   useEffect(() => {
     fetchOrderDetail();
+    const timer = setInterval(() => {
+      fetchOrderDetail(true);
+    }, 3500);
+    return () => clearInterval(timer);
   }, [fetchOrderDetail]);
 
   useEffect(() => {
-    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
-      if (
-        msg.type === 'ORDER_STATUS_CHANGED' ||
-        msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
-        msg.type === 'ORDER_CANCELLED'
+    const unsubscribe = realtimeSyncBus.subscribe((msg: SyncMessage<any>) => {
+      const type = msg.type as string;
+      const data = (msg.payload as any) || (msg as any).data || {};
+
+      if (type === 'RETURN_PICKED_UP') {
+        playChatChimeSound();
+        showToast(
+          {
+            title: 'Bưu tá đã lấy hàng thu hồi',
+            message: `Bưu tá đã nhận sách hoàn #${data.reverseTrackingCode || ''} từ bạn và đang chuyển về kho Shop.`,
+          },
+          'info'
+        );
+        fetchOrderDetail(true);
+      } else if (type === 'RETURN_COMPLETED' || type === 'RETURN_DELIVERED_TO_STORE') {
+        playChatChimeSound();
+        showToast(
+          {
+            title: 'Hàng hoàn đã về kho người bán',
+            message: 'Sách hoàn đã được giao về kho Shop an toàn. Sàn HuKi chuẩn bị chuyển khoản hoàn tiền cho bạn!',
+          },
+          'info'
+        );
+        fetchOrderDetail(true);
+      } else if (type === 'ESCROW_REFUNDED') {
+        playChatChimeSound();
+        showToast(
+          {
+            title: 'Hoàn tiền thành công!',
+            message: 'Sàn HuKi đã hoàn tất chuyển khoản tiền sách về tài khoản ngân hàng của bạn!',
+          },
+          'success'
+        );
+        fetchOrderDetail(true);
+      } else if (
+        type === 'ORDER_STATUS_CHANGED' ||
+        type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        type === 'ORDER_CANCELLED' ||
+        type === 'SHIPPER_PICKED_UP' ||
+        type === 'SHIPPER_DELIVERED' ||
+        type === 'ORDER_DELIVERED' ||
+        type === 'SHIPPER_ORDER_CLAIMED' ||
+        type === 'SHIPPER_AVAILABLE_ORDER_BROADCAST' ||
+        type === 'ESCROW_RELEASED' ||
+        type === 'ESCROW_FROZEN'
       ) {
-        fetchOrderDetail();
+        fetchOrderDetail(true);
       }
-    });
+    }, { role: 'BUYER' });
 
     return () => {
       unsubscribe();
     };
-  }, [fetchOrderDetail]);
+  }, [fetchOrderDetail, showToast]);
 
   const handleCancelSubOrder = async () => {
     if (!cancelSubOrderModal.subOrder || !order) return;
@@ -1172,31 +1217,53 @@ export default function OrderDetailPage() {
 
                             {/* Ký quỹ đếm ngược hoặc Thông báo chờ giao riêng cho Sách Giấy */}
                             {isPhysicalDelivered ? (
-                              <div className="pt-2 border-t border-amber-100/80 dark:border-amber-900/40">
-                                <EscrowCountdown
-                                  orderId={order.id}
-                                  subOrderId={`${so.id}_physical`}
-                                  storeName={`${storeDisplayName} (Sách Giấy)`}
-                                  amount={physicalSubtotal + Number(so.shippingFee || 0)}
-                                  startTime={so.deliveredAt || so.completedAt || (order as any).deliveredAt || so.updatedAt || order.updatedAt}
-                                  onDispute={() => setDisputeModal({ open: true, subOrder: so })}
-                                  onReleaseEscrow={async ({ auto }: any) => {
-                                    setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_physical`]: true }));
-                                    try {
-                                      await orderApi.confirmDelivered(order.id, `${so.id}_physical`);
-                                    } catch (err) {
-                                      console.warn('Lỗi gọi API confirmDelivered:', err);
-                                    }
-                                    showToast(
-                                      {
-                                        title: auto ? 'Hết hạn ký quỹ Sách giấy 2 phút' : 'Xác nhận thành công!',
-                                        message: `Đã giải ngân phần Sách giấy (${(physicalSubtotal + Number(so.shippingFee || 0)).toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
-                                      },
-                                      'success'
-                                    );
-                                  }}
-                                />
-                              </div>
+                              (() => {
+                                const hasAnyPhysicalReturn = physicalItems.some((pi: any) =>
+                                  returnRequests.some(
+                                    (r: any) =>
+                                      (r.orderItemId === pi.id ||
+                                        r.bookId === pi.bookId ||
+                                        (r.bookTitle && pi.bookTitle && r.bookTitle.toLowerCase() === pi.bookTitle.toLowerCase())) &&
+                                      (r.orderId === order.id || r.order?.code === order.code)
+                                  )
+                                );
+                                const isPhysicalFrozen =
+                                  hasAnyPhysicalReturn ||
+                                  so.escrowStatus === 'FROZEN' ||
+                                  so.escrowStatus === 'DISPUTED' ||
+                                  (order as any).escrowStatus === 'FROZEN' ||
+                                  (order as any).escrowStatus === 'DISPUTED';
+
+                                return (
+                                  <div className="pt-2 border-t border-amber-100/80 dark:border-amber-900/40">
+                                    <EscrowCountdown
+                                      orderId={order.id}
+                                      subOrderId={`${so.id}_physical`}
+                                      storeName={`${storeDisplayName} (Sách Giấy)`}
+                                      amount={physicalSubtotal + Number(so.shippingFee || 0)}
+                                      startTime={so.deliveredAt || so.completedAt || (order as any).deliveredAt || so.updatedAt || order.updatedAt}
+                                      isFrozen={isPhysicalFrozen}
+                                      onDispute={() => setDisputeModal({ open: true, subOrder: so })}
+                                      onReleaseEscrow={async ({ auto }: any) => {
+                                        if (isPhysicalFrozen) return;
+                                        setSettledEscrowStores((prev) => ({ ...prev, [`${so.id}_physical`]: true }));
+                                        try {
+                                          await orderApi.confirmDelivered(order.id, `${so.id}_physical`);
+                                        } catch (err) {
+                                          console.warn('Lỗi gọi API confirmDelivered:', err);
+                                        }
+                                        showToast(
+                                          {
+                                            title: auto ? 'Hết hạn ký quỹ Sách giấy 2 phút' : 'Xác nhận thành công!',
+                                            message: `Đã giải ngân phần Sách giấy (${(physicalSubtotal + Number(so.shippingFee || 0)).toLocaleString('vi-VN')}đ) cho gian hàng #${so.code}.`,
+                                          },
+                                          'success'
+                                        );
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })()
                             ) : isOrderPaid ? (
                               <div className="p-3 rounded-xl bg-amber-100/60 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 flex items-center gap-2 text-xs">
                                 <span className="material-symbols-outlined text-[18px] text-amber-600 shrink-0">local_shipping</span>
@@ -1226,55 +1293,127 @@ export default function OrderDetailPage() {
               );
             })}
 
-            {/* TIMELINE AUDIT TRAIL LOG */}
+            {/* TIMELINE AUDIT TRAIL LOG / SỔ CÁI MINH BẠCH */}
             {trackingInfo?.timeline && trackingInfo.timeline.length > 0 && (
               <div className="bg-theme-surface rounded-3xl border border-theme-border p-6 sm:p-8 shadow-xs">
-                <h3 className="font-editorial text-base font-bold text-on-surface mb-6 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-theme-primary">history</span>
-                  <span>Nhật Ký Trạng Thái Chi Tiết</span>
-                </h3>
+                <div className="flex items-center justify-between pb-4 mb-6 border-b border-theme-border flex-wrap gap-2">
+                  <h3 className="font-editorial text-base font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-theme-primary">receipt_long</span>
+                    <span>Sổ Cái Minh Bạch &amp; Nhật Ký Trạng Thái Đơn Hàng</span>
+                  </h3>
+                  <span className="text-[11px] text-theme-text-muted">
+                    Ghi log thời gian thực chuẩn kế toán ký quỹ
+                  </span>
+                </div>
 
                 <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-theme-border">
-                  {trackingInfo.timeline.map((item: any, idx: number) => (
-                    <div key={item.id || idx} className="relative">
-                      {/* Timeline Dot */}
-                      <div
-                        className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-theme-surface ${
-                          idx === trackingInfo.timeline.length - 1
-                            ? 'bg-theme-primary ring-4 ring-theme-primary/20'
-                            : 'bg-emerald-600'
-                        }`}
-                      />
+                  {trackingInfo.timeline.map((item: any, idx: number) => {
+                    const isRefund = item.toStatus === 'ESCROW_REFUNDED' || item.title?.includes('hoàn trả tiền') || item.title?.includes('Hoàn trả');
+                    const isFrozen = item.toStatus === 'ESCROW_FROZEN' || item.title?.includes('Đóng băng');
+                    const isReturnPickup = item.toStatus === 'RETURN_PICKED_UP' || item.title?.includes('lấy hàng');
+                    const isReturnDelivered = item.toStatus === 'RETURN_DELIVERED_TO_STORE' || item.title?.includes('kho Shop');
+                    const isShipper = item.actorType === 'SHIPPER' || item.actorType === 'SHIPPER_COD_REMITTANCE';
+                    const isBuyer = item.actorType === 'BUYER' || item.actorType === 'USER';
+                    const isAdmin = item.actorType === 'ADMIN';
 
-                      <div>
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h5 className="font-bold text-xs text-on-surface">
-                            {item.title || item.toStatus}
-                          </h5>
-                          <span className="text-[11px] text-on-surface-variant">
-                            {new Date(item.createdAt).toLocaleDateString('vi-VN', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              second: '2-digit',
-                            })}
-                          </span>
+                    const dotBg = isRefund
+                      ? 'bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/60'
+                      : isFrozen
+                      ? 'bg-rose-500 ring-4 ring-rose-100 dark:ring-rose-950/60'
+                      : isReturnPickup
+                      ? 'bg-amber-500 ring-4 ring-amber-100 dark:ring-amber-950/60'
+                      : isReturnDelivered
+                      ? 'bg-indigo-500 ring-4 ring-indigo-100 dark:ring-indigo-950/60'
+                      : idx === trackingInfo.timeline.length - 1
+                      ? 'bg-theme-primary ring-4 ring-theme-primary/20'
+                      : 'bg-emerald-600';
+
+                    const meta = (item.metadata as any) || {};
+
+                    return (
+                      <div key={item.id || idx} className="relative">
+                        {/* Timeline Dot */}
+                        <div
+                          className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-theme-surface ${dotBg}`}
+                        />
+
+                        <div className="bg-theme-surface-subtle/50 p-3.5 rounded-2xl border border-theme-border/60">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h5 className="font-bold text-xs text-on-surface flex items-center gap-1.5">
+                              {isRefund && <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>}
+                              {isFrozen && <span className="material-symbols-outlined text-[15px] text-rose-600">lock_clock</span>}
+                              {isReturnPickup && <span className="material-symbols-outlined text-[15px] text-amber-600">local_shipping</span>}
+                              {isReturnDelivered && <span className="material-symbols-outlined text-[15px] text-indigo-600">warehouse</span>}
+                              <span>{item.title || item.toStatus}</span>
+                            </h5>
+                            <span className="text-[11px] font-mono text-on-surface-variant">
+                              {new Date(item.createdAt).toLocaleDateString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </span>
+                          </div>
+
+                          {item.description && (
+                            <p className="text-xs text-on-surface-variant mt-1.5 leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+
+                          {/* Chi tiết tài khoản ngân hàng & mã vận đơn đối soát */}
+                          {(meta.buyerBankAccount || meta.reverseTrackingCode || meta.refundAmount) && (
+                            <div className="mt-2.5 p-2 rounded-xl bg-white/80 dark:bg-slate-900/60 border border-theme-border text-[11px] flex flex-col gap-1.5">
+                              {meta.reverseTrackingCode && (
+                                <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                                  <span className="material-symbols-outlined text-[14px] text-amber-600">assignment_return</span>
+                                  <span>Mã vận đơn hoàn: </span>
+                                  <span className="font-mono text-amber-900 dark:text-amber-100">#{meta.reverseTrackingCode}</span>
+                                </div>
+                              )}
+                              {meta.buyerBankAccount && (
+                                <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 flex-wrap">
+                                  <span className="material-symbols-outlined text-[14px] text-blue-600">credit_card</span>
+                                  <span>Tài khoản thụ hưởng:</span>
+                                  <strong className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">{meta.buyerBankAccount.accountNumber}</strong>
+                                  <span>({meta.buyerBankAccount.bankName} - {meta.buyerBankAccount.accountHolderName})</span>
+                                </div>
+                              )}
+                              {meta.refundAmount && (
+                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+                                  <span className="material-symbols-outlined text-[14px]">payments</span>
+                                  <span>Số tiền hoàn trả: {Number(meta.refundAmount).toLocaleString('vi-VN')} đ</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Actor Badge */}
+                          <div className="mt-2 flex items-center gap-2">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                              isAdmin
+                                ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300'
+                                : isShipper
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
+                                : isBuyer
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
+                                : 'bg-theme-surface-subtle text-on-surface-variant border-theme-border'
+                            }`}>
+                              <span className="material-symbols-outlined text-[12px]">
+                                {isAdmin ? 'shield_person' : isShipper ? 'two_wheeler' : isBuyer ? 'person' : 'storefront'}
+                              </span>
+                              <span>
+                                {isAdmin ? 'Ban Quản Trị Sàn HuKi' : isShipper ? 'Bưu Tá HuKi Express' : isBuyer ? 'Người Mua Hàng' : 'Gian Hàng Shop'}
+                              </span>
+                            </span>
+                          </div>
                         </div>
-                        {item.description && (
-                          <p className="text-xs text-on-surface-variant mt-1 leading-relaxed">
-                            {item.description}
-                          </p>
-                        )}
-                        {item.actorType && (
-                          <span className="inline-block mt-1 text-[10px] font-medium px-2 py-0.5 rounded bg-theme-surface-subtle text-on-surface-variant border border-theme-border">
-                            Tác nhân: {item.actorType === 'SELLER' ? 'Người bán' : item.actorType === 'USER' ? 'Người mua' : 'Hệ thống'}
-                          </span>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

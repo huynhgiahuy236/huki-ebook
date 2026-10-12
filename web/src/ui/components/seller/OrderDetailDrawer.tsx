@@ -134,7 +134,15 @@ export default function OrderDetailDrawer({
                             <span>{STATUS_LABELS[event.toStatus] || event.toStatus}</span>
                           </span>
                         ) : (
-                          event.title || STATUS_LABELS[event.toStatus] || event.toStatus
+                          (() => {
+                            let t = event.title || STATUS_LABELS[event.toStatus] || event.toStatus;
+                            if (t === 'Order created') return 'Khách hàng đặt đơn thành công';
+                            if (t === 'Seller confirmed order') return 'Người bán đã xác nhận đơn hàng';
+                            if (t === 'Seller is preparing order') return 'Người bán đang chuẩn bị & đóng gói kiện hàng';
+                            if (t === 'Order handed to carrier') return 'Đã bàn giao kiện hàng cho đơn vị vận chuyển';
+                            if (t === 'Order delivered') return 'Đơn hàng đã được giao thành công';
+                            return t;
+                          })()
                         )}
                       </p>
                       <time className="text-[11px] text-slate-400 font-mono whitespace-nowrap">{dateTime(event.createdAt)}</time>
@@ -146,7 +154,9 @@ export default function OrderDetailDrawer({
                       </p>
                     )}
                     {(event.description || event.note || event.reason) && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{event.description || event.note || event.reason}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        {(event.description || event.note || event.reason).replace(/SIMULATED-/g, 'PAYOS-')}
+                      </p>
                     )}
                   </li>
                 ))}

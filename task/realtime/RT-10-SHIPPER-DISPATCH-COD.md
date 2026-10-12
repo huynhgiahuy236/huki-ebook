@@ -100,7 +100,7 @@ WHERE id = :sellerOrderId
 3. **Kích hoạt giải ngân Escrow cho Seller:**
    - Ngay thời điểm Shipper bấm `DELIVERED`, Seller nhận tín hiệu `ORDER_DELIVERED`.
    - Tiền hàng 108.000đ bắt đầu đếm ngược 2 phút `Ký Quỹ Đổi Trả (02:00)` tại `RT-06`.
-   - Hết 2 phút, tiền 85% (91.800đ) tự động chuyển sang `Số Dư Khả Dụng` để Shop có thể rút ra tài khoản ngân hàng.
+   - Hết 2 phút, tiền 95% (179.550đ) tự động chuyển sang `Số Dư Khả Dụng` để Shop có thể rút ra tài khoản ngân hàng.
 
 ---
 

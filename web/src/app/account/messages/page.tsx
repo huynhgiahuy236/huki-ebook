@@ -9,6 +9,8 @@ import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import { chatService, type ChatConversation, type ChatMessage } from '@/ui/services/chatService';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
+import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface PinnedBook {
   id: string;
@@ -96,6 +98,9 @@ function MessengerContent() {
   });
 
   const [messageInput, setMessageInput] = useState('');
+  const [isStoreTyping, setIsStoreTyping] = useState(false);
+  const storeTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const buyerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [savedVouchers, setSavedVouchers] = useState<Record<string, boolean>>({});
   const [activeCallModal, setActiveCallModal] = useState<'voice' | 'video' | null>(null);
   const [callTimer] = useState('00:24');
@@ -341,7 +346,7 @@ function MessengerContent() {
   }, [targetShopId, targetStoreName, targetOrderId, targetBookTitle, targetBookCover, targetBookPrice]);
 
   // 2. Kết nối Socket Realtime
-  const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead } = useChatSocket({
+  const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead, setTyping } = useChatSocket({
     onMessageReceived: (newMsg: ChatMessage) => {
       const convId = String(newMsg.conversationId || (newMsg as any).conversation?._id || (newMsg as any).conversation?.id || '');
       const isMe =
@@ -352,6 +357,15 @@ function MessengerContent() {
           newMsg.senderId === (user as any)?.sub ||
           activeChannelData?.type === 'store'
         );
+
+      if (!isMe) {
+        playChatPopSound();
+        setIsStoreTyping(false);
+        realtimeSyncBus.publish('CHAT_MESSAGE_RECEIVED', {
+          messageId: String(newMsg.id || ''),
+          conversationId: convId,
+        });
+      }
 
       const item: MessageItem = {
         id: (newMsg.id as any) || (newMsg as any)._id || Date.now(),
@@ -409,7 +423,7 @@ function MessengerContent() {
 
       setChannels(prev =>
         prev.map(c =>
-          c.id === convId || c.id === activeChannel
+            c.id === convId || c.id === activeChannel
             ? { ...c, lastMsg: newMsg.content, lastTime: item.time, unread: activeChannel === convId ? 0 : c.unread + 1 }
             : c
         )
@@ -430,6 +444,17 @@ function MessengerContent() {
           [receipt.conversationId]: msgs.map(m => ({ ...m, status: 'read' })),
         };
       });
+    },
+    onUserTyping: (data: { conversationId: string; userId: string; isTyping: boolean }) => {
+      if (data.conversationId === activeChannel) {
+        setIsStoreTyping(data.isTyping);
+        if (data.isTyping) {
+          if (storeTypingTimeoutRef.current) clearTimeout(storeTypingTimeoutRef.current);
+          storeTypingTimeoutRef.current = setTimeout(() => {
+            setIsStoreTyping(false);
+          }, 3500);
+        }
+      }
     },
   });
 
@@ -505,6 +530,10 @@ function MessengerContent() {
       ...prev,
       [activeChannelData.id]: [...(prev[activeChannelData.id] || []), newMsg],
     }));
+
+    playMessageSentSound();
+    setTyping(activeChannelData.id, false);
+    if (buyerTypingTimeoutRef.current) clearTimeout(buyerTypingTimeoutRef.current);
 
     // Cuộn ngay lập tức khi xuất hiện bong bóng tin nhắn tạm
     setTimeout(() => scrollToBottom('smooth'), 40);
@@ -588,6 +617,16 @@ function MessengerContent() {
     const text = messageInput.trim();
     setMessageInput('');
     await handleSendMessageWithText(text);
+  };
+
+  const handleBuyerTypingInput = (val: string) => {
+    setMessageInput(val);
+    if (!activeChannel) return;
+    setTyping(activeChannel, true);
+    if (buyerTypingTimeoutRef.current) clearTimeout(buyerTypingTimeoutRef.current);
+    buyerTypingTimeoutRef.current = setTimeout(() => {
+      setTyping(activeChannel, false);
+    }, 2000);
   };
 
   const handleSaveVoucher = (code?: string) => {
@@ -1019,6 +1058,16 @@ function MessengerContent() {
                   );
                 })}
 
+                {/* Live Store Typing Indicator */}
+                {isStoreTyping && (
+                  <div className="flex items-center gap-1.5 text-xs text-gray-500 italic bg-white border border-gray-200 px-3 py-1.5 rounded-full w-fit shadow-2xs animate-in fade-in">
+                    <span className="w-1.5 h-1.5 bg-[#00875A] rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-[#00875A] rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span className="w-1.5 h-1.5 bg-[#00875A] rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    <span className="text-[11px] ml-1">Shop đang soạn tin...</span>
+                  </div>
+                )}
+
                 <div ref={messagesEndRef} />
 
                 {activeMessages.length === 0 && (
@@ -1095,7 +1144,7 @@ function MessengerContent() {
                 <input
                   type="text"
                   value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
+                  onChange={(e) => handleBuyerTypingInput(e.target.value)}
                   placeholder="Nhập nội dung tin nhắn... (Nhấn Enter để gửi)"
                   className="flex-1 px-4 py-2.5 bg-gray-100 border border-transparent rounded-2xl text-xs sm:text-sm focus:outline-none focus:border-[#006953] focus:bg-white transition-all text-gray-900"
                 />

@@ -13,15 +13,10 @@ import {
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
 import WithdrawalPinModal, { type BankInfo } from '@/ui/components/seller/WithdrawalPinModal';
+import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
 import { featureFlagsService } from '@/ui/services/featureFlagsService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
-
-function formatVND(amount?: number | string | null): string {
-  if (amount === undefined || amount === null || amount === '') return '0đ';
-  const num = typeof amount === 'number' ? amount : Number(amount);
-  if (isNaN(num)) return '0đ';
-  return `${Math.round(num).toLocaleString('vi-VN')}đ`;
-}
+import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -64,8 +59,8 @@ export default function SellerFinancePage() {
     const b = user?.business as any;
     return {
       bankName: b?.bankName || 'Ngân hàng TMCP Ngoại Thương Việt Nam (Vietcombank)',
-      accountNumber: b?.bankAccountNumber || '0071001234567',
-      accountHolder: b?.bankAccountHolder || b?.ownerName || user?.fullName || 'HUỲNH GIA HUY',
+      accountNumber: b?.bankAccountNumber || '7222333555',
+      accountHolder: b?.bankAccountHolder || b?.ownerName || user?.fullName || 'SELLER',
     };
   }, [user]);
 
@@ -76,6 +71,9 @@ export default function SellerFinancePage() {
   const [isWalletLoading, setIsWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+
+  // Tab State: Chuẩn Shopee 3 Tab Tinh Gọn
+  const [activeTab, setActiveTab] = useState<'ESCROW' | 'PAYOUTS' | 'TRANSACTIONS'>('ESCROW');
 
   // Payout Requests History State
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequestItem[]>([]);
@@ -149,7 +147,7 @@ export default function SellerFinancePage() {
   const fetchRecentTransactions = useCallback(async () => {
     if (!storeId) return;
     try {
-      const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 5 });
+      const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 50 });
       if (res.success && res.data?.items) {
         setRecentTransactions(res.data.items);
       }
@@ -166,11 +164,11 @@ export default function SellerFinancePage() {
     }
     if (!isSilent) setIsPayoutsLoading(true);
     try {
-      const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 10 });
+      const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 20 });
       if (res.success && res.data) {
         setPayoutRequests(res.data.items || []);
         setPayoutPage(res.data.page || pageNum);
-        setPayoutTotalPages(Math.ceil((res.data.total || 0) / (res.data.limit || 10)) || 1);
+        setPayoutTotalPages(Math.ceil((res.data.total || 0) / (res.data.limit || 20)) || 1);
       }
     } catch (err) {
       console.warn('Lỗi tải lịch sử yêu cầu rút tiền:', err);
@@ -188,7 +186,7 @@ export default function SellerFinancePage() {
     handleRefreshAll();
   }, [handleRefreshAll]);
 
-  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Realtime) & Lắng nghe RealtimeSyncBus
+  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5) & Lắng nghe RealtimeSyncBus
   useEffect(() => {
     if (!storeId) return;
 
@@ -228,6 +226,16 @@ export default function SellerFinancePage() {
         fetchEscrowItems();
         fetchRecentTransactions();
         showToast?.('Số dư ví vừa được giải phóng tiền hàng thành công vào Số Dư Khả Dụng!', 'success');
+      } else if (msg.type === 'SHIPPER_COD_REMITTED' && isCurrentStore) {
+        fetchWallet(true);
+        fetchEscrowItems();
+        fetchRecentTransactions();
+        showToast?.('Bưu tá vừa nộp tiền mặt COD về Quỹ Sàn! Đơn hàng COD đã được kích hoạt đối soát ký quỹ.', 'info');
+      } else if ((msg.type === 'SHIPPER_DELIVERED' || msg.type === 'ORDER_DELIVERED') && isCurrentStore) {
+        fetchWallet(true);
+        fetchEscrowItems();
+        fetchRecentTransactions();
+        showToast?.('Bưu tá vừa giao sách thành công!', 'info');
       }
     });
 
@@ -237,83 +245,49 @@ export default function SellerFinancePage() {
     };
   }, [storeId, payoutPage, fetchWallet, fetchEscrowItems, fetchPayoutRequests, fetchRecentTransactions, showToast]);
 
-  // Statistics (Excluding cancelled orders)
-  const escrowStats = useMemo(() => {
-    const validItems = escrowItems.filter((it) => it.orderStatus !== 'CANCELLED' && (it as any).status !== 'CANCELLED');
-    const pendingPaymentItems = validItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
-    const holdingItems = validItems.filter((it) => it.escrowStatus === 'HOLDING');
-    const releasedItems = validItems.filter((it) => it.escrowStatus === 'RELEASED');
-    const frozenItems = validItems.filter((it) => it.escrowStatus === 'FROZEN');
+  // Xử lý tự động giải ngân khi bộ đếm 2 phút đổi trả kết thúc
+  const handleAutoReleaseItem = useCallback((item: SellerEscrowItem) => {
+    realtimeSyncBus.publish('ESCROW_RELEASED', {
+      storeId,
+      amount: item.sellerNet,
+      orderId: item.orderId,
+      orderCode: item.orderCode,
+    });
 
-    const totalReleasedAmount = releasedItems.reduce(
-      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
-      0
+    setEscrowItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, escrowStatus: 'RELEASED' } : it))
     );
 
-    const totalHoldingAmount = holdingItems.reduce(
-      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
-      0
+    showToast?.(
+      `Đơn #${item.orderCode} đã hoàn tất 2 phút đổi trả! +${formatVND(item.sellerNet)} đã chuyển sang Số Dư Khả Dụng!`,
+      'success'
     );
 
-    const totalPendingPaymentAmount = pendingPaymentItems.reduce(
-      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
-      0
-    );
+    fetchWallet(true);
+  }, [storeId, fetchWallet, showToast]);
 
-    const totalFrozenAmount = frozenItems.reduce(
-      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
-      0
-    );
-
-    const activeHoldingCount = holdingItems.length + pendingPaymentItems.length;
-
-    const totalGrossGMV = validItems.reduce(
-      (sum, it) => sum + (Number(it.subtotal) || (Number(it.unitPrice) * Number(it.quantity)) || 0),
-      0
-    );
-    const totalNetRevenue = validItems.reduce(
-      (sum, it) => sum + (it.sellerNet || Math.round(it.subtotal * 0.95)),
-      0
-    );
-
-    return {
-      pendingPaymentCount: pendingPaymentItems.length,
-      holdingCount: holdingItems.length,
-      releasedCount: releasedItems.length,
-      frozenCount: frozenItems.length,
-      activeHoldingCount,
-      totalCount: validItems.length,
-      totalGrossGMV,
-      totalNetRevenue,
-      totalReleasedAmount,
-      totalHoldingAmount,
-      totalPendingPaymentAmount,
-      totalFrozenAmount,
-    };
-  }, [escrowItems]);
-
-  // Active Balances
-  const effectiveAvailableBalance = wallet?.availableBalance !== undefined && wallet?.availableBalance !== null
-    ? Number(wallet.availableBalance)
-    : escrowStats.totalReleasedAmount;
-  const effectivePendingBalance = wallet?.pendingBalance !== undefined && wallet?.pendingBalance !== null
-    ? Number(wallet.pendingBalance)
-    : (escrowStats.totalHoldingAmount + escrowStats.totalPendingPaymentAmount);
-  const effectiveTotalBalance = wallet?.totalBalance !== undefined && wallet?.totalBalance !== null
-    ? Number(wallet.totalBalance)
-    : (effectiveAvailableBalance + effectivePendingBalance);
+  // TÍNH TOÁN DÒNG TIỀN THEO SINGLE SOURCE OF TRUTH (ENGINE CHUẨN SHOPEE)
+  const metrics = useMemo(() => {
+    return calculateSellerFinancials({
+      escrowItems,
+      wallet,
+      payouts: payoutRequests,
+      transactions: recentTransactions,
+      platformFeeRate: 0.05,
+    });
+  }, [escrowItems, wallet, payoutRequests, recentTransactions]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
-      {/* 1. HEADER & ACTIONS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
+      {/* 1. TOP BAR & CONTROLS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
+          <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
-            <span>Ví Số Dư &amp; Rút Tiền</span>
+            <span>Tài Chính &amp; Ví Số Dư Người Bán</span>
           </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Quản lý số dư khả dụng thực nhận và thực hiện lệnh rút tiền về tài khoản ngân hàng chính chủ.
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            Chu kỳ dòng tiền minh bạch: Vận chuyển &rarr; Ký quỹ đổi trả (2 phút) &rarr; Ví khả dụng &rarr; Rút về tài khoản ngân hàng.
           </p>
         </div>
 
@@ -321,15 +295,17 @@ export default function SellerFinancePage() {
           <button
             type="button"
             onClick={handleRefreshAll}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition-colors cursor-pointer shadow-2xs"
-            title="Tải lại dữ liệu"
+            className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer shadow-2xs"
+            title="Tải lại dữ liệu thời gian thực"
           >
-            <span className={`material-symbols-outlined text-[18px] ${isWalletLoading ? 'animate-spin text-[#00875A]' : ''}`}>refresh</span>
+            <span className={`material-symbols-outlined text-[18px] ${isWalletLoading ? 'animate-spin text-[#00875A]' : ''}`}>
+              refresh
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setIsWithdrawalModalOpen(true)}
-            disabled={effectiveAvailableBalance <= 0 || !withdrawalCheck.accessible}
+            disabled={metrics.availableBalance <= 0 || !withdrawalCheck.accessible}
             title={!withdrawalCheck.accessible ? (withdrawalCheck.reason || 'Tính năng rút tiền đang tạm bảo trì') : undefined}
             className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 ${
               !withdrawalCheck.accessible
@@ -340,7 +316,7 @@ export default function SellerFinancePage() {
             <span className="material-symbols-outlined text-base">
               {!withdrawalCheck.accessible ? 'construction' : 'payments'}
             </span>
-            <span>{!withdrawalCheck.accessible ? 'Rút Tiền (Đang Bảo Trì)' : 'Rút Tiền Về Ngân Hàng'}</span>
+            <span>{!withdrawalCheck.accessible ? 'Rút Tiền (Đang Bảo Trì)' : `Rút ${formatVND(metrics.availableBalance)} Về STK`}</span>
           </button>
         </div>
       </div>
@@ -371,478 +347,437 @@ export default function SellerFinancePage() {
         </div>
       )}
 
-      {/* 2. TOP METRIC CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Số Dư Khả Dụng */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent border-2 border-emerald-500/30 dark:border-emerald-500/40 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-              Số Dư Khả Dụng (Ví Rút Tiền)
-            </span>
-            <span className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg">check_circle</span>
-            </span>
-          </div>
-          <div className="my-3">
-            <div className="text-2xl sm:text-3xl font-black text-emerald-700 dark:text-emerald-400 font-mono">
-              {formatVND(effectiveAvailableBalance)}
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              {escrowStats.releasedCount} đơn/món đã giải ngân xong
-            </p>
-          </div>
-          <div className="pt-2 border-t border-emerald-100 dark:border-emerald-900/40 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">Trạng thái ví:</span>
-            <span className="font-semibold text-emerald-700 dark:text-emerald-400">Sẵn sàng rút ngay</span>
-          </div>
-        </div>
-
-        {/* Card 2: Tiền Đang Treo */}
-        <Link
-          href="/seller/escrow"
-          className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:border-blue-400 transition-all group"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1">
-              <span>Tiền Đang Treo (Ký Quỹ)</span>
-              <span className="material-symbols-outlined text-xs group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
-            </span>
-            <span className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg">hourglass_top</span>
-            </span>
-          </div>
-          <div className="my-3">
-            <div className="text-2xl sm:text-3xl font-black text-blue-700 dark:text-blue-400 font-mono">
-              {formatVND(effectivePendingBalance)}
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              {escrowStats.holdingCount + escrowStats.pendingPaymentCount} món đang giao / chờ hạn đổi trả
-            </p>
-          </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">Xem bảng ký quỹ:</span>
-            <span className="font-semibold text-blue-600 dark:text-blue-400 underline">Chi tiết &rarr;</span>
-          </div>
-        </Link>
-
-        {/* Card 3: Tổng Tài Sản */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Tổng Doanh Thu Phát Sinh
-            </span>
-            <span className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center">
-              <span className="material-symbols-outlined text-lg">trending_up</span>
-            </span>
-          </div>
-          <div className="my-3">
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
-              {formatVND(escrowStats.totalGrossGMV || escrowStats.totalNetRevenue || effectiveTotalBalance)}
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              Tổng {escrowStats.totalCount} món hàng trên sàn HuKi (Thực nhận: {formatVND(escrowStats.totalNetRevenue)})
-            </p>
-          </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">Khấu trừ sàn:</span>
-            <span className="font-semibold text-amber-600">5% phí dịch vụ</span>
-          </div>
-        </div>
-
-        {/* Card 4: Tài Khoản Ngân Hàng KYC */}
-        <div className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Ngân Hàng Thụ Hưởng
-            </span>
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              <span className="material-symbols-outlined text-[12px]">verified</span>
-              <span>Đã KYC</span>
-            </span>
-          </div>
-          <div className="my-2 space-y-0.5">
-            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
-              {bankInfo.bankName}
-            </div>
-            <div className="font-mono text-sm font-bold text-slate-700 dark:text-slate-300">
-              {bankInfo.accountNumber}
-            </div>
-            <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase font-semibold truncate">
-              {bankInfo.accountHolder}
-            </div>
-          </div>
-          <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">Mã PIN giao dịch:</span>
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400">123456 (Mặc định)</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. MAIN SECTION: VÍ KHẢ DỤNG & THÔNG TIN RÚT TIỀN */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Box 1: Ví Khả Dụng & Rút Tiền */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between gap-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                Số Dư Khả Dụng Hiện Tại
+      {/* 2. HEADER: 3 THẺ TINH GỌN CHUẨN SHOPEE (KHÔNG TRÙNG LẶP) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        {/* THẺ 1: SỐ DƯ KHẢ DỤNG (TÂM ĐIỂM) */}
+        <div className={`p-6 rounded-3xl bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-white dark:to-slate-800 border-2 border-emerald-500/40 shadow-sm flex flex-col justify-between transition-all ${
+          hasBalancePulse ? 'ring-4 ring-emerald-400/50 scale-[1.01]' : ''
+        }`}>
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Số Dư Khả Dụng (Ví Rút Tiền)</span>
               </span>
-              <h3 className="text-3xl sm:text-4xl font-black text-emerald-700 dark:text-emerald-400 font-mono mt-1">
-                {formatVND(effectiveAvailableBalance)}
-              </h3>
+              <span className="w-9 h-9 rounded-2xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shadow-2xs">
+                <span className="material-symbols-outlined text-xl">account_balance_wallet</span>
+              </span>
             </div>
-            <span className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl">account_balance</span>
+
+            <div className="my-4">
+              <div className="text-3xl sm:text-4xl font-black text-emerald-800 dark:text-emerald-300 font-mono tracking-tight">
+                {formatVND(metrics.availableBalance)}
+              </div>
+              <div className="mt-2 text-[11.5px] text-slate-600 dark:text-slate-300 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Tổng đã giải ngân ({metrics.releasedCount} đơn):</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{formatVND(metrics.totalReleasedAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-500">
+                  <span>Đã rút về STK ({metrics.withdrawnCount} lệnh):</span>
+                  <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">-{formatVND(metrics.totalWithdrawnAmount)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-emerald-200/60 dark:border-emerald-900/50 flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+              {metrics.availableBalance > 0 ? '✓ Sẵn sàng tạo lệnh rút' : 'Chờ hoàn tất đổi trả'}
             </span>
+            <button
+              type="button"
+              onClick={() => setIsWithdrawalModalOpen(true)}
+              disabled={metrics.availableBalance <= 0}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <span className="material-symbols-outlined text-sm">payments</span>
+              <span>Rút Tiền</span>
+            </button>
           </div>
-
-          <div className="space-y-2.5 text-xs">
-            <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
-              <span className="text-slate-500">Số dư khả dụng trong ví:</span>
-              <span className="font-bold text-emerald-700 dark:text-emerald-400 font-mono">{formatVND(effectiveAvailableBalance)}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
-              <span className="text-slate-500">Doanh thu đang tạm giữ (Escrow):</span>
-              <span className="font-bold text-blue-600 dark:text-blue-400 font-mono">{formatVND(effectivePendingBalance)}</span>
-            </div>
-            <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-700/60">
-              <span className="text-slate-500">Số tiền bị đóng băng khiếu nại:</span>
-              <span className="font-bold text-slate-700 dark:text-slate-300 font-mono">{formatVND(escrowStats.totalFrozenAmount)}</span>
-            </div>
-            <div className="flex justify-between py-1.5 font-bold text-slate-900 dark:text-white">
-              <span>Tổng tài sản trên HuKi:</span>
-              <span className="font-mono text-sm text-emerald-600">{formatVND(effectiveTotalBalance)}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsWithdrawalModalOpen(true)}
-            disabled={effectiveAvailableBalance <= 0}
-            className="w-full py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <span className="material-symbols-outlined text-lg">payments</span>
-            <span>Rút Toàn Bộ {formatVND(effectiveAvailableBalance)} Về Ngân Hàng</span>
-          </button>
         </div>
 
-        {/* Box 2: Thông Tin Ngân Hàng KYC & Bảo Mật */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between gap-5">
+        {/* THẺ 2: TIỀN CHỜ QUYẾT TOÁN (ESCROW SÀN TẠM GIỮ) */}
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between hover:border-blue-300 transition-all">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base">hourglass_top</span>
+                <span>Tiền Chờ Quyết Toán (Sàn Giữ)</span>
+              </span>
+              <span className="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shadow-2xs">
+                <span className="material-symbols-outlined text-xl">lock_clock</span>
+              </span>
+            </div>
+
+            <div className="my-4">
+              <div className="text-3xl sm:text-4xl font-black text-blue-700 dark:text-blue-400 font-mono tracking-tight">
+                {formatVND(metrics.totalPendingEscrow)}
+              </div>
+              <div className="mt-2 text-[11.5px] text-slate-600 dark:text-slate-300 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs text-blue-500">local_shipping</span>
+                    <span>Đang giao hàng ({metrics.inTransitCount} món):</span>
+                  </span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 font-mono">{formatVND(metrics.inTransitAmount)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-1">
+                    <span className="material-symbols-outlined text-xs text-amber-500">timer</span>
+                    <span>Chờ hạn đổi trả 2 phút ({metrics.holdingEscrowCount} món):</span>
+                  </span>
+                  <span className="font-bold text-amber-600 font-mono">{formatVND(metrics.holdingEscrowAmount)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Khấu trừ phí sàn:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">5% phí dịch vụ chuẩn</span>
+          </div>
+        </div>
+
+        {/* THẺ 3: TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG (KYC) */}
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-emerald-600 text-base">verified_user</span>
-                <span>Tài Khoản Thụ Hưởng Đã Xác Thực (KYC)</span>
+                <span className="material-symbols-outlined text-emerald-600 text-base">verified</span>
+                <span>Tài Khoản Thụ Hưởng (KYC)</span>
               </span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold uppercase">
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
                 Chính Chủ
               </span>
             </div>
 
-            <div className="mt-4 space-y-2.5 text-xs">
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 text-[11px] block">Ngân hàng liên kết:</span>
-                <span className="font-bold text-slate-900 dark:text-white text-sm">{bankInfo.bankName}</span>
+            <div className="my-3 space-y-1">
+              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                {bankInfo.bankName}
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 text-[11px] block">Số tài khoản ngân hàng:</span>
-                <span className="font-mono font-bold text-base text-slate-900 dark:text-white">{bankInfo.accountNumber}</span>
+              <div className="font-mono text-lg font-black text-slate-900 dark:text-white tracking-wider">
+                {bankInfo.accountNumber}
               </div>
-              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                <span className="text-slate-400 text-[11px] block">Tên người thụ hưởng:</span>
-                <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm uppercase">{bankInfo.accountHolder}</span>
+              <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                {bankInfo.accountHolder}
               </div>
             </div>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
-            <span className="material-symbols-outlined text-amber-600 text-base shrink-0 mt-0.5">lock</span>
-            <p>
-              Mã PIN giao dịch rút tiền 6 số bảo mật cấp 2 (Mặc định: <strong>123456</strong>). Rút tiền thực hiện an toàn 100%.
-            </p>
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
+            <span className="text-slate-500">Mã PIN bảo mật cấp 2:</span>
+            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">123456 (Mặc định)</span>
           </div>
         </div>
       </div>
 
-      {/* 4. QUICK LINKS TO SEPARATE PAGES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Link
-          href="/seller/reports"
-          className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-500 transition-all flex items-center justify-between group"
-        >
-          <div className="flex items-center gap-3.5">
-            <span className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-xl">analytics</span>
-            </span>
-            <div>
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
-                Báo Cáo Doanh Thu
-              </h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Bảng phân tích kế toán chi tiết, đối soát GMV &amp; 5% phí sàn.
-              </p>
-            </div>
-          </div>
-          <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">
-            arrow_forward
-          </span>
-        </Link>
-
-        <Link
-          href="/seller/escrow"
-          className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-blue-400 transition-all flex items-center justify-between group"
-        >
-          <div className="flex items-center gap-3.5">
-            <span className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-xl">hourglass_top</span>
-            </span>
-            <div>
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                Tiền Đang Treo ({escrowStats.activeHoldingCount})
-              </h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Quản lý ký quỹ, đếm ngược hạn đổi trả 2 phút.
-              </p>
-            </div>
-          </div>
-          <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">
-            arrow_forward
-          </span>
-        </Link>
-
-        <Link
-          href="/seller/transactions"
-          className="p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:border-emerald-400 transition-all flex items-center justify-between group"
-        >
-          <div className="flex items-center gap-3.5">
-            <span className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-xl">receipt_long</span>
-            </span>
-            <div>
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white group-hover:text-emerald-600 transition-colors">
-                Nhật Ký Biến Động
-              </h4>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Lịch sử cộng doanh thu và các lệnh rút tiền.
-              </p>
-            </div>
-          </div>
-          <span className="material-symbols-outlined text-slate-400 group-hover:translate-x-1 transition-transform">
-            arrow_forward
-          </span>
-        </Link>
-      </div>
-
-      {/* 5. RECENT TRANSACTIONS PREVIEW */}
-      {recentTransactions.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-600 text-lg">history</span>
-              <span>Giao Dịch Gần Đây Nhất</span>
-            </h3>
-            <Link
-              href="/seller/transactions"
-              className="text-xs text-emerald-600 font-bold hover:underline flex items-center gap-1"
+      {/* 3. BẢNG ĐIỀU KHIỂN TRUNG TÂM (3 TABS CHUẨN SHOPEE) */}
+      <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+        {/* Navigation Tabs Header */}
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 px-6 pt-4 bg-slate-50/50 dark:bg-slate-900/30">
+          <div className="flex items-center gap-2 sm:gap-6 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('ESCROW')}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'ESCROW'
+                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
             >
-              <span>Xem tất cả</span>
-              <span className="material-symbols-outlined text-sm">arrow_forward</span>
-            </Link>
+              <span className="material-symbols-outlined text-base">receipt_long</span>
+              <span>Dòng Tiền Đơn Hàng &amp; Ký Quỹ</span>
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                {escrowItems.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('PAYOUTS')}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'PAYOUTS'
+                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">payments</span>
+              <span>Lịch Sử Rút Tiền Về STK</span>
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                {payoutRequests.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('TRANSACTIONS')}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                activeTab === 'TRANSACTIONS'
+                  ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">history</span>
+              <span>Nhật Ký Biến Động Ví</span>
+              <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                {recentTransactions.length}
+              </span>
+            </button>
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
-            {recentTransactions.slice(0, 3).map((item) => {
-              const isCredit = item.type === 'CREDIT_AVAILABLE' || item.type === 'MOVE_PENDING_TO_AVAILABLE';
-              return (
-                <div key={item.id} className="py-3 flex items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-3">
-                    <span className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                      isCredit ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-600'
-                    }`}>
-                      <span className="material-symbols-outlined text-base">
-                        {isCredit ? 'add_circle' : 'remove_circle'}
-                      </span>
-                    </span>
-                    <div>
-                      <div className="font-semibold text-slate-900 dark:text-white truncate max-w-sm sm:max-w-md">
-                        {item.description || 'Giao dịch ví'}
+          <Link
+            href="/seller/reports"
+            className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 pb-3 shrink-0"
+          >
+            <span>Báo cáo nâng cao</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          </Link>
+        </div>
+
+        {/* TAB 1: BẢNG DÒNG TIỀN ĐƠN HÀNG & KÝ QUỸ */}
+        {activeTab === 'ESCROW' && (
+          <div className="p-6">
+            {escrowItems.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center">
+                <span className="material-symbols-outlined text-4xl text-slate-300">hourglass_empty</span>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Chưa có món hàng nào phát sinh</p>
+                <p className="text-xs text-slate-400">Các đơn sách sau khi khách đặt sẽ xuất hiện tại đây</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
+                      <th className="py-3 px-3">Mã Đơn &amp; Thời Gian</th>
+                      <th className="py-3 px-3">Sách &amp; Ảnh Bìa</th>
+                      <th className="py-3 px-3">Khách Hàng &amp; Địa Chỉ</th>
+                      <th className="py-3 px-3 text-right">Tổng Tiền (100%)</th>
+                      <th className="py-3 px-3 text-right">Phí Sàn (5%)</th>
+                      <th className="py-3 px-3 text-right">Thực Nhận (95%)</th>
+                      <th className="py-3 px-3 text-center">Trạng Thái Dòng Tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {escrowItems.map((item) => {
+                      const isCOD = item.paymentMethod === 'COD';
+                      const isCancelled = item.orderStatus === 'CANCELLED' || (item as any).status === 'CANCELLED';
+
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors ${
+                            isCancelled ? 'opacity-40 bg-slate-50/30 line-through' : ''
+                          }`}
+                        >
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-bold text-slate-900 dark:text-white block text-[11.5px]">
+                              #{item.orderCode}
+                            </span>
+                            <span className="text-[10.5px] text-slate-400 font-mono block mt-0.5">
+                              {formatVietnamDateTime(item.orderCreatedAt)}
+                            </span>
+                            <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              isCOD ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                            }`}>
+                              {isCOD ? '💵 COD' : '💳 PayOS'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3 max-w-[220px]">
+                            <div className="flex items-center gap-2.5">
+                              {item.coverUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={item.coverUrl}
+                                  alt={item.bookTitle}
+                                  className="w-8 h-11 object-cover rounded shadow-2xs shrink-0"
+                                />
+                              ) : (
+                                <div className="w-8 h-11 bg-slate-100 dark:bg-slate-700 rounded flex items-center justify-center shrink-0">
+                                  <span className="material-symbols-outlined text-slate-400 text-sm">book</span>
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <span className="font-medium text-slate-900 dark:text-white truncate block text-[11.5px]" title={item.bookTitle}>
+                                  {item.bookTitle}
+                                </span>
+                                <span className="text-[10.5px] text-slate-400 block mt-0.5">
+                                  SL: <strong>{item.quantity}</strong> &bull; {formatVND(item.unitPrice)}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3 px-3 text-[11px] max-w-[180px]">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                              {item.customerName || 'Khách hàng'}
+                            </span>
+                            <span className="font-mono text-slate-400 block text-[10.5px]">
+                              {item.customerPhone || '—'}
+                            </span>
+                            <span className="text-slate-400 truncate block text-[10px] mt-0.5" title={item.shippingAddress}>
+                              {item.shippingAddress || 'Giao tận nơi'}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {formatVND(item.subtotal)}
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-mono text-rose-500 font-semibold">
+                            -{formatVND(item.platformFee)}
+                          </td>
+
+                          <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                            +{formatVND(item.sellerNet)}
+                          </td>
+
+                          <td className="py-3 px-3 text-center">
+                            <EscrowTableBadge
+                              item={item}
+                              onAutoRelease={handleAutoReleaseItem}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: BẢNG LỊCH SỬ RÚT TIỀN (PAYOUTS) */}
+        {activeTab === 'PAYOUTS' && (
+          <div className="p-6">
+            {isPayoutsLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                <span className="material-symbols-outlined text-2xl animate-spin text-emerald-600">progress_activity</span>
+                <span className="text-xs">Đang tải lịch sử rút tiền...</span>
+              </div>
+            ) : payoutRequests.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center">
+                <span className="material-symbols-outlined text-4xl text-slate-300">payments</span>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Chưa có yêu cầu rút tiền nào</p>
+                <p className="text-xs text-slate-400">Các lệnh rút tiền về tài khoản ngân hàng sẽ được lưu vết đầy đủ tại đây</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
+                      <th className="py-3 px-3">Mã Lệnh Rút</th>
+                      <th className="py-3 px-3">Thời Gian Tạo</th>
+                      <th className="py-3 px-3">Số Tiền Rút</th>
+                      <th className="py-3 px-3">Ngân Hàng Nhận</th>
+                      <th className="py-3 px-3 text-center">Trạng Thái Duyệt</th>
+                      <th className="py-3 px-3">Thời Gian Giải Ngân</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                    {payoutRequests.map((req) => {
+                      const status = req.status;
+                      let statusBadge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+                      if (status === 'PENDING') {
+                        statusBadge = { label: 'Chờ kế toán duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+                      } else if (status === 'APPROVED') {
+                        statusBadge = { label: 'Đã phê duyệt', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+                      } else if (status === 'PROCESSING') {
+                        statusBadge = { label: 'Đang chuyển khoản', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                      } else if (status === 'COMPLETED' || (status as any) === 'DISBURSED') {
+                        statusBadge = { label: 'Giải ngân thành công', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+                      } else if (status === 'REJECTED') {
+                        statusBadge = { label: 'Bị từ chối', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+                      }
+
+                      return (
+                        <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                          <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white text-[11.5px]">
+                            #{req.id.slice(0, 10)}
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                            {formatVietnamDateTime(req.requestedAt || req.createdAt)}
+                          </td>
+                          <td className="py-3 px-3 font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                            {formatVND(req.amount)}
+                          </td>
+                          <td className="py-3 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
+                            <span className="font-bold block">{req.bankSnapshot?.bankName || bankInfo.bankName}</span>
+                            <span className="font-mono text-slate-400">{req.bankSnapshot?.accountNumber || bankInfo.accountNumber}</span>
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge.bg}`}>
+                              {statusBadge.label}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                            {req.disbursedAt || req.reviewedAt ? formatVietnamDateTime(req.disbursedAt || req.reviewedAt) : 'Đang xử lý'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: BẢNG NHẬT KÝ BIẾN ĐỘNG VÍ */}
+        {activeTab === 'TRANSACTIONS' && (
+          <div className="p-6">
+            {recentTransactions.length === 0 ? (
+              <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-center">
+                <span className="material-symbols-outlined text-4xl text-slate-300">receipt_long</span>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Chưa có giao dịch nào</p>
+                <p className="text-xs text-slate-400">Các biến động tăng giảm số dư ví sẽ được ghi lại đầy đủ tại đây</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                {recentTransactions.map((tx) => {
+                  const isCredit = tx.type === 'CREDIT_AVAILABLE' || tx.type === 'MOVE_PENDING_TO_AVAILABLE';
+                  return (
+                    <div key={tx.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
+                      <div className="flex items-center gap-3.5">
+                        <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
+                          isCredit ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          <span className="material-symbols-outlined text-lg">
+                            {isCredit ? 'add_circle' : 'remove_circle'}
+                          </span>
+                        </span>
+                        <div>
+                          <div className="font-semibold text-slate-900 dark:text-white text-xs sm:text-sm">
+                            {tx.description || 'Biến động số dư'}
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            {formatVietnamDateTime(tx.createdAt)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        {formatVietnamDateTime(item.createdAt)}
+
+                      <div className={`font-mono font-bold text-sm whitespace-nowrap text-right ${
+                        isCredit ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                      }`}>
+                        {isCredit ? `+${formatVND(tx.amount)}` : `-${formatVND(tx.amount)}`}
                       </div>
                     </div>
-                  </div>
-
-                  <div className={`font-mono font-bold whitespace-nowrap text-right ${
-                    isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
-                  }`}>
-                    {isCredit ? `+${formatVND(item.amount)}` : `-${formatVND(item.amount)}`}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 6. PAYOUT REQUESTS HISTORY (LỊCH SỬ RÚT TIỀN VỀ NGÂN HÀNG) */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 shadow-sm space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-600 text-lg">payments</span>
-              <span>Lịch Sử Yêu Cầu Rút Tiền Về Ngân Hàng (Payout Requests)</span>
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Theo dõi trạng thái duyệt lệnh, thời gian xử lý và lịch sử giải ngân của từng yêu cầu rút tiền
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => fetchPayoutRequests(payoutPage)}
-            disabled={isPayoutsLoading}
-            className="text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 font-semibold flex items-center gap-1 cursor-pointer"
-          >
-            <span className={`material-symbols-outlined text-sm ${isPayoutsLoading ? 'animate-spin' : ''}`}>refresh</span>
-            <span>Làm mới</span>
-          </button>
-        </div>
-
-        {isPayoutsLoading ? (
-          <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
-            <span className="material-symbols-outlined text-2xl animate-spin text-emerald-600">progress_activity</span>
-            <span className="text-xs">Đang tải lịch sử rút tiền...</span>
-          </div>
-        ) : payoutRequests.length === 0 ? (
-          <div className="py-8 flex flex-col items-center justify-center text-slate-400 gap-2 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl text-center">
-            <span className="material-symbols-outlined text-3xl text-slate-300">account_balance_wallet</span>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300">Chưa có yêu cầu rút tiền nào</p>
-            <p className="text-[11px] text-slate-400">Các lệnh rút tiền về tài khoản ngân hàng sẽ được lưu vết đầy đủ tại đây</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
-                  <th className="py-2.5 px-3">Mã Lệnh</th>
-                  <th className="py-2.5 px-3">Thời Gian Tạo</th>
-                  <th className="py-2.5 px-3">Số Tiền Rút</th>
-                  <th className="py-2.5 px-3 text-center">Trạng Thái</th>
-                  <th className="py-2.5 px-3">Người Duyệt / Thời Gian</th>
-                  <th className="py-2.5 px-3">Chi Tiết / Lý Do</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                {payoutRequests.map((req) => {
-                  const status = req.status;
-                  let statusBadge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
-                  if (status === 'PENDING') {
-                    statusBadge = { label: 'Chờ duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
-                  } else if (status === 'APPROVED') {
-                    statusBadge = { label: 'Đã duyệt', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
-                  } else if (status === 'PROCESSING') {
-                    statusBadge = { label: 'Đang giải ngân', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-                  } else if (status === 'COMPLETED') {
-                    statusBadge = { label: 'Hoàn tất', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-                  } else if (status === 'REJECTED') {
-                    statusBadge = { label: 'Từ chối', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
-                  } else if (status === 'FAILED') {
-                    statusBadge = { label: 'Thất bại', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
-                  }
-
-                  const reasonText = req.rejectionReason || req.rejectReason || req.failureReason;
-
-                  return (
-                    <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-white text-[11px]">
-                        #{req.id.slice(0, 8)}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
-                        {formatVietnamDateTime(req.requestedAt || req.createdAt)}
-                      </td>
-                      <td className="py-2.5 px-3 font-bold font-mono text-emerald-700 dark:text-emerald-400">
-                        {formatVND(req.amount)}
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge.bg}`}>
-                          {statusBadge.label}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300 text-[11px]">
-                        {req.reviewedBy ? (
-                          <div>
-                            <span className="font-semibold">{req.reviewedBy === 'ADMIN' ? 'Platform Admin' : req.reviewedBy}</span>
-                            {req.reviewedAt && (
-                              <span className="block text-[10px] text-slate-400 font-mono">
-                                {formatVietnamDateTime(req.reviewedAt)}
-                              </span>
-                            )}
-                          </div>
-                        ) : req.disbursedAt ? (
-                          <div>
-                            <span className="font-semibold text-emerald-600">Đã giải ngân</span>
-                            <span className="block text-[10px] text-slate-400 font-mono">
-                              {formatVietnamDateTime(req.disbursedAt)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 italic">Đang chờ xử lý</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 text-[11px] max-w-[200px] truncate">
-                        {reasonText ? (
-                          <span className="text-rose-600 font-medium" title={reasonText}>
-                            Lý do: {reasonText}
-                          </span>
-                        ) : req.providerRef ? (
-                          <span className="font-mono text-[10.5px] text-slate-500">
-                            Ref: {req.providerRef}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </td>
-                    </tr>
                   );
                 })}
-              </tbody>
-            </table>
-
-            {payoutTotalPages > 1 && (
-              <div className="pt-3 flex items-center justify-between border-t border-slate-100 dark:border-slate-700 text-xs">
-                <span className="text-slate-500 text-[11px]">
-                  Trang {payoutPage} / {payoutTotalPages}
-                </span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={payoutPage <= 1 || isPayoutsLoading}
-                    onClick={() => fetchPayoutRequests(payoutPage - 1)}
-                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    Trước
-                  </button>
-                  <button
-                    type="button"
-                    disabled={payoutPage >= payoutTotalPages || isPayoutsLoading}
-                    onClick={() => fetchPayoutRequests(payoutPage + 1)}
-                    className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    Tiếp
-                  </button>
-                </div>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* MODAL RÚT TIỀN 2 BƯỚC (PIN 6 SỐ) */}
+      {/* MODAL RÚT TIỀN 2 BƯỚC (XÁC THỰC MÃ PIN 6 SỐ) */}
       <WithdrawalPinModal
         isOpen={isWithdrawalModalOpen}
         onClose={() => setIsWithdrawalModalOpen(false)}
         storeId={storeId}
-        availableBalance={effectiveAvailableBalance}
+        availableBalance={metrics.availableBalance}
         bankInfo={bankInfo}
         onSuccess={handleRefreshAll}
       />

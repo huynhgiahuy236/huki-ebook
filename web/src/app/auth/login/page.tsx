@@ -12,8 +12,14 @@ import GoogleAuthModal from '@/ui/components/auth/GoogleAuthModal';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { login, user, isLoggedIn } = useAuth();
   const { showToast } = useToast();
+
+  React.useEffect(() => {
+    if (isLoggedIn && (user?.role === 'DELIVERY_STAFF' || user?.role === 'SHIPPER')) {
+      router.replace('/shipper');
+    }
+  }, [isLoggedIn, user, router]);
 
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
@@ -99,6 +105,12 @@ function LoginForm() {
       // Ưu tiên 2: Admin → dashboard
       if (res.user.role === 'PLATFORM_ADMIN') {
         router.push(rawTarget.startsWith('/admin') ? rawTarget : '/admin');
+        return;
+      }
+
+      // Ưu tiên 2b: Shipper / Bưu tá → /shipper portal
+      if (res.user.role === 'DELIVERY_STAFF' || res.user.role === 'SHIPPER') {
+        router.push('/shipper');
         return;
       }
 

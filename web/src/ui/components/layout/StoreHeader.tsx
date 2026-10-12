@@ -1,11 +1,16 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useTheme } from '@/ui/context/ThemeContext';
+import { useToast } from '@/ui/context/ToastContext';
+import { useChatSocket } from '@/ui/hooks/useChatSocket';
+import { chatService } from '@/ui/services/chatService';
+import { playChatChimeSound } from '@/ui/utils/chatSound';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { catalogApi, BookData } from '@/ui/api/catalogApi';
 import { personalizationService } from '@/ui/services/personalizationService';
 import { useDebounce } from '@/ui/utils/useDebounce';
@@ -27,6 +32,8 @@ export default function StoreHeader({
   const { totalItemsCount } = useCart();
   const { user, isLoggedIn, logout, hasRole } = useAuth();
   const { theme, setTheme, isDarkMode, toggleDarkMode, palettes, currentPalette } = useTheme();
+  const { showToast } = useToast();
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedQuery = useDebounce(searchQuery, 250);
   const [apiSearchResults, setApiSearchResults] = useState<BookData[]>([]);
@@ -43,6 +50,75 @@ export default function StoreHeader({
     (Array.isArray(user?.memberships) && user.memberships.length > 0)
   );
   const chatUrl = isSeller ? '/seller/chat' : '/account/messages';
+
+  // Lấy tổng số lượng tin nhắn chưa đọc của người dùng
+  const fetchUnreadCount = useCallback(async () => {
+    if (!isLoggedIn) {
+      setUnreadChatCount(0);
+      return;
+    }
+    try {
+      const res = await chatService.listConversations();
+      if (res.success && Array.isArray(res.data)) {
+        const total = res.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadChatCount(total);
+      }
+    } catch {
+      // ignore
+    }
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
+
+  // Lắng nghe tin nhắn mới qua WebSocket để phát chuông, hiện Toast và cộng dồn số lượng
+  useChatSocket({
+    onMessageReceived: (msg: any) => {
+      const senderId = String(msg?.senderId || '');
+      const myId = String(user?.id || (user as any)?._id || (user as any)?.sub || '');
+      if (senderId && senderId === myId) return;
+
+      // 1. Phát tiếng chuông báo tin nhắn đến
+      playChatChimeSound();
+
+      // 2. Tăng số đếm tin nhắn chưa đọc
+      setUnreadChatCount((prev) => prev + 1);
+
+      // 3. Hiển thị Toast thông báo nếu người dùng không ở trang chat
+      const isChatPage = pathname.startsWith('/account/messages') || pathname.startsWith('/seller/chat');
+      if (!isChatPage) {
+        const senderName = msg?.senderName || 'Người bán';
+        const rawContent = msg?.content || '';
+        const snippet = typeof rawContent === 'string' && rawContent.trim()
+          ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
+          : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
+
+        showToast({
+          title: `Tin nhắn từ ${senderName}`,
+          message: snippet,
+          type: 'info',
+          actionUrl: chatUrl,
+          actionLabel: 'Xem ngay',
+          duration: 5000,
+          playSound: false,
+        });
+      }
+    },
+    onMessageRead: () => {
+      fetchUnreadCount();
+    },
+  });
+
+  // Lắng nghe sự kiện đồng bộ realtime cross-tab
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'CHAT_UNREAD_COUNT_CHANGED') {
+        fetchUnreadCount();
+      }
+    });
+    return () => unsub();
+  }, [fetchUnreadCount]);
 
   // Load search history from localStorage
   useEffect(() => {
@@ -453,11 +529,21 @@ export default function StoreHeader({
               href={chatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-9 h-9 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative"
+              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] bg-white dark:bg-zinc-900 text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
               title={isSeller ? "Hộp thư Chat Kênh Người Bán (Mở tab mới)" : "Tin nhắn của bạn (Mở tab mới)"}
               aria-label="Tin nhắn"
             >
-              <span className="material-symbols-outlined text-[19px]">chat</span>
+              <span className="material-symbols-outlined text-[19px] text-[var(--theme-primary,#003b2b)]">
+                chat
+              </span>
+              <span className="hidden sm:inline-block text-xs font-semibold whitespace-nowrap text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
+                Tin nhắn
+              </span>
+              {unreadChatCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[10px] font-bold min-w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs">
+                  {unreadChatCount > 99 ? '99+' : unreadChatCount}
+                </span>
+              )}
             </Link>
           )}
 

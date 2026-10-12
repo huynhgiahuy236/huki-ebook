@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useToast } from './ToastContext';
 import { orderApi } from '@/ui/api/orderApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface ShipperProfile {
   id: string;
@@ -20,6 +21,9 @@ export interface ShipperProfile {
 export interface ShipperOrder {
   id: string;
   code: string;
+  orderType?: 'DELIVERY' | 'RETURN';
+  returnTrackingCode?: string;
+  returnReason?: string;
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
@@ -36,13 +40,17 @@ export interface ShipperOrder {
     coverUrl?: string;
   }>;
   totalWeight: number; // in grams
-  shippingFee: number; // shipper earning (e.g. 30.000đ)
-  codAmount: number; // Total cash to collect from customer (e.g. 138.000đ)
+  shippingFee: number; // shipper earning (e.g. 30.000đ hoặc 15.000đ)
+  codAmount: number; // Total cash to collect from customer (e.g. 138.000đ, 0đ cho hàng hoàn)
   netCodDebt: number; // Net COD debt to remit to platform after keeping shipping fee (e.g. 108.000đ)
   paymentMethod: 'COD' | 'ONLINE_PAYMENT';
   distanceKm: number;
   status: 'AVAILABLE' | 'PICKING_UP' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED';
   sellerOrderStatus?: string;
+  isCodRemitted?: boolean;
+  orderId?: string;
+  orderCode?: string;
+  paymentStatus?: string;
   createdAt: string;
   acceptedAt?: string;
   pickedUpAt?: string;
@@ -129,6 +137,72 @@ const saveManualTransaction = (tx: WalletTransaction) => {
   }
 };
 
+const CLAIMED_ORDERS_STORAGE_KEY = 'huki_shipper_claimed_ids_v1';
+
+const getStoredClaimedIds = (): string[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(CLAIMED_ORDERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveClaimedId = (id: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getStoredClaimedIds();
+    if (!list.includes(id)) {
+      localStorage.setItem(CLAIMED_ORDERS_STORAGE_KEY, JSON.stringify([...list, id]));
+    }
+  } catch {}
+};
+
+const removeClaimedId = (id: string) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const list = getStoredClaimedIds();
+    localStorage.setItem(CLAIMED_ORDERS_STORAGE_KEY, JSON.stringify(list.filter((x) => x !== id)));
+  } catch {}
+};
+
+function playShipperChime() {
+  try {
+    if (typeof window === 'undefined') return;
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    // Beep 1 (880Hz)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(880, now);
+    gain1.gain.setValueAtTime(0.12, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    osc1.connect(gain1);
+    gain1.connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.14);
+
+    // Beep 2 (1320Hz)
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(1320, now + 0.12);
+    gain2.gain.setValueAtTime(0.15, now + 0.12);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.32);
+  } catch {
+    // Graceful fallback if audio is blocked
+  }
+}
+
 export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { showToast } = useToast();
 
@@ -148,9 +222,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
 
   // Load real physical orders from database
-  const refreshOrders = useCallback(async () => {
+  const refreshOrders = useCallback(async (isSilent?: boolean) => {
     try {
-      setIsLoading(true);
+      if (!isSilent) setIsLoading(true);
       const res = await orderApi.getShipperOrders();
       if (res.success && Array.isArray(res.data)) {
         const allOrders: any[] = res.data;
@@ -173,6 +247,9 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const item: ShipperOrder = {
             id: o.id,
             code: o.code,
+            orderType: o.orderType || 'DELIVERY',
+            returnTrackingCode: o.returnTrackingCode,
+            returnReason: o.returnReason,
             customerName: o.customerName || 'Khách hàng HuKi',
             customerPhone: o.customerPhone || '0901234567',
             deliveryAddress: o.deliveryAddress || 'Đồng Tháp',
@@ -188,6 +265,10 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             codAmount: codAmount,
             netCodDebt: netCodDebt,
             paymentMethod: isCod ? 'COD' : 'ONLINE_PAYMENT',
+            isCodRemitted: o.isCodRemitted,
+            orderId: o.orderId,
+            orderCode: o.orderCode,
+            paymentStatus: o.paymentStatus,
             distanceKm: o.distanceKm || 3.2,
             status: o.status || 'AVAILABLE',
             createdAt: o.createdAt || new Date().toISOString(),
@@ -195,22 +276,48 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
             completedAt: o.completedAt,
           };
 
-          // Chỉ hiển thị đơn khi Seller đã bấm Xác Nhận (CONFIRMED) hoặc Chuẩn Bị Hàng (PREPARING)
+          // Special branch for Reverse Logistics (Lấy hàng hoàn - Sticky Shipper)
+          if (item.orderType === 'RETURN') {
+            const isCompletedReturn = o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED';
+            if (isCompletedReturn) {
+              history.push({ ...item, status: 'DELIVERED' });
+              todayCompleted += 1;
+              todayEarnings += item.shippingFee;
+              totalEarningsFromDb += item.shippingFee;
+              dbTransactions.push({
+                id: `TX-${item.code}-RET-EARN`,
+                type: 'EARNING',
+                amount: item.shippingFee,
+                title: 'Cước thu hồi sách hoàn trả kho',
+                description: `Bàn giao kho thành công kiện hoàn ${item.code} (+${item.shippingFee.toLocaleString('vi-VN')}đ cước ship)`,
+                orderCode: item.code,
+                createdAt: item.completedAt ? new Date(item.completedAt).toLocaleString('vi-VN') : 'Hôm nay',
+                status: 'SUCCESS',
+              });
+            } else if (o.status === 'IN_TRANSIT') {
+              active.push({ ...item, status: 'IN_TRANSIT' });
+            } else {
+              // Sticky Shipper: Tự động đưa thẳng vào nhiệm vụ đang thực hiện (chờ đến nhà khách lấy sách)
+              active.push({ ...item, status: 'PICKING_UP' });
+            }
+            return;
+          }
+
           const isConfirmedBySeller = o.sellerOrderStatus === 'CONFIRMED' || o.sellerOrderStatus === 'PREPARING';
           const isPendingSeller = o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
+          const claimedIds = getStoredClaimedIds();
+          const isClaimedByMe = claimedIds.includes(item.id);
 
-          if (o.status === 'AVAILABLE' && isConfirmedBySeller && !isPendingSeller) {
-            available.push(item);
-          } else if (o.status === 'PICKING_UP' || o.status === 'IN_TRANSIT' || o.sellerOrderStatus === 'SHIPPED') {
-            active.push({ ...item, status: 'IN_TRANSIT' });
-          } else if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
+          if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
             const isDelivered = o.sellerOrderStatus !== 'CANCELLED' && o.status !== 'FAILED';
             history.push({ ...item, status: isDelivered ? 'DELIVERED' : 'FAILED' });
             if (isDelivered) {
               todayCompleted += 1;
               todayEarnings += item.shippingFee;
               totalEarningsFromDb += item.shippingFee;
-              if (item.paymentMethod === 'COD') {
+
+              const isRemitted = o.isCodRemitted === true || o.paymentStatus === 'SUCCEEDED';
+              if (item.paymentMethod === 'COD' && !isRemitted) {
                 currentCodDebt += item.netCodDebt;
               }
 
@@ -226,7 +333,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 status: 'SUCCESS',
               });
 
-              if (item.codAmount > 0) {
+              if (item.codAmount > 0 && !isRemitted) {
                 dbTransactions.push({
                   id: `TX-${item.code}-COD`,
                   type: 'COD_COLLECT',
@@ -239,9 +346,14 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 });
               }
             }
+          } else if (o.status === 'IN_TRANSIT' || o.sellerOrderStatus === 'SHIPPED') {
+            active.push({ ...item, status: 'IN_TRANSIT' });
+          } else if (isClaimedByMe || o.status === 'PICKING_UP') {
+            active.push({ ...item, status: 'PICKING_UP' });
+          } else if (o.status === 'AVAILABLE' && isConfirmedBySeller && !isPendingSeller && !isClaimedByMe) {
+            available.push(item);
           } else {
-            // Đơn hàng chưa được người bán xác nhận (PENDING_CONFIRMATION, PENDING_PAYMENT, v.v.)
-            // Tuyệt đối không đẩy vào danh sách khả dụng của Shipper
+            // Đơn hàng chưa được người bán xác nhận
           }
         });
 
@@ -266,16 +378,11 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         } catch {}
 
         const manualTxs = getStoredManualTransactions();
-        if (totalRemitted === 0) {
-          totalRemitted = manualTxs
-            .filter((t) => t.type === 'COD_REMITTANCE')
-            .reduce((sum, t) => sum + t.amount, 0);
-        }
         const totalWithdrawn = manualTxs
           .filter((t) => t.type === 'WITHDRAWAL')
           .reduce((sum, t) => sum + t.amount, 0);
 
-        const finalCodDebt = Math.max(0, currentCodDebt - totalRemitted);
+        const finalCodDebt = currentCodDebt;
         const finalAvailableEarnings = Math.max(0, totalEarningsFromDb - totalWithdrawn);
 
         setAvailableOrders(available);
@@ -303,13 +410,91 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err) {
       console.error('Error fetching shipper orders:', err);
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     refreshOrders();
   }, [refreshOrders]);
+
+  // Silent Background Auto-Polling (3.5s - Chuẩn Shopee Zero-F5)
+  useEffect(() => {
+    if (!isOnline) return;
+    const pollTimer = setInterval(() => {
+      refreshOrders(true);
+    }, 3500);
+    return () => clearInterval(pollTimer);
+  }, [isOnline, refreshOrders]);
+
+  // RealtimeSyncBus: Instant cross-tab & cross-device event processing
+  useEffect(() => {
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      const payload = msg.payload as any;
+
+      if (
+        msg.type === 'ORDER_CREATED' ||
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        msg.type === 'ORDER_STATUS_CHANGED' ||
+        msg.type === 'SHIPPER_AVAILABLE_ORDER_BROADCAST'
+      ) {
+        if (isOnline) {
+          refreshOrders(true);
+          playShipperChime();
+          showToast(
+            {
+              title: '🛵 Đơn sách mới cần giao!',
+              message: payload?.orderCode
+                ? `Đơn #${payload.orderCode} vừa được shop xác nhận chuẩn bị. Vào sàn nhận đơn ngay!`
+                : 'Có đơn hàng sách mới cần bưu tá tiếp nhận trong khu vực!',
+            },
+            'info'
+          );
+        }
+      } else if (msg.type === 'RETURN_REQUESTED' || msg.type === 'ESCROW_FROZEN') {
+        if (isOnline) {
+          refreshOrders(true);
+          playShipperChime();
+          const retCode = payload?.returnTrackingCode || (payload?.returnRequestId ? `HUKI-RET-${String(payload.returnRequestId).slice(0, 8).toUpperCase()}` : 'mới');
+          showToast(
+            {
+              title: '📦 Nhiệm vụ lấy hàng hoàn mới!',
+              message: `Đơn hoàn #${retCode} vừa được gán trực tiếp cho bạn (Sticky Shipper). Vui lòng đến nhà khách để thu hồi sách hoàn về kho Shop!`,
+            },
+            'warning'
+          );
+        }
+      } else if (msg.type === 'SHIPPER_ORDER_CLAIMED') {
+        const orderId = payload?.orderId;
+        const claimingShipperId = payload?.shipperId;
+        // Tranh đơn nguyên tử: Nếu bưu tá khác nhận đơn, tự động xóa đơn khỏi danh sách ngay lập tức (< 50ms)
+        if (orderId && claimingShipperId !== profile.id) {
+          setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+          if (payload?.orderCode) {
+            showToast(
+              {
+                title: 'Đơn đã có người nhận',
+                message: `Đơn #${payload.orderCode} vừa được bưu tá khác tiếp nhận.`,
+              },
+              'warning'
+            );
+          }
+        }
+      } else if (msg.type === 'SHIPPER_COD_REMITTED') {
+        refreshOrders(true);
+      } else if (msg.type === 'ORDER_CANCELLED') {
+        const orderId = payload?.orderId;
+        if (orderId) {
+          setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+          setActiveDeliveries((prev) => prev.filter((o) => o.id !== orderId));
+        }
+      }
+    }, { role: 'SHIPPER', shipperId: profile.id });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [isOnline, profile.id, refreshOrders, showToast]);
 
   const updateProfile = (data: Partial<ShipperProfile>) => {
     setProfile((prev) => ({ ...prev, ...data }));
@@ -322,13 +507,27 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (!target) return;
 
     setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
+    saveClaimedId(orderId);
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     const updatedOrder: ShipperOrder = {
       ...target,
       status: 'PICKING_UP',
       acceptedAt: nowStr,
     };
-    setActiveDeliveries((prev) => [updatedOrder, ...prev]);
+    setActiveDeliveries((prev) => [updatedOrder, ...prev.filter((o) => o.id !== orderId)]);
+
+    realtimeSyncBus.publish('SHIPPER_ORDER_CLAIMED', {
+      orderId,
+      orderCode: target.code,
+      shipperId: profile.id,
+      shipperName: profile.name,
+    });
+
+    try {
+      await orderApi.shipperClaim(orderId);
+    } catch (err) {
+      console.warn('Error claiming order in backend:', err);
+    }
 
     showToast(
       {
@@ -339,9 +538,12 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
-  // 2. Shipper confirms picking up items from seller (calls DB PATCH pickup)
+  // 2. Shipper confirms picking up items from seller or buyer (calls DB PATCH pickup)
   const confirmPickup = async (orderId: string) => {
+    const target = activeDeliveries.find((o) => o.id === orderId);
+    const isReturn = target?.orderType === 'RETURN';
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
     setActiveDeliveries((prev) =>
       prev.map((o) =>
         o.id === orderId
@@ -354,19 +556,36 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       )
     );
 
+    realtimeSyncBus.publish('SHIPPER_PICKED_UP', {
+      orderId,
+      isReturn,
+      trackingCode: target?.code,
+    });
+
+    removeClaimedId(orderId);
     try {
       await orderApi.shipperPickup(orderId);
     } catch (err) {
       console.error('Error updating pickup to DB:', err);
     }
 
-    showToast(
-      {
-        title: 'Đã lấy hàng thành công!',
-        message: 'Kiện sách đã được nhận từ kho. Vui lòng di chuyển giao cho khách hàng.',
-      },
-      'info'
-    );
+    if (isReturn) {
+      showToast(
+        {
+          title: 'Đã nhận sách hoàn từ khách!',
+          message: 'Kiện sách đã được nhận từ khách hàng. Vui lòng vận chuyển bàn giao về kho của Shop.',
+        },
+        'info'
+      );
+    } else {
+      showToast(
+        {
+          title: 'Đã lấy hàng thành công!',
+          message: 'Kiện sách đã được nhận từ kho. Vui lòng di chuyển giao cho khách hàng.',
+        },
+        'info'
+      );
+    }
   };
 
   // 3. Complete delivery & collect COD (calls DB PATCH deliver)
@@ -374,6 +593,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = activeDeliveries.find((o) => o.id === orderId);
     if (!target) return;
 
+    const isReturn = target.orderType === 'RETURN';
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     const completedOrder: ShipperOrder = {
       ...target,
@@ -386,8 +606,8 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Update Wallet
     const earningAmount = target.shippingFee;
-    const codCollected = target.codAmount;
-    const netCodToRemit = target.paymentMethod === 'COD' ? Math.max(0, codCollected - earningAmount) : 0;
+    const codCollected = isReturn ? 0 : target.codAmount;
+    const netCodToRemit = !isReturn && target.paymentMethod === 'COD' ? Math.max(0, codCollected - earningAmount) : 0;
 
     setWallet((prev) => ({
       ...prev,
@@ -404,8 +624,10 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
         id: `TX-${Date.now()}-1`,
         type: 'EARNING',
         amount: earningAmount,
-        title: 'Tiền công giao hàng',
-        description: `Giao thành công đơn ${target.code} (+${earningAmount.toLocaleString('vi-VN')}đ cước ship)`,
+        title: isReturn ? 'Cước thu hồi sách hoàn trả kho' : 'Tiền công giao hàng',
+        description: isReturn
+          ? `Bàn giao kho thành công đơn hoàn ${target.code} (+${earningAmount.toLocaleString('vi-VN')}đ cước ship)`
+          : `Giao thành công đơn ${target.code} (+${earningAmount.toLocaleString('vi-VN')}đ cước ship)`,
         orderCode: target.code,
         createdAt: `Hôm nay, ${nowStr}`,
         status: 'SUCCESS',
@@ -427,21 +649,50 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setTransactions((prev) => [...newTxList, ...prev]);
 
+    removeClaimedId(orderId);
     try {
       await orderApi.shipperDeliver(orderId, { note });
     } catch (err) {
       console.error('Error delivering order in DB:', err);
     }
 
-    showToast(
-      {
-        title: 'Giao hàng thành công! 🎉',
-        message: `+${earningAmount.toLocaleString('vi-VN')}đ cước ship đã cộng vào ví.${
-          codCollected > 0 ? ` Thu khách: ${codCollected.toLocaleString('vi-VN')}đ (Nợ nộp sàn sau khi trừ cước: ${netCodToRemit.toLocaleString('vi-VN')}đ).` : ''
-        }`,
-      },
-      'success'
-    );
+    if (isReturn) {
+      realtimeSyncBus.publish('RETURN_COMPLETED', {
+        returnRequestId: orderId,
+        returnTrackingCode: target.code,
+        orderId: target.orderId,
+      });
+      showToast(
+        {
+          title: 'Hoàn tất thu hồi sách!',
+          message: `Đã bàn giao kiện sách hoàn về kho của Shop. Thu nhập +${earningAmount.toLocaleString('vi-VN')}đ đã được cộng vào ví bưu tá!`,
+        },
+        'success'
+      );
+    } else {
+      realtimeSyncBus.publish('SHIPPER_DELIVERED', {
+        orderId,
+        orderCode: target.code,
+        codAmount: target.codAmount,
+        shippingFee: earningAmount,
+        netCodDebt: netCodToRemit,
+      });
+      realtimeSyncBus.publish('ORDER_DELIVERED', {
+        orderId,
+        orderCode: target.code,
+      });
+      realtimeSyncBus.publish('ORDER_STATUS_CHANGED', {
+        orderId,
+        status: 'DELIVERED',
+      });
+      showToast(
+        {
+          title: 'Giao hàng thành công!',
+          message: `Đơn ${target.code} đã hoàn tất. Bạn nhận được +${earningAmount.toLocaleString('vi-VN')}đ tiền công.`,
+        },
+        'success'
+      );
+    }
   };
 
   // 4. Delivery failed / boom hàng (calls DB PATCH fail)
@@ -457,6 +708,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setActiveDeliveries((prev) => prev.filter((o) => o.id !== orderId));
     setHistoryOrders((prev) => [failedOrder, ...prev]);
+    removeClaimedId(orderId);
 
     try {
       await orderApi.shipperFail(orderId, { reason });
@@ -475,7 +727,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // 5. Remit collected COD cash back to HuKi Platform
   const remitCodDebt = async (amount: number, method: string) => {
-    if (amount <= 0 || amount > wallet.codDebt) {
+    if (amount <= 0 || (wallet.codDebt > 0 && amount > wallet.codDebt)) {
       showToast({ title: 'Số tiền không hợp lệ', message: 'Vui lòng nhập số tiền nhỏ hơn hoặc bằng nợ COD hiện tại.' }, 'warning');
       return;
     }
@@ -500,15 +752,36 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setTransactions((prev) => [newTx, ...prev.filter((t) => t.id !== newTx.id)]);
 
+    const unremittedOrderIds = historyOrders
+      .filter((o) => o.paymentMethod === 'COD' && o.status === 'DELIVERED' && !o.isCodRemitted && o.orderId)
+      .map((o) => o.orderId as string);
+
     try {
       await orderApi.remitShipperCod({
         amount,
         method,
         txCode: newTx.id,
+        orderIds: unremittedOrderIds.length > 0 ? unremittedOrderIds : undefined,
       });
     } catch (e) {
       console.warn('Backend remit failed:', e);
     }
+
+    realtimeSyncBus.publish('SHIPPER_COD_REMITTED', {
+      amount,
+      method,
+      shipperId: profile.id,
+    });
+    realtimeSyncBus.publish('WALLET_BALANCE_UPDATED', {
+      type: 'COD_REMITTANCE',
+      amount,
+    });
+    realtimeSyncBus.publish('ESCROW_UPDATED', {
+      type: 'COD_REMITTANCE',
+      amount,
+    });
+
+    await refreshOrders(true);
 
     showToast(
       {

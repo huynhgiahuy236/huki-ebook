@@ -1,7 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '@/ui/context/ToastContext';
 import { soundEffects } from '@/ui/utils/soundEffects';
+import { useChatSocket } from '@/ui/hooks/useChatSocket';
+import { chatService } from '@/ui/services/chatService';
+import { playChatChimeSound } from '@/ui/utils/chatSound';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 import SellerNotificationBell from '../seller/SellerNotificationBell';
 
@@ -12,14 +18,80 @@ export interface SellerHeaderProps {
 }
 
 export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggleMobileSidebar }: SellerHeaderProps) {
+  const pathname = usePathname() || '';
   const { user } = useAuth();
+  const { showToast } = useToast();
   const sellerName = user?.business?.name || user?.fullName || user?.name || "NXB Doanh Nghiệp";
+  const storeId = user?.business?.id || user?.id;
 
   const [isMuted, setIsMuted] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   useEffect(() => {
     setIsMuted(soundEffects.getIsMuted());
   }, []);
+
+  const fetchUnreadCount = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      const res = await chatService.listConversations(storeId);
+      if (res.success && Array.isArray(res.data)) {
+        const total = res.data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+        setUnreadChatCount(total);
+      }
+    } catch {
+      // ignore
+    }
+  }, [storeId]);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
+
+  useChatSocket({
+    storeId,
+    onMessageReceived: (msg: any) => {
+      const senderId = String(msg?.senderId || '');
+      const myId = String(user?.id || (user as any)?._id || (user as any)?.sub || '');
+      if (senderId && senderId === myId) return;
+
+      if (!soundEffects.getIsMuted()) {
+        playChatChimeSound();
+      }
+
+      setUnreadChatCount((prev) => prev + 1);
+
+      if (!pathname.startsWith('/seller/chat')) {
+        const senderName = msg?.senderName || 'Khách hàng';
+        const rawContent = msg?.content || '';
+        const snippet = typeof rawContent === 'string' && rawContent.trim()
+          ? (rawContent.length > 60 ? rawContent.slice(0, 60) + '...' : rawContent)
+          : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
+
+        showToast({
+          title: `💬 Tin nhắn từ ${senderName}`,
+          message: snippet,
+          type: 'info',
+          actionUrl: '/seller/chat',
+          actionLabel: 'Trả lời ngay',
+          duration: 5000,
+          playSound: false,
+        });
+      }
+    },
+    onMessageRead: () => {
+      fetchUnreadCount();
+    },
+  });
+
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'CHAT_UNREAD_COUNT_CHANGED') {
+        fetchUnreadCount();
+      }
+    });
+    return () => unsub();
+  }, [fetchUnreadCount]);
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between shadow-2xs min-h-[54px] h-[54px] gap-2 sm:gap-3">
@@ -111,12 +183,17 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           href="/seller/chat"
           target="_blank"
           rel="noopener noreferrer"
-          className="relative flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-colors shrink-0"
+          className="relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-colors shrink-0 group"
           title="Mở cửa sổ Chat & Tin nhắn chăm sóc khách hàng"
           aria-label="Tin nhắn"
         >
           <span className="material-symbols-outlined text-[17px] text-[#003B2B]">chat</span>
-          <span className="hidden 2xl:inline text-[11px] font-semibold whitespace-nowrap">Tin nhắn</span>
+          <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap group-hover:text-[#003B2B]">Tin nhắn</span>
+          {unreadChatCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[10px] font-bold min-w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs">
+              {unreadChatCount > 99 ? '99+' : unreadChatCount}
+            </span>
+          )}
         </Link>
 
         <Link

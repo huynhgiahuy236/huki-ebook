@@ -8,12 +8,7 @@ import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 
-function formatVND(amount?: number | string | null): string {
-  if (amount === undefined || amount === null || amount === '') return '0đ';
-  const num = typeof amount === 'number' ? amount : Number(amount);
-  if (isNaN(num)) return '0đ';
-  return `${Math.round(num).toLocaleString('vi-VN')}đ`;
-}
+import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -139,35 +134,9 @@ export default function SellerEscrowPage() {
     fetchEscrowItems(true);
   }, [storeId, fetchEscrowItems, showToast]);
 
-  // Comprehensive stats (Excluding cancelled orders)
+  // Comprehensive stats (Excluding cancelled orders) via Centralized Engine
   const stats = useMemo(() => {
-    const validItems = escrowItems.filter((it) => it.orderStatus !== 'CANCELLED' && (it as any).status !== 'CANCELLED');
-    const pendingItems = validItems.filter((it) => it.escrowStatus === 'PENDING_PAYMENT');
-    const holdingItems = validItems.filter((it) => it.escrowStatus === 'HOLDING');
-    const releasedItems = validItems.filter((it) => it.escrowStatus === 'RELEASED');
-    const frozenItems = validItems.filter((it) => it.escrowStatus === 'FROZEN');
-
-    const sumNet = (arr: SellerEscrowItem[]) =>
-      arr.reduce((s, it) => s + (Number(it.sellerNet) || Math.round(Number(it.subtotal || 0) * 0.95)), 0);
-
-    const pendingAmount = sumNet(pendingItems);
-    const holdingAmount = sumNet(holdingItems);
-    const releasedAmount = sumNet(releasedItems);
-    const frozenAmount = sumNet(frozenItems);
-    const totalEscrowHolding = pendingAmount + holdingAmount + frozenAmount;
-
-    return {
-      totalCount: validItems.length,
-      pendingCount: pendingItems.length,
-      holdingCount: holdingItems.length,
-      releasedCount: releasedItems.length,
-      frozenCount: frozenItems.length,
-      pendingAmount,
-      holdingAmount,
-      releasedAmount,
-      frozenAmount,
-      totalEscrowHolding,
-    };
+    return calculateSellerFinancials({ escrowItems });
   }, [escrowItems]);
 
   // Filtering Logic

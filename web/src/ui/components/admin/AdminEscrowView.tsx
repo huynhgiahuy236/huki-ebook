@@ -1,9 +1,12 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi } from '../../api/adminApi';
+import { orderApi } from '../../api/orderApi';
 import { useToast } from '../../context/ToastContext';
 import { AdminFilterTabs } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import { realtimeSyncBus, type SyncMessage } from '../../services/realtimeSyncBus';
+import { playAdminAlertSound } from '@/ui/utils/chatSound';
 
 export interface EscrowTableItem {
   id: string; // order item id
@@ -41,7 +44,16 @@ export interface EscrowTableItem {
   releasedAt?: string | null;
   refundedAt?: string | null;
   frozenReason?: string | null;
+  returnRequestId?: string | null;
   returnRequestStatus?: string | null;
+  returnReason?: string | null;
+  reverseTrackingCode?: string | null;
+  reverseStatus?: string | null;
+  buyerBankAccount?: {
+    bankName: string;
+    accountNumber: string;
+    accountHolderName: string;
+  } | null;
   remittanceInfo?: {
     isRemitted: boolean;
     remittedAt: string;
@@ -146,8 +158,8 @@ export function AdminEscrowView() {
   }, []);
 
   // Lấy dữ liệu Escrow Items và danh sách Cửa Hàng thực tế
-  const fetchEscrowItems = useCallback(async () => {
-    setLoading(true);
+  const fetchEscrowItems = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const storeMap = new Map<string, string>();
 
@@ -194,7 +206,7 @@ export function AdminEscrowView() {
       // 2. Lấy dữ liệu Escrow Items
       if (adminApi && (adminApi as any).getEscrowItems) {
         const res = await (adminApi as any).getEscrowItems();
-        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+        if (res?.success && Array.isArray(res.data)) {
           const isUuid = (val?: string) =>
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val || '');
 
@@ -231,13 +243,112 @@ export function AdminEscrowView() {
     } catch (err) {
       console.warn('Sử dụng dữ liệu tạm ký quỹ:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
+  const [refundTargetItem, setRefundTargetItem] = useState<EscrowTableItem | null>(null);
+  const [isRefunding, setIsRefunding] = useState(false);
+
+  // Sổ cái kế toán & Nhật ký đối soát chi tiết
+  const [selectedLedgerOrder, setSelectedLedgerOrder] = useState<EscrowOrderGroup | null>(null);
+  const [ledgerHistory, setLedgerHistory] = useState<any[]>([]);
+  const [loadingLedger, setLoadingLedger] = useState(false);
+
+  const handleOpenLedger = async (orderGroup: EscrowOrderGroup) => {
+    setSelectedLedgerOrder(orderGroup);
+    setLoadingLedger(true);
+    setLedgerHistory([]);
+    try {
+      const orderId = orderGroup.items[0]?.orderId || orderGroup.id;
+      const res = await orderApi.getOrderHistory(orderId);
+      if (res.success && Array.isArray(res.data)) {
+        setLedgerHistory(res.data);
+      } else if (res.success && Array.isArray((res.data as any)?.timeline)) {
+        setLedgerHistory((res.data as any).timeline);
+      } else {
+        const trackRes = await orderApi.getOrderTracking(orderId);
+        if (trackRes.success && Array.isArray(trackRes.data?.timeline)) {
+          setLedgerHistory(trackRes.data.timeline);
+        }
+      }
+    } catch (e) {
+      console.warn('Lỗi lấy sổ cái đơn hàng:', e);
+    } finally {
+      setLoadingLedger(false);
+    }
+  };
+
   useEffect(() => {
     fetchEscrowItems();
-  }, [fetchEscrowItems]);
+
+    // Silent background auto-polling every 3.5s for zero-F5 live sync
+    const pollTimer = setInterval(() => {
+      fetchEscrowItems(true);
+    }, 3500);
+
+    // Realtime event subscription
+    const unsubscribe = realtimeSyncBus.subscribe((msg: SyncMessage<any>) => {
+      const type = msg.type as string;
+      const data = (msg.payload as any) || (msg as any).data || {};
+
+      if (
+        type === 'RETURN_REQUESTED' ||
+        type === 'RETURN_CREATED' ||
+        type === 'DISPUTE_RAISED'
+      ) {
+        playAdminAlertSound();
+        showToast?.({
+          title: 'Yêu cầu hoàn trả - Ký quỹ Đóng băng',
+          message: data.orderCode
+            ? `Đơn hàng #${data.orderCode} vừa phát sinh khiếu nại hoàn trả. Ký quỹ đã tự động ĐÓNG BĂNG!`
+            : 'Đã nhận yêu cầu đổi trả mới. Dòng tiền tương ứng đã bị đóng băng!',
+          type: 'warning',
+        });
+        fetchEscrowItems(true);
+      } else if (type === 'ESCROW_FROZEN') {
+        playAdminAlertSound();
+        showToast?.({
+          title: 'Dòng tiền bị đóng băng',
+          message: data.message || 'Một giao dịch ký quỹ đã chuyển sang trạng thái ĐÓNG BĂNG để chờ đối soát.',
+          type: 'warning',
+        });
+        fetchEscrowItems(true);
+      } else if (type === 'RETURN_COMPLETED') {
+        playAdminAlertSound();
+        showToast?.({
+          title: 'Bưu tá đã hoàn hàng về Shop',
+          message: `Đơn vận hoàn #${data.reverseTrackingCode || ''} đã bàn giao về Shop! Sàn đã có thể hoàn tiền cho khách.`,
+          type: 'info',
+        });
+        fetchEscrowItems(true);
+      } else if (
+        type === 'ORDER_CREATED' ||
+        type === 'ORDER_PAYMENT_SUCCEEDED' ||
+        type === 'ORDER_STATUS_CHANGED' ||
+        type === 'SHIPPER_ORDER_CLAIMED' ||
+        type === 'SHIPPER_CLAIMED' ||
+        type === 'SHIPPER_PICKED_UP' ||
+        type === 'SHIPPER_DELIVERED' ||
+        type === 'ORDER_DELIVERED' ||
+        type === 'SHIPPER_COD_REMITTED' ||
+        type === 'WALLET_BALANCE_UPDATED' ||
+        type === 'ESCROW_UPDATED' ||
+        type === 'ESCROW_RELEASED' ||
+        type === 'ESCROW_UNFROZEN' ||
+        type === 'PAYOUT_REQUESTED' ||
+        type === 'PAYOUT_APPROVED' ||
+        type === 'PAYOUT_DISBURSED'
+      ) {
+        fetchEscrowItems(true);
+      }
+    }, { role: 'ADMIN' });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [fetchEscrowItems, showToast]);
 
   // Xử lý thay đổi trạng thái của từng dòng sản phẩm
   const handleStatusChange = async (
@@ -336,6 +447,9 @@ export function AdminEscrowView() {
         item.orderStatus === 'DELIVERED' ||
         Boolean(item.deliveredAt);
 
+      const isCod = item.paymentMethod === 'COD';
+      const isRemitted = Boolean(item.remittanceInfo?.isRemitted || item.paymentStatus === 'SUCCEEDED');
+
       // Sách giấy chưa giao hàng -> Luôn là Chờ giao hàng, không được giải ngân
       if (isPhysical && !isDelivered) {
         return {
@@ -346,6 +460,19 @@ export function AdminEscrowView() {
           formattedTime: '--:--',
           text: 'Chờ giao hàng thành công',
           reason: 'Sách giấy chưa giao hàng thành công đến tay người mua',
+        };
+      }
+
+      // Đã giao hàng nhưng là đơn COD mà shipper CHƯA nộp tiền về sàn -> Chờ bưu tá nộp COD
+      if (isPhysical && isDelivered && isCod && !isRemitted) {
+        return {
+          type: 'WAITING_COD_REMITTANCE',
+          isExpired: false,
+          canRelease: false,
+          remainingSec: 0,
+          formattedTime: '--:--',
+          text: 'Chờ bưu tá nộp quỹ COD',
+          reason: 'Đã giao khách, đang chờ bưu tá nộp tiền mặt COD về sàn để kích hoạt hạn đổi trả',
         };
       }
 
@@ -431,8 +558,22 @@ export function AdminEscrowView() {
   // Lọc danh sách theo Tab và Ô tìm kiếm
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
-      if (activeTab !== 'ALL' && it.escrowStatus !== activeTab) {
-        return false;
+      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && it.paymentStatus !== 'SUCCEEDED';
+
+      if (activeTab !== 'ALL') {
+        if (activeTab === 'HOLDING') {
+          // Chỉ lấy đơn sàn THỰC TẾ giữ tiền trong tài khoản (PayOS hoặc COD đã nộp quỹ)
+          if (it.escrowStatus === 'RELEASED' || it.escrowStatus === 'REFUNDED' || it.escrowStatus === 'FROZEN' || isCodUnremitted) return false;
+        } else if (activeTab === 'COD_PENDING') {
+          // Chỉ lấy đơn COD chưa nộp tiền về quỹ sàn
+          if (!isCodUnremitted || it.escrowStatus === 'RELEASED' || it.escrowStatus === 'REFUNDED' || it.escrowStatus === 'FROZEN') return false;
+        } else if (activeTab === 'FROZEN') {
+          if (it.escrowStatus !== 'FROZEN') return false;
+        } else if (activeTab === 'REFUNDED') {
+          if (it.escrowStatus !== 'REFUNDED') return false;
+        } else if (activeTab === 'RELEASED') {
+          if (it.escrowStatus !== 'RELEASED') return false;
+        }
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -491,28 +632,59 @@ export function AdminEscrowView() {
     );
   }, []);
 
-  // Thống kê tài chính
+  // Thống kê tài chính phân định rõ: Tiền Sàn Thực Cầm vs COD Bưu Tá Đang Giao/Chưa Nộp Quỹ vs Hoàn Tiền
   const stats = useMemo(() => {
-    const totalHolding = items
-      .filter((it) => it.escrowStatus === 'HOLDING')
-      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
+    let actualEscrowHolding = 0;
+    let actualEscrowCount = 0;
 
-    const totalReleased = items
-      .filter((it) => it.escrowStatus === 'RELEASED')
-      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
+    let codPendingRemittance = 0;
+    let codPendingCount = 0;
 
-    const totalFrozen = items
-      .filter((it) => it.escrowStatus === 'FROZEN')
-      .reduce((sum, it) => sum + (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal), 0);
+    let totalReleased = 0;
+    let releasedCount = 0;
+
+    let totalFrozen = 0;
+    let frozenCount = 0;
+
+    let totalRefunded = 0;
+    let refundedCount = 0;
+
+    items.forEach((it) => {
+      const itemAmount = (it.effectiveSubtotal !== undefined ? it.effectiveSubtotal : it.subtotal) || 0;
+      const isCodUnremitted = it.paymentMethod === 'COD' && !it.remittanceInfo?.isRemitted && it.paymentStatus !== 'SUCCEEDED';
+
+      if (it.escrowStatus === 'RELEASED') {
+        totalReleased += itemAmount;
+        releasedCount += 1;
+      } else if (it.escrowStatus === 'REFUNDED') {
+        totalRefunded += itemAmount;
+        refundedCount += 1;
+      } else if (it.escrowStatus === 'FROZEN') {
+        totalFrozen += itemAmount;
+        frozenCount += 1;
+      } else if (isCodUnremitted) {
+        // COD chưa nộp tiền về sàn (tiền mặt đang trong tay khách hoặc bưu tá đang thu)
+        codPendingRemittance += itemAmount;
+        codPendingCount += 1;
+      } else {
+        // Tiền thực tế đã vào tài khoản sàn (PayOS đã thanh toán hoặc COD bưu tá ĐÃ nộp quỹ)
+        actualEscrowHolding += itemAmount;
+        actualEscrowCount += 1;
+      }
+    });
 
     return {
-      totalHolding,
+      actualEscrowHolding,
+      actualEscrowCount,
+      codPendingRemittance,
+      codPendingCount,
       totalReleased,
+      releasedCount,
       totalFrozen,
+      frozenCount,
+      totalRefunded,
+      refundedCount,
       totalCount: items.length,
-      holdingCount: items.filter((it) => it.escrowStatus === 'HOLDING').length,
-      frozenCount: items.filter((it) => it.escrowStatus === 'FROZEN').length,
-      releasedCount: items.filter((it) => it.escrowStatus === 'RELEASED').length,
     };
   }, [items]);
 
@@ -701,7 +873,7 @@ export function AdminEscrowView() {
     (order: EscrowOrderGroup) => {
       return (
         <div className="flex flex-col gap-3 p-1">
-          <div className="flex items-center justify-between border-b border-theme-border/70 pb-2.5">
+          <div className="flex items-center justify-between border-b border-theme-border/70 pb-2.5 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#00875A] text-[18px]">
                 inventory_2
@@ -711,13 +883,27 @@ export function AdminEscrowView() {
               </h4>
             </div>
 
-            {order.remittanceInfo && (
-              <div className="text-[11.5px] text-theme-text-muted flex items-center gap-2">
-                <span>Bưu tá nộp COD: <strong className="text-theme-text">{order.remittanceInfo.shipperName}</strong> ({order.remittanceInfo.shipperCode})</span>
-                <span>•</span>
-                <span>Mã GD: <strong className="font-mono text-theme-text">{order.remittanceInfo.txCode}</strong></span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleOpenLedger(order);
+                }}
+                className="px-2.5 py-1 rounded-xl bg-theme-surface-subtle hover:bg-emerald-50 hover:text-emerald-800 border border-theme-border text-theme-text text-[11px] font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition-all active:scale-[0.96]"
+                title="Xem toàn bộ nhật ký đối soát dòng tiền và lịch sử giao dịch của đơn hàng"
+              >
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">receipt_long</span>
+                <span>Sổ Cái Đối Soát</span>
+              </button>
+
+              {order.remittanceInfo && (
+                <div className="text-[11px] text-theme-text-muted flex items-center gap-2">
+                  <span>Bưu tá: <strong className="text-theme-text">{order.remittanceInfo.shipperName}</strong></span>
+                  <span>• Mã GD: <strong className="font-mono text-theme-text">{order.remittanceInfo.txCode}</strong></span>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="rounded-xl border border-theme-border/80 bg-theme-surface overflow-hidden">
@@ -785,6 +971,46 @@ export function AdminEscrowView() {
                             <span className="font-mono text-[10px] text-theme-text-muted mt-0.5">
                               Mã SP: {item.bookId}
                             </span>
+
+                            {/* Thông Tin Đổi Trả & Tài Khoản Ngân Hàng Hoàn Tiền */}
+                            {(item.returnRequestId || item.buyerBankAccount || item.reverseTrackingCode) && (
+                              <div className="mt-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 text-[11px] flex flex-col gap-1.5 text-amber-950 dark:text-amber-200">
+                                <div className="flex items-center gap-1.5 font-bold flex-wrap">
+                                  <span className="material-symbols-outlined text-[15px] text-amber-600">assignment_return</span>
+                                  <span>Mã Vận Đơn Hoàn:</span>
+                                  <span className="font-mono px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200">
+                                    #{item.reverseTrackingCode || 'HUKI-RET-CHƯA-TẠO'}
+                                  </span>
+                                  {item.reverseStatus && (
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                                      item.reverseStatus === 'RETURNED_TO_STORE'
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                    }`}>
+                                      {item.reverseStatus === 'RETURNED_TO_STORE' ? 'Đã giao về kho Shop' : 'Bưu tá đang thu hồi'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {item.buyerBankAccount && (
+                                  <div className="flex items-center gap-1.5 text-[11px] bg-white/70 dark:bg-slate-900/60 p-1.5 rounded-lg border border-amber-200/60 dark:border-amber-800/40">
+                                    <span className="material-symbols-outlined text-[14px] text-blue-600">account_balance</span>
+                                    <span className="text-slate-600 dark:text-slate-400">Ngân hàng:</span>
+                                    <strong className="text-theme-text font-bold">{item.buyerBankAccount.bankName}</strong>
+                                    <span>• STK:</span>
+                                    <strong className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">{item.buyerBankAccount.accountNumber}</strong>
+                                    <span>• Chủ TK:</span>
+                                    <strong className="text-theme-text uppercase">{item.buyerBankAccount.accountHolderName}</strong>
+                                  </div>
+                                )}
+
+                                {item.returnReason && (
+                                  <div className="text-[10.5px] text-slate-600 dark:text-slate-400 italic">
+                                    Lý do hoàn trả: &ldquo;{item.returnReason}&rdquo;
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -829,7 +1055,7 @@ export function AdminEscrowView() {
                         )}
                         {isFrozen && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-rose-50 text-rose-800 border border-rose-200/60">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
                             <span>Đóng băng dòng tiền</span>
                           </span>
                         )}
@@ -985,11 +1211,14 @@ export function AdminEscrowView() {
                                 {canRefund ? (
                                   <button
                                     type="button"
-                                    onClick={() => handleStatusChange(item.id, 'REFUNDED')}
+                                    onClick={() => {
+                                      setOpenDropdownId(null);
+                                      setRefundTargetItem(item);
+                                    }}
                                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-theme-text hover:bg-sky-50/60 hover:text-sky-800 transition-colors cursor-pointer"
                                   >
                                     <span className="w-2 h-2 rounded-full bg-sky-500"></span>
-                                    <span>Hoàn trả Khách hàng</span>
+                                    <span>Hoàn trả Khách hàng...</span>
                                   </button>
                                 ) : (
                                   <button
@@ -1029,16 +1258,16 @@ export function AdminEscrowView() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold font-editorial text-theme-text tracking-tight flex items-center gap-2.5">
             <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
-            <span>Ký Quỹ Sàn &amp; Tài Khoản Trung Gian</span>
+            <span>Ký Quỹ Sàn &amp; Tài Khoản Trung Gian (Escrow Ledger)</span>
           </h1>
           <p className="text-xs text-theme-text-muted mt-1">
-            Kiểm soát dòng tiền giữ hộ, thời hạn đổi trả 2 phút và điều phối bàn giao doanh thu cho người bán
+            Kiểm soát dòng tiền giữ hộ, thời hạn đổi trả 2 phút, đóng băng khiếu nại và điều phối hoàn tiền / giải ngân
           </p>
         </div>
 
         <button
           type="button"
-          onClick={fetchEscrowItems}
+          onClick={() => fetchEscrowItems(false)}
           disabled={loading}
           className="px-3.5 py-2 rounded-xl border border-theme-border bg-theme-surface hover:bg-theme-surface-subtle text-theme-text font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-[0.98]"
         >
@@ -1049,47 +1278,75 @@ export function AdminEscrowView() {
         </button>
       </div>
 
-      {/* 2. Thẻ Thống Kê Tổng Quan */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Đang Giữ */}
-        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+      {/* 2. Thẻ Thống Kê Tổng Quan (5 Thẻ phân định rõ ràng các trạng thái dòng tiền) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Đang Giữ Ký Quỹ Thực Tế */}
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đang Giữ Ký Quỹ</p>
-            <h3 className="text-xl font-bold text-amber-600 mt-1 font-mono tracking-tight">
-              {stats.totalHolding.toLocaleString('vi-VN')} đ
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đang Giữ (Sàn Cầm)</p>
+            <h3 className="text-lg font-bold text-amber-600 mt-1 font-mono tracking-tight">
+              {stats.actualEscrowHolding.toLocaleString('vi-VN')} đ
             </h3>
-            <p className="text-[11.5px] text-theme-text-muted mt-1 font-medium">{stats.holdingCount} món hàng đang giữ tiền</p>
+            <p className="text-[11px] text-theme-text-muted mt-1 font-medium">{stats.actualEscrowCount} món thực thu sàn</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-amber-50/80 border border-amber-100 text-amber-600 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[22px]">lock_clock</span>
+          <div className="w-10 h-10 rounded-xl bg-amber-50/80 border border-amber-100 text-amber-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">lock_clock</span>
           </div>
         </div>
 
-        {/* Đã Bàn Giao */}
-        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+        {/* COD Đang Giao / Chờ Nộp Quỹ */}
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đã Bàn Giao Cho Shop</p>
-            <h3 className="text-xl font-bold text-[#00875A] mt-1 font-mono tracking-tight">
-              {stats.totalReleased.toLocaleString('vi-VN')} đ
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">COD Chờ Nộp Quỹ</p>
+            <h3 className="text-lg font-bold text-blue-600 mt-1 font-mono tracking-tight">
+              {stats.codPendingRemittance.toLocaleString('vi-VN')} đ
             </h3>
-            <p className="text-[11.5px] text-emerald-600 mt-1 font-medium">{stats.releasedCount} món hàng hoàn tất</p>
+            <p className="text-[11px] text-blue-600 mt-1 font-medium">{stats.codPendingCount} món chờ bưu tá</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-emerald-50/80 border border-emerald-100 text-emerald-600 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[22px]">verified</span>
+          <div className="w-10 h-10 rounded-xl bg-blue-50/80 border border-blue-100 text-blue-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">local_shipping</span>
           </div>
         </div>
 
         {/* Đóng Băng Tranh Chấp */}
-        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4.5 shadow-2xs flex items-center justify-between">
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4 shadow-2xs flex items-center justify-between">
           <div>
-            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đóng Băng Tranh Chấp</p>
-            <h3 className="text-xl font-bold text-rose-600 mt-1 font-mono tracking-tight">
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đóng Băng Đổi Trả</p>
+            <h3 className="text-lg font-bold text-rose-600 mt-1 font-mono tracking-tight">
               {stats.totalFrozen.toLocaleString('vi-VN')} đ
             </h3>
-            <p className="text-[11.5px] text-rose-600 mt-1 font-medium">{stats.frozenCount} món hàng đang khiếu nại</p>
+            <p className="text-[11px] text-rose-600 mt-1 font-medium">{stats.frozenCount} món khiếu nại</p>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-rose-50/80 border border-rose-100 text-rose-600 flex items-center justify-center">
-            <span className="material-symbols-outlined text-[22px]">gavel</span>
+          <div className="w-10 h-10 rounded-xl bg-rose-50/80 border border-rose-100 text-rose-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">gavel</span>
+          </div>
+        </div>
+
+        {/* Đã Hoàn Trả Khách Hàng */}
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đã Hoàn Trả Khách</p>
+            <h3 className="text-lg font-bold text-sky-600 mt-1 font-mono tracking-tight">
+              {stats.totalRefunded.toLocaleString('vi-VN')} đ
+            </h3>
+            <p className="text-[11px] text-sky-600 mt-1 font-medium">{stats.refundedCount} món hoàn trả</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-sky-50/80 border border-sky-100 text-sky-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">replay</span>
+          </div>
+        </div>
+
+        {/* Đã Bàn Giao Cho Shop */}
+        <div className="bg-theme-surface border border-theme-border rounded-2xl p-4 shadow-2xs flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-theme-text-muted uppercase tracking-wider">Đã Bàn Giao Shop</p>
+            <h3 className="text-lg font-bold text-[#00875A] mt-1 font-mono tracking-tight">
+              {stats.totalReleased.toLocaleString('vi-VN')} đ
+            </h3>
+            <p className="text-[11px] text-emerald-600 mt-1 font-medium">{stats.releasedCount} món hoàn tất</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50/80 border border-emerald-100 text-emerald-600 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[20px]">verified</span>
           </div>
         </div>
       </div>
@@ -1100,9 +1357,11 @@ export function AdminEscrowView() {
         <AdminFilterTabs
           tabs={[
             { id: 'ALL', label: 'Tất Cả', count: stats.totalCount },
-            { id: 'HOLDING', label: 'Đang Giữ Tiền', count: stats.holdingCount },
+            { id: 'HOLDING', label: 'Đang Giữ Ký Quỹ', count: stats.actualEscrowCount },
+            { id: 'COD_PENDING', label: 'COD Chờ Nộp Quỹ', count: stats.codPendingCount },
             { id: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
-            { id: 'RELEASED', label: 'Đã Chuyển Tiền', count: stats.releasedCount },
+            { id: 'REFUNDED', label: 'Đã Hoàn Trả', count: stats.refundedCount },
+            { id: 'RELEASED', label: 'Đã Bàn Giao', count: stats.releasedCount },
           ]}
           activeTab={activeTab}
           onChange={handleTabChange}
@@ -1132,7 +1391,7 @@ export function AdminEscrowView() {
         </div>
       </div>
 
-      {/* 4. Grouped Data Table: Bảng Rộng Dài Kèm Thanh Kéo Ngang, Click Hàng Tự Động Xổ Xuống */}
+      {/* 4. Grouped Data Table */}
       <GroupedDataTable
         columns={orderColumns}
         data={groupedOrders}
@@ -1156,6 +1415,291 @@ export function AdminEscrowView() {
         pagination={true}
         className="min-w-[1500px]"
       />
+
+      {/* 5. Modal Xác Nhận Hoàn Tiền Cho Khách Hàng (Đối Soát STK & Mã Vận Đơn) */}
+      {refundTargetItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-theme-surface border border-theme-border rounded-3xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-4 text-theme-text animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-theme-border pb-3">
+              <div className="flex items-center gap-2 text-sky-600">
+                <span className="material-symbols-outlined text-2xl">account_balance_wallet</span>
+                <h3 className="font-bold text-base">Xác Nhận Hoàn Tiền Cho Khách</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRefundTargetItem(null)}
+                className="text-theme-text-muted hover:text-theme-text p-1 rounded-lg hover:bg-theme-surface-subtle"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 text-xs">
+              <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800/40 flex items-center justify-between">
+                <div>
+                  <span className="text-theme-text-muted text-[11px]">Số tiền cần hoàn trả:</span>
+                  <div className="font-mono text-xl font-black text-sky-700 dark:text-sky-300 mt-0.5">
+                    {((refundTargetItem.effectiveSubtotal !== undefined ? refundTargetItem.effectiveSubtotal : refundTargetItem.subtotal) || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                </div>
+                <span className="material-symbols-outlined text-3xl text-sky-500">payments</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 p-3 bg-theme-surface-subtle rounded-2xl border border-theme-border/60">
+                <div>
+                  <span className="text-theme-text-muted text-[10.5px]">Mã đơn hàng:</span>
+                  <div className="font-mono font-bold mt-0.5">#{refundTargetItem.orderCode}</div>
+                </div>
+                <div>
+                  <span className="text-theme-text-muted text-[10.5px]">Khách hàng:</span>
+                  <div className="font-semibold mt-0.5">{refundTargetItem.customerName} ({refundTargetItem.customerPhone})</div>
+                </div>
+                <div className="col-span-2 mt-1">
+                  <span className="text-theme-text-muted text-[10.5px]">Sản phẩm hoàn trả:</span>
+                  <div className="font-medium mt-0.5">{refundTargetItem.bookTitle} (x{refundTargetItem.quantity})</div>
+                </div>
+              </div>
+
+              {/* Thông tin thẻ ngân hàng của Buyer */}
+              <div className="p-3.5 rounded-2xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/50 flex flex-col gap-2">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-800 dark:text-emerald-300">
+                  <span className="material-symbols-outlined text-base">credit_card</span>
+                  <span>Tài Khoản Ngân Hàng Thụ Hưởng Của Khách:</span>
+                </div>
+                {refundTargetItem.buyerBankAccount ? (
+                  <div className="flex flex-col gap-1 pl-1 text-[11.5px]">
+                    <div>Ngân hàng: <strong className="text-theme-text">{refundTargetItem.buyerBankAccount.bankName}</strong></div>
+                    <div className="flex items-center gap-2">
+                      <span>Số tài khoản:</span>
+                      <strong className="font-mono text-base font-bold text-emerald-700 dark:text-emerald-400">
+                        {refundTargetItem.buyerBankAccount.accountNumber}
+                      </strong>
+                    </div>
+                    <div>Chủ tài khoản: <strong className="text-theme-text uppercase">{refundTargetItem.buyerBankAccount.accountHolderName}</strong></div>
+                  </div>
+                ) : (
+                  <div className="text-rose-600 text-[11px] italic">
+                    Khách hàng chưa cập nhật số tài khoản ngân hàng. Vui lòng liên hệ khách để bổ sung trước khi hoàn tiền.
+                  </div>
+                )}
+              </div>
+
+              {/* Thông tin vận đơn hoàn hàng */}
+              {refundTargetItem.reverseTrackingCode && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 text-[11px] flex items-center justify-between">
+                  <div>
+                    <span className="text-amber-800 dark:text-amber-300 font-semibold">Mã vận đơn chiều về:</span>
+                    <span className="font-mono font-bold text-theme-text ml-1.5">#{refundTargetItem.reverseTrackingCode}</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-amber-200/80 text-amber-900">
+                    {refundTargetItem.reverseStatus === 'RETURNED_TO_STORE' ? 'Đã về kho shop' : 'Đang vận chuyển'}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-theme-border">
+              <button
+                type="button"
+                onClick={() => setRefundTargetItem(null)}
+                disabled={isRefunding}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-theme-text hover:bg-theme-surface-subtle border border-theme-border cursor-pointer transition-colors"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                disabled={isRefunding}
+                onClick={async () => {
+                  if (!refundTargetItem) return;
+                  setIsRefunding(true);
+                  try {
+                    await handleStatusChange(refundTargetItem.id, 'REFUNDED');
+                    playAdminAlertSound();
+                    setRefundTargetItem(null);
+                  } finally {
+                    setIsRefunding(false);
+                  }
+                }}
+                className="px-4.5 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-md flex items-center gap-1.5 cursor-pointer active:scale-[0.98] transition-all"
+              >
+                {isRefunding ? (
+                  <>
+                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
+                    <span>Đang xử lý...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    <span>Xác Nhận Đã Hoàn Tiền</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Modal Sổ Cái Kế Toán & Nhật Ký Đối Soát Chi Tiết Cho Admin */}
+      {selectedLedgerOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-theme-surface border border-theme-border rounded-3xl max-w-2xl w-full p-6 shadow-2xl flex flex-col gap-4 text-theme-text max-h-[85vh] overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-theme-border pb-3 shrink-0">
+              <div className="flex items-center gap-2.5 text-[#00875A]">
+                <span className="material-symbols-outlined text-2xl">receipt_long</span>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-theme-text">
+                    Sổ Cái Minh Bạch &amp; Nhật Ký Đối Soát Ký Quỹ
+                  </h3>
+                  <p className="text-[11px] text-theme-text-muted">
+                    Đơn hàng #{selectedLedgerOrder.orderCode} · Khách hàng: {selectedLedgerOrder.customerName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLedgerOrder(null)}
+                className="text-theme-text-muted hover:text-theme-text p-1 rounded-lg hover:bg-theme-surface-subtle"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto pr-1 space-y-4 text-xs">
+              {loadingLedger ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-theme-text-muted">
+                  <span className="material-symbols-outlined text-3xl animate-spin text-[#00875A]">progress_activity</span>
+                  <span>Đang tải dữ liệu sổ cái...</span>
+                </div>
+              ) : ledgerHistory.length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-2 text-theme-text-muted">
+                  <span className="material-symbols-outlined text-3xl opacity-40">history_toggle_off</span>
+                  <span>Chưa có bản ghi biến động nào trong sổ cái.</span>
+                </div>
+              ) : (
+                <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-theme-border">
+                  {ledgerHistory.map((item: any, idx: number) => {
+                    const isRefund = item.toStatus === 'ESCROW_REFUNDED' || item.title?.includes('hoàn trả tiền') || item.title?.includes('Hoàn tiền');
+                    const isFrozen = item.toStatus === 'ESCROW_FROZEN' || item.title?.includes('Đóng băng');
+                    const isReturnPickup = item.toStatus === 'RETURN_PICKED_UP' || item.title?.includes('lấy hàng');
+                    const isReturnDelivered = item.toStatus === 'RETURN_DELIVERED_TO_STORE' || item.title?.includes('kho Shop');
+                    const isShipper = item.actorType === 'SHIPPER' || item.actorType === 'SHIPPER_COD_REMITTANCE';
+                    const isBuyer = item.actorType === 'BUYER' || item.actorType === 'USER';
+                    const isAdmin = item.actorType === 'ADMIN';
+
+                    const dotBg = isRefund
+                      ? 'bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950/60'
+                      : isFrozen
+                      ? 'bg-rose-500 ring-4 ring-rose-100 dark:ring-rose-950/60'
+                      : isReturnPickup
+                      ? 'bg-amber-500 ring-4 ring-amber-100 dark:ring-amber-950/60'
+                      : isReturnDelivered
+                      ? 'bg-indigo-500 ring-4 ring-indigo-100 dark:ring-indigo-950/60'
+                      : idx === ledgerHistory.length - 1
+                      ? 'bg-[#00875A] ring-4 ring-emerald-100'
+                      : 'bg-slate-400';
+
+                    const meta = (item.metadata as any) || {};
+
+                    return (
+                      <div key={item.id || idx} className="relative">
+                        <div className={`absolute -left-6 top-1 w-3.5 h-3.5 rounded-full border-2 border-theme-surface ${dotBg}`} />
+
+                        <div className="p-3.5 rounded-2xl bg-theme-surface-subtle border border-theme-border/70 flex flex-col gap-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <h5 className="font-bold text-xs text-theme-text flex items-center gap-1.5">
+                              {isRefund && <span className="material-symbols-outlined text-[15px] text-emerald-600">verified</span>}
+                              {isFrozen && <span className="material-symbols-outlined text-[15px] text-rose-600">lock_clock</span>}
+                              {isReturnPickup && <span className="material-symbols-outlined text-[15px] text-amber-600">local_shipping</span>}
+                              {isReturnDelivered && <span className="material-symbols-outlined text-[15px] text-indigo-600">warehouse</span>}
+                              <span>{item.title || item.toStatus}</span>
+                            </h5>
+                            <span className="text-[11px] font-mono text-theme-text-muted">
+                              {new Date(item.createdAt).toLocaleDateString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </span>
+                          </div>
+
+                          {item.description && (
+                            <p className="text-[11.5px] text-theme-text-muted leading-relaxed">
+                              {item.description}
+                            </p>
+                          )}
+
+                          {/* Chi tiết tài khoản ngân hàng & mã vận đơn đối soát */}
+                          {(meta.buyerBankAccount || meta.reverseTrackingCode || meta.refundAmount || meta.subtotal) && (
+                            <div className="mt-1 p-2 rounded-xl bg-white/70 dark:bg-slate-900/60 border border-theme-border text-[11px] flex flex-col gap-1.5">
+                              {meta.reverseTrackingCode && (
+                                <div className="flex items-center gap-1.5 font-bold text-amber-800 dark:text-amber-300">
+                                  <span className="material-symbols-outlined text-[14px] text-amber-600">assignment_return</span>
+                                  <span>Mã vận đơn hoàn: </span>
+                                  <span className="font-mono text-amber-900 dark:text-amber-100">#{meta.reverseTrackingCode}</span>
+                                </div>
+                              )}
+                              {meta.buyerBankAccount && (
+                                <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300 flex-wrap">
+                                  <span className="material-symbols-outlined text-[14px] text-blue-600">credit_card</span>
+                                  <span>Tài khoản nhận tiền:</span>
+                                  <strong className="font-mono text-emerald-700 dark:text-emerald-400 font-bold">{meta.buyerBankAccount.accountNumber}</strong>
+                                  <span>({meta.buyerBankAccount.bankName} - {meta.buyerBankAccount.accountHolderName})</span>
+                                </div>
+                              )}
+                              {(meta.refundAmount || meta.subtotal) && (
+                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+                                  <span className="material-symbols-outlined text-[14px]">payments</span>
+                                  <span>Số tiền ghi nhận: {Number(meta.refundAmount || meta.subtotal).toLocaleString('vi-VN')} đ</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                              isAdmin
+                                ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300'
+                                : isShipper
+                                ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
+                                : isBuyer
+                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
+                                : 'bg-theme-surface-subtle text-theme-text-muted border-theme-border'
+                            }`}>
+                              <span className="material-symbols-outlined text-[12px]">
+                                {isAdmin ? 'shield_person' : isShipper ? 'two_wheeler' : isBuyer ? 'person' : 'storefront'}
+                              </span>
+                              <span>
+                                {isAdmin ? 'Ban Quản Trị Sàn' : isShipper ? 'Bưu Tá HuKi Express' : isBuyer ? 'Người Mua' : 'Gian Hàng Shop'}
+                              </span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end pt-3 border-t border-theme-border shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedLedgerOrder(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-theme-text hover:bg-theme-surface-subtle border border-theme-border cursor-pointer transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

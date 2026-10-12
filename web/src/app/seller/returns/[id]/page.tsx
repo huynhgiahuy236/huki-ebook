@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { orderApi, ReturnRequestData } from '@/ui/api/orderApi';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { playChatChimeSound } from '@/ui/utils/chatSound';
 
 import { SellerStatusBadge, SellerActionButton } from '@/ui/components/seller/SellerUI';
 
@@ -54,6 +56,28 @@ export default function SellerReturnDetailPage() {
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
+
+  // Lắng nghe phán quyết trọng tài realtime
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'DISPUTE_ARBITRATED') {
+        const payload: any = msg.payload || {};
+        if (!payload.returnRequestId || payload.returnRequestId === id) {
+          fetchDetail();
+          const isSellerWin = payload.ruling === 'SELLER_WINS';
+          playChatChimeSound();
+          showToast(
+            {
+              title: 'Phán quyết trọng tài sàn HUKI',
+              message: isSellerWin ? 'Người bán đã thắng kiện!' : 'Người mua đã thắng kiện!',
+            },
+            isSellerWin ? 'success' : 'error'
+          );
+        }
+      }
+    });
+    return () => unsub();
+  }, [id, fetchDetail, showToast]);
 
   const handleAccept = async () => {
     if (!returnReq) return;

@@ -150,6 +150,37 @@ export default function EscrowCountdown({
     }
   };
 
+  if (frozen) {
+    return (
+      <div className={`p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-xs ${className}`}>
+        <div className="flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-[26px] text-amber-600 dark:text-amber-400 animate-pulse">
+            lock_clock
+          </span>
+          <div>
+            <div className="text-xs font-black uppercase tracking-wider text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+              <span>Đã Đóng Băng Ký Quỹ (Escrow Frozen)</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-950 dark:text-amber-100 text-[10px] font-bold">
+                Tạm Dừng Giải Ngân
+              </span>
+            </div>
+            <div className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+              Đơn hàng đang có yêu cầu đổi trả/hoàn tiền. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) đang được Sàn tạm giữ an toàn để bảo vệ quyền lợi của bạn.
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => router.push(`/returns?orderId=${orderId}&subOrderId=${subOrderId}`)}
+          className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-xs inline-flex items-center gap-1"
+        >
+          <span className="material-symbols-outlined text-[15px]">history_edu</span>
+          <span>Xem Tiến Trình</span>
+        </button>
+      </div>
+    );
+  }
+
   if (isCompleted || secondsLeft <= 0) {
     return (
       <div className={`p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-200 flex items-center justify-between gap-3 ${className}`}>
@@ -166,33 +197,6 @@ export default function EscrowCountdown({
             </div>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  if (frozen) {
-    return (
-      <div className={`p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 ${className}`}>
-        <div className="flex items-center gap-2.5">
-          <span className="material-symbols-outlined text-[24px] text-amber-600 dark:text-amber-400 animate-pulse">
-            pause_circle
-          </span>
-          <div>
-            <div className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-400">
-              Ký Quỹ Tạm Khóa (Dispute Frozen)
-            </div>
-            <div className="text-xs text-amber-800/80 dark:text-amber-300/80">
-              Đơn hàng đang trong quy trình khiếu nại đổi trả. Tiền ký quỹ ({Number(amount).toLocaleString('vi-VN')}₫) được giữ an toàn.
-            </div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => router.push(`/returns?orderId=${orderId}&subOrderId=${subOrderId}`)}
-          className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 transition-all shrink-0 cursor-pointer"
-        >
-          Xem Tiến Trình
-        </button>
       </div>
     );
   }

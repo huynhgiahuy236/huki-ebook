@@ -53,93 +53,151 @@ export default function ShipperActiveDeliveriesView() {
       ) : (
         <div className="space-y-4">
           {activeDeliveries.map((order) => {
+            const isReturn = order.orderType === 'RETURN';
             const isPickingUp = order.status === 'PICKING_UP';
             const isInTransit = order.status === 'IN_TRANSIT';
-            const googleMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-              isPickingUp ? order.shopAddress : `${order.deliveryAddress}, ${order.deliveryProvince}`
+            const pickupMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              isReturn ? `${order.deliveryAddress}, ${order.deliveryProvince}` : order.shopAddress
+            )}`;
+            const dropoffMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+              isReturn ? order.shopAddress : `${order.deliveryAddress}, ${order.deliveryProvince}`
             )}`;
 
             return (
               <div
                 key={order.id}
-                className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border-2 border-[var(--theme-border,#e8e5df)] p-5 sm:p-6 shadow-xs space-y-4"
+                className={`bg-[var(--theme-surface,#ffffff)] rounded-2xl border-2 p-5 sm:p-6 shadow-xs space-y-4 transition-all ${
+                  isReturn
+                    ? 'border-purple-300 dark:border-purple-800/60 ring-2 ring-purple-500/10'
+                    : 'border-[var(--theme-border,#e8e5df)]'
+                }`}
               >
                 {/* Header & Status Indicator */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-[var(--theme-border,#e8e5df)] gap-2">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="font-black text-sm sm:text-base text-[var(--theme-text,#1c1b1f)]">
                       {order.code}
                     </span>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 ${
-                        isPickingUp
-                          ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
-                          : 'bg-emerald-100 text-emerald-900 border border-emerald-300 animate-pulse'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full bg-current"></span>
-                      <span>{isPickingUp ? 'BƯỚC 1: ĐẾN SHOP LẤY SÁCH' : 'BƯỚC 2: ĐANG GIAO ĐẾN KHÁCH'}</span>
-                    </span>
+                    {isReturn ? (
+                      <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 bg-purple-100 text-purple-900 border border-purple-300 dark:bg-purple-950/60 dark:text-purple-300 animate-pulse">
+                        <span className="w-2 h-2 rounded-full bg-purple-600"></span>
+                        <span>
+                          {isPickingUp
+                            ? 'LẤY HÀNG HOÀN • BƯỚC 1: ĐẾN NHÀ KHÁCH THU HỒI SÁCH'
+                            : 'LẤY HÀNG HOÀN • BƯỚC 2: VẬN CHUYỂN TRẢ VỀ KHO SHOP'}
+                        </span>
+                      </span>
+                    ) : (
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[11px] font-black flex items-center gap-1 ${
+                          isPickingUp
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300 animate-pulse'
+                            : 'bg-emerald-100 text-emerald-900 border border-emerald-300 animate-pulse'
+                        }`}
+                      >
+                        <span className="w-2 h-2 rounded-full bg-current"></span>
+                        <span>{isPickingUp ? 'BƯỚC 1: ĐẾN SHOP LẤY SÁCH' : 'BƯỚC 2: ĐANG GIAO ĐẾN KHÁCH'}</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-[var(--theme-text-muted,#49454f)]">
                       Cước công ship:{' '}
-                      <strong className="text-[#00875A] font-black text-sm">
+                      <strong className={`font-black text-sm ${isReturn ? 'text-purple-700 dark:text-purple-400' : 'text-[#00875A]'}`}>
                         +{order.shippingFee.toLocaleString('vi-VN')}đ
                       </strong>
                     </span>
-                    {order.codAmount > 0 && (
-                      <span className="px-2 py-0.5 bg-amber-50 rounded border border-amber-200 text-amber-800 font-bold text-[11px]">
-                        Thu COD: {order.codAmount.toLocaleString('vi-VN')}đ
+                    {isReturn ? (
+                      <span className="px-2 py-0.5 bg-purple-50 rounded border border-purple-200 text-purple-800 font-bold text-[11px]">
+                        COD: 0đ (Miễn phí khách)
                       </span>
+                    ) : (
+                      order.codAmount > 0 && (
+                        <span className="px-2 py-0.5 bg-amber-50 rounded border border-amber-200 text-amber-800 font-bold text-[11px]">
+                          Thu COD: {order.codAmount.toLocaleString('vi-VN')}đ
+                        </span>
+                      )
                     )}
                   </div>
                 </div>
 
+                {/* Return Reason Box if Reverse Logistics */}
+                {isReturn && order.returnReason && (
+                  <div className="p-3 bg-purple-50/70 dark:bg-purple-950/30 rounded-xl border border-purple-200 dark:border-purple-800/40 text-xs flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-purple-700 shrink-0 mt-0.5">info</span>
+                    <div>
+                      <strong className="text-purple-900 dark:text-purple-300 font-bold block">
+                        Lý do khách hoàn hàng:
+                      </strong>
+                      <span className="text-purple-800 dark:text-purple-400 font-medium">
+                        {order.returnReason}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Main Action Route Card */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  {/* Step 1: Shop Pickup */}
+                  {/* Step 1: Pickup Location */}
                   <div
                     className={`p-4 rounded-xl border transition-all ${
                       isPickingUp
-                        ? 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-500/20'
+                        ? isReturn
+                          ? 'bg-purple-50/60 border-purple-300 ring-2 ring-purple-500/20'
+                          : 'bg-amber-50/50 border-amber-300 ring-2 ring-amber-500/20'
                         : 'bg-neutral-50 dark:bg-neutral-800/40 border-neutral-200 opacity-80'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-300">
-                        <span className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px]">
+                      <div
+                        className={`flex items-center gap-1.5 font-bold ${
+                          isReturn ? 'text-purple-900 dark:text-purple-300' : 'text-amber-900 dark:text-amber-300'
+                        }`}
+                      >
+                        <span
+                          className={`w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] ${
+                            isReturn ? 'bg-purple-600' : 'bg-amber-500'
+                          }`}
+                        >
                           1
                         </span>
-                        <span>ĐIỂM LẤY SÁCH (SHOP)</span>
+                        <span>{isReturn ? 'ĐIỂM 1: THU HỒI SÁCH (NHÀ KHÁCH)' : 'ĐIỂM 1: LẤY SÁCH (SHOP)'}</span>
                       </div>
                       {!isPickingUp && (
                         <span className="text-[10.5px] text-emerald-600 font-bold flex items-center gap-0.5">
                           <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                          Đã lấy xong lúc {order.pickedUpAt}
+                          Đã lấy xong lúc {order.pickedUpAt || 'vừa xong'}
                         </span>
                       )}
                     </div>
 
-                    <p className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">{order.shopName}</p>
-                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">{order.shopAddress}</p>
-                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">Hotline Shop: {order.shopPhone}</p>
+                    <p className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">
+                      {isReturn ? order.customerName : order.shopName}
+                    </p>
+                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">
+                      {isReturn
+                        ? `${order.deliveryAddress}, ${order.deliveryWard}, ${order.deliveryDistrict}, ${order.deliveryProvince}`
+                        : order.shopAddress}
+                    </p>
+                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">
+                      Liên hệ: {isReturn ? `SĐT Khách: ${order.customerPhone}` : `Hotline Shop: ${order.shopPhone}`}
+                    </p>
 
                     {isPickingUp && (
-                      <div className="mt-3.5 pt-3 border-t border-amber-200/60 flex items-center gap-2">
+                      <div className="mt-3.5 pt-3 border-t border-[var(--theme-border,#e8e5df)] flex items-center gap-2">
                         <a
-                          href={`tel:${order.shopPhone}`}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-50 flex items-center gap-1 cursor-pointer"
+                          href={`tel:${isReturn ? order.customerPhone : order.shopPhone}`}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] font-bold text-xs hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">call</span>
-                          Gọi Shop
+                          {isReturn ? 'Gọi Khách' : 'Gọi Shop'}
                         </a>
                         <a
-                          href={googleMapUrl}
+                          href={pickupMapUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-50 flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg bg-white border border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] font-bold text-xs hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">navigation</span>
                           Chỉ đường
@@ -147,57 +205,81 @@ export default function ShipperActiveDeliveriesView() {
                         <button
                           type="button"
                           onClick={() => confirmPickup(order.id)}
-                          className="ml-auto px-4 py-1.5 rounded-lg bg-amber-600 text-white font-bold text-xs hover:bg-amber-700 shadow-xs flex items-center gap-1 cursor-pointer"
+                          className={`ml-auto px-4 py-1.5 rounded-lg text-white font-bold text-xs shadow-xs flex items-center gap-1 cursor-pointer transition-all ${
+                            isReturn
+                              ? 'bg-purple-600 hover:bg-purple-700'
+                              : 'bg-amber-600 hover:bg-amber-700'
+                          }`}
                         >
                           <span className="material-symbols-outlined text-[16px]">check</span>
-                          Xác Nhận Đã Nhận Hàng
+                          <span>{isReturn ? 'Đã Nhận Sách Hoàn Từ Khách' : 'Xác Nhận Đã Nhận Hàng'}</span>
                         </button>
                       </div>
                     )}
                   </div>
 
-                  {/* Step 2: Customer Destination */}
+                  {/* Step 2: Dropoff Location */}
                   <div
                     className={`p-4 rounded-xl border transition-all ${
                       isInTransit
-                        ? 'bg-emerald-50/50 border-emerald-300 ring-2 ring-emerald-500/20'
+                        ? isReturn
+                          ? 'bg-indigo-50/60 border-indigo-300 ring-2 ring-indigo-500/20'
+                          : 'bg-emerald-50/50 border-emerald-300 ring-2 ring-emerald-500/20'
                         : 'bg-neutral-50 dark:bg-neutral-800/40 border-neutral-200 opacity-80'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-900 dark:text-emerald-300">
-                        <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">
+                      <div
+                        className={`flex items-center gap-1.5 font-bold ${
+                          isReturn ? 'text-indigo-900 dark:text-indigo-300' : 'text-emerald-900 dark:text-emerald-300'
+                        }`}
+                      >
+                        <span
+                          className={`w-5 h-5 rounded-full text-white flex items-center justify-center text-[10px] ${
+                            isReturn ? 'bg-indigo-600' : 'bg-emerald-600'
+                          }`}
+                        >
                           2
                         </span>
-                        <span>ĐIỂM GIAO SÁCH (NGƯỜI NHẬN)</span>
+                        <span>{isReturn ? 'ĐIỂM 2: TRẢ HÀNG VỀ KHO (SHOP/NXB)' : 'ĐIỂM 2: GIAO SÁCH (NGƯỜI NHẬN)'}</span>
                       </div>
                       {isInTransit && (
-                        <span className="text-[10.5px] text-emerald-700 font-bold animate-pulse">
-                          Đang trên đường giao...
+                        <span
+                          className={`text-[10.5px] font-bold animate-pulse ${
+                            isReturn ? 'text-indigo-700' : 'text-emerald-700'
+                          }`}
+                        >
+                          {isReturn ? 'Đang chuyển về kho Shop...' : 'Đang trên đường giao...'}
                         </span>
                       )}
                     </div>
 
-                    <p className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">{order.customerName}</p>
-                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">
-                      {order.deliveryAddress}, {order.deliveryWard}, {order.deliveryDistrict}, {order.deliveryProvince}
+                    <p className="font-bold text-sm text-[var(--theme-text,#1c1b1f)]">
+                      {isReturn ? order.shopName : order.customerName}
                     </p>
-                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">SĐT Khách: {order.customerPhone}</p>
+                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">
+                      {isReturn
+                        ? order.shopAddress
+                        : `${order.deliveryAddress}, ${order.deliveryWard}, ${order.deliveryDistrict}, ${order.deliveryProvince}`}
+                    </p>
+                    <p className="text-[var(--theme-text-muted,#49454f)] mt-0.5">
+                      Liên hệ: {isReturn ? `Hotline Shop: ${order.shopPhone}` : `SĐT Khách: ${order.customerPhone}`}
+                    </p>
 
                     {isInTransit && (
-                      <div className="mt-3.5 pt-3 border-t border-emerald-200/60 flex items-center gap-2">
+                      <div className="mt-3.5 pt-3 border-t border-[var(--theme-border,#e8e5df)] flex items-center gap-2">
                         <a
-                          href={`tel:${order.customerPhone}`}
-                          className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 font-bold text-xs hover:bg-emerald-50 flex items-center gap-1 cursor-pointer"
+                          href={`tel:${isReturn ? order.shopPhone : order.customerPhone}`}
+                          className="px-3 py-1.5 rounded-lg bg-white border border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] font-bold text-xs hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">call</span>
-                          Gọi Khách
+                          {isReturn ? 'Gọi Shop' : 'Gọi Khách'}
                         </a>
                         <a
-                          href={googleMapUrl}
+                          href={dropoffMapUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-3 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-900 font-bold text-xs hover:bg-emerald-50 flex items-center gap-1 cursor-pointer"
+                          className="px-3 py-1.5 rounded-lg bg-white border border-[var(--theme-border,#e8e5df)] text-[var(--theme-text,#1c1b1f)] font-bold text-xs hover:bg-neutral-50 flex items-center gap-1 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[15px]">navigation</span>
                           Chỉ đường
@@ -210,7 +292,7 @@ export default function ShipperActiveDeliveriesView() {
                 {/* Items in Parcel */}
                 <div className="p-3 bg-[var(--theme-background,#F2FBF9)]/60 rounded-xl border border-[var(--theme-border,#e8e5df)] text-xs">
                   <span className="font-bold text-[var(--theme-text,#1c1b1f)] block mb-1">
-                    Chi tiết kiện sách cần giao:
+                    {isReturn ? 'Chi tiết sách hoàn cần bàn giao về kho:' : 'Chi tiết kiện sách cần giao:'}
                   </span>
                   <div className="flex items-center gap-4 flex-wrap">
                     {order.items.map((item, idx) => (
@@ -226,29 +308,43 @@ export default function ShipperActiveDeliveriesView() {
                   <div className="pt-3 border-t border-[var(--theme-border,#e8e5df)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <span className="text-xs text-[var(--theme-text-muted,#49454f)] block">
-                        Số tiền cần thu từ người nhận:
+                        {isReturn ? 'Tiền thu từ khách/shop:' : 'Số tiền cần thu từ người nhận:'}
                       </span>
-                      <strong className="text-base sm:text-lg font-black text-amber-700 block">
-                        {order.codAmount > 0 ? `${order.codAmount.toLocaleString('vi-VN')}đ (Tiền mặt COD)` : '0đ (Khách đã thanh toán trực tuyến)'}
+                      <strong
+                        className={`text-base sm:text-lg font-black block ${
+                          isReturn ? 'text-purple-700' : 'text-amber-700'
+                        }`}
+                      >
+                        {isReturn
+                          ? '0đ (Đơn thu hồi đổi trả miễn phí)'
+                          : order.codAmount > 0
+                          ? `${order.codAmount.toLocaleString('vi-VN')}đ (Tiền mặt COD)`
+                          : '0đ (Khách đã thanh toán trực tuyến)'}
                       </strong>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedOrderToFail(order.id)}
-                        className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition-all cursor-pointer"
-                      >
-                        Báo Giao Thất Bại
-                      </button>
+                      {!isReturn && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrderToFail(order.id)}
+                          className="px-4 py-2.5 rounded-xl border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-bold transition-all cursor-pointer"
+                        >
+                          Báo Giao Thất Bại
+                        </button>
+                      )}
 
                       <button
                         type="button"
                         onClick={() => completeDelivery(order.id)}
-                        className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#00875A] to-[#005a40] text-white text-xs sm:text-sm font-black hover:opacity-95 shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                        className={`px-6 py-2.5 rounded-xl text-white text-xs sm:text-sm font-black hover:opacity-95 shadow-sm transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isReturn
+                            ? 'bg-gradient-to-r from-purple-700 to-indigo-800'
+                            : 'bg-gradient-to-r from-[#00875A] to-[#005a40]'
+                        }`}
                       >
                         <span className="material-symbols-outlined text-[18px]">verified</span>
-                        <span>Xác Nhận Giao &amp; Thu Tiền</span>
+                        <span>{isReturn ? 'Xác Nhận Đã Bàn Giao Về Kho Shop' : 'Xác Nhận Giao & Thu Tiền'}</span>
                       </button>
                     </div>
                   </div>

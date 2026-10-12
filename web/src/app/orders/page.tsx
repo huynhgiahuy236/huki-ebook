@@ -142,6 +142,39 @@ export default function OrdersPage() {
     fetchReturnRequests();
   }, [fetchOrders, fetchReturnRequests]);
 
+  // Lắng nghe cập nhật khiếu nại & phán quyết trọng tài realtime cho Buyer
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'RETURN_SELLER_ACCEPTED' ||
+        msg.type === 'RETURN_SELLER_DISPUTED' ||
+        msg.type === 'DISPUTE_ARBITRATED' ||
+        msg.type === 'RETURN_REPLACEMENT_SHIPPED' ||
+        msg.type === 'RETURN_REQUESTED'
+      ) {
+        fetchReturnRequests();
+        fetchOrders(true);
+
+        if (msg.type === 'RETURN_SELLER_ACCEPTED') {
+          showToast('Shop đã chấp thuận yêu cầu đổi trả của bạn!', 'success');
+        } else if (msg.type === 'RETURN_SELLER_DISPUTED') {
+          showToast('Shop đã phản biện yêu cầu, hồ sơ được chuyển lên Ban Trọng Tài Sàn.', 'info');
+        } else if (msg.type === 'DISPUTE_ARBITRATED') {
+          const payload: any = msg.payload || {};
+          if (payload.ruling === 'BUYER_WINS') {
+            showToast('🎉 Bạn đã thắng kiện trọng tài! Tiền đang được hoàn trả về ví.', 'success');
+          } else {
+            showToast('Sàn đã ban hành phán quyết trọng tài.', 'warning');
+          }
+        } else if (msg.type === 'RETURN_REPLACEMENT_SHIPPED') {
+          const payload: any = msg.payload || {};
+          showToast(`Shop đã gửi hàng đổi mới! Mã vận đơn: ${payload.trackingCode || 'Đang cập nhật'}`, 'info');
+        }
+      }
+    });
+    return () => unsub();
+  }, [fetchReturnRequests, fetchOrders, showToast]);
+
   // Status Translator matching Shopee style
   const getStatusBadge = (orderOrStatus: any) => {
     let statusStr = '';

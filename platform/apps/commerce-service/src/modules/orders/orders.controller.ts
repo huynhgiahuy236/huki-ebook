@@ -333,9 +333,9 @@ export class OrdersController {
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   tracking(
     @CurrentBookActor() actor: BookActor,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
   ) {
-    return this.orders.tracking(actor.sub, id);
+    return this.orders.tracking(actor?.sub, id, actor);
   }
 
   @Get(':id/history')
@@ -343,16 +343,16 @@ export class OrdersController {
     summary: 'Get order status history',
     description: 'Returns the complete status change history for an order.',
   })
-  @ApiParam({ name: 'id', description: 'Order ID' })
+  @ApiParam({ name: 'id', description: 'Order ID or Order Code' })
   @ApiResponse({ status: 200, description: 'Order status history' })
   @ApiNotFoundResponse({ description: 'Order not found' })
   @ApiForbiddenResponse({ description: 'Order does not belong to user' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
   history(
     @CurrentBookActor() actor: BookActor,
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
   ) {
-    return this.orders.tracking(actor.sub, id);
+    return this.orders.tracking(actor?.sub, id, actor);
   }
 
   @Post(':id/cancel')

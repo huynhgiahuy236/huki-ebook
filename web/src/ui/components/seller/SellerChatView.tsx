@@ -7,6 +7,8 @@ import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import { chatService, type ChatConversation, type ChatMessage } from '@/ui/services/chatService';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
+import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface SellerChatMessage {
   id: string | number;
@@ -64,6 +66,11 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const [showRightPanel, setShowRightPanel] = useState(true);
   const [messageInput, setMessageInput] = useState('');
   const [internalNote, setInternalNote] = useState('');
+
+  // Typing indicators
+  const [customerTyping, setCustomerTyping] = useState<Record<string, boolean>>({});
+  const customerTypingTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const sellerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Tin nhắn theo từng khách hàng (trống khi chưa có dữ liệu từ DB/API)
   const [messagesByCustomer, setMessagesByCustomer] = useState<Record<string, SellerChatMessage[]>>({});
@@ -219,6 +226,15 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
       });
     });
 
+    if (incomingMsg.senderType === 'USER' || incomingMsg.senderType !== 'BUSINESS') {
+      playChatPopSound();
+      realtimeSyncBus.publish('CHAT_MESSAGE_RECEIVED', {
+        messageId: incomingMsg.id,
+        conversationId: convId,
+      });
+      setCustomerTyping((prev) => ({ ...prev, [convId]: false }));
+    }
+
     if (convId === activeCustomerId && incomingMsg.senderType === 'USER') {
       markAsRead(convId, storeId);
     }
@@ -239,10 +255,25 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     }
   }, []);
 
-  const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead } = useChatSocket({
+  const onUserTyping = useCallback((data: { conversationId: string; userId: string; isTyping: boolean }) => {
+    const convId = data.conversationId;
+    if (!convId) return;
+    setCustomerTyping((prev) => ({ ...prev, [convId]: data.isTyping }));
+    if (data.isTyping) {
+      if (customerTypingTimeoutRef.current[convId]) {
+        clearTimeout(customerTypingTimeoutRef.current[convId]);
+      }
+      customerTypingTimeoutRef.current[convId] = setTimeout(() => {
+        setCustomerTyping((prev) => ({ ...prev, [convId]: false }));
+      }, 3500);
+    }
+  }, []);
+
+  const { isConnected, joinConversation, leaveConversation, sendMessage: sendSocketMessage, markAsRead, setTyping } = useChatSocket({
     storeId,
     onMessageReceived,
     onMessageRead,
+    onUserTyping,
   });
 
   // 3. Tải tin nhắn khi chọn khách hàng
@@ -339,6 +370,9 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     );
 
     setMessageInput('');
+    playMessageSentSound();
+    setTyping(currentCustomer.id, false, storeId);
+    if (sellerTypingTimeoutRef.current) clearTimeout(sellerTypingTimeoutRef.current);
 
     try {
       if (isConnected) {
@@ -357,6 +391,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
       console.error('Lỗi gửi tin nhắn seller:', err);
       showToast?.('Không thể gửi tin nhắn. Vui lòng kiểm tra lại kết nối!', 'error');
     }
+  };
+
+  const handleTypingInput = (val: string) => {
+    setMessageInput(val);
+    if (!currentCustomer) return;
+    setTyping(currentCustomer.id, true, storeId);
+    if (sellerTypingTimeoutRef.current) clearTimeout(sellerTypingTimeoutRef.current);
+    sellerTypingTimeoutRef.current = setTimeout(() => {
+      setTyping(currentCustomer.id, false, storeId);
+    }, 2000);
   };
 
   // Tặng voucher độc quyền
@@ -822,12 +866,33 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                           </div>
                         )}
 
-                        <div className={`flex items-center gap-1 text-[10px] text-slate-400 ${isSeller ? 'justify-end' : 'justify-start'
+                        <div className={`flex items-center gap-1.5 text-[10px] text-slate-400 ${isSeller ? 'justify-end' : 'justify-start'
                           }`}>
                           <span>{msg.time}</span>
                           {isSeller && (
-                            <span className="material-symbols-outlined text-xs text-emerald-600 font-bold">
-                              done_all
+                            <span className="flex items-center gap-0.5 text-[9.5px]">
+                              {msg.status === 'read' ? (
+                                <>
+                                  <span className="material-symbols-outlined text-[13px] text-emerald-600 font-bold">
+                                    done_all
+                                  </span>
+                                  <span className="text-emerald-700 font-medium">Đã xem</span>
+                                </>
+                              ) : msg.status === 'delivered' ? (
+                                <>
+                                  <span className="material-symbols-outlined text-[13px] text-slate-400 font-bold">
+                                    done_all
+                                  </span>
+                                  <span className="text-slate-400">Đã nhận</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span className="material-symbols-outlined text-[13px] text-slate-400">
+                                    done
+                                  </span>
+                                  <span className="text-slate-400">Đã gửi</span>
+                                </>
+                              )}
                             </span>
                           )}
                         </div>
@@ -835,6 +900,16 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                     </div>
                   );
                 })}
+
+                {/* Live Typing Indicator */}
+                {customerTyping[activeCustomerId] && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 italic bg-white border border-slate-200/80 px-3 py-1.5 rounded-full w-fit shadow-2xs animate-in fade-in">
+                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                    <span className="text-[11px] font-medium ml-1">Khách hàng đang soạn tin...</span>
+                  </div>
+                )}
 
                 <div ref={messagesEndRef} />
 
@@ -905,7 +980,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 <input
                   type="text"
                   value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
+                  onChange={(e) => handleTypingInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();

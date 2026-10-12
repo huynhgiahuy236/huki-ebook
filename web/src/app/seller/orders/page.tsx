@@ -271,7 +271,12 @@ function SellerOrdersContent() {
     const unsubscribe = realtimeSyncBus.subscribe((msg) => {
       if (msg.type === 'ORDER_CREATED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') {
         loadData(true);
-      } else if (msg.type === 'ORDER_STATUS_CHANGED' || msg.type === 'ORDER_CANCELLED') {
+      } else if (
+        msg.type === 'ORDER_STATUS_CHANGED' ||
+        msg.type === 'ORDER_CANCELLED' ||
+        msg.type === 'SHIPPER_PICKED_UP' ||
+        msg.type === 'SHIPPER_DELIVERED'
+      ) {
         loadData(true);
       }
     });
@@ -374,13 +379,14 @@ function SellerOrdersContent() {
     return filteredOrders.slice(start, start + pageSize);
   }, [filteredOrders, validPage, pageSize]);
 
-  // Order Handlers
   const handleConfirm = async (orderId: string) => {
     setActionLoading(true);
     try {
       const res = await orderApi.confirmOrder(orderId);
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã xác nhận đơn hàng thành công!', type: 'success' });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId, status: 'CONFIRMED' });
+        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId, status: 'CONFIRMED' });
         await loadData();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể xác nhận đơn hàng', type: 'error' });
@@ -398,6 +404,8 @@ function SellerOrdersContent() {
       const res = await orderApi.prepareOrder(orderId);
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã chuyển đơn hàng sang trạng thái đóng gói!', type: 'success' });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId, status: 'PREPARING' });
+        realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId, status: 'PREPARING' });
         await loadData();
       } else {
         showToast?.({ title: 'Lỗi', message: res.error?.message || 'Không thể chuẩn bị đơn hàng', type: 'error' });
@@ -417,14 +425,17 @@ function SellerOrdersContent() {
       return;
     }
 
+    const orderIdToShip = activeActionBox.order.id;
     setActionLoading(true);
     try {
-      const res = await orderApi.shipOrder(activeActionBox.order.id, {
+      const res = await orderApi.shipOrder(orderIdToShip, {
         carrier,
         trackingCode: trackingCode.trim(),
       });
       if (res.success) {
         showToast?.({ title: 'Thành công', message: 'Đã bàn giao cho đơn vị vận chuyển thành công!', type: 'success' });
+        realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: orderIdToShip, status: 'SHIPPED' });
+        realtimeSyncBus.publish('SHIPPER_PICKED_UP', { orderId: orderIdToShip });
         setActiveActionBox(null);
         setTrackingCode('');
         await loadData();

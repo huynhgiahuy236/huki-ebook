@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ShipperProvider, useShipper } from '@/ui/context/ShipperContext';
@@ -22,12 +22,89 @@ export interface ShipperMenuSection {
 function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || '';
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isLoggedIn, isLoading } = useAuth();
   const { isOnline, setIsOnline, profile, availableOrders, activeDeliveries, wallet, resetDemoData } = useShipper();
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const isShipper = Boolean(
+    user?.role === 'DELIVERY_STAFF' ||
+    user?.role === 'SHIPPER' ||
+    (user as any)?.role === 'DELIVERY_STAFF' ||
+    (user as any)?.role === 'SHIPPER' ||
+    user?.role === 'PLATFORM_ADMIN'
+  );
+
+  // Protected route guard: Redirect unauthenticated users to /shipper/login
+  useEffect(() => {
+    if (pathname === '/shipper/login') return;
+    if (!isLoading && !isLoggedIn) {
+      router.replace('/shipper/login');
+    }
+  }, [pathname, isLoading, isLoggedIn, router]);
+
+  // If on shipper login page, render full-bleed standalone layout
+  if (pathname === '/shipper/login') {
+    return <>{children}</>;
+  }
+
+  // Loading state while verifying identity
+  if (isLoading) {
+    return (
+      <div className="h-screen w-full bg-[#0c1815] text-white flex flex-col items-center justify-center gap-3">
+        <span className="w-8 h-8 border-3 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-bold text-emerald-300 uppercase tracking-widest">
+          Đang Xác Thực Ca Bưu Tá HuKi Express...
+        </span>
+      </div>
+    );
+  }
+
+  // If not logged in, hold rendering until redirect occurs
+  if (!isLoggedIn) {
+    return null;
+  }
+
+  // Role Access Denied Screen: If logged in as USER or BUSINESS
+  if (!isShipper) {
+    return (
+      <div className="min-h-screen w-full bg-gradient-to-br from-[#0c1815] via-[#102420] to-[#091412] text-white flex items-center justify-center p-4 selection:bg-[#003B2B] selection:text-white">
+        <div className="max-w-md w-full bg-white/5 border border-white/10 backdrop-blur-xl rounded-3xl p-6 sm:p-8 text-center shadow-2xl shadow-black/60">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-400/40 flex items-center justify-center mx-auto mb-4 text-rose-300 shadow-lg">
+            <span className="material-symbols-outlined text-[36px]">no_accounts</span>
+          </div>
+          <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-400/30 mb-2">
+            403 &bull; Quyền Truy Cập Bị Giới Hạn
+          </span>
+          <h2 className="text-xl font-black text-white tracking-tight">Khu Vực Bưu Tá HuKi Express</h2>
+          <p className="text-xs text-white/70 mt-2.5 leading-relaxed">
+            Tài khoản hiện tại của bạn (<strong>{user?.email}</strong> &bull; Vai trò: <em className="text-amber-300 font-semibold">{user?.role}</em>) không thuộc danh sách đối tác bưu tá được cấp phép (Cách A).
+          </p>
+          <div className="mt-6 flex flex-col gap-2.5">
+            <button
+              onClick={async () => {
+                await logout();
+                router.replace('/shipper/login');
+              }}
+              className="w-full py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black text-xs uppercase tracking-wider transition-colors cursor-pointer shadow-md flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">swap_horiz</span>
+              <span>Đăng Xuất &amp; Đổi Tài Khoản Bưu Tá</span>
+            </button>
+            <Link
+              href="/"
+              className="w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-colors border border-white/10 flex items-center justify-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-[16px]">home</span>
+              <span>Quay Về Trang Mua Sách</span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const routeMap: Record<string, { parent: string; title: string }> = {
     '/shipper': { parent: 'Điều Hành Giao Hàng', title: 'Bảng Điều Khiển Bưu Tá' },
@@ -101,7 +178,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleLogout = async () => {
     await logout();
-    router.push('/auth/login');
+    router.push('/shipper/login');
   };
 
   return (

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { orderApi, ReturnRequestData } from '@/ui/api/orderApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { playSellerOrderChimeSound } from '@/ui/utils/chatSound';
 import {
   SellerStatusBadge,
   SellerFilterTabs,
@@ -55,6 +57,33 @@ export default function SellerReturnsPage() {
   useEffect(() => {
     fetchReturns();
   }, [fetchReturns]);
+
+  // Lắng nghe cập nhật khiếu nại & phán quyết trọng tài realtime
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'RETURN_REQUESTED' || msg.type === 'RETURN_FORWARDED') {
+        fetchReturns();
+        playSellerOrderChimeSound();
+        showToast('⚠️ Có yêu cầu đổi trả / hoàn tiền mới từ khách hàng!', 'warning');
+      } else if (msg.type === 'DISPUTE_ARBITRATED') {
+        fetchReturns();
+        const payload: any = msg.payload || {};
+        const isSellerWin = payload.ruling === 'SELLER_WINS';
+        playSellerOrderChimeSound();
+        showToast(
+          `⚖️ Phán quyết trọng tài sàn HUKI: ${isSellerWin ? 'Người bán thắng kiện' : 'Người mua thắng kiện'}`,
+          isSellerWin ? 'success' : 'error'
+        );
+      } else if (
+        msg.type === 'RETURN_SELLER_ACCEPTED' ||
+        msg.type === 'RETURN_SELLER_DISPUTED' ||
+        msg.type === 'RETURN_REPLACEMENT_SHIPPED'
+      ) {
+        fetchReturns();
+      }
+    }, { role: 'SELLER' });
+    return () => unsub();
+  }, [fetchReturns, showToast]);
 
   const filteredReturns = useMemo(() => {
     return returns.filter((it) => {

@@ -2,6 +2,7 @@ import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 import type { BusinessData, StoreData } from './businessApi';
 import type { BookData } from './catalogApi';
+import { realtimeSyncBus } from '../services/realtimeSyncBus';
 
 export interface AdminServiceCheck {
   service: string;
@@ -232,10 +233,27 @@ export const adminApi = {
    * Ban hành phán quyết trọng tài Platform Admin (Task 64 / POL-12)
    */
   async arbitrateDispute(disputeId: string, payload: ArbitrateDisputePayload): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/orders/admin/disputes/${disputeId}/arbitrate`, {
+    const res = await apiClient<any>(`/orders/admin/disputes/${disputeId}/arbitrate`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('DISPUTE_ARBITRATED', {
+        disputeId,
+        returnRequestId: disputeId,
+        ruling: payload.ruling,
+        notes: payload.notes,
+        refundPercentage: payload.refundPercentage,
+        arbitratedAt: new Date().toISOString(),
+      });
+      // Also unfreeze or refund escrow in realtime
+      if (payload.ruling === 'BUYER_WINS') {
+        realtimeSyncBus.publish('ESCROW_UPDATED', { disputeId, action: 'REFUNDED' });
+      } else if (payload.ruling === 'SELLER_WINS') {
+        realtimeSyncBus.publish('ESCROW_UNFROZEN', { disputeId, action: 'UNFROZEN' });
+      }
+    }
+    return res;
   },
   /**
    * Lấy danh sách doanh nghiệp dành riêng cho Admin HUKI
@@ -535,9 +553,16 @@ export const adminApi = {
    * Admin gửi yêu cầu đổi trả đến cửa hàng
    */
   async forwardReturnRequestToSeller(id: string): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/orders/admin/returns/${id}/forward`, {
+    const res = await apiClient<any>(`/orders/admin/returns/${id}/forward`, {
       method: 'POST',
     });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_FORWARDED', {
+        returnRequestId: id,
+        status: 'FORWARDED_TO_SELLER',
+      });
+    }
+    return res;
   },
 
   /**
@@ -547,10 +572,25 @@ export const adminApi = {
     id: string,
     dto: { ruling: 'BUYER_WINS' | 'SELLER_WINS'; reason: string },
   ): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/orders/admin/returns/${id}/arbitrate`, {
+    const res = await apiClient<any>(`/orders/admin/returns/${id}/arbitrate`, {
       method: 'POST',
       body: JSON.stringify(dto),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('DISPUTE_ARBITRATED', {
+        returnRequestId: id,
+        disputeId: id,
+        ruling: dto.ruling,
+        notes: dto.reason,
+        arbitratedAt: new Date().toISOString(),
+      });
+      if (dto.ruling === 'BUYER_WINS') {
+        realtimeSyncBus.publish('ESCROW_UPDATED', { returnRequestId: id, action: 'REFUNDED' });
+      } else if (dto.ruling === 'SELLER_WINS') {
+        realtimeSyncBus.publish('ESCROW_UNFROZEN', { returnRequestId: id, action: 'UNFROZEN' });
+      }
+    }
+    return res;
   },
 
   /**

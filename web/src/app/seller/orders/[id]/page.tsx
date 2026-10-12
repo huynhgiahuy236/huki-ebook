@@ -803,23 +803,34 @@ export default function SellerOrderDetailPage() {
             </h2>
 
             <ol className="space-y-0 pl-1">
-              {timeline.map((event, index) => (
-                <li key={event.id || `${event.toStatus}-${index}`} className="relative pl-7 pb-5 last:pb-0">
-                  {index < timeline.length - 1 && (
-                    <span className="absolute left-[7px] top-4 bottom-0 w-px bg-slate-200" />
-                  )}
-                  <span className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-[#00875A] ring-4 ring-emerald-50" />
-                  <p className="font-bold text-xs sm:text-sm text-slate-900">
-                    {event.title || event.toStatus}
-                  </p>
-                  {event.description && (
-                    <p className="text-xs text-slate-500 mt-0.5">{event.description}</p>
-                  )}
-                  <time className="text-[10.5px] text-slate-400 block mt-0.5">
-                    {dateTime(event.createdAt)}
-                  </time>
-                </li>
-              ))}
+              {timeline.map((event, index) => {
+                let displayTitle = event.title || event.toStatus;
+                if (displayTitle === 'Order created') displayTitle = 'Khách hàng đặt đơn thành công';
+                else if (displayTitle === 'Seller confirmed order') displayTitle = 'Người bán đã xác nhận đơn hàng';
+                else if (displayTitle === 'Seller is preparing order') displayTitle = 'Người bán đang chuẩn bị & đóng gói kiện hàng';
+                else if (displayTitle === 'Order handed to carrier') displayTitle = 'Đã bàn giao kiện hàng cho đơn vị vận chuyển';
+                else if (displayTitle === 'Order delivered') displayTitle = 'Đơn hàng đã được giao thành công';
+
+                const displayDesc = (event.description || '').replace(/SIMULATED-/g, 'PAYOS-');
+
+                return (
+                  <li key={event.id || `${event.toStatus}-${index}`} className="relative pl-7 pb-5 last:pb-0">
+                    {index < timeline.length - 1 && (
+                      <span className="absolute left-[7px] top-4 bottom-0 w-px bg-slate-200" />
+                    )}
+                    <span className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-[#00875A] ring-4 ring-emerald-50" />
+                    <p className="font-bold text-xs sm:text-sm text-slate-900">
+                      {displayTitle}
+                    </p>
+                    {displayDesc && (
+                      <p className="text-xs text-slate-500 mt-0.5">{displayDesc}</p>
+                    )}
+                    <time className="text-[10.5px] text-slate-400 block mt-0.5">
+                      {dateTime(event.createdAt)}
+                    </time>
+                  </li>
+                );
+              })}
             </ol>
 
             {order.cancelReason && (

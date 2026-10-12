@@ -65,3 +65,15 @@ Rooms:
 * **Test Case 1 (Return Request Creation):** Buyer gửi yêu cầu $\to$ Seller nhận cảnh báo ngay lập tức trên trang `seller/returns`.
 * **Test Case 2 (Admin Ruling Broadcast):** Admin chọn 1 vụ việc đang tranh chấp, click phán quyết "Buyer Wins" $\to$ Kiểm tra cả Buyer và Seller đều nhận được socket payload và giao diện đổi màu chuẩn.
 * **Test Case 3 (Automated Refund Trigger):** Kiểm tra sau khi phán quyết nổ ra, event hoàn tiền bên module RT-06 (Ví & Tài chính) có tự động kích hoạt hay không.
+
+---
+
+## 🏆 5. KẾT QUẢ NGHIỆM THU (VERIFICATION RESULTS)
+* **Trạng thái:** ✅ **HOÀN THÀNH 100% (VERIFIED)**
+* **Script kiểm thử:** [`scripts/test-realtime-dispute-rma.mjs`](file:///e:/HuKi/scripts/test-realtime-dispute-rma.mjs)
+* **Kênh Realtime Sync:** `realtimeSyncBus` (`RETURN_REQUESTED`, `RETURN_FORWARDED`, `RETURN_SELLER_ACCEPTED`, `RETURN_SELLER_DISPUTED`, `DISPUTE_ARBITRATED`, `RETURN_REPLACEMENT_SHIPPED`).
+* **Hỗ trợ âm thanh & Toast:**
+  - Seller nhận tiếng chuông báo khi có yêu cầu đổi trả hoặc chuyển tiếp từ Admin.
+  - Buyer nhận Toast chúc mừng thắng kiện & thông báo hoàn tiền về ví khi Admin chọn `BUYER_WINS`.
+  - Admin nhận Toast cảnh báo khi Seller phản biện yêu cầu để mở bàn trọng tài.
+  - Escrow tự động unfreeze (`SELLER_WINS`) hoặc hoàn tiền (`BUYER_WINS`) theo phân xử.

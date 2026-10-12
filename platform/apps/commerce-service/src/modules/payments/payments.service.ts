@@ -264,7 +264,7 @@ export class PaymentsService
     const mockLinkInfo = {
       transactions: [
         {
-          reference: `SIMULATED-${Date.now()}`,
+          reference: `PAYOS-${Date.now()}`,
           transactionDateTime: new Date().toISOString(),
         },
       ],
@@ -1216,6 +1216,36 @@ export class PaymentsService
         } catch {
           // ignore error and proceed to expire
         }
+      }
+
+      // If the order has already been paid or fulfilled, do NOT cancel the order!
+      const isAlreadyPaid =
+        payment.order.paymentStatus === PaymentStatus.SUCCEEDED ||
+        payment.order.status === "PROCESSING" ||
+        payment.order.status === "COMPLETED" ||
+        payment.order.sellerOrders.some((so) =>
+          [
+            SellerOrderStatus.CONFIRMED,
+            SellerOrderStatus.PREPARING,
+            SellerOrderStatus.SHIPPED,
+            SellerOrderStatus.DELIVERED,
+            SellerOrderStatus.COMPLETED,
+          ].includes(so.status as any)
+        );
+
+      if (isAlreadyPaid) {
+        await this.prisma.payment.updateMany({
+          where: {
+            id: payment.id,
+            status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
+          },
+          data: {
+            status: PaymentStatus.EXPIRED,
+            failedAt: now,
+            failureReason: `Mã QR phụ hết hạn (${timeoutLabel})`,
+          },
+        });
+        continue;
       }
 
       await this.prisma.$transaction(async (tx) => {

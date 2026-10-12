@@ -195,7 +195,7 @@ export class OrdersService {
           ? SellerOrderStatus.CONFIRMED
           : SellerOrderStatus.COMPLETED;
       },
-      "Seller confirmed order",
+      "Người bán đã xác nhận đơn hàng",
     );
   }
 
@@ -207,7 +207,7 @@ export class OrdersService {
       async () => {
         return SellerOrderStatus.PREPARING;
       },
-      "Seller is preparing order",
+      "Người bán đang chuẩn bị & đóng gói kiện hàng",
     );
   }
 
@@ -231,7 +231,7 @@ export class OrdersService {
         });
         return SellerOrderStatus.SHIPPED;
       },
-      "Order handed to carrier",
+      "Đã bàn giao kiện hàng cho đơn vị vận chuyển",
       { carrier: dto.carrier, trackingCode: dto.trackingCode },
     );
   }
@@ -248,7 +248,7 @@ export class OrdersService {
         });
         return SellerOrderStatus.COMPLETED;
       },
-      "Order delivered",
+      "Đơn hàng đã được giao thành công",
     );
   }
 
@@ -774,22 +774,39 @@ export class OrdersService {
     return sellerOrder;
   }
 
-  async tracking(userId: string, id: string) {
+  async tracking(userId: string, id: string, actor?: BookActor) {
+    const isAdmin =
+      actor?.role === 'PLATFORM_ADMIN' ||
+      actor?.role === 'ADMIN' ||
+      (actor as any)?.isPlatformAdmin ||
+      !userId ||
+      userId === 'admin_system';
+
+    const whereClause: any = isAdmin
+      ? { OR: [{ id }, { code: id }] }
+      : {
+          AND: [
+            { OR: [{ id }, { code: id }] },
+            { userId },
+          ],
+        };
+
     const order = await this.prisma.order.findFirst({
-      where: { id, userId },
+      where: whereClause,
       include: { sellerOrders: { include: { items: true } } },
     });
     if (!order) throwNotFound(ErrorCode.ORDER_NOT_FOUND);
 
     const timeline = await this.prisma.orderStatusHistory.findMany({
-      where: { orderId: id },
-      orderBy: { createdAt: "asc" },
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'asc' },
     });
 
     return {
-      orderId: id,
-      status: order!.status,
-      sellers: order!.sellerOrders.map(
+      orderId: order.id,
+      orderCode: order.code,
+      status: order.status,
+      sellers: order.sellerOrders.map(
         ({ id, code, status, carrier, trackingCode }) => ({
           id,
           code,
@@ -2113,6 +2130,23 @@ export class OrdersService {
     });
 
     const orderIds = orders.map((o) => o.id);
+    const returnRequests = await this.prisma.returnRequest.findMany({
+      where: {
+        orderId: { in: orderIds },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const returnMap = new Map<string, any>();
+    for (const ret of returnRequests) {
+      if (ret.orderItemId && !returnMap.has(ret.orderItemId)) {
+        returnMap.set(ret.orderItemId, ret);
+      }
+      const orderBookKey = `${ret.orderId}_${ret.bookId}`;
+      if (!returnMap.has(orderBookKey)) {
+        returnMap.set(orderBookKey, ret);
+      }
+    }
+
     const voucherUsages = await this.voucherClient.getUsagesByOrderIds(orderIds);
     const voucherMap = new Map<string, any[]>();
     for (const u of voucherUsages) {
@@ -2127,8 +2161,8 @@ export class OrdersService {
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
 
-      // Find order-specific or global COD remittance record
-      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
+      // Find order-specific COD remittance record
+      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE');
       const orderVouchers = voucherMap.get(order.id) || [];
 
       for (const sellerOrder of order.sellerOrders) {
@@ -2160,14 +2194,28 @@ export class OrdersService {
               (!(h.metadata as any)?.orderItemId || (h.metadata as any)?.orderItemId === item.id),
           );
 
-          let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'PENDING_PAYMENT' = 'HOLDING';
+          let escrowStatus: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED' | 'PENDING_PAYMENT' = 'HOLDING';
+
+          const activeReturn = returnMap.get(item.id) || returnMap.get(`${order.id}_${item.bookId}`);
+          if (activeReturn) {
+            if (activeReturn.status === ReturnRequestStatus.REFUNDED || activeReturn.replacementStatus === 'REFUNDED') {
+              escrowStatus = 'REFUNDED';
+            } else if (activeReturn.status === ReturnRequestStatus.REPLACED || activeReturn.replacementStatus === 'REPLACED') {
+              escrowStatus = 'RELEASED';
+            } else if (activeReturn.status === ReturnRequestStatus.REJECTED) {
+              // Bác bỏ khiếu nại -> Về bình thường
+            } else {
+              // Yêu cầu đổi trả đang mở hoặc đang thu hồi -> LẬP TỨC ĐÓNG BĂNG DÒNG TIỀN!
+              escrowStatus = 'FROZEN';
+            }
+          }
 
           const isPhysicalDelivered = sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED';
-          const isCodRemitted = Boolean(orderRemittance && isPhysicalDelivered);
-
-          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING && !isPhysicalDelivered && !isCodRemitted) {
-            escrowStatus = 'PENDING_PAYMENT';
-          }
+          const isCodOrder = order.paymentMethod === PaymentMethod.COD;
+          const isCodRemitted = Boolean(
+            order.paymentStatus === PaymentStatus.SUCCEEDED ||
+            histories.some((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE')
+          );
 
           if (itemHistory) {
             const target = (itemHistory.metadata as any)?.targetStatus;
@@ -2181,20 +2229,30 @@ export class OrdersService {
               escrowStatus = 'HOLDING';
             }
           } else {
-            // For PHYSICAL book: RELEASED if delivered and return window passed or confirmed
-            const deliveredTimestamp = sellerOrder.completedAt ? new Date(sellerOrder.completedAt).getTime() : 0;
-            const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
-
-            if (isPhysicalDelivered) {
-              if (isReturnWindowPassed || unfreezeEntry) {
-                escrowStatus = 'RELEASED';
-              } else {
-                escrowStatus = 'HOLDING';
-              }
-            } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
+            // For PHYSICAL book:
+            if (!isPhysicalDelivered) {
+              // Chưa giao hàng: Đang vận chuyển / xử lý
+              escrowStatus = 'PENDING_PAYMENT';
+            } else if (isCodOrder && !isCodRemitted) {
+              // Tiền COD shipper thu nhưng CHƯA nộp cho sàn -> Chờ bưu tá nộp COD!
               escrowStatus = 'PENDING_PAYMENT';
             } else {
-              escrowStatus = 'HOLDING';
+              // Đã giao hàng (nếu là COD thì shipper ĐÃ nộp cho sàn, nếu là ONLINE thì đã thanh toán):
+              // Ký quỹ 2 phút (120 giây) tính từ lúc giao hàng
+              const deliveredTimestamp = sellerOrder.completedAt
+                ? new Date(sellerOrder.completedAt).getTime()
+                : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
+                ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
+                : 0;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+
+              if (isReturnWindowPassed || unfreezeEntry) {
+                // Hết hạn đổi trả (>= 2 phút) -> Tiền qua Seller!
+                escrowStatus = 'RELEASED';
+              } else {
+                // Còn hạn đổi trả (< 2 phút) -> Sàn giữ ký quỹ!
+                escrowStatus = 'HOLDING';
+              }
             }
           }
 
@@ -2277,6 +2335,17 @@ export class OrdersService {
                 scope: 'STORE',
               } : null,
               escrowStatus,
+              returnRequestId: activeReturn?.id || null,
+              returnRequestStatus: activeReturn?.status || null,
+              returnReason: activeReturn?.reasonDetail || activeReturn?.reason || null,
+              returnShippingMethod: (activeReturn?.customerEvidence as any)?.shippingMethod || 'PICKUP_BY_SHIPPER',
+              reverseTrackingCode: activeReturn ? (activeReturn.replacementTrackingCode || `HUKI-RET-${activeReturn.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`) : null,
+              reverseStatus: activeReturn?.replacementStatus || null,
+              buyerBankAccount: (activeReturn?.customerEvidence as any)?.bankAccount || null,
+              frozenReason: activeReturn
+                ? `Khách yêu cầu hoàn hàng: ${activeReturn.reasonDetail || activeReturn.reason || 'Sản phẩm lỗi/hư hỏng'}`
+                : freezeEntry?.title || null,
+              refundedAt: (escrowStatus === 'REFUNDED' && activeReturn?.updatedAt) ? activeReturn.updatedAt.toISOString() : null,
               remittanceInfo: (order.paymentMethod === PaymentMethod.COD && (isPhysicalDelivered || orderRemittance)) ? {
                 isRemitted: true,
                 remittedAt: orderRemittance ? orderRemittance.createdAt.toISOString() : (sellerOrder.completedAt?.toISOString() || new Date().toISOString()),
@@ -2369,7 +2438,7 @@ export class OrdersService {
       const shipping = (order.shippingAddress as any) || {};
       const customerName = shipping.recipientName || 'Khách Hàng HUKI';
       const customerPhone = shipping.phone || '0901234567';
-      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE') || globalRemittances[0];
+      const orderRemittance = histories.find((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE');
       const orderVouchers = voucherMap.get(order.id) || [];
 
       for (const sellerOrder of order.sellerOrders) {
@@ -2404,9 +2473,11 @@ export class OrdersService {
 
           let escrowStatus: 'PENDING_PAYMENT' | 'HOLDING' | 'FROZEN' | 'RELEASED' = 'HOLDING';
 
-          if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
-            escrowStatus = 'PENDING_PAYMENT';
-          }
+          const isCodOrder = order.paymentMethod === PaymentMethod.COD;
+          const isCodRemitted = Boolean(
+            order.paymentStatus === PaymentStatus.SUCCEEDED ||
+            histories.some((h) => h.orderId === order.id && h.toStatus === 'COD_REMITTANCE')
+          );
 
           if (itemHistory) {
             const target = (itemHistory.metadata as any)?.targetStatus;
@@ -2421,24 +2492,29 @@ export class OrdersService {
             }
           } else {
             // For PHYSICAL book:
-            // 1. If delivered: check 2-minute test return window (120 seconds)
-            const deliveredTimestamp = sellerOrder.completedAt
-              ? new Date(sellerOrder.completedAt).getTime()
-              : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
-              ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
-              : 0;
-            const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
-
-            if (isPhysicalDelivered) {
-              if (isReturnWindowPassed || unfreezeEntry) {
-                escrowStatus = 'RELEASED'; // Hết 2 phút đổi trả -> tự động cộng vào số dư khả dụng
-              } else {
-                escrowStatus = 'HOLDING'; // Đang trong 2 phút đếm ngược đổi trả
-              }
-            } else if (order.paymentMethod === PaymentMethod.COD && order.paymentStatus === PaymentStatus.PENDING) {
-              escrowStatus = 'PENDING_PAYMENT'; // Chờ giao và thu tiền COD
+            if (!isPhysicalDelivered) {
+              // Chưa giao hàng: Đang vận chuyển / đóng gói
+              escrowStatus = 'PENDING_PAYMENT';
+            } else if (isCodOrder && !isCodRemitted) {
+              // Tiền COD shipper thu nhưng CHƯA nộp cho sàn -> Chờ bưu tá nộp COD!
+              escrowStatus = 'PENDING_PAYMENT';
             } else {
-              escrowStatus = 'HOLDING'; // Đang chuẩn bị & vận chuyển
+              // Đã giao hàng (nếu là COD thì shipper ĐÃ nộp cho sàn, nếu là ONLINE thì đã thanh toán):
+              // Ký quỹ 2 phút (120 giây) tính từ lúc giao hàng
+              const deliveredTimestamp = sellerOrder.completedAt
+                ? new Date(sellerOrder.completedAt).getTime()
+                : (sellerOrder.status === 'DELIVERED' || sellerOrder.status === 'COMPLETED')
+                ? new Date(sellerOrder.updatedAt || order.updatedAt).getTime()
+                : 0;
+              const isReturnWindowPassed = deliveredTimestamp > 0 ? (Date.now() - deliveredTimestamp) >= 2 * 60 * 1000 : false;
+
+              if (isReturnWindowPassed || unfreezeEntry) {
+                // Hết hạn 2 phút đổi trả -> Tiền qua Seller!
+                escrowStatus = 'RELEASED';
+              } else {
+                // Còn hạn 2 phút đổi trả -> Sàn giữ ký quỹ!
+                escrowStatus = 'HOLDING';
+              }
             }
           }
 
@@ -2563,23 +2639,61 @@ export class OrdersService {
         ? 'ESCROW_REFUNDED'
         : 'ESCROW_HOLDING';
 
+    // Lấy thông tin tài khoản ngân hàng và mã vận đơn hoàn nếu có
+    let buyerBank: any = null;
+    let retTracking: string | null = null;
+    try {
+      const associatedReturn = await this.prisma.returnRequest.findFirst({
+        where: {
+          OR: [
+            { orderItemId },
+            { orderId: item.sellerOrder.orderId, bookId: item.bookId },
+          ],
+        },
+      });
+      if (associatedReturn) {
+        buyerBank = (associatedReturn.customerEvidence as any)?.bankAccount || null;
+        retTracking = associatedReturn.replacementTrackingCode || `HUKI-RET-${associatedReturn.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+      }
+    } catch (e) {
+      console.warn('Error fetching associated return for escrow ledger log:', e);
+    }
+
+    const subtotalNum = Number(item.subtotal);
+    let logTitle = `Cập nhật trạng thái dòng tiền món ${item.bookTitle} sang ${dto.status}`;
+    let logDesc = dto.reason || `Admin cập nhật dòng tiền món ${item.bookTitle} sang ${dto.status}`;
+
+    if (dto.status === 'REFUNDED') {
+      logTitle = `Sàn HuKi đã hoàn trả tiền cho khách hàng (${subtotalNum.toLocaleString('vi-VN')} ₫)`;
+      const bankText = buyerBank
+        ? ` vào tài khoản ${buyerBank.accountNumber} (${buyerBank.bankName} - ${buyerBank.accountHolderName})`
+        : '';
+      logDesc = `Sàn HuKi đã đối soát và hoàn trả thành công ${subtotalNum.toLocaleString('vi-VN')} ₫${bankText}. Chu trình đổi trả kết thúc an toàn.`;
+    } else if (dto.status === 'RELEASED') {
+      logTitle = `Sàn HuKi đã bàn giao doanh thu bán sách cho gian hàng`;
+      logDesc = `Đã kết thúc thời hạn ký quỹ. Doanh thu ròng 95% của món "${item.bookTitle}" đã được chuyển vào ví người bán.`;
+    }
+
     await this.prisma.orderStatusHistory.create({
       data: {
         orderId: item.sellerOrder.orderId,
         sellerOrderId: item.sellerOrder.id,
         fromStatus: 'ESCROW_STATUS_CHANGE',
         toStatus: historyStatus,
-        title: `Cập nhật trạng thái dòng tiền món ${item.bookTitle} sang ${dto.status}`,
-        description: dto.reason || `Admin cập nhật dòng tiền món ${item.bookTitle} sang ${dto.status}`,
+        title: logTitle,
+        description: logDesc,
         actorType: 'ADMIN',
         actorId: actor.sub,
         metadata: {
           orderItemId,
           bookId: item.bookId,
           bookTitle: item.bookTitle,
-          subtotal: Number(item.subtotal),
+          subtotal: subtotalNum,
           targetStatus: dto.status,
           updatedBy: actor.email,
+          buyerBankAccount: buyerBank,
+          reverseTrackingCode: retTracking,
+          refundAmount: dto.status === 'REFUNDED' ? subtotalNum : undefined,
         },
       },
     });
@@ -2646,8 +2760,31 @@ export class OrdersService {
     // When Platform Admin clicks "Hoàn trả" (REFUNDED): mark associated return request as REFUNDED
     if (dto.status === 'REFUNDED') {
       await this.prisma.returnRequest.updateMany({
-        where: { orderItemId: item.id },
-        data: { status: ReturnRequestStatus.REFUNDED },
+        where: {
+          OR: [
+            { orderItemId: item.id },
+            { orderId: item.sellerOrder.orderId, bookId: item.bookId },
+          ],
+        },
+        data: {
+          status: ReturnRequestStatus.REFUNDED,
+          replacementStatus: 'REFUNDED',
+        },
+      });
+    }
+
+    if (dto.status === 'RELEASED') {
+      await this.prisma.returnRequest.updateMany({
+        where: {
+          OR: [
+            { orderItemId: item.id },
+            { orderId: item.sellerOrder.orderId, bookId: item.bookId },
+          ],
+        },
+        data: {
+          status: ReturnRequestStatus.REPLACED,
+          replacementStatus: 'REPLACED',
+        },
       });
     }
 
@@ -2875,6 +3012,8 @@ export class OrdersService {
       images: Array.isArray(dto.evidenceImages) ? dto.evidenceImages : dto.customerEvidence?.images || [],
       videos: Array.isArray(dto.evidenceVideos) ? dto.evidenceVideos : dto.customerEvidence?.videos || [],
       documents: Array.isArray((dto as any).evidenceDocuments) ? (dto as any).evidenceDocuments : Array.isArray((dto as any).evidencePdfs) ? (dto as any).evidencePdfs : (dto.customerEvidence as any)?.documents || [],
+      shippingMethod: (dto as any).shippingMethod || 'PICKUP_BY_SHIPPER',
+      bankAccount: (dto as any).bankAccount || null,
     };
 
     const shipping = (masterOrder?.shippingAddress as any) || {};
@@ -2922,6 +3061,8 @@ export class OrdersService {
               bookId,
               returnRequestId: returnRequest.id,
               targetStatus: 'FROZEN',
+              shippingMethod: (dto as any).shippingMethod || 'PICKUP_BY_SHIPPER',
+              bankAccount: (dto as any).bankAccount || null,
             },
           },
         });
@@ -3232,8 +3373,30 @@ export class OrdersService {
       },
     });
 
-    // If seller wins: unfreeze escrow for that item
-    if (dto.ruling === 'SELLER_WINS') {
+    // If buyer wins: mark escrow refunded and record history
+    if (dto.ruling === 'BUYER_WINS') {
+      try {
+        await this.prisma.orderStatusHistory.create({
+          data: {
+            orderId: req.orderId,
+            sellerOrderId: req.sellerOrderId,
+            fromStatus: 'ESCROW_FROZEN',
+            toStatus: 'REFUNDED',
+            title: `Hoàn tiền cho Người mua do thắng trọng tài sàn`,
+            description: `Admin phán quyết: ${rulingNotes}`,
+            actorType: 'ADMIN',
+            actorId: actor.sub,
+            metadata: {
+              orderItemId: req.orderItemId,
+              returnRequestId: req.id,
+              targetStatus: 'REFUNDED',
+            },
+          },
+        });
+      } catch (err) {
+        console.warn('Could not record status history for buyer win refund:', err);
+      }
+    } else if (dto.ruling === 'SELLER_WINS') {
       try {
         await this.prisma.orderStatusHistory.create({
           data: {
@@ -3507,7 +3670,7 @@ export class OrdersService {
       take: 100,
     });
 
-    return sellerOrders.map((so) => {
+    const forwardOrders = sellerOrders.map((so) => {
       const order = so.order;
       const address = (order?.shippingAddress as any) || {};
       const receiverName = address.recipientName || address.fullName || address.name || 'Khách hàng HuKi';
@@ -3527,6 +3690,9 @@ export class OrdersService {
         shipperStatus = 'DELIVERED';
       } else if (so.status === SellerOrderStatus.CANCELLED) {
         shipperStatus = 'FAILED';
+      } else if (so.carrier && (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING)) {
+        // Đã có bưu tá nhận đơn -> Đang chuẩn bị đến lấy hàng
+        shipperStatus = 'PICKING_UP';
       } else if (so.status === SellerOrderStatus.CONFIRMED || so.status === SellerOrderStatus.PREPARING) {
         // Đơn đã được người bán xác nhận hoặc đang chuẩn bị hàng -> Shipper mới có thể thấy và nhận đơn
         shipperStatus = 'AVAILABLE';
@@ -3538,6 +3704,7 @@ export class OrdersService {
       return {
         id: so.id,
         code: so.code,
+        orderType: 'DELIVERY',
         customerName: receiverName,
         customerPhone: receiverPhone,
         deliveryAddress: fullAddress,
@@ -3557,6 +3724,10 @@ export class OrdersService {
         shippingFee: shippingFee,
         codAmount: codAmount,
         paymentMethod: paymentMethod,
+        isCodRemitted: paymentMethod === 'COD' ? order?.paymentStatus === PaymentStatus.SUCCEEDED : true,
+        orderId: order?.id,
+        orderCode: order?.code,
+        paymentStatus: order?.paymentStatus,
         distanceKm: 3.2,
         status: shipperStatus,
         sellerOrderStatus: so.status,
@@ -3565,10 +3736,162 @@ export class OrdersService {
         completedAt: so.completedAt?.toISOString(),
       };
     });
+
+    // Query active return requests to assign to shippers (Reverse Logistics)
+    let returnOrders: any[] = [];
+    try {
+      const returnRequests: any[] = await this.prisma.returnRequest.findMany({
+        where: {
+          status: {
+            notIn: [ReturnRequestStatus.REJECTED, ReturnRequestStatus.REFUNDED, ReturnRequestStatus.REPLACED],
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      });
+
+      const orderIds = returnRequests.map((r: any) => r.orderId).filter(Boolean);
+      const masterOrders = await this.prisma.order.findMany({
+        where: { id: { in: orderIds } },
+      });
+      const orderMap = new Map<string, any>(masterOrders.map((o: any) => [o.id, o]));
+
+      returnOrders = returnRequests.map((ret: any) => {
+        const order = orderMap.get(ret.orderId);
+        const address = (order?.shippingAddress as any) || {};
+        const receiverName = ret.customerName || address.recipientName || address.fullName || 'Khách Hàng HuKi';
+        const receiverPhone = ret.customerPhone || address.phone || '0901234567';
+        const fullAddress = address.fullAddress || address.line1 || address.address || 'Đồng Tháp';
+        const ward = address.ward || 'Phường Bến Nghé';
+        const district = address.district || 'Quận 1';
+        const province = address.province || address.city || 'TP. Hồ Chí Minh';
+        const returnTrackingCode = `HUKI-RET-${ret.id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+
+        const isPickedUp = ret.replacementStatus === 'RETURNING';
+        const isReturned = ret.replacementStatus === 'RETURNED_TO_STORE';
+
+        return {
+          id: ret.id,
+          code: returnTrackingCode,
+          orderType: 'RETURN',
+          returnTrackingCode,
+          customerName: receiverName,
+          customerPhone: receiverPhone,
+          deliveryAddress: fullAddress, // Điểm LẤY sách là địa chỉ Buyer
+          deliveryWard: ward,
+          deliveryDistrict: district,
+          deliveryProvince: province,
+          shopName: ret.storeName || 'Kho Sách NXB Kim Đồng',
+          shopPhone: '0912 345 678',
+          shopAddress: 'Kho trả hàng: Số 88 Đường Lý Thường Kiệt, TP. Cao Lãnh, Đồng Tháp', // Điểm TRẢ sách là kho Shop
+          items: [
+            {
+              title: `[TRẢ HÀNG] ${ret.bookTitle}`,
+              quantity: ret.quantity || 1,
+              format: 'PHYSICAL',
+              coverUrl: ret.bookCoverUrl || '/images/default-book.png',
+            },
+          ],
+          totalWeight: 500,
+          shippingFee: 15000, // Cước bưu tá chiều về
+          codAmount: 0,
+          paymentMethod: 'ONLINE_PAYMENT',
+          isCodRemitted: true,
+          orderId: ret.orderId,
+          orderCode: order?.code || 'N/A',
+          distanceKm: 2.8,
+          status: isReturned ? 'DELIVERED' : isPickedUp ? 'IN_TRANSIT' : 'PICKING_UP',
+          sellerOrderStatus: isReturned ? 'DELIVERED' : isPickedUp ? 'SHIPPED' : 'CONFIRMED',
+          returnReason: ret.reasonDetail || ret.reason,
+          createdAt: ret.createdAt.toISOString(),
+        };
+      });
+    } catch (err) {
+      console.warn('Could not query return requests for shipper:', err);
+    }
+
+    return [...returnOrders, ...forwardOrders];
+  }
+
+  async shipperClaimOrder(actor?: BookActor, id?: string) {
+    if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+    const sellerOrder = await this.prisma.sellerOrder.findUnique({
+      where: { id },
+      include: { items: true, order: true },
+    });
+    if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    const actorId = actor?.sub || 'shipper-hung';
+    const carrier = 'HUKI_EXPRESS';
+    const trackingCode = `HUKI-EXP-${randomBytes(4).toString('hex').toUpperCase()}`;
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const up = await tx.sellerOrder.update({
+        where: { id },
+        data: {
+          carrier,
+          trackingCode,
+        },
+      });
+
+      return up;
+    });
+
+    return updated;
   }
 
   async shipperPickupOrder(actor?: BookActor, id?: string, dto?: { carrier?: string; trackingCode?: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    // 1. Check if id is a return request
+    try {
+      const returnReq = await this.prisma.returnRequest.findUnique({
+        where: { id },
+      });
+      if (returnReq) {
+        const retTrackingCode = `HUKI-RET-${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+        const updated = await this.prisma.returnRequest.update({
+          where: { id },
+          data: {
+            replacementStatus: 'RETURNING',
+            replacementCarrier: 'HUKI_EXPRESS',
+            replacementTrackingCode: retTrackingCode,
+            replacementShippedAt: new Date(),
+          },
+        });
+
+        // Ghi Sổ Cái / Timeline OrderStatusHistory minh bạch cho cả User & Admin
+        try {
+          await this.prisma.orderStatusHistory.create({
+            data: {
+              orderId: returnReq.orderId,
+              sellerOrderId: returnReq.sellerOrderId,
+              fromStatus: 'RETURN_ACCEPTED',
+              toStatus: 'RETURN_PICKED_UP',
+              title: `Bưu tá đã lấy hàng thu hồi từ người mua`,
+              description: `Bưu tá HuKi Express đã tiếp nhận sách hoàn "${returnReq.bookTitle}". Mã vận đơn hoàn chiều về: #${retTrackingCode}`,
+              actorType: 'SHIPPER',
+              actorId: actor?.sub || 'shipper_system',
+              metadata: {
+                returnRequestId: returnReq.id,
+                bookId: returnReq.bookId,
+                bookTitle: returnReq.bookTitle,
+                reverseTrackingCode: retTrackingCode,
+                status: 'RETURNING',
+                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+              },
+            },
+          });
+        } catch (histErr) {
+          console.warn('Could not record OrderStatusHistory for return pickup:', histErr);
+        }
+
+        return updated;
+      }
+    } catch (err) {
+      console.warn('Error in return pickup:', err);
+    }
+
     const sellerOrder = await this.prisma.sellerOrder.findUnique({
       where: { id },
       include: { items: true, order: true },
@@ -3577,7 +3900,6 @@ export class OrdersService {
 
     const carrier = dto?.carrier || 'GHTK';
     const trackingCode = dto?.trackingCode || `GHTK-${randomBytes(4).toString('hex').toUpperCase()}`;
-    const actorId = actor?.sub || 'shipper-hung';
 
     const result = await this.prisma.$transaction(async (tx) => {
       const itemIds = sellerOrder.items.map((item) => item.id);
@@ -3593,19 +3915,6 @@ export class OrdersService {
         },
       });
 
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: sellerOrder.orderId,
-          sellerOrderId: sellerOrder.id,
-          fromStatus: sellerOrder.status,
-          toStatus: SellerOrderStatus.SHIPPED,
-          title: 'Shipper đã đến lấy hàng và bắt đầu giao',
-          actorType: 'SHIPPER',
-          actorId,
-          metadata: { carrier, trackingCode },
-        },
-      });
-
       return updated;
     });
 
@@ -3614,6 +3923,53 @@ export class OrdersService {
 
   async shipperDeliverOrder(actor?: BookActor, id?: string, dto?: { note?: string }) {
     if (!id) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
+
+    // 1. Check if id is a return request
+    try {
+      const returnReq = await this.prisma.returnRequest.findUnique({
+        where: { id },
+      });
+      if (returnReq) {
+        const retTrackingCode = returnReq.replacementTrackingCode || `HUKI-RET-${id.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+        const updated = await this.prisma.returnRequest.update({
+          where: { id },
+          data: {
+            replacementStatus: 'RETURNED_TO_STORE',
+          },
+        });
+
+        // Ghi Sổ Cái / Timeline OrderStatusHistory minh bạch cho cả User & Admin
+        try {
+          await this.prisma.orderStatusHistory.create({
+            data: {
+              orderId: returnReq.orderId,
+              sellerOrderId: returnReq.sellerOrderId,
+              fromStatus: 'RETURN_PICKED_UP',
+              toStatus: 'RETURN_DELIVERED_TO_STORE',
+              title: `Hàng hoàn đã giao về kho Shop thành công`,
+              description: `Bưu tá đã bàn giao sách hoàn "${returnReq.bookTitle}" về kho Shop. Sàn HuKi chuẩn bị đối soát và hoàn tiền vào STK khách hàng.`,
+              actorType: 'SHIPPER',
+              actorId: actor?.sub || 'shipper_system',
+              metadata: {
+                returnRequestId: returnReq.id,
+                bookId: returnReq.bookId,
+                bookTitle: returnReq.bookTitle,
+                reverseTrackingCode: retTrackingCode,
+                status: 'RETURNED_TO_STORE',
+                shipperName: 'Nguyễn Văn Hưng (Bưu tá HuKi Express)',
+              },
+            },
+          });
+        } catch (histErr) {
+          console.warn('Could not record OrderStatusHistory for return delivery:', histErr);
+        }
+
+        return updated;
+      }
+    } catch (err) {
+      console.warn('Error in return delivery:', err);
+    }
+
     const sellerOrder = await this.prisma.sellerOrder.findUnique({
       where: { id },
       include: { items: true, order: true },
@@ -3621,26 +3977,12 @@ export class OrdersService {
     if (!sellerOrder) throwNotFound(ErrorCode.SELLER_ORDER_NOT_FOUND);
 
     const now = new Date();
-    const actorId = actor?.sub || 'shipper-hung';
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.sellerOrder.update({
         where: { id },
         data: {
           completedAt: now,
           status: SellerOrderStatus.DELIVERED,
-        },
-      });
-
-      await tx.orderStatusHistory.create({
-        data: {
-          orderId: sellerOrder.orderId,
-          sellerOrderId: sellerOrder.id,
-          fromStatus: sellerOrder.status,
-          toStatus: SellerOrderStatus.DELIVERED,
-          title: 'Shipper đã giao sách thành công',
-          actorType: 'SHIPPER',
-          actorId,
-          metadata: { note: dto?.note || 'Đã giao tận tay khách hàng' },
         },
       });
 
@@ -3707,21 +4049,28 @@ export class OrdersService {
         include: { sellerOrders: true },
       });
     } else {
-      // Fallback: find recent COD orders delivered
+      // Find delivered COD orders that are still PENDING payment
       targetOrders = await this.prisma.order.findMany({
         where: {
           paymentMethod: PaymentMethod.COD,
+          paymentStatus: PaymentStatus.PENDING,
           sellerOrders: { some: { status: { in: ['DELIVERED', 'COMPLETED', 'SHIPPED'] } } },
         },
         include: { sellerOrders: true },
         orderBy: { createdAt: 'desc' },
-        take: 10,
       });
     }
 
     if (targetOrders.length === 0) {
-      const firstOrder = await this.prisma.order.findFirst({ orderBy: { createdAt: 'desc' } });
-      if (firstOrder) targetOrders = [firstOrder];
+      targetOrders = await this.prisma.order.findMany({
+        where: {
+          paymentMethod: PaymentMethod.COD,
+          paymentStatus: PaymentStatus.PENDING,
+        },
+        include: { sellerOrders: true },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      });
     }
 
     for (const order of targetOrders) {
@@ -3747,6 +4096,34 @@ export class OrdersService {
           },
         },
       });
+
+      // Check return window (2 mins): if already expired, release directly to seller
+      for (const so of order.sellerOrders) {
+        const deliveredTime = so.completedAt
+          ? new Date(so.completedAt).getTime()
+          : (so.status === 'DELIVERED' || so.status === 'COMPLETED')
+          ? new Date(so.updatedAt || order.updatedAt).getTime()
+          : 0;
+        const isReturnWindowPassed = deliveredTime > 0 ? (now.getTime() - deliveredTime) >= 2 * 60 * 1000 : false;
+
+        if (isReturnWindowPassed) {
+          await this.prisma.orderStatusHistory.create({
+            data: {
+              orderId: order.id,
+              sellerOrderId: so.id,
+              toStatus: 'ESCROW_RELEASED',
+              title: 'Hết hạn đổi trả 2 phút - Tiền chuyển về số dư khả dụng của Người Bán',
+              actorType: 'PLATFORM_ESCROW',
+              actorId: 'HUKI_ESCROW_ENGINE',
+              metadata: {
+                reason: 'Hết thời hạn đổi trả 2 phút sau khi bưu tá đã nộp tiền COD cho Sàn',
+                autoReleased: true,
+                timestamp: now.toISOString(),
+              },
+            },
+          });
+        }
+      }
     }
 
     return {

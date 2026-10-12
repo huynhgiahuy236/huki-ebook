@@ -31,6 +31,15 @@ export class ShipperOrdersController {
     return this.orders.adminListShippers(actor);
   }
 
+  @Patch(['orders/:id/claim', ':id/claim'])
+  @ApiOperation({ summary: 'Shipper claims order atomically' })
+  claim(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentBookActor() actor?: BookActor,
+  ) {
+    return this.orders.shipperClaimOrder(actor, id);
+  }
+
   @Patch(['orders/:id/pickup', ':id/pickup'])
   @ApiOperation({ summary: 'Shipper confirms picking up order from store' })
   pickup(

@@ -695,7 +695,7 @@ export class CheckoutService {
             orderId: order.id,
             fromStatus: null,
             toStatus: order.status,
-            title: "Order created",
+            title: "Khách hàng đặt đơn thành công",
             actorType: "USER",
             actorId: userId,
           },

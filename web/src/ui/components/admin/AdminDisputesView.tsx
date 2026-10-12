@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi, type DisputeItem, type DisputeDetailData, type ArbitrationRuling } from '@/ui/api/adminApi';
 import { useToast } from '@/ui/context/ToastContext';
 import { useSmartFormCollapse } from '@/ui/utils/formHooks';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import { playAdminAlertSound } from '@/ui/utils/chatSound';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
@@ -103,6 +105,25 @@ export function AdminDisputesView() {
   useEffect(() => {
     fetchDisputes();
   }, [fetchDisputes]);
+
+  // Lắng nghe khiếu nại chuyển giao và phán quyết realtime
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'RETURN_REQUESTED' ||
+        msg.type === 'RETURN_SELLER_DISPUTED' ||
+        msg.type === 'RETURN_FORWARDED' ||
+        msg.type === 'DISPUTE_ARBITRATED'
+      ) {
+        fetchDisputes();
+        if (msg.type === 'RETURN_SELLER_DISPUTED') {
+          playAdminAlertSound();
+          showToast('⚖️ Hồ sơ tranh chấp mới được chuyển lên Ban Trọng Tài Sàn!', 'info');
+        }
+      }
+    }, { role: 'ADMIN' });
+    return () => unsub();
+  }, [fetchDisputes, showToast]);
 
   const handleOpenDetail = async (disputeId: string) => {
     try {

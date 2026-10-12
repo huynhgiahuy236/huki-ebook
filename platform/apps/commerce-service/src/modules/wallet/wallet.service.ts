@@ -216,53 +216,71 @@ export class WalletService {
         } else {
           // Physical book: requires delivery AND (buyer confirmation OR admin escrow release OR expired return window)
           const isPhysicalDelivered = so.status === 'DELIVERED' || so.status === 'COMPLETED' || !!so.completedAt;
-
-          const isBuyerConfirmed = histories.some(
-            (h) =>
-              (h.toStatus === 'BUYER_CONFIRMED' ||
-                h.toStatus === 'ORDER_CONFIRMED' ||
-                (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) &&
-              (!h.sellerOrderId || h.sellerOrderId === so.id),
+          const isCodOrder = order?.paymentMethod === 'COD';
+          const isCodRemitted = Boolean(
+            order?.paymentStatus === 'SUCCEEDED' ||
+            histories.some((h) => h.toStatus === 'COD_REMITTANCE')
           );
 
-          const isEscrowReleased = histories.some(
-            (h) =>
-              (h.toStatus === 'ESCROW_RELEASED' || h.toStatus === 'SETTLED') &&
-              (!h.sellerOrderId || h.sellerOrderId === so.id),
-          );
-
-          const deliveredHistory = histories.find(
-            (h) =>
-              (h.toStatus === 'DELIVERED' || h.toStatus === 'COMPLETED') &&
-              (!h.sellerOrderId || h.sellerOrderId === so.id),
-          );
-          const deliveredTimestamp = so.completedAt
-            ? new Date(so.completedAt).getTime()
-            : deliveredHistory
-            ? new Date(deliveredHistory.createdAt).getTime()
-            : 0;
-
-          // Holding window: 2 minutes in test mode / 120,000 ms
-          const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
-
-          const isReleased = isPhysicalDelivered && (isBuyerConfirmed || isEscrowReleased || isReturnWindowPassed);
-
-          if (isReleased) {
-            totalDeliveredNet += net;
-          } else {
+          if (!isPhysicalDelivered) {
             totalPendingNet += net;
+          } else if (isCodOrder && !isCodRemitted) {
+            // Tiền COD shipper thu nhưng CHƯA nộp về sàn -> Chưa thể giữ ký quỹ hay giải ngân cho seller
+          } else {
+            // Đã giao và tiền đã về sàn (COD đã nộp hoặc Online):
+            const isBuyerConfirmed = histories.some(
+              (h) =>
+                (h.toStatus === 'BUYER_CONFIRMED' ||
+                  h.toStatus === 'ORDER_CONFIRMED' ||
+                  (h.toStatus === 'COMPLETED' && h.actorType === 'USER')) &&
+                (!h.sellerOrderId || h.sellerOrderId === so.id),
+            );
+
+            const isEscrowReleased = histories.some(
+              (h) =>
+                (h.toStatus === 'ESCROW_RELEASED' || h.toStatus === 'SETTLED') &&
+                (!h.sellerOrderId || h.sellerOrderId === so.id),
+            );
+
+            const deliveredHistory = histories.find(
+              (h) =>
+                (h.toStatus === 'DELIVERED' || h.toStatus === 'COMPLETED') &&
+                (!h.sellerOrderId || h.sellerOrderId === so.id),
+            );
+            const deliveredTimestamp = so.completedAt
+              ? new Date(so.completedAt).getTime()
+              : deliveredHistory
+              ? new Date(deliveredHistory.createdAt).getTime()
+              : (so.status === 'DELIVERED' || so.status === 'COMPLETED')
+              ? new Date(so.updatedAt || order?.updatedAt || 0).getTime()
+              : 0;
+
+            // Holding window: 2 minutes in test mode / 120,000 ms
+            const isReturnWindowPassed = deliveredTimestamp > 0 && (now - deliveredTimestamp) >= 2 * 60 * 1000;
+
+            const isReleased = isPhysicalDelivered && (isBuyerConfirmed || isEscrowReleased || isReturnWindowPassed);
+
+            if (isReleased) {
+              totalDeliveredNet += net;
+            } else {
+              totalPendingNet += net;
+            }
           }
         }
       });
 
-      // Check debited/withdrawn amount
-      const transactions = await this.prisma.walletTransaction.findMany({
-        where: { walletId: { in: walletIds } },
+      // Check actual debited/withdrawn amount from store payouts (POL-15)
+      const payouts = await this.prisma.payoutRequest.findMany({
+        where: {
+          storeId: { in: storeIdList },
+          status: { in: ['COMPLETED', 'APPROVED', 'PROCESSING'] },
+        },
       });
 
-      const totalWithdrawn = transactions
-        .filter((t) => t.type === 'DEBIT_AVAILABLE')
-        .reduce((sum, t) => sum + t.amount.toNumber(), 0);
+      const totalWithdrawn = payouts.reduce(
+        (sum, p) => sum + (p.amount ? Number(p.amount) : 0),
+        0,
+      );
 
       const calculatedAvailable = Math.max(0, totalDeliveredNet - totalWithdrawn);
       const calculatedPending = Math.max(0, totalPendingNet);

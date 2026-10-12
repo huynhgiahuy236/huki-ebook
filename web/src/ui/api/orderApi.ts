@@ -405,6 +405,14 @@ export const orderApi = {
     });
   },
 
+
+  /**
+   * Lấy toàn bộ lịch sử trạng thái (Audit trail / Ledger timeline) của đơn hàng
+   */
+  getOrderHistory: async (orderId: string): Promise<ApiResponse<any[]>> => {
+    return apiClient<any[]>(`/orders/${orderId}/history`, { method: 'GET' });
+  },
+
   /**
    * Khách hàng tạo yêu cầu đổi trả cho 1 sản phẩm
    */
@@ -423,12 +431,31 @@ export const orderApi = {
       bookCoverUrl?: string;
       amount?: number;
       quantity?: number;
+      shippingMethod?: 'PICKUP_BY_SHIPPER' | 'DROP_OFF_AT_POST_OFFICE';
+      bankAccount?: {
+        bankName: string;
+        accountNumber: string;
+        accountHolderName: string;
+      };
     }
   ): Promise<ApiResponse<ReturnRequestData>> => {
-    return apiClient<ReturnRequestData>(`/orders/${orderId}/items/${orderItemId}/return-request`, {
+    const res = await apiClient<ReturnRequestData>(`/orders/${orderId}/items/${orderItemId}/return-request`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_REQUESTED', {
+        returnRequestId: (res.data as any)?.id || (res.data as any)?._id,
+        orderId,
+        orderItemId,
+        type: payload.type,
+        reason: payload.reason,
+        status: (res.data as any)?.status || 'PENDING_REVIEW',
+      });
+      // Freeze escrow on dispute/return creation
+      realtimeSyncBus.publish('ESCROW_FROZEN', { orderId, orderItemId });
+    }
+    return res;
   },
 
   /**
@@ -471,7 +498,14 @@ export const orderApi = {
    * Seller xác nhận yêu cầu đổi trả (đồng ý)
    */
   sellerAcceptReturnRequest: async (id: string): Promise<ApiResponse<ReturnRequestData>> => {
-    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/accept`, { method: 'POST' });
+    const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/accept`, { method: 'POST' });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_SELLER_ACCEPTED', {
+        returnRequestId: id,
+        status: 'SELLER_ACCEPTED',
+      });
+    }
+    return res;
   },
 
   /**
@@ -487,10 +521,18 @@ export const orderApi = {
       evidencePdfs?: string[];
     }
   ): Promise<ApiResponse<ReturnRequestData>> => {
-    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/dispute`, {
+    const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/dispute`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_SELLER_DISPUTED', {
+        returnRequestId: id,
+        reason: payload.reason,
+        status: 'SELLER_DISPUTED',
+      });
+    }
+    return res;
   },
 
   /**
@@ -503,10 +545,19 @@ export const orderApi = {
       trackingCode: string;
     }
   ): Promise<ApiResponse<ReturnRequestData>> => {
-    return apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/ship-replacement`, {
+    const res = await apiClient<ReturnRequestData>(`/orders/seller/returns/${id}/ship-replacement`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('RETURN_REPLACEMENT_SHIPPED', {
+        returnRequestId: id,
+        carrier: payload.carrier,
+        trackingCode: payload.trackingCode,
+        status: 'REPLACED',
+      });
+    }
+    return res;
   },
 
   /**
@@ -521,6 +572,15 @@ export const orderApi = {
    */
   getShipperOrders: async (): Promise<ApiResponse<any[]>> => {
     return apiClient<any[]>('/orders/shipper/orders', { method: 'GET' });
+  },
+
+  /**
+   * Shipper nhận đơn hàng (Atomic Claim)
+   */
+  shipperClaim: async (id: string): Promise<ApiResponse<any>> => {
+    return apiClient(`/orders/shipper/orders/${id}/claim`, {
+      method: 'PATCH',
+    });
   },
 
   /**
@@ -572,7 +632,7 @@ export const orderApi = {
   /**
    * Shipper nộp tiền COD về quỹ sàn
    */
-  remitShipperCod: async (payload: { amount: number; method?: string; txCode?: string }): Promise<ApiResponse<any>> => {
+  remitShipperCod: async (payload: { amount: number; method?: string; txCode?: string; orderIds?: string[] }): Promise<ApiResponse<any>> => {
     return apiClient<any>('/orders/shipper/remit-cod', {
       method: 'POST',
       body: JSON.stringify(payload),
