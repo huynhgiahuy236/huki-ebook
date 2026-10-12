@@ -950,6 +950,26 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Shopee Policy: Chặn người bán tự đặt mua sản phẩm của chính mình
+    const isSelfPurchase = checkedItems.some((item: any) => {
+      const storeId = item.storeId || item.sellerId || item.businessId;
+      return (
+        (user?.business?.id && storeId === user.business.id) ||
+        (user?.id && (storeId === user.id || item.sellerId === user.id))
+      );
+    });
+
+    if (isSelfPurchase) {
+      showToast(
+        {
+          title: "Không thể đặt hàng",
+          message: "Bạn không thể đặt mua sản phẩm từ gian hàng của chính mình (chính sách Shopee chống tự đặt đơn).",
+        },
+        "error"
+      );
+      return;
+    }
+
     setIsSubmitting(true);
 
     const hasToken = Boolean(tokenStorage.getAccessToken());
@@ -1112,13 +1132,48 @@ export default function CheckoutPage() {
           }
 
           // Broadcast realtime order created event to Seller Portal & Admin
+          const effectiveSellerOrders = [
+            {
+              id: orderData.id,
+              code: orderData.code,
+              items: physicalItems.map((it: any) => ({
+                bookId: it.bookId || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-').slice(0, 5).join('-') : it.id),
+                quantity: Number(it.quantity) || 1,
+                format: 'PHYSICAL',
+                bookTitle: it.title,
+                title: it.title,
+              })),
+            },
+          ];
+
           realtimeSyncBus.publish('ORDER_CREATED', {
             orderId: orderData.id,
             orderCode: orderData.code,
             grandTotal: orderData.grandTotal,
             paymentMethod: isOnline ? 'ONLINE_PAYMENT' : 'COD',
-            sellerOrders: confirmRes.data.sellerOrders || [],
+            sellerOrders: effectiveSellerOrders,
           });
+
+          // RT-03: Broadcast realtime inventory reservation update directly from physicalItems
+          try {
+            if (Array.isArray(physicalItems) && physicalItems.length > 0) {
+              physicalItems.forEach((it: any) => {
+                const targetBookId = it.bookId || (typeof it.id === 'string' && it.id.includes('-') ? it.id.split('-').slice(0, 5).join('-') : it.id);
+                if (targetBookId) {
+                  realtimeSyncBus.publish('INVENTORY_UPDATED', {
+                    bookId: targetBookId,
+                    storeId: it.storeId,
+                    action: 'RESERVED',
+                    quantityDelta: Number(it.quantity) || 1,
+                    bookTitle: it.title,
+                    updatedAt: new Date().toISOString(),
+                  });
+                }
+              });
+            }
+          } catch (invErr) {
+            console.warn('Could not broadcast inventory update:', invErr);
+          }
 
           if (isOnline) {
             setIsSubmitting(false);

@@ -112,22 +112,24 @@ export default function SellerInventoryPage() {
         });
       });
 
-      const actionText =
-        payload.action === 'RESERVED'
-          ? 'vừa được tạm giữ cho đơn hàng mới'
-          : payload.action === 'RELEASED'
-          ? 'vừa được giải phóng lại kho'
-          : payload.action === 'COMMITTED'
-          ? 'đã xuất kho thực tế'
-          : 'vừa được cập nhật tồn kho';
+      setTimeout(() => {
+        const actionText =
+          payload.action === 'RESERVED'
+            ? 'vừa được tạm giữ cho đơn hàng mới'
+            : payload.action === 'RELEASED'
+            ? 'vừa được giải phóng lại kho'
+            : payload.action === 'COMMITTED'
+            ? 'đã xuất kho thực tế'
+            : 'vừa được cập nhật tồn kho';
 
-      showToast?.(`⚡ Tồn kho "${payload.bookTitle || 'sách'}" ${actionText}!`, 'info');
+        showToast?.(`⚡ Tồn kho "${payload.bookTitle || 'sách'}" ${actionText}!`, 'info');
+      }, 0);
     },
   });
 
-  const fetchInventory = useCallback(async () => {
+  const fetchInventory = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       let bizId = user?.business?.id || activeBusinessId || undefined;
       if (!bizId) {
         try {
@@ -155,17 +157,84 @@ export default function SellerInventoryPage() {
       const physicalBooks = bookList.filter(
         (b) => b.format === 'PHYSICAL' || b.format === 'BOTH'
       );
-      setBooks(physicalBooks);
+
+      if (silent) {
+        // So sánh ngầm để phát hiện thay đổi từ Server mà không kích hoạt side effect trong render
+        const updatesToNotify: Array<{ bookTitle: string; action: 'RESERVED' | 'COMMITTED' | 'RELEASED' }> = [];
+
+        setBooks((prevBooks) => {
+          let hasDiff = false;
+          const nextBooks = prevBooks.map((pb) => {
+            const fresh = physicalBooks.find((fb) => fb.id === pb.id);
+            if (!fresh) return pb;
+
+            const prevStock = Number(pb.stock ?? pb.physicalDetails?.stock ?? 0);
+            const prevReserved = Number(pb.reserved ?? pb.physicalDetails?.reserved ?? 0);
+            const freshStock = Number(fresh.stock ?? fresh.physicalDetails?.stock ?? 0);
+            const freshReserved = Number(fresh.reserved ?? fresh.physicalDetails?.reserved ?? 0);
+
+            if (prevStock !== freshStock || prevReserved !== freshReserved) {
+              hasDiff = true;
+              updatesToNotify.push({
+                bookTitle: pb.title,
+                action: freshReserved > prevReserved ? 'RESERVED' : freshStock < prevStock ? 'COMMITTED' : 'RELEASED',
+              });
+              return {
+                ...pb,
+                stock: freshStock,
+                reserved: freshReserved,
+                physicalDetails: {
+                  ...pb.physicalDetails,
+                  stock: freshStock,
+                  reserved: freshReserved,
+                },
+              };
+            }
+            return pb;
+          });
+          return hasDiff ? nextBooks : prevBooks;
+        });
+
+        // Bắn thông báo ngoài chu kỳ setState
+        if (updatesToNotify.length > 0) {
+          setTimeout(() => {
+            updatesToNotify.forEach((u) => {
+              const actionText =
+                u.action === 'RESERVED'
+                  ? 'vừa được tạm giữ cho đơn hàng mới'
+                  : u.action === 'RELEASED'
+                  ? 'vừa được giải phóng lại kho'
+                  : 'đã xuất kho thực tế';
+              showToast?.(`⚡ Tồn kho "${u.bookTitle || 'sách'}" ${actionText}!`, 'info');
+            });
+          }, 0);
+        }
+      } else {
+        setBooks(physicalBooks);
+      }
     } catch (err) {
-      console.error('Failed to fetch books for inventory', err);
-      showToast?.('Không thể tải danh sách tồn kho', 'error');
+      if (!silent) {
+        console.error('Failed to fetch books for inventory', err);
+        showToast?.('Không thể tải danh sách tồn kho', 'error');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [user, activeBusinessId, setActiveBusinessId, showToast]);
+  }, [user, activeBusinessId, setActiveBusinessId, showToast, broadcastUpdate]);
 
   useEffect(() => {
     fetchInventory();
+  }, [fetchInventory]);
+
+  // Shopee-style: Tự động quét tồn kho server ngầm mỗi 3.5 giây để đồng bộ liên thiết bị
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchInventory(true);
+      }
+    }, 3500);
+
+    return () => clearInterval(pollTimer);
   }, [fetchInventory]);
 
   // Listen to order lifecycle changes to keep inventory synced with backend
@@ -177,7 +246,7 @@ export default function SellerInventoryPage() {
         msg.type === 'ORDER_CANCELLED' ||
         msg.type === 'ORDER_STATUS_CHANGED'
       ) {
-        fetchInventory();
+        fetchInventory(true);
       }
     });
     return () => unsub();
@@ -361,7 +430,7 @@ export default function SellerInventoryPage() {
         </div>
         <button
           type="button"
-          onClick={fetchInventory}
+          onClick={() => fetchInventory(false)}
           disabled={loading}
           className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto active:scale-[0.98]"
         >

@@ -781,7 +781,19 @@ export default function BookDetailPage() {
   const isOutOfStock = isPhysicalSelected && physicalAvailable !== null && physicalAvailable <= 0;
   const isLowStock = isPhysicalSelected && physicalAvailable !== null && physicalAvailable > 0 && physicalAvailable <= 5;
 
+  // Shopee Policy: Chặn người bán tự mua sách từ gian hàng của chính mình
+  const isOwnerOfBook = Boolean(
+    user && (
+      (user.business?.id && (user.business.id === realBook?.businessId || user.business.id === realBook?.storeId || user.business.id === (book as any)?.businessId)) ||
+      (user.id && (user.id === realBook?.sellerId || user.id === (book as any)?.sellerId || user.id === realBook?.business?.ownerId))
+    )
+  );
+
   const handleAddToCart = () => {
+    if (isOwnerOfBook) {
+      showToast('Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách Shopee).', 'warning');
+      return;
+    }
     if (isOutOfStock) {
       showToast('Sách giấy hiện đang tạm hết hàng!', 'error');
       return;
@@ -811,6 +823,10 @@ export default function BookDetailPage() {
   };
 
   const handleBuyNow = () => {
+    if (isOwnerOfBook) {
+      showToast('Bạn không thể mua sản phẩm từ gian hàng của chính mình (chính sách Shopee).', 'warning');
+      return;
+    }
     if (isOutOfStock) {
       showToast('Sách giấy hiện đang tạm hết hàng!', 'error');
       return;
@@ -1094,33 +1110,40 @@ export default function BookDetailPage() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={handleAddToCart}
-                    disabled={isOutOfStock}
-                    title="Thêm Vào Giỏ Hàng"
-                    aria-label="Thêm Vào Giỏ Hàng"
-                    className={`w-11 h-10 shrink-0 border-2 rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
-                      isOutOfStock
-                        ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                        : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                  </button>
-                  <button
-                    onClick={handleBuyNow}
-                    disabled={isOutOfStock}
-                    className={`flex-1 h-10 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                      isOutOfStock
-                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-[#006953] hover:bg-[#00523c] text-white'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">shopping_cart_checkout</span>
-                    <span>{isOutOfStock ? 'Tạm Hết Hàng' : 'Mua Ngay'}</span>
-                  </button>
-                </div>
+                {isOwnerOfBook ? (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-medium">
+                    <span className="material-symbols-outlined text-[20px] text-amber-600 shrink-0">store</span>
+                    <span>Bạn là chủ gian hàng sở hữu sản phẩm này. Không thể tự đặt mua sản phẩm của chính mình (chính sách Shopee).</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={isOutOfStock}
+                      title="Thêm Vào Giỏ Hàng"
+                      aria-label="Thêm Vào Giỏ Hàng"
+                      className={`w-11 h-10 shrink-0 border-2 rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
+                        isOutOfStock
+                          ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
+                    </button>
+                    <button
+                      onClick={handleBuyNow}
+                      disabled={isOutOfStock}
+                      className={`flex-1 h-10 rounded-xl font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        isOutOfStock
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-[#006953] hover:bg-[#00523c] text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[18px]">shopping_cart_checkout</span>
+                      <span>{isOutOfStock ? 'Tạm Hết Hàng' : 'Mua Ngay'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Trust & E-Commerce Guarantees */}

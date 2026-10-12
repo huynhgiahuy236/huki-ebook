@@ -168,8 +168,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     initAuth();
+
+    // Shopee-style: Đồng bộ 1 tài khoản duy nhất trên tất cả các tab trình duyệt
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'huki_access_token') {
+        if (!e.newValue) {
+          // Tab khác đã đăng xuất -> đồng bộ đăng xuất trên tab này
+          setUser(null);
+          setActiveBusinessId(null);
+        } else if (e.newValue !== e.oldValue) {
+          // Tab khác đăng nhập tài khoản mới -> làm mới dữ liệu user theo tài khoản mới
+          initAuth();
+        }
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 

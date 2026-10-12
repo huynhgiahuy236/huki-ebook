@@ -92,7 +92,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
   }, [currentBizId, showToast, pathname]);
 
   // Global background check for new incoming orders across all Seller Portal pages
-  const knownGlobalOrderIdsRef = useRef<Set<string>>(new Set());
+  const knownGlobalOrderStatusesRef = useRef<Map<string, string>>(new Map());
   const isGlobalInitialLoadRef = useRef(false);
 
   useEffect(() => {
@@ -117,24 +117,35 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
           : [];
 
         if (isGlobalInitialLoadRef.current) {
-          const newOrders = items.filter(
-            (o) => o.status !== 'PENDING_PAYMENT' && !knownGlobalOrderIdsRef.current.has(o.id)
-          );
-          if (newOrders.length > 0) {
-            const newest = newOrders[0];
-            const code = newest.code || newest.id.slice(0, 8);
-            showToast({
-              type: 'order',
-              title: 'Nổ đơn hàng mới!',
-              message: `Đơn hàng #${code} vừa được đặt thành công (${newest.grandTotal ? Number(newest.grandTotal).toLocaleString('vi-VN') + ' đ' : ''}).`,
-              playSound: true,
-              actionUrl: `/seller/orders?tab=${newest.status}`,
-              actionLabel: 'Xem đơn hàng',
-            });
-          }
+          items.forEach((o) => {
+            const prevStatus = knownGlobalOrderStatusesRef.current.get(o.id);
+            const code = o.code || o.id.slice(0, 8);
+            const amountStr = o.grandTotal ? Number(o.grandTotal).toLocaleString('vi-VN') + ' đ' : '';
+
+            if (!prevStatus) {
+              const isPending = o.status === 'PENDING_PAYMENT';
+              showToast({
+                type: 'order',
+                title: isPending ? 'Đơn hàng mới (Chờ thanh toán QR)!' : 'Nổ đơn hàng mới!',
+                message: `Đơn hàng #${code} vừa được tạo (${amountStr}).`,
+                playSound: true,
+                actionUrl: `/seller/orders?tab=${o.status}`,
+                actionLabel: 'Xem đơn hàng',
+              });
+            } else if (prevStatus === 'PENDING_PAYMENT' && o.status !== 'PENDING_PAYMENT' && o.status !== 'CANCELLED') {
+              showToast({
+                type: 'order',
+                title: 'Nổ đơn hàng mới (Đã thanh toán)!',
+                message: `Đơn hàng #${code} đã thanh toán thành công (${amountStr}). Chuẩn bị đóng gói ngay!`,
+                playSound: true,
+                actionUrl: `/seller/orders?tab=${o.status}`,
+                actionLabel: 'Xử lý ngay',
+              });
+            }
+          });
         }
 
-        items.forEach((o) => knownGlobalOrderIdsRef.current.add(o.id));
+        items.forEach((o) => knownGlobalOrderStatusesRef.current.set(o.id, o.status));
         isGlobalInitialLoadRef.current = true;
       } catch {
         // ignore background poll errors

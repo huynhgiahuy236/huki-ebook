@@ -158,7 +158,7 @@ function SellerOrdersContent() {
   const businessId = user?.business?.id || activeBusinessId || undefined;
   const canViewOrders = can(PERMISSIONS.ORDER_VIEW, businessId, user);
 
-  const knownOrderIdsRef = useRef<Set<string>>(new Set());
+  const knownOrderStatusesRef = useRef<Map<string, string>>(new Map());
   const isInitialLoadDoneRef = useRef(false);
 
   // Load Business Name and Orders (supports silent background refresh)
@@ -195,27 +195,38 @@ function SellerOrdersContent() {
           ? ((raw as { items: SellerOrder[] }).items)
           : [];
 
-        // Check if there are newly arrived orders (excluding PENDING_PAYMENT)
+        // Check if there are newly arrived orders
         if (isInitialLoadDoneRef.current) {
-          const newOrders = items.filter(
-            (o) => o.status !== 'PENDING_PAYMENT' && !knownOrderIdsRef.current.has(o.id)
-          );
-          if (newOrders.length > 0) {
-            const newest = newOrders[0];
-            const orderCode = newest.code || newest.id.slice(0, 8);
-            showToast({
-              type: 'order',
-              title: 'Nổ đơn hàng mới!',
-              message: `Đơn hàng #${orderCode} vừa được đặt thành công (${newest.grandTotal ? Number(newest.grandTotal).toLocaleString('vi-VN') + ' đ' : 'Hoàn tất'}).`,
-              playSound: true,
-              actionUrl: `/seller/orders?tab=${newest.status}`,
-              actionLabel: 'Xử lý ngay',
-            });
-          }
+          items.forEach((o) => {
+            const prevStatus = knownOrderStatusesRef.current.get(o.id);
+            const orderCode = o.code || o.id.slice(0, 8);
+            const amountStr = o.grandTotal ? Number(o.grandTotal).toLocaleString('vi-VN') + ' đ' : '';
+
+            if (!prevStatus) {
+              const isPending = o.status === 'PENDING_PAYMENT';
+              showToast({
+                type: 'order',
+                title: isPending ? 'Đơn hàng mới (Chờ thanh toán QR)!' : 'Nổ đơn hàng mới!',
+                message: `Đơn hàng #${orderCode} vừa được tạo (${amountStr}).`,
+                playSound: true,
+                actionUrl: `/seller/orders?tab=${o.status}`,
+                actionLabel: 'Xử lý ngay',
+              });
+            } else if (prevStatus === 'PENDING_PAYMENT' && o.status !== 'PENDING_PAYMENT' && o.status !== 'CANCELLED') {
+              showToast({
+                type: 'order',
+                title: 'Nổ đơn hàng mới (Đã thanh toán)!',
+                message: `Đơn hàng #${orderCode} đã thanh toán thành công (${amountStr}). Chuẩn bị hàng ngay!`,
+                playSound: true,
+                actionUrl: `/seller/orders?tab=${o.status}`,
+                actionLabel: 'Xử lý ngay',
+              });
+            }
+          });
         }
 
-        // Cache known order IDs
-        items.forEach((o) => knownOrderIdsRef.current.add(o.id));
+        // Cache known order statuses
+        items.forEach((o) => knownOrderStatusesRef.current.set(o.id, o.status));
         isInitialLoadDoneRef.current = true;
 
         setOrders(items);

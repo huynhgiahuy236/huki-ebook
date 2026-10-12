@@ -101,7 +101,49 @@ export default function PayOSPaymentPage() {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }, [timeLeftSeconds]);
 
-  // 3. Auto-poll status every 4 seconds to detect real webhook payments
+  // Helper to broadcast inventory commit or release
+  const broadcastInventoryStatus = (action: 'COMMITTED' | 'RELEASED') => {
+    try {
+      const rawSOs = (order as any)?.sellerOrders;
+      if (Array.isArray(rawSOs) && rawSOs.length > 0) {
+        rawSOs.forEach((so: any) => {
+          if (Array.isArray(so.items)) {
+            so.items.forEach((it: any) => {
+              const fmt = String(it.format || it.bookFormat || '').toUpperCase();
+              const isPhysical = fmt === 'PHYSICAL' || fmt === 'BOTH' || fmt === '' || it.format !== 'DIGITAL';
+              if (isPhysical && it.bookId) {
+                realtimeSyncBus.publish('INVENTORY_UPDATED', {
+                  bookId: it.bookId,
+                  storeId: so.storeId || so.businessId,
+                  action,
+                  quantityDelta: Number(it.quantity) || 1,
+                  bookTitle: it.bookTitle || it.title,
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            });
+          }
+        });
+      } else if (Array.isArray((order as any)?.items)) {
+        (order as any).items.forEach((it: any) => {
+          const fmt = String(it.format || it.bookFormat || '').toUpperCase();
+          const isPhysical = fmt === 'PHYSICAL' || fmt === 'BOTH' || fmt === '' || it.format !== 'DIGITAL';
+          if (isPhysical && (it.bookId || it.id)) {
+            realtimeSyncBus.publish('INVENTORY_UPDATED', {
+              bookId: it.bookId || it.id,
+              action,
+              quantityDelta: Number(it.quantity) || 1,
+              bookTitle: it.bookTitle || it.title,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   // 3. Realtime listener & Auto-poll status
   useEffect(() => {
     if (!orderId || !order) return;
@@ -133,6 +175,7 @@ export default function PayOSPaymentPage() {
               grandTotal: order?.grandTotal,
               sellerOrders: order?.sellerOrders,
             });
+            broadcastInventoryStatus('COMMITTED');
             showToast('Thanh toán thành công! Đang chuyển hướng...', 'success');
             setTimeout(() => {
               window.location.href = `/order-success?orderId=${order?.id || orderId}&code=${encodeURIComponent(order?.code || res.data?.orderCode || '')}&paymentMethod=ONLINE_PAYMENT`;
@@ -176,6 +219,7 @@ export default function PayOSPaymentPage() {
           grandTotal: order?.grandTotal,
           sellerOrders: order?.sellerOrders,
         });
+        broadcastInventoryStatus('COMMITTED');
         showToast('Xác nhận thanh toán thành công! Dòng tiền đã được ghi nhận.', 'success');
         
         // Guaranteed navigation after bus broadcast
@@ -211,7 +255,8 @@ export default function PayOSPaymentPage() {
           orderId: order.id,
           orderCode: order.code,
         });
-        showToast('Đã hủy giao dịch và đơn hàng thành công.', 'info');
+        broadcastInventoryStatus('RELEASED');
+        showToast('Đã hủy giao dịch và giải phóng tồn kho thành công.', 'info');
         router.replace('/cart');
       } else {
         showToast(res.error?.message || 'Không thể hủy đơn hàng.', 'error');
