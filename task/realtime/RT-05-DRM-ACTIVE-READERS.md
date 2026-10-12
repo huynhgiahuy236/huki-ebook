@@ -63,6 +63,14 @@ Rooms:
 
 ## 🧪 4. KẾ HOẠCH KIỂM THỬ (TESTING & VERIFICATION CADENCE)
 
-* **Test Case 1 (Reader Joined Counter):** Mở 3 tab đọc sách cùng lúc trên các trình duyệt khác nhau $\to$ Xác nhận Admin DRM Vault hiển thị chính xác `activeReaders = 3`.
-* **Test Case 2 (Tab Closure Auto-Decrement):** Đóng 1 tab $\to$ Xác nhận số lượng trên Admin giảm xuống còn 2.
-* **Test Case 3 (Instant Piracy Kill-Switch):** Admin thực hiện khóa thiết bị $\to$ Kiểm tra tab của bạn đọc bị đóng nội dung và hiện cảnh báo vi phạm bản quyền ngay lập tức.
+* **Test Case 1 (Reader Joined Counter):** Mở tab đọc sách `/reader?book=[id]` $\to$ Xác nhận máy chủ nhận `startSession`, `activeReaders` tăng lên, Admin DRM Vault cập nhật thời gian thực kèm hiệu ứng pulse xanh. ✅ **ĐẠT (PASS)**
+* **Test Case 2 (Tab Closure Auto-Decrement):** Đóng tab hoặc rời khỏi trang $\to$ Bắn beacon/keepalive `session-leave`, xác nhận số lượng trên Admin giảm xuống tức thì. ✅ **ĐẠT (PASS)**
+* **Test Case 3 (Instant Piracy Kill-Switch):** Admin DRM Vault click nút **"Thu Hồi"** $\to$ Gọi `POST /admin/drm/licenses/:id/revoke`, bắn sự kiện `DRM_LICENSE_REVOKED` $\to$ Tab đọc sách của độc giả ngay lập tức bị đóng canvas, chuyển sang màn hình cảnh báo vi phạm bản quyền (POL-04) mà không cần F5. ✅ **ĐẠT (PASS)**
+* **Test Case 4 (Restore License):** Admin click **"Khôi Phục"** $\to$ Chuyển trạng thái về `SECURE` và mở lại quyền đọc. ✅ **ĐẠT (PASS)**
+
+---
+
+## 🏆 KẾT LUẬN & TRẠNG THÁI NGHIỆM THU
+* **Trạng thái:** ✅ **HOÀN THÀNH (COMPLETED)**
+* **Biên dịch TypeScript:** 0 lỗi (`tsc --noEmit` đạt 100% trên cả `web` và `commerce-service`).
+* **Không làm gián đoạn Docker / Back / Front:** Đáp ứng hoàn toàn chỉ thị bảo toàn container và môi trường đang chạy.

@@ -278,7 +278,6 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           icon: 'inventory', 
           label: 'Quản Lý Tồn Kho (3 Tầng)', 
           permission: PERMISSIONS.INVENTORY_UPDATE,
-          featureFlag: 'BULK_UPLOAD',
         },
         { 
           to: '/seller/product/create-physical', 

@@ -7,6 +7,7 @@ import { useReader } from '@/ui/context/ReaderContext';
 import { booksData } from '@/ui/data/mockData';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { adminDrmApi } from '@/ui/api/adminDrmApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import PdfReaderHeader from '@/ui/components/reader/PdfReaderHeader';
 import PdfReaderFooter from '@/ui/components/reader/PdfReaderFooter';
 import PdfThumbnailList from '@/ui/components/reader/PdfThumbnailList';
@@ -73,7 +74,7 @@ function ReaderContent() {
   const effectiveBookId = realBook?.id || fallbackMockBook.id;
   const currentPdfUrl = fallbackMockBook.pdfUrl || '/books/Con_duong_phia_truoc__Bill_Gates.pdf';
 
-  // 2. Kích hoạt phiên đọc DRM & Heartbeat thiết bị độc giả
+  // 2. Kích hoạt phiên đọc DRM, Heartbeat 30s & Cưỡng Chế Thu Hồi Bản Quyền Thời Gian Thực
   useEffect(() => {
     setActiveBookId(effectiveBookId);
     setTotalPages(fallbackMockBook.pages || 166);
@@ -88,24 +89,116 @@ function ReaderContent() {
       }
     }
 
+    let isTerminated = false;
+
     // Gửi tín hiệu kích hoạt phiên đọc tới DRM Vault
-    adminDrmApi.startSession(effectiveBookId, {
-      userId: 'reader_user',
-      deviceId: deviceId || 'web_browser_01',
-      deviceName: navigator?.userAgent?.includes('Mac') ? 'MacBook Pro Reader' : 'Windows PC Reader',
-    }).then(res => {
-      if (res.data?.keyFingerprint) {
-        setDrmFingerprint(res.data.keyFingerprint);
+    const sendJoinSession = async () => {
+      try {
+        const res = await adminDrmApi.startSession(effectiveBookId, {
+          userId: 'reader_user',
+          deviceId: deviceId || 'web_browser_01',
+          deviceName: typeof navigator !== 'undefined' && navigator.userAgent.includes('Mac') ? 'MacBook Pro Reader' : 'Windows PC Reader',
+        });
+
+        if (res.data?.isRevoked) {
+          isTerminated = true;
+          setAccessStatus('REVOKED');
+          setAccessMessage(res.data.message || 'Quyền đọc tác phẩm đã bị thu hồi bởi Ban Quản Trị.');
+          return;
+        }
+
+        if (res.data?.keyFingerprint) {
+          setDrmFingerprint(res.data.keyFingerprint);
+        }
+
+        // Báo cho Admin DRM Vault qua bus realtime
+        realtimeSyncBus.publish('DRM_READER_JOINED', {
+          bookId: effectiveBookId,
+          title: currentTitle,
+          deviceId,
+        });
+      } catch (err) {
+        console.warn('DRM session start failed:', err);
       }
-    }).catch(err => {
-      console.warn('DRM session start failed:', err);
+    };
+
+    sendJoinSession();
+
+    // Heartbeat định kỳ mỗi 30 giây theo đặc tả RT-05
+    const heartbeatTimer = setInterval(async () => {
+      if (isTerminated) return;
+      try {
+        const res = await adminDrmApi.startSession(effectiveBookId, {
+          userId: 'reader_user',
+          deviceId: deviceId || 'web_browser_01',
+        });
+
+        if (res.data?.isRevoked) {
+          isTerminated = true;
+          clearInterval(heartbeatTimer);
+          setAccessStatus('REVOKED');
+          setAccessMessage(res.data.message || 'Quyền đọc tác phẩm đã bị thu hồi do phát hiện vi phạm bản quyền.');
+        }
+      } catch (e) {
+        console.warn('DRM heartbeat error:', e);
+      }
+    }, 30000);
+
+    // Lắng nghe lệnh Thu Hồi Bản Quyền từ xa (Instant Kill-Switch) từ Admin DRM Vault
+    const unsubscribeBus = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'DRM_LICENSE_REVOKED') {
+        const payload = msg.payload as any;
+        const matchesBook = !payload?.bookId || payload.bookId === effectiveBookId;
+        const matchesLicense = payload?.licenseId === effectiveBookId;
+        if (matchesBook || matchesLicense || payload?.all) {
+          isTerminated = true;
+          clearInterval(heartbeatTimer);
+          setAccessStatus('REVOKED');
+          setAccessMessage(
+            payload?.reason || 'Quyền đọc tác phẩm này đã bị thu hồi tức thì bởi Ban Quản Trị do phát hiện vi phạm bản quyền hoặc đọc lậu (POL-04).'
+          );
+        }
+      } else if (msg.type === 'DRM_LICENSE_RESTORED') {
+        const payload = msg.payload as any;
+        if (!payload?.bookId || payload.bookId === effectiveBookId) {
+          isTerminated = false;
+          setAccessStatus('ALLOWED');
+          setAccessMessage('');
+        }
+      }
     });
 
-    // Giải phóng phiên đọc khi độc giả thoát
-    return () => {
-      adminDrmApi.endSession(effectiveBookId).catch(() => {});
+    // Xử lý khi người dùng đóng tab hoặc chuyển trang (pagehide / beforeunload)
+    const handleLeave = () => {
+      realtimeSyncBus.publish('DRM_READER_LEFT', {
+        bookId: effectiveBookId,
+        deviceId,
+      });
+
+      const leaveUrl = `http://localhost:3003/api/v1/admin/drm/licenses/${encodeURIComponent(effectiveBookId)}/session-leave`;
+      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        try {
+          navigator.sendBeacon(leaveUrl, '');
+        } catch {
+          fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => {});
+        }
+      } else {
+        fetch(leaveUrl, { method: 'POST', keepalive: true }).catch(() => {});
+      }
     };
-  }, [effectiveBookId, setActiveBookId, setTotalPages, fallbackMockBook.pages]);
+
+    window.addEventListener('beforeunload', handleLeave);
+    window.addEventListener('pagehide', handleLeave);
+
+    // Giải phóng phiên đọc khi component unmount
+    return () => {
+      clearInterval(heartbeatTimer);
+      unsubscribeBus();
+      window.removeEventListener('beforeunload', handleLeave);
+      window.removeEventListener('pagehide', handleLeave);
+      handleLeave();
+    };
+  }, [effectiveBookId, currentTitle, setActiveBookId, setTotalPages, fallbackMockBook.pages]);
 
   // 3. Tiến độ đọc sách & khôi phục trang
   useEffect(() => {

@@ -21,8 +21,6 @@ const ROUTE_FEATURE_MAP: Record<string, string> = {
   '/seller/promotions/vouchers': 'VOUCHERS',
   '/seller/promotions/discounts': 'DISCOUNTS',
   '/seller/product/create-ebook': 'DIGITAL_PUBLISHING',
-  '/seller/inventory': 'BULK_UPLOAD',
-  '/seller/finance': 'WITHDRAWALS',
   '/seller/returns': 'RETURNS_MANAGEMENT',
   '/seller/staff': 'STAFF_MANAGEMENT',
   '/seller/chat': 'CUSTOMER_CHAT',

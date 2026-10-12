@@ -12,6 +12,8 @@ import {
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
 import WithdrawalPinModal, { type BankInfo } from '@/ui/components/seller/WithdrawalPinModal';
+import { featureFlagsService } from '@/ui/services/featureFlagsService';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0đ';
@@ -78,6 +80,23 @@ export default function SellerFinancePage() {
   const [isPayoutsLoading, setIsPayoutsLoading] = useState(true);
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutTotalPages, setPayoutTotalPages] = useState(1);
+
+  // RT-04 Realtime Feature Flag check for WITHDRAWALS
+  const [featureVersion, setFeatureVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'FEATURE_FLAGS_UPDATED') {
+        setFeatureVersion((v) => v + 1);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const withdrawalCheck = useMemo(() => {
+    return featureFlagsService.isFeatureAccessible('WITHDRAWALS', storeId || undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId, featureVersion]);
 
   // Fetch Wallet Data
   const fetchWallet = useCallback(async () => {
@@ -249,14 +268,31 @@ export default function SellerFinancePage() {
           <button
             type="button"
             onClick={() => setIsWithdrawalModalOpen(true)}
-            disabled={effectiveAvailableBalance <= 0}
-            className="px-4 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={effectiveAvailableBalance <= 0 || !withdrawalCheck.accessible}
+            title={!withdrawalCheck.accessible ? (withdrawalCheck.reason || 'Tính năng rút tiền đang tạm bảo trì') : undefined}
+            className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold shadow-2xs transition-all flex items-center justify-center gap-2 ${
+              !withdrawalCheck.accessible
+                ? 'bg-amber-600/80 cursor-not-allowed opacity-75'
+                : 'bg-[#00875A] hover:bg-[#003B2B] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed'
+            }`}
           >
-            <span className="material-symbols-outlined text-base">payments</span>
-            <span>Rút Tiền Về Ngân Hàng</span>
+            <span className="material-symbols-outlined text-base">
+              {!withdrawalCheck.accessible ? 'construction' : 'payments'}
+            </span>
+            <span>{!withdrawalCheck.accessible ? 'Rút Tiền (Đang Bảo Trì)' : 'Rút Tiền Về Ngân Hàng'}</span>
           </button>
         </div>
       </div>
+
+      {!withdrawalCheck.accessible && (
+        <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs sm:text-sm flex items-center gap-2.5">
+          <span className="material-symbols-outlined text-amber-600 text-xl shrink-0">construction</span>
+          <div className="flex-1">
+            <span className="font-bold">Cổng Rút Tiền Đang Tạm Bảo Trì: </span>
+            <span>{withdrawalCheck.reason || 'Hệ thống đang tiến hành nâng cấp đối soát ngân hàng theo định kỳ. Quý đối tác vui lòng quay lại sau.'}</span>
+          </div>
+        </div>
+      )}
 
       {walletError && (
         <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs sm:text-sm flex items-center justify-between gap-3">

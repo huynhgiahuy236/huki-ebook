@@ -70,4 +70,21 @@ export class DrmVaultController {
     const data = await this.drmVaultService.endSession(id);
     return { success: true, data };
   }
+
+  @Post('licenses/:id/revoke')
+  @ApiOperation({ summary: 'Thu hồi giấy phép DRM từ xa chống đọc lậu (Kill-Switch)' })
+  async revokeLicense(
+    @Param('id') id: string,
+    @Body() payload: { reason?: string },
+  ) {
+    const data = await this.drmVaultService.revokeLicense(id, payload?.reason);
+    return { success: true, message: 'Đã thu hồi giấy phép DRM thành công', data };
+  }
+
+  @Post('licenses/:id/restore')
+  @ApiOperation({ summary: 'Khôi phục giấy phép DRM hợp lệ' })
+  async restoreLicense(@Param('id') id: string) {
+    const data = await this.drmVaultService.restoreLicense(id);
+    return { success: true, message: 'Đã khôi phục giấy phép DRM thành công', data };
+  }
 }

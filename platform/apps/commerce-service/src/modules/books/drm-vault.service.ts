@@ -123,6 +123,8 @@ export class DrmVaultService {
       where.securityStatus = DrmSecurityStatus.SECURE;
     } else if (query.status === 'upgrade_needed') {
       where.securityStatus = DrmSecurityStatus.UPGRADE_NEEDED;
+    } else if (query.status === 'revoked') {
+      where.securityStatus = DrmSecurityStatus.REVOKED;
     }
 
     if (query.search && query.search.trim()) {
@@ -259,6 +261,95 @@ export class DrmVaultService {
   }
 
   /**
+   * Thu hồi giấy phép DRM (Kill-Switch thu hồi từ xa chống đọc lậu)
+   */
+  async revokeLicense(licenseCodeOrId: string, reason?: string, operatorId?: string) {
+    const license = await this.prisma.drmLicense.findFirst({
+      where: {
+        OR: [{ id: licenseCodeOrId }, { licenseCode: licenseCodeOrId }, { bookId: licenseCodeOrId }],
+      },
+      include: { book: true },
+    });
+
+    if (!license) {
+      throw new NotFoundException(`Không tìm thấy giấy phép DRM: ${licenseCodeOrId}`);
+    }
+
+    const updated = await this.prisma.drmLicense.update({
+      where: { id: license.id },
+      data: {
+        securityStatus: DrmSecurityStatus.REVOKED,
+        statusLabel: 'Bị Thu Hồi (Đọc Lậu / POL-04)',
+        activeReaders: 0,
+        revokedDevices: { increment: 1 },
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.drmAuditLog.create({
+      data: {
+        licenseId: license.id,
+        action: 'REVOKE_LICENSE',
+        operatorId: operatorId || 'ADMIN_HUKI',
+        details: reason || `Admin đã thu hồi giấy phép DRM của tác phẩm "${license.book?.title || license.licenseCode}". Các phiên đọc bị ngắt ngay lập tức.`,
+      },
+    });
+
+    this.logger.warn(`Revoked DRM license ${license.licenseCode} for book ${license.bookId}`);
+
+    return {
+      success: true,
+      licenseCode: updated.licenseCode,
+      bookId: updated.bookId,
+      securityStatus: updated.securityStatus,
+      statusLabel: updated.statusLabel,
+      revokedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Khôi phục giấy phép DRM sau khi xử lý tranh chấp
+   */
+  async restoreLicense(licenseCodeOrId: string, operatorId?: string) {
+    const license = await this.prisma.drmLicense.findFirst({
+      where: {
+        OR: [{ id: licenseCodeOrId }, { licenseCode: licenseCodeOrId }, { bookId: licenseCodeOrId }],
+      },
+      include: { book: true },
+    });
+
+    if (!license) {
+      throw new NotFoundException(`Không tìm thấy giấy phép DRM: ${licenseCodeOrId}`);
+    }
+
+    const updated = await this.prisma.drmLicense.update({
+      where: { id: license.id },
+      data: {
+        securityStatus: DrmSecurityStatus.SECURE,
+        statusLabel: 'An Toàn Tuyệt Đối',
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.drmAuditLog.create({
+      data: {
+        licenseId: license.id,
+        action: 'RESTORE_LICENSE',
+        operatorId: operatorId || 'ADMIN_HUKI',
+        details: `Đã khôi phục giấy phép DRM hợp lệ cho tác phẩm "${license.book?.title || license.licenseCode}".`,
+      },
+    });
+
+    return {
+      success: true,
+      licenseCode: updated.licenseCode,
+      bookId: updated.bookId,
+      securityStatus: updated.securityStatus,
+      statusLabel: updated.statusLabel,
+    };
+  }
+
+  /**
    * Khởi tạo / Ghi nhận phiên đọc sách của độc giả (Heartbeat & Register Device)
    */
   async startSession(bookIdOrCode: string, payload: { userId?: string; deviceId?: string; deviceName?: string; ipAddress?: string }) {
@@ -270,6 +361,16 @@ export class DrmVaultService {
 
     if (!license) {
       return null;
+    }
+
+    // Nếu giấy phép đã bị thu hồi do vi phạm bản quyền / đọc lậu
+    if (license.securityStatus === DrmSecurityStatus.REVOKED) {
+      return {
+        success: false,
+        isRevoked: true,
+        licenseCode: license.licenseCode,
+        message: 'Quyền đọc tác phẩm này đã bị thu hồi bởi Ban Quản Trị do vi phạm bản quyền hoặc phát hiện đọc lậu (POL-04).',
+      };
     }
 
     const { userId, deviceId, deviceName, ipAddress } = payload;

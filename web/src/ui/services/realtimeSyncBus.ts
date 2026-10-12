@@ -14,7 +14,12 @@ export type SyncEventType =
   | 'ORDER_PAYMENT_SUCCEEDED'
   | 'ORDER_STATUS_CHANGED'
   | 'ORDER_CANCELLED'
-  | 'INVENTORY_UPDATED';
+  | 'INVENTORY_UPDATED'
+  | 'DRM_READER_JOINED'
+  | 'DRM_READER_LEFT'
+  | 'DRM_LICENSE_REVOKED'
+  | 'DRM_LICENSE_RESTORED'
+  | 'DRM_ACTIVE_READERS_CHANGED';
 
 export interface InventoryUpdatePayload {
   bookId: string;
@@ -94,6 +99,18 @@ class RealtimeSyncBus {
             }
           } catch {}
         }
+        if (e.key === 'huki_drm_sync_event' && e.newValue) {
+          try {
+            const data = JSON.parse(e.newValue);
+            if (data?.type) {
+              this.notifyListeners({
+                type: data.type,
+                payload: data.payload,
+                timestamp: data.t || Date.now(),
+              });
+            }
+          } catch {}
+        }
       });
     }
   }
@@ -141,6 +158,15 @@ class RealtimeSyncBus {
             JSON.stringify({ type, payload, t: Date.now() })
           );
           window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: payload }));
+        } catch {}
+      }
+      if (type.startsWith('DRM_')) {
+        try {
+          localStorage.setItem(
+            'huki_drm_sync_event',
+            JSON.stringify({ type, payload, t: Date.now() })
+          );
+          window.dispatchEvent(new CustomEvent('huki_drm_event', { detail: { type, payload } }));
         } catch {}
       }
     }

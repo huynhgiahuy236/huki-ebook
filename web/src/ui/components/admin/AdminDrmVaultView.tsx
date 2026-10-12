@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import {
   AdminStatusBadge,
   AdminFilterTabs,
@@ -19,7 +20,7 @@ export function AdminDrmVaultView() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'secure' | 'upgrade_needed'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'secure' | 'upgrade_needed' | 'revoked'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -29,8 +30,12 @@ export function AdminDrmVaultView() {
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isRotatingId, setIsRotatingId] = useState<string | null>(null);
+  const [isRevokingId, setIsRevokingId] = useState<string | null>(null);
+  const [isRestoringId, setIsRestoringId] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [expandedDrmIds, setExpandedDrmIds] = useState<Set<string>>(new Set());
+  const [hasActiveReadersPulse, setHasActiveReadersPulse] = useState(false);
+  const previousActiveReadersRef = useRef<number | null>(null);
 
   // Debounce tìm kiếm 300ms
   useEffect(() => {
@@ -47,6 +52,14 @@ export function AdminDrmVaultView() {
       const res = await adminDrmApi.getOverview();
       if (res.data) {
         setOverview(res.data);
+        if (
+          previousActiveReadersRef.current !== null &&
+          previousActiveReadersRef.current !== res.data.activeReadersCount
+        ) {
+          setHasActiveReadersPulse(true);
+          setTimeout(() => setHasActiveReadersPulse(false), 2000);
+        }
+        previousActiveReadersRef.current = res.data.activeReadersCount;
       }
     } catch (err) {
       console.error('Lỗi khi tải DRM overview:', err);
@@ -54,8 +67,8 @@ export function AdminDrmVaultView() {
   }, []);
 
   // Load danh sách giấy phép
-  const fetchLicenses = useCallback(async () => {
-    setIsLoading(true);
+  const fetchLicenses = useCallback(async (isSilent = false) => {
+    if (!isSilent) setIsLoading(true);
     try {
       const res = await adminDrmApi.getLicenses({
         page: currentPage,
@@ -88,10 +101,12 @@ export function AdminDrmVaultView() {
         setTotalPages(pages);
       }
     } catch (err) {
-      console.error('Lỗi khi tải danh sách DRM licenses:', err);
-      showToast?.('Không thể tải danh sách giấy phép DRM từ máy chủ', 'error');
+      if (!isSilent) {
+        console.error('Lỗi khi tải danh sách DRM licenses:', err);
+        showToast?.('Không thể tải danh sách giấy phép DRM từ máy chủ', 'error');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) setIsLoading(false);
     }
   }, [currentPage, pageSize, debouncedSearch, activeTab, showToast]);
 
@@ -103,6 +118,32 @@ export function AdminDrmVaultView() {
     fetchLicenses();
   }, [fetchLicenses]);
 
+  // Silent Background Auto-Polling (3.5s - Cơ chế Shopee Realtime) & Lắng nghe RealtimeSyncBus
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      fetchOverview();
+      fetchLicenses(true);
+    }, 3500);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'DRM_READER_JOINED' ||
+        msg.type === 'DRM_READER_LEFT' ||
+        msg.type === 'DRM_ACTIVE_READERS_CHANGED' ||
+        msg.type === 'DRM_LICENSE_REVOKED' ||
+        msg.type === 'DRM_LICENSE_RESTORED'
+      ) {
+        fetchOverview();
+        fetchLicenses(true);
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [fetchOverview, fetchLicenses]);
+
   // Xử lý luân chuyển khóa (Rotate Key)
   const handleRotateKey = async (licId: string) => {
     if (isRotatingId) return;
@@ -111,8 +152,7 @@ export function AdminDrmVaultView() {
       const res = await adminDrmApi.rotateKey(licId);
       if (res.success || res.data) {
         showToast?.(`Đã luân chuyển (Rotate) khóa bảo mật cho ${licId} thành công!`, 'success');
-        // Làm mới danh sách và overview
-        await Promise.all([fetchLicenses(), fetchOverview()]);
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
       } else {
         showToast?.(res.error?.message || 'Không thể luân chuyển khóa', 'error');
       }
@@ -121,6 +161,63 @@ export function AdminDrmVaultView() {
       showToast?.(err?.message || 'Lỗi khi luân chuyển khóa DRM', 'error');
     } finally {
       setIsRotatingId(null);
+    }
+  };
+
+  // Xử lý thu hồi giấy phép DRM tức thì (Instant Kill-Switch chống đọc lậu)
+  const handleRevokeLicense = async (item: DrmLicenseItem) => {
+    if (isRevokingId) return;
+    const confirmed = window.confirm(
+      `Xác nhận THU HỒI giấy phép DRM của tác phẩm "${item.bookTitle}" (${item.id})?\n\nMọi thiết bị đọc lậu đang mở tác phẩm này sẽ bị ngắt kết nối và khóa nội dung tức thì (POL-04)!`
+    );
+    if (!confirmed) return;
+
+    setIsRevokingId(item.id);
+    try {
+      const res = await adminDrmApi.revokeLicense(
+        item.id,
+        `Ban Quản Trị đã thu hồi giấy phép bản quyền của tác phẩm "${item.bookTitle}" do phát hiện vi phạm chính sách bản quyền POL-04.`
+      );
+      if (res.success || res.data) {
+        showToast?.(`Đã thu hồi giấy phép DRM của tác phẩm "${item.bookTitle}"! Phiên đọc đã bị khóa từ xa.`, 'success');
+        realtimeSyncBus.publish('DRM_LICENSE_REVOKED', {
+          licenseId: item.id,
+          bookId: item.bookId,
+          reason: 'Giấy phép đọc tác phẩm đã bị thu hồi tức thì bởi Ban Quản Trị (POL-04).',
+        });
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
+      } else {
+        showToast?.(res.error?.message || 'Không thể thu hồi giấy phép', 'error');
+      }
+    } catch (err: any) {
+      console.error('Lỗi thu hồi DRM:', err);
+      showToast?.(err?.message || 'Lỗi khi thu hồi giấy phép DRM', 'error');
+    } finally {
+      setIsRevokingId(null);
+    }
+  };
+
+  // Xử lý khôi phục giấy phép DRM hợp lệ
+  const handleRestoreLicense = async (item: DrmLicenseItem) => {
+    if (isRestoringId) return;
+    setIsRestoringId(item.id);
+    try {
+      const res = await adminDrmApi.restoreLicense(item.id);
+      if (res.success || res.data) {
+        showToast?.(`Đã khôi phục giấy phép DRM hợp lệ cho "${item.bookTitle}" thành công!`, 'success');
+        realtimeSyncBus.publish('DRM_LICENSE_RESTORED', {
+          licenseId: item.id,
+          bookId: item.bookId,
+        });
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
+      } else {
+        showToast?.(res.error?.message || 'Không thể khôi phục giấy phép', 'error');
+      }
+    } catch (err: any) {
+      console.error('Lỗi khôi phục DRM:', err);
+      showToast?.(err?.message || 'Lỗi khi khôi phục giấy phép DRM', 'error');
+    } finally {
+      setIsRestoringId(null);
     }
   };
 
@@ -167,6 +264,7 @@ export function AdminDrmVaultView() {
     { key: 'all', label: 'Tất Cả Khóa', count: overview ? overview.totalEncryptedBooks : totalItems },
     { key: 'secure', label: 'An Toàn Tuyệt Đối', count: overview ? overview.totalEncryptedBooks : totalItems },
     { key: 'upgrade_needed', label: 'Cần Nâng Cấp Khóa', count: 0 },
+    { key: 'revoked', label: 'Bị Thu Hồi (Đọc Lậu)', count: overview ? overview.revokedDevicesCount : 0 },
   ];
 
   return (
@@ -217,11 +315,16 @@ export function AdminDrmVaultView() {
         </div>
 
         {/* Card 2: Độc giả */}
-        <div className="p-4 rounded-2xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between">
+        <div className={`p-4 rounded-2xl bg-white border border-gray-200 shadow-2xs flex items-center justify-between transition-all duration-300 ${
+          hasActiveReadersPulse ? 'ring-2 ring-emerald-500 scale-[1.02]' : ''
+        }`}>
           <div>
             <div className="text-[11px] text-gray-500 font-bold uppercase tracking-wider">Độc Giả Đang Đọc</div>
-            <div className="text-2xl font-extrabold text-emerald-700 font-editorial mt-1">
-              {overview ? overview.activeReadersCount.toLocaleString('vi-VN') : '0'}
+            <div className="text-2xl font-extrabold text-emerald-700 font-editorial mt-1 flex items-center gap-2">
+              <span>{overview ? overview.activeReadersCount.toLocaleString('vi-VN') : '0'}</span>
+              {overview && overview.activeReadersCount > 0 && (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping inline-block" title="Realtime Active"></span>
+              )}
             </div>
             <div className="text-[11px] text-gray-500 font-medium mt-0.5">
               {overview && overview.activeReadersCount > 0 ? 'Gắn Dynamic Canvas Watermark' : 'Chưa có phiên đọc trực tuyến'}
@@ -404,27 +507,73 @@ export function AdminDrmVaultView() {
 
                         {/* Trạng Thái & Thao Tác */}
                         <td className="py-3 px-4 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
                             <AdminStatusBadge
-                              status={item.securityStatus === 'secure' ? 'ACTIVE' : 'WARNING'}
+                              status={
+                                item.securityStatus === 'secure'
+                                  ? 'ACTIVE'
+                                  : item.securityStatus === 'revoked'
+                                  ? 'ERROR'
+                                  : 'WARNING'
+                              }
                               label={item.statusLabel}
                             />
 
-                            <button
-                              onClick={() => handleRotateKey(item.id)}
-                              disabled={isRotating}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
-                                isRotating
-                                  ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
-                                  : 'bg-purple-50 hover:bg-purple-100 text-purple-800'
-                              }`}
-                              title="Luân chuyển khóa mã hóa"
-                            >
-                              {isRotating && (
-                                <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
-                              )}
-                              <span>{isRotating ? 'Đang đổi...' : 'Đổi Khóa'}</span>
-                            </button>
+                            {item.securityStatus === 'revoked' ? (
+                              <button
+                                onClick={() => handleRestoreLicense(item)}
+                                disabled={isRestoringId === item.id}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                                  isRestoringId === item.id
+                                    ? 'bg-emerald-100 text-emerald-400 cursor-not-allowed'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800'
+                                }`}
+                                title="Khôi phục giấy phép DRM"
+                              >
+                                {isRestoringId === item.id ? (
+                                  <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
+                                ) : (
+                                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                                )}
+                                <span>{isRestoringId === item.id ? 'Đang mở...' : 'Khôi Phục'}</span>
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleRotateKey(item.id)}
+                                  disabled={isRotating}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                                    isRotating
+                                      ? 'bg-purple-100 text-purple-400 cursor-not-allowed'
+                                      : 'bg-purple-50 hover:bg-purple-100 text-purple-800'
+                                  }`}
+                                  title="Luân chuyển khóa mã hóa"
+                                >
+                                  {isRotating && (
+                                    <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
+                                  )}
+                                  <span>{isRotating ? 'Đang đổi...' : 'Đổi Khóa'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleRevokeLicense(item)}
+                                  disabled={isRevokingId === item.id}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1 ${
+                                    isRevokingId === item.id
+                                      ? 'bg-rose-100 text-rose-400 cursor-not-allowed'
+                                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700'
+                                  }`}
+                                  title="Thu hồi giấy phép / Khóa đọc lậu tức thì"
+                                >
+                                  {isRevokingId === item.id ? (
+                                    <span className="material-symbols-outlined text-[12px] animate-spin">sync</span>
+                                  ) : (
+                                    <span className="material-symbols-outlined text-[12px]">block</span>
+                                  )}
+                                  <span>{isRevokingId === item.id ? 'Đang khóa...' : 'Thu Hồi'}</span>
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -485,31 +634,63 @@ export function AdminDrmVaultView() {
                                 <div>
                                   <div className="text-[11px] font-bold uppercase tracking-wider text-purple-800 flex items-center gap-1.5">
                                     <span className="material-symbols-outlined text-[14px]">build</span>
-                                    <span>Thao Tác Bảo Mật DRM</span>
+                                    <span>Thao Tác Bảo Mật DRM &amp; Kill-Switch</span>
                                   </div>
                                   <p className="text-[11px] text-gray-500 mt-1">
-                                    Luân chuyển khóa AES-GCM-256 mới nhất mà không làm gián đoạn độc giả đang đọc trực tuyến.
+                                    {item.securityStatus === 'revoked'
+                                      ? 'Giấy phép tác phẩm hiện đang bị đình chỉ do vi phạm bản quyền hoặc phát hiện đọc lậu (POL-04).'
+                                      : 'Luân chuyển khóa AES-GCM-256 mới hoặc thu hồi giấy phép từ xa để ngắt kết nối thiết bị đọc lậu.'}
                                   </p>
                                 </div>
                                 <div className="flex flex-wrap gap-2 pt-2">
-                                  <button
-                                    onClick={() => handleRotateKey(item.id)}
-                                    disabled={isRotating}
-                                    className={`px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer ${
-                                      isRotating
-                                        ? 'bg-purple-400 cursor-not-allowed'
-                                        : 'bg-purple-700 hover:bg-purple-800'
-                                    }`}
-                                  >
-                                    <span
-                                      className={`material-symbols-outlined text-[14px] ${
-                                        isRotating ? 'animate-spin' : ''
+                                  {item.securityStatus === 'revoked' ? (
+                                    <button
+                                      onClick={() => handleRestoreLicense(item)}
+                                      disabled={isRestoringId === item.id}
+                                      className={`px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer ${
+                                        isRestoringId === item.id
+                                          ? 'bg-emerald-400 cursor-not-allowed'
+                                          : 'bg-emerald-600 hover:bg-emerald-700'
                                       }`}
                                     >
-                                      sync
-                                    </span>
-                                    <span>{isRotating ? 'Đang Luân Chuyển Khóa...' : 'Luân Chuyển Khóa (Rotate)'}</span>
-                                  </button>
+                                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                      <span>{isRestoringId === item.id ? 'Đang Khôi Phục...' : 'Khôi Phục Bản Quyền Tác Phẩm'}</span>
+                                    </button>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleRotateKey(item.id)}
+                                        disabled={isRotating}
+                                        className={`px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer ${
+                                          isRotating
+                                            ? 'bg-purple-400 cursor-not-allowed'
+                                            : 'bg-purple-700 hover:bg-purple-800'
+                                        }`}
+                                      >
+                                        <span
+                                          className={`material-symbols-outlined text-[14px] ${
+                                            isRotating ? 'animate-spin' : ''
+                                          }`}
+                                        >
+                                          sync
+                                        </span>
+                                        <span>{isRotating ? 'Đang Luân Chuyển Khóa...' : 'Luân Chuyển Khóa (Rotate)'}</span>
+                                      </button>
+
+                                      <button
+                                        onClick={() => handleRevokeLicense(item)}
+                                        disabled={isRevokingId === item.id}
+                                        className={`px-3 py-1.5 rounded-lg text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer ${
+                                          isRevokingId === item.id
+                                            ? 'bg-rose-400 cursor-not-allowed'
+                                            : 'bg-rose-600 hover:bg-rose-700'
+                                        }`}
+                                      >
+                                        <span className="material-symbols-outlined text-[14px]">devices_off</span>
+                                        <span>{isRevokingId === item.id ? 'Đang Thu Hồi Khóa...' : 'Thu Hồi Bản Quyền (Kill-Switch Đọc Lậu)'}</span>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
                               </div>
                             </div>

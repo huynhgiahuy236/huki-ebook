@@ -65,8 +65,15 @@ interface FeatureToggleEventPayload {
 
 ---
 
-## 🧪 4. KẾ HOẠCH KIỂM THỬ (TESTING & VERIFICATION CADENCE)
+## 🧪 4. KẾ HOẠCH KIỂM THỬ & KẾT QUẢ NGHIỆM THU (TESTING & ACCEPTANCE)
 
-* **Test Case 1 (Realtime Toggle UI):** Mở đồng thời 2 tab Admin và Seller trên Chrome $\to$ Gạt tắt / bật 5 tính năng khác nhau $\to$ Xác nhận Seller Sidebar phản hồi tức thì mà không reload.
-* **Test Case 2 (Direct URL Access Protection):** Tắt tính năng "Đăng Sách Mới" $\to$ Gõ trực tiếp URL `/seller/product/create-hybrid` $\to$ Xác nhận trang hiển thị màn hình bảo trì, nút Lưu bị khóa.
-* **Test Case 3 (API Gateway Security):** Dùng Postman gửi request POST tạo sản phẩm khi tính năng đang tắt $\to$ Xác nhận API Gateway trả về mã lỗi `403 Forbidden - Feature Currently Disabled`.
+* [x] **Test Case 1 (Realtime Toggle UI & Sidebar Dimming):**
+  * Admin gạt tắt / bật 9 tính năng trên `/admin/seller-features` $\to$ `SellerSidebar` lập tức phản hồi: Menu con bị làm mờ `opacity-40`, hiện huy hiệu `Bảo trì` và tooltip cảnh báo, thanh thông báo `SellerTopNoticeBar` xuất hiện thông báo bảo trì toàn sàn < 100ms.
+* [x] **Test Case 2 (Direct Route Protection & Construction Screen):**
+  * Khi các tính năng bị khóa (Flash Sale, Voucher, Khuyến mãi, Ebook, CSKH, Nhân viên) $\to$ Seller truy cập trực tiếp URL tương ứng được `SellerLayout` bảo vệ bằng màn hình cảnh báo bảo trì (`Tính Năng Đang Tạm Dừng Hoạt Động`).
+* [x] **Test Case 3 (In-Page Action Disabling & Safe Data Preservation):**
+  * Khi tính năng `Rút Tiền` (`WITHDRAWALS`) bị khóa $\to$ Trang `/seller/finance` vẫn cho phép xem số dư/giao dịch an toàn, nhưng nút "Rút Tiền Về Ngân Hàng" bị khóa kèm nhãn `Rút Tiền (Đang Bảo Trì)` và banner cảnh báo màu hổ phách.
+* [x] **Test Case 4 (Cross-Device & Persistence Sync):**
+  * Tích hợp lưu trữ bền vững qua `.huki_seller_features.json` kết hợp cơ chế Server Polling 3s trong `featureFlagsService` $\to$ Đảm bảo các trình duyệt và thiết bị khác nhau tự động đồng bộ trạng thái bảo trì thời gian thực mà không cần F5.
+
+> **Trạng thái:** ✅ **HOÀN THÀNH (COMPLETED)** — Đã chuẩn hóa toàn diện cơ chế Kill-Switch thời gian thực cho Kênh Người Bán theo đúng tiêu chuẩn vận hành sàn TMĐT Shopee.

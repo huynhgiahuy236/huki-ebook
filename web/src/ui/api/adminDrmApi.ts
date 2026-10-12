@@ -23,7 +23,7 @@ export interface DrmLicenseItem {
   encryptionCluster: string;
   keyFingerprint: string;
   watermarkEngine: string;
-  securityStatus: 'secure' | 'upgrade_needed';
+  securityStatus: 'secure' | 'upgrade_needed' | 'revoked';
   statusLabel: string;
   revokedDevices: number;
   createdAt: string;
@@ -42,7 +42,7 @@ export interface DrmLicenseQuery {
   page?: number;
   limit?: number;
   search?: string;
-  status?: 'all' | 'secure' | 'upgrade_needed';
+  status?: 'all' | 'secure' | 'upgrade_needed' | 'revoked';
 }
 
 export interface IntegrityScanResult {
@@ -119,6 +119,25 @@ export const adminDrmApi = {
    */
   async endSession(bookIdOrCode: string): Promise<ApiResponse<any>> {
     return apiClient<any>(resolveDrmUrl(`/admin/drm/licenses/${encodeURIComponent(bookIdOrCode)}/session-leave`), {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Thu hồi giấy phép DRM (Kill-Switch thu hồi từ xa chống đọc lậu)
+   */
+  async revokeLicense(licenseIdOrCode: string, reason?: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(resolveDrmUrl(`/admin/drm/licenses/${encodeURIComponent(licenseIdOrCode)}/revoke`), {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  /**
+   * Khôi phục giấy phép DRM hợp lệ
+   */
+  async restoreLicense(licenseIdOrCode: string): Promise<ApiResponse<any>> {
+    return apiClient<any>(resolveDrmUrl(`/admin/drm/licenses/${encodeURIComponent(licenseIdOrCode)}/restore`), {
       method: 'POST',
     });
   },

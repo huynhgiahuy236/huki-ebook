@@ -93,9 +93,9 @@ Hệ thống được bóc tách thành **10 Module độc lập**, mỗi module
 | 📄 [**RT-01**](./RT-01-NOTIFICATIONS-BROADCAST.md) | **Hệ Thống Thông Báo & Cảnh Báo Sàn** | Admin, Seller, Buyer | Toast realtime, Bell badge, Broadcast toàn sàn | ✅ **Hoàn thành** |
 | 📄 [**RT-02**](./RT-02-ORDERS-LIFECYCLE.md) | **Vòng Đời Đơn Hàng & Tách Đơn Con** | Admin, Seller, Buyer | Nổ chuông đơn mới, PayOS webhook nhảy trạng thái | ✅ **Hoàn thành** |
 | 📄 [**RT-03**](./RT-03-INVENTORY-RESERVATION.md) | **Tồn Kho 3 Tầng & Khóa Tồn Kho** | Seller, Buyer | Khóa hàng khi checkout, nhả kho khi hủy, chống overselling | ✅ **Hoàn thành** |
-| 📄 [**RT-04**](./RT-04-SELLER-FEATURES-TOGGLE.md) | **Bật/Tắt Tính Năng Seller (Switch)** | Admin, Seller | Làm mờ và chặn quyền Seller tức thì khi bảo trì | ⏳ *Kế tiếp* |
-| 📄 [**RT-05**](./RT-05-DRM-ACTIVE-READERS.md) | **Phiên Đọc Sách DRM & Active Readers** | Admin, Buyer | Heartbeat 30s, đếm bạn đọc online, hủy đọc lậu từ xa | 📋 *Chờ duyệt* |
-| 📄 [**RT-06**](./RT-06-WALLET-FINANCE-ESCROW.md) | **Ví Người Bán, Escrow & Duyệt Payout** | Admin, Seller | Nổ số dư ví 85/15, kế toán kép, duyệt rút tiền có mã PIN | 📋 *Chờ duyệt* |
+| 📄 [**RT-04**](./RT-04-SELLER-FEATURES-TOGGLE.md) | **Bật/Tắt Tính Năng Seller (Switch)** | Admin, Seller | Làm mờ và chặn quyền Seller tức thì khi bảo trì | ✅ **Hoàn thành** |
+| 📄 [**RT-05**](./RT-05-DRM-ACTIVE-READERS.md) | **Phiên Đọc Sách DRM & Active Readers** | Admin, Buyer | Heartbeat 30s, đếm bạn đọc online, hủy đọc lậu từ xa | ✅ **Hoàn thành** |
+| 📄 [**RT-06**](./RT-06-WALLET-FINANCE-ESCROW.md) | **Ví Người Bán, Escrow & Duyệt Payout** | Admin, Seller | Nổ số dư ví 85/15, kế toán kép, duyệt rút tiền có mã PIN | ⏳ *Kế tiếp* |
 | 📄 [**RT-07**](./RT-07-COMMUNITY-LIVE-CHAT.md) | **Hội Thoại Chat Trực Tiếp (Live Chat)** | Seller, Buyer | Nhắn tin tức thì, Typing indicator, trạng thái Đã xem | 📋 *Chờ duyệt* |
 | 📄 [**RT-08**](./RT-08-DISPUTE-RMA-ARBITRATION.md) | **Đổi Trả Hàng (RMA) & Trọng Tài Sàn** | Admin, Seller, Buyer | Khiếu nại hàng lỗi, phán quyết Admin kích hoạt hoàn tiền | 📋 *Chờ duyệt* |
 | 📄 [**RT-09**](./RT-09-SHIPPING-TRACKING.md) | **Hành Trình Giao Vận & Vận Đơn AWB** | Seller, Buyer, Shipper | Timeline giao hàng 5 bước, webhook hãng vận chuyển | 📋 *Chờ duyệt* |
