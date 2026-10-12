@@ -83,5 +83,11 @@ interface InventoryUpdatePayload {
   * Khi `availableStock === 0` (hoặc bị giữ chỗ hết), nút "Thêm vào giỏ hàng" và "Mua ngay" tự động bị vô hiệu hóa (disabled), hiển thị nhãn nổi bật *"Tạm hết hàng (Đang có người giữ chỗ)"*.
 * [x] **Test Case 4 (Cancellation & Release Propagation):**
   * Khi đơn hàng bị hủy từ phía Người mua hoặc Người bán (`orderApi.cancelSellerOrder`, `cancelBuyerOrder`, `cancelBuyerSubOrder`) $\to$ Tự động phát `INVENTORY_UPDATED` với action `RELEASED` $\to$ Cả giao diện Seller và Buyer lập tức cập nhật lại số lượng khả dụng.
+* [x] **Test Case 5 (Shopee Standard - Chặn Shop tự mua hàng của chính mình):**
+  * Tại `/book/[id]`: Nếu tài khoản là chủ gian hàng sở hữu cuốn sách, hai nút "Thêm vào giỏ" và "Mua ngay" được thay bằng banner cảnh báo sở hữu gian hàng, hàm chặn không cho thêm giỏ hay mua ngay.
+  * Tại `/cart` & `/checkout`: Quét giỏ hàng và chặn đặt đơn nếu tồn tại sản phẩm thuộc gian hàng của tài khoản đang đăng nhập (chống buff đơn ảo theo luật sàn TMĐT).
+* [x] **Test Case 6 (Cross-Browser Silent Background Sync & Single Session):**
+  * `AuthContext` lắng nghe `storage` event để duy trì **1 tài khoản duy nhất** đồng bộ xuyên suốt tất cả các tab trình duyệt.
+  * Bảng kho Người Bán (`seller/inventory`) tích hợp **Silent Background Polling 3.5s**: Tự động so sánh số liệu tồn kho từ PostgreSQL khi có khách đặt hàng từ trình duyệt/thiết bị khác $\to$ Tự động nhảy số `Reserved` và `Available`, nhấp nháy sáng hàng sách mà không cần F5.
 
-> **Trạng thái:** ✅ **HOÀN THÀNH (COMPLETED)** — Đã qua kiểm thử TypeScript, Jest unit tests đạt 100% và tích hợp đầy đủ hai chiều Client-Server.
+> **Trạng thái:** ✅ **HOÀN THÀNH (COMPLETED)** — Đã chuẩn hóa 100% theo nghiệp vụ Shopee: Tách bạch vai trò Buyer/Seller, chống tự mua hàng, đồng bộ 1 phiên duy nhất trên trình duyệt và tự động nhảy số tồn kho đa thiết bị.

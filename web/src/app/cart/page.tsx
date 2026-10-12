@@ -21,7 +21,7 @@ const MOCK_AVAILABLE_VOUCHERS = [
 
 export default function CartPage() {
   const router = useRouter();
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, user } = useAuth();
   const {
     cartItems = [],
     availableItems = [],
@@ -142,6 +142,23 @@ export default function CartPage() {
       showToast({ title: 'Chưa chọn ấn phẩm', message: 'Vui lòng tích chọn ít nhất 1 ấn phẩm khả dụng để tiến hành đặt hàng.' }, 'warning');
       return;
     }
+
+    // Shopee Policy: Chặn người bán tự đặt mua sản phẩm của chính mình
+    const isSelfPurchase = checkedItems.some((item: any) => {
+      const storeId = item.storeId || item.sellerId || item.businessId;
+      return (
+        (user?.business?.id && storeId === user.business.id) ||
+        (user?.id && (storeId === user.id || item.sellerId === user.id))
+      );
+    });
+    if (isSelfPurchase) {
+      showToast({
+        title: 'Không thể mua sản phẩm của chính mình',
+        message: 'Bạn không thể đặt mua sản phẩm từ gian hàng của chính mình (chính sách Shopee). Vui lòng bỏ tích chọn các sản phẩm này.',
+      }, 'error');
+      return;
+    }
+
     if (typeof window !== 'undefined') {
       sessionStorage.removeItem('huki_direct_checkout_item');
     }
