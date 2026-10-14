@@ -15,6 +15,15 @@ import {
   SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  sellerPenaltyService,
+  PENALTY_TIER_CONFIG,
+  type StorePenaltyProfile,
+  type EligibilityChecklistItem,
+  type PenaltyTier,
+  type ViolationType,
+} from '@/ui/services/sellerPenaltyService';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface ConfiguredBookItem {
   book: BookData;
@@ -27,6 +36,45 @@ interface ConfiguredBookItem {
 export function SellerFlashSaleView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
   const { showToast } = useToast();
+
+  const currentStoreId = user?.business?.id || activeBusinessId || 'shop-demo';
+
+  // Sao Quả Tạ & Platform Flash Sale Eligibility State
+  const [penaltyProfile, setPenaltyProfile] = useState<StorePenaltyProfile>(() =>
+    sellerPenaltyService.getProfile(user?.business?.id || activeBusinessId || 'shop-demo')
+  );
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState(false);
+  const [policyActiveTab, setPolicyActiveTab] = useState<'CHECKLIST' | 'TIERS' | 'APPEALS' | 'SIMULATOR'>('CHECKLIST');
+  const [appealViolationId, setAppealViolationId] = useState<string>('');
+  const [appealReason, setAppealReason] = useState<string>('');
+  const [appealProof, setAppealProof] = useState<string>('');
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
+
+  // Sync Penalty Profile Realtime via SyncBus
+  useEffect(() => {
+    const freshProfile = sellerPenaltyService.getProfile(currentStoreId);
+    setPenaltyProfile(freshProfile);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'SELLER_PENALTY_UPDATED') {
+        const payload = msg.payload as any;
+        if (!payload?.storeId || payload.storeId === currentStoreId) {
+          setPenaltyProfile(sellerPenaltyService.getProfile(currentStoreId));
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentStoreId]);
+
+  // Dynamic Eligibility & Checklist
+  const platformEligibility = useMemo(() => {
+    return sellerPenaltyService.canJoinPlatformFlashSale(currentStoreId);
+  }, [penaltyProfile, currentStoreId]);
+
+  const eligibilityChecklist = useMemo(() => {
+    return sellerPenaltyService.buildEligibilityChecklist(currentStoreId);
+  }, [penaltyProfile, currentStoreId]);
 
   const [loading, setLoading] = useState(true);
   const [slots, setSlots] = useState<FlashSaleSlot[]>([]);
@@ -236,6 +284,78 @@ export function SellerFlashSaleView() {
     );
   }, [myItems, platformSlot]);
 
+  // Sao Quả Tạ & Live Appeal Handlers
+  const handleSimulateViolation = (
+    type: ViolationType,
+    points: number,
+    reason: string,
+    evidence?: string
+  ) => {
+    const updated = sellerPenaltyService.applyViolation(
+      currentStoreId,
+      type,
+      points,
+      reason,
+      evidence
+    );
+    setPenaltyProfile(updated);
+    showToast(`Đã áp dụng vi phạm (+${points} điểm Sao Quả Tạ)!`, 'warning');
+  };
+
+  const handleSimulateResetQuarter = () => {
+    const updated = sellerPenaltyService.resetQuarterly(currentStoreId);
+    setPenaltyProfile(updated);
+    showToast('Đã làm mới điểm Sao Quả Tạ về 0 theo chu kỳ Quý! 🎉', 'success');
+  };
+
+  const handleSubmitAppeal = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appealViolationId) {
+      showToast('Vui lòng chọn vi phạm cần khiếu nại', 'warning');
+      return;
+    }
+    if (!appealReason.trim()) {
+      showToast('Vui lòng nhập lý do giải trình khiếu nại', 'warning');
+      return;
+    }
+
+    setAppealSubmitting(true);
+    const res = sellerPenaltyService.submitAppeal(
+      currentStoreId,
+      appealViolationId,
+      appealReason.trim(),
+      appealProof.trim() || undefined
+    );
+    setAppealSubmitting(false);
+
+    if (res.success) {
+      showToast(res.message, 'success');
+      setAppealViolationId('');
+      setAppealReason('');
+      setAppealProof('');
+      setPenaltyProfile(sellerPenaltyService.getProfile(currentStoreId));
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
+  const handleArbitrateAppeal = (violationId: string, isApproved: boolean) => {
+    const res = sellerPenaltyService.arbitrateAppeal(
+      currentStoreId,
+      violationId,
+      isApproved,
+      isApproved
+        ? 'Admin HuKi xác nhận bằng chứng hợp lệ. Đã thu hồi điểm phạt.'
+        : 'Admin HuKi từ chối: Bằng chứng chưa đủ căn cứ chứng minh lý do bất khả kháng.'
+    );
+    if (res.success) {
+      showToast(res.message, isApproved ? 'success' : 'info');
+      setPenaltyProfile(sellerPenaltyService.getProfile(currentStoreId));
+    } else {
+      showToast(res.message, 'error');
+    }
+  };
+
   // Inline 5s Countdown Cancel Button State (100% In-Page, Zero Modal)
   const [cancelCountdownState, setCancelCountdownState] = useState<{
     itemId: string;
@@ -401,6 +521,27 @@ export function SellerFlashSaleView() {
       );
       return;
     }
+
+    const currentItem = bookConfigMap[bookId];
+    // Platform Flash Sale Sao Quả Tạ Eligibility & Quota Guard
+    if (isPlatformScope && currentItem && !currentItem.isSelected) {
+      if (!platformEligibility.eligible) {
+        showToast(
+          platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn!',
+          'error'
+        );
+        setIsPolicyModalOpen(true);
+        return;
+      }
+      if (selectedBooksList.length >= penaltyProfile.maxBooksPerPlatformSlot) {
+        showToast(
+          `Cấp Sao Quả Tạ hiện tại của bạn chỉ cho phép tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách trong đợt Flash Sale Sàn!`,
+          'warning'
+        );
+        return;
+      }
+    }
+
     setBookConfigMap((prev) => {
       const current = prev[bookId];
       if (!current) return prev;
@@ -426,33 +567,61 @@ export function SellerFlashSaleView() {
     });
   };
 
-  // Toggle select all in current filtered view (ignoring conflicted books)
+  // Toggle select all in current filtered view (ignoring conflicted books, honoring penalty quota)
   const handleToggleSelectAll = () => {
     const selectableBooks = studioBooks.filter((b) => !bookConflictMap.get(b.id)?.hasConflict);
     const nextVal = !isAllStudioSelected;
+
+    if (nextVal && isPlatformScope) {
+      if (!platformEligibility.eligible) {
+        showToast(
+          platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn!',
+          'error'
+        );
+        setIsPolicyModalOpen(true);
+        return;
+      }
+    }
+
     setBookConfigMap((prev) => {
       const updated = { ...prev };
+      let selectedCount = 0;
+      const maxAllowed = isPlatformScope ? penaltyProfile.maxBooksPerPlatformSlot : 99999;
+
       selectableBooks.forEach((b) => {
         if (updated[b.id]) {
-          let nextSalePrice = updated[b.id].salePrice;
-          let nextMaxPerUser = updated[b.id].maxPerUser;
+          if (nextVal) {
+            if (selectedCount < maxAllowed) {
+              const orig = Number(updated[b.id].book.price || 0);
+              const nextSalePrice = isPlatformScope
+                ? Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)))
+                : updated[b.id].salePrice;
+              const nextMaxPerUser = isPlatformScope ? platformMaxPerUser : updated[b.id].maxPerUser;
 
-          if (nextVal && isPlatformScope) {
-            const orig = Number(updated[b.id].book.price || 0);
-            nextSalePrice = Math.max(1, Math.round(orig * (1 - platformDiscountPercent / 100)));
-            nextMaxPerUser = platformMaxPerUser;
+              updated[b.id] = {
+                ...updated[b.id],
+                isSelected: true,
+                salePrice: nextSalePrice,
+                maxPerUser: nextMaxPerUser,
+              };
+              selectedCount++;
+            } else {
+              updated[b.id] = { ...updated[b.id], isSelected: false };
+            }
+          } else {
+            updated[b.id] = { ...updated[b.id], isSelected: false };
           }
-
-          updated[b.id] = {
-            ...updated[b.id],
-            isSelected: nextVal,
-            salePrice: nextSalePrice,
-            maxPerUser: nextMaxPerUser,
-          };
         }
       });
       return updated;
     });
+
+    if (nextVal && isPlatformScope && selectableBooks.length > penaltyProfile.maxBooksPerPlatformSlot) {
+      showToast(
+        `Đã tự động chọn tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách theo hạn mức Sao Quả Tạ!`,
+        'info'
+      );
+    }
   };
 
   // Update a single field on a book
@@ -558,9 +727,19 @@ export function SellerFlashSaleView() {
   const handleOpenRegisterForSlot = (slotId: string) => {
     const targetSlot = slots.find((s) => s.id === slotId);
     const isPlatform = targetSlot && (targetSlot.scope === 'PLATFORM' || !targetSlot.storeId);
-    if (isPlatform && (targetSlot?.isUserStoreParticipating || platformRegisteredMyItems.length > 0)) {
-      showToast('Gian hàng của bạn đã hoàn tất đăng ký sách trong đợt Flash Sale này của Sàn!', 'info');
-      return;
+    if (isPlatform) {
+      if (!platformEligibility.eligible) {
+        showToast(
+          platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale của Sàn do Sao Quả Tạ!',
+          'error'
+        );
+        setIsPolicyModalOpen(true);
+        return;
+      }
+      if (targetSlot?.isUserStoreParticipating || platformRegisteredMyItems.length > 0) {
+        showToast('Gian hàng của bạn đã hoàn tất đăng ký sách trong đợt Flash Sale này của Sàn!', 'info');
+        return;
+      }
     }
 
     setSlotMode('EXISTING');
@@ -636,6 +815,23 @@ export function SellerFlashSaleView() {
         showToast('Vui lòng chọn khung giờ Flash Sale từ danh sách', 'warning');
         return;
       }
+      if (isPlatformScope) {
+        if (!platformEligibility.eligible) {
+          showToast(
+            platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn!',
+            'error'
+          );
+          setIsPolicyModalOpen(true);
+          return;
+        }
+        if (selectedBooksList.length > penaltyProfile.maxBooksPerPlatformSlot) {
+          showToast(
+            `Cấp Sao Quả Tạ hiện tại chỉ cho phép tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách trong đợt Flash Sale Sàn!`,
+            'error'
+          );
+          return;
+        }
+      }
     }
 
     if (selectedBooksList.length === 0) {
@@ -654,6 +850,19 @@ export function SellerFlashSaleView() {
       }
       if (item.stock <= 0) {
         showToast(`Sách "${item.book.title}" phải có số lượng bán lớn hơn 0`, 'error');
+        return;
+      }
+
+      // 30-Day Anti-Fake-Discount & Pricing Guard
+      const lowest30d = (item.book as any).lowestPrice30Days || Math.round(orig * 0.95);
+      const validation = sellerPenaltyService.validateBookForFlashSale(
+        orig,
+        item.salePrice,
+        lowest30d,
+        isPlatformScope ? platformDiscountPercent : 10
+      );
+      if (!validation.isValid) {
+        showToast(`Sách "${item.book.title}": ${validation.reason}`, 'error');
         return;
       }
     }
@@ -994,42 +1203,100 @@ export function SellerFlashSaleView() {
           </div>
         </div>
 
-        <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
-          <button
-            type="button"
-            disabled={Boolean(existingShopSlot) && !isFormOpen}
-            onClick={() => {
-              if (existingShopSlot && !isFormOpen) {
-                showToast(
-                  `Shop hiện đã có 1 đợt Flash Sale "${existingShopSlot.name}". Mỗi shop chỉ được tạo tối đa 1 đợt cùng lúc!`,
-                  'warning'
-                );
-                return;
-              }
-              const nextState = !isFormOpen;
-              setIsFormOpen(nextState);
-              if (nextState) {
-                const freshTimes = getInitialTimes();
-                setCustomStartsAt(freshTimes.startsAt);
-                setCustomEndsAt(freshTimes.endsAt);
-                if (slots.length > 0 && !selectedSlotId) {
-                  setSelectedSlotId(slots[0].id);
+        <div className="flex flex-col sm:items-end gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap sm:justify-end">
+            {/* Shop Health & Sao Quả Tạ Badge */}
+            <button
+              type="button"
+              onClick={() => {
+                setPolicyActiveTab('CHECKLIST');
+                setIsPolicyModalOpen(true);
+              }}
+              title="Nhấn để xem chi tiết 5 tiêu chuẩn vận hành và điểm Sao Quả Tạ của Shop"
+              className={`px-3 py-2 rounded-2xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:scale-[1.02] ${
+                penaltyProfile.penaltyPoints === 0
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 hover:bg-emerald-100'
+                  : penaltyProfile.penaltyPoints <= 2
+                  ? 'bg-amber-50 border-amber-300 text-amber-900 hover:bg-amber-100'
+                  : 'bg-rose-50 border-rose-300 text-rose-900 hover:bg-rose-100 animate-pulse'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-lg flex items-center justify-center text-white ${
+                  penaltyProfile.penaltyPoints === 0
+                    ? 'bg-emerald-600'
+                    : penaltyProfile.penaltyPoints <= 2
+                    ? 'bg-amber-600'
+                    : 'bg-rose-600'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[15px]">
+                  {penaltyProfile.penaltyPoints === 0 ? 'verified' : 'warning'}
+                </span>
+              </div>
+              <div className="text-left">
+                <div className="text-[9.5px] uppercase tracking-wider text-gray-500 font-extrabold leading-none">
+                  Sao Quả Tạ
+                </div>
+                <div className="text-xs font-black">
+                  {penaltyProfile.penaltyPoints} / 3 ⭐{' '}
+                  <span className="font-semibold text-[10.5px] opacity-80">
+                    ({penaltyProfile.tier === 'TIER_0_GOOD' ? 'Tốt' : penaltyProfile.tier === 'TIER_1_WARNING' ? 'Cảnh Báo' : 'Khóa FS Sàn'})
+                  </span>
+                </div>
+              </div>
+            </button>
+
+            {/* Platform Flash Sale Criteria Policy Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setPolicyActiveTab('CHECKLIST');
+                setIsPolicyModalOpen(true);
+              }}
+              className="px-3.5 py-2.5 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 font-bold text-xs flex items-center gap-1.5 shadow-2xs cursor-pointer hover:border-gray-400 transition-all"
+            >
+              <span className="material-symbols-outlined text-sm text-amber-600">policy</span>
+              <span>Tiêu Chuẩn Tham Gia Sàn</span>
+            </button>
+
+            {/* Primary Action Button */}
+            <button
+              type="button"
+              disabled={Boolean(existingShopSlot) && !isFormOpen}
+              onClick={() => {
+                if (existingShopSlot && !isFormOpen) {
+                  showToast(
+                    `Shop hiện đã có 1 đợt Flash Sale "${existingShopSlot.name}". Mỗi shop chỉ được tạo tối đa 1 đợt cùng lúc!`,
+                    'warning'
+                  );
+                  return;
                 }
-              }
-            }}
-            className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
-              existingShopSlot && !isFormOpen
-                ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
-                : isFormOpen
-                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer shadow-md'
-                : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 hover:scale-[1.02] cursor-pointer'
-            }`}
-          >
-            <span className="material-symbols-outlined text-lg">
-              {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
-            </span>
-            <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
-          </button>
+                const nextState = !isFormOpen;
+                setIsFormOpen(nextState);
+                if (nextState) {
+                  const freshTimes = getInitialTimes();
+                  setCustomStartsAt(freshTimes.startsAt);
+                  setCustomEndsAt(freshTimes.endsAt);
+                  if (slots.length > 0 && !selectedSlotId) {
+                    setSelectedSlotId(slots[0].id);
+                  }
+                }
+              }}
+              className={`px-5 py-3 rounded-2xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all ${
+                existingShopSlot && !isFormOpen
+                  ? 'bg-gray-100 text-gray-400 border border-gray-200 cursor-not-allowed shadow-none'
+                  : isFormOpen
+                  ? 'bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 cursor-pointer shadow-md'
+                  : 'bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-md shadow-orange-500/25 hover:scale-[1.02] cursor-pointer'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
+              </span>
+              <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
+            </button>
+          </div>
           {existingShopSlot && !isFormOpen && (
             <div className="text-[11px] font-semibold text-rose-600 flex items-center gap-1 sm:text-right max-w-sm">
               <span className="material-symbols-outlined text-xs shrink-0">error</span>
@@ -1124,6 +1391,66 @@ export function SellerFlashSaleView() {
             <span className="material-symbols-outlined text-sm text-amber-600">verified</span>
             <span>Chính Sách Giờ Vàng Toàn Sàn</span>
           </span>
+        </div>
+
+        {/* Realtime Shop Health & Platform Flash Sale Eligibility Banner */}
+        <div
+          className={`p-4 rounded-2xl border flex flex-col md:flex-row md:items-center justify-between gap-3 ${
+            platformEligibility.eligible
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950'
+              : 'bg-rose-500/10 border-rose-500/30 text-rose-950'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                platformEligibility.eligible ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+              }`}
+            >
+              <span className="material-symbols-outlined text-lg">
+                {platformEligibility.eligible ? 'verified' : 'gavel'}
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-xs sm:text-sm">
+                  {platformEligibility.eligible
+                    ? 'Gian Hàng Đủ Tiêu Chuẩn Tham Gia Flash Sale Sàn'
+                    : 'Gian Hàng Bị Giới Hạn Tham Gia Flash Sale Sàn'}
+                </span>
+                <span
+                  className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                    penaltyProfile.tier === 'TIER_0_GOOD'
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : penaltyProfile.tier === 'TIER_1_WARNING'
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-rose-100 text-rose-800'
+                  }`}
+                >
+                  Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ⭐ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-600 mt-0.5">
+                {platformEligibility.eligible
+                  ? `Hạn mức đăng ký: Tối đa ${penaltyProfile.maxBooksPerPlatformSlot} cuốn sách / slot Flash Sale toàn sàn.`
+                  : `${platformEligibility.reason}. Bạn có thể gửi đơn khiếu nại để được Ban Quản Trị thẩm định.`}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setPolicyActiveTab(platformEligibility.eligible ? 'CHECKLIST' : 'APPEALS');
+              setIsPolicyModalOpen(true);
+            }}
+            className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-bold text-xs shadow-2xs cursor-pointer self-start md:self-auto flex items-center gap-1.5 shrink-0"
+          >
+            <span className="material-symbols-outlined text-xs">
+              {platformEligibility.eligible ? 'policy' : 'rate_review'}
+            </span>
+            <span>{platformEligibility.eligible ? 'Xem 5 Tiêu Chuẩn Sàn' : 'Gửi Khiếu Nại / Xem Chi Tiết'}</span>
+          </button>
         </div>
 
         {platformSlot ? (() => {
@@ -1231,19 +1558,31 @@ export function SellerFlashSaleView() {
                     ) : (
                       <button
                         type="button"
-                        disabled={!isRegOpen || isStoreFull}
-                        onClick={() => handleOpenRegisterForSlot(platformSlot.id)}
+                        disabled={!platformEligibility.eligible ? false : (!isRegOpen || isStoreFull)}
+                        onClick={() => {
+                          if (!platformEligibility.eligible) {
+                            showToast(platformEligibility.reason || 'Gian hàng không đủ điều kiện tham gia Flash Sale Sàn do Sao Quả Tạ!', 'error');
+                            setPolicyActiveTab('APPEALS');
+                            setIsPolicyModalOpen(true);
+                            return;
+                          }
+                          handleOpenRegisterForSlot(platformSlot.id);
+                        }}
                         className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs ${
-                          !isRegOpen || isStoreFull
+                          !platformEligibility.eligible
+                            ? 'bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 cursor-pointer animate-pulse'
+                            : !isRegOpen || isStoreFull
                             ? 'bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed'
                             : 'bg-[#ac2c19] hover:bg-[#8f2415] text-white cursor-pointer hover:scale-[1.02]'
                         }`}
                       >
                         <span className="material-symbols-outlined text-sm">
-                          {!isRegOpen || isStoreFull ? 'lock' : 'bolt'}
+                          {!platformEligibility.eligible ? 'gavel' : !isRegOpen || isStoreFull ? 'lock' : 'bolt'}
                         </span>
                         <span>
-                          {isStoreFull
+                          {!platformEligibility.eligible
+                            ? '🔒 Tạm Khóa (Sao Quả Tạ >= 3)'
+                            : isStoreFull
                             ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
                             : isTeaser
                             ? 'Đã Đóng Cổng Đăng Ký'
@@ -1512,22 +1851,40 @@ export function SellerFlashSaleView() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-                  <div className="text-xs text-gray-600 font-medium">
-                    Chọn một trong các khung giờ do Ban Quản Trị Sàn mở:
+                <div className="space-y-3 pt-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="text-xs text-gray-600 font-medium">
+                      Chọn một trong các khung giờ do Ban Quản Trị Sàn mở:
+                    </div>
+                    <select
+                      value={selectedSlotId}
+                      onChange={(e) => setSelectedSlotId(e.target.value)}
+                      className="px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs sm:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none min-w-[280px]"
+                    >
+                      <option value="">-- Chọn khung giờ Flash Sale của Sàn --</option>
+                      {slots.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({new Date(s.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(s.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={selectedSlotId}
-                    onChange={(e) => setSelectedSlotId(e.target.value)}
-                    className="px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs sm:text-sm font-bold text-gray-900 focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 outline-none min-w-[280px]"
-                  >
-                    <option value="">-- Chọn khung giờ Flash Sale của Sàn --</option>
-                    {slots.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({new Date(s.startsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - {new Date(s.endsAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})
-                      </option>
-                    ))}
-                  </select>
+
+                  {!platformEligibility.eligible && (
+                    <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-start gap-3 text-rose-900">
+                      <span className="material-symbols-outlined text-rose-600 text-xl shrink-0 mt-0.5">
+                        gavel
+                      </span>
+                      <div className="text-xs space-y-1">
+                        <div className="font-extrabold text-rose-800">
+                          Khóa Quyền Đăng Ký Flash Sale Toàn Sàn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ⭐)
+                        </div>
+                        <p className="text-rose-700 leading-relaxed">
+                          {platformEligibility.reason}. Bạn có thể chuyển sang tab <strong>"Tự Tạo Giờ Riêng"</strong> của Shop để chủ động tạo Flash Sale, hoặc gửi đơn khiếu nại để được Ban Quản Trị xem xét.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1542,7 +1899,7 @@ export function SellerFlashSaleView() {
                 {isPlatformScope && (
                   <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm text-amber-700">lock</span>
-                    <span>Đợt Flash Sale Sàn: Trợ giá cố định -{platformDiscountPercent}%, Tối đa {platformMaxPerUser} cuốn/khách</span>
+                    <span>Đợt Flash Sale Sàn: Trợ giá -{platformDiscountPercent}%, Hạn mức: {selectedBooksList.length}/{penaltyProfile.maxBooksPerPlatformSlot} cuốn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}⭐)</span>
                   </span>
                 )}
               </div>
@@ -1761,12 +2118,13 @@ export function SellerFlashSaleView() {
                       <th className="py-2.5 px-3 min-w-[90px]">% Giảm</th>
                       <th className="py-2.5 px-3 min-w-[110px]">SL Flash Sale</th>
                       <th className="py-2.5 px-3 min-w-[110px]">Max / Khách</th>
+                      <th className="py-2.5 px-3 min-w-[140px]">Chống Giá Ảo (30 Ngày)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-gray-700">
                     {studioBooks.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-8 text-center text-gray-400">
+                        <td colSpan={10} className="py-8 text-center text-gray-400">
                           Không tìm thấy cuốn sách nào phù hợp.
                         </td>
                       </tr>
@@ -1791,6 +2149,15 @@ export function SellerFlashSaleView() {
 
                         const conflictInfo = bookConflictMap.get(book.id);
                         const isConflicted = Boolean(conflictInfo?.hasConflict);
+
+                        // 30-Day Anti-Fake-Discount & Pricing Guard
+                        const lowest30d = (book as any).lowestPrice30Days || Math.round(orig * 0.95);
+                        const antiFakeValidation = sellerPenaltyService.validateBookForFlashSale(
+                          orig,
+                          sale,
+                          lowest30d,
+                          isPlatformScope ? platformDiscountPercent : 10
+                        );
 
                         return (
                           <tr
@@ -1963,6 +2330,28 @@ export function SellerFlashSaleView() {
                                 </select>
                               )}
                             </td>
+
+                            <td className="py-2.5 px-3">
+                              <div className="flex flex-col gap-0.5">
+                                <div className="text-[10px] text-gray-500 font-mono">
+                                  Min 30d: <strong className="text-gray-800">{lowest30d.toLocaleString('vi-VN')} đ</strong>
+                                </div>
+                                {antiFakeValidation.isValid ? (
+                                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 w-fit">
+                                    <span className="material-symbols-outlined text-[10px]">verified</span>
+                                    <span>Hợp lệ (-{orig > 0 ? Math.round(((orig - sale) / orig) * 100) : 0}%)</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    title={antiFakeValidation.reason}
+                                    className="inline-flex items-center gap-1 text-[9px] font-bold text-rose-700 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200 w-fit"
+                                  >
+                                    <span className="material-symbols-outlined text-[10px]">warning</span>
+                                    <span>Cảnh báo giá ảo</span>
+                                  </span>
+                                )}
+                              </div>
+                            </td>
                           </tr>
                         );
                       })
@@ -1978,6 +2367,11 @@ export function SellerFlashSaleView() {
                 <span className="material-symbols-outlined text-orange-600 text-base">check_circle</span>
                 <span>
                   Đã chọn <strong>{selectedBooksList.length}</strong> cuốn sách để đăng ký vào khung giờ vàng
+                  {isPlatformScope && (
+                    <span className="ml-1 text-gray-500 font-medium">
+                      (Hạn mức: {selectedBooksList.length}/{penaltyProfile.maxBooksPerPlatformSlot} cuốn)
+                    </span>
+                  )}
                 </span>
               </div>
 
@@ -1993,17 +2387,27 @@ export function SellerFlashSaleView() {
 
                 <button
                   type="submit"
-                  disabled={submitting || selectedBooksList.length === 0 || (slotMode === 'CUSTOM' && Boolean(existingShopSlot))}
+                  disabled={
+                    submitting ||
+                    selectedBooksList.length === 0 ||
+                    (slotMode === 'CUSTOM' && Boolean(existingShopSlot)) ||
+                    (isPlatformScope && !platformEligibility.eligible) ||
+                    (isPlatformScope && selectedBooksList.length > penaltyProfile.maxBooksPerPlatformSlot)
+                  }
                   className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 flex items-center gap-2 transition-all cursor-pointer hover:scale-[1.02]"
                 >
                   <span className="material-symbols-outlined text-base">
-                    {submitting ? 'progress_activity' : 'bolt'}
+                    {submitting ? 'progress_activity' : isPlatformScope && !platformEligibility.eligible ? 'gavel' : 'bolt'}
                   </span>
                   <span>
                     {submitting
                       ? 'Đang Đăng Ký...'
                       : slotMode === 'CUSTOM' && existingShopSlot
                       ? 'Đã Có 1 Đợt Đang Hoạt Động'
+                      : isPlatformScope && !platformEligibility.eligible
+                      ? 'Khóa Đăng Ký (Sao Quả Tạ >= 3)'
+                      : isPlatformScope && selectedBooksList.length > penaltyProfile.maxBooksPerPlatformSlot
+                      ? `Vượt Quá Hạn Mức (${selectedBooksList.length}/${penaltyProfile.maxBooksPerPlatformSlot})`
                       : `Xác Nhận Đăng Ký (${selectedBooksList.length} Sách)`}
                   </span>
                 </button>
@@ -2767,6 +3171,641 @@ export function SellerFlashSaleView() {
                 type="button"
                 onClick={() => setViewPlatformDetailSlot(null)}
                 className="px-5 py-2 rounded-xl bg-gray-800 hover:bg-gray-900 text-white font-bold text-xs cursor-pointer transition-colors"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. SAO QUẢ TẠ TRANSPARENCY, ELIGIBILITY CRITERIA & APPEAL MODAL */}
+      {isPolicyModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-4xl w-full border border-gray-200 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-rose-500/10 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white flex items-center justify-center shadow-md shadow-orange-500/20 shrink-0">
+                  <span className="material-symbols-outlined text-2xl">policy</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-base sm:text-lg font-black text-gray-900 tracking-tight">
+                      Quy Chế Sao Quả Tạ & Tiêu Chuẩn Tham Gia Flash Sale Sàn
+                    </h2>
+                    <span
+                      className={`text-[10px] font-black px-2.5 py-0.5 rounded-full ${
+                        penaltyProfile.tier === 'TIER_0_GOOD'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          : penaltyProfile.tier === 'TIER_1_WARNING'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : 'bg-rose-100 text-rose-800 border border-rose-300'
+                      }`}
+                    >
+                      Hiện tại: {penaltyProfile.penaltyPoints}/3 ⭐ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Chuẩn mực vận hành minh bạch theo mô hình Shopee/Lazada bảo vệ uy tín sàn và quyền lợi người đọc
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPolicyModalOpen(false)}
+                className="w-8 h-8 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors flex items-center justify-center cursor-pointer shrink-0"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Modal Tabs Header */}
+            <div className="flex items-center gap-1.5 px-6 pt-3 border-b border-gray-100 bg-gray-50/70 overflow-x-auto">
+              {[
+                { id: 'CHECKLIST', label: '1. 5 Tiêu Chuẩn Vận Hành Sàn', icon: 'checklist' },
+                { id: 'TIERS', label: '2. Ma Trận Sao Quả Tạ (5 Cấp)', icon: 'stairs' },
+                { id: 'APPEALS', label: `3. Vi Phạm & Khiếu Nại (${penaltyProfile.violationHistory.length})`, icon: 'rate_review' },
+                { id: 'SIMULATOR', label: '4. 🧪 Trình Thử Nghiệm Sao Quả Tạ', icon: 'science' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setPolicyActiveTab(tab.id as any)}
+                  className={`px-4 py-2.5 rounded-t-xl text-xs font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+                    policyActiveTab === tab.id
+                      ? 'border-orange-600 text-orange-600 bg-white shadow-2xs'
+                      : 'border-transparent text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Modal Body Content */}
+            <div className="p-6 overflow-y-auto max-h-[64vh] space-y-6">
+              {/* TAB 1: 5 TIÊU CHUẨN VẬN HÀNH SÀN */}
+              {policyActiveTab === 'CHECKLIST' && (
+                <div className="space-y-5">
+                  {/* Overall Status Banner */}
+                  <div
+                    className={`p-4 rounded-2xl border flex items-start gap-3.5 ${
+                      eligibilityChecklist.isEligible
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                        : 'bg-rose-50 border-rose-200 text-rose-900'
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined text-2xl mt-0.5 shrink-0 ${
+                        eligibilityChecklist.isEligible ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {eligibilityChecklist.isEligible ? 'check_circle' : 'cancel'}
+                    </span>
+                    <div className="text-xs space-y-1">
+                      <div className="text-sm font-black">
+                        {eligibilityChecklist.isEligible
+                          ? 'Chúc mừng! Gian hàng của bạn ĐỦ ĐIỀU KIỆN tham gia Flash Sale của Sàn'
+                          : 'Gian hàng hiện tại CHƯA ĐỦ ĐIỀU KIỆN tham gia Flash Sale của Sàn'}
+                      </div>
+                      <p className="text-gray-600 leading-relaxed">
+                        {eligibilityChecklist.isEligible
+                          ? `Gian hàng đạt tất cả 5 tiêu chuẩn khắt khe về chất lượng dịch vụ và uy tín. Bạn được phân bổ tối đa ${eligibilityChecklist.maxBooksPerSlot} cuốn sách trong mỗi khung giờ vàng của Sàn.`
+                          : 'Gian hàng vi phạm một hoặc nhiều tiêu chuẩn vận hành. Bạn cần cải thiện các chỉ số dưới đây hoặc nộp đơn khiếu nại đối với điểm Sao Quả Tạ.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Checklist Items Grid */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider">
+                      Bảng Đánh Giá 5 Tiêu Chuẩn Tham Gia Giờ Vàng Sàn:
+                    </h3>
+
+                    {eligibilityChecklist.items.map((item, idx) => (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          item.passed
+                            ? 'bg-white border-gray-200 shadow-2xs'
+                            : 'bg-rose-50/50 border-rose-200 shadow-xs'
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
+                                item.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              <span className="material-symbols-outlined text-base">
+                                {item.passed ? 'check' : 'close'}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-gray-900 flex items-center gap-2">
+                                <span>{idx + 1}. {item.title}</span>
+                              </div>
+                              <p className="text-[11px] text-gray-500 mt-0.5">{item.description}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                            <div className="text-right font-mono text-xs">
+                              <span className="text-[10px] text-gray-400 block font-sans">Hiện tại / Tiêu chuẩn</span>
+                              <span className={`font-black ${item.passed ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {item.currentValue}
+                              </span>{' '}
+                              <span className="text-gray-400 font-normal">/ {item.benchmark}</span>
+                            </div>
+                            <span
+                              className={`text-[10.5px] font-black px-2.5 py-1 rounded-xl ${
+                                item.passed
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                              }`}
+                            >
+                              {item.passed ? 'ĐẠT CHUẨN ✅' : 'CHƯA ĐẠT ❌'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: MA TRẬN CHẾ TÀI SAO QUẢ TẠ */}
+              {policyActiveTab === 'TIERS' && (
+                <div className="space-y-5">
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-900">
+                    <span className="material-symbols-outlined text-amber-600 text-xl shrink-0 mt-0.5">
+                      info
+                    </span>
+                    <div className="text-xs space-y-1">
+                      <div className="font-extrabold text-amber-800">
+                        Cơ Chế Khắc Phục & Đặt Lại Theo Quý (Shopee/Lazada Pattern)
+                      </div>
+                      <p className="text-amber-700 leading-relaxed">
+                        Toàn bộ Điểm Sao Quả Tạ được <strong>tự động làm mới về 0</strong> vào ngày đầu tiên của mỗi Quý (01/01, 01/04, 01/07, 01/10). Thời hạn khóa tính năng Flash Sale Sàn đối với Cấp 2 là <strong>28 ngày</strong> kể từ ngày vi phạm cuối cùng.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Tier Matrix Table */}
+                  <div className="border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
+                        <tr>
+                          <th className="py-3 px-4">Cấp Bậc</th>
+                          <th className="py-3 px-4">Điểm Sao</th>
+                          <th className="py-3 px-4">Quyền Lợi Flash Sale Sàn</th>
+                          <th className="py-3 px-4">Quyền Hiển Thị Tìm Kiếm</th>
+                          <th className="py-3 px-4">Thanh Toán & Rút Tiền</th>
+                          <th className="py-3 px-4 text-center">Trạng Thái Shop</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-gray-700">
+                        {[
+                          {
+                            key: 'TIER_0_GOOD',
+                            tier: 'Cấp 0 (Tốt)',
+                            points: '0 - 1 điểm',
+                            flashSale: 'Tham gia bình thường (Max 20 cuốn/slot)',
+                            search: 'Hiển thị tối đa trên toàn sàn',
+                            wallet: 'Rút tiền bình thường',
+                            bg: 'bg-white',
+                          },
+                          {
+                            key: 'TIER_1_WARNING',
+                            tier: 'Cấp 1 (Cảnh Báo)',
+                            points: '2 điểm',
+                            flashSale: 'Giới hạn tối đa 3 cuốn/slot Flash Sale Sàn',
+                            search: 'Bình thường',
+                            wallet: 'Bình thường',
+                            bg: 'bg-amber-50/40',
+                          },
+                          {
+                            key: 'TIER_2_BLOCKED_FLASH_SALE',
+                            tier: 'Cấp 2 (Khóa Flash Sale)',
+                            points: '3 - 5 điểm',
+                            flashSale: '🚫 Tạm khóa tham gia Flash Sale Sàn trong 28 ngày',
+                            search: 'Bình thường',
+                            wallet: 'Bình thường',
+                            bg: 'bg-rose-50/40',
+                          },
+                          {
+                            key: 'TIER_3_SEARCH_DEBOOST',
+                            tier: 'Cấp 3 (Giảm Hiển Thị)',
+                            points: '6 - 8 điểm',
+                            flashSale: '🚫 Khóa tham gia tất cả chiến dịch khuyến mãi Sàn',
+                            search: 'Giảm 50% thứ hạng tìm kiếm và danh mục',
+                            wallet: 'Bình thường',
+                            bg: 'bg-purple-50/40',
+                          },
+                          {
+                            key: 'TIER_4_FROZEN',
+                            tier: 'Cấp 4 (Đóng Băng)',
+                            points: '>= 9 điểm',
+                            flashSale: '🚫 Khóa toàn bộ tính năng khuyến mãi',
+                            search: 'Ẩn toàn bộ sản phẩm khỏi kết quả tìm kiếm',
+                            wallet: 'Tạm dừng thanh toán & yêu cầu xác minh bảo mật',
+                            bg: 'bg-red-100/50',
+                          },
+                        ].map((row) => {
+                          const isCurrent = penaltyProfile.tier === row.key;
+                          return (
+                            <tr
+                              key={row.key}
+                              className={`${row.bg} ${isCurrent ? 'ring-2 ring-orange-500 font-bold' : ''}`}
+                            >
+                              <td className="py-3 px-4 font-bold text-gray-900 flex items-center gap-1.5">
+                                <span>{row.tier}</span>
+                                {isCurrent && (
+                                  <span className="text-[9.5px] px-2 py-0.5 rounded-full bg-orange-600 text-white font-extrabold uppercase">
+                                    Hiện Tại
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-mono font-bold text-gray-800">{row.points}</td>
+                              <td className="py-3 px-4">{row.flashSale}</td>
+                              <td className="py-3 px-4">{row.search}</td>
+                              <td className="py-3 px-4">{row.wallet}</td>
+                              <td className="py-3 px-4 text-center">
+                                {isCurrent ? (
+                                  <span className="text-xs text-orange-600 font-black">⭐ Đang Áp Dụng</span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-500 pt-1">
+                    <span>Chu kỳ reset điểm tiếp theo: <strong>{new Date(penaltyProfile.quarterlyResetDate).toLocaleDateString('vi-VN')}</strong></span>
+                    <span>Hệ thống tự động đồng bộ thời gian thực (Zero F5)</span>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: LỊCH SỬ VI PHẠM & KHIẾU NẠI TRỰC TIẾP */}
+              {policyActiveTab === 'APPEALS' && (
+                <div className="space-y-6">
+                  {/* Violations List */}
+                  <div className="space-y-3">
+                    <h3 className="text-xs font-black text-gray-700 uppercase tracking-wider flex items-center justify-between">
+                      <span>Lịch Sử Ghi Nhận Điểm Phạt Của Gian Hàng:</span>
+                      <span className="text-gray-400 font-normal">({penaltyProfile.violationHistory.length} vi phạm)</span>
+                    </h3>
+
+                    {penaltyProfile.violationHistory.length === 0 ? (
+                      <div className="p-8 text-center bg-gray-50 rounded-2xl border border-gray-200 text-gray-400 space-y-1">
+                        <span className="material-symbols-outlined text-3xl text-emerald-500">sentiment_very_satisfied</span>
+                        <div className="font-bold text-gray-700">Gian hàng hoàn toàn trong sạch!</div>
+                        <p className="text-xs">Chưa có bất kỳ ghi nhận điểm phạt nào từ Ban Quản Trị HuKi.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {penaltyProfile.violationHistory.map((item) => {
+                          const isAppealed = Boolean(item.appealStatus);
+                          const isPending = item.appealStatus === 'PENDING';
+                          const isApproved = item.appealStatus === 'APPROVED';
+                          const isRejected = item.appealStatus === 'REJECTED';
+
+                          return (
+                            <div
+                              key={item.id}
+                              className={`p-4 rounded-2xl border space-y-3 ${
+                                item.status === 'RESOLVED'
+                                  ? 'bg-gray-50/70 border-gray-200 opacity-75'
+                                  : 'bg-white border-rose-200 shadow-2xs'
+                              }`}
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-mono text-xs font-bold text-gray-500">{item.code}</span>
+                                  <span className="text-xs font-black text-gray-900">{item.reason}</span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                                    +{item.points} Điểm Phạt
+                                  </span>
+                                  {item.status === 'RESOLVED' && (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                                      Đã Khắc Phục / Đã Hủy
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-[11px] text-gray-400 font-mono">
+                                  {new Date(item.createdAt).toLocaleString('vi-VN')}
+                                </span>
+                              </div>
+
+                              {item.evidenceNotes && (
+                                <div className="text-xs text-gray-600 bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+                                  <span className="font-bold text-gray-700">Ghi chú bằng chứng sàn:</span> {item.evidenceNotes}
+                                </div>
+                              )}
+
+                              {/* Appeal Section */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                <div>
+                                  {item.appealStatus === 'PENDING' && (
+                                    <div className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-sm animate-spin">hourglass_top</span>
+                                      <span>Đang thẩm định khiếu nại (Admin HuKi sẽ phản hồi trong 24h)</span>
+                                    </div>
+                                  )}
+                                  {item.appealStatus === 'APPROVED' && (
+                                    <div className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center gap-1.5">
+                                      <span className="material-symbols-outlined text-sm">check_circle</span>
+                                      <span>Khiếu nại thành công: Điểm phạt đã được thu hồi!</span>
+                                    </div>
+                                  )}
+                                  {item.appealStatus === 'REJECTED' && (
+                                    <div className="text-xs text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200 space-y-0.5">
+                                      <div className="font-bold flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-sm">cancel</span>
+                                        <span>Khiếu nại bị từ chối</span>
+                                      </div>
+                                      {item.appealAdminNote && (
+                                        <p className="text-[11px] text-rose-600">{item.appealAdminNote}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 self-end sm:self-auto">
+                                  {!item.appealStatus && item.canAppeal && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAppealViolationId(item.id);
+                                        setAppealReason(`Kính gửi Ban Quản Trị, vi phạm ${item.code} xảy ra do sự cố bất khả kháng...`);
+                                      }}
+                                      className="px-3 py-1.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors flex items-center gap-1"
+                                    >
+                                      <span className="material-symbols-outlined text-xs">rate_review</span>
+                                      <span>Gửi Đơn Khiếu Nại</span>
+                                    </button>
+                                  )}
+
+                                  {/* Demo Admin Quick Resolution Buttons */}
+                                  {item.appealStatus === 'PENDING' && (
+                                    <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleArbitrateAppeal(item.id, true)}
+                                        className="text-[10px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
+                                        title="Mô phỏng thao tác Admin HuKi chấp thuận khiếu nại"
+                                      >
+                                        ⚡ Demo Admin Duyệt
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleArbitrateAppeal(item.id, false)}
+                                        className="text-[10px] px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
+                                        title="Mô phỏng thao tác Admin HuKi từ chối khiếu nại"
+                                      >
+                                        ⚡ Demo Admin Từ Chối
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Submit Appeal Form */}
+                  {appealViolationId && (
+                    <form
+                      onSubmit={handleSubmitAppeal}
+                      className="p-5 bg-gradient-to-br from-orange-50/60 to-amber-50/60 rounded-3xl border-2 border-orange-200 space-y-4 animate-in slide-in-from-bottom-2 duration-150"
+                    >
+                      <div className="flex items-center justify-between border-b border-orange-200/60 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-orange-600">edit_note</span>
+                          <h4 className="text-xs sm:text-sm font-extrabold text-gray-900 uppercase">
+                            Đơn Khiếu Nại Điểm Phạt
+                          </h4>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAppealViolationId('')}
+                          className="text-xs text-gray-500 hover:text-gray-800 cursor-pointer font-bold"
+                        >
+                          ✕ Hủy
+                        </button>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-gray-700 uppercase">
+                          Lý do giải trình & Bằng chứng khách quan: <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={appealReason}
+                          onChange={(e) => setAppealReason(e.target.value)}
+                          placeholder="Trình bày chi tiết lý do bất khả kháng (sự cố đơn vị vận chuyển, thiên tai, nhầm lẫn mã sách...)"
+                          className="w-full px-3.5 py-2.5 bg-white border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 resize-none"
+                        ></textarea>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-bold text-gray-700 uppercase">
+                          Ghi chú liên kết bằng chứng hoặc ảnh minh chứng:
+                        </label>
+                        <input
+                          type="text"
+                          value={appealProof}
+                          onChange={(e) => setAppealProof(e.target.value)}
+                          placeholder="VD: Biên bản giao hàng, hình ảnh bưu phẩm, link driver tài liệu..."
+                          className="w-full px-3.5 py-2 bg-white border border-gray-300 rounded-xl text-xs text-gray-900 outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-end gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setAppealViolationId('')}
+                          className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 hover:bg-white cursor-pointer"
+                        >
+                          Đóng
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={appealSubmitting || !appealReason.trim()}
+                          className="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold text-xs cursor-pointer shadow-md transition-all flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">send</span>
+                          <span>{appealSubmitting ? 'Đang gửi...' : 'Gửi Đơn Khiếu Nại'}</span>
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: TRÌNH THỬ NGHIỆM SAO QUẢ TẠ */}
+              {policyActiveTab === 'SIMULATOR' && (
+                <div className="space-y-4">
+                  <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl flex items-start gap-3 text-purple-900">
+                    <span className="material-symbols-outlined text-purple-600 text-xl shrink-0 mt-0.5">
+                      science
+                    </span>
+                    <div className="text-xs space-y-1">
+                      <div className="font-extrabold text-purple-800">
+                        Phòng Thử Nghiệm Tình Huống Thời Gian Thực (Zero-F5 Simulation)
+                      </div>
+                      <p className="text-purple-700 leading-relaxed">
+                        Nhấn vào các nút bên dưới để mô phỏng ngay lập tức việc cộng điểm phạt, kích hoạt chế tài khóa Flash Sale Sàn (khi đạt từ 3 điểm trở lên), hoặc đặt lại điểm về 0 theo Quý. Toàn bộ giao diện Studio, bảng chọn sách, nút đăng ký và thông báo sẽ cập nhật tức thì qua <strong>SyncBus</strong> mà không cần tải lại trang.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSimulateViolation(
+                          'NON_FULFILLMENT',
+                          1,
+                          'Hủy đơn hàng người mua do hết hàng trong kho (NFR vượt 5%)',
+                          'Mã đơn #HK-9921 bị hủy bởi người bán'
+                        )
+                      }
+                      className="p-3.5 rounded-2xl bg-white hover:bg-amber-50 border border-gray-200 hover:border-amber-300 text-left transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900 group-hover:text-amber-800">
+                          +1 Điểm: Hủy Đơn Hàng Hết Kho
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          +1 Điểm
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Tỷ lệ đơn hàng không thành công NFR vượt ngưỡng 5%
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSimulateViolation(
+                          'LATE_SHIPMENT',
+                          2,
+                          'Giao hàng cho đơn vị vận chuyển trễ hạn quy định (LSR vượt 10%)',
+                          '4 đơn hàng phát sinh quá 48h chưa bàn giao'
+                        )
+                      }
+                      className="p-3.5 rounded-2xl bg-white hover:bg-amber-50 border border-gray-200 hover:border-amber-300 text-left transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900 group-hover:text-amber-800">
+                          +2 Điểm: Giao Hàng Quá Hạn
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
+                          +2 Điểm
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Kích hoạt Cấp 1 (Cảnh Báo, giới hạn tối đa 3 sách/đợt Flash Sale Sàn)
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSimulateViolation(
+                          'COPYRIGHT_VIOLATION',
+                          3,
+                          'Sách bị báo cáo nghi vấn vi phạm bản quyền / scan lậu',
+                          'Nhà xuất bản gửi công văn khiếu nại bản quyền số #CP-883'
+                        )
+                      }
+                      className="p-3.5 rounded-2xl bg-white hover:bg-rose-50 border border-gray-200 hover:border-rose-300 text-left transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900 group-hover:text-rose-800">
+                          +3 Điểm: Vi Phạm Bản Quyền Sách
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
+                          +3 Điểm 🚫
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Kích hoạt ngay Cấp 2: <strong>Khóa tham gia Flash Sale Sàn trong 28 ngày!</strong>
+                      </p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSimulateViolation(
+                          'PROMOTION_FRAUD',
+                          6,
+                          'Hành vi tăng giá niêm yết trước giờ mở bán để giả giảm giá sâu',
+                          'Audit bot phát hiện tăng giá 150% trước 24h'
+                        )
+                      }
+                      className="p-3.5 rounded-2xl bg-white hover:bg-purple-50 border border-gray-200 hover:border-purple-300 text-left transition-all cursor-pointer shadow-2xs group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-xs text-gray-900 group-hover:text-purple-800">
+                          +6 Điểm: Gian Lận Giá Ảo
+                        </span>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
+                          +6 Điểm ⚡
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Kích hoạt Cấp 3: Giảm thứ hạng tìm kiếm & khóa toàn bộ khuyến mãi
+                      </p>
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-2">
+                    <div>
+                      <div className="text-xs font-bold text-gray-900">
+                        Đặt Lại Điểm Phạt Về 0 (Quarterly Reset)
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        Mô phỏng ngày đầu tiên của Quý mới để khôi phục quyền tham gia Flash Sale Sàn
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSimulateResetQuarter}
+                      className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors flex items-center gap-1.5 shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-sm">restart_alt</span>
+                      <span>Reset Về 0 Điểm Phạt</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-[11px] text-gray-500">
+                Mọi khiếu nại về Sao Quả Tạ được thẩm định công khai bởi Hội Đồng Giám Sát HuKi
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPolicyModalOpen(false)}
+                className="px-5 py-2 rounded-xl bg-gray-900 hover:bg-black text-white font-bold text-xs cursor-pointer transition-colors"
               >
                 Đóng
               </button>

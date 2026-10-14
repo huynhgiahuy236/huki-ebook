@@ -84,6 +84,7 @@ export type SyncEventType =
   | 'BUSINESS_STATUS_UPDATED'
   | 'STAFF_PERMISSIONS_UPDATED'
   | 'STAFF_AUDIT_LOG_CREATED'
+  | 'SELLER_PENALTY_UPDATED'
   | 'SYSTEM_MAINTENANCE_CHANGED';
 
 export interface DisputeArbitratedPayload {
