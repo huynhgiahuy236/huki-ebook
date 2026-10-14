@@ -196,17 +196,15 @@ export default function SellerSetupStorePage() {
 
   const validateStep3 = () => {
     const errors: Record<string, string> = {};
-    if (!hasPinConfigured) {
-      if (!pinForm.pin) {
-        errors.pin = 'Vui lòng nhập Mã PIN (6 chữ số).';
-      } else if (!/^[0-9]{6}$/.test(pinForm.pin)) {
-        errors.pin = 'Mã PIN phải bao gồm đúng 6 chữ số.';
-      }
-      if (!pinForm.confirmPin) {
-        errors.confirmPin = 'Vui lòng nhập lại để xác nhận Mã PIN.';
-      } else if (pinForm.confirmPin !== pinForm.pin) {
-        errors.confirmPin = 'Xác nhận Mã PIN không khớp.';
-      }
+    if (!pinForm.pin) {
+      errors.pin = 'Vui lòng nhập Mã PIN rút tiền (6 chữ số).';
+    } else if (!/^[0-9]{6}$/.test(pinForm.pin)) {
+      errors.pin = 'Mã PIN phải bao gồm chính xác 6 chữ số.';
+    }
+    if (!pinForm.confirmPin) {
+      errors.confirmPin = 'Vui lòng nhập lại để xác nhận Mã PIN.';
+    } else if (pinForm.confirmPin !== pinForm.pin) {
+      errors.confirmPin = 'Xác nhận Mã PIN không trùng khớp.';
     }
     setPinErrors(errors);
     return Object.keys(errors).length === 0;
@@ -302,12 +300,6 @@ export default function SellerSetupStorePage() {
 
   // Step 3: Save PIN
   const handleSaveStep3 = async () => {
-    if (hasPinConfigured) {
-      setCurrentStep(4);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-
     if (!validateStep3()) return;
 
     setSavingStep(true);
@@ -315,9 +307,9 @@ export default function SellerSetupStorePage() {
       const storeId = currentStore?.id || stores[0]?.id;
       if (storeId) {
         const res = await walletApi.setupPin(storeId, pinForm.pin);
-        if (res.success) {
+        if (res.success || res.data) {
           setHasPinConfigured(true);
-          showToast('Thiết lập Mã PIN 6 số thành công!', 'success');
+          showToast('Thiết lập Mã PIN 6 số an toàn thành công!', 'success');
           setCurrentStep(4);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
@@ -851,85 +843,76 @@ export default function SellerSetupStorePage() {
                 </p>
               </div>
 
-              {hasPinConfigured ? (
-                <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-2xl text-emerald-700">shield_lock</span>
+              <div className="max-w-md mx-auto space-y-5 py-2">
+                {hasPinConfigured && (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-start gap-3">
+                    <span className="material-symbols-outlined text-xl text-emerald-700 shrink-0">verified_user</span>
+                    <div className="text-xs text-emerald-900">
+                      <strong className="block font-bold">Gian hàng đã có Mã PIN bảo mật</strong>
+                      <span className="text-emerald-800">
+                        Bạn có thể nhập 6 chữ số mới bên dưới để cập nhật lại mã PIN rút tiền nếu muốn.
+                      </span>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-emerald-900 text-sm">Mã PIN giao dịch đã được kích hoạt</h3>
-                    <p className="text-xs text-emerald-800 leading-relaxed">
-                      Tài khoản gian hàng của bạn đã có mã PIN 6 số an toàn. Bạn có thể thay đổi hoặc đặt lại mã PIN bất cứ lúc nào trong phần Quản lý Tài chính &amp; Ví.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setHasPinConfigured(false)}
-                      className="mt-2 text-xs font-bold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
-                    >
-                      Thiết lập lại mã PIN mới
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-w-md mx-auto space-y-5 py-4">
-                  <div className="bg-amber-50/60 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
-                    <span className="material-symbols-outlined text-amber-700 text-xl shrink-0">info</span>
-                    <p className="text-xs text-amber-900 leading-relaxed">
-                      Tuyệt đối không chia sẻ mã PIN cho người khác. HUKI sẽ không bao giờ yêu cầu bạn cung cấp mã PIN qua điện thoại hay tin nhắn.
-                    </p>
-                  </div>
+                )}
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Nhập Mã PIN mới (6 chữ số) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      maxLength={6}
-                      value={pinForm.pin}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setPinForm({ ...pinForm, pin: val });
-                        if (pinErrors.pin) setPinErrors({ ...pinErrors, pin: '' });
-                      }}
-                      placeholder="••••••"
-                      className={`w-full h-12 px-4 border rounded-xl text-center text-lg font-mono font-bold tracking-[0.5em] text-slate-900 outline-none transition-all shadow-2xs ${
-                        pinErrors.pin
-                          ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                          : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
-                      }`}
-                    />
-                    {pinErrors.pin && (
-                      <p className="mt-1 text-xs text-red-500 font-medium text-center">{pinErrors.pin}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                      Xác nhận lại Mã PIN (6 chữ số) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      maxLength={6}
-                      value={pinForm.confirmPin}
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/[^0-9]/g, '');
-                        setPinForm({ ...pinForm, confirmPin: val });
-                        if (pinErrors.confirmPin) setPinErrors({ ...pinErrors, confirmPin: '' });
-                      }}
-                      placeholder="••••••"
-                      className={`w-full h-12 px-4 border rounded-xl text-center text-lg font-mono font-bold tracking-[0.5em] text-slate-900 outline-none transition-all shadow-2xs ${
-                        pinErrors.confirmPin
-                          ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
-                          : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
-                      }`}
-                    />
-                    {pinErrors.confirmPin && (
-                      <p className="mt-1 text-xs text-red-500 font-medium text-center">{pinErrors.confirmPin}</p>
-                    )}
-                  </div>
+                <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+                  <span className="material-symbols-outlined text-amber-700 text-xl shrink-0">info</span>
+                  <p className="text-xs text-amber-900 leading-relaxed">
+                    Vui lòng ghi nhớ <strong>Mã PIN 6 số</strong> này. Bạn sẽ cần nhập đúng mã PIN này mỗi khi thực hiện lệnh <strong>Rút Tiền</strong> từ ví gian hàng về tài khoản ngân hàng đã đăng ký.
+                  </p>
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Mã PIN Rút Tiền (6 chữ số) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={pinForm.pin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setPinForm({ ...pinForm, pin: val });
+                      if (pinErrors.pin) setPinErrors({ ...pinErrors, pin: '' });
+                    }}
+                    placeholder="••••••"
+                    className={`w-full h-12 px-4 border rounded-xl text-center text-xl font-mono font-bold tracking-[0.5em] text-slate-900 outline-none transition-all shadow-2xs ${
+                      pinErrors.pin
+                        ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
+                        : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
+                    }`}
+                  />
+                  {pinErrors.pin && (
+                    <p className="mt-1 text-xs text-red-500 font-medium text-center">{pinErrors.pin}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Xác nhận lại Mã PIN (6 chữ số) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    maxLength={6}
+                    value={pinForm.confirmPin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setPinForm({ ...pinForm, confirmPin: val });
+                      if (pinErrors.confirmPin) setPinErrors({ ...pinErrors, confirmPin: '' });
+                    }}
+                    placeholder="••••••"
+                    className={`w-full h-12 px-4 border rounded-xl text-center text-xl font-mono font-bold tracking-[0.5em] text-slate-900 outline-none transition-all shadow-2xs ${
+                      pinErrors.confirmPin
+                        ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
+                        : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
+                    }`}
+                  />
+                  {pinErrors.confirmPin && (
+                    <p className="mt-1 text-xs text-red-500 font-medium text-center">{pinErrors.confirmPin}</p>
+                  )}
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">

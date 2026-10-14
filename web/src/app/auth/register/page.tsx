@@ -8,6 +8,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { registerSchema } from '@/ui/utils/authValidation';
 import { formatAuthError } from '@/ui/api/authApi';
 import GoogleAuthModal from '@/ui/components/auth/GoogleAuthModal';
+import { PolicyQuickModal } from '@/ui/components/policy/PolicyQuickModal';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -28,6 +29,7 @@ export default function RegisterPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [quickPolicySlug, setQuickPolicySlug] = useState<string | null>(null);
 
   // Đánh giá độ mạnh mật khẩu trực quan
   const getPasswordStrength = (pwd: string): { score: number; label: string; color: string; text: string } => {
@@ -424,13 +426,27 @@ export default function RegisterPage() {
                   />
                   <span>
                     Tôi đồng ý với{' '}
-                    <Link href="/terms" className="text-slate-900 font-bold underline hover:text-[#003b2b]">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setQuickPolicySlug('terms');
+                      }}
+                      className="text-slate-900 font-bold underline hover:text-[#003b2b] cursor-pointer"
+                    >
                       Điều khoản dịch vụ
-                    </Link>{' '}
+                    </button>{' '}
                     và{' '}
-                    <Link href="/privacy" className="text-slate-900 font-bold underline hover:text-[#003b2b]">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setQuickPolicySlug('privacy');
+                      }}
+                      className="text-slate-900 font-bold underline hover:text-[#003b2b] cursor-pointer"
+                    >
                       Chính sách bảo mật
-                    </Link>{' '}
+                    </button>{' '}
                     của HUKI.
                   </span>
                 </label>
@@ -506,6 +522,13 @@ export default function RegisterPage() {
               redirectTarget="/onboarding"
             />
           )}
+
+          {/* Policy Quick View Modal */}
+          <PolicyQuickModal
+            isOpen={Boolean(quickPolicySlug)}
+            slug={quickPolicySlug || 'terms'}
+            onClose={() => setQuickPolicySlug(null)}
+          />
 
           {/* Footer: Bottom Links */}
           <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">

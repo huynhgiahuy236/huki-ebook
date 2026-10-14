@@ -141,7 +141,7 @@ export function PersonalizedForYouSection({
                   originalPrice: bookData.originalPrice || undefined,
                   discountPercent: bookData.discountPercent || undefined,
                   rating: bookData.rating || undefined,
-                  sales: bookData.sales || bookData.soldCount || undefined,
+                  sales: bookData.soldCount ?? bookData.sales ?? undefined,
                   author: book.authorName || undefined,
                   authorName: book.authorName || undefined,
                   format: book.categoryName || 'Sách',

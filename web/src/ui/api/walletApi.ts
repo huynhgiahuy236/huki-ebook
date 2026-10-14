@@ -54,6 +54,10 @@ export interface WalletSecurityStatus {
   lockedUntil: string | null;
   remainingAttempts: number;
   pinSetAt: string | null;
+  pinUpdatedAt?: string | null;
+  isPinExpired?: boolean;
+  pinDaysRemaining?: number;
+  pinExpiryDays?: number;
 }
 
 export interface PinVerifyResult {
@@ -152,6 +156,19 @@ export const walletApi = {
   },
 
   /**
+   * Đổi mã PIN bảo mật cấp 2 (Mã PIN mới hiệu lực 3 tháng / 90 ngày, không trùng mã PIN cũ)
+   */
+  changePin: async (
+    storeId: string,
+    payload: { currentPin: string; newPin: string; twoFactorToken?: string }
+  ): Promise<ApiResponse<{ message: string }>> => {
+    return apiClient<{ message: string }>(`/wallet/store/${encodeURIComponent(storeId)}/security/pin/change`, {
+      method: 'POST',
+      body: JSON.stringify({ storeId, ...payload }),
+    });
+  },
+
+  /**
    * Task 75: Request Step-Up 2FA OTP Challenge
    */
   issueTwoFactorChallenge: async (storeId: string, purpose: string, step1Token: string): Promise<ApiResponse<TwoFactorChallengeResult>> => {
@@ -170,10 +187,11 @@ export const walletApi = {
   withdrawAllBalance: async (
     storeId: string,
     pin: string,
+    bankSnapshot?: any,
   ): Promise<ApiResponse<{ success: boolean; withdrawnAmount: number; message: string; remainingAttempts?: number; remainingSeconds?: number }>> => {
     return apiClient(`/wallet/store/${encodeURIComponent(storeId)}/withdraw-all`, {
       method: 'POST',
-      body: JSON.stringify({ pin }),
+      body: JSON.stringify({ pin, bankSnapshot }),
     });
   },
 

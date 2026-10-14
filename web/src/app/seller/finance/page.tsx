@@ -11,9 +11,14 @@ import {
   type SellerEscrowItem,
   type WalletTransactionItem,
   type PayoutRequestItem,
+  type WalletSecurityStatus,
 } from '@/ui/api/walletApi';
+import { businessApi } from '@/ui/api/businessApi';
 import WithdrawalPinModal, { type BankInfo } from '@/ui/components/seller/WithdrawalPinModal';
+import UpdateBankModal from '@/ui/components/seller/UpdateBankModal';
+import UpdatePinModal from '@/ui/components/seller/UpdatePinModal';
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
+import { SellerPagination } from '@/ui/components/seller/SellerUI';
 import { featureFlagsService } from '@/ui/services/featureFlagsService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
@@ -54,15 +59,41 @@ export default function SellerFinancePage() {
   const { showToast } = useToast();
   const storeId = user?.business?.id || activeBusinessId || (user as any)?.storeId || null;
 
+  const [businessDetail, setBusinessDetail] = useState<any>(null);
+
+  const fetchBiz = useCallback(async () => {
+    try {
+      const res = await businessApi.getMyBusiness();
+      if (res.success && res.data) {
+        const b = (res.data as any)?.data || res.data;
+        setBusinessDetail(b);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBiz();
+  }, [fetchBiz]);
+
   // Bank Info KYC
   const bankInfo: BankInfo = useMemo(() => {
-    const b = user?.business as any;
+    const b = businessDetail || (user?.business as any);
     return {
       bankName: b?.bankName || 'Ngân hàng TMCP Ngoại Thương Việt Nam (Vietcombank)',
-      accountNumber: b?.bankAccountNumber || '7222333555',
-      accountHolder: b?.bankAccountHolder || b?.ownerName || user?.fullName || 'SELLER',
+      accountNumber: b?.bankAccountNumber || 'Chưa thiết lập STK',
+      accountHolder: b?.bankAccountHolderName || b?.bankAccountHolder || b?.ownerName || b?.name || user?.fullName || 'CHỦ TÀI KHOẢN',
+      businessName: b?.name || 'Gian hàng',
     };
-  }, [user]);
+  }, [businessDetail, user]);
+
+  const modalBankInfo = useMemo(() => ({
+    bankName: bankInfo.bankName,
+    accountNumber: bankInfo.accountNumber,
+    accountHolder: bankInfo.accountHolder,
+    bankBranch: businessDetail?.bankBranch || '',
+  }), [bankInfo, businessDetail?.bankBranch]);
 
   // States
   const [wallet, setWallet] = useState<WalletData | null>(null);
@@ -70,16 +101,42 @@ export default function SellerFinancePage() {
   const [recentTransactions, setRecentTransactions] = useState<WalletTransactionItem[]>([]);
   const [isWalletLoading, setIsWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState<string | null>(null);
-  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
 
-  // Tab State: Chuẩn Shopee 3 Tab Tinh Gọn
+  // Modals State
+  const [isWithdrawalModalOpen, setIsWithdrawalModalOpen] = useState(false);
+  const [isBankModalOpen, setIsBankModalOpen] = useState(false);
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+
+  // PIN & Security Status (90 days rotation)
+  const [securityStatus, setSecurityStatus] = useState<WalletSecurityStatus | null>(null);
+
+  // Tab State: 3 Tab Tinh Gọn
   const [activeTab, setActiveTab] = useState<'ESCROW' | 'PAYOUTS' | 'TRANSACTIONS'>('ESCROW');
 
-  // Payout Requests History State
+  // Pagination States for all 3 Tabs
+  const [escrowPage, setEscrowPage] = useState(1);
+  const escrowPageSize = 10;
+  const escrowTotalPages = Math.max(1, Math.ceil(escrowItems.length / escrowPageSize));
+  const paginatedEscrowItems = useMemo(() => {
+    const start = (escrowPage - 1) * escrowPageSize;
+    return escrowItems.slice(start, start + escrowPageSize);
+  }, [escrowItems, escrowPage]);
+
+  // Payout Requests History State & Pagination
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequestItem[]>([]);
   const [isPayoutsLoading, setIsPayoutsLoading] = useState(true);
   const [payoutPage, setPayoutPage] = useState(1);
   const [payoutTotalPages, setPayoutTotalPages] = useState(1);
+  const [payoutTotalItems, setPayoutTotalItems] = useState(0);
+
+  // Transactions Pagination State
+  const [txPage, setTxPage] = useState(1);
+  const txPageSize = 12;
+  const txTotalPages = Math.max(1, Math.ceil(recentTransactions.length / txPageSize));
+  const paginatedTransactions = useMemo(() => {
+    const start = (txPage - 1) * txPageSize;
+    return recentTransactions.slice(start, start + txPageSize);
+  }, [recentTransactions, txPage]);
 
   // Realtime balance pulse indicator
   const [hasBalancePulse, setHasBalancePulse] = useState(false);
@@ -147,7 +204,7 @@ export default function SellerFinancePage() {
   const fetchRecentTransactions = useCallback(async () => {
     if (!storeId) return;
     try {
-      const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 50 });
+      const res = await walletApi.getStoreWalletTransactions(storeId, { page: 1, limit: 100 });
       if (res.success && res.data?.items) {
         setRecentTransactions(res.data.items);
       }
@@ -164,11 +221,12 @@ export default function SellerFinancePage() {
     }
     if (!isSilent) setIsPayoutsLoading(true);
     try {
-      const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 20 });
+      const res = await payoutApi.getStorePayoutRequests(storeId, { page: pageNum, limit: 10 });
       if (res.success && res.data) {
         setPayoutRequests(res.data.items || []);
         setPayoutPage(res.data.page || pageNum);
-        setPayoutTotalPages(Math.ceil((res.data.total || 0) / (res.data.limit || 20)) || 1);
+        setPayoutTotalItems(res.data.total || 0);
+        setPayoutTotalPages(Math.max(1, Math.ceil((res.data.total || 0) / (res.data.limit || 10))));
       }
     } catch (err) {
       console.warn('Lỗi tải lịch sử yêu cầu rút tiền:', err);
@@ -177,10 +235,30 @@ export default function SellerFinancePage() {
     }
   }, [storeId, isAuthLoading]);
 
+  // Fetch Security PIN Status (90 days rotation check)
+  const fetchSecurityStatus = useCallback(async () => {
+    if (!storeId) return;
+    try {
+      const res = await walletApi.getSecurityStatus(storeId);
+      if (res.success && res.data) {
+        setSecurityStatus(res.data);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải trạng thái bảo mật PIN:', err);
+    }
+  }, [storeId]);
+
   const handleRefreshAll = useCallback(async () => {
     if (!storeId && isAuthLoading) return;
-    await Promise.all([fetchWallet(), fetchEscrowItems(), fetchRecentTransactions(), fetchPayoutRequests(1)]);
-  }, [storeId, isAuthLoading, fetchWallet, fetchEscrowItems, fetchRecentTransactions, fetchPayoutRequests]);
+    await Promise.all([
+      fetchWallet(),
+      fetchEscrowItems(),
+      fetchRecentTransactions(),
+      fetchPayoutRequests(1),
+      fetchSecurityStatus(),
+      fetchBiz(),
+    ]);
+  }, [storeId, isAuthLoading, fetchWallet, fetchEscrowItems, fetchRecentTransactions, fetchPayoutRequests, fetchSecurityStatus, fetchBiz]);
 
   useEffect(() => {
     handleRefreshAll();
@@ -226,16 +304,8 @@ export default function SellerFinancePage() {
         fetchEscrowItems();
         fetchRecentTransactions();
         showToast?.('Số dư ví vừa được giải phóng tiền hàng thành công vào Số Dư Khả Dụng!', 'success');
-      } else if (msg.type === 'SHIPPER_COD_REMITTED' && isCurrentStore) {
-        fetchWallet(true);
-        fetchEscrowItems();
-        fetchRecentTransactions();
-        showToast?.('Bưu tá vừa nộp tiền mặt COD về Quỹ Sàn! Đơn hàng COD đã được kích hoạt đối soát ký quỹ.', 'info');
-      } else if ((msg.type === 'SHIPPER_DELIVERED' || msg.type === 'ORDER_DELIVERED') && isCurrentStore) {
-        fetchWallet(true);
-        fetchEscrowItems();
-        fetchRecentTransactions();
-        showToast?.('Bưu tá vừa giao sách thành công!', 'info');
+      } else if (msg.type === 'BUSINESS_STATUS_UPDATED') {
+        fetchBiz();
       }
     });
 
@@ -243,7 +313,7 @@ export default function SellerFinancePage() {
       clearInterval(pollTimer);
       unsubscribe();
     };
-  }, [storeId, payoutPage, fetchWallet, fetchEscrowItems, fetchPayoutRequests, fetchRecentTransactions, showToast]);
+  }, [storeId, payoutPage, fetchWallet, fetchEscrowItems, fetchPayoutRequests, fetchRecentTransactions, fetchBiz, showToast]);
 
   // Xử lý tự động giải ngân khi bộ đếm 2 phút đổi trả kết thúc
   const handleAutoReleaseItem = useCallback((item: SellerEscrowItem) => {
@@ -347,6 +417,32 @@ export default function SellerFinancePage() {
         </div>
       )}
 
+      {/* Cảnh báo mã PIN hết hạn (chu kỳ 3 tháng / 90 ngày) */}
+      {securityStatus?.isPinExpired && (
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 flex items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-rose-600 text-2xl shrink-0 animate-bounce">
+              security_update_warning
+            </span>
+            <div className="text-xs sm:text-sm space-y-0.5">
+              <p className="font-bold text-rose-950 dark:text-rose-100">
+                Mã PIN bảo mật cấp 2 đã quá hạn 3 tháng (90 ngày)
+              </p>
+              <p className="text-rose-700 dark:text-rose-300 text-xs">
+                Theo quy định an toàn tài chính, bạn cần cập nhật mã PIN mới (không trùng mã PIN cũ) để tiếp tục tạo lệnh rút tiền.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsPinModalOpen(true)}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer"
+          >
+            Đổi PIN Ngay
+          </button>
+        </div>
+      )}
+
       {/* 2. HEADER: 3 THẺ TINH GỌN CHUẨN SHOPEE (KHÔNG TRÙNG LẶP) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {/* THẺ 1: SỐ DƯ KHẢ DỤNG (TÂM ĐIỂM) */}
@@ -434,52 +530,104 @@ export default function SellerFinancePage() {
           </div>
 
           <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-500">
-            <span>Khấu trừ phí sàn:</span>
-            <span className="font-semibold text-slate-700 dark:text-slate-300">5% phí dịch vụ chuẩn</span>
+            <span>Khấu trừ sàn: <strong className="text-slate-700 dark:text-slate-300">5%</strong></span>
+            <Link
+              href="/seller/escrow"
+              className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-0.5"
+            >
+              <span>Chi tiết đơn chờ giải ngân</span>
+              <span className="material-symbols-outlined text-xs">arrow_forward</span>
+            </Link>
           </div>
         </div>
 
-        {/* THẺ 3: TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG (KYC) */}
-        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between">
+        {/* THẺ 3: TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG (KYC) & MÃ PIN */}
+        <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col justify-between space-y-3">
           <div>
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-emerald-600 text-base">verified</span>
                 <span>Tài Khoản Thụ Hưởng (KYC)</span>
               </span>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                Chính Chủ
-              </span>
+              <button
+                type="button"
+                onClick={() => setIsBankModalOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-colors cursor-pointer"
+                title="Thay đổi tài khoản ngân hàng nhận tiền"
+              >
+                <span className="material-symbols-outlined text-sm">edit</span>
+                <span>Cập nhật STK</span>
+              </button>
             </div>
 
             <div className="my-3 space-y-1">
               <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                 {bankInfo.bankName}
               </div>
-              <div className="font-mono text-lg font-black text-slate-900 dark:text-white tracking-wider">
-                {bankInfo.accountNumber}
+              <div className="font-mono text-lg font-black text-slate-900 dark:text-white tracking-wider flex items-center gap-2">
+                <span>{bankInfo.accountNumber}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  Chính chủ
+                </span>
               </div>
               <div className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
                 {bankInfo.accountHolder}
               </div>
+              {businessDetail?.bankBranch && (
+                <div className="text-[11px] text-slate-400 truncate">
+                  Chi nhánh: {businessDetail.bankBranch}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px]">
-            <span className="text-slate-500">Mã PIN bảo mật cấp 2:</span>
-            <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">123456 (Mặc định)</span>
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500 font-medium">Mã PIN:</span>
+                <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                  securityStatus?.isPinExpired
+                    ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                    : (securityStatus?.pinDaysRemaining ?? 90) <= 15
+                    ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                    : 'bg-emerald-100 text-emerald-800'
+                }`}>
+                  {securityStatus?.isPinExpired
+                    ? 'Hết hạn (Quá 90 ngày)'
+                    : `An toàn (Còn ${securityStatus?.pinDaysRemaining ?? 90} ngày)`}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400">
+                {securityStatus?.pinUpdatedAt
+                  ? `Đổi ngày: ${new Date(securityStatus.pinUpdatedAt).toLocaleDateString('vi-VN')}`
+                  : 'Mặc định: 123456 (Đổi 3 tháng/lần)'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsPinModalOpen(true)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800 text-xs font-bold transition-colors cursor-pointer"
+              title="Đổi mã PIN bảo mật 6 số"
+            >
+              <span className="material-symbols-outlined text-sm">lock_reset</span>
+              <span>Đổi mã PIN</span>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* 3. BẢNG ĐIỀU KHIỂN TRUNG TÂM (3 TABS CHUẨN SHOPEE) */}
+      {/* 3. BẢNG ĐIỀU KHIỂN TRUNG TÂM (3 TABS CHUẨN SHOPEE KÈM PHÂN TRANG) */}
       <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
         {/* Navigation Tabs Header */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 px-6 pt-4 bg-slate-50/50 dark:bg-slate-900/30">
           <div className="flex items-center gap-2 sm:gap-6 overflow-x-auto scrollbar-none">
             <button
               type="button"
-              onClick={() => setActiveTab('ESCROW')}
+              onClick={() => {
+                setActiveTab('ESCROW');
+                setEscrowPage(1);
+              }}
               className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'ESCROW'
                   ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
@@ -487,7 +635,7 @@ export default function SellerFinancePage() {
               }`}
             >
               <span className="material-symbols-outlined text-base">receipt_long</span>
-              <span>Dòng Tiền Đơn Hàng &amp; Ký Quỹ</span>
+              <span>Đơn Hàng Chờ Quyết Toán</span>
               <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
                 {escrowItems.length}
               </span>
@@ -495,7 +643,10 @@ export default function SellerFinancePage() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('PAYOUTS')}
+              onClick={() => {
+                setActiveTab('PAYOUTS');
+                fetchPayoutRequests(1);
+              }}
               className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'PAYOUTS'
                   ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
@@ -505,13 +656,16 @@ export default function SellerFinancePage() {
               <span className="material-symbols-outlined text-base">payments</span>
               <span>Lịch Sử Rút Tiền Về STK</span>
               <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
-                {payoutRequests.length}
+                {payoutTotalItems || payoutRequests.length}
               </span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('TRANSACTIONS')}
+              onClick={() => {
+                setActiveTab('TRANSACTIONS');
+                setTxPage(1);
+              }}
               className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'TRANSACTIONS'
                   ? 'border-emerald-600 text-emerald-700 dark:text-emerald-400'
@@ -530,12 +684,12 @@ export default function SellerFinancePage() {
             href="/seller/reports"
             className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 pb-3 shrink-0"
           >
-            <span>Báo cáo nâng cao</span>
+            <span>Báo cáo &amp; Sổ cái</span>
             <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </div>
 
-        {/* TAB 1: BẢNG DÒNG TIỀN ĐƠN HÀNG & KÝ QUỸ */}
+        {/* TAB 1: BẢNG DÒNG TIỀN ĐƠN HÀNG & KÝ QUỸ (CÓ PHÂN TRANG) */}
         {activeTab === 'ESCROW' && (
           <div className="p-6">
             {escrowItems.length === 0 ? (
@@ -545,111 +699,123 @@ export default function SellerFinancePage() {
                 <p className="text-xs text-slate-400">Các đơn sách sau khi khách đặt sẽ xuất hiện tại đây</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
-                      <th className="py-3 px-3">Mã Đơn &amp; Thời Gian</th>
-                      <th className="py-3 px-3">Sách &amp; Ảnh Bìa</th>
-                      <th className="py-3 px-3">Khách Hàng &amp; Địa Chỉ</th>
-                      <th className="py-3 px-3 text-right">Tổng Tiền (100%)</th>
-                      <th className="py-3 px-3 text-right">Phí Sàn (5%)</th>
-                      <th className="py-3 px-3 text-right">Thực Nhận (95%)</th>
-                      <th className="py-3 px-3 text-center">Trạng Thái Dòng Tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                    {escrowItems.map((item) => {
-                      const isCOD = item.paymentMethod === 'COD';
-                      const isCancelled = item.orderStatus === 'CANCELLED' || (item as any).status === 'CANCELLED';
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
+                        <th className="py-3 px-3">Mã Đơn &amp; Thời Gian</th>
+                        <th className="py-3 px-3">Sách &amp; Ảnh Bìa</th>
+                        <th className="py-3 px-3">Khách Hàng &amp; Địa Chỉ</th>
+                        <th className="py-3 px-3 text-right">Tổng Tiền (100%)</th>
+                        <th className="py-3 px-3 text-right">Phí Sàn (5%)</th>
+                        <th className="py-3 px-3 text-right">Thực Nhận (95%)</th>
+                        <th className="py-3 px-3 text-center">Trạng Thái Dòng Tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                      {paginatedEscrowItems.map((item) => {
+                        const isCOD = item.paymentMethod === 'COD';
+                        const isCancelled = item.orderStatus === 'CANCELLED' || (item as any).status === 'CANCELLED';
 
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors ${
-                            isCancelled ? 'opacity-40 bg-slate-50/30 line-through' : ''
-                          }`}
-                        >
-                          <td className="py-3 px-3">
-                            <span className="font-mono font-bold text-slate-900 dark:text-white block text-[11.5px]">
-                              #{item.orderCode}
-                            </span>
-                            <span className="text-[10.5px] text-slate-400 font-mono block mt-0.5">
-                              {formatVietnamDateTime(item.orderCreatedAt)}
-                            </span>
-                            <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              isCOD ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                            }`}>
-                              {isCOD ? '💵 COD' : '💳 PayOS'}
-                            </span>
-                          </td>
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors ${
+                              isCancelled ? 'opacity-40 bg-slate-50/30 line-through' : ''
+                            }`}
+                          >
+                            <td className="py-3 px-3">
+                              <span className="font-mono font-bold text-slate-900 dark:text-white block text-[11.5px]">
+                                #{item.orderCode}
+                              </span>
+                              <span className="text-[10.5px] text-slate-400 font-mono block mt-0.5">
+                                {formatVietnamDateTime(item.orderCreatedAt)}
+                              </span>
+                              <span className={`inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                isCOD ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
+                              }`}>
+                                {isCOD ? '💵 COD' : '💳 PayOS'}
+                              </span>
+                            </td>
 
-                          <td className="py-3 px-3 max-w-[220px]">
-                            <div className="flex items-center gap-2.5">
-                              {item.coverUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={item.coverUrl}
-                                  alt={item.bookTitle}
-                                  className="w-8 h-11 object-cover rounded shadow-2xs shrink-0"
-                                />
-                              ) : (
-                                <div className="w-8 h-11 bg-slate-100 dark:bg-slate-700 rounded flex items-center justify-center shrink-0">
-                                  <span className="material-symbols-outlined text-slate-400 text-sm">book</span>
+                            <td className="py-3 px-3 max-w-[220px]">
+                              <div className="flex items-center gap-2.5">
+                                {item.coverUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={item.coverUrl}
+                                    alt={item.bookTitle}
+                                    className="w-8 h-11 object-cover rounded shadow-2xs shrink-0"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-11 bg-slate-100 dark:bg-slate-700 rounded flex items-center justify-center shrink-0">
+                                    <span className="material-symbols-outlined text-slate-400 text-sm">book</span>
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <span className="font-medium text-slate-900 dark:text-white truncate block text-[11.5px]" title={item.bookTitle}>
+                                    {item.bookTitle}
+                                  </span>
+                                  <span className="text-[10.5px] text-slate-400 block mt-0.5">
+                                    SL: <strong>{item.quantity}</strong> &bull; {formatVND(item.unitPrice)}
+                                  </span>
                                 </div>
-                              )}
-                              <div className="min-w-0">
-                                <span className="font-medium text-slate-900 dark:text-white truncate block text-[11.5px]" title={item.bookTitle}>
-                                  {item.bookTitle}
-                                </span>
-                                <span className="text-[10.5px] text-slate-400 block mt-0.5">
-                                  SL: <strong>{item.quantity}</strong> &bull; {formatVND(item.unitPrice)}
-                                </span>
                               </div>
-                            </div>
-                          </td>
+                            </td>
 
-                          <td className="py-3 px-3 text-[11px] max-w-[180px]">
-                            <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
-                              {item.customerName || 'Khách hàng'}
-                            </span>
-                            <span className="font-mono text-slate-400 block text-[10.5px]">
-                              {item.customerPhone || '—'}
-                            </span>
-                            <span className="text-slate-400 truncate block text-[10px] mt-0.5" title={item.shippingAddress}>
-                              {item.shippingAddress || 'Giao tận nơi'}
-                            </span>
-                          </td>
+                            <td className="py-3 px-3 text-[11px] max-w-[180px]">
+                              <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+                                {item.customerName || 'Khách hàng'}
+                              </span>
+                              <span className="font-mono text-slate-400 block text-[10.5px]">
+                                {item.customerPhone || '—'}
+                              </span>
+                              <span className="text-slate-400 truncate block text-[10px] mt-0.5" title={item.shippingAddress}>
+                                {item.shippingAddress || 'Giao tận nơi'}
+                              </span>
+                            </td>
 
-                          <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                            {formatVND(item.subtotal)}
-                          </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                              {formatVND(item.subtotal)}
+                            </td>
 
-                          <td className="py-3 px-3 text-right font-mono text-rose-500 font-semibold">
-                            -{formatVND(item.platformFee)}
-                          </td>
+                            <td className="py-3 px-3 text-right font-mono text-rose-500 font-semibold">
+                              -{formatVND(item.platformFee)}
+                            </td>
 
-                          <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                            +{formatVND(item.sellerNet)}
-                          </td>
+                            <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                              +{formatVND(item.sellerNet)}
+                            </td>
 
-                          <td className="py-3 px-3 text-center">
-                            <EscrowTableBadge
-                              item={item}
-                              onAutoRelease={handleAutoReleaseItem}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                            <td className="py-3 px-3 text-center">
+                              <EscrowTableBadge
+                                item={item}
+                                onAutoRelease={handleAutoReleaseItem}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Phân Trang Tab 1 */}
+                <SellerPagination
+                  currentPage={escrowPage}
+                  totalPages={escrowTotalPages}
+                  totalItems={escrowItems.length}
+                  pageSize={escrowPageSize}
+                  onPageChange={(p) => setEscrowPage(p)}
+                  className="pt-2 border-t border-slate-100 dark:border-slate-700/60"
+                />
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 2: BẢNG LỊCH SỬ RÚT TIỀN (PAYOUTS) */}
+        {/* TAB 2: BẢNG LỊCH SỬ RÚT TIỀN (CÓ PHÂN TRANG) */}
         {activeTab === 'PAYOUTS' && (
           <div className="p-6">
             {isPayoutsLoading ? (
@@ -664,68 +830,80 @@ export default function SellerFinancePage() {
                 <p className="text-xs text-slate-400">Các lệnh rút tiền về tài khoản ngân hàng sẽ được lưu vết đầy đủ tại đây</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
-                      <th className="py-3 px-3">Mã Lệnh Rút</th>
-                      <th className="py-3 px-3">Thời Gian Tạo</th>
-                      <th className="py-3 px-3">Số Tiền Rút</th>
-                      <th className="py-3 px-3">Ngân Hàng Nhận</th>
-                      <th className="py-3 px-3 text-center">Trạng Thái Duyệt</th>
-                      <th className="py-3 px-3">Thời Gian Giải Ngân</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                    {payoutRequests.map((req) => {
-                      const status = req.status;
-                      let statusBadge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
-                      if (status === 'PENDING') {
-                        statusBadge = { label: 'Chờ kế toán duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
-                      } else if (status === 'APPROVED') {
-                        statusBadge = { label: 'Đã phê duyệt', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
-                      } else if (status === 'PROCESSING') {
-                        statusBadge = { label: 'Đang chuyển khoản', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
-                      } else if (status === 'COMPLETED' || (status as any) === 'DISBURSED') {
-                        statusBadge = { label: 'Giải ngân thành công', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-                      } else if (status === 'REJECTED') {
-                        statusBadge = { label: 'Bị từ chối', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
-                      }
+              <div className="space-y-4">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 font-semibold text-[11px] border-b border-slate-100 dark:border-slate-700">
+                        <th className="py-3 px-3">Mã Lệnh Rút</th>
+                        <th className="py-3 px-3">Thời Gian Tạo</th>
+                        <th className="py-3 px-3">Số Tiền Rút</th>
+                        <th className="py-3 px-3">Ngân Hàng Nhận</th>
+                        <th className="py-3 px-3 text-center">Trạng Thái Duyệt</th>
+                        <th className="py-3 px-3">Thời Gian Giải Ngân</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                      {payoutRequests.map((req) => {
+                        const status = req.status;
+                        let statusBadge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+                        if (status === 'PENDING') {
+                          statusBadge = { label: 'Chờ kế toán duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
+                        } else if (status === 'APPROVED') {
+                          statusBadge = { label: 'Đã phê duyệt', bg: 'bg-blue-50 text-blue-700 border-blue-200' };
+                        } else if (status === 'PROCESSING') {
+                          statusBadge = { label: 'Đang chuyển khoản', bg: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+                        } else if (status === 'COMPLETED' || (status as any) === 'DISBURSED') {
+                          statusBadge = { label: 'Giải ngân thành công', bg: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+                        } else if (status === 'REJECTED') {
+                          statusBadge = { label: 'Bị từ chối', bg: 'bg-rose-50 text-rose-700 border-rose-200' };
+                        }
 
-                      return (
-                        <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
-                          <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white text-[11.5px]">
-                            #{req.id.slice(0, 10)}
-                          </td>
-                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                            {formatVietnamDateTime(req.requestedAt || req.createdAt)}
-                          </td>
-                          <td className="py-3 px-3 font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
-                            {formatVND(req.amount)}
-                          </td>
-                          <td className="py-3 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
-                            <span className="font-bold block">{req.bankSnapshot?.bankName || bankInfo.bankName}</span>
-                            <span className="font-mono text-slate-400">{req.bankSnapshot?.accountNumber || bankInfo.accountNumber}</span>
-                          </td>
-                          <td className="py-3 px-3 text-center">
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge.bg}`}>
-                              {statusBadge.label}
-                            </span>
-                          </td>
-                          <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
-                            {req.disbursedAt || req.reviewedAt ? formatVietnamDateTime(req.disbursedAt || req.reviewedAt) : 'Đang xử lý'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                        return (
+                          <tr key={req.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-white text-[11.5px]">
+                              #{req.id.slice(0, 10)}
+                            </td>
+                            <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                              {formatVietnamDateTime(req.requestedAt || req.createdAt)}
+                            </td>
+                            <td className="py-3 px-3 font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                              {formatVND(req.amount)}
+                            </td>
+                            <td className="py-3 px-3 text-slate-700 dark:text-slate-300 text-[11px]">
+                              <span className="font-bold block">{req.bankSnapshot?.bankName || bankInfo.bankName}</span>
+                              <span className="font-mono text-slate-400">{req.bankSnapshot?.accountNumber || bankInfo.accountNumber}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border ${statusBadge.bg}`}>
+                                {statusBadge.label}
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-slate-500 font-mono text-[11px]">
+                              {req.disbursedAt || req.reviewedAt ? formatVietnamDateTime(req.disbursedAt || req.reviewedAt) : 'Đang xử lý'}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Phân Trang Tab 2 */}
+                <SellerPagination
+                  currentPage={payoutPage}
+                  totalPages={payoutTotalPages}
+                  totalItems={payoutTotalItems || payoutRequests.length}
+                  pageSize={10}
+                  onPageChange={(p) => fetchPayoutRequests(p)}
+                  className="pt-2 border-t border-slate-100 dark:border-slate-700/60"
+                />
               </div>
             )}
           </div>
         )}
 
-        {/* TAB 3: BẢNG NHẬT KÝ BIẾN ĐỘNG VÍ */}
+        {/* TAB 3: BẢNG NHẬT KÝ BIẾN ĐỘNG VÍ (CÓ PHÂN TRANG) */}
         {activeTab === 'TRANSACTIONS' && (
           <div className="p-6">
             {recentTransactions.length === 0 ? (
@@ -735,37 +913,49 @@ export default function SellerFinancePage() {
                 <p className="text-xs text-slate-400">Các biến động tăng giảm số dư ví sẽ được ghi lại đầy đủ tại đây</p>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
-                {recentTransactions.map((tx) => {
-                  const isCredit = tx.type === 'CREDIT_AVAILABLE' || tx.type === 'MOVE_PENDING_TO_AVAILABLE';
-                  return (
-                    <div key={tx.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
-                      <div className="flex items-center gap-3.5">
-                        <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
-                          isCredit ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
-                        }`}>
-                          <span className="material-symbols-outlined text-lg">
-                            {isCredit ? 'add_circle' : 'remove_circle'}
+              <div className="space-y-4">
+                <div className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                  {paginatedTransactions.map((tx) => {
+                    const isCredit = tx.type === 'CREDIT_AVAILABLE' || tx.type === 'MOVE_PENDING_TO_AVAILABLE';
+                    return (
+                      <div key={tx.id} className="py-3.5 flex items-center justify-between gap-4 text-xs">
+                        <div className="flex items-center gap-3.5">
+                          <span className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${
+                            isCredit ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            <span className="material-symbols-outlined text-lg">
+                              {isCredit ? 'add_circle' : 'remove_circle'}
+                            </span>
                           </span>
-                        </span>
-                        <div>
-                          <div className="font-semibold text-slate-900 dark:text-white text-xs sm:text-sm">
-                            {tx.description || 'Biến động số dư'}
-                          </div>
-                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                            {formatVietnamDateTime(tx.createdAt)}
+                          <div>
+                            <div className="font-semibold text-slate-900 dark:text-white text-xs sm:text-sm">
+                              {tx.description || 'Biến động số dư'}
+                            </div>
+                            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                              {formatVietnamDateTime(tx.createdAt)}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      <div className={`font-mono font-bold text-sm whitespace-nowrap text-right ${
-                        isCredit ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
-                      }`}>
-                        {isCredit ? `+${formatVND(tx.amount)}` : `-${formatVND(tx.amount)}`}
+                        <div className={`font-mono font-bold text-sm whitespace-nowrap text-right ${
+                          isCredit ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                        }`}>
+                          {isCredit ? `+${formatVND(tx.amount)}` : `-${formatVND(tx.amount)}`}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {/* Phân Trang Tab 3 */}
+                <SellerPagination
+                  currentPage={txPage}
+                  totalPages={txTotalPages}
+                  totalItems={recentTransactions.length}
+                  pageSize={txPageSize}
+                  onPageChange={(p) => setTxPage(p)}
+                  className="pt-2 border-t border-slate-100 dark:border-slate-700/60"
+                />
               </div>
             )}
           </div>
@@ -776,9 +966,27 @@ export default function SellerFinancePage() {
       <WithdrawalPinModal
         isOpen={isWithdrawalModalOpen}
         onClose={() => setIsWithdrawalModalOpen(false)}
-        storeId={storeId}
+        storeId={storeId || undefined}
         availableBalance={metrics.availableBalance}
         bankInfo={bankInfo}
+        onSuccess={handleRefreshAll}
+      />
+
+      {/* MODAL CẬP NHẬT TÀI KHOẢN NGÂN HÀNG THỤ HƯỞNG */}
+      <UpdateBankModal
+        isOpen={isBankModalOpen}
+        onClose={() => setIsBankModalOpen(false)}
+        businessId={businessDetail?.id || user?.business?.id || undefined}
+        storeId={storeId || undefined}
+        currentBankInfo={modalBankInfo}
+        onSuccess={handleRefreshAll}
+      />
+
+      {/* MODAL CẬP NHẬT MÃ PIN (QUY ĐỊNH 3 THÁNG / LẦN & KHÔNG TRÙNG MÃ PIN CŨ) */}
+      <UpdatePinModal
+        isOpen={isPinModalOpen}
+        onClose={() => setIsPinModalOpen(false)}
+        storeId={storeId || undefined}
         onSuccess={handleRefreshAll}
       />
     </div>

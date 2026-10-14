@@ -210,6 +210,31 @@ const MOCK_REGISTRY_DB: Record<string, RegisteredBusinessInfo> = {
     is_verified_from_registry: true,
     verified_source: 'LOCAL_REGISTRY_DB',
   },
+  '0319888999': {
+    tax_code: '0319888999',
+    company_name: 'HỘ KINH DOANH NHÀ SÁCH TRI THỨC TRẺ',
+    international_name: '',
+    short_name: 'NHÀ SÁCH TRI THỨC TRẺ',
+    business_license_number: '41A8012345',
+    issue_date: '2022-08-10',
+    issue_place: 'Ủy ban nhân dân Quận 1, TP. Hồ Chí Minh',
+    business_type: 'INDIVIDUAL',
+    registered_address: {
+      street: '128 Đường Nguyễn Thị Minh Khai, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
+      ward: 'Phường Bến Nghé',
+      district: 'Quận 1',
+      province: 'TP. Hồ Chí Minh',
+      country: 'Việt Nam',
+    },
+    representative: {
+      full_name: 'Trần Minh Hoàng',
+      position: 'Chủ hộ kinh doanh',
+    },
+    ecommerce_industry_codes: ['4791'],
+    status: 'ACTIVE',
+    is_verified_from_registry: true,
+    verified_source: 'LOCAL_REGISTRY_DB',
+  },
 };
 
 /**
@@ -295,8 +320,14 @@ export const taxRegistryService = {
             short_name: apiData.shortName || '',
             business_license_number: cleanTaxCode,
             issue_date: apiData.foundedDate || new Date().toISOString().slice(0, 10),
-            issue_place: 'Sở Kế hoạch và Đầu tư',
-            business_type: apiData.name?.includes('CỔ PHẦN') ? 'CORPORATION' : 'LLC',
+            issue_place: (apiData.name?.includes('HỘ KINH DOANH') || apiData.name?.includes('HKD'))
+              ? 'Ủy ban nhân dân Quận/Huyện'
+              : 'Sở Kế hoạch và Đầu tư',
+            business_type: (apiData.name?.includes('HỘ KINH DOANH') || apiData.name?.includes('HKD'))
+              ? 'INDIVIDUAL'
+              : apiData.name?.includes('CỔ PHẦN')
+              ? 'CORPORATION'
+              : 'LLC',
             registered_address: {
               street: apiData.address || '',
               ward: '',
@@ -306,7 +337,9 @@ export const taxRegistryService = {
             },
             representative: {
               full_name: apiData.representative || apiData.director || '',
-              position: 'Người đại diện pháp luật',
+              position: (apiData.name?.includes('HỘ KINH DOANH') || apiData.name?.includes('HKD'))
+                ? 'Chủ hộ kinh doanh'
+                : 'Người đại diện pháp luật',
             },
             ecommerce_industry_codes: ['4791'],
             status: 'ACTIVE',
@@ -695,6 +728,7 @@ export const taxRegistryService = {
    */
   getSampleTaxCodes() {
     return [
+      { code: '0319888999', name: 'Hộ KD Nhà Sách Tri Thức Trẻ' },
       { code: '0318926410', name: 'Trí Tuệ Việt Books' },
       { code: '0101234567', name: 'NXB Kim Đồng' },
       { code: '0302482782', name: 'Nhã Nam Books' },

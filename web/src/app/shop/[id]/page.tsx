@@ -11,6 +11,7 @@ import { businessApi, type BusinessData } from '@/ui/api/businessApi';
 import { catalogApi, toCatalogBook, type BookData } from '@/ui/api/catalogApi';
 import { voucherApi } from '@/ui/api/voucherApi';
 import { formatFollowerRequirement } from '@/ui/api/sellerVoucherApi';
+import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 
 export default function ShopPage() {
   const params = useParams();
@@ -273,6 +274,7 @@ export default function ShopPage() {
             book.businessId === business.id || !book.businessId
           );
           setRealBooks(owned);
+          owned.forEach((b) => reviewSummaryService.register(b.id));
         }
       })
       .catch(() => setRealBooks([]));
@@ -415,7 +417,11 @@ export default function ShopPage() {
       if (activeTab === 'ebook' && book.formatType !== 'ebook') return false;
       if (activeTab === 'physical' && book.formatType !== 'physical') return false;
       if (activeTab === 'hybrid' && book.formatType !== 'hybrid') return false;
-      if (activeTab === 'bestseller' && (book.rating || 0) < 4.85) return false;
+      if (activeTab === 'bestseller') {
+        const s = Number((book as any).sales || (book as any).soldCount || 0);
+        const r = Number(book.rating || 0);
+        if (s <= 0 && r < 4.0) return false;
+      }
       if (activeCategory !== 'all' && (book as any).category !== activeCategory) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();

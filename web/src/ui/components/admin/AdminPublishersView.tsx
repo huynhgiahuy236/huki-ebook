@@ -6,6 +6,7 @@ import { businessApi } from '../../api/businessApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 const PUBLISHER_TABS = [
   { key: 'all', label: 'Tất Cả' },
@@ -80,6 +81,8 @@ export function AdminPublishersView() {
       const res = await businessApi.approveBusiness(id);
       setActionLoadingId(null);
       if (res.success || res.data) {
+        realtimeSyncBus.publish('BUSINESS_APPROVED', { businessId: id, status: 'APPROVED' });
+        realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', { businessId: id, status: 'APPROVED' });
         showToast?.(`Đã phê duyệt thành công hồ sơ ${name}! Đơn vị đã được cấp quyền Official Mall.`, 'success');
         setPublishersList(prev => prev.map(p => {
           if (p.id === id) {
@@ -110,6 +113,7 @@ export function AdminPublishersView() {
     try {
       await businessApi.rejectBusiness(id, 'Hồ sơ chưa đạt tiêu chuẩn pháp lý sàn');
       setActionLoadingId(null);
+      realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', { businessId: id, status: 'REJECTED' });
       setPublishersList(prev => prev.map(p => p.id === id ? { ...p, status: 'REJECTED', badge: 'Đã Từ Chối', statusLabel: 'Từ chối' } : p));
       showToast?.(`Đã từ chối hồ sơ ${name}.`, 'info');
       if (selectedPublisher && selectedPublisher.id === id) {

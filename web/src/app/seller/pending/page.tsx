@@ -7,6 +7,8 @@ import { businessApi, BusinessData } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+
 export default function SellerPendingPage() {
   const router = useRouter();
   const { user, refreshBusiness } = useAuth();
@@ -16,31 +18,49 @@ export default function SellerPendingPage() {
   const [loading, setLoading] = useState(true);
   const [checkingApproval, setCheckingApproval] = useState(false);
 
-  const loadBusiness = useCallback(async () => {
+  const loadBusiness = useCallback(async (isSilent = false) => {
     try {
       const res = await businessApi.getMyBusiness();
       if (res.success && res.data) {
         const b = (res.data as any)?.data || res.data;
         setBusiness(b);
 
-        // Nếu đã được duyệt → chuyển sang trang Setup
+        // Nếu đã được duyệt → tự động chuyển sang trang Setup ngay lập tức (Real-time Zero-F5)
         if (b.status === 'APPROVED') {
+          showToast('Hồ sơ đối tác đã được Admin phê duyệt thành công! Đang chuyển đến bước thiết lập gian hàng...', 'success');
           router.replace('/seller/stores/setup');
           return;
         }
       }
     } catch (err) {
-      console.error('Error loading business:', err);
+      if (!isSilent) console.error('Error loading business:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
-  }, [router]);
+  }, [router, showToast]);
 
   useEffect(() => {
     loadBusiness();
+
+    // 1. Silent Background Auto-Polling (2.5s) - Tự động nhận diện khi Admin bấm duyệt
+    const pollTimer = setInterval(() => {
+      loadBusiness(true);
+    }, 2500);
+
+    // 2. Realtime Bus Subscriber - Lập tức phản hồi khi Admin bấm Duyệt trên bất kỳ tab nào
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'BUSINESS_APPROVED' || msg.type === 'BUSINESS_STATUS_UPDATED') {
+        loadBusiness(true);
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsub();
+    };
   }, [loadBusiness]);
 
-  // Kiểm tra trạng thái duyệt
+  // Kiểm tra trạng thái duyệt thủ công
   const handleCheckApproval = async () => {
     setCheckingApproval(true);
     await refreshBusiness?.();

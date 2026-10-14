@@ -12,6 +12,7 @@ import {
   type PayoutRequestItem,
 } from '@/ui/api/walletApi';
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
+import { SellerPagination } from '@/ui/components/seller/SellerUI';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
@@ -202,6 +203,36 @@ export default function SellerFinancialReportsPage() {
     });
   }, [filteredItems, wallet, payouts, transactions]);
 
+  // Pagination States for all 3 Tabs (Chuẩn Shopee)
+  const [itemsPage, setItemsPage] = useState(1);
+  const itemsPageSize = 10;
+  const itemsTotalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPageSize));
+  const paginatedItems = useMemo(() => {
+    const start = (itemsPage - 1) * itemsPageSize;
+    return filteredItems.slice(start, start + itemsPageSize);
+  }, [filteredItems, itemsPage, itemsPageSize]);
+
+  const [txPage, setTxPage] = useState(1);
+  const txPageSize = 10;
+  const txTotalPages = Math.max(1, Math.ceil(transactions.length / txPageSize));
+  const paginatedTransactions = useMemo(() => {
+    const start = (txPage - 1) * txPageSize;
+    return transactions.slice(start, start + txPageSize);
+  }, [transactions, txPage, txPageSize]);
+
+  const [payoutPage, setPayoutPage] = useState(1);
+  const payoutPageSize = 10;
+  const payoutTotalPages = Math.max(1, Math.ceil(payouts.length / payoutPageSize));
+  const paginatedPayouts = useMemo(() => {
+    const start = (payoutPage - 1) * payoutPageSize;
+    return payouts.slice(start, start + payoutPageSize);
+  }, [payouts, payoutPage, payoutPageSize]);
+
+  // Reset itemsPage khi bộ lọc thời gian thay đổi
+  useEffect(() => {
+    setItemsPage(1);
+  }, [dateRange, customStartDate, customEndDate]);
+
   // Export CSV Function
   const handleExportCSV = () => {
     const headers = [
@@ -282,10 +313,10 @@ export default function SellerFinancialReportsPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
             <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
-            <span>Dashboard Báo Cáo Doanh Thu &amp; Dòng Tiền</span>
+            <span>Báo Cáo Doanh Thu &amp; Sổ Cái Tài Chính</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Theo dõi toàn diện vòng đời dòng tiền: Tiền đang giao hàng, Ký quỹ sàn giữ đổi trả, Số dư khả dụng và Lịch sử rút tiền về ngân hàng.
+            Theo dõi toàn diện vòng đời dòng tiền: Phân tích doanh thu kinh doanh, phí sàn 5%, lợi nhuận ròng và sổ cái biến động số dư.
           </p>
         </div>
 
@@ -310,22 +341,22 @@ export default function SellerFinancialReportsPage() {
         </div>
       </div>
 
-      {/* 2. THANH ĐIỀU HƯỚNG TÁC VỤ NHANH THEO MỤC (NHƯ HÌNH 5) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      {/* 2. THANH ĐIỀU HƯỚNG 3 TRỤ CỘT TÀI CHÍNH (CHUẨN PHƯƠNG ÁN B) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
         <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-white border-2 border-[#00875A] shadow-xs flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl bg-[#00875A] text-white flex items-center justify-center shadow-xs">
-              <span className="material-symbols-outlined text-xl">query_stats</span>
+              <span className="material-symbols-outlined text-xl">analytics</span>
             </span>
             <div>
               <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                <span>Báo Cáo Doanh Thu</span>
+                <span>Báo Cáo Doanh Thu &amp; Sổ Cái</span>
                 <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-800 font-bold">Đang xem</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-0.5">Phân tích dòng tiền &amp; đối soát 5% phí sàn</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Phân tích dòng tiền &amp; nhật ký biến động ví</p>
             </div>
           </div>
-          <span className="material-symbols-outlined text-gray-400 text-lg">check_circle</span>
+          <span className="material-symbols-outlined text-emerald-700 text-lg">check_circle</span>
         </div>
 
         <Link
@@ -338,9 +369,9 @@ export default function SellerFinancialReportsPage() {
             </span>
             <div>
               <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                <span>Tiền Đang Treo ({stats.holdingCount + stats.inTransitCount})</span>
+                <span>Tiền Chờ Quyết Toán ({stats.holdingCount + stats.inTransitCount})</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-0.5">Quản lý ký quỹ, đếm ngược hạn đổi trả 2 phút</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Quản lý đơn hàng bảo chứng &amp; hạn đổi trả 2 phút</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all text-lg">arrow_forward</span>
@@ -358,28 +389,10 @@ export default function SellerFinancialReportsPage() {
               <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
                 <span>Số Dư Ví &amp; Rút Tiền</span>
               </div>
-              <p className="text-[11px] text-gray-500 mt-0.5">Ví khả dụng &amp; rút tiền về ngân hàng qua mã PIN</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Tạo lệnh rút tiền về ngân hàng qua mã PIN</p>
             </div>
           </div>
           <span className="material-symbols-outlined text-gray-400 group-hover:text-emerald-700 group-hover:translate-x-1 transition-all text-lg">arrow_forward</span>
-        </Link>
-
-        <Link
-          href="/seller/transactions"
-          className="p-4 rounded-2xl bg-white border border-gray-200 hover:border-purple-400 hover:shadow-xs transition-all flex items-center justify-between group cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <span className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-              <span className="material-symbols-outlined text-xl">receipt_long</span>
-            </span>
-            <div>
-              <div className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                <span>Nhật Ký Biến Động</span>
-              </div>
-              <p className="text-[11px] text-gray-500 mt-0.5">Lịch sử cộng doanh thu &amp; các lệnh rút tiền</p>
-            </div>
-          </div>
-          <span className="material-symbols-outlined text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all text-lg">arrow_forward</span>
         </Link>
       </div>
 
@@ -789,7 +802,7 @@ export default function SellerFinancialReportsPage() {
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">sync_alt</span>
-              <span>Nhật Ký Dòng Tiền Vào - Ra ({transactions.length})</span>
+              <span>Sổ Cái Biến Động Ví ({transactions.length})</span>
             </button>
 
             <button
@@ -808,9 +821,10 @@ export default function SellerFinancialReportsPage() {
 
           <Link
             href="/seller/escrow"
-            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+            className="px-3.5 py-1.5 text-xs font-bold rounded-xl bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors inline-flex items-center gap-1 self-start sm:self-auto cursor-pointer"
           >
-            <span>Quản Lý Ký Quỹ Đầy Đủ</span>
+            <span className="material-symbols-outlined text-sm">hourglass_top</span>
+            <span>Xem Tiền Chờ Quyết Toán</span>
             <span className="material-symbols-outlined text-sm">arrow_forward</span>
           </Link>
         </div>
@@ -847,7 +861,7 @@ export default function SellerFinancialReportsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredItems.map((it) => (
+                  paginatedItems.map((it) => (
                     <tr key={it.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="p-3.5">
                         <div className="font-bold text-gray-900 font-mono">{it.orderCode || it.orderId}</div>
@@ -926,6 +940,19 @@ export default function SellerFinancialReportsPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Phân trang Tab 1 */}
+            {filteredItems.length > 0 && (
+              <div className="p-3.5 border-t border-gray-100 bg-white">
+                <SellerPagination
+                  currentPage={itemsPage}
+                  totalPages={itemsTotalPages}
+                  totalItems={filteredItems.length}
+                  pageSize={itemsPageSize}
+                  onPageChange={(p) => setItemsPage(p)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -952,7 +979,7 @@ export default function SellerFinancialReportsPage() {
                     </td>
                   </tr>
                 ) : (
-                  transactions.map((tx) => {
+                  paginatedTransactions.map((tx) => {
                     const isCredit = tx.type === 'CREDIT_AVAILABLE';
                     const isDebit = tx.type === 'DEBIT_AVAILABLE';
                     return (
@@ -1008,6 +1035,19 @@ export default function SellerFinancialReportsPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Phân trang Tab 2 */}
+            {transactions.length > 0 && (
+              <div className="p-3.5 border-t border-gray-100 bg-white">
+                <SellerPagination
+                  currentPage={txPage}
+                  totalPages={txTotalPages}
+                  totalItems={transactions.length}
+                  pageSize={txPageSize}
+                  onPageChange={(p) => setTxPage(p)}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -1033,7 +1073,7 @@ export default function SellerFinancialReportsPage() {
                     </td>
                   </tr>
                 ) : (
-                  payouts.map((req) => (
+                  paginatedPayouts.map((req) => (
                     <tr key={req.id} className="hover:bg-gray-50/70 transition-colors">
                       <td className="p-3.5 font-bold font-mono text-gray-900">
                         #{req.id.slice(0, 8)}
@@ -1067,6 +1107,19 @@ export default function SellerFinancialReportsPage() {
                 )}
               </tbody>
             </table>
+
+            {/* Phân trang Tab 3 */}
+            {payouts.length > 0 && (
+              <div className="p-3.5 border-t border-gray-100 bg-white">
+                <SellerPagination
+                  currentPage={payoutPage}
+                  totalPages={payoutTotalPages}
+                  totalItems={payouts.length}
+                  pageSize={payoutPageSize}
+                  onPageChange={(p) => setPayoutPage(p)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

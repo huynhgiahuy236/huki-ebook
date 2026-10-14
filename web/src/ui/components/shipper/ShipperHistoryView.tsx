@@ -7,6 +7,8 @@ export default function ShipperHistoryView() {
   const { historyOrders } = useShipper();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'DELIVERED' | 'FAILED'>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const filtered = historyOrders.filter((order) => {
     if (statusFilter === 'DELIVERED' && order.status !== 'DELIVERED') return false;
@@ -21,6 +23,9 @@ export default function ShipperHistoryView() {
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  const paginatedOrders = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -94,76 +99,110 @@ export default function ShipperHistoryView() {
           Không có lịch sử giao hàng nào phù hợp với bộ lọc.
         </div>
       ) : (
-        <div className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] shadow-2xs overflow-hidden divide-y divide-[var(--theme-border,#e8e5df)]/60">
-          {filtered.map((order) => {
-            const isDelivered = order.status === 'DELIVERED';
+        <div className="space-y-4">
+          <div className="bg-[var(--theme-surface,#ffffff)] rounded-2xl border border-[var(--theme-border,#e8e5df)] shadow-2xs overflow-hidden divide-y divide-[var(--theme-border,#e8e5df)]/60">
+            {paginatedOrders.map((order) => {
+              const isDelivered = order.status === 'DELIVERED';
 
-            return (
-              <div key={order.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div className="space-y-1 min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <strong className="font-black text-sm text-[var(--theme-text,#1c1b1f)]">
-                      {order.code}
-                    </strong>
-                    <span
-                      className={`px-2 py-0.2 rounded-full text-[10px] font-black ${
-                        isDelivered
-                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                          : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
-                      }`}
-                    >
-                      {isDelivered ? 'Giao thành công' : 'Giao thất bại'}
-                    </span>
-                    <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
-                      {order.completedAt || order.createdAt}
-                    </span>
+              return (
+                <div key={order.id} className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <strong className="font-black text-sm text-[var(--theme-text,#1c1b1f)]">
+                        {order.code}
+                      </strong>
+                      <span
+                        className={`px-2 py-0.2 rounded-full text-[10px] font-black ${
+                          isDelivered
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                        }`}
+                      >
+                        {isDelivered ? 'Giao thành công' : 'Giao thất bại'}
+                      </span>
+                      <span className="text-[11px] text-[var(--theme-text-muted,#49454f)]">
+                        {order.completedAt || order.createdAt}
+                      </span>
+                    </div>
+
+                    <p className="text-[var(--theme-text-muted,#49454f)] truncate">
+                      Shop: <strong className="text-[var(--theme-text,#1c1b1f)]">{order.shopName}</strong> ➔ Khách:{' '}
+                      <strong className="text-[var(--theme-text,#1c1b1f)]">{order.customerName}</strong> ({order.deliveryAddress})
+                    </p>
+
+                    {!isDelivered && order.failureReason && (
+                      <p className="text-rose-600 font-medium">Lý do hoàn: {order.failureReason}</p>
+                    )}
                   </div>
 
-                  <p className="text-[var(--theme-text-muted,#49454f)] truncate">
-                    Shop: <strong className="text-[var(--theme-text,#1c1b1f)]">{order.shopName}</strong> ➔ Khách:{' '}
-                    <strong className="text-[var(--theme-text,#1c1b1f)]">{order.customerName}</strong> ({order.deliveryAddress})
-                  </p>
-
-                  {!isDelivered && order.failureReason && (
-                    <p className="text-rose-600 font-medium">Lý do hoàn: {order.failureReason}</p>
-                  )}
-                </div>
-
-                <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--theme-border,#e8e5df)]/40 space-y-1">
-                  {isDelivered ? (
-                    <>
-                      <div className="flex items-center justify-start sm:justify-end gap-1.5">
-                        <span className="text-[11px] text-gray-500 font-medium">Tiền công bưu tá:</span>
-                        <strong className="font-black text-sm text-[#00875A]">
-                          +{order.shippingFee.toLocaleString('vi-VN')}đ
-                        </strong>
-                      </div>
-
-                      {order.codAmount > 0 ? (
-                        <div className="text-[11px] space-y-0.5">
-                          <div className="text-gray-600">
-                            Thu khách: <strong className="text-gray-900">{order.codAmount.toLocaleString('vi-VN')}đ</strong>
-                          </div>
-                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold">
-                            <span>COD nộp Sàn (đã trừ cước):</span>
-                            <span className="text-amber-950 font-black">
-                              {Math.max(0, order.codAmount - order.shippingFee).toLocaleString('vi-VN')}đ
-                            </span>
-                          </div>
+                  <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-[var(--theme-border,#e8e5df)]/40 space-y-1">
+                    {isDelivered ? (
+                      <>
+                        <div className="flex items-center justify-start sm:justify-end gap-1.5">
+                          <span className="text-[11px] text-gray-500 font-medium">Tiền công bưu tá:</span>
+                          <strong className="font-black text-sm text-[#00875A]">
+                            +{order.shippingFee.toLocaleString('vi-VN')}đ
+                          </strong>
                         </div>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
-                          Đơn Online (0đ COD)
-                        </span>
-                      )}
-                    </>
-                  ) : (
-                    <span className="text-rose-600 font-bold block">0đ (Đã hoàn về Shop)</span>
-                  )}
+
+                        {order.codAmount > 0 ? (
+                          <div className="text-[11px] space-y-0.5">
+                            <div className="text-gray-600">
+                              Thu khách: <strong className="text-gray-900">{order.codAmount.toLocaleString('vi-VN')}đ</strong>
+                            </div>
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 font-bold">
+                              <span>COD nộp Sàn (đã trừ cước):</span>
+                              <span className="text-amber-950 font-black">
+                                {Math.max(0, order.codAmount - order.shippingFee).toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+                            Đơn Online (0đ COD)
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-rose-600 font-bold block">0đ (Đã hoàn về Shop)</span>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+
+          {/* Pagination Toolbar */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-[var(--theme-border,#e8e5df)] text-xs text-slate-600 shadow-2xs">
+              <div>
+                Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
+                <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> trên{' '}
+                <strong>{filtered.length}</strong> chuyến giao
               </div>
-            );
-          })}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+                >
+                  ← Trước
+                </button>
+                <span className="px-2.5 py-1 font-bold text-slate-900">
+                  Trang {currentPage} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+                >
+                  Sau →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

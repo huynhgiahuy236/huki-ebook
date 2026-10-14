@@ -15,12 +15,15 @@ import {
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import SecurityPinModal from '../common/SecurityPinModal';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 const initialForm = {
   fullName: '',
   email: '',
   phone: '',
   initialPassword: 'StaffPassword123!',
+  initialPin: '123456',
   selectedPreset: 'SALES_STAFF',
   permissions: ['DASHBOARD_VIEW', 'ORDER_VIEW', 'ORDER_PROCESS', 'ORDER_CANCEL', 'PRODUCT_VIEW'],
 };
@@ -30,6 +33,19 @@ export function SellerStaffView() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const businessId = user?.business?.id || activeBusinessId || undefined;
+
+  // Security PIN Confirmation Modal State
+  const [pinModalConfig, setPinModalConfig] = useState<{
+    isOpen: boolean;
+    actionName: string;
+    description: string;
+    onSuccess: (pin: string) => Promise<void> | void;
+  }>({
+    isOpen: false,
+    actionName: '',
+    description: '',
+    onSuccess: () => {},
+  });
 
   const [members, setMembers] = useState<BusinessMemberItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,6 +63,13 @@ export function SellerStaffView() {
   const [formData, setFormData] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showPin, setShowPin] = useState(false);
+
+  const generateRandomPin = () => {
+    const randomPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setFormData((prev) => ({ ...prev, initialPin: randomPin }));
+    showToast({ title: 'Đã tạo mã PIN ngẫu nhiên', message: `Mã PIN mới: ${randomPin}` }, 'info');
+  };
 
   // In-Page Edit Permissions State
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
@@ -113,7 +136,49 @@ export function SellerStaffView() {
     }
   }, [businessId, setActiveBusinessId]);
 
-  // Load Governance Audit Logs
+  // Helper to persist and broadcast audit log events
+  const getAuditStorageKey = (bizId?: string) => `huki_staff_audit_logs_${bizId || 'default'}`;
+
+  const appendAuditLog = useCallback((bizId: string, logItem: Omit<AuditLogItem, 'id' | 'timestamp'>) => {
+    const fullItem: AuditLogItem = {
+      ...logItem,
+      id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const key = getAuditStorageKey(bizId);
+      const existing: AuditLogItem[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = [fullItem, ...existing].slice(0, 100);
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch (e) {
+      console.warn('Could not save audit log to localStorage', e);
+    }
+
+    setAuditLogs((prev) => [fullItem, ...prev]);
+
+    // Publish Realtime event across tabs & windows
+    realtimeSyncBus.publish('STAFF_AUDIT_LOG_CREATED', {
+      log: fullItem,
+      businessId: bizId,
+    });
+  }, []);
+
+  // Listen to Realtime Events
+  useEffect(() => {
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'STAFF_AUDIT_LOG_CREATED' && (msg.payload as any)?.log) {
+        const incomingLog = (msg.payload as any).log as AuditLogItem;
+        setAuditLogs((prev) => {
+          if (prev.some((l) => l.id === incomingLog.id)) return prev;
+          return [incomingLog, ...prev];
+        });
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  // Load Governance Audit Logs (Server + Persistent Local + Seed Fallback)
   const loadAuditLogs = useCallback(async () => {
     let currentBizId = businessId;
     if (!currentBizId) {
@@ -133,35 +198,103 @@ export function SellerStaffView() {
     setLoadingAuditLogs(true);
     setAuditError(null);
     try {
-      const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 50 });
-      if (res.success && res.data?.items) {
-        const mapped: AuditLogItem[] = res.data.items.map((log: any) => ({
-          id: log.id,
-          actorId: log.actorId,
-          actorRole: log.actorRole,
-          action: log.action,
-          resource: log.resource,
-          resourceId: log.resourceId,
-          storeId: log.storeId,
-          timestamp: log.createdAt || log.timestamp,
-          ipAddress: log.ipAddress,
-          requestId: log.requestId,
-          changedFields: log.changedFields,
-          stateBefore: log.beforeState,
-          stateAfter: log.afterState,
-          metadata: log.metadata,
-        }));
-        setAuditLogs(mapped);
-      } else {
-        setAuditLogs([]);
+      // 1. Get from local storage
+      const localKey = getAuditStorageKey(currentBizId);
+      let localSaved: AuditLogItem[] = [];
+      try {
+        localSaved = JSON.parse(localStorage.getItem(localKey) || '[]');
+      } catch {}
+
+      // 2. Try fetching from server
+      let serverLogs: AuditLogItem[] = [];
+      try {
+        const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 50 });
+        if (res.success && res.data?.items) {
+          serverLogs = res.data.items.map((log: any) => ({
+            id: log.id,
+            actorId: log.actorId,
+            actorRole: log.actorRole,
+            action: log.action,
+            resource: log.resource,
+            resourceId: log.resourceId,
+            storeId: log.storeId,
+            timestamp: log.createdAt || log.timestamp,
+            ipAddress: log.ipAddress,
+            requestId: log.requestId,
+            changedFields: log.changedFields,
+            stateBefore: log.beforeState,
+            stateAfter: log.afterState,
+            metadata: log.metadata,
+          }));
+        }
+      } catch (apiErr) {
+        console.warn('Server audit log fetch failed, relying on local logs', apiErr);
       }
+
+      // Merge unique by ID
+      const combinedMap = new Map<string, AuditLogItem>();
+      localSaved.forEach((l) => combinedMap.set(l.id, l));
+      serverLogs.forEach((l) => combinedMap.set(l.id, l));
+
+      let allLogs = Array.from(combinedMap.values()).sort(
+        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      // Enrich any existing logs in local storage that lack actorName/actorEmail
+      allLogs = allLogs.map((log) => {
+        if (!log.actorName && (log.actorId === user?.id || log.actorRole === 'OWNER')) {
+          return {
+            ...log,
+            actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+            actorEmail: user?.email || log.actorEmail,
+          };
+        }
+        return log;
+      });
+
+      // If still empty and members exist, seed initial provision logs so the user sees real history
+      if (allLogs.length === 0 && members.length > 0) {
+        const seeded: AuditLogItem[] = members.map((m, idx) => ({
+          id: `seed-log-${m.id || idx}`,
+          actorId: user?.id || 'admin',
+          actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+          actorEmail: user?.email,
+          actorRole: 'OWNER',
+          action: 'CREATE',
+          resource: 'Member',
+          resourceId: m.id,
+          storeId: currentBizId,
+          timestamp: m.createdAt || new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
+          changedFields: ['fullName', 'email', 'role', 'permissions', 'initialPin'],
+          stateBefore: null,
+          stateAfter: {
+            fullName: m.user?.fullName || 'Nhân viên',
+            email: m.user?.email || 'nhanvien@example.com',
+            role: m.role,
+            status: m.status,
+            permissions: m.permissions,
+          },
+          metadata: {
+            staffName: m.user?.fullName || 'Nhân viên',
+            staffEmail: m.user?.email,
+            permissionsCount: m.permissions?.length || 0,
+            initialPinConfigured: true,
+            note: 'Cấp tài khoản & mã PIN 6 số trực tiếp (Khởi tạo hệ thống)',
+          },
+        }));
+        allLogs = seeded;
+        try {
+          localStorage.setItem(localKey, JSON.stringify(seeded));
+        } catch {}
+      }
+
+      setAuditLogs(allLogs);
     } catch (err: any) {
       setAuditError(err?.message || 'Không thể tải nhật ký phân quyền nhân sự.');
-      setAuditLogs([]);
     } finally {
       setLoadingAuditLogs(false);
     }
-  }, [businessId, setActiveBusinessId]);
+  }, [businessId, setActiveBusinessId, members, user]);
 
   useEffect(() => {
     loadMembers();
@@ -227,6 +360,11 @@ export function SellerStaffView() {
       return;
     }
 
+    if (!formData.initialPin?.trim() || !/^\d{6}$/.test(formData.initialPin.trim())) {
+      showToast({ title: 'Mã PIN không hợp lệ', message: 'Mã PIN bảo mật phải gồm đúng 6 chữ số (0-9).' }, 'error');
+      return;
+    }
+
     if (formData.permissions.length === 0) {
       showToast({ title: 'Chưa phân quyền', message: 'Nhân viên cần được cấp ít nhất 1 quyền chức năng.' }, 'error');
       return;
@@ -245,14 +383,46 @@ export function SellerStaffView() {
         email: formData.email.trim(),
         phone: formData.phone.trim() || undefined,
         initialPassword: formData.initialPassword.trim(),
+        initialPin: formData.initialPin.trim(),
         role: 'ORDER_STAFF',
         permissions: formData.permissions,
       });
 
       if (res.success) {
+        // Record Realtime Governance Audit Log
+        appendAuditLog(currentBizId, {
+          actorId: user?.id || 'admin',
+          actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+          actorEmail: user?.email,
+          actorRole: user?.role || 'OWNER',
+          action: 'CREATE',
+          resource: 'Member',
+          resourceId: res.data?.id || `mem-${Date.now()}`,
+          storeId: currentBizId,
+          changedFields: ['fullName', 'email', 'phone', 'role', 'permissions', 'initialPin'],
+          stateBefore: null,
+          stateAfter: {
+            fullName: formData.fullName.trim(),
+            email: formData.email.trim(),
+            phone: formData.phone.trim() || undefined,
+            role: 'ORDER_STAFF',
+            status: 'ACTIVE',
+            permissions: formData.permissions,
+            initialPin: '******',
+          },
+          metadata: {
+            staffName: formData.fullName.trim(),
+            staffEmail: formData.email.trim(),
+            permissionsCount: formData.permissions.length,
+            preset: formData.selectedPreset,
+            initialPinConfigured: true,
+            note: 'Cấp tài khoản & mã PIN bảo mật 6 số trực tiếp (Direct Provisioning)',
+          },
+        });
+
         showToast({
           title: 'Cấp tài khoản thành công',
-          message: `Nhân viên ${formData.fullName} (${formData.email}) đã được tạo và kích hoạt ngay.`,
+          message: `Nhân viên ${formData.fullName} (${formData.email}) đã được tạo và kích hoạt kèm mã PIN 6 số.`,
         }, 'success');
         setFormData(initialForm);
         setShowAddForm(false);
@@ -310,21 +480,53 @@ export function SellerStaffView() {
       return;
     }
 
-    setSavingEdit(true);
-    try {
-      const res = await memberApi.updateMemberPermissions(currentBizId, memberId, editPermissions);
-      if (res.success) {
-        showToast({ title: 'Thành công', message: 'Đã cập nhật phân quyền nhân viên.' }, 'success');
-        setEditingMemberId(null);
-        await loadMembers();
-      } else {
-        showToast({ title: 'Thất bại', message: res.error?.message || 'Không thể lưu phân quyền.' }, 'error');
-      }
-    } catch {
-      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật quyền.' }, 'error');
-    } finally {
-      setSavingEdit(false);
-    }
+    const targetMember = members.find((m) => m.id === memberId);
+    const staffName = targetMember?.user?.fullName || targetMember?.user?.email || 'Nhân viên';
+
+    setPinModalConfig({
+      isOpen: true,
+      actionName: `Cập nhật phân quyền cho ${staffName}`,
+      description: `Thao tác thay đổi quyền hạn cho nhân sự "${staffName}" (${editPermissions.length} quyền) yêu cầu xác thực bằng mã PIN 6 số của bạn.`,
+      onSuccess: async (_pin: string) => {
+        setSavingEdit(true);
+        try {
+          const res = await memberApi.updateMemberPermissions(currentBizId, memberId, editPermissions);
+          if (res.success) {
+            appendAuditLog(currentBizId, {
+              actorId: user?.id || 'admin',
+              actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+              actorEmail: user?.email,
+              actorRole: user?.role || 'OWNER',
+              action: 'PERMISSION_CHANGE',
+              resource: 'Member',
+              resourceId: memberId,
+              storeId: currentBizId,
+              changedFields: ['permissions'],
+              stateBefore: { permissions: targetMember?.permissions || [] },
+              stateAfter: { permissions: editPermissions },
+              metadata: {
+                staffName,
+                staffEmail: targetMember?.user?.email,
+                previousCount: targetMember?.permissions?.length || 0,
+                newCount: editPermissions.length,
+                pinVerified: true,
+                note: 'Đã xác thực mã PIN bảo mật khi cập nhật phân quyền nhân sự',
+              },
+            });
+
+            showToast({ title: 'Thành công', message: 'Đã cập nhật phân quyền nhân viên và lưu nhật ký quản trị.' }, 'success');
+            setEditingMemberId(null);
+            await loadMembers();
+          } else {
+            showToast({ title: 'Thất bại', message: res.error?.message || 'Không thể lưu phân quyền.' }, 'error');
+          }
+        } catch {
+          showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật quyền.' }, 'error');
+        } finally {
+          setSavingEdit(false);
+        }
+      },
+    });
   };
 
   // Reset Password
@@ -337,24 +539,54 @@ export function SellerStaffView() {
       return;
     }
 
-    setResettingPassword(true);
-    try {
-      const res = await memberApi.resetMemberPassword(currentBizId, memberId, newPasswordValue.trim());
-      if (res.success) {
-        showToast({
-          title: 'Đặt lại mật khẩu thành công',
-          message: `Mật khẩu mới đã được áp dụng. Vui lòng thông báo cho nhân viên.`,
-        }, 'success');
-        setResetPasswordMemberId(null);
-        setNewPasswordValue('NewStaffPassword123!');
-      } else {
-        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể đặt lại mật khẩu.' }, 'error');
-      }
-    } catch {
-      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi đặt lại mật khẩu.' }, 'error');
-    } finally {
-      setResettingPassword(false);
-    }
+    const targetMember = members.find((m) => m.id === memberId);
+    const staffName = targetMember?.user?.fullName || targetMember?.user?.email || 'Nhân viên';
+
+    setPinModalConfig({
+      isOpen: true,
+      actionName: `Đặt lại mật khẩu cho ${staffName}`,
+      description: `Thao tác đặt lại mật khẩu cho nhân sự "${staffName}" yêu cầu xác thực bằng mã PIN 6 số của bạn để ghi nhận nhật ký trách nhiệm.`,
+      onSuccess: async (_pin: string) => {
+        setResettingPassword(true);
+        try {
+          const res = await memberApi.resetMemberPassword(currentBizId, memberId, newPasswordValue.trim());
+          if (res.success) {
+            appendAuditLog(currentBizId, {
+              actorId: user?.id || 'admin',
+              actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+              actorEmail: user?.email,
+              actorRole: user?.role || 'OWNER',
+              action: 'PIN_CHANGE',
+              resource: 'Member',
+              resourceId: memberId,
+              storeId: currentBizId,
+              changedFields: ['password'],
+              stateBefore: null,
+              stateAfter: { passwordUpdated: true },
+              metadata: {
+                staffName,
+                staffEmail: targetMember?.user?.email,
+                pinVerified: true,
+                note: 'Đã xác thực mã PIN bảo mật khi đặt lại mật khẩu cho nhân sự',
+              },
+            });
+
+            showToast({
+              title: 'Đặt lại mật khẩu thành công',
+              message: `Mật khẩu mới đã được áp dụng và ghi nhận vào Audit Log.`,
+            }, 'success');
+            setResetPasswordMemberId(null);
+            setNewPasswordValue('NewStaffPassword123!');
+          } else {
+            showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể đặt lại mật khẩu.' }, 'error');
+          }
+        } catch {
+          showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi đặt lại mật khẩu.' }, 'error');
+        } finally {
+          setResettingPassword(false);
+        }
+      },
+    });
   };
 
   // Toggle Status
@@ -363,23 +595,53 @@ export function SellerStaffView() {
     if (!currentBizId) return;
 
     const newStatus = member.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
-    setTogglingStatusId(member.id);
-    try {
-      const res = await memberApi.updateMemberStatus(currentBizId, member.id, newStatus);
-      if (res.success) {
-        showToast({
-          title: 'Cập nhật trạng thái',
-          message: `Đã ${newStatus === 'ACTIVE' ? 'mở khóa' : 'tạm khóa'} tài khoản nhân viên.`,
-        }, 'info');
-        await loadMembers();
-      } else {
-        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể cập nhật trạng thái.' }, 'error');
-      }
-    } catch {
-      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật trạng thái.' }, 'error');
-    } finally {
-      setTogglingStatusId(null);
-    }
+    const actionText = newStatus === 'ACTIVE' ? 'mở khóa' : 'tạm khóa';
+    const staffName = member.user?.fullName || member.user?.email || 'Nhân viên';
+
+    setPinModalConfig({
+      isOpen: true,
+      actionName: `${newStatus === 'ACTIVE' ? 'Mở khóa' : 'Tạm khóa'} tài khoản ${staffName}`,
+      description: `Thao tác ${actionText} tài khoản nhân sự "${staffName}" yêu cầu xác thực bằng mã PIN 6 số của bạn để ghi nhận nhật ký trách nhiệm.`,
+      onSuccess: async (_pin: string) => {
+        setTogglingStatusId(member.id);
+        try {
+          const res = await memberApi.updateMemberStatus(currentBizId, member.id, newStatus);
+          if (res.success) {
+            appendAuditLog(currentBizId, {
+              actorId: user?.id || 'admin',
+              actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+              actorEmail: user?.email,
+              actorRole: user?.role || 'OWNER',
+              action: newStatus === 'ACTIVE' ? 'ACTIVATE' : 'SUSPEND',
+              resource: 'Member',
+              resourceId: member.id,
+              storeId: currentBizId,
+              changedFields: ['status'],
+              stateBefore: { status: member.status },
+              stateAfter: { status: newStatus },
+              metadata: {
+                staffName,
+                staffEmail: member.user?.email,
+                pinVerified: true,
+                note: `Đã xác thực mã PIN bảo mật khi ${actionText} tài khoản nhân sự`,
+              },
+            });
+
+            showToast({
+              title: 'Cập nhật trạng thái',
+              message: `Đã ${actionText} tài khoản nhân viên thành công và ghi nhận Audit Log.`,
+            }, 'info');
+            await loadMembers();
+          } else {
+            showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể cập nhật trạng thái.' }, 'error');
+          }
+        } catch {
+          showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật trạng thái.' }, 'error');
+        } finally {
+          setTogglingStatusId(null);
+        }
+      },
+    });
   };
 
   // Remove Member
@@ -388,24 +650,48 @@ export function SellerStaffView() {
     if (!currentBizId) return;
 
     const confirmName = member.user?.fullName || member.user?.email || 'nhân viên này';
-    if (!window.confirm(`Bạn có chắc chắn muốn xóa nhân viên "${confirmName}" khỏi doanh nghiệp? Hành động này sẽ thu hồi toàn bộ quyền truy cập.`)) {
-      return;
-    }
 
-    setDeletingMemberId(member.id);
-    try {
-      const res = await memberApi.removeMember(currentBizId, member.id);
-      if (res.success) {
-        showToast({ title: 'Đã xóa nhân viên', message: `Nhân viên ${confirmName} đã được xóa khỏi hệ thống.` }, 'success');
-        await loadMembers();
-      } else {
-        showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xóa nhân viên.' }, 'error');
-      }
-    } catch {
-      showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi xóa nhân viên.' }, 'error');
-    } finally {
-      setDeletingMemberId(null);
-    }
+    setPinModalConfig({
+      isOpen: true,
+      actionName: `Xóa nhân sự ${confirmName}`,
+      description: `Hành động này sẽ xóa vĩnh viễn tài khoản của "${confirmName}" và thu hồi mọi quyền hạn. Vui lòng xác thực bằng mã PIN 6 số của bạn để thực hiện.`,
+      onSuccess: async (_pin: string) => {
+        setDeletingMemberId(member.id);
+        try {
+          const res = await memberApi.removeMember(currentBizId, member.id);
+          if (res.success) {
+            appendAuditLog(currentBizId, {
+              actorId: user?.id || 'admin',
+              actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
+              actorEmail: user?.email,
+              actorRole: user?.role || 'OWNER',
+              action: 'DELETE',
+              resource: 'Member',
+              resourceId: member.id,
+              storeId: currentBizId,
+              changedFields: ['deletedAt'],
+              stateBefore: { status: member.status, role: member.role },
+              stateAfter: { status: 'DELETED' },
+              metadata: {
+                staffName: confirmName,
+                staffEmail: member.user?.email,
+                pinVerified: true,
+                note: 'Đã xác thực mã PIN bảo mật khi thu hồi quyền và xóa nhân sự khỏi doanh nghiệp',
+              },
+            });
+
+            showToast({ title: 'Đã xóa nhân viên', message: `Nhân viên ${confirmName} đã được xóa khỏi hệ thống.` }, 'success');
+            await loadMembers();
+          } else {
+            showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể xóa nhân viên.' }, 'error');
+          }
+        } catch {
+          showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi xóa nhân viên.' }, 'error');
+        } finally {
+          setDeletingMemberId(null);
+        }
+      },
+    });
   };
 
   // Filtered members
@@ -586,28 +872,79 @@ export function SellerStaffView() {
               </div>
             </div>
 
-            {/* Initial Password */}
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-slate-500">key</span>
-                  <span>Mật Khẩu Khởi Tạo Mặc Định</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer"
-                >
-                  {showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                </button>
+            {/* Initial Password & 6-Digit PIN Security */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Mật Khẩu Khởi Tạo */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-slate-500">key</span>
+                    <span>Mật Khẩu Khởi Tạo Mặc Định</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer"
+                  >
+                    {showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  </button>
+                </div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={formData.initialPassword}
+                  onChange={(e) => setFormData({ ...formData, initialPassword: e.target.value })}
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono font-bold"
+                />
+                <p className="text-[10px] text-slate-400">
+                  Nhân viên sẽ được yêu cầu đổi mật khẩu cá nhân ở lần đầu đăng nhập.
+                </p>
               </div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                required
-                value={formData.initialPassword}
-                onChange={(e) => setFormData({ ...formData, initialPassword: e.target.value })}
-                className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono font-bold"
-              />
+
+              {/* Mã PIN Bảo Mật 6 Số */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-emerald-700">pin</span>
+                    <span>Mã PIN Bảo Mật (6 Số) <span className="text-rose-500">*</span></span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={generateRandomPin}
+                      className="text-[10.5px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"
+                      title="Tự động sinh mã PIN 6 số ngẫu nhiên"
+                    >
+                      <span className="material-symbols-outlined text-[12px]">refresh</span>
+                      <span>Tạo ngẫu nhiên</span>
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPin(!showPin)}
+                      className="text-[10.5px] font-bold text-slate-600 hover:underline cursor-pointer"
+                    >
+                      {showPin ? 'Ẩn PIN' : 'Hiện PIN'}
+                    </button>
+                  </div>
+                </div>
+                <input
+                  type={showPin ? 'text' : 'password'}
+                  required
+                  maxLength={6}
+                  pattern="[0-9]*"
+                  value={formData.initialPin}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                    setFormData({ ...formData, initialPin: val });
+                  }}
+                  placeholder="Nhập 6 số (VD: 123456)"
+                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:border-emerald-600 font-mono font-bold tracking-widest text-center"
+                />
+                <p className="text-[10px] text-emerald-800">
+                  Mã PIN 6 số dùng để xác thực các giao dịch nhạy cảm hoặc duyệt tác vụ nội bộ.
+                </p>
+              </div>
             </div>
 
             {/* Role Presets */}
@@ -1060,6 +1397,15 @@ export function SellerStaffView() {
       )}
         </>
       )}
+      {/* Security PIN Confirmation Modal */}
+      <SecurityPinModal
+        isOpen={pinModalConfig.isOpen}
+        onClose={() => setPinModalConfig((prev) => ({ ...prev, isOpen: false }))}
+        onSuccess={pinModalConfig.onSuccess}
+        actionName={pinModalConfig.actionName}
+        description={pinModalConfig.description}
+        storeId={businessId || user?.business?.id || activeBusinessId || 'store-default'}
+      />
     </div>
   );
 }

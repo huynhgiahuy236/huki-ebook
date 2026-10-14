@@ -6,6 +6,7 @@ import {
   AdminBroadcastNotification,
   NotificationCategory,
   NotificationSeverity,
+  TargetRole,
   TargetAudienceType,
   TargetSegment,
   NotificationPlacement,
@@ -15,6 +16,7 @@ import {
 import { businessApi, BusinessData } from '@/ui/api/businessApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
+import { AdminPagination } from './AdminUI';
 
 export default function AdminNotificationsView() {
   const { showToast } = useToast();
@@ -24,6 +26,8 @@ export default function AdminNotificationsView() {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [filterAudience, setFilterAudience] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Modal State for Composer
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -32,6 +36,7 @@ export default function AdminNotificationsView() {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState<NotificationCategory>('MAINTENANCE');
   const [severity, setSeverity] = useState<NotificationSeverity>('INFO');
+  const [targetRole, setTargetRole] = useState<TargetRole>('ALL');
   const [targetType, setTargetType] = useState<TargetAudienceType>('ALL');
   const [targetSegment, setTargetSegment] = useState<TargetSegment>('ALL');
   const [targetBusinessId, setTargetBusinessId] = useState<string>('');
@@ -89,7 +94,15 @@ export default function AdminNotificationsView() {
   const filtered = useMemo(() => {
     return notifications.filter((n) => {
       if (filterCategory !== 'all' && n.category !== filterCategory) return false;
-      if (filterAudience !== 'all' && n.targetType !== filterAudience) return false;
+      if (filterAudience !== 'all') {
+        const role = n.targetRole || (n.targetType === 'ALL' ? 'ALL' : 'SELLER');
+        if (filterAudience === 'ALL' && role !== 'ALL') return false;
+        if (filterAudience === 'SELLER' && role !== 'SELLER') return false;
+        if (filterAudience === 'CUSTOMER' && role !== 'CUSTOMER') return false;
+        if (filterAudience === 'SHIPPER' && role !== 'SHIPPER') return false;
+        if (filterAudience === 'SEGMENT' && n.targetType !== 'SEGMENT') return false;
+        if (filterAudience === 'DIRECT' && n.targetType !== 'DIRECT') return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         return (
@@ -101,6 +114,15 @@ export default function AdminNotificationsView() {
       return true;
     });
   }, [notifications, filterCategory, filterAudience, searchQuery]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterCategory, filterAudience, searchQuery]);
+
+  const paginated = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,10 +139,11 @@ export default function AdminNotificationsView() {
       content: content.trim(),
       category,
       severity,
-      targetType,
-      targetSegment: targetType === 'SEGMENT' ? targetSegment : undefined,
-      targetBusinessIds: targetType === 'DIRECT' && targetBusinessId ? [targetBusinessId] : undefined,
-      targetBusinessNames: selectedBiz ? [selectedBiz.name] : undefined,
+      targetRole,
+      targetType: targetRole === 'ALL' ? 'ALL' : targetType,
+      targetSegment: targetRole === 'ALL' ? undefined : targetSegment,
+      targetBusinessIds: targetRole === 'SELLER' && targetType === 'DIRECT' && targetBusinessId ? [targetBusinessId] : undefined,
+      targetBusinessNames: targetRole === 'SELLER' && selectedBiz ? [selectedBiz.name] : undefined,
       channels,
       isPinnedTop: channels.includes('TOP_BAR'),
       isDismissible: true,
@@ -133,7 +156,16 @@ export default function AdminNotificationsView() {
       actionLabel: actionLabel.trim() || undefined,
     });
 
-    showToast('Đã phát sóng thông báo thành công đến các đối tác Seller!', 'success');
+    const targetDesc =
+      targetRole === 'ALL'
+        ? 'toàn bộ hệ thống (Bạn đọc, Shop, Bưu tá)'
+        : targetRole === 'CUSTOMER'
+        ? 'độc giả bạn đọc'
+        : targetRole === 'SHIPPER'
+        ? 'đội ngũ bưu tá'
+        : 'đối tác người bán';
+
+    showToast(`Đã phát sóng thông báo thành công đến ${targetDesc}!`, 'success');
     setIsComposerOpen(false);
     resetComposer();
   };
@@ -144,6 +176,7 @@ export default function AdminNotificationsView() {
     setContent('');
     setCategory('MAINTENANCE');
     setSeverity('INFO');
+    setTargetRole('ALL');
     setTargetType('ALL');
     setTargetSegment('ALL');
     setTargetBusinessId('');
@@ -275,9 +308,12 @@ export default function AdminNotificationsView() {
             className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 cursor-pointer focus:outline-none focus:border-[#00875A]"
           >
             <option value="all">Tất Cả Đối Tượng</option>
-            <option value="ALL">Toàn Sàn (Global)</option>
-            <option value="SEGMENT">Theo Nhóm (Segment)</option>
-            <option value="DIRECT">Gửi Riêng (1-1 Shop)</option>
+            <option value="ALL">Toàn Hệ Thống (Mọi người)</option>
+            <option value="SELLER">Đối Tác Người Bán (Shop)</option>
+            <option value="CUSTOMER">Khách Hàng / Độc Giả</option>
+            <option value="SHIPPER">Đội Ngũ Bưu Tá (Shipper)</option>
+            <option value="SEGMENT">Theo Nhóm Đối Tác</option>
+            <option value="DIRECT">Gửi Riêng 1 Shop</option>
           </select>
         </div>
 
@@ -318,7 +354,7 @@ export default function AdminNotificationsView() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((n) => {
+                paginated.map((n) => {
                   const catMeta = getCategoryMeta(n.category);
                   const readCount = n.readByBusinessIds?.length || 0;
 
@@ -351,19 +387,57 @@ export default function AdminNotificationsView() {
                       </td>
 
                       <td className="py-3.5 px-4 whitespace-nowrap">
-                        {n.targetType === 'ALL' ? (
-                          <span className="font-semibold text-slate-700">Toàn bộ Người bán</span>
+                        {n.targetRole === 'ALL' || (!n.targetRole && n.targetType === 'ALL') ? (
+                          <span className="font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">hub</span>
+                            <span>Toàn Sàn (100%)</span>
+                          </span>
+                        ) : n.targetRole === 'CUSTOMER' ? (
+                          <span className="font-semibold text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">menu_book</span>
+                            <span>
+                              {n.targetSegment === 'VIP_CUSTOMERS'
+                                ? 'Độc Giả VIP'
+                                : n.targetSegment === 'CUSTOMERS_WITH_ACTIVE_ORDERS'
+                                ? 'Khách Đang Có Đơn'
+                                : 'Toàn Bộ Độc Giả'}
+                            </span>
+                          </span>
+                        ) : n.targetRole === 'SHIPPER' ? (
+                          <span className="font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">local_shipping</span>
+                            <span>
+                              {n.targetSegment === 'ONLINE_SHIPPERS'
+                                ? 'Bưu Tá Online'
+                                : n.targetSegment === 'REGION_HANOI'
+                                ? 'Bưu Cục Hà Nội'
+                                : n.targetSegment === 'REGION_HCMC'
+                                ? 'Bưu Cục TP.HCM'
+                                : 'Toàn Bộ Bưu Tá'}
+                            </span>
+                          </span>
                         ) : n.targetType === 'SEGMENT' ? (
-                          <span className="font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md">
-                            {n.targetSegment === 'DIGITAL_SELLERS'
-                              ? 'NXB Sách Số DRM'
-                              : n.targetSegment === 'PHYSICAL_SELLERS'
-                              ? 'Người bán Sách In'
-                              : 'Nhóm Doanh Nghiệp'}
+                          <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                            <span>
+                              {n.targetSegment === 'DIGITAL_SELLERS'
+                                ? 'NXB Sách Số'
+                                : n.targetSegment === 'PHYSICAL_SELLERS'
+                                ? 'Shop Sách In'
+                                : n.targetSegment === 'NEW_SELLERS'
+                                ? 'Shop Mới'
+                                : 'Nhóm Người Bán'}
+                            </span>
+                          </span>
+                        ) : n.targetType === 'DIRECT' ? (
+                          <span className="font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                            <span>Riêng: {n.targetBusinessNames?.[0] || '1 Gian Hàng'}</span>
                           </span>
                         ) : (
-                          <span className="font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                            Riêng: {n.targetBusinessNames?.[0] || '1 Gian Hàng'}
+                          <span className="font-semibold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[13px]">storefront</span>
+                            <span>100% Shop</span>
                           </span>
                         )}
                       </td>
@@ -437,6 +511,14 @@ export default function AdminNotificationsView() {
             </tbody>
           </table>
         </div>
+
+        <AdminPagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(filtered.length / pageSize) || 1}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* 5. Create Notification Composer Modal */}
@@ -536,76 +618,203 @@ export default function AdminNotificationsView() {
               </div>
 
               {/* Target Audience */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-2.5">
-                <label className="block font-black text-slate-800">1. Đối Tượng Người Bán Nhận Tin</label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={targetType === 'ALL'}
-                      onChange={() => setTargetType('ALL')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Toàn Sàn (100% Shop)</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={targetType === 'SEGMENT'}
-                      onChange={() => setTargetType('SEGMENT')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Theo Nhóm Đối Tác</span>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200 cursor-pointer font-semibold">
-                    <input
-                      type="radio"
-                      name="targetType"
-                      checked={targetType === 'DIRECT'}
-                      onChange={() => setTargetType('DIRECT')}
-                      className="text-[#00875A]"
-                    />
-                    <span>Gửi Riêng 1 Shop</span>
-                  </label>
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-black text-slate-800">1. Đối Tượng &amp; Nhóm Nhận Thông Báo *</label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                    Đa vai trò (Omnichannel)
+                  </span>
                 </div>
 
-                {/* Sub controls depending on target */}
-                {targetType === 'SEGMENT' && (
-                  <div className="pt-1">
-                    <label className="block font-bold text-slate-600 mb-1">Chọn Phân Khúc Người Bán:</label>
+                {/* 4 Role Selector Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetRole('ALL');
+                      setTargetType('ALL');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      targetRole === 'ALL'
+                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[16px]">hub</span>
+                      <span>Toàn Sàn</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Bạn đọc + Shop + Bưu tá</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setTargetRole('SELLER')}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      targetRole === 'SELLER'
+                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[16px]">storefront</span>
+                      <span>Người Bán</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Các NXB &amp; Gian hàng</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetRole('CUSTOMER');
+                      setTargetSegment('ALL_CUSTOMERS');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      targetRole === 'CUSTOMER'
+                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                      <span>Độc Giả</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Người mua &amp; Đọc Ebook</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTargetRole('SHIPPER');
+                      setTargetSegment('ALL_SHIPPERS');
+                    }}
+                    className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1 ${
+                      targetRole === 'SHIPPER'
+                        ? 'border-[#00875A] bg-emerald-50/80 text-[#00875A] shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 font-bold text-xs">
+                      <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                      <span>Bưu Tá</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400">Shipper toàn mạng lưới</span>
+                  </button>
+                </div>
+
+                {/* Sub Options for SELLER */}
+                {targetRole === 'SELLER' && (
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5">
+                    <span className="text-[11px] font-bold text-slate-600 block">Phạm vi gian hàng người bán:</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
+                        <input
+                          type="radio"
+                          name="targetType"
+                          checked={targetType === 'ALL'}
+                          onChange={() => setTargetType('ALL')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Toàn Sàn (100% Shop)</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
+                        <input
+                          type="radio"
+                          name="targetType"
+                          checked={targetType === 'SEGMENT'}
+                          onChange={() => setTargetType('SEGMENT')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Theo Nhóm Đối Tác</span>
+                      </label>
+                      <label className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer text-xs font-semibold">
+                        <input
+                          type="radio"
+                          name="targetType"
+                          checked={targetType === 'DIRECT'}
+                          onChange={() => setTargetType('DIRECT')}
+                          className="text-[#00875A]"
+                        />
+                        <span>Gửi Riêng 1 Shop</span>
+                      </label>
+                    </div>
+
+                    {targetType === 'SEGMENT' && (
+                      <div className="pt-1">
+                        <label className="block font-bold text-slate-600 mb-1">Chọn Phân Khúc Người Bán:</label>
+                        <select
+                          value={targetSegment}
+                          onChange={(e) => setTargetSegment(e.target.value as any)}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                        >
+                          <option value="DIGITAL_SELLERS">Nhà Xuất Bản &amp; Đối Tác Sách Số (Ebook DRM)</option>
+                          <option value="PHYSICAL_SELLERS">Gian Hàng Sách In &amp; Sách Cũ</option>
+                          <option value="NEW_SELLERS">Shop Mới Gia Nhập (&lt; 30 Ngày)</option>
+                          <option value="AT_RISK_SELLERS">Shop Có Cảnh Báo Vi Phạm / Tỷ Lệ Hủy Cao</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {targetType === 'DIRECT' && (
+                      <div className="pt-1">
+                        <label className="block font-bold text-slate-600 mb-1">Chọn Gian Hàng Đích Danh:</label>
+                        <select
+                          value={targetBusinessId}
+                          onChange={(e) => setTargetBusinessId(e.target.value)}
+                          className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
+                          required
+                        >
+                          <option value="">-- Chọn một Gian Hàng / Doanh Nghiệp --</option>
+                          {businesses.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name} ({b.email || b.phone || 'NXB Đối Tác'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Sub Options for CUSTOMER */}
+                {targetRole === 'CUSTOMER' && (
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                    <label className="block font-bold text-slate-600 text-xs">Phân khúc Độc Giả / Khách Hàng:</label>
                     <select
                       value={targetSegment}
                       onChange={(e) => setTargetSegment(e.target.value as any)}
-                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl font-semibold"
+                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
                     >
-                      <option value="DIGITAL_SELLERS">Nhà Xuất Bản &amp; Đối Tác Sách Số (Ebook DRM)</option>
-                      <option value="PHYSICAL_SELLERS">Gian Hàng Sách In &amp; Sách Cũ</option>
-                      <option value="NEW_SELLERS">Shop Mới Gia Nhập (&lt; 30 Ngày)</option>
-                      <option value="AT_RISK_SELLERS">Shop Có Cảnh Báo Vi Phạm / Tỷ Lệ Hủy Cao</option>
+                      <option value="ALL_CUSTOMERS">Toàn Bộ Bạn Đọc (100% Khách Hàng Đã Đăng Ký Tài Khoản)</option>
+                      <option value="VIP_CUSTOMERS">Độc Giả Thân Thiết / Khách Mua Ebook Thường Xuyên (VIP)</option>
+                      <option value="CUSTOMERS_WITH_ACTIVE_ORDERS">Khách Hàng Đang Có Đơn Vận Chuyển Trong 48 Giờ Qua</option>
                     </select>
                   </div>
                 )}
 
-                {targetType === 'DIRECT' && (
-                  <div className="pt-1">
-                    <label className="block font-bold text-slate-600 mb-1">Chọn Gian Hàng Đích Danh:</label>
+                {/* Sub Options for SHIPPER */}
+                {targetRole === 'SHIPPER' && (
+                  <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                    <label className="block font-bold text-slate-600 text-xs">Phân nhóm Đội Ngũ Bưu Tá / Shipper:</label>
                     <select
-                      value={targetBusinessId}
-                      onChange={(e) => setTargetBusinessId(e.target.value)}
-                      className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl font-semibold"
-                      required
+                      value={targetSegment}
+                      onChange={(e) => setTargetSegment(e.target.value as any)}
+                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-xs"
                     >
-                      <option value="">-- Chọn một Gian Hàng / Doanh Nghiệp --</option>
-                      {businesses.map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name} ({b.email || b.phone || 'NXB Đối Tác'})
-                        </option>
-                      ))}
+                      <option value="ALL_SHIPPERS">Toàn Bộ Đội Ngũ Bưu Tá Trên Toàn Quốc</option>
+                      <option value="ONLINE_SHIPPERS">Bưu Tá Đang Bật Trạng Thái Trực Tuyến (Sẵn Sàng Nhận Đơn)</option>
+                      <option value="REGION_HANOI">Bưu Cục Khu Vực Hà Nội &amp; Các Tỉnh Miền Bắc</option>
+                      <option value="REGION_HCMC">Bưu Cục Khu Vực TP.HCM &amp; Các Tỉnh Miền Nam</option>
+                      <option value="REGION_OTHER">Bưu Cục Miền Trung &amp; Các Tỉnh Thành Khác</option>
                     </select>
+                  </div>
+                )}
+
+                {/* Hint for ALL */}
+                {targetRole === 'ALL' && (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-[11.5px] flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[18px] text-emerald-700">info</span>
+                    <span>Bản tin sẽ được phát sóng đồng thời trên cả 3 giao diện: Cửa hàng Khách mua, Dashboard Shop và Ứng dụng Bưu tá.</span>
                   </div>
                 )}
               </div>

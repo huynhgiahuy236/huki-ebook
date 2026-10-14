@@ -246,6 +246,31 @@ export const reviewApi = {
   },
 
   /**
+   * Batch get review summaries for books or stores
+   */
+  async getBatchSummaries(
+    targetType: 'BOOK' | 'STORE',
+    ids: string[]
+  ): Promise<ApiResponse<Record<string, { averageRating: number; totalReviews: number }>>> {
+    if (!ids || !ids.length) {
+      return { success: true, data: {} };
+    }
+    const cleanIds = Array.from(new Set(ids.filter(Boolean)));
+    if (!cleanIds.length) {
+      return { success: true, data: {} };
+    }
+    try {
+      const res = await apiClient<Record<string, { averageRating: number; totalReviews: number }>>(
+        `/reviews/batch-summary?targetType=${targetType}&ids=${encodeURIComponent(cleanIds.join(','))}`,
+        { skipAuth: true }
+      );
+      return res;
+    } catch {
+      return { success: false, data: {} };
+    }
+  },
+
+  /**
    * Mark review as helpful
    */
   async markHelpful(

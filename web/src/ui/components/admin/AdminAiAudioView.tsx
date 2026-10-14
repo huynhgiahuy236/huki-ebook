@@ -229,6 +229,10 @@ export function AdminAiAudioView() {
   // ==========================================================
   // LỌC & PHÂN TRANG DỮ LIỆU
   // ==========================================================
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, statusFilter]);
+
   // 1. Tab Plans
   const filteredPlans = useMemo(() => {
     return plans.filter((p) => {
@@ -240,6 +244,11 @@ export function AdminAiAudioView() {
       return matchSearch && matchStatus;
     });
   }, [plans, searchQuery, statusFilter]);
+
+  const paginatedPlans = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPlans.slice(start, start + pageSize);
+  }, [filteredPlans, currentPage, pageSize]);
 
   // 2. Tab Subscriptions
   const filteredSubscriptions = useMemo(() => {
@@ -253,6 +262,11 @@ export function AdminAiAudioView() {
     });
   }, [subscriptions, searchQuery, statusFilter]);
 
+  const paginatedSubscriptions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSubscriptions.slice(start, start + pageSize);
+  }, [filteredSubscriptions, currentPage, pageSize]);
+
   // 3. Tab Revenue
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
@@ -263,6 +277,11 @@ export function AdminAiAudioView() {
       return matchSearch;
     });
   }, [transactions, searchQuery]);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTransactions.slice(start, start + pageSize);
+  }, [filteredTransactions, currentPage, pageSize]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-16">
@@ -699,7 +718,7 @@ export function AdminAiAudioView() {
                       </td>
                     </tr>
                   ) : (
-                    filteredPlans.map((plan) => (
+                    paginatedPlans.map((plan) => (
                       <tr key={plan.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3 px-4">
                           <div className="font-bold text-slate-900 flex items-center gap-1.5">
@@ -777,6 +796,14 @@ export function AdminAiAudioView() {
                 </tbody>
               </table>
           </AdminTableContainer>
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredPlans.length / pageSize) || 1}
+            totalItems={filteredPlans.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
 
@@ -832,7 +859,7 @@ export function AdminAiAudioView() {
                       </td>
                     </tr>
                   ) : (
-                    filteredSubscriptions.map((sub) => {
+                    paginatedSubscriptions.map((sub) => {
                       const isExpired = new Date(sub.expiresAt).getTime() <= Date.now();
                       const daysLeft = Math.max(
                         0,
@@ -907,6 +934,14 @@ export function AdminAiAudioView() {
                 </tbody>
               </table>
           </AdminTableContainer>
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredSubscriptions.length / pageSize) || 1}
+            totalItems={filteredSubscriptions.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
 
@@ -954,7 +989,7 @@ export function AdminAiAudioView() {
                       </td>
                     </tr>
                   ) : (
-                    filteredTransactions.map((txn) => (
+                    paginatedTransactions.map((txn) => (
                       <tr key={txn.id} className="hover:bg-slate-50/60 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-900">
                           {txn.txnCode}
@@ -999,6 +1034,14 @@ export function AdminAiAudioView() {
                 </tbody>
               </table>
           </AdminTableContainer>
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredTransactions.length / pageSize) || 1}
+            totalItems={filteredTransactions.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
     </div>

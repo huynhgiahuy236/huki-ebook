@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { businessApi } from '../../api/businessApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export function AdminPublisherLeadsView() {
   const { showToast } = useToast();
@@ -75,6 +76,8 @@ export function AdminPublisherLeadsView() {
       const res = await businessApi.approveBusiness(id);
       setActionLoadingId(null);
       if (res.success || res.data) {
+        realtimeSyncBus.publish('BUSINESS_APPROVED', { businessId: id, status: 'APPROVED' });
+        realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', { businessId: id, status: 'APPROVED' });
         showToast?.(`Đã phê duyệt thành công ${name}! Đơn vị đã được cấp quyền Official Mall.`, 'success');
         setLeadsList(prev => prev.filter(item => item.id !== id));
         if (selectedLead && selectedLead.id === id) {
@@ -100,6 +103,7 @@ export function AdminPublisherLeadsView() {
       const reason = rejectReason.trim();
       await businessApi.rejectBusiness(id, reason);
       setActionLoadingId(null);
+      realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', { businessId: id, status: 'REJECTED' });
       setIsRejecting(false);
       setRejectReason('');
       setRejectReasonError('');

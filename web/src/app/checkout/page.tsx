@@ -2566,11 +2566,36 @@ export default function CheckoutPage() {
               <p className="text-[10px] text-[var(--theme-text-muted,#49454f)] text-center leading-normal">
                 Nhấn &quot;Hoàn Tất Đặt Hàng&quot; đồng nghĩa bạn đồng ý với{" "}
                 <Link
-                  href="/"
-                  className="text-[var(--theme-primary,#003B2B)] underline"
+                  href="/policy/terms"
+                  target="_blank"
+                  className="text-[var(--theme-primary,#003B2B)] underline font-medium hover:opacity-80"
                 >
-                  Điều khoản sàn HUKI
+                  Điều khoản giao dịch HUKI
                 </Link>
+                {effectiveHasPhysical && (
+                  <>
+                    {", "}
+                    <Link
+                      href="/policy/returns"
+                      target="_blank"
+                      className="text-[var(--theme-primary,#003B2B)] underline font-medium hover:opacity-80"
+                    >
+                      Chính sách đổi trả 7 ngày
+                    </Link>
+                  </>
+                )}
+                {cartItems.some((i: any) => i.isDigital || i.type === 'ebook') && (
+                  <>
+                    {", "}
+                    <Link
+                      href="/policy/drm-copyright"
+                      target="_blank"
+                      className="text-[var(--theme-primary,#003B2B)] underline font-medium hover:opacity-80"
+                    >
+                      Bản quyền số DRM
+                    </Link>
+                  </>
+                )}
                 .
               </p>
             </div>
@@ -2582,18 +2607,18 @@ export default function CheckoutPage() {
       <footer className="bg-[var(--theme-surface,#ffffff)] border-t border-[var(--theme-border,#e8e5df)] py-3 px-3 text-[11px] text-[var(--theme-text-muted,#49454f)] mt-auto">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2 text-center md:text-left">
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 font-medium text-[var(--theme-text,#1c1b1f)]">
-            <span className="flex items-center gap-1">
+            <Link href="/policy/payment-escrow" target="_blank" className="flex items-center gap-1 hover:text-[var(--theme-primary,#003B2B)] transition">
               <span className="material-symbols-outlined text-[var(--theme-secondary,#006d4e)] text-[15px]">verified_user</span>
-              Bảo mật SSL
-            </span>
-            <span className="flex items-center gap-1">
+              Bảo mật SSL &amp; Escrow
+            </Link>
+            <Link href="/policy/drm-copyright" target="_blank" className="flex items-center gap-1 hover:text-[var(--theme-primary,#003B2B)] transition">
               <span className="material-symbols-outlined text-[var(--theme-secondary,#006d4e)] text-[15px]">auto_stories</span>
               Bản quyền 100%
-            </span>
-            <span className="flex items-center gap-1">
+            </Link>
+            <Link href="/policy/returns" target="_blank" className="flex items-center gap-1 hover:text-[var(--theme-primary,#003B2B)] transition">
               <span className="material-symbols-outlined text-[var(--theme-secondary,#006d4e)] text-[15px]">cached</span>
               Đổi trả 7 ngày
-            </span>
+            </Link>
           </div>
 
           <div className="text-[10.5px] text-[var(--theme-text-muted,#49454f)]">

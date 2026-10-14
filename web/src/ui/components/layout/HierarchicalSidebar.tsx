@@ -39,7 +39,16 @@ export default function HierarchicalSidebar({
   const { totalItemsCount } = useCart();
   const { user, isLoggedIn, hasRole } = useAuth();
 
-  const isSeller = Boolean(
+  const isAdmin = Boolean(
+    user?.role === 'PLATFORM_ADMIN' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'SUPER_ADMIN' ||
+    (user as any)?.role === 'ADMIN_CON' ||
+    hasRole('PLATFORM_ADMIN') ||
+    hasRole('admin')
+  );
+
+  const isSeller = !isAdmin && Boolean(
     user?.role === 'BUSINESS' ||
     user?.hasApprovedBusiness ||
     user?.business ||
@@ -138,31 +147,48 @@ export default function HierarchicalSidebar({
         },
       ],
     },
-    {
-      id: 'business',
-      title: 'DOANH NGHIỆP',
-      items: [
-        {
-          id: 'seller-portal',
-          title: 'Kênh Người Bán',
-          to: '/seller/dashboard',
-          icon: 'storefront',
-        },
-      ],
-    },
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin',
+            title: 'HỆ THỐNG QUẢN TRỊ',
+            items: [
+              {
+                id: 'admin-portal',
+                title: 'Bảng Điều Hành Admin',
+                to: '/admin',
+                icon: 'admin_panel_settings',
+                badge: 'ADMIN',
+                badgeColor: 'bg-amber-400 text-zinc-950 font-black',
+              },
+            ],
+          },
+        ]
+      : isSeller
+      ? [
+          {
+            id: 'business',
+            title: 'DOANH NGHIỆP',
+            items: [
+              {
+                id: 'seller-portal',
+                title: 'Kênh Người Bán',
+                to: '/seller/dashboard',
+                icon: 'storefront',
+              },
+            ],
+          },
+        ]
+      : []),
   ];
 
   // Dynamic filter for authorized roles
   const navGroups = allNavGroups.filter((g) => {
     if (g.id === 'admin') {
-      return isLoggedIn && hasRole('PLATFORM_ADMIN');
+      return isLoggedIn && isAdmin;
     }
     if (g.id === 'business') {
-      return (
-        isLoggedIn &&
-        (hasRole(['BUSINESS', 'PLATFORM_ADMIN']) ||
-          Boolean((user as any)?.businessId || (user as any)?.business || (user as any)?.businessMemberships?.length))
-      );
+      return isLoggedIn && isSeller;
     }
     return true;
   });

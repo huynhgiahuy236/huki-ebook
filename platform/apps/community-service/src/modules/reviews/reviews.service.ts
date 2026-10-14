@@ -98,6 +98,41 @@ export class ReviewsService {
     };
   }
 
+  async getBatchSummaries(targetType: ReviewTargetType, targetIds: string[]) {
+    if (!targetIds || !targetIds.length) {
+      return {};
+    }
+    const cleanIds = Array.from(new Set(targetIds.filter(Boolean)));
+    const rows = await this.reviews.aggregate<{
+      _id: string;
+      averageRating: number;
+      totalReviews: number;
+    }>([
+      {
+        $match: {
+          targetType,
+          targetId: { $in: cleanIds },
+          status: "PUBLISHED",
+        },
+      },
+      {
+        $group: {
+          _id: "$targetId",
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+    const result: Record<string, { averageRating: number; totalReviews: number }> = {};
+    for (const row of rows) {
+      result[row._id] = {
+        averageRating: Number(row.averageRating.toFixed(1)),
+        totalReviews: row.totalReviews,
+      };
+    }
+    return result;
+  }
+
   async listMyReviews(actor: CommunityActor, query: ReviewListQueryDto) {
     const filter: Record<string, unknown> = {
       authorId: actor.sub,

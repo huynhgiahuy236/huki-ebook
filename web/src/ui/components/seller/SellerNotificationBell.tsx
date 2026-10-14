@@ -17,8 +17,10 @@ export default function SellerNotificationBell() {
   const [notifications, setNotifications] = useState<AdminBroadcastNotification[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
+
   const loadNotifications = () => {
-    const list = adminNotificationService.getForSeller(currentBizId, true);
+    const list = adminNotificationService.getForSeller(currentBizId, true, sellerCreatedAt);
     setNotifications(list);
   };
 

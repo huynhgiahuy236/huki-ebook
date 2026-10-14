@@ -8,6 +8,7 @@ import EmptyState from '@/ui/components/common/EmptyState';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import { trackEvent } from '@/lib/tracker';
 import { personalizationService, normalizeVietnameseText } from '@/ui/services/personalizationService';
+import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 import { PersonalizedForYouSection } from '@/ui/components/recommendations/PersonalizedForYouSection';
 
 const ITEMS_PER_PAGE = 20; // 5 columns x 4 rows = 20 items per page (Shopee standard)
@@ -54,6 +55,7 @@ function CatalogPageContent() {
   const [maxPriceInput, setMaxPriceInput] = useState(maxPriceParam);
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
   const [, setIsLoadingRealBooks] = useState(true);
+  const [reviewsTick, setReviewsTick] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -62,6 +64,7 @@ function CatalogPageContent() {
         if (isMounted) {
           if (res.success && Array.isArray(res.data) && res.data.length > 0) {
             setRealBooks(res.data);
+            res.data.forEach((b) => reviewSummaryService.register(b.id));
           }
           setIsLoadingRealBooks(false);
         }
@@ -73,6 +76,12 @@ function CatalogPageContent() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const handleUpdate = () => setReviewsTick((t) => t + 1);
+    window.addEventListener('huki_reviews_updated', handleUpdate);
+    return () => window.removeEventListener('huki_reviews_updated', handleUpdate);
   }, []);
 
   useEffect(() => {
@@ -151,6 +160,14 @@ function CatalogPageContent() {
       const publisherName = rb.publisher?.name || (typeof rb.publisher === 'string' ? rb.publisher : null) || rawRb.publisherName || rawRb.shopName || 'HUKI Publisher';
       const coverUrl = rb.coverUrl || rawRb.coverImage || rb.cover || '';
       const discountPercent = rawRb.discountPercent;
+      const cached = reviewSummaryService.get(rb.id);
+      const computedRating = (cached && cached.totalReviews > 0)
+        ? cached.averageRating
+        : (rawRb.rating ? Number(rawRb.rating) : undefined);
+      const rawSales = rawRb.soldCount ?? rawRb.sales ?? rawRb.soldQuantity ?? 0;
+      const salesNum = typeof rawSales === 'number' ? rawSales : (!isNaN(Number(rawSales)) ? Number(rawSales) : 0);
+      const salesStr = salesNum >= 1000 ? `${(salesNum / 1000).toFixed(1)}k` : `${salesNum}`;
+
       return {
         id: rb.id,
         storeId: rb.storeId || rawRb.store_id || rb.businessId || rawRb.business_id,
@@ -165,14 +182,14 @@ function CatalogPageContent() {
         price: priceVal,
         originalPrice: originalPriceVal > priceVal ? originalPriceVal : undefined,
         discount: discountPercent ? `-${discountPercent}%` : '',
-        rating: rawRb.rating ? Number(rawRb.rating) : undefined,
-        sales: (rawRb.sales ?? rawRb.soldCount ?? rawRb.soldQuantity) ? String(rawRb.sales ?? rawRb.soldCount ?? rawRb.soldQuantity) : undefined,
+        rating: computedRating,
+        sales: salesStr,
         cover: coverUrl,
         isMock: false,
         location: rawRb.location || 'TP. Hồ Chí Minh'
       };
     });
-  }, [realBooks]);
+  }, [realBooks, reviewsTick]);
 
   const filteredBooks = useMemo(() => {
     const minP = minPriceParam ? Number(minPriceParam) : null;
@@ -336,7 +353,7 @@ function CatalogPageContent() {
                 <div className="text-[11.5px] font-bold text-[#003b2b] mt-0.5">
                   {item.price.toLocaleString('vi-VN')}₫
                 </div>
-                <div className="text-[9.5px] text-gray-400">Đã bán {item.sales}</div>
+                <div className="text-[9.5px] text-gray-400">Đã bán {item.sales || 0}</div>
               </div>
             </Link>
           ))}

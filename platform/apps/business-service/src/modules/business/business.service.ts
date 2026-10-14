@@ -892,6 +892,11 @@ export class BusinessService {
     if (data.email) businessUpdateData.email = data.email;
     if (data.taxCode) businessUpdateData.taxCode = data.taxCode;
     if (data.businessType) businessUpdateData.businessType = data.businessType;
+    if (data.bankName) businessUpdateData.bankName = data.bankName;
+    if (data.bankAccountNumber) businessUpdateData.bankAccountNumber = data.bankAccountNumber;
+    if (data.bankAccountHolderName) businessUpdateData.bankAccountHolderName = data.bankAccountHolderName;
+    if (data.bankBranch) businessUpdateData.bankBranch = data.bankBranch;
+    if (data.registryNumber || data.businessLicenseNumber) businessUpdateData.registryNumber = data.registryNumber || data.businessLicenseNumber;
 
     // Address / Headquarters: lưu mảng các trụ sở dưới dạng JSON hoặc string
     if (data.headquarters && Array.isArray(data.headquarters)) {

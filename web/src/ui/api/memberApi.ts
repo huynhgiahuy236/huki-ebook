@@ -28,6 +28,7 @@ export interface ProvisionMemberPayload {
   email: string;
   phone?: string;
   initialPassword?: string;
+  initialPin?: string;
   role?: 'ORDER_STAFF' | 'CONTENT_STAFF' | 'FINANCE_STAFF' | 'MANAGER';
   permissions: string[];
 }

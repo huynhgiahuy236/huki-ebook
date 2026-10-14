@@ -12,6 +12,7 @@ import {
 } from '@/ui/api/sanctionsApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { SellerPagination } from './SellerUI';
 
 export function SellerAppealsView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -22,6 +23,8 @@ export function SellerAppealsView() {
   const [sanctions, setSanctions] = useState<Sanction[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingSanctions, setLoadingSanctions] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Appeal Modal State
   const [activeSanctionForAppeal, setActiveSanctionForAppeal] = useState<Sanction | null>(null);
@@ -430,7 +433,7 @@ export function SellerAppealsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {sanctions.map((s) => {
+                {sanctions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((s) => {
                   const eligibility = checkAppealEligibility(s);
                   return (
                     <tr key={s.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors">
@@ -490,6 +493,20 @@ export function SellerAppealsView() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination Toolbar */}
+        {sanctions.length > pageSize && (
+          <div className="p-3 border-t border-zinc-200 dark:border-zinc-800">
+            <SellerPagination
+              currentPage={currentPage}
+              totalPages={Math.ceil(sanctions.length / pageSize) || 1}
+              totalItems={sanctions.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              itemLabel="quyết định xử phạt"
+            />
           </div>
         )}
       </div>

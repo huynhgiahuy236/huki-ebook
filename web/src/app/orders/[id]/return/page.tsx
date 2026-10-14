@@ -27,6 +27,7 @@ export default function OrderReturnPage() {
     { id: 1, name: 'anh_gay_sach_rach_1.jpg', size: '2.4 MB' },
     { id: 2, name: 'video_unbox_kiem_tra.mp4', size: '14.8 MB' }
   ]);
+  const [agreeReturnPolicy, setAgreeReturnPolicy] = useState(true);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   const toggleItem = (itemId: string) => {
@@ -56,6 +57,10 @@ export default function OrderReturnPage() {
     const hasAnySelected = Object.values(selectedItems).some(Boolean);
     if (!hasAnySelected) {
       showToast('Vui lòng chọn ít nhất 1 sản phẩm sách cần đổi trả!', 'error');
+      return;
+    }
+    if (!agreeReturnPolicy) {
+      showToast('Vui lòng tích đồng ý với Chính sách đổi trả sách của HuKi!', 'error');
       return;
     }
     setShowSuccessModal(true);
@@ -103,8 +108,18 @@ export default function OrderReturnPage() {
         <div className="w-10 h-10 rounded-2xl bg-theme-secondary text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
           <span className="material-symbols-outlined text-xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
         </div>
-        <div>
-          <h3 className="font-bold text-sm sm:text-base text-theme-primary mb-1">Chính Sách Đổi Trả 7 Ngày Miễn Phí Từ HUKI</h3>
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+            <h3 className="font-bold text-sm sm:text-base text-theme-primary">Chính Sách Đổi Trả 7 Ngày Miễn Phí Từ HUKI</h3>
+            <Link
+              href="/policy/returns"
+              target="_blank"
+              className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 hover:underline flex items-center gap-1"
+            >
+              <span>Xem chi tiết quy chuẩn đổi trả</span>
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+            </Link>
+          </div>
           <p className="text-xs sm:text-sm text-on-surface-variant leading-relaxed">
             Quý khách được quyền đổi trả hoàn toàn miễn phí trong vòng 7 ngày kể từ khi nhận hàng đối với các sự cố về vận chuyển, lỗi in ấn từ nhà xuất bản, thiếu trang hoặc rách gáy sách. Nhân viên bưu tá sẽ đến tận nhà thu hồi sách cũ và trao sách mới nguyên seal 0đ chi phí.
           </p>
@@ -360,6 +375,30 @@ export default function OrderReturnPage() {
               </label>
             ))}
           </div>
+        </div>
+
+        {/* Policy Agreement Checkbox */}
+        <div className="bg-theme-surface border border-theme-border p-4 rounded-2xl">
+          <label className="flex items-start gap-3 cursor-pointer text-xs text-on-surface-variant select-none">
+            <input
+              type="checkbox"
+              checked={agreeReturnPolicy}
+              onChange={(e) => setAgreeReturnPolicy(e.target.checked)}
+              className="w-4 h-4 mt-0.5 rounded text-theme-primary focus:ring-theme-primary border-slate-300"
+            />
+            <span>
+              Tôi xác nhận tình trạng sản phẩm và các tệp video/hình ảnh cung cấp là hoàn toàn trung thực; đồng thời đồng ý tuân thủ{' '}
+              <Link
+                href="/policy/returns"
+                target="_blank"
+                className="text-theme-primary font-bold underline hover:opacity-80 inline-flex items-center gap-0.5"
+              >
+                Chính sách Đổi Trả &amp; Bồi Hoàn 7 Ngày
+                <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+              </Link>{' '}
+              cùng quy trình phối hợp thu hồi hàng của sàn HuKi.
+            </span>
+          </label>
         </div>
 
         {/* Submit & Cancel Actions */}

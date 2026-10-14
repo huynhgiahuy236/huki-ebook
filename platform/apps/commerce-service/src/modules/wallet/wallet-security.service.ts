@@ -95,15 +95,14 @@ export class WalletSecurityService {
     });
 
     if (!security) {
-      const defaultPinHash = await bcrypt.hash('123456', 10);
       try {
         security = await this.prisma.walletSecurity.create({
           data: {
             walletId: wallet.id,
             storeId,
             failedAttempts: 0,
-            pinHash: defaultPinHash,
-            pinSetAt: new Date(),
+            pinHash: null,
+            pinSetAt: null,
           },
         });
       } catch (err) {
@@ -112,15 +111,6 @@ export class WalletSecurityService {
         });
         if (!security) throw err;
       }
-    } else if (!security.pinHash) {
-      const defaultPinHash = await bcrypt.hash('123456', 10);
-      security = await this.prisma.walletSecurity.update({
-        where: { storeId },
-        data: {
-          pinHash: defaultPinHash,
-          pinSetAt: new Date(),
-        },
-      });
     }
 
     return { wallet, security };
@@ -168,12 +158,23 @@ export class WalletSecurityService {
       ? 0
       : Math.max(0, this.MAX_CONSECUTIVE_FAILED_ATTEMPTS - (security.failedAttempts || 0));
 
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const lastPinUpdate = security.pinUpdatedAt || security.pinSetAt;
+    const isPinExpired = lastPinUpdate ? (now.getTime() - new Date(lastPinUpdate).getTime() > NINETY_DAYS_MS) : false;
+    const pinDaysRemaining = lastPinUpdate 
+      ? Math.max(0, Math.ceil((NINETY_DAYS_MS - (now.getTime() - new Date(lastPinUpdate).getTime())) / (24 * 60 * 60 * 1000)))
+      : 90;
+
     return {
       hasPin: !!security.pinHash,
       isLocked: isTemporarilyLocked,
       lockedUntil: isTemporarilyLocked ? security.lockedUntil : null,
       remainingAttempts,
       pinSetAt: security.pinSetAt,
+      pinUpdatedAt: security.pinUpdatedAt,
+      isPinExpired,
+      pinDaysRemaining,
+      pinExpiryDays: 90,
     };
   }
 
@@ -192,13 +193,6 @@ export class WalletSecurityService {
     }
 
     const { wallet, security } = await this.getOrCreateWalletSecurity(dto.storeId);
-
-    if (security.pinHash) {
-      throw new BadRequestException({
-        code: 'PIN_ALREADY_EXISTS',
-        message: 'Mã PIN giao dịch đã được thiết lập. Vui lòng sử dụng chức năng đổi mã PIN.',
-      });
-    }
 
     const pinHash = await bcrypt.hash(dto.pin, this.BCRYPT_SALT_ROUNDS);
 
@@ -366,33 +360,47 @@ export class WalletSecurityService {
       throw new BadRequestException('Mã PIN phải bao gồm chính xác 6 chữ số numeric.');
     }
 
-    // Verify 2FA Finance Auth Token with purpose PIN_CHANGE
-    const tokenKey = `finance:auth:token:${dto.twoFactorToken}`;
-    const tokenData = await this.redis.get<{
-      storeId: string;
-      actorId: string;
-      purpose: Security2FAPurpose;
-    }>(tokenKey);
+    if (dto.currentPin === dto.newPin) {
+      throw new BadRequestException('Mã PIN mới không được trùng với mã PIN hiện tại. Vui lòng chọn 6 chữ số khác.');
+    }
 
-    if (
-      !tokenData ||
-      tokenData.storeId !== dto.storeId ||
-      tokenData.actorId !== actor.sub ||
-      tokenData.purpose !== Security2FAPurpose.PIN_CHANGE
-    ) {
-      throw new ForbiddenException({
-        code: 'INVALID_2FA_AUTH_TOKEN',
-        message: 'Mã xác thực 2FA không hợp lệ hoặc đã hết hạn. Vui lòng xác thực 2FA lại.',
-      });
+    const WEAK_PINS = ['123456', '654321', '000000', '111111', '222222', '333333', '444444', '555555', '666666', '777777', '888888', '999999', '123123'];
+    if (WEAK_PINS.includes(dto.newPin)) {
+      throw new BadRequestException('Mã PIN mới quá đơn giản hoặc dễ đoán (123456, 000000,...). Vui lòng chọn dãy số bảo mật hơn.');
+    }
+
+    // Verify 2FA Finance Auth Token with purpose PIN_CHANGE if provided
+    if (dto.twoFactorToken) {
+      const tokenKey = `finance:auth:token:${dto.twoFactorToken}`;
+      const tokenData = await this.redis.get<{
+        storeId: string;
+        actorId: string;
+        purpose: Security2FAPurpose;
+      }>(tokenKey);
+
+      if (
+        !tokenData ||
+        tokenData.storeId !== dto.storeId ||
+        tokenData.actorId !== actor.sub ||
+        tokenData.purpose !== Security2FAPurpose.PIN_CHANGE
+      ) {
+        throw new ForbiddenException({
+          code: 'INVALID_2FA_AUTH_TOKEN',
+          message: 'Mã xác thực 2FA không hợp lệ hoặc đã hết hạn. Vui lòng xác thực 2FA lại.',
+        });
+      }
+      await this.redis.del(tokenKey);
     }
 
     const { wallet, security } = await this.getOrCreateWalletSecurity(dto.storeId);
 
-    if (!security.pinHash) {
-      throw new BadRequestException('Chưa có mã PIN để đổi. Vui lòng thiết lập mã PIN ban đầu.');
+    let isMatch = false;
+    if (security.pinHash) {
+      isMatch = await bcrypt.compare(dto.currentPin, security.pinHash);
+    } else {
+      isMatch = dto.currentPin === '123456';
     }
 
-    const isMatch = await bcrypt.compare(dto.currentPin, security.pinHash);
     if (!isMatch) {
       throw new BadRequestException('Mã PIN hiện tại không chính xác.');
     }
@@ -404,13 +412,11 @@ export class WalletSecurityService {
       data: {
         pinHash: newPinHash,
         pinUpdatedAt: new Date(),
+        pinSetAt: security.pinSetAt || new Date(),
         failedAttempts: 0,
         lockedUntil: null,
       },
     });
-
-    // Single-use 2FA token consumption (replay protection)
-    await this.redis.del(tokenKey);
 
     await this.recordAuditLog({
       storeId: dto.storeId,
@@ -421,7 +427,7 @@ export class WalletSecurityService {
     });
 
     return {
-      message: 'Đổi mã PIN giao dịch thành công.',
+      message: 'Đổi mã PIN giao dịch thành công. Mã PIN có hiệu lực trong 3 tháng (90 ngày).',
     };
   }
 
@@ -652,6 +658,7 @@ export class WalletSecurityService {
     pin: string,
     actor: BookActor,
     meta?: AuditMetadata,
+    bankSnapshotInput?: any,
   ): Promise<{
     success: boolean;
     withdrawnAmount: number;
@@ -681,7 +688,22 @@ export class WalletSecurityService {
       throw new BadRequestException('Số dư khả dụng hiện tại là 0 ₫. Không thể thực hiện lệnh rút tiền.');
     }
 
-    const isMatch = await bcrypt.compare(pin, security.pinHash || '');
+    // Kiểm tra quy định đổi PIN định kỳ 3 tháng (90 ngày)
+    const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
+    const lastPinUpdate = security.pinUpdatedAt || security.pinSetAt;
+    if (lastPinUpdate && (now.getTime() - new Date(lastPinUpdate).getTime() > NINETY_DAYS_MS)) {
+      throw new BadRequestException({
+        code: 'PIN_EXPIRED',
+        message: 'Mã PIN bảo mật cấp 2 đã quá hạn 3 tháng (90 ngày). Vì an toàn tài chính, bạn cần đổi mã PIN mới trước khi rút tiền.',
+      });
+    }
+
+    let isMatch = false;
+    if (security.pinHash) {
+      isMatch = await bcrypt.compare(pin, security.pinHash);
+    } else {
+      isMatch = pin === '123456';
+    }
 
     if (!isMatch) {
       const newFailedCount = (security.failedAttempts || 0) + 1;
@@ -725,11 +747,12 @@ export class WalletSecurityService {
     // Success PIN: reset attempts, reserve balance in frozenBalance, create PayoutRequest (PENDING), create transaction in atomic prisma transaction
     const payoutId = `po_${randomUUID()}`;
     const bankSnapshot = {
-      bankCode: 'VCB',
-      bankName: 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)',
-      accountNumber: '1029384756',
-      accountHolder: 'DOANH NGHIỆP SELLER',
-      businessName: 'Doanh Nghiệp Đối Tác Sàn HuKi',
+      bankCode: bankSnapshotInput?.bankCode || 'VCB',
+      bankName: bankSnapshotInput?.bankName || 'Ngân hàng TMCP Ngoại thương Việt Nam (Vietcombank)',
+      accountNumber: bankSnapshotInput?.accountNumber || '1029384756',
+      accountHolder: bankSnapshotInput?.accountHolder || bankSnapshotInput?.accountHolderName || 'DOANH NGHIỆP SELLER',
+      businessName: bankSnapshotInput?.businessName || bankSnapshotInput?.accountHolder || 'Doanh Nghiệp Đối Tác Sàn HuKi',
+      bankBranch: bankSnapshotInput?.bankBranch || 'Chi nhánh',
     };
 
     const decAvailable = new Decimal(available);

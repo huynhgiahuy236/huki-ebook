@@ -19,6 +19,7 @@ import { trackEvent, getTracker } from '@/lib/tracker';
 import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBooksSection';
 import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
+import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -255,6 +256,7 @@ export default function BookDetailPage() {
           setReviewsList(res.data.data || []);
           if (res.data.summary) {
             setReviewSummary(res.data.summary);
+            reviewSummaryService.set(bookTargetId, res.data.summary);
           }
         }
       })
@@ -960,7 +962,7 @@ export default function BookDetailPage() {
                     </span>
                   </div>
                   <span className="text-gray-200">|</span>
-                  <span className="text-gray-600 text-[11.5px]">Đã bán <strong className="text-[#17201f]">{(realBook?.soldCount || realBook?.readCount || 0).toLocaleString('vi-VN')}</strong> bản</span>
+                  <span className="text-gray-600 text-[11.5px]">Đã bán <strong className="text-[#17201f]">{(realBook?.soldCount || (realBook as any)?.sales || realBook?.readCount || 0).toLocaleString('vi-VN')}</strong> bản</span>
                 </div>
 
                 {/* 4 Specs Mini Grid */}

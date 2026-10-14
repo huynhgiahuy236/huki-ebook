@@ -275,14 +275,20 @@ export class WalletController {
   })
   async withdrawAll(
     @Param('storeId') storeId: string,
-    @Body() dto: { pin: string },
+    @Body() dto: { pin: string; bankSnapshot?: any },
     @CurrentBookActor() actor: BookActor,
     @Req() req: any,
   ) {
-    return this.walletSecurityService.withdrawAllDirectly(storeId, dto.pin, actor, {
-      ipAddress: req.ip,
-      userAgent: req.headers?.['user-agent'],
-    });
+    return this.walletSecurityService.withdrawAllDirectly(
+      storeId,
+      dto.pin,
+      actor,
+      {
+        ipAddress: req.ip,
+        userAgent: req.headers?.['user-agent'],
+      },
+      dto.bankSnapshot,
+    );
   }
 }
 

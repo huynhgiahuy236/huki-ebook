@@ -257,6 +257,13 @@ export default function SellerTransactionsPage() {
             <span>Xuất Nhật Ký (CSV)</span>
           </button>
           <Link
+            href="/seller/reports"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px] text-slate-500">analytics</span>
+            <span>Báo Cáo &amp; Sổ Cái</span>
+          </Link>
+          <Link
             href="/seller/finance"
             className="px-4 py-2 text-xs font-bold rounded-xl bg-[#00875A] text-white hover:bg-[#003B2B] transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer"
           >

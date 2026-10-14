@@ -44,6 +44,7 @@ import {
   ReviewTargetParamDto,
   UpdateReviewDto,
 } from "./dto/review.dto";
+import { ReviewTargetType } from "../../entities/review.schema";
 import { ReviewsService } from "./reviews.service";
 
 @ApiTags("Reviews")
@@ -137,13 +138,27 @@ export class StoreReviewsController {
 }
 
 @ApiTags("Reviews")
-@ApiBearerAuth()
-@UseGuards(AuthenticatedCommunityGuard)
 @Controller("reviews")
 export class ReviewsController {
   constructor(private readonly reviews: ReviewsService) {}
 
+  @Get("batch-summary")
+  @ApiOperation({
+    summary: "Get batch review summaries for books or stores",
+    description: "Returns average rating and total review count for multiple targets without authentication.",
+  })
+  @UseGuards(OptionalCommunityAuthGuard)
+  getBatchSummary(
+    @Query("targetType") targetType: ReviewTargetType = "BOOK",
+    @Query("ids") ids?: string,
+  ) {
+    const targetIds = (ids || "").split(",").map((s) => s.trim()).filter(Boolean);
+    return this.reviews.getBatchSummaries(targetType, targetIds);
+  }
+
   @Get("me")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "List current user reviews",
     description: "Returns paginated reviews submitted by current user.",
@@ -158,6 +173,8 @@ export class ReviewsController {
 
   @Patch(":id")
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   @ApiOperation({
     summary: "Update a review",
     description: "Updates an existing review. Only the author can update.",
@@ -168,7 +185,6 @@ export class ReviewsController {
   @ApiForbiddenResponse({ description: "Not the review author" })
   @ApiTooManyRequestsResponse({ description: "Rate limit exceeded" })
   @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
-  @UseGuards(AuthenticatedCommunityGuard, ThrottlerGuard)
   update(
     @CurrentCommunityActor() actor: CommunityActor,
     @Param() { id }: ReviewIdParamDto,
@@ -178,6 +194,8 @@ export class ReviewsController {
   }
 
   @Delete(":id")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Delete a review",
     description: "Deletes a review. Only the author can delete.",
@@ -195,6 +213,8 @@ export class ReviewsController {
   }
 
   @Post(":id/helpful")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Mark review as helpful",
     description: "Marks a review as helpful.",
@@ -211,6 +231,8 @@ export class ReviewsController {
   }
 
   @Delete(":id/helpful")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Remove helpful mark from review",
     description: "Removes the helpful mark from a review.",
@@ -227,6 +249,8 @@ export class ReviewsController {
   }
 
   @Post(":id/reply")
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedCommunityGuard)
   @ApiOperation({
     summary: "Reply to a review",
     description: "Adds a seller reply to a review.",

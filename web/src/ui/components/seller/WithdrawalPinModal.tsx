@@ -47,10 +47,11 @@ export default function WithdrawalPinModal({
   const [withdrawnAmount, setWithdrawnAmount] = useState<number>(0);
 
   const pinInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const prevIsOpenRef = useRef(false);
 
   // Reset state on open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       setStep('CONFIRM');
       setPinDigits(['', '', '', '', '', '']);
       setErrorMsg('');
@@ -59,6 +60,7 @@ export default function WithdrawalPinModal({
       setWithdrawnAmount(0);
       checkInitialLock();
     }
+    prevIsOpenRef.current = isOpen;
   }, [isOpen, storeId]);
 
   // Lock countdown timer
@@ -138,7 +140,7 @@ export default function WithdrawalPinModal({
     setErrorMsg('');
 
     try {
-      const res = await walletApi.withdrawAllBalance(storeId, pin);
+      const res = await walletApi.withdrawAllBalance(storeId, pin, bankInfo);
       if (res?.success || res?.data?.success) {
         const amountDrawn = res.data?.withdrawnAmount || availableBalance;
         setWithdrawnAmount(amountDrawn);
@@ -160,7 +162,9 @@ export default function WithdrawalPinModal({
         const lockedUntil = errorData?.lockedUntil;
         const remainingSeconds = errorData?.remainingSeconds || 180;
 
-        if (errorData?.code === 'WALLET_SECURITY_LOCKED' || lockedUntil) {
+        if (errorData?.code === 'PIN_EXPIRED') {
+          setErrorMsg(errorData.message || 'Mã PIN bảo mật đã quá hạn 3 tháng (90 ngày). Vì an toàn tài chính, vui lòng đổi mã PIN mới để tiếp tục rút tiền.');
+        } else if (errorData?.code === 'WALLET_SECURITY_LOCKED' || lockedUntil) {
           setLockSecondsRemaining(remainingSeconds);
           setStep('LOCKED');
         } else {

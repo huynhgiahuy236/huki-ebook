@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useCart } from '../../context/CartContext';
 import { flashSaleApi, getCachedFlashSale, preloadActiveFlashSales } from '../../api/flashSaleApi';
 import { personalizationService } from '../../services/personalizationService';
+import { useReviewSummary } from '../../services/reviewSummaryService';
 import BookCover from './BookCover';
 
 export interface BookCardData {
@@ -177,12 +178,17 @@ export default function BookCard({
     }
   };
 
-  // Authentic rating & sales strictly from DB - NO mock data, NO random seed
-  const rawRating = book.rating ?? (book as any).averageRating ?? 0;
-  const numRating = typeof rawRating === 'number' ? rawRating : (!isNaN(Number(rawRating)) ? Number(rawRating) : 0);
-  const displayRating = numRating > 0 ? numRating.toFixed(1) : '0';
+  // Authentic rating & sales strictly from DB & reviews service - NO fake data
+  const fallbackNum = typeof book.rating === 'number'
+    ? book.rating
+    : (!isNaN(Number((book as any).averageRating)) ? Number((book as any).averageRating) : 0);
+  const { rating: reviewRating, displayRating: hookDisplayRating } = useReviewSummary(
+    book.id,
+    fallbackNum > 0 ? fallbackNum : undefined
+  );
+  const displayRating = hookDisplayRating || (fallbackNum > 0 ? fallbackNum.toFixed(1) : null);
 
-  const rawSales = book.sales ?? book.soldCount ?? book.soldQuantity ?? (book as any).salesCount ?? (book as any).orderCount ?? 0;
+  const rawSales = book.soldCount ?? book.sales ?? book.soldQuantity ?? (book as any).salesCount ?? (book as any).orderCount ?? (book as any).readCount ?? 0;
   const salesNum = typeof rawSales === 'number' ? rawSales : (!isNaN(Number(rawSales)) ? Number(rawSales) : 0);
   const formattedSales = salesNum >= 1000
     ? `${(salesNum / 1000).toFixed(1)}k`
@@ -364,12 +370,16 @@ export default function BookCard({
             </h3>
             <p className="text-[11px] text-gray-400 mt-0.5 truncate">{authorName}</p>
 
-            {/* Rating & Sales (Luôn hiển thị rõ ràng) */}
+            {/* Rating & Sales (Luôn hiển thị rõ ràng, không hiển thị ★ 0) */}
             <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px]">
-              <div className="flex items-center gap-0.5 text-amber-500 font-bold">
-                <span className="material-symbols-outlined text-[12px] fill-current">star</span>
-                <span>{displayRating}</span>
-              </div>
+              {displayRating ? (
+                <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+                  <span className="material-symbols-outlined text-[12px] fill-current">star</span>
+                  <span>{displayRating}</span>
+                </div>
+              ) : (
+                <span className="text-gray-400 text-[10px]">Chưa có đánh giá</span>
+              )}
               <span className="text-gray-300 text-[9px]">•</span>
               <span className="text-gray-500 text-[10px]">
                 Đã bán {displaySales}
@@ -486,12 +496,16 @@ export default function BookCard({
           <p className="text-[11px] text-slate-500 truncate mb-1">{authorName}</p>
         )}
 
-        {/* Authentic Rating & Sales (Luôn hiển thị chuẩn chỉnh từ DB) */}
+        {/* Authentic Rating & Sales (Luôn hiển thị chuẩn chỉnh từ DB & đánh giá) */}
         <div className="flex items-center gap-1.5 mb-1.5 text-[11px] flex-wrap">
-          <div className="flex items-center gap-0.5 text-amber-500 font-bold">
-            <span className="material-symbols-outlined text-[13px] fill-current">star</span>
-            <span>{displayRating}</span>
-          </div>
+          {displayRating ? (
+            <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+              <span className="material-symbols-outlined text-[13px] fill-current">star</span>
+              <span>{displayRating}</span>
+            </div>
+          ) : (
+            <span className="text-slate-400 text-[10.5px]">Chưa có đánh giá</span>
+          )}
           <span className="text-slate-300 text-[10px]">•</span>
           <span className="text-slate-500 text-[10.5px]">
             Đã bán {displaySales}

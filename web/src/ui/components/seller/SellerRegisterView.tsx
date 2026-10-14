@@ -8,6 +8,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, CreateBusinessPayload } from '@/ui/api/businessApi';
 import { taxRegistryService } from '@/ui/services/taxRegistryService';
 import CustomLocationSelector, { LocationChangePayload } from '@/ui/components/common/CustomLocationSelector';
+import { PolicyQuickModal } from '@/ui/components/policy/PolicyQuickModal';
 
 export function SellerRegisterView() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export function SellerRegisterView() {
   const [isLookingUpTax, setIsLookingUpTax] = useState(false);
   const [isTaxVerified, setIsTaxVerified] = useState(false);
   const [, setTaxVerifiedSource] = useState('');
+  const [quickPolicySlug, setQuickPolicySlug] = useState<string | null>(null);
 
   // Check if business already exists
   React.useEffect(() => {
@@ -43,7 +45,7 @@ export function SellerRegisterView() {
   // Form State cho hồ sơ doanh nghiệp & đối tác
   const [formData, setFormData] = useState({
     // 1. Collection: businesses (Pháp lý doanh nghiệp & Cửa hàng)
-    businessType: 'LLC' as 'CORPORATION' | 'LLC' | 'INDIVIDUAL' | 'PARTNERSHIP',
+    businessType: 'INDIVIDUAL' as 'CORPORATION' | 'LLC' | 'INDIVIDUAL' | 'PARTNERSHIP',
     company_name: '',
     store_name: '',
     international_name: '',
@@ -63,7 +65,7 @@ export function SellerRegisterView() {
 
     // 2. Collection: business_representatives
     rep_full_name: '',
-    rep_position: 'Người đại diện pháp luật',
+    rep_position: 'Chủ hộ kinh doanh',
     rep_id_card_number: '',
     rep_id_card_issue_date: '',
     rep_id_card_issue_place: '',
@@ -263,30 +265,32 @@ export function SellerRegisterView() {
   const validateStep = (step: number) => {
     const errors: Record<string, string> = {};
 
+    const isHousehold = formData.businessType === 'INDIVIDUAL';
+
     if (step === 1) {
-      if (!formData.tax_code.trim()) errors.tax_code = 'Vui lòng nhập Mã số thuế doanh nghiệp.';
+      if (!formData.tax_code.trim()) errors.tax_code = isHousehold ? 'Vui lòng nhập Mã số thuế Hộ kinh doanh / MST cá nhân chủ hộ.' : 'Vui lòng nhập Mã số thuế doanh nghiệp.';
       else if (!/^[0-9]{10}(-[0-9]{3})?$/.test(formData.tax_code.trim().replace(/\s+/g, ''))) {
-        errors.tax_code = 'Mã số thuế phải gồm 10 hoặc 13 chữ số (VD: 0318926410).';
+        errors.tax_code = 'Mã số thuế phải gồm 10 hoặc 13 chữ số (VD: 0319888999).';
       }
-      if (!formData.company_name.trim()) errors.company_name = 'Vui lòng nhập Tên chính thức của doanh nghiệp.';
+      if (!formData.company_name.trim()) errors.company_name = isHousehold ? 'Vui lòng nhập Tên Hộ kinh doanh theo đăng ký.' : 'Vui lòng nhập Tên chính thức của doanh nghiệp.';
       if (!formData.store_name.trim()) errors.store_name = 'Vui lòng nhập Tên Gian Hàng / Cửa Hàng hiển thị.';
       else if (formData.store_name.trim().length < 3) errors.store_name = 'Tên gian hàng quá ngắn (tối thiểu 3 ký tự).';
       else if (formData.store_name.trim().length > 100) errors.store_name = 'Tên gian hàng không được vượt quá 100 ký tự.';
-      if (!formData.businessType) errors.businessType = 'Vui lòng chọn loại hình doanh nghiệp.';
-      if (!formData.registered_street.trim()) errors.registered_street = 'Vui lòng nhập địa chỉ trụ sở chính.';
+      if (!formData.businessType) errors.businessType = 'Vui lòng chọn loại hình kinh doanh.';
+      if (!formData.registered_street.trim()) errors.registered_street = isHousehold ? 'Vui lòng nhập địa chỉ kinh doanh của Hộ kinh doanh.' : 'Vui lòng nhập địa chỉ trụ sở chính.';
     } else if (step === 2) {
-      if (!formData.rep_full_name.trim()) errors.rep_full_name = 'Vui lòng nhập Họ tên người đại diện pháp luật.';
+      if (!formData.rep_full_name.trim()) errors.rep_full_name = isHousehold ? 'Vui lòng nhập Họ tên Chủ hộ kinh doanh.' : 'Vui lòng nhập Họ tên người đại diện pháp luật.';
       if (!formData.rep_id_card_number.trim()) errors.rep_id_card_number = 'Vui lòng nhập Số CCCD/Hộ chiếu.';
       else if (!/^[0-9A-Za-z]{9,12}$/.test(formData.rep_id_card_number.trim())) {
         errors.rep_id_card_number = 'Số CCCD/CMND phải gồm 9 đến 12 chữ số hợp lệ.';
       }
-      if (!formData.operator_phone.trim()) errors.operator_phone = 'Vui lòng nhập Số điện thoại người vận hành.';
+      if (!formData.operator_phone.trim()) errors.operator_phone = 'Vui lòng nhập Số điện thoại liên hệ.';
       else if (!/^(0|\+84)[0-9]{9,10}$/.test(formData.operator_phone.trim().replace(/\s+/g, ''))) {
-        errors.operator_phone = 'Số điện thoại người vận hành không hợp lệ.';
+        errors.operator_phone = 'Số điện thoại không hợp lệ.';
       }
-      if (!formData.operator_email.trim()) errors.operator_email = 'Vui lòng nhập Email người vận hành.';
+      if (!formData.operator_email.trim()) errors.operator_email = 'Vui lòng nhập Email nhận thông báo đơn hàng.';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.operator_email.trim())) {
-        errors.operator_email = 'Email người vận hành không đúng định dạng.';
+        errors.operator_email = 'Email không đúng định dạng.';
       }
     } else if (step === 3) {
       if (!formData.warehouse_province.trim()) errors.warehouse_province = 'Vui lòng chọn Tỉnh/Thành phố cho kho hàng.';
@@ -296,7 +300,11 @@ export function SellerRegisterView() {
         errors.warehouse_contact_phone = 'Số điện thoại kho không hợp lệ.';
       }
     } else if (step === 4) {
-      if (!formData.agreedDrmTerms) errors.agreedDrmTerms = 'Vui lòng đồng ý với cam kết bảo hộ bản quyền DRM HUKI.';
+      if (isHousehold) {
+        if (!formData.agreedDrmTerms) errors.agreedDrmTerms = 'Vui lòng xác nhận cam kết nguồn gốc sách thật và không kinh doanh sách lậu.';
+      } else {
+        if (!formData.agreedDrmTerms) errors.agreedDrmTerms = 'Vui lòng đồng ý với cam kết bảo hộ bản quyền DRM HUKI.';
+      }
     } else if (step === 5) {
       if (!formData.agreedTerms) errors.agreedTerms = 'Vui lòng xác nhận tính trung thực và cam kết điều khoản sàn.';
     }
@@ -446,11 +454,13 @@ export function SellerRegisterView() {
     }
   };
 
+  const isHousehold = formData.businessType === 'INDIVIDUAL';
+
   const stepTitles = [
-    { num: 1, title: '1. Pháp Lý Doanh Nghiệp', desc: 'MST & Tra cứu CSDL' },
-    { num: 2, title: '2. Người Đại Diện', desc: 'Đại diện & CCCD e-KYC' },
+    { num: 1, title: isHousehold ? '1. Pháp Lý Hộ KD' : '1. Pháp Lý Doanh Nghiệp', desc: 'MST & Tra cứu CSDL' },
+    { num: 2, title: isHousehold ? '2. Chủ Hộ Kinh Doanh' : '2. Người Đại Diện', desc: 'Đại diện & CCCD e-KYC' },
     { num: 3, title: '3. Kho Hàng Vận Hành', desc: 'Địa chỉ lấy hàng vật lý' },
-    { num: 4, title: '4. Giấy Phép & DRM', desc: 'Xuất bản & Bản quyền số' },
+    { num: 4, title: isHousehold ? '4. ĐKKD & Sách Thật' : '4. Giấy Phép & DRM', desc: isHousehold ? 'Giấy phép & Cam kết' : 'Xuất bản & Bản quyền số' },
     { num: 5, title: '5. Xem Lại & Gửi', desc: 'Thẩm định hồ sơ' },
   ];
 
@@ -465,10 +475,12 @@ export function SellerRegisterView() {
               <span>Quy trình thẩm định đối tác Nhà Bán Hàng &amp; NXB HUKI</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold font-editorial text-slate-900 tracking-tight">
-              Đăng Ký Hồ Sơ Doanh Nghiệp &amp; Nhà Bán Hàng
+              {isHousehold ? 'Đăng Ký Mở Gian Hàng Hộ Kinh Doanh' : 'Đăng Ký Hồ Sơ Doanh Nghiệp & NXB'}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-2xl">
-              Hệ thống tự động đối chiếu thông tin pháp nhân từ CSDL Doanh nghiệp Quốc Gia nhằm rút ngắn thời gian phê duyệt.
+              {isHousehold
+                ? 'Dành cho tiệm sách tư nhân, hiệu sách cũ, hộ kinh doanh. Hệ thống tự động tra cứu CSDL Thuế để điền nhanh thông tin.'
+                : 'Dành cho Công ty TNHH, Công ty Cổ phần, NXB. Hệ thống tự động đối chiếu thông tin pháp nhân từ CSDL Doanh nghiệp Quốc Gia.'}
             </p>
           </div>
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-2xs self-start md:self-auto shrink-0">
@@ -493,23 +505,21 @@ export function SellerRegisterView() {
                   onClick={() => {
                     if (step.num < currentStep) setCurrentStep(step.num);
                   }}
-                  className={`p-3.5 rounded-xl border text-left transition-all ${
-                    isCurrent
+                  className={`p-3.5 rounded-xl border text-left transition-all ${isCurrent
                       ? 'bg-white border-[#003B2B] ring-2 ring-[#003B2B]/15 shadow-sm'
                       : isCompleted
-                      ? 'bg-emerald-50/60 border-emerald-200 cursor-pointer hover:bg-emerald-50'
-                      : 'bg-white/60 border-slate-200 opacity-60 cursor-not-allowed'
-                  }`}
+                        ? 'bg-emerald-50/60 border-emerald-200 cursor-pointer hover:bg-emerald-50'
+                        : 'bg-white/60 border-slate-200 opacity-60 cursor-not-allowed'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <span
-                      className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${
-                        isCompleted
+                      className={`text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center ${isCompleted
                           ? 'bg-emerald-600 text-white'
                           : isCurrent
-                          ? 'bg-[#003B2B] text-white'
-                          : 'bg-slate-100 text-slate-500'
-                      }`}
+                            ? 'bg-[#003B2B] text-white'
+                            : 'bg-slate-100 text-slate-500'
+                        }`}
                     >
                       {isCompleted ? '✓' : step.num}
                     </span>
@@ -534,11 +544,98 @@ export function SellerRegisterView() {
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  1. Hồ Sơ Pháp Lý Doanh Nghiệp &amp; Đối Chiếu CSDL
+                  {isHousehold ? '1. Hồ Sơ Pháp Lý Hộ Kinh Doanh & Tra Cứu CSDL' : '1. Hồ Sơ Pháp Lý Doanh Nghiệp & Đối Chiếu CSDL'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Nhập Mã số thuế để hệ thống tự động đối chiếu thông tin pháp nhân từ CSDL Quốc Gia
+                  {isHousehold
+                    ? 'Chọn Hộ kinh doanh và nhập Mã số thuế để hệ thống tự động điền thông tin cơ sở kinh doanh'
+                    : 'Nhập Mã số thuế để hệ thống tự động đối chiếu thông tin pháp nhân từ CSDL Doanh nghiệp Quốc Gia'}
                 </p>
+              </div>
+
+              {/* 2-Option Business Category Selection */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Chọn loại hình đối tác kinh doanh <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Option 1: Hộ Kinh Doanh */}
+                  <div
+                    onClick={() => {
+                      handleChange('businessType', 'INDIVIDUAL');
+                      handleChange('rep_position', 'Chủ hộ kinh doanh');
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${isHousehold
+                        ? 'bg-emerald-50/70 border-[#003B2B] ring-2 ring-[#003B2B]/20 shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-100 text-[#003B2B] flex items-center justify-center">
+                        <span className="material-symbols-outlined text-2xl">storefront</span>
+                      </div>
+                      {isHousehold ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-[#003B2B] text-white text-[10px] font-bold uppercase tracking-wider">
+                          ✓ Đang chọn
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium">Bấm để chọn</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                        <span>Hộ Kinh Doanh Cá Thể</span>
+                        <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded-md">Phổ biến</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Dành cho tiệm sách tư nhân, hiệu sách cũ, tiệm truyện tranh, hộ kinh doanh. Bán sách in vật lý &amp; phụ kiện đọc sách.
+                      </p>
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/60 text-[11px] text-emerald-800 font-medium flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px]">bolt</span>
+                        <span>Thủ tục tinh gọn • Tra cứu MST tự động</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Option 2: Công Ty / NXB */}
+                  <div
+                    onClick={() => {
+                      if (formData.businessType === 'INDIVIDUAL') {
+                        handleChange('businessType', 'LLC');
+                        handleChange('rep_position', 'Người đại diện pháp luật');
+                      }
+                    }}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${!isHousehold
+                        ? 'bg-blue-50/70 border-blue-900 ring-2 ring-blue-900/20 shadow-sm'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                      }`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-2xl">apartment</span>
+                      </div>
+                      {!isHousehold ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-blue-900 text-white text-[10px] font-bold uppercase tracking-wider">
+                          ✓ Đang chọn
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-medium">Bấm để chọn</span>
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                        <span>Doanh Nghiệp / Nhà Xuất Bản</span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                        Dành cho Công ty TNHH, Công ty Cổ phần, NXB, Đơn vị phát hành. Được phân phối cả Sách giấy và Ebook DRM.
+                      </p>
+                      <div className="mt-3 pt-2.5 border-t border-slate-200/60 text-[11px] text-blue-800 font-medium flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[15px]">verified</span>
+                        <span>Phát hành Sách giấy &amp; Ebook DRM số</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Tax Code Input & Auto Lookup Banner */}
@@ -546,19 +643,18 @@ export function SellerRegisterView() {
                 <div className="flex flex-col sm:flex-row sm:items-end gap-3">
                   <div className="flex-1">
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Mã số thuế / Mã số doanh nghiệp (tax_code) <span className="text-red-500">*</span>
+                      {isHousehold ? 'Mã số thuế Hộ kinh doanh / MST chủ hộ (tax_code)' : 'Mã số thuế / Mã số doanh nghiệp (tax_code)'} <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
                       value={formData.tax_code}
                       onChange={(e) => handleChange('tax_code', e.target.value)}
                       onBlur={(e) => validateSingleField('tax_code', e.target.value)}
-                      placeholder="Nhập 10 hoặc 13 chữ số (VD: 0318926410)..."
-                      className={`w-full h-12 bg-white border rounded-xl px-4 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder-slate-400 outline-none transition-all shadow-2xs ${
-                        fieldErrors.tax_code
+                      placeholder={isHousehold ? 'Nhập 10 hoặc 13 chữ số (VD: 0319888999)...' : 'Nhập 10 hoặc 13 chữ số (VD: 0318926410)...'}
+                      className={`w-full h-12 bg-white border rounded-xl px-4 text-sm font-mono font-bold tracking-wider text-slate-900 placeholder-slate-400 outline-none transition-all shadow-2xs ${fieldErrors.tax_code
                           ? 'border-red-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-50/20'
                           : 'border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
-                      }`}
+                        }`}
                     />
                     {fieldErrors.tax_code && (
                       <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.tax_code}</p>
@@ -585,26 +681,76 @@ export function SellerRegisterView() {
                   </button>
                 </div>
 
+                {/* Quick sample chips */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                  <span className="text-slate-500 font-medium">MST mẫu thử nhanh:</span>
+                  {isHousehold ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleChange('tax_code', '0319888999');
+                        handleLookupTaxCode('0319888999');
+                      }}
+                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 font-medium rounded-lg border border-emerald-200 transition-colors cursor-pointer"
+                    >
+                      0319888999 (Hộ KD Nhà Sách Tri Thức Trẻ)
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('tax_code', '0318926410');
+                          handleLookupTaxCode('0318926410');
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                      >
+                        0318926410 (Trí Tuệ Việt)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('tax_code', '0101234567');
+                          handleLookupTaxCode('0101234567');
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                      >
+                        0101234567 (NXB Kim Đồng)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('tax_code', '0302482782');
+                          handleLookupTaxCode('0302482782');
+                        }}
+                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
+                      >
+                        0302482782 (Nhã Nam)
+                      </button>
+                    </>
+                  )}
+                </div>
+
                 {isTaxVerified && (
                   <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 flex items-center gap-2 text-xs text-emerald-800">
                     <span className="material-symbols-outlined text-base text-emerald-600">verified</span>
-                    <span>Đã đối chiếu thành công với CSDL Doanh nghiệp Quốc Gia</span>
+                    <span>Đã đối chiếu thành công với CSDL Doanh nghiệp / Hộ kinh doanh Quốc Gia</span>
                   </div>
                 )}
               </div>
 
-              {/* Thông tin chi tiết doanh nghiệp */}
+              {/* Thông tin chi tiết */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên đầy đủ theo ĐKKD (company_name) <span className="text-red-500">*</span>
+                    {isHousehold ? 'Tên Hộ kinh doanh theo Giấy ĐKKD (company_name)' : 'Tên đầy đủ theo ĐKKD (company_name)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.company_name}
                     onChange={(e) => handleChange('company_name', e.target.value)}
                     onBlur={(e) => validateSingleField('company_name', e.target.value)}
-                    placeholder="CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH TP. HCM - FAHASA"
+                    placeholder={isHousehold ? 'HỘ KINH DOANH NHÀ SÁCH TRI THỨC TRẺ' : 'CÔNG TY CỔ PHẦN PHÁT HÀNH SÁCH TP. HCM - FAHASA'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.company_name && (
@@ -614,14 +760,14 @@ export function SellerRegisterView() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên Gian Hàng / Thương Hiệu hiển thị (store_name) <span className="text-red-500">*</span>
+                    {isHousehold ? 'Tên Gian Hàng / Hiệu Sách hiển thị (store_name)' : 'Tên Gian Hàng / Thương Hiệu hiển thị (store_name)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.store_name}
                     onChange={(e) => handleChange('store_name', e.target.value)}
                     onBlur={(e) => validateSingleField('store_name', e.target.value)}
-                    placeholder="FAHASA Official Store"
+                    placeholder={isHousehold ? 'Nhà Sách Tri Thức Trẻ' : 'FAHASA Official Store'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-semibold text-emerald-800 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.store_name && (
@@ -629,38 +775,39 @@ export function SellerRegisterView() {
                   )}
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Loại hình doanh nghiệp (business_type) <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.businessType}
-                    onChange={(e) => handleChange('businessType', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  >
-                    <option value="LLC">Công ty TNHH (Trách nhiệm hữu hạn)</option>
-                    <option value="CORPORATION">Công ty Cổ Phần (Joint Stock)</option>
-                    <option value="INDIVIDUAL">Hộ Kinh Doanh Cá Thể / Cá Nhân</option>
-                    <option value="PARTNERSHIP">Công ty Hợp Danh</option>
-                  </select>
-                </div>
+                {!isHousehold && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mô hình pháp lý doanh nghiệp <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.businessType}
+                      onChange={(e) => handleChange('businessType', e.target.value)}
+                      className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    >
+                      <option value="LLC">Công ty TNHH (Trách nhiệm hữu hạn)</option>
+                      <option value="CORPORATION">Công ty Cổ Phần (Joint Stock)</option>
+                      <option value="PARTNERSHIP">Công ty Hợp Danh</option>
+                    </select>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Mã ngành TMĐT tuân thủ NĐ 52 &amp; 85 (ecommerce_industry_codes)
+                    {isHousehold ? 'Số Giấy chứng nhận Đăng ký Hộ KD (business_license_number)' : 'Số Giấy phép ĐKKD (business_license_number)'}
                   </label>
                   <input
                     type="text"
-                    value={formData.ecommerce_industry_codes}
-                    onChange={(e) => handleChange('ecommerce_industry_codes', e.target.value)}
-                    placeholder="4791 (Bán lẻ qua TMĐT), 5811 (Xuất bản sách)..."
+                    value={formData.business_license_number}
+                    onChange={(e) => handleChange('business_license_number', e.target.value)}
+                    placeholder={isHousehold ? 'Số GCN Hộ KD (VD: 41A8012345)...' : 'Số ĐKKD / Mã số doanh nghiệp...'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Ngày cấp Giấy phép ĐKKD (issue_date)
+                    {isHousehold ? 'Ngày cấp Giấy phép Hộ KD (issue_date)' : 'Ngày cấp Giấy phép ĐKKD (issue_date)'}
                   </label>
                   <input
                     type="date"
@@ -672,27 +819,42 @@ export function SellerRegisterView() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Nơi cấp Giấy phép ĐKKD (issue_place)
+                    {isHousehold ? 'Cơ quan cấp (Ủy ban nhân dân Quận/Huyện)' : 'Nơi cấp Giấy phép ĐKKD (issue_place)'}
                   </label>
                   <input
                     type="text"
                     value={formData.issue_place}
                     onChange={(e) => handleChange('issue_place', e.target.value)}
-                    placeholder="Sở Kế hoạch và Đầu tư..."
+                    placeholder={isHousehold ? 'Ủy ban nhân dân Quận 1, TP. HCM...' : 'Sở Kế hoạch và Đầu tư...'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
 
+                {!isHousehold && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Mã ngành TMĐT tuân thủ NĐ 52 &amp; 85 (ecommerce_industry_codes)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.ecommerce_industry_codes}
+                      onChange={(e) => handleChange('ecommerce_industry_codes', e.target.value)}
+                      placeholder="4791 (Bán lẻ qua TMĐT), 5811 (Xuất bản sách)..."
+                      className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    />
+                  </div>
+                )}
+
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Địa chỉ trụ sở chính pháp lý (registered_address) <span className="text-red-500">*</span>
+                    {isHousehold ? 'Địa chỉ đăng ký kinh doanh của Hộ KD (registered_address)' : 'Địa chỉ trụ sở chính pháp lý (registered_address)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.registered_street}
                     onChange={(e) => handleChange('registered_street', e.target.value)}
                     onBlur={(e) => validateSingleField('registered_street', e.target.value)}
-                    placeholder="Số nhà, tên đường, tầng tòa nhà, phường/xã, quận/huyện, tỉnh/thành phố..."
+                    placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố..."
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.registered_street && (
@@ -703,7 +865,9 @@ export function SellerRegisterView() {
                 {/* Upload Giấy phép ĐKKD */}
                 <div className="md:col-span-2 pt-2">
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Ảnh chụp / Bản scan Giấy chứng nhận ĐKKD (license_document_url) <span className="text-red-500">*</span>
+                    {isHousehold
+                      ? 'Ảnh chụp / Bản scan Giấy chứng nhận Đăng ký Hộ KD (license_document_url)'
+                      : 'Ảnh chụp / Bản scan Giấy chứng nhận ĐKKD (license_document_url)'} <span className="text-red-500">*</span>
                   </label>
                   <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
                     <div className="flex items-center gap-3">
@@ -712,7 +876,7 @@ export function SellerRegisterView() {
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-900">
-                          {formData.license_document_url ? 'Giấy_Phep_DKKD_Xac_Thuc.pdf' : 'Tải lên bản scan hoặc ảnh màu Giấy phép ĐKKD'}
+                          {formData.license_document_url ? (isHousehold ? 'GCN_Dang_Ky_Ho_KD.pdf' : 'Giấy_Phep_DKKD_Xac_Thuc.pdf') : (isHousehold ? 'Tải lên Giấy chứng nhận Đăng ký Hộ KD' : 'Tải lên bản scan hoặc ảnh màu Giấy phép ĐKKD')}
                         </div>
                         <div className="text-[11px] text-slate-500">
                           Hỗ trợ định dạng PDF, JPG, PNG (tối đa 15MB)
@@ -742,7 +906,7 @@ export function SellerRegisterView() {
                         type="button"
                         onClick={() => {
                           handleChange('license_document_url', 'https://cdn.hukiebook.vn/licenses/gpkd-sample-2026.pdf');
-                          notify({ title: 'Đã chọn tệp mẫu', message: 'Giấy_Phep_DKKD_Sample_2026.pdf', type: 'info' });
+                          notify({ title: 'Đã chọn tệp mẫu', message: isHousehold ? 'GCN_Ho_Kinh_Doanh_Sample.pdf' : 'Giấy_Phep_DKKD_Sample_2026.pdf', type: 'info' });
                         }}
                         className="h-9 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium cursor-pointer"
                       >
@@ -753,7 +917,7 @@ export function SellerRegisterView() {
                   {formData.license_document_url && (
                     <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
                       <span className="material-symbols-outlined text-sm">check_circle</span>
-                      <span>Đã đính kèm tệp minh chứng ĐKKD</span>
+                      <span>Đã đính kèm tệp minh chứng giấy phép</span>
                     </div>
                   )}
                 </div>
@@ -768,25 +932,27 @@ export function SellerRegisterView() {
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  2. Người Đại Diện Pháp Luật &amp; Quản Lý Vận Hành
+                  {isHousehold ? '2. Chủ Hộ Kinh Doanh & Quản Lý Vận Hành' : '2. Người Đại Diện Pháp Luật & Quản Lý Vận Hành'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Vui lòng hoàn tất thông tin CCCD của người đại diện và người phụ trách vận hành
+                  {isHousehold
+                    ? 'Vui lòng hoàn tất thông tin CCCD của Chủ hộ kinh doanh và số điện thoại liên hệ'
+                    : 'Vui lòng hoàn tất thông tin CCCD của người đại diện và người phụ trách vận hành'}
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Họ và tên người đại diện pháp luật (full_name) <span className="text-red-500">*</span>
+                    {isHousehold ? 'Họ và tên Chủ Hộ Kinh Doanh (full_name)' : 'Họ và tên người đại diện pháp luật (full_name)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.rep_full_name}
                     onChange={(e) => handleChange('rep_full_name', e.target.value)}
                     onBlur={(e) => validateSingleField('rep_full_name', e.target.value)}
-                    placeholder="NGUYỄN VĂN HÙNG"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    placeholder={isHousehold ? 'TRẦN MINH HOÀNG' : 'NGUYỄN VĂN HÙNG'}
+                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm font-semibold text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.rep_full_name && (
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.rep_full_name}</p>
@@ -799,16 +965,18 @@ export function SellerRegisterView() {
                   </label>
                   <input
                     type="text"
-                    value={formData.rep_position}
+                    value={isHousehold ? 'Chủ hộ kinh doanh' : formData.rep_position}
                     onChange={(e) => handleChange('rep_position', e.target.value)}
-                    placeholder="Giám đốc Điều hành / Tổng Giám đốc..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                    readOnly={isHousehold}
+                    placeholder="Chức vụ đại diện..."
+                    className={`w-full h-12 bg-white border border-slate-200 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs ${isHousehold ? 'bg-slate-50 text-slate-600 font-medium cursor-not-allowed' : 'hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15'
+                      }`}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Số CCCD / Hộ chiếu người đại diện (id_card_number) <span className="text-red-500">*</span>
+                    {isHousehold ? 'Số CCCD của Chủ hộ kinh doanh (id_card_number)' : 'Số CCCD / Hộ chiếu người đại diện (id_card_number)'} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -837,13 +1005,13 @@ export function SellerRegisterView() {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Họ tên người vận hành chính (operator_contact.name)
+                    {isHousehold ? 'Họ tên người phụ trách bán hàng (operator_name)' : 'Họ tên người vận hành chính (operator_contact.name)'}
                   </label>
                   <input
                     type="text"
                     value={formData.operator_name}
                     onChange={(e) => handleChange('operator_name', e.target.value)}
-                    placeholder="Họ tên người quản lý gian hàng..."
+                    placeholder={isHousehold ? 'Trùng tên chủ hộ hoặc người quản lý...' : 'Họ tên người quản lý gian hàng...'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                 </div>
@@ -874,7 +1042,7 @@ export function SellerRegisterView() {
                     value={formData.operator_email}
                     onChange={(e) => handleChange('operator_email', e.target.value)}
                     onBlur={(e) => validateSingleField('operator_email', e.target.value)}
-                    placeholder="publisher@company.vn"
+                    placeholder={isHousehold ? 'tiemsach@gmail.com' : 'publisher@company.vn'}
                     className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
                   />
                   {fieldErrors.operator_email && (
@@ -885,7 +1053,9 @@ export function SellerRegisterView() {
                 {/* Upload CCCD */}
                 <div className="md:col-span-2 pt-2 border-t border-slate-100">
                   <label className="block text-xs font-semibold text-slate-700 mb-3">
-                    Ảnh chụp giấy tờ tùy thân CCCD / Hộ chiếu người đại diện (e-KYC)
+                    {isHousehold
+                      ? 'Ảnh chụp giấy tờ tùy thân CCCD của Chủ hộ kinh doanh (e-KYC)'
+                      : 'Ảnh chụp giấy tờ tùy thân CCCD / Hộ chiếu người đại diện (e-KYC)'}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="p-3.5 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col items-center justify-center text-center gap-2 transition-colors">
@@ -954,9 +1124,24 @@ export function SellerRegisterView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Địa chỉ kho - dùng CustomLocationSelector */}
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-3">
-                    Địa chỉ kho hàng (Tỉnh/Thành + Xã/Phường) <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Địa chỉ kho hàng (Tỉnh/Thành + Xã/Phường) <span className="text-red-500">*</span>
+                    </label>
+                    {formData.registered_street && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleChange('warehouse_street', formData.registered_street);
+                          notify({ title: 'Đã sao chép địa chỉ', message: 'Đã lấy số nhà/đường từ địa chỉ kinh doanh ở Bước 1', type: 'info' });
+                        }}
+                        className="text-xs text-[#003B2B] hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">content_copy</span>
+                        <span>Lấy số nhà/đường ở Bước 1</span>
+                      </button>
+                    )}
+                  </div>
                   <CustomLocationSelector
                     province={formData.warehouse_province}
                     provinceCode={formData.warehouse_province_code}
@@ -969,52 +1154,64 @@ export function SellerRegisterView() {
                     <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_ward}</p>
                   )}
                 </div>
+                <CustomLocationSelector
+                  province={formData.warehouse_province}
+                  provinceCode={formData.warehouse_province_code}
+                  ward={formData.warehouse_ward}
+                  wardCode={formData.warehouse_ward_code}
+                  onChange={handleWarehouseLocationChange}
+                  required={true}
+                />
+                {fieldErrors.warehouse_ward && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_ward}</p>
+                )}
+              </div>
 
-                {/* Số nhà, tên đường */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Số nhà, tên đường, tầng (tùy chọn, bổ sung địa chỉ chi tiết)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.warehouse_street}
-                    onChange={(e) => handleChange('warehouse_street', e.target.value)}
-                    placeholder="VD: Số 123 Đường Nguyễn Trãi, Tầng 3, Tòa nhà ABC..."
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
+              {/* Số nhà, tên đường */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Số nhà, tên đường, tầng (tùy chọn, bổ sung địa chỉ chi tiết)
+                </label>
+                <input
+                  type="text"
+                  value={formData.warehouse_street}
+                  onChange={(e) => handleChange('warehouse_street', e.target.value)}
+                  placeholder="VD: Số 123 Đường Nguyễn Trãi, Tầng 3, Tòa nhà ABC..."
+                  className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tên thủ kho / Người phụ trách tại điểm kho (warehouse_contact_name)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.warehouse_contact_name}
-                    onChange={(e) => handleChange('warehouse_contact_name', e.target.value)}
-                    placeholder="Trần Văn Kho"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Tên thủ kho / Người phụ trách tại điểm kho (warehouse_contact_name)
+                </label>
+                <input
+                  type="text"
+                  value={formData.warehouse_contact_name}
+                  onChange={(e) => handleChange('warehouse_contact_name', e.target.value)}
+                  placeholder="Trần Văn Kho"
+                  className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Số điện thoại liên hệ kho (warehouse_contact_phone) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.warehouse_contact_phone}
-                    onChange={(e) => handleChange('warehouse_contact_phone', e.target.value)}
-                    onBlur={(e) => validateSingleField('warehouse_contact_phone', e.target.value)}
-                    placeholder="0918889999"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                  {fieldErrors.warehouse_contact_phone && (
-                    <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_contact_phone}</p>
-                  )}
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Số điện thoại liên hệ kho (warehouse_contact_phone) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.warehouse_contact_phone}
+                  onChange={(e) => handleChange('warehouse_contact_phone', e.target.value)}
+                  onBlur={(e) => validateSingleField('warehouse_contact_phone', e.target.value)}
+                  placeholder="0918889999"
+                  className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                />
+                {fieldErrors.warehouse_contact_phone && (
+                  <p className="mt-1 text-xs text-red-500 font-medium">{fieldErrors.warehouse_contact_phone}</p>
+                )}
               </div>
             </div>
+
           )}
 
           {/* ========================================================================= */}
@@ -1024,135 +1221,294 @@ export function SellerRegisterView() {
             <div className="space-y-6">
               <div className="border-b border-slate-100 pb-4">
                 <h2 className="text-lg sm:text-xl font-bold font-editorial text-slate-900">
-                  4. Giấy Phép Ngành Nghề Đặc Thù &amp; Bản Quyền DRM
+                  {isHousehold
+                    ? '4. Giấy Đăng Ký Hộ Kinh Doanh & Cam Kết Sách Thật'
+                    : '4. Giấy Phép Ngành Nghề Đặc Thù & Bản Quyền DRM'}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Xác thực điều kiện phát hành sách, nội dung số có bản quyền và cam kết công nghệ DRM
+                  {isHousehold
+                    ? 'Xác thực giấy chứng nhận đăng ký kinh doanh hộ cá thể và cam kết nguồn gốc sách thật 100%, nói KHÔNG với sách lậu.'
+                    : 'Xác thực điều kiện phát hành sách, nội dung số có bản quyền và cam kết công nghệ DRM'}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Loại giấy phép ngành nghề (doc_type)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.compliance_doc_type}
-                    onChange={(e) => handleChange('compliance_doc_type', e.target.value)}
-                    placeholder="GIAY_PHEP_XUAT_BAN_SO / BRAND_AUTHORIZATION"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Số hiệu giấy phép / Quyết định (doc_number)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.compliance_doc_number}
-                    onChange={(e) => handleChange('compliance_doc_number', e.target.value)}
-                    placeholder="GP-XB-2026/88-HUKI"
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Ngày cấp giấy phép (issue_date)
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.compliance_issue_date}
-                    onChange={(e) => handleChange('compliance_issue_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Ngày hết hạn hiệu lực (expiry_date)
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.compliance_expiry_date}
-                    onChange={(e) => handleChange('compliance_expiry_date', e.target.value)}
-                    className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
-                  />
-                </div>
-
-                {/* Upload Giấy phép */}
-                <div className="md:col-span-2 pt-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Bản scan Giấy phép xuất bản / Hợp đồng ủy quyền tác quyền (document_urls)
-                  </label>
-                  <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
-                        <span className="material-symbols-outlined text-xl text-[#003B2B]">folder_special</span>
-                      </div>
-                      <div>
-                        <div className="text-xs font-bold text-slate-900">
-                          {formData.compliance_document_url ? 'Giay_Phep_Xuat_Ban_DRM.pdf' : 'Tải lên Giấy phép xuất bản hoặc Chứng nhận Mall'}
-                        </div>
-                        <div className="text-[11px] text-slate-500">
-                          Hỗ trợ định dạng PDF, JPG, PNG (tối đa 25MB)
-                        </div>
-                      </div>
+              {isHousehold ? (
+                /* GIAO DIỆN HỘ KINH DOANH */
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Loại giấy tờ chứng nhận
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.compliance_doc_type || 'GCN ĐĂNG KÝ HỘ KINH DOANH'}
+                        onChange={(e) => handleChange('compliance_doc_type', e.target.value)}
+                        placeholder="Giấy chứng nhận đăng ký Hộ kinh doanh"
+                        className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm text-slate-700 outline-none"
+                      />
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <label className="h-9 px-3.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors">
-                        <span className="material-symbols-outlined text-base">upload_file</span>
-                        <span>Chọn tệp</span>
-                        <input
-                          type="file"
-                          accept=".pdf,.jpg,.jpeg,.png"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              handleChange('compliance_document_url', URL.createObjectURL(file));
-                              notify({ title: 'Đã tải lên tệp', message: file.name, type: 'success' });
-                            }
-                          }}
-                        />
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Số Giấy chứng nhận ĐKKD (doc_number)
                       </label>
+                      <input
+                        type="text"
+                        value={formData.compliance_doc_number}
+                        onChange={(e) => handleChange('compliance_doc_number', e.target.value)}
+                        placeholder={formData.tax_code ? `HKD-${formData.tax_code}` : 'Số GCN do UBND Quận/Huyện cấp...'}
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleChange('compliance_document_url', 'https://cdn.hukiebook.vn/permits/xuatban-sample-2026.pdf');
-                          notify({ title: 'Đã chọn tệp mẫu', message: 'Giay_Phep_Xuat_Ban_Sample_2026.pdf', type: 'info' });
-                        }}
-                        className="h-9 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium cursor-pointer"
-                      >
-                        File mẫu
-                      </button>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Ngày cấp Giấy chứng nhận
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.compliance_issue_date || formData.issue_date}
+                        onChange={(e) => handleChange('compliance_issue_date', e.target.value)}
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Cơ quan cấp chứng nhận
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.issue_place || 'Ủy ban nhân dân Quận/Huyện'}
+                        onChange={(e) => handleChange('issue_place', e.target.value)}
+                        className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm text-slate-700 outline-none"
+                      />
+                    </div>
+
+                    {/* Upload Giấy phép HKD */}
+                    <div className="md:col-span-2 pt-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Ảnh chụp Giấy chứng nhận Đăng ký Hộ Kinh Doanh (Tùy chọn tải lên)
+                      </label>
+                      <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                            <span className="material-symbols-outlined text-xl text-[#003B2B]">storefront</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">
+                              {formData.compliance_document_url ? 'Giay_Phep_Dang_Ky_HKD.pdf' : 'Tải lên Giấy chứng nhận đăng ký Hộ kinh doanh'}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Hỗ trợ định dạng PDF, JPG, PNG (tối đa 25MB). Nếu chưa có ngay, bạn có thể bổ sung sau khi kích hoạt.
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="h-9 px-3.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors">
+                            <span className="material-symbols-outlined text-base">upload_file</span>
+                            <span>Chọn tệp</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleChange('compliance_document_url', URL.createObjectURL(file));
+                                  notify({ title: 'Đã tải lên tệp', message: file.name, type: 'success' });
+                                }
+                              }}
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleChange('compliance_document_url', 'https://cdn.hukiebook.vn/permits/hkd-sample-2026.pdf');
+                              notify({ title: 'Đã chọn tệp mẫu', message: 'Giay_Phep_HKD_Sample_2026.pdf', type: 'info' });
+                            }}
+                            className="h-9 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium cursor-pointer"
+                          >
+                            File mẫu HKD
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* DRM Terms Agreement */}
-              <div className="p-4 bg-[#003B2B]/5 border border-[#003B2B]/20 rounded-xl space-y-3">
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    id="agreedDrm"
-                    checked={formData.agreedDrmTerms}
-                    onChange={(e) => handleChange('agreedDrmTerms', e.target.checked)}
-                    className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
-                  />
-                  <label htmlFor="agreedDrm" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
-                    <strong className="text-slate-900">Cam kết bản quyền &amp; Mã hóa DRM Tiêu chuẩn:</strong> Doanh nghiệp cam kết toàn bộ các ấn phẩm sách giấy, sách điện tử và sách nói đăng tải trên hệ sinh thái HUKI đều có đầy đủ hợp đồng chuyển nhượng tác quyền hợp pháp và đồng ý bảo vệ nội dung số thông qua chuẩn mã hóa bảo mật DRM của HUKI.
-                  </label>
+                  {/* Cam kết Sách thật cho Hộ kinh doanh */}
+                  <div className="p-4 bg-emerald-50/70 border border-emerald-300/60 rounded-xl space-y-3">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="agreedDrm"
+                        checked={formData.agreedDrmTerms}
+                        onChange={(e) => handleChange('agreedDrmTerms', e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
+                      />
+                      <label htmlFor="agreedDrm" className="text-xs text-slate-800 leading-relaxed cursor-pointer select-none">
+                        <strong className="text-slate-900">Cam kết 100% Sách Thật &amp; Nguồn Gốc Hợp Pháp:</strong> Hộ kinh doanh cam kết toàn bộ sách in, sách cũ sưu tầm, truyện tranh và các ấn phẩm phát hành trên sàn HUKI đều có nguồn gốc hợp pháp, nói KHÔNG với sách giả, sách in lậu, sách photocopy trái phép. Hộ kinh doanh cam kết đền bù 100% nếu phát hiện hàng giả và chấp thuận chấm dứt gian hàng vĩnh viễn theo{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setQuickPolicySlug('drm-copyright');
+                          }}
+                          className="text-[#003B2B] font-bold underline hover:opacity-80 inline-flex items-center gap-0.5"
+                        >
+                          Chính sách Chống Hàng Giả &amp; Tác Quyền DRM
+                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                        </button>
+                        .
+                      </label>
+                    </div>
+                    {fieldErrors.agreedDrmTerms && (
+                      <p className="text-xs text-red-500 font-medium">{fieldErrors.agreedDrmTerms}</p>
+                    )}
+                  </div>
                 </div>
-                {fieldErrors.agreedDrmTerms && (
-                  <p className="text-xs text-red-500 font-medium">{fieldErrors.agreedDrmTerms}</p>
-                )}
-              </div>
+              ) : (
+                /* GIAO DIỆN DOANH NGHIỆP / NXB */
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Loại giấy phép ngành nghề (doc_type)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.compliance_doc_type}
+                        onChange={(e) => handleChange('compliance_doc_type', e.target.value)}
+                        placeholder="GIAY_PHEP_XUAT_BAN_SO / BRAND_AUTHORIZATION"
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Số hiệu giấy phép / Quyết định (doc_number)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.compliance_doc_number}
+                        onChange={(e) => handleChange('compliance_doc_number', e.target.value)}
+                        placeholder="GP-XB-2026/88-HUKI"
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Ngày cấp giấy phép (issue_date)
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.compliance_issue_date}
+                        onChange={(e) => handleChange('compliance_issue_date', e.target.value)}
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Ngày hết hạn hiệu lực (expiry_date)
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.compliance_expiry_date}
+                        onChange={(e) => handleChange('compliance_expiry_date', e.target.value)}
+                        className="w-full h-12 bg-white border border-slate-200 hover:border-slate-300 focus:border-[#003B2B] focus:ring-2 focus:ring-[#003B2B]/15 rounded-xl px-4 text-sm text-slate-900 outline-none transition-all shadow-2xs"
+                      />
+                    </div>
+
+                    {/* Upload Giấy phép */}
+                    <div className="md:col-span-2 pt-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                        Bản scan Giấy phép xuất bản / Hợp đồng ủy quyền tác quyền (document_urls)
+                      </label>
+                      <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-300 hover:border-[#003B2B] rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-600 shrink-0">
+                            <span className="material-symbols-outlined text-xl text-[#003B2B]">folder_special</span>
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold text-slate-900">
+                              {formData.compliance_document_url ? 'Giay_Phep_Xuat_Ban_DRM.pdf' : 'Tải lên Giấy phép xuất bản hoặc Chứng nhận Mall'}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              Hỗ trợ định dạng PDF, JPG, PNG (tối đa 25MB)
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <label className="h-9 px-3.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors">
+                            <span className="material-symbols-outlined text-base">upload_file</span>
+                            <span>Chọn tệp</span>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  handleChange('compliance_document_url', URL.createObjectURL(file));
+                                  notify({ title: 'Đã tải lên tệp', message: file.name, type: 'success' });
+                                }
+                              }}
+                            />
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleChange('compliance_document_url', 'https://cdn.hukiebook.vn/permits/xuatban-sample-2026.pdf');
+                              notify({ title: 'Đã chọn tệp mẫu', message: 'Giay_Phep_Xuat_Ban_Sample_2026.pdf', type: 'info' });
+                            }}
+                            className="h-9 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium cursor-pointer"
+                          >
+                            File mẫu
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DRM Terms Agreement */}
+                  <div className="p-4 bg-[#003B2B]/5 border border-[#003B2B]/20 rounded-xl space-y-3">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        id="agreedDrm"
+                        checked={formData.agreedDrmTerms}
+                        onChange={(e) => handleChange('agreedDrmTerms', e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
+                      />
+                      <label htmlFor="agreedDrm" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
+                        <strong className="text-slate-900">Cam kết bản quyền &amp; Mã hóa DRM Tiêu chuẩn:</strong> Doanh nghiệp cam kết toàn bộ các ấn phẩm sách giấy, sách điện tử và sách nói đăng tải trên hệ sinh thái HUKI đều có đầy đủ hợp đồng chuyển nhượng tác quyền hợp pháp và đồng ý bảo vệ nội dung số thông qua chuẩn mã hóa bảo mật DRM của HUKI theo{' '}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setQuickPolicySlug('drm-copyright');
+                          }}
+                          className="text-[#003B2B] font-bold underline hover:opacity-80 inline-flex items-center gap-0.5"
+                        >
+                          Chính sách Bản Quyền Số &amp; DRM
+                          <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                        </button>
+                        .
+                      </label>
+                    </div>
+                    {fieldErrors.agreedDrmTerms && (
+                      <p className="text-xs text-red-500 font-medium">{fieldErrors.agreedDrmTerms}</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1174,28 +1530,28 @@ export function SellerRegisterView() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                   <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
-                    <span>1. Pháp Lý Doanh Nghiệp &amp; Gian Hàng</span>
+                    <span>{isHousehold ? '1. Pháp Lý Hộ Kinh Doanh & Gian Hàng' : '1. Pháp Lý Doanh Nghiệp & Gian Hàng'}</span>
                     <span className="text-emerald-700 font-semibold">{isTaxVerified ? '✓ Đã xác thực' : 'Khởi tạo'}</span>
                   </div>
-                  <div><span className="text-slate-500">Tên DN:</span> <strong className="text-slate-900">{formData.company_name || 'Chưa nhập'}</strong></div>
+                  <div><span className="text-slate-500">{isHousehold ? 'Tên Hộ KD:' : 'Tên DN:'}</span> <strong className="text-slate-900">{formData.company_name || 'Chưa nhập'}</strong></div>
                   <div><span className="text-slate-500">Gian hàng:</span> <strong className="text-emerald-800 font-semibold">{formData.store_name || formData.company_name || 'Chưa nhập'}</strong></div>
                   <div><span className="text-slate-500">MST:</span> <span className="font-mono font-bold text-slate-900">{formData.tax_code || 'Chưa nhập'}</span></div>
-                  <div><span className="text-slate-500">Loại hình:</span> <span className="text-slate-900">{formData.businessType}</span></div>
-                  <div><span className="text-slate-500">Trụ sở:</span> <span className="text-slate-900">{formData.registered_street || 'Chưa nhập'}</span></div>
+                  <div><span className="text-slate-500">Loại hình:</span> <span className="text-slate-900 font-semibold">{isHousehold ? 'Hộ Kinh Doanh Cá Thể' : `Doanh Nghiệp (${formData.businessType})`}</span></div>
+                  <div><span className="text-slate-500">Địa chỉ KD:</span> <span className="text-slate-900">{formData.registered_street || 'Chưa nhập'}</span></div>
                 </div>
 
                 <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                   <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
-                    <span>2. Đại Diện &amp; Vận Hành</span>
+                    <span>{isHousehold ? '2. Chủ Hộ & Vận Hành' : '2. Đại Diện Pháp Luật & Vận Hành'}</span>
                     <span className="text-emerald-700 font-semibold">✓ Hợp lệ</span>
                   </div>
-                  <div><span className="text-slate-500">Đại diện:</span> <strong className="text-slate-900">{formData.rep_full_name || 'Chưa nhập'}</strong></div>
+                  <div><span className="text-slate-500">{isHousehold ? 'Chủ hộ:' : 'Đại diện:'}</span> <strong className="text-slate-900">{formData.rep_full_name || 'Chưa nhập'}</strong></div>
                   <div><span className="text-slate-500">Số CCCD:</span> <span className="font-mono text-slate-900">{formData.rep_id_card_number || 'Chưa nhập'}</span></div>
                   <div><span className="text-slate-500">Hotline:</span> <span className="text-slate-900">{formData.operator_phone || 'Chưa nhập'}</span></div>
                   <div><span className="text-slate-500">Email:</span> <span className="text-slate-900">{formData.operator_email || 'Chưa nhập'}</span></div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2 md:col-span-2">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
                   <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
                     <span>3. Kho Xuất Hàng Vật Lý</span>
                     <span className="text-emerald-700 font-semibold">✓ Sẵn sàng</span>
@@ -1211,15 +1567,34 @@ export function SellerRegisterView() {
                     <span className="text-slate-900">{formData.warehouse_contact_name || 'Thủ kho'} ({formData.warehouse_contact_phone || 'Chưa có SĐT'})</span>
                   </div>
                 </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="font-bold text-slate-900 border-b border-slate-200 pb-1 flex items-center justify-between">
+                    <span>4. Chứng Từ &amp; Cam Kết</span>
+                    <span className="text-emerald-700 font-semibold">✓ Đã xác nhận</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Giấy phép:</span>{' '}
+                    <span className="text-slate-900">{formData.compliance_doc_type || (isHousehold ? 'GCN Đăng ký Hộ KD' : 'Giấy phép XB')}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500">Cam kết:</span>{' '}
+                    <span className="text-emerald-800 font-medium">
+                      {isHousehold ? '100% Sách Thật & Nguồn Gốc Hợp Pháp' : 'Bản quyền & Chuẩn mã hóa DRM'}
+                    </span>
+                  </div>
+                </div>
               </div>
 
-              {/* Note about bank setup */}
-              <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl flex items-start gap-3">
-                <span className="material-symbols-outlined text-emerald-700 shrink-0 text-xl">account_balance</span>
-                <div className="text-xs text-emerald-900">
-                  <strong className="block mb-0.5">Thiết lập tài khoản ngân hàng &amp; Mã PIN bảo mật</strong>
-                  <p className="text-emerald-800 leading-relaxed">
-                    Sau khi Ban quản trị sàn HUKI thẩm định và phê duyệt hồ sơ doanh nghiệp, bạn sẽ hoàn tất việc liên kết <strong>Tài khoản ngân hàng</strong> và thiết lập <strong>Mã PIN 6 số</strong> trong luồng Thiết Lập Gian Hàng.
+              {/* Note about bank setup - Bắt cài sau khi duyệt */}
+              <div className="p-4 bg-emerald-50/70 border border-emerald-300/80 rounded-xl flex items-start gap-3">
+                <span className="material-symbols-outlined text-emerald-800 shrink-0 text-2xl">account_balance</span>
+                <div className="text-xs text-emerald-950">
+                  <strong className="block mb-1 text-sm font-bold text-[#003B2B]">
+                    Bước tiếp theo: Cài đặt Tài khoản Ngân hàng &amp; Mã PIN sau khi được duyệt
+                  </strong>
+                  <p className="text-emerald-900 leading-relaxed">
+                    Bạn <strong>không cần nhập số tài khoản ngân hàng lúc này</strong>. Sau khi Ban quản trị sàn HUKI thẩm định và phê duyệt hồ sơ ({isHousehold ? 'Hộ Kinh Doanh' : 'Doanh Nghiệp / NXB'}) thành công, bạn sẽ hoàn tất việc liên kết <strong>Tài khoản ngân hàng chính chủ</strong> và thiết lập <strong>Mã PIN 6 số</strong> bảo mật trong bước Thiết Lập Gian Hàng trước khi mở bán chính thức.
                   </p>
                 </div>
               </div>
@@ -1235,7 +1610,29 @@ export function SellerRegisterView() {
                     className="mt-1 w-4 h-4 rounded text-[#003B2B] focus:ring-[#003B2B] border-slate-300 cursor-pointer"
                   />
                   <label htmlFor="agreedFinal" className="text-xs text-slate-700 leading-relaxed cursor-pointer select-none">
-                    Tôi cam kết toàn bộ thông tin kê khai trên là hoàn toàn chính xác, đúng pháp luật và chịu trách nhiệm trước pháp luật về tính pháp lý của doanh nghiệp và quyền phát hành sách trên sàn HUKI.
+                    Tôi cam kết toàn bộ thông tin kê khai trên là hoàn toàn chính xác, đúng quy định pháp luật; chịu trách nhiệm trước pháp luật về tính pháp lý của {isHousehold ? 'hộ kinh doanh' : 'doanh nghiệp'}; đồng thời đồng ý tuân thủ{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setQuickPolicySlug('seller-rules');
+                      }}
+                      className="text-[#003B2B] font-bold underline hover:opacity-80"
+                    >
+                      Quy chế &amp; Tiêu chuẩn Nhà bán hàng
+                    </button>{' '}
+                    cùng{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setQuickPolicySlug('disputes');
+                      }}
+                      className="text-[#003B2B] font-bold underline hover:opacity-80"
+                    >
+                      Chính sách Giải quyết Tranh chấp
+                    </button>{' '}
+                    của sàn HUKI.
                   </label>
                 </div>
                 {fieldErrors.agreedTerms && (
@@ -1292,6 +1689,13 @@ export function SellerRegisterView() {
           </div>
         </div>
       </div>
+
+      {/* Policy Quick View Modal */}
+      <PolicyQuickModal
+        isOpen={Boolean(quickPolicySlug)}
+        slug={quickPolicySlug || 'seller-rules'}
+        onClose={() => setQuickPolicySlug(null)}
+      />
     </main>
   );
 }

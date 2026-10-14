@@ -38,6 +38,7 @@ export interface UserSession {
   phone?: string;
   role: 'USER' | 'BUSINESS' | 'PLATFORM_ADMIN' | string;
   status?: string;
+  createdAt?: string;
   mustChangePassword?: boolean;
   memberships?: BusinessMembership[];
   avatarUrl?: string;
@@ -57,6 +58,7 @@ export interface UserSession {
     slug?: string;
     ownerId?: string;
     status?: string;
+    createdAt?: string;
     bankName?: string;
     bankAccountNumber?: string;
     bankAccountHolderName?: string;

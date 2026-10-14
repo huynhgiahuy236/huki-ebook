@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "../../context/ToastContext";
 import { flashSaleApi, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
-import { AdminStatusBadge } from './AdminUI';
+import { AdminStatusBadge, AdminPagination } from './AdminUI';
 
 interface ConfiguredBookItem {
   book: BookData;
@@ -22,6 +22,8 @@ export function AdminFlashSaleView() {
   const [catalogBooks, setCatalogBooks] = useState<BookData[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED' | 'CANCELLED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
 
   // In-Page Expandable Create Slot Form (100% In-Page, Zero Modal)
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -143,12 +145,22 @@ export function AdminFlashSaleView() {
     });
   }, [flashSales, activeTab, searchQuery]);
 
+  // Pagination & Reset
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
+
+  const paginatedFlashSales = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredFlashSales.slice(start, start + pageSize);
+  }, [filteredFlashSales, currentPage, pageSize]);
+
   // Grouped Sessions (Grouped Data Table Structure)
   const groupedSessions = useMemo(() => {
-    const live = filteredFlashSales.filter((s) => s.status === 'ACTIVE');
-    const scheduled = filteredFlashSales.filter((s) => s.status === 'SCHEDULED');
-    const cancelled = filteredFlashSales.filter((s) => s.status === 'CANCELLED');
-    const ended = filteredFlashSales.filter((s) => s.status === 'ENDED');
+    const live = paginatedFlashSales.filter((s) => s.status === 'ACTIVE');
+    const scheduled = paginatedFlashSales.filter((s) => s.status === 'SCHEDULED');
+    const cancelled = paginatedFlashSales.filter((s) => s.status === 'CANCELLED');
+    const ended = paginatedFlashSales.filter((s) => s.status === 'ENDED');
 
     const result = [];
     if (live.length > 0 || activeTab === 'ACTIVE') {
@@ -188,7 +200,7 @@ export function AdminFlashSaleView() {
       });
     }
     return result;
-  }, [filteredFlashSales, activeTab]);
+  }, [paginatedFlashSales, activeTab]);
 
   // Categories for studio filtering
   const categories = useMemo(() => {
@@ -1486,6 +1498,14 @@ export function AdminFlashSaleView() {
               </div>
             </div>
           ))}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredFlashSales.length / pageSize) || 1}
+            totalItems={filteredFlashSales.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
     </div>

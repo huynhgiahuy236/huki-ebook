@@ -13,9 +13,11 @@ export default function SellerTopNoticeBar() {
   const [notices, setNotices] = useState<AdminBroadcastNotification[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
+
   useEffect(() => {
     const loadNotices = () => {
-      const active = adminNotificationService.getTopNoticeForSeller(currentBizId, true);
+      const active = adminNotificationService.getTopNoticeForSeller(currentBizId, true, sellerCreatedAt);
       setNotices(active);
       if (currentIndex >= active.length) {
         setCurrentIndex(0);

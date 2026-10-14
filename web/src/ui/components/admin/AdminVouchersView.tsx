@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "../../context/ToastContext";
 import { voucherApi, Voucher } from "../../api/voucherApi";
-import { AdminStatusBadge } from './AdminUI';
+import { AdminStatusBadge, AdminPagination } from './AdminUI';
 
 export function AdminVouchersView() {
   const { showToast } = useToast();
@@ -14,6 +14,8 @@ export function AdminVouchersView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [groupBy, setGroupBy] = useState<'TYPE' | 'AUDIENCE' | 'NONE'>('TYPE');
   const [expandedVoucherIds, setExpandedVoucherIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const toggleExpandVoucher = (id: string) => {
     setExpandedVoucherIds((prev) => {
@@ -133,10 +135,20 @@ export function AdminVouchersView() {
     });
   }, [vouchers, activeTab, searchQuery]);
 
+  // Pagination & Reset
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, groupBy]);
+
+  const paginatedVouchers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredVouchers.slice(start, start + pageSize);
+  }, [filteredVouchers, currentPage, pageSize]);
+
   // Grouped Data Table (By Type or Target Audience)
   const groupedVouchers = useMemo(() => {
     if (groupBy === 'NONE') {
-      return [{ groupKey: 'ALL', title: 'Tất Cả Voucher Toàn Sàn', icon: 'confirmation_number', items: filteredVouchers }];
+      return [{ groupKey: 'ALL', title: 'Tất Cả Voucher Toàn Sàn', icon: 'confirmation_number', items: paginatedVouchers }];
     }
 
     if (groupBy === 'TYPE') {
@@ -146,7 +158,7 @@ export function AdminVouchersView() {
         FIXED_AMOUNT: { title: 'Mã Giảm Giá Tiền Mặt Cố Định (₫)', items: [], icon: 'payments' },
       };
 
-      filteredVouchers.forEach((v) => {
+      paginatedVouchers.forEach((v) => {
         if (groups[v.type]) {
           groups[v.type].items.push(v);
         } else {
@@ -166,7 +178,7 @@ export function AdminVouchersView() {
         FOLLOWERS_ONLY: { title: 'Dành Cho Độc Giả Thân Thiết / Đã Theo Dõi', items: [], icon: 'verified' },
       };
 
-      filteredVouchers.forEach((v: any) => {
+      paginatedVouchers.forEach((v: any) => {
         const aud = v.targetAudience || 'ALL';
         if (groups[aud]) {
           groups[aud].items.push(v);
@@ -180,8 +192,8 @@ export function AdminVouchersView() {
         .map(([k, g]) => ({ groupKey: k, title: g.title, icon: g.icon, items: g.items }));
     }
 
-    return [{ groupKey: 'ALL', title: 'Danh Sách Voucher', icon: 'confirmation_number', items: filteredVouchers }];
-  }, [filteredVouchers, groupBy]);
+    return [{ groupKey: 'ALL', title: 'Danh Sách Voucher', icon: 'confirmation_number', items: paginatedVouchers }];
+  }, [paginatedVouchers, groupBy]);
 
   const validateVoucherForm = () => {
     const errs: Record<string, string> = {};
@@ -1302,6 +1314,14 @@ export function AdminVouchersView() {
               </div>
             </div>
           ))}
+
+          <AdminPagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(filteredVouchers.length / pageSize) || 1}
+            totalItems={filteredVouchers.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+          />
         </div>
       )}
     </div>

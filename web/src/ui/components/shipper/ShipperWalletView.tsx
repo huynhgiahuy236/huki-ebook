@@ -16,6 +16,12 @@ export default function ShipperWalletView() {
   });
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.ceil(transactions.length / pageSize) || 1;
+  const paginatedTransactions = transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseInt(withdrawAmount.replace(/\D/g, ''), 10);
@@ -223,7 +229,7 @@ export default function ShipperWalletView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9]">
-              {transactions.map((tx) => {
+              {paginatedTransactions.map((tx) => {
                 const isEarning = tx.type === 'EARNING';
                 const isCodCollect = tx.type === 'COD_COLLECT';
                 const isRemittance = tx.type === 'COD_REMITTANCE';
@@ -295,6 +301,38 @@ export default function ShipperWalletView() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Toolbar */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-3.5 border-t border-[#E2E8F0] bg-[#FAFAFA] text-xs text-gray-600">
+            <div>
+              Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
+              <strong>{Math.min(currentPage * pageSize, transactions.length)}</strong> trên{' '}
+              <strong>{transactions.length}</strong> biến động số dư
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+              >
+                ← Trước
+              </button>
+              <span className="px-2.5 py-1 font-bold text-gray-900">
+                Trang {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
+              >
+                Sau →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

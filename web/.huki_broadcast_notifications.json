@@ -21,7 +21,8 @@
     "createdAt": "2026-10-11T12:39:56.406Z",
     "updatedAt": "2026-10-11T12:39:56.421Z",
     "readByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": []
   },
@@ -46,7 +47,8 @@
     "updatedAt": "2026-10-11T08:37:47.848Z",
     "authorName": "Ban Quản Trị HUKI",
     "readByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": [],
     "actionUrl": "/seller/finance",
@@ -72,7 +74,8 @@
     "updatedAt": "2026-10-11T00:37:47.848Z",
     "authorName": "Bộ Phận Kỹ Thuật HUKI",
     "readByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": [],
     "actionUrl": "/seller/notifications",
@@ -99,7 +102,8 @@
     "updatedAt": "2026-10-10T12:37:47.848Z",
     "authorName": "Phòng Pháp Lý HUKI",
     "readByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": [],
     "actionUrl": "/seller/product/correction",

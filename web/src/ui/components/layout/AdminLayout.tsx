@@ -138,6 +138,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/reports': { parent: 'Báo Cáo & Phân Tích', title: 'Phân Tích Dữ Liệu' },
     '/admin/calendar': { parent: 'Vận Hành & Sự Kiện', title: 'Lịch Làm Việc & Sự Kiện' },
     '/admin/integrations': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Tích Hợp Bên Thứ Ba' },
+    '/admin/maintenance': { parent: 'Hệ Thống & Vận Hành', title: 'Bảo Trì Hệ Thống & Kill-Switch' },
     '/admin/support': { parent: 'Hỗ Trợ Khách Hàng', title: 'Yêu Cầu Hỗ Trợ' },
     '/admin/settings': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Cài Đặt Hệ Thống' },
   };
@@ -194,11 +195,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           icon: 'storefront',
           count: stats.pendingStores > 0 ? String(stats.pendingStores) : undefined,
           badgeColor: 'bg-amber-500 text-white font-bold',
-        },
-        {
-          label: 'Tính Năng Seller',
-          to: '/admin/seller-features',
-          icon: 'toggle_on',
         },
       ],
     },
@@ -259,13 +255,19 @@ export function AdminLayout({ children }: AdminLayoutProps) {
       ],
     },
     {
-      group: 'TIẾP THỊ & HỆ THỐNG',
+      group: 'TIẾP THỊ & TRUYỀN THÔNG',
       icon: 'campaign',
       items: [
         { label: 'Phát Sóng Thông Báo', to: '/admin/notifications', icon: 'campaign' },
         { label: 'Voucher Giảm Giá', to: '/admin/vouchers', icon: 'confirmation_number' },
         { label: 'Flash Sale Giờ Vàng', to: '/admin/flash-sales', icon: 'bolt' },
-        { label: 'Tiếp Thị & Banner', to: '/admin/marketing', icon: 'campaign' },
+        { label: 'Tiếp Thị & Banner', to: '/admin/marketing', icon: 'auto_stories' },
+      ],
+    },
+    {
+      group: 'HỆ THỐNG & VẬN HÀNH',
+      icon: 'settings_suggest',
+      items: [
         {
           label: 'Sức Khỏe Hệ Thống',
           to: '/admin/health',
@@ -273,6 +275,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           count: stats.healthStatus === 'ok' ? 'Online' : 'Degraded',
           badgeColor: stats.healthStatus === 'ok' ? 'bg-emerald-500 text-white font-bold' : 'bg-rose-500 text-white font-bold',
         },
+        { label: 'Tính Năng Seller', to: '/admin/seller-features', icon: 'toggle_on' },
+        { label: 'Bảo Trì Hệ Thống', to: '/admin/maintenance', icon: 'build' },
         { label: 'Cài Đặt Hệ Thống', to: '/admin/settings', icon: 'settings' },
       ],
     },
@@ -362,8 +366,18 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </form>
         </div>
 
-        {/* Right: Microservice Health, User info & Logout */}
+        {/* Right: Storefront link, Microservice Health, User info & Logout */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Back to Storefront Link */}
+          <Link
+            href="/"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-xs font-bold text-emerald-900 transition-colors shadow-2xs"
+            title="Trở về Xem Cửa Hàng / Sàn HuKi"
+          >
+            <span className="material-symbols-outlined text-[16px] text-emerald-700">storefront</span>
+            <span className="hidden sm:inline">Xem Sàn HuKi</span>
+          </Link>
+
           {/* Health quick status badge */}
           <Link
             href="/admin/health"

@@ -4,6 +4,7 @@ import { businessApi } from '../../api/businessApi';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -150,9 +151,15 @@ export function AdminBusinessUpdateRequestsView() {
   const handleApprove = async (reqId: any) => {
     markAsRead(reqId);
     setActionLoading(true);
+    const targetBizId = selectedRequest?.businessId || selectedRequest?.business?.id;
     try {
       const res = await businessApi.approveUpdateRequest(reqId);
       if (res.success) {
+        realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', {
+          businessId: targetBizId,
+          status: 'APPROVED',
+          requestId: reqId,
+        });
         showToast?.((res as any)?.message || 'Đã phê duyệt và cập nhật thông tin doanh nghiệp vào Database thành công!', 'success');
         setSelectedRequest(null);
         await fetchRequests();
@@ -188,10 +195,17 @@ export function AdminBusinessUpdateRequestsView() {
       markAsRead(selectedRequest.id);
     }
 
+    const targetBizId = selectedRequest?.businessId || selectedRequest?.business?.id;
     setActionLoading(true);
     try {
       const res = await businessApi.rejectUpdateRequest(selectedRequest.id, rejectReason.trim());
       if (res.success) {
+        realtimeSyncBus.publish('BUSINESS_STATUS_UPDATED', {
+          businessId: targetBizId,
+          status: 'REJECTED',
+          requestId: selectedRequest.id,
+          reason: rejectReason.trim(),
+        });
         showToast?.('Đã từ chối yêu cầu cập nhật và gửi lý do phản hồi cho Seller.', 'info');
         setIsRejectModalOpen(false);
         setSelectedRequest(null);
@@ -630,11 +644,25 @@ export function AdminBusinessUpdateRequestsView() {
 
                 <div className="space-y-2">
                   <div>
-                    <span className="text-gray-500 font-medium">Tên pháp nhân mới:</span>
+                    <span className="text-gray-500 font-medium">Tên mới:</span>
                     <p className="font-bold text-[#003b2b] mt-0.5 text-sm bg-white p-1.5 rounded-md border border-amber-200">
                       {selectedRequest.requestedData?.name || selectedRequest.business?.name}
                     </p>
                   </div>
+
+                  {selectedRequest.requestedData?.internationalName && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Tên quốc tế:</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">{selectedRequest.requestedData.internationalName}</p>
+                    </div>
+                  )}
+
+                  {selectedRequest.requestedData?.shortName && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Tên viết tắt:</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">{selectedRequest.requestedData.shortName}</p>
+                    </div>
+                  )}
 
                   <div>
                     <span className="text-gray-500 font-medium">Mã số thuế:</span>
@@ -646,9 +674,46 @@ export function AdminBusinessUpdateRequestsView() {
                   <div>
                     <span className="text-gray-500 font-medium">Loại hình mới:</span>
                     <p className="font-semibold text-gray-900 mt-0.5">
-                      {selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType}
+                      {selectedRequest.requestedData?.businessType === 'INDIVIDUAL' 
+                        ? '🏪 Hộ Kinh Doanh Cá Thể' 
+                        : `🏢 Doanh Nghiệp (${selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType})`}
                     </p>
                   </div>
+
+                  {selectedRequest.requestedData?.businessLicenseNumber && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Số Giấy phép:</span>
+                      <p className="font-mono font-semibold text-gray-800 mt-0.5">
+                        {selectedRequest.requestedData.businessLicenseNumber} 
+                        {selectedRequest.requestedData.issuePlace ? ` (Cấp bởi: ${selectedRequest.requestedData.issuePlace})` : ''}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedRequest.requestedData?.repName && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Người đại diện / Chủ hộ:</span>
+                      <p className="font-semibold text-gray-800 mt-0.5">
+                        {selectedRequest.requestedData.repName} ({selectedRequest.requestedData.repPosition || 'Đại diện'}) &bull; CCCD: {selectedRequest.requestedData.repIdCardNumber || 'N/A'}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedRequest.requestedData?.bankAccountNumber && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Tài khoản Ngân hàng (KYC):</span>
+                      <p className="font-semibold text-emerald-800 mt-0.5 bg-emerald-50 p-1.5 rounded border border-emerald-200">
+                        {selectedRequest.requestedData.bankName} &bull; STK: {selectedRequest.requestedData.bankAccountNumber} &bull; Chủ TK: {selectedRequest.requestedData.bankAccountHolderName}
+                      </p>
+                    </div>
+                  )}
+
+                  {selectedRequest.requestedData?.storeName && (
+                    <div>
+                      <span className="text-gray-500 font-medium">Tên gian hàng hiển thị:</span>
+                      <p className="font-bold text-[#00875A] mt-0.5">{selectedRequest.requestedData.storeName}</p>
+                    </div>
+                  )}
 
                   <div>
                     <span className="text-gray-500 font-medium">Hotline &amp; Email mới:</span>

@@ -39,6 +39,105 @@ import {
   SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+
+export interface VoucherPreset {
+  id: string;
+  icon: string;
+  title: string;
+  badge: string;
+  name: string;
+  codePrefix: string;
+  type: 'PERCENTAGE' | 'FIXED_AMOUNT';
+  value: number;
+  minOrderAmount: number;
+  maxDiscountAmount?: number;
+  targetAudience?: VoucherTargetAudience;
+  minFollowDays?: number;
+  description: string;
+}
+
+export const SELLER_PRESETS: VoucherPreset[] = [
+  {
+    id: 'CUSTOM',
+    icon: '✏️',
+    title: 'Tự do thiết lập',
+    badge: 'Tùy chỉnh',
+    name: '',
+    codePrefix: 'SALE',
+    type: 'PERCENTAGE',
+    value: 10,
+    minOrderAmount: 100000,
+    maxDiscountAmount: 30000,
+    description: 'Tự do nhập % giảm hoặc tiền mặt, mức đơn tối thiểu tùy thích.',
+  },
+  {
+    id: 'BIG_ORDER_15P',
+    icon: '🔥',
+    title: 'Giảm 15% đơn từ 1Tr',
+    badge: 'Đơn lớn',
+    name: 'Ưu đãi 15% cho đơn sách từ 1.000.000đ',
+    codePrefix: 'HUKI15P1M',
+    type: 'PERCENTAGE',
+    value: 15,
+    minOrderAmount: 1000000,
+    maxDiscountAmount: 200000,
+    description: 'Kích thích khách chốt đơn combo sách giá trị cao.',
+  },
+  {
+    id: 'STANDARD_10P',
+    icon: '⭐',
+    title: 'Giảm 10% đơn từ 300k',
+    badge: 'Tiêu chuẩn',
+    name: 'Giảm 10% đơn từ 300.000đ',
+    codePrefix: 'SHOP10P',
+    type: 'PERCENTAGE',
+    value: 10,
+    minOrderAmount: 300000,
+    maxDiscountAmount: 50000,
+    description: 'Phù hợp với đơn từ 2 - 3 cuốn sách giấy.',
+  },
+  {
+    id: 'CASH_30K',
+    icon: '💵',
+    title: 'Giảm 30k đơn từ 250k',
+    badge: 'Tiền mặt',
+    name: 'Giảm ngay 30.000đ cho đơn từ 250.000đ',
+    codePrefix: 'GIAM30K',
+    type: 'FIXED_AMOUNT',
+    value: 30000,
+    minOrderAmount: 250000,
+    description: 'Giảm trực tiếp tiền mặt khi khách mua sách.',
+  },
+  {
+    id: 'FAN_20P',
+    icon: '👑',
+    title: 'Fan cứng (Follower > 30 ngày)',
+    badge: 'Người theo dõi',
+    name: 'Tri ân độc giả theo dõi gian hàng > 30 ngày',
+    codePrefix: 'FANVIP20',
+    type: 'PERCENTAGE',
+    value: 20,
+    minOrderAmount: 150000,
+    maxDiscountAmount: 60000,
+    targetAudience: 'FOLLOWERS_ONLY',
+    minFollowDays: 30,
+    description: 'Tăng tương tác và giữ chân khách hàng thân thiết.',
+  },
+  {
+    id: 'NEW_CUSTOMER_20K',
+    icon: '🎁',
+    title: 'Khách mới: Giảm 20k',
+    badge: 'Khách mới',
+    name: 'Chào mừng độc giả mới ghé thăm gian hàng',
+    codePrefix: 'WELCOME20',
+    type: 'FIXED_AMOUNT',
+    value: 20000,
+    minOrderAmount: 100000,
+    targetAudience: 'NEW_CUSTOMERS_ONLY',
+    description: 'Tăng tỷ lệ chuyển đổi cho khách lần đầu mua.',
+  },
+];
 
 export function SellerVouchersView() {
   const { user, activeBusinessId } = useAuth();
@@ -155,12 +254,69 @@ export function SellerVouchersView() {
     loadData();
   }, [loadData]);
 
+  // Realtime Sync Bus & Background Auto-Polling (Zero-F5)
+  useEffect(() => {
+    const pollTimer = setInterval(() => {
+      loadData();
+    }, 5000);
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'VOUCHER_USAGE_UPDATED' ||
+        msg.type === 'ORDER_CREATED' ||
+        msg.type === 'ORDER_PAYMENT_SUCCEEDED'
+      ) {
+        loadData();
+      }
+    });
+
+    return () => {
+      clearInterval(pollTimer);
+      unsubscribe();
+    };
+  }, [loadData]);
+
+  // Selected Preset Template State
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('CUSTOM');
+
+  const handleSelectPreset = (preset: VoucherPreset) => {
+    setSelectedPresetId(preset.id);
+    if (preset.id === 'CUSTOM') {
+      showToast({
+        title: 'Chế độ Tự do',
+        message: 'Bạn có thể tự do nhập mọi mức giảm % hoặc tiền mặt, đơn tối thiểu theo ý muốn!',
+      }, 'info');
+      return;
+    }
+
+    const rand = Math.floor(100 + Math.random() * 900);
+    setCode(`${preset.codePrefix}${rand}`);
+    setName(preset.name);
+    setDescription(preset.description);
+    setType(preset.type);
+    setValue(preset.value.toString());
+    setMinOrderAmount(preset.minOrderAmount.toString());
+    setMaxDiscountAmount(preset.maxDiscountAmount ? preset.maxDiscountAmount.toString() : '');
+    if (preset.targetAudience) {
+      setTargetAudience(preset.targetAudience);
+    }
+    if (preset.minFollowDays !== undefined) {
+      setMinFollowDays(preset.minFollowDays);
+      setCustomDaysInput(preset.minFollowDays > 0 ? preset.minFollowDays.toString() : '30');
+    }
+    showToast({
+      title: 'Đã áp dụng mẫu',
+      message: `Đã điền thông số mẫu "${preset.title}". Bạn vẫn có thể tùy ý sửa đổi trước khi tạo!`,
+    }, 'info');
+  };
+
   // Open Create Form
   const handleOpenCreate = () => {
     setFormMode('CREATE');
     setEditingVoucher(null);
     setStatsVoucherId(null);
     setUsageStats(null);
+    setSelectedPresetId('CUSTOM');
 
     // Default form values
     setCode('');
@@ -254,6 +410,14 @@ export function SellerVouchersView() {
           showToast({ title: 'Lỗi', message: res.error?.message || 'Không thể tạm tắt voucher' }, 'error');
         }
       } else {
+        if (counts.active >= 5) {
+          showToast({
+            title: 'Hạn mức voucher đầy',
+            message: 'Gian hàng đã đạt tối đa 5 voucher đang hoạt động cùng lúc. Vui lòng tạm tắt bớt 1 voucher cũ trước khi kích hoạt mã này!',
+          }, 'warning');
+          setActionLoadingId(null);
+          return;
+        }
         const res = await activateSellerVoucher(voucher.id);
         if (res.success) {
           showToast({ title: 'Thành công', message: `Đã kích hoạt voucher ${voucher.code}` }, 'success');
@@ -480,11 +644,26 @@ export function SellerVouchersView() {
             <span>Voucher Giảm Giá Gian Hàng</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Tạo và quản lý các mã giảm giá riêng của shop (giảm %, giảm tiền mặt, freeship) để kích cầu người mua.
+            Tạo và quản lý các mã giảm giá riêng của shop (giảm %, giảm tiền mặt) để kích cầu người mua. Mã Freeship do Sàn HuKi độc quyền trợ giá.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          {/* Active Quota Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-2xs">
+            <span className="material-symbols-outlined text-[16px] text-emerald-600">verified</span>
+            <span className="font-semibold text-slate-600">Đang chạy:</span>
+            <span className={`font-mono font-bold ${counts.active >= 5 ? 'text-rose-600' : 'text-slate-900'}`}>
+              {counts.active}/5
+            </span>
+            <div className="w-14 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+              <div
+                className={`h-full transition-all ${counts.active >= 5 ? 'bg-rose-500' : 'bg-[#00875A]'}`}
+                style={{ width: `${Math.min(100, (counts.active / 5) * 100)}%` }}
+              />
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={loadData}
@@ -524,7 +703,7 @@ export function SellerVouchersView() {
                 </h3>
                 <p className="text-[11px] text-slate-500">
                   {formMode === 'CREATE'
-                    ? 'Nhập các thông số mã giảm giá để áp dụng cho khách mua hàng của Shop'
+                    ? 'Chọn mẫu gợi ý nhanh hoặc tự do thiết lập % giảm, mức giảm tiền mặt theo ý muốn'
                     : 'Cập nhật lại hạn mức hoặc thời gian hiệu lực của mã'}
                 </p>
               </div>
@@ -539,6 +718,40 @@ export function SellerVouchersView() {
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           </div>
+
+          {/* Quick Presets / Templates Selector */}
+          {formMode === 'CREATE' && (
+            <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[17px] text-amber-500">auto_fix_high</span>
+                  <span>Mẫu Voucher Gợi Ý Nhanh (Hoặc Tự Do Thiết Lập):</span>
+                </span>
+                <span className="text-[11px] text-slate-500">Bấm 1 click để tự động điền form</span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 scrollbar-thin">
+                {SELLER_PRESETS.map((p) => {
+                  const isSelected = selectedPresetId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => handleSelectPreset(p)}
+                      className={`px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer border shrink-0 ${
+                        isSelected
+                          ? 'bg-[#00875A] text-white border-[#00875A] shadow-xs ring-2 ring-[#00875A]/20'
+                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-100'
+                      }`}
+                      title={p.description}
+                    >
+                      <span>{p.icon}</span>
+                      <span>{p.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleSubmitForm} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -602,12 +815,14 @@ export function SellerVouchersView() {
                 <select
                   value={type}
                   onChange={(e) => setType(e.target.value as VoucherType)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white cursor-pointer"
                 >
                   <option value="PERCENTAGE">Giảm theo % (PERCENTAGE)</option>
                   <option value="FIXED_AMOUNT">Giảm số tiền cố định (FIXED AMOUNT)</option>
-                  <option value="FREE_SHIPPING">Miễn phí vận chuyển (FREE SHIPPING)</option>
                 </select>
+                <span className="text-[10.5px] text-slate-400 mt-1 block">
+                  * Mã Freeship do Sàn HuKi độc quyền trợ giá và phát hành.
+                </span>
               </div>
 
               {/* Value */}
@@ -615,18 +830,16 @@ export function SellerVouchersView() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   {type === 'PERCENTAGE'
                     ? 'Mức Giảm (%) *'
-                    : type === 'FIXED_AMOUNT'
-                    ? 'Số Tiền Giảm (VNĐ) *'
-                    : 'Mức Hỗ Trợ Ship (VNĐ)'}
+                    : 'Số Tiền Giảm (VNĐ) *'}
                 </label>
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   max={type === 'PERCENTAGE' ? 90 : 10000000}
-                  required={type !== 'FREE_SHIPPING'}
+                  required
                   value={value}
                   onChange={(e) => setValue(e.target.value)}
-                  placeholder={type === 'PERCENTAGE' ? 'VD: 15 (15%)' : 'VD: 20000'}
+                  placeholder={type === 'PERCENTAGE' ? 'VD: 15 (15%)' : 'VD: 30000 (30.000đ)'}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#00875A] focus:bg-white"
                 />
               </div>

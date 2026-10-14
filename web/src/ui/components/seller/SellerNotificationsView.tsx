@@ -10,6 +10,7 @@ import {
 } from '@/ui/services/adminNotificationService';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useAuth } from '@/ui/context/AuthContext';
+import { SellerPagination } from './SellerUI';
 
 type TabFilter = 'all' | 'admin' | 'finance' | 'orders' | 'marketing';
 
@@ -20,14 +21,41 @@ export default function SellerNotificationsView() {
   const { user, activeBusinessId } = useAuth();
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
 
+  // Xác định mốc thời gian tạo gian hàng / tài khoản người bán
+  const sellerCreatedAt = useMemo(() => {
+    if (user?.business?.createdAt) return user.business.createdAt;
+    if (user?.createdAt) return user.createdAt;
+    if (typeof window !== 'undefined') {
+      if (currentBizId) {
+        const stored = localStorage.getItem(`huki_seller_registered_at_${currentBizId}`);
+        if (stored) return stored;
+        try {
+          const p = localStorage.getItem(`huki_enterprise_profile_${currentBizId}`);
+          if (p) {
+            const parsed = JSON.parse(p);
+            if (parsed.submitted_at || parsed.createdAt) return parsed.submitted_at || parsed.createdAt;
+          }
+        } catch {}
+      }
+      const userReg = localStorage.getItem(`huki_seller_registered_at_${user?.id || 'current'}`);
+      if (userReg) return userReg;
+    }
+    // Mặc định shop đang thao tác nếu không có mốc cũ thì xem là mới tạo để lọc đúng quy tắc
+    return new Date().toISOString();
+  }, [user?.business?.createdAt, user?.createdAt, currentBizId, user?.id]);
+
   const [notifications, setNotifications] = useState<AdminBroadcastNotification[]>([]);
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [selectedNotif, setSelectedNotif] = useState<AdminBroadcastNotification | null>(null);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
   const loadNotifs = () => {
-    const list = adminNotificationService.getForSeller(currentBizId, true);
+    const list = adminNotificationService.getForSeller(currentBizId, true, sellerCreatedAt);
     setNotifications(list);
   };
 
@@ -44,7 +72,7 @@ export default function SellerNotificationsView() {
       window.removeEventListener('huki_admin_notifications_updated', loadNotifs);
       unsubscribe();
     };
-  }, [currentBizId]);
+  }, [currentBizId, sellerCreatedAt]);
 
   // Open modal if URL has ?id=
   useEffect(() => {
@@ -305,7 +333,8 @@ export default function SellerNotificationsView() {
             </div>
           </div>
         ) : (
-          filteredList.map((n) => {
+          <>
+            {filteredList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((n) => {
             const isRead = currentBizId && n.readByBusinessIds?.includes(currentBizId);
             const catMeta = getCategoryMeta(n.category);
 
@@ -349,6 +378,18 @@ export default function SellerNotificationsView() {
                           <span>Ghim Đầu Trang</span>
                         </span>
                       )}
+                      {(n.scheduleType === 'RECURRING' || (n.scheduleType === 'SCHEDULED' && new Date(n.scheduledAt || '').getTime() >= Date.now())) && (
+                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-300 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">event_upcoming</span>
+                          <span>Sắp Diễn Ra</span>
+                        </span>
+                      )}
+                      {n.category === 'POLICY' && (
+                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px]">verified</span>
+                          <span>Hiện Hành</span>
+                        </span>
+                      )}
                       <span className="text-[11px] text-slate-400 font-medium">
                         • {formatRelativeTime(n.createdAt)}
                       </span>
@@ -388,7 +429,22 @@ export default function SellerNotificationsView() {
                 </div>
               </div>
             );
-          })
+          })}
+
+          {/* Pagination Toolbar */}
+          {filteredList.length > pageSize && (
+            <div className="pt-2">
+              <SellerPagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredList.length / pageSize) || 1}
+                totalItems={filteredList.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                itemLabel="thông báo"
+              />
+            </div>
+          )}
+          </>
         )}
       </section>
 

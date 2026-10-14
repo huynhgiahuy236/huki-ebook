@@ -110,8 +110,8 @@ export function DailyRecommendationsSection({
                   authorName: book.authorName || undefined,
                   format: (book as any).format || book.categoryName || 'Sách',
                   formatType: (book as any).formatType || 'physical',
-                  rating: (book as any).rating ?? 0,
-                  sales: (book as any).sales ?? 0,
+                  rating: (book as any).rating,
+                  sales: (book as any).soldCount ?? (book as any).sales ?? (book as any).soldQuantity ?? 0,
                 }}
                 variant="compact"
               />

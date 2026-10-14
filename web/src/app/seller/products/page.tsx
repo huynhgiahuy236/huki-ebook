@@ -118,6 +118,18 @@ export default function SellerProductsPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>('');
   const [aiPaymentMethod, setAiPaymentMethod] = useState<'WALLET' | 'PAYOS' | 'QR_TRANSFER'>('WALLET');
   const [isSubscribingAi, setIsSubscribingAi] = useState<boolean>(false);
+  const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState<boolean>(false);
+  const createDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (createDropdownRef.current && !createDropdownRef.current.contains(event.target as Node)) {
+        setIsCreateDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const toggleExpandProduct = (id: string) => {
     setExpandedProductIds((prev) => {
@@ -444,50 +456,72 @@ export default function SellerProductsPage() {
           </SellerActionButton>
 
           {can(PERMISSIONS.PRODUCT_CREATE, currentBizId, user) && (
-            <div className="relative group">
-              <SellerActionButton
-                type="button"
-                variant="primary"
-                size="sm"
-                icon="add_circle"
+            <div className="relative inline-flex items-center" ref={createDropdownRef}>
+              {/* Nút bấm chính: Bấm vào là điều hướng thẳng tới form tạo sách */}
+              <Link
+                href="/seller/product/create-hybrid"
+                className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-l-xl text-xs font-bold bg-[#00875A] hover:bg-[#00704A] text-white shadow-sm transition-all border-r border-emerald-600/50"
               >
+                <span className="material-symbols-outlined text-[17px]">add_circle</span>
                 <span>+ Thêm Sản Phẩm Mới</span>
-              </SellerActionButton>
+              </Link>
+
+              {/* Nút mũi tên mở danh sách định dạng */}
+              <button
+                type="button"
+                onClick={() => setIsCreateDropdownOpen((prev) => !prev)}
+                className="inline-flex items-center justify-center w-8 py-1.5 rounded-r-xl text-xs font-bold bg-[#00875A] hover:bg-[#00704A] text-white shadow-sm transition-all cursor-pointer"
+                title="Chọn định dạng sách cần tạo"
+              >
+                <span className={`material-symbols-outlined text-[18px] transition-transform duration-200 ${isCreateDropdownOpen ? 'rotate-180' : ''}`}>
+                  keyboard_arrow_down
+                </span>
+              </button>
 
               {/* Dropdown Options */}
-              <div className="absolute right-0 mt-1.5 w-60 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 z-30 hidden group-hover:block transition-all">
-                <Link
-                  href="/seller/product/create-physical"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base text-amber-600">inventory_2</span>
-                  <div>
-                    <div className="font-bold text-slate-900">Đăng Sách Giấy</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Quản lý kho vật lý &amp; kích thước</div>
+              {isCreateDropdownOpen && (
+                <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                    Chọn Định Dạng Ấn Phẩm
                   </div>
-                </Link>
-                <Link
-                  href="/seller/product/create-ebook"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base text-purple-600">menu_book</span>
-                  <div>
-                    <div className="font-bold text-slate-900">Đăng Ebook Kỹ Thuật Số</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Cấp quyền số &amp; bảo vệ DRM</div>
-                  </div>
-                </Link>
-                <div className="my-1 border-t border-slate-100" />
-                <Link
-                  href="/seller/product/create-hybrid"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="material-symbols-outlined text-base text-emerald-600">auto_stories</span>
-                  <div>
-                    <div className="font-bold text-slate-900">Đăng Combo Sách + Ebook</div>
-                    <div className="text-[10px] text-slate-400 font-normal">Gói Hybrid đồng bộ cả 2 ấn phẩm</div>
-                  </div>
-                </Link>
-              </div>
+
+                  <Link
+                    href="/seller/product/create-hybrid"
+                    onClick={() => setIsCreateDropdownOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-900 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg text-emerald-600">auto_stories</span>
+                    <div>
+                      <div className="font-bold text-slate-900">Đăng Combo Sách + Ebook</div>
+                      <div className="text-[10px] text-slate-500 font-normal">Gói Hybrid đồng bộ cả 2 ấn phẩm (Khuyên dùng)</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/seller/product/create-physical"
+                    onClick={() => setIsCreateDropdownOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-amber-50 hover:text-amber-900 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg text-amber-600">inventory_2</span>
+                    <div>
+                      <div className="font-bold text-slate-900">Đăng Sách Giấy</div>
+                      <div className="text-[10px] text-slate-500 font-normal">Quản lý kho vật lý &amp; kích thước cân nặng</div>
+                    </div>
+                  </Link>
+
+                  <Link
+                    href="/seller/product/create-ebook"
+                    onClick={() => setIsCreateDropdownOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-purple-50 hover:text-purple-900 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-lg text-purple-600">menu_book</span>
+                    <div>
+                      <div className="font-bold text-slate-900">Đăng Ebook Kỹ Thuật Số</div>
+                      <div className="text-[10px] text-slate-500 font-normal">Cấp quyền đọc số, mã hóa DRM &amp; Giọng đọc AI</div>
+                    </div>
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </div>

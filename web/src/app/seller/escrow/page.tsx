@@ -264,20 +264,27 @@ export default function SellerEscrowPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold font-editorial text-slate-900 tracking-tight flex items-center gap-2.5">
             <span className="w-2.5 h-6 bg-[#00875A] rounded-full inline-block"></span>
-            <span>Quản Lý Tiền Đang Treo &amp; Ký Quỹ Escrow</span>
+            <span>Tiền Chờ Quyết Toán (Escrow)</span>
           </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Theo dõi chi tiết từng cuốn sách trong tất cả đơn hàng: tình trạng giữ tiền bảo chứng, đếm ngược hạn đổi trả 2 phút và tiến trình giải ngân 95% về ví.
+            Theo dõi chi tiết các đơn hàng đang vận chuyển, chờ khách xác nhận hoặc đếm ngược hạn đổi trả trước khi giải ngân vào Số Dư Khả Dụng.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
+            href="/seller/finance"
+            className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[18px] text-emerald-600">account_balance_wallet</span>
+            <span>Số Dư Ví &amp; Rút Tiền</span>
+          </Link>
+          <Link
             href="/seller/reports"
             className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-50 text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5 border border-slate-200 cursor-pointer"
           >
             <span className="material-symbols-outlined text-[18px] text-slate-500">analytics</span>
-            <span>Xem Dashboard Báo Cáo</span>
+            <span>Báo Cáo &amp; Sổ Cái</span>
           </Link>
           <button
             type="button"

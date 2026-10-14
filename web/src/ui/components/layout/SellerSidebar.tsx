@@ -143,7 +143,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
 
     const syncAdminNotifs = () => {
       const bizId = user?.business?.id || activeBusinessId || undefined;
-      const notifs = adminNotificationService.getForSeller(bizId, true);
+      const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
+      const notifs = adminNotificationService.getForSeller(bizId, true, sellerCreatedAt);
       const unread = notifs.filter(n => !bizId || !n.readByBusinessIds?.includes(bizId)).length;
       setUnreadAdminNotifs(unread);
     };
@@ -280,8 +281,8 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         },
         { 
           to: '/seller/product/correction', 
-          icon: 'edit_note', 
-          label: 'Chỉnh Sửa Thông Tin Sách', 
+          icon: 'draft', 
+          label: 'Danh Sách Sách Nháp', 
           permission: PERMISSIONS.PRODUCT_UPDATE 
         },
         { 
@@ -289,12 +290,6 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           icon: 'inventory', 
           label: 'Quản Lý Tồn Kho (3 Tầng)', 
           permission: PERMISSIONS.INVENTORY_UPDATE,
-        },
-        { 
-          to: '/seller/product/create-physical', 
-          icon: 'inventory_2', 
-          label: 'Cập Nhật Tồn Kho Sách Cũ', 
-          permission: PERMISSIONS.INVENTORY_UPDATE 
         }
       ]
     },
@@ -358,12 +353,6 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
       icon: 'account_balance_wallet',
       items: [
         { 
-          to: '/seller/reports', 
-          icon: 'analytics', 
-          label: 'Báo Cáo Doanh Thu', 
-          permission: PERMISSIONS.FINANCE_VIEW 
-        },
-        { 
           to: '/seller/finance', 
           icon: 'account_balance_wallet', 
           label: 'Số Dư Ví & Rút Tiền', 
@@ -373,13 +362,13 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/escrow', 
           icon: 'hourglass_top', 
-          label: 'Tiền Ký Quỹ Đang Giữ', 
+          label: 'Tiền Chờ Quyết Toán', 
           permission: PERMISSIONS.FINANCE_VIEW 
         },
         { 
-          to: '/seller/transactions', 
-          icon: 'receipt_long', 
-          label: 'Lịch Sử Giao Dịch Ví', 
+          to: '/seller/reports', 
+          icon: 'analytics', 
+          label: 'Báo Cáo Doanh Thu & Sổ Cái', 
           permission: PERMISSIONS.FINANCE_VIEW 
         }
       ]
@@ -395,13 +384,6 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           badge: badges.businessUpdates || null,
           badgeColor: 'bg-rose-600',
           permission: PERMISSIONS.STORE_VIEW 
-        },
-        { 
-          to: '/seller/business/settings', 
-          icon: 'storefront', 
-          label: 'Cập Nhật Hồ Sơ Cửa Hàng', 
-          permission: PERMISSIONS.STORE_UPDATE,
-          isDeferred: true 
         },
         { 
           to: '/seller/staff', 
@@ -551,6 +533,12 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                 const isFeatureDisabled = !featCheck.accessible;
 
                 if (isFeatureDisabled) {
+                  const isTenantRestricted = featCheck.reason?.includes('giới hạn') || featCheck.reason?.includes('quyền truy cập');
+                  const badgeText = isTenantRestricted ? 'Giới hạn' : 'Bảo trì';
+                  const badgeClasses = isTenantRestricted
+                    ? 'text-rose-800 bg-rose-100 border border-rose-200'
+                    : 'text-amber-800 bg-amber-100 border border-amber-200';
+
                   return (
                     <div key={iIdx} className="relative group/dis">
                       {isCollapsed ? (
@@ -558,23 +546,32 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                           <div className="flex items-center justify-center w-10 h-10 rounded-xl opacity-40 text-slate-400 bg-slate-100/70 cursor-not-allowed">
                             <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
                           </div>
-                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-opacity duration-150 absolute left-full ml-2.5 px-3 py-1.5 bg-slate-900 text-white text-xs font-semibold rounded-xl shadow-xl whitespace-nowrap z-50">
-                            <div className="font-bold text-amber-300">{item.label} (Bảo trì)</div>
-                            <div className="text-[10px] text-slate-300 font-normal">{featCheck.reason || 'Đang bảo trì nâng cấp'}</div>
+                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-opacity duration-150 absolute left-full ml-2.5 px-3 py-2 bg-slate-900 text-white text-xs rounded-xl shadow-2xl border border-slate-700 w-60 z-[9999]">
+                            <div className={`font-bold mb-0.5 ${isTenantRestricted ? 'text-rose-300' : 'text-amber-300'}`}>
+                              {item.label} ({badgeText})
+                            </div>
+                            <div className="text-[10.5px] text-slate-300 font-normal leading-relaxed">{featCheck.reason || 'Đang bảo trì nâng cấp'}</div>
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] opacity-40 text-slate-400 bg-slate-50/70 border border-slate-200/50 cursor-not-allowed select-none relative">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <span className="material-symbols-outlined text-[19px] shrink-0 text-slate-400">{item.icon}</span>
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] bg-slate-50/70 border border-slate-200/50 cursor-not-allowed select-none relative">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1 opacity-45 text-slate-400">
+                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
                             <span className="truncate leading-none">{item.label}</span>
                           </div>
-                          <span className="text-[8.5px] px-1.5 py-0.5 rounded font-bold text-amber-800 bg-amber-100 border border-amber-200 whitespace-nowrap shrink-0">
-                            Bảo trì
+                          <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap shrink-0 ${badgeClasses}`}>
+                            {badgeText}
                           </span>
-                          {/* Tooltip on hover */}
-                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-opacity duration-150 absolute bottom-full left-2 mb-1.5 px-3 py-1.5 bg-slate-900 text-white text-[11px] rounded-xl shadow-xl whitespace-normal max-w-xs z-50 leading-relaxed">
-                            <span className="font-bold text-amber-400">Tạm bảo trì:</span> {featCheck.reason || 'Tính năng đang được nâng cấp bởi Ban quản trị sàn'}
+
+                          {/* Floating Tooltip to the right: Solid background, no bleed-through, doesn't cover other menu items */}
+                          <div className="opacity-0 pointer-events-none group-hover/dis:opacity-100 transition-all duration-150 absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3.5 py-2.5 bg-slate-900 text-white text-[11px] rounded-xl shadow-2xl border border-slate-700 whitespace-normal w-64 z-[9999] leading-relaxed">
+                            <div className={`font-bold flex items-center gap-1.5 mb-1 ${isTenantRestricted ? 'text-rose-400' : 'text-amber-400'}`}>
+                              <span className="material-symbols-outlined text-sm">{isTenantRestricted ? 'block' : 'build'}</span>
+                              <span>{isTenantRestricted ? 'Giới Hạn Truy Cập' : 'Tạm Bảo Trì'}</span>
+                            </div>
+                            <div className="text-slate-300 text-[10.5px] leading-relaxed">
+                              {featCheck.reason || 'Tính năng đang được nâng cấp bởi Ban quản trị sàn'}
+                            </div>
                           </div>
                         </div>
                       )}

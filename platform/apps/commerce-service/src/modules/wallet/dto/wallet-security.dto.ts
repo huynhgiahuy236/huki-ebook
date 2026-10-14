@@ -81,13 +81,13 @@ export class ChangePinDto {
   @Matches(/^\d{6}$/, { message: 'Mã PIN mới phải bao gồm chính xác 6 chữ số' })
   newPin: string;
 
-  @ApiProperty({
-    description: 'Verified 2FA token authorizing the PIN change',
+  @ApiPropertyOptional({
+    description: 'Verified 2FA token authorizing the PIN change (optional if verifying current PIN directly)',
     example: 'sec_auth_tok_abc123',
   })
   @IsString()
-  @IsNotEmpty()
-  twoFactorToken: string;
+  @IsOptional()
+  twoFactorToken?: string;
 }
 
 export class TwoFactorChallengeDto {
@@ -158,6 +158,18 @@ export class WalletSecurityStatusDto {
 
   @ApiPropertyOptional({ description: 'Timestamp when the PIN was set', example: '2026-09-19T00:00:00.000Z' })
   pinSetAt: Date | null;
+
+  @ApiPropertyOptional({ description: 'Timestamp when the PIN was last updated', example: '2026-09-19T00:00:00.000Z' })
+  pinUpdatedAt?: Date | null;
+
+  @ApiPropertyOptional({ description: 'Whether the PIN is expired (older than 90 days / 3 months)', example: false })
+  isPinExpired?: boolean;
+
+  @ApiPropertyOptional({ description: 'Remaining days until 90-day PIN expiration', example: 75 })
+  pinDaysRemaining?: number;
+
+  @ApiPropertyOptional({ description: 'PIN rotation cycle in days', example: 90 })
+  pinExpiryDays?: number;
 }
 
 export class PinVerificationResultDto {

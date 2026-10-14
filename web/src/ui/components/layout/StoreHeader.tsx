@@ -43,7 +43,16 @@ export default function StoreHeader({
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const isSeller = Boolean(
+  const isAdmin = Boolean(
+    user?.role === 'PLATFORM_ADMIN' ||
+    user?.role === 'ADMIN' ||
+    user?.role === 'SUPER_ADMIN' ||
+    (user as any)?.role === 'ADMIN_CON' ||
+    hasRole('PLATFORM_ADMIN') ||
+    hasRole('admin')
+  );
+
+  const isSeller = !isAdmin && Boolean(
     user?.role === 'BUSINESS' ||
     user?.hasApprovedBusiness ||
     user?.business ||
@@ -214,11 +223,12 @@ export default function StoreHeader({
 
   const roleLabel = useMemo(() => {
     if (!user) return '';
-    if (user.role === 'PLATFORM_ADMIN') return 'Super Admin';
+    if (isAdmin) return 'Super Admin';
     if (user.role === 'BUSINESS') return 'Chủ Doanh Nghiệp';
+    if (user.role === 'DELIVERY_STAFF' || user.role === 'SHIPPER') return 'Bưu Tá HuKi';
     if (user.role === 'USER') return 'Độc Giả HUKI';
     return user.role || 'Hội viên';
-  }, [user]);
+  }, [user, isAdmin]);
 
   const TRENDING_KEYWORDS = [
     'Thám Tử Lừng Danh Conan',
@@ -283,14 +293,24 @@ export default function StoreHeader({
             <span className="material-symbols-outlined text-[13px]">bolt</span>
             <span>⚡ Flash Sale</span>
           </Link>
-          <span className="opacity-40">|</span>
-          <Link
-            href={hasRole('seller') ? '/seller/dashboard' : '/seller'}
-            className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold"
-          >
-            <span className="material-symbols-outlined text-[13px]">storefront</span>
-            <span>Kênh Người Bán</span>
-          </Link>
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="hover:text-amber-200 transition-all flex items-center gap-1.5 font-bold text-amber-300 bg-white/10 hover:bg-white/20 px-2.5 py-0.5 rounded-full border border-amber-400/40 text-[11px] shadow-xs"
+              title="Mở Bảng Điều Hành Quản Trị Hệ Thống HuKi"
+            >
+              <span className="material-symbols-outlined text-[13px] text-amber-300">admin_panel_settings</span>
+              <span>Bảng Quản Trị Sàn</span>
+            </Link>
+          ) : (
+            <Link
+              href={isSeller ? '/seller/dashboard' : '/seller/register'}
+              className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold"
+            >
+              <span className="material-symbols-outlined text-[13px]">storefront</span>
+              <span>Kênh Người Bán</span>
+            </Link>
+          )}
           <span className="opacity-40">|</span>
           <div className="opacity-40 cursor-not-allowed pointer-events-none select-none hidden sm:flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px]">download</span>
@@ -575,6 +595,32 @@ export default function StoreHeader({
                     </span>
                   </div>
 
+                  {/* Super Admin Top Showcase Card */}
+                  {isAdmin && (
+                    <div className="p-2.5 mx-1 mt-1.5 mb-1.5 rounded-xl bg-gradient-to-br from-[#003B2B] to-[#06291f] border border-emerald-500/30 text-white shadow-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px] text-amber-300">admin_panel_settings</span>
+                          HỆ THỐNG QUẢN TRỊ
+                        </span>
+                        <span className="text-[8.5px] font-black uppercase px-1.5 py-0.5 rounded bg-amber-400 text-zinc-950 font-sans tracking-wide">
+                          SUPER ADMIN
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-200/80 mb-2 leading-tight">
+                        Tài khoản toàn quyền quản trị và vận hành sàn thương mại.
+                      </p>
+                      <Link
+                        href="/admin"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 font-bold text-xs transition-colors shadow-xs"
+                      >
+                        <span className="material-symbols-outlined text-sm">dashboard</span>
+                        <span>Mở Bảng Điều Hành Admin</span>
+                      </Link>
+                    </div>
+                  )}
+
                   <div className="py-1 space-y-0.5">
                     <Link
                       href="/profile"
@@ -651,7 +697,32 @@ export default function StoreHeader({
                     </Link>
 
                     <div className="pt-1">
-                      {user?.business?.status === 'PENDING_APPROVAL' ? (
+                      {isAdmin ? (
+                        <div className="space-y-1">
+                          <Link
+                            href="/admin/businesses"
+                            onClick={() => setShowUserMenu(false)}
+                            className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="material-symbols-outlined text-base text-[#003B2B]">corporate_fare</span>
+                              <span>Quản Trị Doanh Nghiệp NXB</span>
+                            </div>
+                            <span className="material-symbols-outlined text-sm text-[#003B2B]">chevron_right</span>
+                          </Link>
+                          <Link
+                            href="/admin/maintenance"
+                            onClick={() => setShowUserMenu(false)}
+                            className="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-900 font-bold border border-slate-200 transition-colors"
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <span className="material-symbols-outlined text-base text-slate-700">build</span>
+                              <span>Bảo Trì &amp; Vận Hành Sàn</span>
+                            </div>
+                            <span className="material-symbols-outlined text-sm text-slate-500">chevron_right</span>
+                          </Link>
+                        </div>
+                      ) : user?.business?.status === 'PENDING_APPROVAL' ? (
                         <Link
                           href="/seller/pending"
                           onClick={() => setShowUserMenu(false)}

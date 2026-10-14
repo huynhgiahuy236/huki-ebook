@@ -13,6 +13,7 @@ import { businessApi } from '@/ui/api/businessApi';
 import { flashSaleApi, type FlashSaleSlot } from '@/ui/api/flashSaleApi';
 import {
   SellerFilterTabs,
+  SellerPagination,
 } from '@/ui/components/seller/SellerUI';
 
 interface ConfiguredBookItem {
@@ -35,6 +36,8 @@ export function SellerFlashSaleView() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 5;
 
   // In-Page Multi-Book Registration Studio State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -959,6 +962,16 @@ export function SellerFlashSaleView() {
 
     return sessionList;
   }, [slots, myItems, activeTab, searchQuery, user, activeBusinessId]);
+
+  // Pagination & Reset
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery]);
+
+  const paginatedSessions = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return groupedSessions.slice(start, start + pageSize);
+  }, [groupedSessions, currentPage, pageSize]);
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans pb-16">
@@ -2044,7 +2057,7 @@ export function SellerFlashSaleView() {
             <p className="text-xs text-gray-400 mt-1">Bấm nút "Đăng Ký Sách Hàng Loạt" ở trên để đưa sách tham gia giờ vàng.</p>
           </div>
         ) : (
-          groupedSessions.map(({ slot, items }) => {
+          paginatedSessions.map(({ slot, items }) => {
             const now = Date.now();
             const startsAt = new Date(slot.startsAt || 0).getTime();
             const endsAt = new Date(slot.endsAt || 0).getTime();
@@ -2530,6 +2543,14 @@ export function SellerFlashSaleView() {
             );
           })
         )}
+
+        <SellerPagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(groupedSessions.length / pageSize) || 1}
+          totalItems={groupedSessions.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* 6. PLATFORM REGISTERED BOOKS DETAIL MODAL / DRAWER */}
