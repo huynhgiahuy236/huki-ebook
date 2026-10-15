@@ -35,6 +35,14 @@ export interface ChatConversation {
   updatedAt: string;
 }
 
+export interface ChatAttachment {
+  type: 'IMAGE' | 'VIDEO' | 'FILE';
+  url: string;
+  name?: string;
+  thumbnail?: string;
+  size?: number;
+}
+
 export interface ChatMessage {
   id: string;
   conversationId: string;
@@ -43,14 +51,8 @@ export interface ChatMessage {
   senderName: string;
   senderAvatar?: string;
   content: string;
-  messageType: 'TEXT' | 'IMAGE' | 'FILE' | 'ORDER' | 'BOOK' | 'SYSTEM' | 'VOUCHER';
-  attachments?: Array<{
-    type: 'IMAGE' | 'FILE';
-    url: string;
-    name?: string;
-    thumbnail?: string;
-    size?: number;
-  }>;
+  messageType: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE' | 'ORDER' | 'BOOK' | 'SYSTEM' | 'VOUCHER';
+  attachments?: ChatAttachment[];
   metadata?: Record<string, any>;
   status: 'SENT' | 'DELIVERED' | 'READ';
   readBy?: string[];
@@ -142,7 +144,7 @@ export const chatService = {
   },
 
   /**
-   * Gửi tin nhắn qua REST API (fallback hoặc đính kèm tệp)
+   * Gửi tin nhắn qua REST API (hỗ trợ đính kèm files hoặc JSON)
    */
   async sendMessage(
     conversationId: string,
@@ -152,8 +154,26 @@ export const chatService = {
       storeId?: string;
       metadata?: Record<string, any>;
       attachments?: any[];
-    }
+    },
+    files?: File[]
   ): Promise<ApiResponse<{ message: string; data: ChatMessage }>> {
+    if (files && files.length > 0) {
+      const formData = new FormData();
+      formData.append('content', payload.content || '');
+      if (payload.messageType) formData.append('messageType', payload.messageType);
+      if (payload.storeId) formData.append('storeId', payload.storeId);
+      if (payload.metadata) formData.append('metadata', JSON.stringify(payload.metadata));
+      files.forEach((file) => formData.append('attachments', file));
+
+      return apiClient<{ message: string; data: ChatMessage }>(
+        `/chat/conversations/${conversationId}/messages`,
+        {
+          method: 'POST',
+          body: formData,
+        }
+      );
+    }
+
     return apiClient<{ message: string; data: ChatMessage }>(
       `/chat/conversations/${conversationId}/messages`,
       {

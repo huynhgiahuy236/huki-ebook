@@ -611,7 +611,7 @@ export default function ShopPage() {
             ) : (
               <div className="flex items-center gap-2 flex-1 lg:flex-none">
                 <Link
-                  href={`/account/messages?shop=${encodeURIComponent(businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                  href={`/account/messages?shop=${encodeURIComponent(business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-4 py-2.5 rounded-xl border border-theme-border hover:border-[#003B2B] bg-white hover:bg-emerald-50 text-[#003B2B] font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
@@ -647,7 +647,7 @@ export default function ShopPage() {
                       <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-2xl shadow-xl border border-theme-border p-1.5 z-40 animate-in fade-in slide-in-from-top-2 duration-150">
                         {/* Option 1: Nhắn tin */}
                         <Link
-                          href={`/account/messages?shop=${encodeURIComponent(businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
+                          href={`/account/messages?shop=${encodeURIComponent(business?.id || businessSlugOrId)}&storeName=${encodeURIComponent(business?.name || '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => setIsFollowDropdownOpen(false)}

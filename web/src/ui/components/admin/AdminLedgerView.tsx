@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   platformFinanceService,
   type PlatformCashFlowSummary,
@@ -10,6 +10,44 @@ import {
 } from '../../services/platformFinanceService';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
+import GroupedDataTable, { type Column } from '../common/GroupedDataTable';
+
+export interface LedgerOrderGroup {
+  id: string; // groupKey
+  orderCode?: string;
+  orderId?: string;
+  storeName: string;
+  storeId?: string;
+  latestTimestamp: string;
+  transactionCount: number;
+  totalInflow: number;
+  totalOutflow: number;
+  netAmount: number;
+  latestBalanceAfter?: number;
+  primaryDirection: 'INFLOW' | 'OUTFLOW' | 'INTERNAL_TRANSFER';
+  primaryType: string;
+  status: 'COMPLETED' | 'PENDING' | 'REVERSED';
+  summaryDescription: string;
+  items: LedgerTransactionItem[];
+}
+
+function formatVietnamDateTime(dateStr?: string | null): string {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString('vi-VN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return dateStr;
+  }
+}
 
 export function AdminLedgerView() {
   const { showToast } = useToast();
@@ -18,12 +56,8 @@ export function AdminLedgerView() {
   const [metrics, setMetrics] = useState<PlatformCashFlowSummary | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
 
-  // Ledger Table States
+  // Raw Transactions from API
   const [transactions, setTransactions] = useState<LedgerTransactionItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [limit, setLimit] = useState(10);
-  const [totalPages, setTotalPages] = useState(1);
   const [loadingLedger, setLoadingLedger] = useState(true);
 
   // Filters
@@ -32,6 +66,9 @@ export function AdminLedgerView() {
   const [storeFilter, setStoreFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  // Expandable Accordion Keys
+  const [expandedKeys, setExpandedKeys] = useState<(string | number)[]>([]);
 
   // Stores dropdown list
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
@@ -81,13 +118,13 @@ export function AdminLedgerView() {
     }
   }, [storeFilter]);
 
-  // Fetch Ledger Transactions
-  const loadLedger = useCallback(async (targetPage = page, targetLimit = limit) => {
+  // Fetch Ledger Transactions (Load comprehensive list to group cleanly)
+  const loadLedger = useCallback(async () => {
     setLoadingLedger(true);
     try {
       const params: LedgerFilterParams = {
-        page: targetPage,
-        limit: targetLimit,
+        page: 1,
+        limit: 100, // Fetch all available transactions to group properly
         storeId: storeFilter || undefined,
         type: typeFilter || undefined,
         dateFrom: dateFrom || undefined,
@@ -97,31 +134,104 @@ export function AdminLedgerView() {
 
       const res = await platformFinanceService.fetchLedgerTransactions(params);
       setTransactions(res.items);
-      setTotal(res.total);
-      setPage(res.page);
-      setLimit(res.limit);
-      setTotalPages(res.totalPages);
     } catch (err) {
       console.error('[AdminLedgerView] Error loading ledger:', err);
       setTransactions([]);
-      setTotal(0);
-      setTotalPages(1);
     } finally {
       setLoadingLedger(false);
     }
-  }, [page, limit, storeFilter, typeFilter, dateFrom, dateTo, search]);
+  }, [storeFilter, typeFilter, dateFrom, dateTo, search]);
 
   // Initial load and filter change trigger
   useEffect(() => {
     loadMetrics(storeFilter);
-    loadLedger(1, limit);
-  }, [loadMetrics, loadLedger, storeFilter, typeFilter, dateFrom, dateTo, limit]);
+    loadLedger();
+  }, [loadMetrics, loadLedger, storeFilter, typeFilter, dateFrom, dateTo]);
+
+  // Group raw transactions by Order / Payout / Reference
+  const groupedOrders = useMemo<LedgerOrderGroup[]>(() => {
+    const map = new Map<string, LedgerOrderGroup>();
+
+    transactions.forEach((tx) => {
+      // Determine unique group key: orderCode -> orderId -> referenceId -> id
+      const key = tx.orderCode
+        ? tx.orderCode
+        : tx.orderId
+        ? `ORD-${tx.orderId.substring(0, 8)}`
+        : tx.referenceType === 'PAYOUT'
+        ? `PAYOUT-${tx.referenceId || tx.id}`
+        : tx.id;
+
+      const groupType = tx.orderCode || tx.orderId || tx.referenceType === 'ORDER' || tx.referenceType === 'ORDER_ITEM'
+        ? 'ORDER'
+        : tx.referenceType === 'PAYOUT' || tx.type === 'DEBIT_AVAILABLE'
+        ? 'PAYOUT'
+        : tx.type === 'PENALTY_DEDUCTION'
+        ? 'PENALTY'
+        : 'ADJUSTMENT';
+
+      if (!map.has(key)) {
+        map.set(key, {
+          id: key,
+          orderCode: tx.orderCode,
+          orderId: tx.orderId,
+          storeName: tx.storeName || 'Toàn Sàn',
+          storeId: tx.storeId,
+          latestTimestamp: tx.timestamp,
+          transactionCount: 0,
+          totalInflow: 0,
+          totalOutflow: 0,
+          netAmount: 0,
+          latestBalanceAfter: tx.balanceAfter,
+          primaryDirection: tx.flowDirection,
+          primaryType: tx.type,
+          status: 'COMPLETED',
+          summaryDescription: tx.description,
+          items: [],
+        });
+      }
+
+      const group = map.get(key)!;
+      group.items.push(tx);
+      group.transactionCount += 1;
+
+      if (tx.flowDirection === 'INFLOW') {
+        group.totalInflow += tx.amount;
+        group.netAmount += tx.amount;
+      } else if (tx.flowDirection === 'OUTFLOW') {
+        group.totalOutflow += tx.amount;
+        group.netAmount -= tx.amount;
+      } else {
+        if (group.netAmount === 0) {
+          group.netAmount = tx.amount;
+        }
+      }
+
+      // Keep latest timestamp and latest balance after
+      if (new Date(tx.timestamp).getTime() >= new Date(group.latestTimestamp).getTime()) {
+        group.latestTimestamp = tx.timestamp;
+        if (tx.balanceAfter !== undefined) {
+          group.latestBalanceAfter = tx.balanceAfter;
+        }
+        group.primaryDirection = tx.flowDirection;
+        group.primaryType = tx.type;
+      }
+    });
+
+    // Return groups sorted by latest activity descending
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.latestTimestamp).getTime() - new Date(a.latestTimestamp).getTime()
+    );
+  }, [transactions]);
+
+  // Toggle single order accordion
+  const toggleExpandOrder = useCallback((key: string | number) => {
+    setExpandedKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }, []);
 
   // Refs for stable realtime event handling
-  const pageRef = useRef(page);
-  pageRef.current = page;
-  const limitRef = useRef(limit);
-  limitRef.current = limit;
   const loadLedgerRef = useRef(loadLedger);
   loadLedgerRef.current = loadLedger;
   const loadMetricsRef = useRef(loadMetrics);
@@ -150,7 +260,7 @@ export function AdminLedgerView() {
 
         // Silently refresh both metrics and ledger list
         loadMetricsRef.current();
-        loadLedgerRef.current(pageRef.current, limitRef.current);
+        loadLedgerRef.current();
       }
     );
 
@@ -163,7 +273,7 @@ export function AdminLedgerView() {
   // Handle Search Submit
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadLedger(1, limit);
+    loadLedger();
   };
 
   // Handle Export CSV
@@ -192,8 +302,239 @@ export function AdminLedgerView() {
     setStoreFilter('');
     setDateFrom('');
     setDateTo('');
-    loadLedger(1, limit);
+    loadLedger();
   };
+
+  // Columns for the GroupedDataTable Parent Rows
+  const groupColumns = useMemo<Column<LedgerOrderGroup>[]>(
+    () => [
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn / Nghiệp Vụ',
+        render: (_, row) => (
+          <div className="flex flex-col gap-1 py-1">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#00875A] text-[16px]">
+                {row.orderCode ? 'shopping_bag' : row.id.startsWith('PAYOUT') ? 'payments' : 'receipt_long'}
+              </span>
+              <span className="font-mono font-bold text-gray-900 dark:text-gray-100 text-[13px]">
+                {row.orderCode ? `#${row.orderCode}` : row.id}
+              </span>
+            </div>
+            <span className="text-gray-400 font-normal text-[11px] flex items-center gap-1 font-mono">
+              <span className="material-symbols-outlined text-[13px]">schedule</span>
+              <span>{formatVietnamDateTime(row.latestTimestamp)}</span>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'storeName',
+        title: 'Gian Hàng',
+        render: (_, row) => (
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
+            <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
+            <span className="truncate max-w-[200px]" title={row.storeName}>
+              {row.storeName}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'transactionCount',
+        title: 'Số Bút Toán',
+        align: 'center',
+        render: (_, row) => (
+          <div className="flex justify-center">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+              <span className="material-symbols-outlined text-[13px]">receipt</span>
+              <span>{row.transactionCount} bút toán</span>
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'primaryDirection',
+        title: 'Chiều Dòng Tiền',
+        render: (_, row) => {
+          if (row.primaryDirection === 'INFLOW') {
+            return (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
+                <span className="material-symbols-outlined text-[14px]">arrow_downward</span>
+                <span>Vào Sàn (+)</span>
+              </span>
+            );
+          }
+          if (row.primaryDirection === 'OUTFLOW') {
+            return (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-rose-600">
+                <span className="material-symbols-outlined text-[14px]">arrow_upward</span>
+                <span>Ra Ngoài (-)</span>
+              </span>
+            );
+          }
+          return (
+            <span className="flex items-center gap-1 text-[11px] font-bold text-indigo-600">
+              <span className="material-symbols-outlined text-[14px]">sync_alt</span>
+              <span>Luân Chuyển</span>
+            </span>
+          );
+        },
+      },
+      {
+        key: 'netAmount',
+        title: 'Số Tiền Ròng (VNĐ)',
+        align: 'right',
+        render: (_, row) => {
+          const isPositive = row.primaryDirection === 'INFLOW';
+          const isNegative = row.primaryDirection === 'OUTFLOW';
+          return (
+            <div className="flex flex-col items-end">
+              <span className={`font-mono text-[13px] font-bold ${
+                isPositive ? 'text-emerald-600' : isNegative ? 'text-rose-600' : 'text-gray-900'
+              }`}>
+                {isPositive ? '+' : isNegative ? '-' : ''}
+                {platformFinanceService.formatVND(Math.abs(row.netAmount))}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'latestBalanceAfter',
+        title: 'Số Dư Sau GD',
+        align: 'right',
+        render: (_, row) => (
+          <span className="font-mono text-[11px] text-gray-700 font-medium">
+            {row.latestBalanceAfter !== undefined
+              ? platformFinanceService.formatVND(row.latestBalanceAfter)
+              : '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        align: 'center',
+        render: () => (
+          <div className="flex justify-center">
+            <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+              Thành Công
+            </span>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  // Render Sub-Table for child transactions inside the accordion
+  const renderOrderLedgerDetail = useCallback((group: LedgerOrderGroup) => {
+    return (
+      <div className="flex flex-col gap-3 p-3 bg-slate-50/70 dark:bg-slate-900/50 rounded-2xl border border-slate-200/80 my-2">
+        <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#00875A] text-[18px]">
+              receipt_long
+            </span>
+            <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wide">
+              Chi tiết các bút toán sổ cái ({group.items.length} bút toán) {group.orderCode ? `- Đơn hàng #${group.orderCode}` : ''}
+            </h4>
+          </div>
+          <div className="text-[11px] text-gray-500 font-mono">
+            Gian hàng: <strong className="text-gray-800">{group.storeName}</strong>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-2xs">
+          <table className="w-full text-left text-xs divide-y divide-gray-100">
+            <thead className="bg-gray-50 text-[10.5px] uppercase font-bold text-gray-500 tracking-wider">
+              <tr>
+                <th className="py-2.5 px-3">Mã Bút Toán</th>
+                <th className="py-2.5 px-3">Thời Gian</th>
+                <th className="py-2.5 px-3">Phân Loại Dòng Tiền</th>
+                <th className="py-2.5 px-3">Chiều GD</th>
+                <th className="py-2.5 px-3 text-right">Số Tiền (VNĐ)</th>
+                <th className="py-2.5 px-3 text-right">Số Dư Sau GD</th>
+                <th className="py-2.5 px-4">Diễn Giải Kế Toán Chi Tiết</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 bg-white font-medium">
+              {group.items.map((item) => {
+                const isPositive = item.flowDirection === 'INFLOW';
+                const isNegative = item.flowDirection === 'OUTFLOW';
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
+                    {/* Transaction ID */}
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-gray-700 whitespace-nowrap">
+                      <span className="bg-gray-100 px-1.5 py-0.5 rounded font-semibold text-gray-800" title={item.id}>
+                        {item.id.length > 12 ? `${item.id.substring(0, 10)}...` : item.id}
+                      </span>
+                    </td>
+
+                    {/* Timestamp */}
+                    <td className="py-2.5 px-3 font-mono text-[11px] text-gray-500 whitespace-nowrap">
+                      {new Date(item.timestamp).toLocaleString('vi-VN')}
+                    </td>
+
+                    {/* Type Badge */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        item.type === 'CREDIT_PENDING'
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                          : item.type === 'CREDIT_AVAILABLE'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : item.type === 'MOVE_PENDING_TO_AVAILABLE'
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          : item.type === 'DEBIT_AVAILABLE'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : item.type === 'COMMISSION_EARNED'
+                          ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                          : item.type === 'PENALTY_DEDUCTION'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-gray-100 text-gray-700 border border-gray-200'
+                      }`}>
+                        {item.type}
+                      </span>
+                    </td>
+
+                    {/* Flow Direction */}
+                    <td className="py-2.5 px-3 whitespace-nowrap">
+                      {isPositive ? (
+                        <span className="text-emerald-600 font-bold text-[11px]">↓ Vào Sàn (+)</span>
+                      ) : isNegative ? (
+                        <span className="text-rose-600 font-bold text-[11px]">↑ Ra Ngoài (-)</span>
+                      ) : (
+                        <span className="text-indigo-600 font-bold text-[11px]">⮂ Luân Chuyển</span>
+                      )}
+                    </td>
+
+                    {/* Amount */}
+                    <td className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${
+                      isPositive ? 'text-emerald-600' : isNegative ? 'text-rose-600' : 'text-gray-900'
+                    }`}>
+                      {isPositive ? '+' : isNegative ? '-' : ''}
+                      {platformFinanceService.formatVND(item.amount)}
+                    </td>
+
+                    {/* Balance After */}
+                    <td className="py-2.5 px-3 text-right font-mono text-gray-600 text-[11px] whitespace-nowrap">
+                      {item.balanceAfter !== undefined ? platformFinanceService.formatVND(item.balanceAfter) : '-'}
+                    </td>
+
+                    {/* Detailed Accounting Description */}
+                    <td className="py-2.5 px-4 text-gray-600 text-[11px] leading-relaxed">
+                      {item.description}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }, []);
 
   return (
     <div className="flex flex-col gap-6 w-full animate-in fade-in duration-200">
@@ -210,14 +551,14 @@ export function AdminLedgerView() {
                 Sổ Cái &amp; Dòng Tiền Realtime
               </span>
               <span className="text-[10px] bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full font-mono">
-                100% Real Backend Data
+                Grouped Data Model
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               {lastLiveEvent ? (
                 <span className="text-amber-300 font-medium">⚡ Sự kiện mới: {lastLiveEvent}</span>
               ) : (
-                'Đang đồng bộ trực tiếp với kênh thanh toán, ví và tài khoản ký quỹ sàn.'
+                'Dữ liệu được gom nhóm tự động theo từng Đơn Hàng & Nghiệp Vụ. Nhấn vào mũi tên để xem chi tiết.'
               )}
             </p>
           </div>
@@ -226,8 +567,8 @@ export function AdminLedgerView() {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => {
-              loadMetrics();
-              loadLedger(page, limit);
+              loadMetrics(storeFilter);
+              loadLedger();
               showToast('Đã làm mới dữ liệu sổ cái', 'success');
             }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-white transition-all cursor-pointer"
@@ -435,258 +776,38 @@ export function AdminLedgerView() {
         </form>
       </div>
 
-      {/* 4. DETAILED FINANCIAL LEDGER TABLE */}
+      {/* 4. GROUPED DATA TABLE WITH EXPANDABLE ARROWS */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-gray-500 text-[20px]">table_chart</span>
-            <h3 className="text-sm font-bold text-gray-900">Bảng Kê Sổ Cái Giao Dịch Dòng Tiền Toàn Sàn</h3>
+            <span className="material-symbols-outlined text-[#00875A] text-[20px]">account_tree</span>
+            <h3 className="text-sm font-bold text-gray-900">
+              Sổ Cái Gom Nhóm Theo Đơn Hàng &amp; Nghiệp Vụ ({groupedOrders.length} nhóm)
+            </h3>
           </div>
           <span className="text-xs text-gray-500 font-medium">
-            {total > 0 ? `Tổng cộng ${total.toLocaleString('vi-VN')} bản ghi` : '0 giao dịch'}
+            {transactions.length > 0
+              ? `Tổng cộng ${transactions.length.toLocaleString('vi-VN')} bút toán dòng tiền`
+              : '0 bút toán'}
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-gray-50/80 text-gray-600 border-b border-gray-100 font-bold uppercase tracking-wider text-[11px]">
-                <th className="py-3 px-4">Mã Giao Dịch</th>
-                <th className="py-3 px-4">Thời Gian</th>
-                <th className="py-3 px-4">Loại Dòng Tiền</th>
-                <th className="py-3 px-4">Chiều GD</th>
-                <th className="py-3 px-4">Gian Hàng</th>
-                <th className="py-3 px-4">Mã Đơn Hàng</th>
-                <th className="py-3 px-4 text-right">Số Tiền (VNĐ)</th>
-                <th className="py-3 px-4 text-right">Số Dư Sau GD</th>
-                <th className="py-3 px-4">Trạng Thái</th>
-                <th className="py-3 px-4">Diễn Giải Kế Toán</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 font-medium">
-              {loadingLedger ? (
-                <tr>
-                  <td colSpan={10} className="py-12 text-center text-gray-500">
-                    <div className="flex flex-col items-center justify-center gap-2">
-                      <span className="material-symbols-outlined animate-spin text-emerald-600 text-3xl">progress_activity</span>
-                      <span className="text-xs font-semibold">Đang truy vấn sổ cái thực tế từ cơ sở dữ liệu...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : transactions.length === 0 ? (
-                /* 100% REAL EMPTY STATE */
-                <tr>
-                  <td colSpan={10} className="py-16 text-center">
-                    <div className="max-w-md mx-auto flex flex-col items-center justify-center text-gray-400">
-                      <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center mb-3 border border-gray-100">
-                        <span className="material-symbols-outlined text-3xl text-gray-300">receipt_long</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-gray-700">Chưa Có Giao Dịch Dòng Tiền Trong Kỳ</h4>
-                      <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                        Hệ thống chưa ghi nhận biến động số dư hoặc giao dịch nào phù hợp với bộ lọc hiện tại.
-                        Khi phát sinh đơn hàng, ký quỹ hoặc rút tiền, các bút toán sẽ tự động hiển thị thời gian thực.
-                      </p>
-                      {(search || typeFilter || storeFilter || dateFrom || dateTo) && (
-                        <button
-                          onClick={handleResetFilters}
-                          className="mt-4 px-3.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-xs font-bold text-gray-700 transition-all cursor-pointer"
-                        >
-                          Xóa Bộ Lọc Để Xem Toàn Bộ
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                transactions.map((tx) => {
-                  const isPositive = tx.flowDirection === 'INFLOW';
-                  const isNegative = tx.flowDirection === 'OUTFLOW';
-
-                  return (
-                    <tr key={tx.id} className="hover:bg-slate-50/60 transition-colors">
-                      {/* Transaction ID */}
-                      <td className="py-3 px-4 font-mono text-[11px] text-gray-700 whitespace-nowrap">
-                        <span className="bg-gray-100 px-2 py-0.5 rounded text-gray-800 font-semibold" title={tx.id}>
-                          {tx.id.length > 12 ? `${tx.id.substring(0, 10)}...` : tx.id}
-                        </span>
-                      </td>
-
-                      {/* Timestamp */}
-                      <td className="py-3 px-4 text-gray-500 whitespace-nowrap font-mono text-[11px]">
-                        {new Date(tx.timestamp).toLocaleString('vi-VN')}
-                      </td>
-
-                      {/* Type Badge */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                          tx.type === 'CREDIT_PENDING'
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                            : tx.type === 'CREDIT_AVAILABLE'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : tx.type === 'MOVE_PENDING_TO_AVAILABLE'
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                            : tx.type === 'DEBIT_AVAILABLE'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : tx.type === 'COMMISSION_EARNED'
-                            ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                            : tx.type === 'PENALTY_DEDUCTION'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : 'bg-gray-100 text-gray-700 border border-gray-200'
-                        }`}>
-                          {tx.type}
-                        </span>
-                      </td>
-
-                      {/* Flow Direction */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        {isPositive && (
-                          <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600">
-                            <span className="material-symbols-outlined text-[14px]">arrow_downward</span>
-                            <span>Vào Sàn (+)</span>
-                          </span>
-                        )}
-                        {isNegative && (
-                          <span className="flex items-center gap-1 text-[11px] font-bold text-rose-600">
-                            <span className="material-symbols-outlined text-[14px]">arrow_upward</span>
-                            <span>Ra Ngoài (-)</span>
-                          </span>
-                        )}
-                        {!isPositive && !isNegative && (
-                          <span className="flex items-center gap-1 text-[11px] font-bold text-indigo-600">
-                            <span className="material-symbols-outlined text-[14px]">sync_alt</span>
-                            <span>Luân Chuyển</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Store Name */}
-                      <td className="py-3 px-4 text-gray-800 font-semibold max-w-[180px] truncate" title={tx.storeName}>
-                        {tx.storeName || 'Toàn Sàn'}
-                      </td>
-
-                      {/* Order Code */}
-                      <td className="py-3 px-4 font-mono text-[11px] text-gray-600 whitespace-nowrap">
-                        {tx.orderCode ? (
-                          <span className="text-blue-600 font-bold hover:underline cursor-pointer">
-                            #{tx.orderCode}
-                          </span>
-                        ) : tx.orderId ? (
-                          <span className="text-gray-500">#{tx.orderId.substring(0, 8)}</span>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-
-                      {/* Amount */}
-                      <td className={`py-3 px-4 text-right font-bold whitespace-nowrap ${
-                        isPositive ? 'text-emerald-600' : isNegative ? 'text-rose-600' : 'text-gray-900'
-                      }`}>
-                        {isPositive ? '+' : isNegative ? '-' : ''}
-                        {platformFinanceService.formatVND(tx.amount)}
-                      </td>
-
-                      {/* Balance After */}
-                      <td className="py-3 px-4 text-right text-gray-600 font-mono text-[11px] whitespace-nowrap">
-                        {tx.balanceAfter !== undefined
-                          ? platformFinanceService.formatVND(tx.balanceAfter)
-                          : '-'}
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                          Thành Công
-                        </span>
-                      </td>
-
-                      {/* Description */}
-                      <td className="py-3 px-4 text-gray-600 max-w-xs truncate" title={tx.description}>
-                        {tx.description}
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5. PAGINATION CONTROLS */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          {/* Record range */}
-          <div className="text-gray-500 font-medium">
-            {total > 0 ? (
-              <span>
-                Hiển thị <strong className="text-gray-800">{(page - 1) * limit + 1}</strong> -{' '}
-                <strong className="text-gray-800">{Math.min(page * limit, total)}</strong> trên tổng số{' '}
-                <strong className="text-gray-800">{total.toLocaleString('vi-VN')}</strong> giao dịch
-              </span>
-            ) : (
-              <span>0 giao dịch</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            {/* Rows per page selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 font-medium">Số dòng/trang:</span>
-              <select
-                value={limit}
-                onChange={(e) => {
-                  const newLimit = Number(e.target.value);
-                  setLimit(newLimit);
-                  loadLedger(1, newLimit);
-                }}
-                className="px-2 py-1 rounded-lg bg-white border border-gray-200 text-xs font-bold text-gray-700 focus:outline-none cursor-pointer"
-              >
-                <option value={10}>10 dòng</option>
-                <option value={20}>20 dòng</option>
-                <option value={50}>50 dòng</option>
-              </select>
-            </div>
-
-            {/* Page navigation buttons */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => loadLedger(1, limit)}
-                disabled={page <= 1 || loadingLedger}
-                className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                title="Trang đầu"
-              >
-                <span className="material-symbols-outlined text-[16px]">first_page</span>
-              </button>
-              <button
-                onClick={() => loadLedger(page - 1, limit)}
-                disabled={page <= 1 || loadingLedger}
-                className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                title="Trang trước"
-              >
-                <span className="material-symbols-outlined text-[16px]">chevron_left</span>
-              </button>
-
-              <span className="px-3 py-1 font-bold text-gray-800 bg-white border border-gray-200 rounded-lg">
-                {page} / {totalPages}
-              </span>
-
-              <button
-                onClick={() => loadLedger(page + 1, limit)}
-                disabled={page >= totalPages || loadingLedger}
-                className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                title="Trang sau"
-              >
-                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
-              </button>
-              <button
-                onClick={() => loadLedger(totalPages, limit)}
-                disabled={page >= totalPages || loadingLedger}
-                className="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-gray-600 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-all"
-                title="Trang cuối"
-              >
-                <span className="material-symbols-outlined text-[16px]">last_page</span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <GroupedDataTable
+          columns={groupColumns}
+          data={groupedOrders}
+          keyField="id"
+          expandable={true}
+          expandedRowRender={renderOrderLedgerDetail}
+          expandedRowKeys={expandedKeys}
+          onExpandedRowsChange={setExpandedKeys}
+          onRowClick={(row) => toggleExpandOrder(row.id)}
+          loading={loadingLedger}
+          emptyTitle="Chưa Có Giao Dịch Dòng Tiền Trong Kỳ"
+          emptyMessage="Hệ thống chưa ghi nhận biến động số dư hoặc giao dịch nào phù hợp với bộ lọc hiện tại. Khi phát sinh đơn hàng, ký quỹ hoặc rút tiền, các bút toán sẽ tự động hiển thị thời gian thực."
+          emptyIcon="account_balance_wallet"
+          pagination={true}
+          className="w-full"
+        />
       </div>
     </div>
   );

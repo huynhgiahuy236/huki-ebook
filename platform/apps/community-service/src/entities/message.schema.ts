@@ -5,6 +5,7 @@ import { PARTICIPANT_TYPES, ParticipantType } from "./conversation.schema";
 export const MESSAGE_TYPES = [
   "TEXT",
   "IMAGE",
+  "VIDEO",
   "FILE",
   "ORDER",
   "BOOK",
@@ -12,7 +13,7 @@ export const MESSAGE_TYPES = [
   "VOUCHER",
 ] as const;
 export const MESSAGE_STATUSES = ["SENT", "DELIVERED", "READ"] as const;
-export const ATTACHMENT_TYPES = ["IMAGE", "FILE"] as const;
+export const ATTACHMENT_TYPES = ["IMAGE", "VIDEO", "FILE"] as const;
 
 export type MessageType = (typeof MESSAGE_TYPES)[number];
 export type MessageStatus = (typeof MESSAGE_STATUSES)[number];

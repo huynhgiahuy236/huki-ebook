@@ -45,15 +45,19 @@ export class ChatService {
   ) {}
 
   async listConversations(actor: CommunityActor, storeId?: string) {
-    const effectiveId = storeId?.trim() || actor.sub;
+    const storeIds = storeId ? storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const filter = storeIds.length > 0
+      ? { "participants.id": { $in: storeIds } }
+      : { "participants.id": actor.sub };
     const conversations = await this.conversations
-      .find({ "participants.id": effectiveId })
+      .find(filter)
       .sort({ updatedAt: -1 })
       .limit(100)
       .exec();
 
+    const effectiveId = storeIds[0] || actor.sub;
     return {
-      data: conversations.map((item) => this.conversationView(item, effectiveId)),
+      data: conversations.map((item) => this.conversationView(item, effectiveId, storeIds)),
     };
   }
 
@@ -88,22 +92,21 @@ export class ChatService {
   }
 
   async createConversation(actor: CommunityActor, dto: CreateConversationDto) {
-    if (actor.role !== "USER") {
+    if (!actor || !actor.sub) {
       throwForbidden(ErrorCode.CHAT_BLOCKED);
-    }
-    if (actor.sub === dto.storeId) {
-      throwBadRequest(ErrorCode.CHAT_MESSAGE_TOO_LONG);
     }
 
     const contextType = dto.contextType || "ORDER";
     const contextId = dto.contextId || dto.storeId || "GENERAL";
+    const storeIds = dto.storeId ? dto.storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const primaryStoreId = storeIds[0] || dto.storeId;
 
     const existing = await this.conversations.findOne({
       type: "USER_TO_STORE",
       participants: {
         $all: [
           { $elemMatch: { type: "USER", id: actor.sub } },
-          { $elemMatch: { type: "BUSINESS", id: dto.storeId } },
+          { $elemMatch: { type: "BUSINESS", id: { $in: storeIds.length > 0 ? storeIds : [dto.storeId] } } },
         ],
       },
     });
@@ -119,7 +122,7 @@ export class ChatService {
       return {
         message: "Conversation already exists",
         data: {
-          ...this.conversationView(existing, actor.sub),
+          ...this.conversationView(existing, actor.sub, storeIds),
           messages: delivery ? [delivery.data] : [],
         },
         delivery,
@@ -133,13 +136,13 @@ export class ChatService {
         name: this.actorName(actor),
         avatar: actor.avatar,
       },
-      { type: "BUSINESS", id: dto.storeId, name: dto.storeName || "Store" },
+      { type: "BUSINESS", id: primaryStoreId, name: dto.storeName || "Store" },
     ];
     const conversation = await this.conversations.create({
       participants,
       type: "USER_TO_STORE",
       context: { type: contextType, id: contextId },
-      unreadCount: { [actor.sub]: 0, [dto.storeId]: 0 },
+      unreadCount: { [actor.sub]: 0, [primaryStoreId]: 0 },
     });
 
     let delivery: ChatDelivery | undefined;
@@ -243,11 +246,13 @@ export class ChatService {
       actor.sub,
       storeId,
     );
-    const effectiveActorId = storeId?.trim() || actor.sub;
+    const storeIds = storeId ? storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const effectiveActorIds = storeIds.length > 0 ? storeIds : [actor.sub];
+    const primaryId = effectiveActorIds[0];
     const unread = await this.messages
       .find({
         conversationId: conversation!._id,
-        senderId: { $ne: effectiveActorId },
+        senderId: { $nin: effectiveActorIds },
         status: { $ne: "READ" },
       })
       .select("_id")
@@ -260,18 +265,22 @@ export class ChatService {
         { _id: { $in: unread.map((message) => message._id) } },
         {
           $set: { status: "READ", readAt },
-          $addToSet: { readBy: effectiveActorId },
+          $addToSet: { readBy: primaryId },
         },
       );
     }
+    const resetUnread: Record<string, number> = {};
+    for (const id of effectiveActorIds) {
+      resetUnread[`unreadCount.${this.safeMapKey(id)}`] = 0;
+    }
     await this.conversations.updateOne(
       { _id: conversation!._id },
-      { $set: { [`unreadCount.${this.safeMapKey(effectiveActorId)}`]: 0 } },
+      { $set: resetUnread },
     );
 
     return {
       conversationId,
-      readerId: effectiveActorId,
+      readerId: primaryId,
       messageIds,
       readAt: readAt.toISOString(),
       participantIds: conversation!.participants.map((item) => item.id),
@@ -299,11 +308,12 @@ export class ChatService {
       actor.sub,
       storeId,
     );
-    const effectiveActorId = storeId?.trim() || actor.sub;
+    const storeIds = storeId ? storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const effectiveActorIds = storeIds.length > 0 ? storeIds : [actor.sub];
     const pending = await this.messages
       .find({
         conversationId: conversation!._id,
-        senderId: { $ne: effectiveActorId },
+        senderId: { $nin: effectiveActorIds },
         status: "SENT",
       })
       .select("_id")
@@ -349,8 +359,9 @@ export class ChatService {
   }
 
   private participant(conversation: ConversationDocument, actorId: string, storeId?: string) {
+    const storeIds = storeId ? storeId.split(',').map((s) => s.trim()).filter(Boolean) : [];
     const participant = conversation.participants.find(
-      (item) => item.id === actorId || (storeId && item.id === storeId),
+      (item) => item.id === actorId || (storeIds.length > 0 && storeIds.includes(item.id)) || (storeId && item.id === storeId),
     );
     if (!participant) {
       throwForbidden(ErrorCode.CHAT_BLOCKED);
@@ -383,11 +394,13 @@ export class ChatService {
   private conversationView(
     conversation: ConversationDocument,
     actorId: string,
+    storeIds: string[] = [],
   ) {
     const user = conversation.participants.find((item) => item.type === "USER");
     const store = conversation.participants.find(
       (item) => item.type === "BUSINESS",
     );
+    const effectiveIds = storeIds.length > 0 ? storeIds : [actorId];
     return {
       id: conversation.id,
       type: conversation.type,
@@ -406,7 +419,7 @@ export class ChatService {
             createdAt: conversation.lastMessage.createdAt,
           }
         : null,
-      unreadCount: this.unreadFor(conversation, actorId),
+      unreadCount: this.unreadForMulti(conversation, effectiveIds),
       context: conversation.context,
       status: conversation.status,
       createdAt: conversation.createdAt,
@@ -433,6 +446,10 @@ export class ChatService {
       createdAt: message.createdAt,
       updatedAt: message.updatedAt,
     };
+  }
+
+  private unreadForMulti(conversation: ConversationDocument, ids: string[]) {
+    return ids.reduce((total, id) => total + this.unreadFor(conversation, id), 0);
   }
 
   private unreadFor(conversation: ConversationDocument, actorId: string) {

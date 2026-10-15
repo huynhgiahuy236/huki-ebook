@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
-import { chatService, type ChatConversation, type ChatMessage } from '@/ui/services/chatService';
+import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
+import { voucherApi, type Voucher } from '@/ui/api/voucherApi';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -16,15 +17,20 @@ export interface SellerChatMessage {
   text: string;
   time: string;
   status?: 'read' | 'delivered' | 'sent';
-  type?: 'text' | 'voucher' | 'order_update' | 'product_card';
+  type?: 'text' | 'voucher' | 'order_update' | 'product_card' | 'media';
+  attachments?: ChatAttachment[];
+  voucherId?: string;
   voucherCode?: string;
   discountText?: string;
+  minOrderAmount?: number;
+  expiresAt?: string;
   orderId?: string;
 }
 
 export interface SellerChatCustomer {
   id: string;
   userId?: string;
+  storeId?: string;
   name: string;
   tier?: 'VIP Gold' | 'VIP Bạc' | 'Khách mới' | 'VIP Platinum';
   avatar?: string;
@@ -55,7 +61,30 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const { showToast } = useToast();
   const { user, activeBusinessId } = useAuth();
 
-  const storeId = activeBusinessId || user?.business?.id || user?.memberships?.[0]?.businessId || '';
+  const storeAliases = useMemo(() => {
+    const ids = new Set<string>();
+    if (activeBusinessId) ids.add(activeBusinessId);
+    const biz = user?.business as any;
+    if (biz?.id) ids.add(biz.id);
+    if (biz?.taxCode) ids.add(biz.taxCode);
+    if (biz?.slug) ids.add(biz.slug);
+    if (Array.isArray(user?.memberships)) {
+      user.memberships.forEach((m) => {
+        if (m.businessId) ids.add(m.businessId);
+      });
+    }
+    const bizStores = biz?.stores;
+    if (Array.isArray(bizStores)) {
+      bizStores.forEach((s: any) => {
+        if (s.id) ids.add(s.id);
+        if (s.slug) ids.add(s.slug);
+      });
+    }
+    return Array.from(ids).filter(Boolean);
+  }, [activeBusinessId, user]);
+
+  const storeId = useMemo(() => storeAliases.join(','), [storeAliases]);
+  const primaryStoreId = useMemo(() => storeAliases[0] || activeBusinessId || user?.business?.id || '', [storeAliases, activeBusinessId, user]);
   const storeName = user?.business?.name || 'Kênh Người Bán';
 
   // Danh sách khách hàng hội thoại (trống khi chưa có dữ liệu từ DB/API)
@@ -75,6 +104,20 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   // Tin nhắn theo từng khách hàng (trống khi chưa có dữ liệu từ DB/API)
   const [messagesByCustomer, setMessagesByCustomer] = useState<Record<string, SellerChatMessage[]>>({});
 
+  // Media upload states for seller
+  const [selectedSellerFiles, setSelectedSellerFiles] = useState<File[]>([]);
+  const [sellerFilePreviews, setSellerFilePreviews] = useState<Array<{ file: File; url: string; isVideo: boolean; name: string; size: number }>>([]);
+  const [isSellerUploading, setIsSellerUploading] = useState(false);
+  const [sellerMediaError, setSellerMediaError] = useState<string | null>(null);
+  const sellerFileInputRef = useRef<HTMLInputElement>(null);
+  const [sellerPreviewMediaUrl, setSellerPreviewMediaUrl] = useState<string | null>(null);
+
+  // Voucher picker modal states
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  const [shopVouchers, setShopVouchers] = useState<Voucher[]>([]);
+  const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
+  const [selectedVoucherId, setSelectedVoucherId] = useState<string>('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -90,21 +133,27 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
   // Helper map API message sang SellerChatMessage
   const mapApiMessageToSellerMessage = useCallback((msg: ChatMessage, currentStoreId?: string): SellerChatMessage => {
-    const isSeller = msg.senderType === 'BUSINESS' || (Boolean(currentStoreId) && msg.senderId === currentStoreId);
+    const aliasList = currentStoreId ? currentStoreId.split(',').map((s) => s.trim()).filter(Boolean) : [];
+    const isSeller =
+      msg.senderType === 'BUSINESS' ||
+      (aliasList.length > 0 && aliasList.includes(msg.senderId)) ||
+      (Boolean(currentStoreId) && msg.senderId === currentStoreId);
     const timeStr = msg.createdAt
       ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       : '';
     const statusStr: 'read' | 'delivered' | 'sent' =
       msg.status === 'READ' ? 'read' : msg.status === 'DELIVERED' ? 'delivered' : 'sent';
 
-    const typeStr: 'text' | 'voucher' | 'order_update' | 'product_card' =
+    const typeStr: 'text' | 'voucher' | 'order_update' | 'product_card' | 'media' =
       msg.messageType === 'VOUCHER'
         ? 'voucher'
         : msg.messageType === 'ORDER'
           ? 'order_update'
           : msg.messageType === 'BOOK'
             ? 'product_card'
-            : 'text';
+            : msg.attachments && msg.attachments.length > 0
+              ? 'media'
+              : 'text';
 
     return {
       id: msg.id,
@@ -113,8 +162,12 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
       time: timeStr,
       status: statusStr,
       type: typeStr,
-      voucherCode: msg.metadata?.voucherCode,
-      discountText: msg.metadata?.discountText,
+      attachments: msg.attachments,
+      voucherId: msg.metadata?.voucherId,
+      voucherCode: msg.metadata?.voucherCode || msg.metadata?.code,
+      discountText: msg.metadata?.discountText || msg.metadata?.discountDescription,
+      minOrderAmount: msg.metadata?.minOrderAmount,
+      expiresAt: msg.metadata?.expiresAt,
       orderId: msg.metadata?.orderId,
     };
   }, []);
@@ -132,6 +185,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             return {
               id: conv.id,
               userId: custUser?.id,
+              storeId: conv.store?.id,
               name: custUser?.fullName || 'Khách Hàng',
               avatar: custUser?.avatar,
               tier: 'Khách mới',
@@ -340,22 +394,180 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     });
   }, [customers, searchQuery, filterTab]);
 
-  // Gửi tin nhắn
+  // File selection for seller
+  const handleSellerFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setSellerMediaError(null);
+    const valid: File[] = [];
+    const previews: Array<{ file: File; url: string; isVideo: boolean; name: string; size: number }> = [];
+
+    for (const f of files) {
+      const isImg = f.type.startsWith('image/');
+      const isVid = f.type.startsWith('video/');
+      if (!isImg && !isVid) {
+        setSellerMediaError('Chỉ hỗ trợ tệp hình ảnh hoặc video ngắn.');
+        continue;
+      }
+      if (isImg && f.size > 15 * 1024 * 1024) {
+        setSellerMediaError(`Ảnh "${f.name}" vượt quá 15MB.`);
+        continue;
+      }
+      if (isVid && f.size > 30 * 1024 * 1024) {
+        setSellerMediaError(`Video "${f.name}" vượt quá 30MB.`);
+        continue;
+      }
+      valid.push(f);
+      previews.push({
+        file: f,
+        url: URL.createObjectURL(f),
+        isVideo: isVid,
+        name: f.name,
+        size: f.size,
+      });
+    }
+
+    setSelectedSellerFiles((prev) => [...prev, ...valid]);
+    setSellerFilePreviews((prev) => [...prev, ...previews]);
+    if (sellerFileInputRef.current) sellerFileInputRef.current.value = '';
+  };
+
+  const handleRemoveSellerFile = (index: number) => {
+    setSelectedSellerFiles((prev) => prev.filter((_, i) => i !== index));
+    setSellerFilePreviews((prev) => {
+      const target = prev[index];
+      if (target?.url) URL.revokeObjectURL(target.url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  // Open voucher modal & fetch real shop vouchers
+  const handleOpenVoucherModal = async () => {
+    setIsVoucherModalOpen(true);
+    setIsLoadingVouchers(true);
+    try {
+      if (storeId) {
+        const res = await voucherApi.getVouchersByStore(storeId);
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setShopVouchers(res.data);
+          setSelectedVoucherId(res.data[0].id);
+          setIsLoadingVouchers(false);
+          return;
+        }
+      }
+      const allRes = await voucherApi.getAllVouchers({ scope: 'STORE', status: 'ACTIVE' });
+      if (allRes.success && allRes.data?.items) {
+        setShopVouchers(allRes.data.items);
+        if (allRes.data.items.length > 0) {
+          setSelectedVoucherId(allRes.data.items[0].id);
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi tải danh sách voucher:', err);
+    } finally {
+      setIsLoadingVouchers(false);
+    }
+  };
+
+  // Send real voucher to customer
+  const handleConfirmSendVoucher = async () => {
+    const voucher = shopVouchers.find((v) => v.id === selectedVoucherId) || shopVouchers[0];
+    if (!voucher || !currentCustomer) return;
+
+    const now = new Date();
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    const voucherCode = voucher.code;
+    const discountText = voucher.type === 'PERCENTAGE'
+      ? `Giảm ${voucher.value}%${voucher.maxDiscountAmount ? ` tối đa ${(voucher.maxDiscountAmount).toLocaleString('vi-VN')}đ` : ''}`
+      : `Giảm ${(voucher.value).toLocaleString('vi-VN')}đ`;
+    const content = `Shop gửi tặng bạn mã Voucher độc quyền "${voucherCode}" (${discountText}) cho đơn hàng tiếp theo!`;
+
+    const voucherMsg: SellerChatMessage = {
+      id: `voucher-${Date.now()}`,
+      sender: 'seller',
+      text: content,
+      time: timeStr,
+      status: 'sent',
+      type: 'voucher',
+      voucherId: voucher.id,
+      voucherCode,
+      discountText,
+      minOrderAmount: voucher.minOrderAmount,
+      expiresAt: voucher.expiresAt,
+    };
+
+    setMessagesByCustomer((prev) => ({
+      ...prev,
+      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), voucherMsg],
+    }));
+
+    setIsVoucherModalOpen(false);
+
+    try {
+      const metadata = {
+        voucherId: voucher.id,
+        voucherCode,
+        discountText,
+        minOrderAmount: voucher.minOrderAmount,
+        expiresAt: voucher.expiresAt,
+        type: voucher.type,
+        value: voucher.value,
+      };
+
+      const replyStoreId = currentCustomer?.storeId || primaryStoreId || storeId;
+      if (isConnected) {
+        await sendSocketMessage(currentCustomer.id, content, {
+          storeId: replyStoreId,
+          messageType: 'VOUCHER',
+          metadata,
+        });
+      } else {
+        await chatService.sendMessage(currentCustomer.id, {
+          content,
+          storeId: replyStoreId,
+          messageType: 'VOUCHER',
+          metadata,
+        });
+      }
+      playMessageSentSound();
+      showToast?.(`Đã gửi tặng mã voucher ${voucherCode} đến ${currentCustomer.name}!`, 'success');
+    } catch (err) {
+      console.error('Lỗi gửi voucher seller:', err);
+      showToast?.('Không thể gửi mã voucher. Vui lòng thử lại!', 'error');
+    }
+  };
+
+  // Gửi tin nhắn (Hỗ trợ text và tệp ảnh / video)
   const handleSendMessage = async (textToSend?: string) => {
     const content = (textToSend || messageInput).trim();
-    if (!content || !currentCustomer) return;
+    const hasFiles = selectedSellerFiles.length > 0;
+    if (!content && !hasFiles) return;
+    if (!currentCustomer) return;
 
     const now = new Date();
     const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     const tempId = `temp-${Date.now()}`;
 
+    const optimisticAttachments: ChatAttachment[] = sellerFilePreviews.map((p) => ({
+      type: p.isVideo ? 'VIDEO' : 'IMAGE',
+      url: p.url,
+      name: p.name,
+      size: p.size,
+    }));
+
+    const hasVideo = sellerFilePreviews.some((p) => p.isVideo);
+    const hasImage = sellerFilePreviews.some((p) => !p.isVideo);
+    const resolvedType = hasVideo ? 'VIDEO' : hasImage ? 'IMAGE' : 'TEXT';
+
     const newMsg: SellerChatMessage = {
       id: tempId,
       sender: 'seller',
-      text: content,
+      text: content || (hasVideo ? '[Video gửi từ shop]' : hasImage ? '[Hình ảnh gửi từ shop]' : ''),
       time: timeStr,
       status: 'sent',
-      type: 'text',
+      type: (hasVideo || hasImage) ? 'media' : 'text',
+      attachments: optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
     };
 
     setMessagesByCustomer((prev) => ({
@@ -365,31 +577,61 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
     setCustomers((prev) =>
       prev.map((c) =>
-        c.id === currentCustomer.id ? { ...c, lastMsg: content, lastTime: timeStr, unread: 0 } : c
+        c.id === currentCustomer.id ? { ...c, lastMsg: content || '[Tệp đính kèm]', lastTime: timeStr, unread: 0 } : c
       )
     );
 
     setMessageInput('');
     playMessageSentSound();
-    setTyping(currentCustomer.id, false, storeId);
+    const replyStoreId = currentCustomer?.storeId || primaryStoreId || storeId;
+    setTyping(currentCustomer.id, false, replyStoreId);
     if (sellerTypingTimeoutRef.current) clearTimeout(sellerTypingTimeoutRef.current);
 
+    const filesToUpload = [...selectedSellerFiles];
+    setSelectedSellerFiles([]);
+    setSellerFilePreviews([]);
+    setSellerMediaError(null);
+
     try {
-      if (isConnected) {
-        await sendSocketMessage(currentCustomer.id, content, {
-          storeId,
-          messageType: 'TEXT',
-        });
+      if (filesToUpload.length > 0) {
+        setIsSellerUploading(true);
+        const res = await chatService.sendMessage(
+          currentCustomer.id,
+          {
+            content: content || '',
+            storeId: replyStoreId,
+            messageType: resolvedType,
+          },
+          filesToUpload
+        );
+        if (res.success && res.data?.data) {
+          const sentMsg = res.data.data;
+          setMessagesByCustomer((prev) => ({
+            ...prev,
+            [currentCustomer.id]: (prev[currentCustomer.id] || []).map((m) =>
+              m.id === tempId ? mapApiMessageToSellerMessage(sentMsg, storeId) : m
+            ),
+          }));
+        }
       } else {
-        await chatService.sendMessage(currentCustomer.id, {
-          content,
-          storeId,
-          messageType: 'TEXT',
-        });
+        if (isConnected) {
+          await sendSocketMessage(currentCustomer.id, content, {
+            storeId: replyStoreId,
+            messageType: 'TEXT',
+          });
+        } else {
+          await chatService.sendMessage(currentCustomer.id, {
+            content,
+            storeId: replyStoreId,
+            messageType: 'TEXT',
+          });
+        }
       }
     } catch (err) {
       console.error('Lỗi gửi tin nhắn seller:', err);
       showToast?.('Không thể gửi tin nhắn. Vui lòng kiểm tra lại kết nối!', 'error');
+    } finally {
+      setIsSellerUploading(false);
     }
   };
 
@@ -401,53 +643,6 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     sellerTypingTimeoutRef.current = setTimeout(() => {
       setTyping(currentCustomer.id, false, storeId);
     }, 2000);
-  };
-
-  // Tặng voucher độc quyền
-  const handleSendVoucher = async () => {
-    if (!currentCustomer) return;
-    const now = new Date();
-    const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    const voucherCode = 'HUKIVIP15';
-    const discountText = 'Giảm 15% tối đa 50.000đ';
-    const content = 'Shop gửi tặng bạn mã Voucher độc quyền giảm 15% cho đơn hàng tiếp theo!';
-
-    const voucherMsg: SellerChatMessage = {
-      id: `voucher-${Date.now()}`,
-      sender: 'seller',
-      text: content,
-      time: timeStr,
-      status: 'sent',
-      type: 'voucher',
-      voucherCode,
-      discountText,
-    };
-
-    setMessagesByCustomer((prev) => ({
-      ...prev,
-      [currentCustomer.id]: [...(prev[currentCustomer.id] || []), voucherMsg],
-    }));
-
-    try {
-      if (isConnected) {
-        await sendSocketMessage(currentCustomer.id, content, {
-          storeId,
-          messageType: 'VOUCHER',
-          metadata: { voucherCode, discountText },
-        });
-      } else {
-        await chatService.sendMessage(currentCustomer.id, {
-          content,
-          storeId,
-          messageType: 'VOUCHER',
-          metadata: { voucherCode, discountText },
-        });
-      }
-      showToast?.(`Đã gửi mã voucher ${voucherCode} đến ${currentCustomer.name}!`, 'success');
-    } catch (err) {
-      console.error('Lỗi gửi voucher seller:', err);
-      showToast?.('Không thể gửi mã voucher. Vui lòng thử lại!', 'error');
-    }
   };
 
   return (
@@ -795,7 +990,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => handleSendMessage(`Dạ cuốn "${currentCustomer.product?.title}" bên em hiện đang sẵn hàng và đóng gói gửi ngay trong ngày ạ!`)}
@@ -805,11 +1000,11 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={handleSendVoucher}
+                      onClick={handleOpenVoucherModal}
                       className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
                     >
                       <span className="material-symbols-outlined text-sm">confirmation_number</span>
-                      <span>Tặng Voucher</span>
+                      <span>Tặng Voucher Shop</span>
                     </button>
                   </div>
                 </div>
@@ -827,6 +1022,9 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
                 {currentMessages.map((msg) => {
                   const isSeller = msg.sender === 'seller';
+                  const imageAttachments = msg.attachments?.filter((a) => a.type === 'IMAGE') || [];
+                  const videoAttachments = msg.attachments?.filter((a) => a.type === 'VIDEO') || [];
+
                   return (
                     <div
                       key={msg.id}
@@ -844,25 +1042,85 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
                         {/* Voucher Special Card */}
                         {msg.type === 'voucher' ? (
-                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md space-y-2">
-                            <div className="flex items-center gap-1.5 font-bold text-xs uppercase tracking-wider">
-                              <span className="material-symbols-outlined text-base">confirmation_number</span>
-                              <span>Voucher Độc Quyền Dành Cho Khách Hàng</span>
+                          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white shadow-md space-y-2 border border-amber-300/40 min-w-[240px]">
+                            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                              <span className="flex items-center gap-1 bg-white/20 px-2 py-0.5 rounded-full text-[10px]">
+                                <span className="material-symbols-outlined text-sm">confirmation_number</span>
+                                <span>Voucher Gian Hàng Độc Quyền</span>
+                              </span>
+                              <span className="text-[10px] text-amber-100">Đã tặng</span>
                             </div>
-                            <div className="bg-white/20 p-2 rounded-xl text-center font-mono font-black text-sm tracking-widest border border-white/30">
-                              {msg.voucherCode}
+                            <div className="bg-white/20 p-2 rounded-xl text-center font-mono font-black text-sm tracking-widest border border-dashed border-white/40">
+                              {msg.voucherCode || 'HUKIVIP'}
                             </div>
-                            <p className="text-[11px] text-amber-100">{msg.discountText}</p>
+                            <p className="text-[11px] text-amber-50 font-medium">{msg.discountText}</p>
+                            {msg.expiresAt && (
+                              <div className="flex items-center gap-1 text-[9.5px] text-amber-200">
+                                <span className="material-symbols-outlined text-[12px]">schedule</span>
+                                <span>HSD: {new Date(msg.expiresAt).toLocaleDateString('vi-VN')}</span>
+                              </div>
+                            )}
                           </div>
                         ) : (
-                          /* Standard Text Bubble */
+                          /* Standard Text & Media Bubble */
                           <div
                             className={`px-4 py-2.5 rounded-2xl text-xs leading-relaxed ${isSeller
                                 ? 'bg-emerald-800 text-white rounded-br-xs shadow-xs'
                                 : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-xs shadow-2xs'
                               }`}
                           >
-                            {msg.text}
+                            {/* Videos */}
+                            {videoAttachments.length > 0 && (
+                              <div className="space-y-1.5 my-1">
+                                {videoAttachments.map((vid, idx) => (
+                                  <div key={idx} className="relative rounded-xl overflow-hidden bg-black max-w-[280px]">
+                                    <video
+                                      src={vid.url}
+                                      controls
+                                      playsInline
+                                      preload="metadata"
+                                      className="w-full max-h-56 object-contain rounded-xl"
+                                    />
+                                    <div className="px-2 py-0.5 bg-black/70 text-[9px] text-white/90 flex items-center justify-between">
+                                      <span className="flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[12px] text-emerald-400">videocam</span>
+                                        <span className="truncate max-w-[150px]">{vid.name || 'Video cận cảnh'}</span>
+                                      </span>
+                                      {vid.size && <span>{(vid.size / (1024 * 1024)).toFixed(1)} MB</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Images */}
+                            {imageAttachments.length > 0 && (
+                              <div
+                                className={`grid gap-1.5 my-1 max-w-[280px] ${
+                                  imageAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
+                                }`}
+                              >
+                                {imageAttachments.map((img, idx) => (
+                                  <div
+                                    key={idx}
+                                    onClick={() => setSellerPreviewMediaUrl(img.url)}
+                                    className="relative group cursor-pointer overflow-hidden rounded-xl bg-slate-100 border border-black/5"
+                                  >
+                                    <img
+                                      src={img.thumbnail || img.url}
+                                      alt={img.name || 'Ảnh đính kèm'}
+                                      className="w-full h-32 object-cover transition-transform duration-200 group-hover:scale-105"
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                      <span className="material-symbols-outlined text-lg">zoom_in</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
                           </div>
                         )}
 
@@ -950,29 +1208,76 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={handleSendVoucher}
+                  onClick={handleOpenVoucherModal}
                   className="px-3 py-1 rounded-full bg-amber-50 border border-amber-300 hover:border-amber-500 text-[11px] text-amber-900 font-bold whitespace-nowrap transition-colors cursor-pointer shrink-0 shadow-2xs"
                 >
-                  Gửi voucher 15% cho khách VIP
+                  Kho Voucher Shop
                 </button>
               </div>
 
+              {/* Selected Files Preview Tray for Seller */}
+              {sellerFilePreviews.length > 0 && (
+                <div className="px-5 py-2 bg-slate-100 border-t border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                  {sellerFilePreviews.map((preview, idx) => (
+                    <div key={idx} className="relative shrink-0 w-14 h-14 rounded-lg overflow-hidden border border-slate-300 bg-white group">
+                      {preview.isVideo ? (
+                        <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center text-white">
+                          <span className="material-symbols-outlined text-[20px] text-emerald-400">play_circle</span>
+                          <span className="text-[8px] font-bold">VIDEO</span>
+                        </div>
+                      ) : (
+                        <img src={preview.url} alt={preview.name} className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSellerFile(idx)}
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-xs cursor-pointer hover:bg-rose-700"
+                        title="Xóa tệp"
+                      >
+                        <span className="material-symbols-outlined text-[10px]">close</span>
+                      </button>
+                    </div>
+                  ))}
+                  <span className="text-[11px] text-slate-600 font-medium">
+                    {sellerFilePreviews.length} tệp đính kèm (Ảnh / Video sách)
+                  </span>
+                </div>
+              )}
+
+              {/* Seller Media Error banner */}
+              {sellerMediaError && (
+                <div className="px-5 py-1.5 bg-rose-50 border-t border-rose-200 text-rose-700 text-xs flex items-center justify-between">
+                  <span>{sellerMediaError}</span>
+                  <button type="button" onClick={() => setSellerMediaError(null)} className="font-bold">✕</button>
+                </div>
+              )}
+
               {/* Message Input Box */}
               <div className="p-4 bg-white border-t border-slate-200/90 flex items-center gap-2.5">
+                {/* Hidden file input */}
+                <input
+                  ref={sellerFileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  onChange={handleSellerFileSelect}
+                  className="hidden"
+                />
+
                 <button
                   type="button"
-                  onClick={() => showToast?.('Tính năng đính kèm ảnh sách từ kho.', 'info')}
-                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Đính kèm ảnh thực tế"
+                  onClick={() => sellerFileInputRef.current?.click()}
+                  className="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Đính kèm ảnh hoặc video cận cảnh sách"
                 >
-                  <span className="material-symbols-outlined text-xl">image</span>
+                  <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={handleSendVoucher}
-                  className="w-9 h-9 rounded-xl text-slate-400 hover:text-amber-600 hover:bg-amber-50 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Gửi mã voucher độc quyền"
+                  onClick={handleOpenVoucherModal}
+                  className="w-9 h-9 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-amber-50 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Chọn voucher của shop để tặng"
                 >
                   <span className="material-symbols-outlined text-xl">confirmation_number</span>
                 </button>
@@ -987,21 +1292,28 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                       handleSendMessage();
                     }
                   }}
-                  placeholder="Nhập nội dung tư vấn... (Nhấn Enter để gửi)"
+                  placeholder={sellerFilePreviews.length > 0 ? "Thêm ghi chú đính kèm... (Nhấn Enter để gửi)" : "Nhập nội dung tư vấn... (Nhấn Enter để gửi)"}
                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
                 />
 
                 <button
                   type="button"
                   onClick={() => handleSendMessage()}
-                  disabled={!messageInput.trim()}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${messageInput.trim()
+                  disabled={(!messageInput.trim() && sellerFilePreviews.length === 0) || isSellerUploading}
+                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                    (messageInput.trim() || sellerFilePreviews.length > 0) && !isSellerUploading
                       ? 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-sm'
                       : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                     }`}
                 >
-                  <span>Gửi</span>
-                  <span className="material-symbols-outlined text-sm">send</span>
+                  {isSellerUploading ? (
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  ) : (
+                    <>
+                      <span>Gửi</span>
+                      <span className="material-symbols-outlined text-sm">send</span>
+                    </>
+                  )}
                 </button>
               </div>
             </>
@@ -1142,7 +1454,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
             <div className="p-4 border-b border-slate-100 space-y-2">
               <button
                 type="button"
-                onClick={handleSendVoucher}
+                onClick={handleOpenVoucherModal}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs cursor-pointer transition-all"
               >
                 <span className="material-symbols-outlined text-sm">confirmation_number</span>
@@ -1187,6 +1499,193 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
         )}
 
       </div>
+
+      {/* 4. MODAL CHỌN VOUCHER GIAN HÀNG ĐỂ TẶNG */}
+      {isVoucherModalOpen && (
+        <div
+          onClick={() => setIsVoucherModalOpen(false)}
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95"
+          >
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white px-5 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-2xl">confirmation_number</span>
+                <div>
+                  <h3 className="font-bold text-sm">Kho Voucher Gian Hàng Của Bạn</h3>
+                  <p className="text-[11px] text-amber-100">
+                    Chọn mã giảm giá đang hoạt động để gửi tặng khách {currentCustomer?.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVoucherModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-white/20 flex items-center justify-center transition-colors cursor-pointer text-white"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-3 flex-1 bg-slate-50">
+              {isLoadingVouchers ? (
+                <div className="py-12 flex flex-col items-center justify-center text-slate-400 gap-2">
+                  <span className="w-6 h-6 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
+                  <span className="text-xs">Đang tải danh sách voucher thật của shop...</span>
+                </div>
+              ) : shopVouchers.length === 0 ? (
+                <div className="py-10 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 mx-auto flex items-center justify-center">
+                    <span className="material-symbols-outlined text-2xl">savings</span>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-xs text-slate-800">Chưa có voucher khả dụng</h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Gian hàng hiện chưa tạo mã giảm giá hoặc mã đã hết hạn sử dụng.
+                    </p>
+                  </div>
+                  <Link
+                    href="/seller/vouchers"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-colors shadow-xs"
+                  >
+                    <span className="material-symbols-outlined text-sm">add_circle</span>
+                    <span>Tạo Voucher Gian Hàng Mới</span>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {shopVouchers.map((v) => {
+                    const isSelected = selectedVoucherId === v.id;
+                    const discountLabel =
+                      v.type === 'PERCENTAGE'
+                        ? `Giảm ${v.value}%${v.maxDiscountAmount ? ` tối đa ${(v.maxDiscountAmount).toLocaleString('vi-VN')}đ` : ''}`
+                        : `Giảm ${(v.value).toLocaleString('vi-VN')}đ`;
+
+                    return (
+                      <div
+                        key={v.id}
+                        onClick={() => setSelectedVoucherId(v.id)}
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                          isSelected
+                            ? 'bg-amber-50/80 border-amber-500 ring-2 ring-amber-500/30 shadow-xs'
+                            : 'bg-white border-slate-200 hover:border-amber-300 hover:bg-amber-50/20'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3 min-w-0">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            <span className="material-symbols-outlined text-lg">local_activity</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-black text-xs text-slate-900 tracking-wider">
+                                {v.code}
+                              </span>
+                              <span className="text-[9.5px] px-1.5 py-0.2 rounded font-bold bg-emerald-100 text-emerald-800">
+                                {v.status === 'ACTIVE' ? 'ĐANG CHẠY' : v.status}
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-amber-800 mt-0.5">{discountLabel}</p>
+                            <div className="flex items-center gap-3 text-[10.5px] text-slate-500 mt-1">
+                              {v.minOrderAmount ? (
+                                <span>Đơn tối thiểu: {(v.minOrderAmount).toLocaleString('vi-VN')}đ</span>
+                              ) : (
+                                <span>Mọi giá trị đơn</span>
+                              )}
+                              {v.expiresAt && (
+                                <span>HSD: {new Date(v.expiresAt).toLocaleDateString('vi-VN')}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0">
+                          <input
+                            type="radio"
+                            name="selectedVoucher"
+                            checked={isSelected}
+                            onChange={() => setSelectedVoucherId(v.id)}
+                            className="w-4 h-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between">
+              <Link
+                href="/seller/vouchers"
+                className="text-xs text-slate-500 hover:text-emerald-700 font-medium flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-sm">settings</span>
+                <span>Quản lý kho voucher</span>
+              </Link>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsVoucherModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSendVoucher}
+                  disabled={!selectedVoucherId || shopVouchers.length === 0}
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-colors shadow-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-sm">send</span>
+                  <span>Gửi Tặng Khách Hàng</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. FULLSCREEN LIGHTBOX PREVIEW MODAL CHO SELLER */}
+      {sellerPreviewMediaUrl && (
+        <div
+          onClick={() => setSellerPreviewMediaUrl(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div className="relative max-w-3xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={sellerPreviewMediaUrl}
+              alt="Phóng to ảnh"
+              className="max-w-full max-h-[82vh] object-contain rounded-xl shadow-2xl"
+            />
+            <div className="mt-3 flex items-center gap-3">
+              <a
+                href={sellerPreviewMediaUrl}
+                download="huki-seller-media"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">download</span>
+                <span>Tải ảnh gốc</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => setSellerPreviewMediaUrl(null)}
+                className="px-4 py-1.5 rounded-full bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

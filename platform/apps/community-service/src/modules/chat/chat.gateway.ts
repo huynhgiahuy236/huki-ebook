@@ -126,7 +126,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() dto: ShopEventDto,
   ) {
     if (dto?.storeId) {
-      await client.join(this.shopRoom(dto.storeId));
+      const ids = dto.storeId.split(',').map((s) => s.trim()).filter(Boolean);
+      for (const id of ids) {
+        await client.join(this.shopRoom(id));
+      }
       return { storeId: dto.storeId, joined: true };
     }
     return { joined: false };
@@ -138,7 +141,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() dto: ShopEventDto,
   ) {
     if (dto?.storeId) {
-      await client.leave(this.shopRoom(dto.storeId));
+      const ids = dto.storeId.split(',').map((s) => s.trim()).filter(Boolean);
+      for (const id of ids) {
+        await client.leave(this.shopRoom(id));
+      }
       return { storeId: dto.storeId, joined: false };
     }
     return { joined: false };

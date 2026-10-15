@@ -541,7 +541,11 @@ function MessengerContent() {
     let realConversationId = activeChannelData.id;
 
     // Nếu cuộc trò chuyện này là tạm thời (chưa có trong DB)
-    if (activeChannelData.id.startsWith('temp-') || activeChannelData.id === targetShopId) {
+    if (
+      activeChannelData.id.startsWith('temp-') ||
+      activeChannelData.id === targetShopId ||
+      !/^[0-9a-fA-F]{24}$/.test(activeChannelData.id)
+    ) {
       try {
         const createRes = await chatService.createConversation({
           storeId: activeChannelData.storeId || targetShopId || 'nxb-kim-dong',

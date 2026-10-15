@@ -7,6 +7,7 @@ import {
 } from "cloudinary";
 import { randomUUID } from "crypto";
 import { MessageAttachmentDto } from "./dto/chat.dto";
+import { AttachmentType } from "../../entities/message.schema";
 
 @Injectable()
 export class ChatAttachmentStorage {
@@ -31,7 +32,8 @@ export class ChatAttachmentStorage {
     file: Express.Multer.File,
   ): Promise<MessageAttachmentDto> {
     const isImage = file.mimetype.startsWith("image/");
-    const type = isImage ? "IMAGE" : "FILE";
+    const isVideo = file.mimetype.startsWith("video/");
+    const type: AttachmentType = isImage ? "IMAGE" : isVideo ? "VIDEO" : "FILE";
     if (!file.buffer?.length) {
       throw new BadRequestException("Attachment file is empty");
     }
@@ -41,7 +43,7 @@ export class ChatAttachmentStorage {
       const stream = cloudinary.uploader.upload_stream(
         {
           public_id: publicId,
-          resource_type: isImage ? "image" : "raw",
+          resource_type: isImage ? "image" : isVideo ? "video" : "raw",
           overwrite: false,
         },
         (

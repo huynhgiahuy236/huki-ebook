@@ -76,7 +76,7 @@ export class ChatController {
   @ApiOperation({ summary: "Send a message in a conversation" })
   @UseInterceptors(
     FilesInterceptor("attachments", 10, {
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 30 * 1024 * 1024 },
     }),
   )
   async send(

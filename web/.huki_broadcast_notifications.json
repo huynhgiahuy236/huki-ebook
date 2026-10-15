@@ -50,7 +50,9 @@
       "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
       "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
-    "dismissedByBusinessIds": [],
+    "dismissedByBusinessIds": [
+      "914a406f-9ae5-49a5-a895-7c60b2114d7c"
+    ],
     "actionUrl": "/seller/finance",
     "actionLabel": "Xem Ví Escrow"
   },
