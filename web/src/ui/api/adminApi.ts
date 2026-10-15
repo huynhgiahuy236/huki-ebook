@@ -530,10 +530,20 @@ export const adminApi = {
     orderItemId: string,
     dto: { status: 'HOLDING' | 'FROZEN' | 'RELEASED' | 'REFUNDED'; reason?: string },
   ): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/orders/admin/escrow/items/${orderItemId}/status`, {
+    const res = await apiClient<any>(`/orders/admin/escrow/items/${orderItemId}/status`, {
       method: 'PATCH',
       body: JSON.stringify(dto),
     });
+    if (res.success) {
+      if (dto.status === 'RELEASED') {
+        realtimeSyncBus.publish('ESCROW_RELEASED', { orderItemId, reason: dto.reason });
+      } else if (dto.status === 'FROZEN') {
+        realtimeSyncBus.publish('ESCROW_FROZEN', { orderItemId, reason: dto.reason });
+      } else if (dto.status === 'REFUNDED') {
+        realtimeSyncBus.publish('ESCROW_REFUNDED', { orderItemId, reason: dto.reason });
+      }
+    }
+    return res;
   },
 
   /**

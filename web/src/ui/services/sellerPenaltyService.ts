@@ -141,6 +141,158 @@ const DEFAULT_SEED_PROFILES: Record<string, StorePenaltyProfile> = {
     quarterCycle: 'Q4-2026',
     checklist: [],
   },
+  '3094e54e-2549-42cc-92fb-14a8f8589277': {
+    storeId: '3094e54e-2549-42cc-92fb-14a8f8589277',
+    storeName: 'NXB Trí Tuệ Việt (Phương Thúy)',
+    totalPoints: 0,
+    penaltyPoints: 0,
+    tier: 'TIER_0_GOOD',
+    tierLabel: '🟢 Hạng Tốt (Sức Khỏe Xuất Sắc)',
+    tierDescription: 'Gian hàng tuân thủ quy chuẩn chất lượng, đủ điều kiện tham gia Flash Sale của Sàn.',
+    badgeColor: 'emerald',
+    canJoinPlatformFlashSale: true,
+    maxBooksPerPlatformSlot: 20,
+    quarterlyResetDate: '2027-01-01',
+    metrics: {
+      nonFulfillmentRate: 0.5,
+      lateShipmentRate: 1.2,
+      responseRate: 98,
+      rating: 4.9,
+    },
+    history: [],
+    violationHistory: [],
+    quarterCycle: 'Q4-2026',
+    checklist: [],
+  },
+  'store-youth': {
+    storeId: 'store-youth',
+    storeName: 'Nhà Sách Tuổi Trẻ & Kỹ Năng',
+    totalPoints: 2,
+    penaltyPoints: 2,
+    tier: 'TIER_1_WARNING',
+    tierLabel: '🟡 Cảnh Báo Nhẹ (2 Sao Quả Tạ)',
+    tierDescription: 'Gian hàng có vi phạm nhỏ. Giới hạn tối đa 3 cuốn sách cho mỗi slot Flash Sale Sàn.',
+    badgeColor: 'amber',
+    canJoinPlatformFlashSale: true,
+    maxBooksPerPlatformSlot: 3,
+    quarterlyResetDate: '2027-01-01',
+    metrics: {
+      nonFulfillmentRate: 3.2,
+      lateShipmentRate: 8.5,
+      responseRate: 88,
+      rating: 4.5,
+    },
+    history: [
+      {
+        id: 'pen-youth-01',
+        storeId: 'store-youth',
+        violationType: 'LATE_SHIPMENT',
+        violationName: 'Giao hàng trễ hạn cho bưu tá (> 24h)',
+        points: 2,
+        reason: 'Có 6 đơn sách kỹ năng giao trễ cho Shipper vượt quá 24h quy định.',
+        relatedOrderId: 'ORD-98214',
+        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+        expiresAt: new Date(Date.now() + 3600000 * 24 * 26).toISOString(),
+        isAppealed: false,
+        appealStatus: 'NONE',
+      },
+    ],
+    violationHistory: [],
+    quarterCycle: 'Q4-2026',
+    checklist: [],
+  },
+  'store-saigon': {
+    storeId: 'store-saigon',
+    storeName: 'Sách Hay Sài Gòn (Books & Coffee)',
+    totalPoints: 3,
+    penaltyPoints: 3,
+    tier: 'TIER_2_BLOCKED_FLASH_SALE',
+    tierLabel: '🟠 Chế Tài Cấp 1 (3-5 Sao Quả Tạ)',
+    tierDescription: 'Bị tước quyền đăng ký Flash Sale của Sàn trong 28 ngày do điểm Sao Quả Tạ đạt từ 3 điểm.',
+    badgeColor: 'rose',
+    canJoinPlatformFlashSale: false,
+    maxBooksPerPlatformSlot: 0,
+    activeSanctionMessage: 'BỊ KHÓA QUYỀN THAM GIA FLASH SALE SÀN TRONG 28 NGÀY. (Vẫn được tạo Flash Sale riêng của Shop).',
+    quarterlyResetDate: '2027-01-01',
+    metrics: {
+      nonFulfillmentRate: 6.8,
+      lateShipmentRate: 11.2,
+      responseRate: 72,
+      rating: 4.1,
+    },
+    history: [
+      {
+        id: 'pen-saigon-01',
+        storeId: 'store-saigon',
+        violationType: 'COPYRIGHT_VIOLATION',
+        violationName: 'Bán sách vi phạm bản quyền / DRM lậu',
+        points: 3,
+        reason: 'Phát hiện đăng bán bản scan PDF chưa có chứng nhận tác quyền HuKi DRM.',
+        relatedBookTitle: 'Bộ Sách Tâm Lý Học Ứng Dụng Tập 1 & 2',
+        createdAt: new Date(Date.now() - 3600000 * 20).toISOString(),
+        expiresAt: new Date(Date.now() + 3600000 * 24 * 27).toISOString(),
+        isAppealed: true,
+        canAppeal: true,
+        appealStatus: 'PENDING',
+        appealReason: 'Chúng tôi đã ký hợp đồng chuyển nhượng tác quyền với NXB Phương Đông từ tuần trước, đính kèm giấy phép scan hợp lệ số 482/GP-XB.',
+        appealProof: 'https://cdn.huki.vn/evidence/license_482_phuongdong.pdf',
+      },
+    ],
+    violationHistory: [],
+    quarterCycle: 'Q4-2026',
+    checklist: [],
+  },
+  'store-hanoi': {
+    storeId: 'store-hanoi',
+    storeName: 'Tiệm Sách Cổ Điển Hà Nội',
+    totalPoints: 7,
+    penaltyPoints: 7,
+    tier: 'TIER_3_SEARCH_DEBOOST',
+    tierLabel: '🔴 Chế Tài Cấp 2 (6-8 Sao Quả Tạ)',
+    tierDescription: 'Tước quyền Flash Sale Sàn và giảm độ ưu tiên hiển thị trên trang tìm kiếm.',
+    badgeColor: 'purple',
+    canJoinPlatformFlashSale: false,
+    maxBooksPerPlatformSlot: 0,
+    activeSanctionMessage: 'CẤM FLASH SALE SÀN & GIẢM HIỂN THỊ TÌM KIẾM.',
+    quarterlyResetDate: '2027-01-01',
+    metrics: {
+      nonFulfillmentRate: 14.5,
+      lateShipmentRate: 18.0,
+      responseRate: 61,
+      rating: 3.7,
+    },
+    history: [
+      {
+        id: 'pen-hanoi-01',
+        storeId: 'store-hanoi',
+        violationType: 'PROMOTION_FRAUD',
+        violationName: 'Gian lận khuyến mãi / Đơn ảo Flash Sale',
+        points: 4,
+        reason: 'Hệ thống AI phát hiện tạo 18 đơn hàng ảo tự mua sách giảm giá Flash Sale.',
+        createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
+        expiresAt: new Date(Date.now() + 3600000 * 24 * 25).toISOString(),
+        isAppealed: true,
+        appealStatus: 'REJECTED',
+        appealReason: 'Đây là các khách hàng thân thiết mua tặng hội sách chứ không phải đơn ảo.',
+        appealAdminNote: 'Hội đồng Sàn HuKi từ chối: Cùng dải IP và cùng phương thức thanh toán thẻ test nội bộ.',
+      },
+      {
+        id: 'pen-hanoi-02',
+        storeId: 'store-hanoi',
+        violationType: 'NON_FULFILLMENT',
+        violationName: 'Tỷ lệ hủy đơn hàng cao (NFR > 5%)',
+        points: 3,
+        reason: 'Tự ý hủy 12 đơn của khách hàng vì lý do hết sách giấy trong kho.',
+        createdAt: new Date(Date.now() - 3600000 * 120).toISOString(),
+        expiresAt: new Date(Date.now() + 3600000 * 24 * 23).toISOString(),
+        isAppealed: false,
+        appealStatus: 'NONE',
+      },
+    ],
+    violationHistory: [],
+    quarterCycle: 'Q4-2026',
+    checklist: [],
+  },
 };
 
 /**
@@ -342,6 +494,12 @@ class SellerPenaltyService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         this.profiles = JSON.parse(raw);
+        // Ensure default seed profiles exist if not yet in storage
+        Object.keys(DEFAULT_SEED_PROFILES).forEach((key) => {
+          if (!this.profiles[key]) {
+            this.profiles[key] = DEFAULT_SEED_PROFILES[key];
+          }
+        });
       } else {
         this.profiles = { ...DEFAULT_SEED_PROFILES };
         this.saveToStorage();
@@ -666,6 +824,32 @@ class SellerPenaltyService {
     });
 
     return this.getProfile(storeId);
+  }
+
+  /**
+   * Lấy danh sách toàn bộ hồ sơ gian hàng để Admin giám sát sức khỏe sàn
+   */
+  public getAllProfiles(): StorePenaltyProfile[] {
+    return Object.keys(this.profiles).map((id) => this.getProfile(id));
+  }
+
+  /**
+   * Lấy toàn bộ hàng đợi hồ sơ kháng nghị xử phạt của người bán
+   */
+  public getAllAppeals(): { storeId: string; storeName: string; record: PenaltyRecord }[] {
+    const list: { storeId: string; storeName: string; record: PenaltyRecord }[] = [];
+    Object.values(this.profiles).forEach((profile) => {
+      profile.history.forEach((rec) => {
+        if (rec.appealStatus && rec.appealStatus !== 'NONE') {
+          list.push({
+            storeId: profile.storeId,
+            storeName: profile.storeName || 'Gian Hàng Người Bán',
+            record: rec,
+          });
+        }
+      });
+    });
+    return list.sort((a, b) => new Date(b.record.createdAt).getTime() - new Date(a.record.createdAt).getTime());
   }
 }
 

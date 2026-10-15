@@ -62,7 +62,7 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     // 4. User chưa đăng ký kinh doanh: Cố vào dashboard / pending / setup -> sang register
-    if (!user?.business && user?.role !== 'PLATFORM_ADMIN') {
+    if (!isApprovedSeller && !user?.business && user?.role !== 'PLATFORM_ADMIN') {
       if (!pathname.startsWith('/seller/register') && pathname !== '/seller') {
         router.replace('/seller/register');
         return;

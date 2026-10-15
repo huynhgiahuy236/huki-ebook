@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -13,6 +14,7 @@ import { KPICard } from '../analytics/KPICard';
 import { GMVChart } from '../analytics/GMVChart';
 import { TopSellersTable } from '../analytics/TopSellersTable';
 import { TopProductsTable } from '../analytics/TopProductsTable';
+import { AdminLedgerView } from './AdminLedgerView';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0 ₫';
@@ -22,6 +24,7 @@ function formatVND(amount?: number | string | null): string {
 }
 
 type DatePreset = '7D' | '30D' | 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME' | 'CUSTOM';
+type ReportTab = 'SALES_ANALYTICS' | 'FINANCIAL_LEDGER';
 
 function getInitialDates(): { from: string; to: string } {
   const now = new Date();
@@ -38,6 +41,9 @@ function getInitialDates(): { from: string; to: string } {
 export function AdminReportsView() {
   const { showToast } = useToast();
   const { user } = useAuth();
+
+  // Primary Active Tab: Sales Analytics vs. Financial Ledger
+  const [activeTab, setActiveTab] = useState<ReportTab>('SALES_ANALYTICS');
 
   // Filter States with initial 30D values
   const [preset, setPreset] = useState<DatePreset>('30D');
@@ -233,236 +239,290 @@ export function AdminReportsView() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-gray-200">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
-            Báo Cáo Phân Tích &amp; GMV Toàn Sàn
+            {activeTab === 'SALES_ANALYTICS'
+              ? 'Báo Cáo Phân Tích & GMV Toàn Sàn'
+              : 'Sổ Cái Doanh Thu & Dòng Tiền Toàn Sàn'}
           </h1>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {activeTab === 'SALES_ANALYTICS'
+              ? 'Thống kê tổng giá trị giao dịch, tăng trưởng và bảng xếp hạng bán chạy.'
+              : 'Giám sát ký quỹ Escrow, hoa hồng sàn, số dư ví người bán và lịch sử giao dịch thời gian thực.'}
+          </p>
         </div>
 
-        {/* Action Toolbar */}
-        <div className="flex flex-wrap items-center gap-2 shrink-0 print:hidden">
-          {/* Refresh status indicator */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-[11px] font-medium text-gray-600">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Tự động làm mới mỗi 5 phút</span>
-            {lastRefreshedAt && (
-              <span className="text-gray-400 font-mono">
-                • {lastRefreshedAt.toLocaleTimeString('vi-VN')}
+        {/* Action Toolbar for Sales Analytics */}
+        {activeTab === 'SALES_ANALYTICS' && (
+          <div className="flex flex-wrap items-center gap-2 shrink-0 print:hidden">
+            {/* Refresh status indicator */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-xl text-[11px] font-medium text-gray-600">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Tự động làm mới mỗi 5 phút</span>
+              {lastRefreshedAt && (
+                <span className="text-gray-400 font-mono">
+                  • {lastRefreshedAt.toLocaleTimeString('vi-VN')}
+                </span>
+              )}
+            </div>
+
+            {/* Manual Refresh Button */}
+            <button
+              onClick={() => fetchData(true)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-xs font-bold text-gray-700 transition-all shadow-2xs cursor-pointer disabled:opacity-60"
+              title="Làm mới dữ liệu ngay"
+            >
+              <span className={`material-symbols-outlined text-[16px] ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
+                refresh
               </span>
-            )}
+              <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
+            </button>
+
+            {/* CSV Export Button */}
+            <button
+              onClick={handleExportCsv}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-bold text-xs transition-all shadow-2xs cursor-pointer"
+              title="Tải tệp CSV phân tích"
+            >
+              <span className="material-symbols-outlined text-[16px] text-[#00875A]">csv</span>
+              <span>Xuất CSV</span>
+            </button>
+
+            {/* Print / PDF Button */}
+            <button
+              onClick={handlePrintPdf}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
+              title="In báo cáo hoặc lưu dưới dạng PDF"
+            >
+              <span className="material-symbols-outlined text-[16px]">print</span>
+              <span>In Báo Cáo (PDF)</span>
+            </button>
           </div>
-
-          {/* Manual Refresh Button */}
-          <button
-            onClick={() => fetchData(true)}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 text-xs font-bold text-gray-700 transition-all shadow-2xs cursor-pointer disabled:opacity-60"
-            title="Làm mới dữ liệu ngay"
-          >
-            <span className={`material-symbols-outlined text-[16px] ${isRefreshing ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
-              refresh
-            </span>
-            <span>{isRefreshing ? 'Đang tải...' : 'Làm mới'}</span>
-          </button>
-
-          {/* CSV Export Button */}
-          <button
-            onClick={handleExportCsv}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-[#E2E8F0] hover:bg-gray-50 text-gray-700 font-bold text-xs transition-all shadow-2xs cursor-pointer"
-            title="Tải tệp CSV phân tích"
-          >
-            <span className="material-symbols-outlined text-[16px] text-[#00875A]">csv</span>
-            <span>Xuất CSV</span>
-          </button>
-
-          {/* Print / PDF Button */}
-          <button
-            onClick={handlePrintPdf}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00734c] text-white font-bold text-xs transition-all shadow-sm cursor-pointer"
-            title="In báo cáo hoặc lưu dưới dạng PDF"
-          >
-            <span className="material-symbols-outlined text-[16px]">print</span>
-            <span>In Báo Cáo (PDF)</span>
-          </button>
-        </div>
+        )}
       </div>
 
-      {/* 2. FILTER TOOLBAR */}
-      <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
-        {/* Preset Chips */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-gray-500 mr-1">Khoảng thời gian:</span>
-          {[
-            { id: '7D', label: '7 Ngày' },
-            { id: '30D', label: '30 Ngày' },
-            { id: 'THIS_MONTH', label: 'Tháng Này' },
-            { id: 'THIS_YEAR', label: 'Năm Nay' },
-            { id: 'ALL_TIME', label: 'Toàn Bộ Dữ Liệu' },
-            { id: 'CUSTOM', label: 'Tùy Chỉnh' },
-          ].map((item) => (
-            <button
-              key={item.id}
-              onClick={() => applyPreset(item.id as DatePreset)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                preset === item.id
-                  ? 'bg-[#00875A] text-white shadow-2xs'
-                  : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200'
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
+      {/* 2. PRIMARY TAB SWITCHER */}
+      <div className="flex items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit border border-gray-200/60 print:hidden">
+        <button
+          onClick={() => setActiveTab('SALES_ANALYTICS')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'SALES_ANALYTICS'
+              ? 'bg-white text-gray-900 shadow-xs border border-gray-200/50'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-blue-600">query_stats</span>
+          <span>Báo Cáo Doanh Số &amp; GMV</span>
+        </button>
 
-        {/* Custom Range Inputs & Interval Selector */}
-        <div className="flex flex-wrap items-center gap-3">
-          {preset === 'CUSTOM' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 focus:outline-none focus:border-[#00875A]"
-              />
-              <span className="text-xs text-gray-400">đến</span>
-              <input
-                type="date"
-                value={toDate}
-                onChange={(e) => setToDate(e.target.value)}
-                className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 focus:outline-none focus:border-[#00875A]"
-              />
+        <button
+          onClick={() => setActiveTab('FINANCIAL_LEDGER')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'FINANCIAL_LEDGER'
+              ? 'bg-white text-gray-900 shadow-xs border border-gray-200/50'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-emerald-600">account_balance_wallet</span>
+          <span>Sổ Cái Doanh Thu &amp; Dòng Tiền Sàn</span>
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        </button>
+      </div>
+
+      {/* TAB CONTENT */}
+      {activeTab === 'FINANCIAL_LEDGER' ? (
+        <AdminLedgerView />
+      ) : (
+        <>
+          {/* 3. FILTER TOOLBAR (SALES ANALYTICS) */}
+          <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
+            {/* Preset Chips */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs font-bold text-gray-500 mr-1">Khoảng thời gian:</span>
+              {[
+                { id: '7D', label: '7 Ngày' },
+                { id: '30D', label: '30 Ngày' },
+                { id: 'THIS_MONTH', label: 'Tháng Này' },
+                { id: 'THIS_YEAR', label: 'Năm Nay' },
+                { id: 'ALL_TIME', label: 'Toàn Bộ Dữ Liệu' },
+                { id: 'CUSTOM', label: 'Tùy Chỉnh' },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => applyPreset(item.id as DatePreset)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    preset === item.id
+                      ? 'bg-[#00875A] text-white shadow-2xs'
+                      : 'bg-gray-50 hover:bg-gray-100 text-gray-600 border border-gray-200'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Range Inputs & Interval Selector */}
+            <div className="flex flex-wrap items-center gap-3">
+              {preset === 'CUSTOM' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 focus:outline-none focus:border-[#00875A]"
+                  />
+                  <span className="text-xs text-gray-400">đến</span>
+                  <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-semibold text-gray-700 focus:outline-none focus:border-[#00875A]"
+                  />
+                </div>
+              )}
+
+              {/* Interval Selector */}
+              <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200">
+                <span className="text-xs font-bold text-gray-500">Chu kỳ:</span>
+                <select
+                  value={interval}
+                  onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                    setInterval(e.target.value as 'daily' | 'weekly' | 'monthly')
+                  }
+                  className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#00875A]"
+                >
+                  <option value="daily">Theo Ngày (Daily)</option>
+                  <option value="weekly">Theo Tuần (Weekly ISO)</option>
+                  <option value="monthly">Theo Tháng (Monthly)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Date validation warning */}
+          {customError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
+              <span className="material-symbols-outlined text-sm">warning</span>
+              <span>{customError}</span>
             </div>
           )}
 
-          {/* Interval Selector */}
-          <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200">
-            <span className="text-xs font-bold text-gray-500">Chu kỳ:</span>
-            <select
-              value={interval}
-              onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                setInterval(e.target.value as 'daily' | 'weekly' | 'monthly')
+          {/* API Error Alert */}
+          {error && (
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-lg">error</span>
+                <span>{error}</span>
+              </div>
+              {error.includes('hết hạn') || error.includes('đăng nhập') ? (
+                <Link
+                  href="/login?redirect=/admin/reports"
+                  className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-xs transition-colors flex items-center gap-1.5"
+                >
+                  <span className="material-symbols-outlined text-[16px]">login</span>
+                  <span>Đăng Nhập Lại</span>
+                </Link>
+              ) : (
+                <button
+                  onClick={() => fetchData(true)}
+                  className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold text-[11px] hover:bg-rose-700 cursor-pointer"
+                >
+                  Thử lại
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* 4. FOUR CANONICAL KPI CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* KPI 1: Total GMV */}
+            <KPICard
+              title="Tổng GMV Toàn Sàn"
+              value={formatVND(gmvData?.totalGmv)}
+              icon="payments"
+              subtitle="Tổng giá trị giao dịch hoàn tất (Gross)"
+              color="emerald"
+              loading={loading}
+            />
+
+            {/* KPI 2: Completed Orders */}
+            <KPICard
+              title="Đơn Hàng Hoàn Tất"
+              value={gmvData?.completedOrders ? gmvData.completedOrders.toLocaleString('vi-VN') : '0'}
+              icon="shopping_bag"
+              subtitle="Số đơn hàng thành công (ORDER_COMPLETED)"
+              color="blue"
+              loading={loading}
+            />
+
+            {/* KPI 3: Average Order Value (AOV) */}
+            <KPICard
+              title="Giá Trị Trung Bình / Đơn"
+              value={formatVND(aov)}
+              icon="receipt_long"
+              subtitle={
+                gmvData && gmvData.completedOrders > 0
+                  ? `AOV = Tổng GMV / ${gmvData.completedOrders} đơn`
+                  : 'Chưa có đơn hàng phát sinh'
               }
-              className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#00875A]"
-            >
-              <option value="daily">Theo Ngày (Daily)</option>
-              <option value="weekly">Theo Tuần (Weekly ISO)</option>
-              <option value="monthly">Theo Tháng (Monthly)</option>
-            </select>
+              color="amber"
+              loading={loading}
+            />
+
+            {/* KPI 4: Canonical Growth % */}
+            <KPICard
+              title="Tăng Trưởng GMV"
+              value="Chưa khả dụng"
+              icon="trending_up"
+              subtitle="Chưa có quy tắc so sánh kỳ trước được xác nhận"
+              color="gray"
+              loading={loading}
+            />
           </div>
-        </div>
-      </div>
 
-      {/* Date validation warning */}
-      {customError && (
-        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm">warning</span>
-          <span>{customError}</span>
-        </div>
-      )}
-
-      {/* API Error Alert */}
-      {error && (
-        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">error</span>
-            <span>{error}</span>
-          </div>
-          <button
-            onClick={() => fetchData(true)}
-            className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold text-[11px] hover:bg-rose-700"
-          >
-            Thử lại
-          </button>
-        </div>
-      )}
-
-      {/* 3. FOUR CANONICAL KPI CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* KPI 1: Total GMV */}
-        <KPICard
-          title="Tổng GMV Toàn Sàn"
-          value={formatVND(gmvData?.totalGmv)}
-          icon="payments"
-          subtitle="Tổng giá trị giao dịch hoàn tất (Gross)"
-          color="emerald"
-          loading={loading}
-        />
-
-        {/* KPI 2: Completed Orders */}
-        <KPICard
-          title="Đơn Hàng Hoàn Tất"
-          value={gmvData?.completedOrders ? gmvData.completedOrders.toLocaleString('vi-VN') : '0'}
-          icon="shopping_bag"
-          subtitle="Số đơn hàng thành công (ORDER_COMPLETED)"
-          color="blue"
-          loading={loading}
-        />
-
-        {/* KPI 3: Average Order Value (AOV) */}
-        <KPICard
-          title="Giá Trị Trung Bình / Đơn"
-          value={formatVND(aov)}
-          icon="receipt_long"
-          subtitle={
-            gmvData && gmvData.completedOrders > 0
-              ? `AOV = Tổng GMV / ${gmvData.completedOrders} đơn`
-              : 'Chưa có đơn hàng phát sinh'
-          }
-          color="amber"
-          loading={loading}
-        />
-
-        {/* KPI 4: Canonical Growth % */}
-        <KPICard
-          title="Tăng Trưởng GMV"
-          value="Chưa khả dụng"
-          icon="trending_up"
-          subtitle="Chưa có quy tắc so sánh kỳ trước được xác nhận"
-          color="gray"
-          loading={loading}
-        />
-      </div>
-
-      {/* 4. GMV TIMELINE TREND CHART */}
-      <GMVChart
-        timeline={gmvData?.timeline || []}
-        interval={interval}
-        loading={loading}
-      />
-
-      {/* 5. TWO-COLUMN DISTRIBUTION & BESTSELLERS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Left Column: Top Stores / Sellers */}
-        <div className="lg:col-span-6">
-          <TopSellersTable
-            byStore={gmvData?.byStore || []}
-            totalGmv={gmvData?.totalGmv || '0'}
+          {/* 5. GMV TIMELINE TREND CHART */}
+          <GMVChart
+            timeline={gmvData?.timeline || []}
+            interval={interval}
             loading={loading}
           />
-        </div>
 
-        {/* Right Column: Platform Bestsellers */}
-        <div className="lg:col-span-6">
-          <TopProductsTable
-            items={bestsellers}
-            rankingBy={bestsellerMode}
-            onRankingByChange={setBestsellerMode}
-            loading={loadingBestsellers}
-          />
-        </div>
-      </div>
+          {/* 6. TWO-COLUMN DISTRIBUTION & BESTSELLERS */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left Column: Top Stores / Sellers */}
+            <div className="lg:col-span-6">
+              <TopSellersTable
+                byStore={gmvData?.byStore || []}
+                totalGmv={gmvData?.totalGmv || '0'}
+                loading={loading}
+              />
+            </div>
 
-      {/* 6. HONEST DATA GAP & ARCHITECTURE NOTICE */}
-      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 text-xs text-gray-600 space-y-1.5 print:hidden">
-        <div className="flex items-center gap-2 font-bold text-gray-800">
-          <span className="material-symbols-outlined text-gray-500 text-[18px]">info</span>
-          <span>Ghi Chú Về Phạm Vi Dữ Liệu &amp; Nguồn Đo Lường</span>
-        </div>
-        <p className="text-[11px] leading-relaxed">
-          • <strong>Doanh số GMV:</strong> Được tính toán chính thức từ các sự kiện <code>ORDER_COMPLETED</code> trong Analytics Database, bảo toàn định dạng số thực <code>Decimal(15,2)</code>.
-        </p>
-        <p className="text-[11px] leading-relaxed">
-          • <strong>Phân loại thể loại &amp; Khu vực:</strong> Báo cáo theo Danh mục sách (Category GMV), Vùng miền (Region) và Bộ lọc gian hàng toàn sàn hiện đang là GAP dữ liệu chưa được index trong pipeline batch rollup và sẽ được hỗ trợ trong các phiên bản cập nhật tiếp theo.
-        </p>
-      </div>
+            {/* Right Column: Platform Bestsellers */}
+            <div className="lg:col-span-6">
+              <TopProductsTable
+                items={bestsellers}
+                rankingBy={bestsellerMode}
+                onRankingByChange={setBestsellerMode}
+                loading={loadingBestsellers}
+              />
+            </div>
+          </div>
+
+          {/* 7. HONEST DATA GAP & ARCHITECTURE NOTICE */}
+          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 text-xs text-gray-600 space-y-1.5 print:hidden">
+            <div className="flex items-center gap-2 font-bold text-gray-800">
+              <span className="material-symbols-outlined text-gray-500 text-[18px]">info</span>
+              <span>Ghi Chú Về Phạm Vi Dữ Liệu &amp; Nguồn Đo Lường</span>
+            </div>
+            <p className="text-[11px] leading-relaxed">
+              • <strong>Doanh số GMV:</strong> Được tính toán chính thức từ các sự kiện <code>ORDER_COMPLETED</code> trong Analytics Database, bảo toàn định dạng số thực <code>Decimal(15,2)</code>.
+            </p>
+            <p className="text-[11px] leading-relaxed">
+              • <strong>Phân loại thể loại &amp; Khu vực:</strong> Báo cáo theo Danh mục sách (Category GMV), Vùng miền (Region) và Bộ lọc gian hàng toàn sàn hiện đang là GAP dữ liệu chưa được index trong pipeline batch rollup và sẽ được hỗ trợ trong các phiên bản cập nhật tiếp theo.
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

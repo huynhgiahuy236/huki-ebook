@@ -5,6 +5,9 @@ import { useToast } from "../../context/ToastContext";
 import { flashSaleApi, type FlashSaleSlot } from "../../api/flashSaleApi";
 import { catalogApi, type BookData } from "../../api/catalogApi";
 import { AdminStatusBadge, AdminPagination } from './AdminUI';
+import { AdminPenaltyArbitrationView } from './AdminPenaltyArbitrationView';
+import { sellerPenaltyService } from '../../services/sellerPenaltyService';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 
 interface ConfiguredBookItem {
   book: BookData;
@@ -16,6 +19,9 @@ interface ConfiguredBookItem {
 
 export function AdminFlashSaleView() {
   const { showToast } = useToast();
+
+  const [primaryViewMode, setPrimaryViewMode] = useState<'SLOTS' | 'PENALTY_ARBITRATION'>('SLOTS');
+  const [pendingAppealsCount, setPendingAppealsCount] = useState<number>(0);
 
   const [loading, setLoading] = useState(false);
   const [flashSales, setFlashSales] = useState<FlashSaleSlot[]>([]);
@@ -97,6 +103,20 @@ export function AdminFlashSaleView() {
   useEffect(() => {
     fetchFlashSales();
     fetchCatalog();
+
+    const refreshAppealsCount = () => {
+      const appeals = sellerPenaltyService.getAllAppeals();
+      setPendingAppealsCount(appeals.filter((a) => a.record.appealStatus === 'PENDING').length);
+    };
+    refreshAppealsCount();
+
+    const unsubscribePenalty = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'SELLER_PENALTY_UPDATED') {
+        refreshAppealsCount();
+      }
+    });
+
+    return () => unsubscribePenalty();
   }, []);
 
   // Top KPI Metrics
@@ -591,7 +611,43 @@ export function AdminFlashSaleView() {
         </div>
       </div>
 
-      {/* 2. 4 TOP KPI METRIC CARDS */}
+      {/* 1.5 PRIMARY NAVIGATION SWITCH */}
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
+        <button
+          onClick={() => setPrimaryViewMode('SLOTS')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            primaryViewMode === 'SLOTS'
+              ? 'bg-[#00875A] text-white shadow-xs'
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[17px]">bolt</span>
+          <span>Khung Giờ Flash Sale Toàn Sàn</span>
+        </button>
+
+        <button
+          onClick={() => setPrimaryViewMode('PENALTY_ARBITRATION')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer ${
+            primaryViewMode === 'PENALTY_ARBITRATION'
+              ? 'bg-purple-700 text-white shadow-xs'
+              : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[17px]">stars</span>
+          <span>Kiểm Soát Sao Quả Tạ & Thẩm Định Kháng Nghị</span>
+          {pendingAppealsCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-400 text-gray-900 animate-pulse">
+              {pendingAppealsCount} chờ duyệt
+            </span>
+          )}
+        </button>
+      </div>
+
+      {primaryViewMode === 'PENALTY_ARBITRATION' ? (
+        <AdminPenaltyArbitrationView />
+      ) : (
+        <>
+          {/* 2. 4 TOP KPI METRIC CARDS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-white rounded-2xl p-4 border border-[#E2E8F0] shadow-2xs flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
@@ -1508,6 +1564,8 @@ export function AdminFlashSaleView() {
           />
         </div>
       )}
-    </div>
-  );
+    </>
+  )}
+</div>
+);
 }
