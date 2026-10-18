@@ -132,6 +132,8 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const [slashQuery, setSlashQuery] = useState('');
   const [slashIndex, setSlashIndex] = useState(0);
 
+
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
@@ -810,98 +812,45 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
   return (
     <div className="w-full h-screen flex flex-col bg-[#F8FAFC] text-slate-800 antialiased overflow-hidden font-sans select-none">
-      {/* 1. STANDALONE TOP HEADER (SELLER MESSENGER BAR) */}
-      <header className="h-14 sm:h-15 bg-white border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-2xs z-30">
-        {/* Left: Brand Logo & Navigation Back to Dashboard */}
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Link href="/seller/dashboard" className="flex items-center gap-2 group">
-            <span className="font-editorial text-lg font-black tracking-tight text-[#003B2B] group-hover:text-emerald-700 transition-colors">
-              HUKI EBOOK
-            </span>
-            <span className="px-1.5 py-0.5 rounded bg-[#003B2B] text-white text-[10px] font-extrabold uppercase tracking-wider">
-              SELLER CHAT
-            </span>
-          </Link>
-
-          <span className="h-4 w-px bg-slate-200 hidden sm:block" />
-
+      {/* TOP BAR GỌN GÀNG & HIỆN ĐẠI */}
+      <header className="h-12 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs z-10">
+        <div className="flex items-center gap-3">
           <Link
             href="/seller/dashboard"
-            className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-emerald-800 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-[#003B2B] hover:text-white text-slate-700 text-xs font-bold transition-all border border-slate-200 cursor-pointer shadow-2xs group"
+            title="Quay lại Kênh Người Bán"
           >
-            <span className="material-symbols-outlined text-sm">arrow_back</span>
+            <span className="material-symbols-outlined text-sm group-hover:-translate-x-0.5 transition-transform">arrow_back</span>
             <span>Về Kênh Người Bán</span>
           </Link>
+
+          <span className="h-4 w-px bg-slate-200 hidden sm:inline" />
+
+          <h1 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <span>Tin Nhắn Khách Hàng</span>
+            {customers.some((c) => c.unread > 0) && (
+              <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold animate-pulse">
+                {customers.filter((c) => c.unread > 0).length} mới
+              </span>
+            )}
+          </h1>
         </div>
 
-        {/* Center: Active Shop Identity */}
-        <div className="hidden md:flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 border border-slate-200/90 rounded-full">
+        <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-xs font-bold text-slate-800">{storeName}</span>
-          <span className="text-[10px] text-emerald-700 font-semibold uppercase tracking-wider bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-            Gian Hàng Trực Tuyến
-          </span>
-        </div>
-
-        {/* Right: Quick Portal Links & User Profile */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <Link
-            href="/"
-            target="_blank"
-            className="hidden lg:inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 text-xs font-semibold transition-colors"
-          >
-            <span className="material-symbols-outlined text-sm">storefront</span>
-            <span>Về Sàn HUKI</span>
-          </Link>
-
-          <Link
-            href="/seller/products"
-            className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-2xs transition-all flex items-center gap-1"
-          >
-            <span className="material-symbols-outlined text-sm">inventory_2</span>
-            <span className="hidden sm:inline">Quản Lý Sách</span>
-          </Link>
-
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
-            <UserAvatar
-              src={user?.avatar}
-              name={user?.fullName || storeName}
-              size="w-8 h-8"
-            />
-            <span className="text-xs font-bold text-slate-800 hidden sm:inline max-w-[120px] truncate">
-              {user?.fullName || storeName}
-            </span>
-          </div>
+          <span className="text-xs font-bold text-slate-700">{storeName}</span>
         </div>
       </header>
 
-      {/* 2. MAIN 3-COLUMN MESSENGER WORKSPACE */}
+      {/* MAIN 3-COLUMN MESSENGER WORKSPACE */}
       <div className="flex-1 flex overflow-hidden">
-        {/* ----------------- COLUMN 1: CUSTOMERS & CONVERSATIONS (LEFT) ----------------- */}
-        <aside className={`${activeCustomerId ? 'hidden md:flex' : 'flex'} w-full md:w-80 lg:w-88 border-r border-slate-200/90 bg-white flex-col shrink-0 h-full`}>
+        {/* ----------------- COLUMN 1: DANH SÁCH HỘI THOẠI (LEFT) ----------------- */}
+        <aside className={`${activeCustomerId ? 'hidden md:flex' : 'flex'} w-full md:w-80 lg:w-88 border-r border-slate-200 bg-white flex-col shrink-0 h-full`}>
 
-          {/* Header & Unread Counter */}
-          <div className="p-4 pb-3 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-black text-slate-900 tracking-tight font-serif">
-                Hộp Thư Khách Hàng
-              </h2>
-              {customers.some((c) => c.unread > 0) && (
-                <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold animate-pulse">
-                  {customers.filter((c) => c.unread > 0).length} mới
-                </span>
-              )}
-            </div>
-
-            <span className="text-xs text-slate-400 font-medium">
-              {customers.length} hội thoại
-            </span>
-          </div>
-
-          {/* Search Box */}
-          <div className="p-3.5 pb-2">
+          {/* Search Box & Quick Filter Tabs */}
+          <div className="p-3 border-b border-slate-100 space-y-2.5">
             <div className="relative">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-base">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
                 search
               </span>
               <input
@@ -909,56 +858,49 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Tìm khách hàng, mã đơn..."
-                className="w-full bg-slate-50 border border-slate-200/90 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#003B2B] focus:bg-white font-medium transition-all"
               />
             </div>
-          </div>
 
-          {/* Filter Pills (All / Unread / Has Orders / VIP) */}
-          <div className="px-3.5 pb-3 flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => setFilterTab('all')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'all'
-                  ? 'bg-emerald-800 text-white shadow-2xs font-bold'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            {/* Filter Tabs gọn gàng */}
+            <div className="flex items-center gap-1 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setFilterTab('all')}
+                className={`flex-1 py-1 rounded-lg text-center transition-all cursor-pointer text-xs ${
+                  filterTab === 'all'
+                    ? 'bg-[#003B2B] text-white font-bold shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
                 }`}
-            >
-              Tất Cả
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('unread')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1 ${filterTab === 'unread'
-                  ? 'bg-rose-600 text-white shadow-2xs font-bold'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              >
+                Tất cả ({customers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab('unread')}
+                className={`flex-1 py-1 rounded-lg text-center transition-all cursor-pointer text-xs flex items-center justify-center gap-1 ${
+                  filterTab === 'unread'
+                    ? 'bg-[#003B2B] text-white font-bold shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
                 }`}
-            >
-              <span>Chưa Đọc</span>
-              {customers.filter((c) => c.unread > 0).length > 0 && (
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('orders')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'orders'
-                  ? 'bg-emerald-800 text-white shadow-2xs font-bold'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              >
+                <span>Chưa đọc</span>
+                {customers.filter((c) => c.unread > 0).length > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterTab('orders')}
+                className={`flex-1 py-1 rounded-lg text-center transition-all cursor-pointer text-xs ${
+                  filterTab === 'orders'
+                    ? 'bg-[#003B2B] text-white font-bold shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100'
                 }`}
-            >
-              Có Đơn Hàng
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterTab('vip')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${filterTab === 'vip'
-                  ? 'bg-amber-600 text-white shadow-2xs font-bold'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-            >
-              Khách VIP
-            </button>
+              >
+                Có đơn
+              </button>
+            </div>
           </div>
 
           {/* Conversation List */}
@@ -970,25 +912,25 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                   key={cust.id}
                   onClick={() => {
                     setActiveCustomerId(cust.id);
-                    // Đánh dấu đã đọc khi click
                     setCustomers((prev) =>
                       prev.map((c) => (c.id === cust.id ? { ...c, unread: 0 } : c))
                     );
                   }}
-                  className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${isActive
-                      ? 'bg-emerald-50/70 border-r-3 border-emerald-700'
-                      : 'hover:bg-slate-50'
-                    }`}
+                  className={`p-3.5 flex items-start gap-3 cursor-pointer transition-all ${
+                    isActive
+                      ? 'bg-emerald-50/70 border-l-4 border-l-[#003B2B]'
+                      : 'hover:bg-slate-50 bg-white'
+                  }`}
                 >
                   {/* Customer Avatar & Status */}
                   <div className="relative shrink-0">
                     <UserAvatar
                       src={cust.avatar}
                       name={cust.name}
-                      size="w-11 h-11"
+                      size="w-10 h-10"
                     />
                     {cust.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full shadow-2xs" />
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full shadow-2xs" />
                     )}
                   </div>
 
@@ -1000,12 +942,13 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                           {cust.name}
                         </span>
                         {cust.tier && (
-                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded shrink-0 ${cust.tier === 'VIP Gold'
+                          <span className={`text-[9px] font-extrabold px-1.5 py-0.2 rounded shrink-0 ${
+                            cust.tier === 'VIP Gold'
                               ? 'bg-amber-100 text-amber-800'
                               : cust.tier === 'VIP Bạc'
-                                ? 'bg-slate-100 text-slate-700'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}>
+                              ? 'bg-slate-100 text-slate-700'
+                              : 'bg-emerald-100 text-emerald-800'
+                          }`}>
                             {cust.tier}
                           </span>
                         )}
@@ -1015,14 +958,13 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                       </span>
                     </div>
 
-                    <p className={`text-xs truncate ${cust.unread > 0 ? 'font-bold text-slate-900' : 'text-slate-500'
-                      }`}>
+                    <p className={`text-xs truncate ${cust.unread > 0 ? 'font-bold text-slate-900' : 'text-slate-500'}`}>
                       {cust.lastMsg}
                     </p>
 
                     {/* Book Inquired By Customer */}
                     {cust.product && (
-                      <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-800 font-semibold truncate bg-emerald-50/80 px-1.5 py-0.5 rounded">
+                      <div className="mt-1 flex items-center gap-1 text-[10px] text-emerald-800 font-semibold truncate bg-emerald-50 px-1.5 py-0.5 rounded">
                         <span className="material-symbols-outlined text-xs shrink-0">menu_book</span>
                         <span className="truncate">{cust.product.title}</span>
                       </div>
@@ -1031,7 +973,7 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
                   {/* Unread Badge */}
                   {cust.unread > 0 && (
-                    <span className="w-4.5 h-4.5 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 self-center">
+                    <span className="min-w-4.5 h-4.5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0 self-center">
                       {cust.unread}
                     </span>
                   )}
@@ -1098,18 +1040,18 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 <div className="flex items-center gap-1.5 text-slate-600">
                   <button
                     type="button"
-                    onClick={() => showToast?.('Đang kết nối cuộc gọi thoại hỗ trợ...', 'info')}
-                    className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Gọi thoại hỗ trợ"
+                    disabled
+                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
+                    title="Gọi thoại hỗ trợ (Tính năng đang phát triển)"
                   >
                     <span className="material-symbols-outlined text-lg">call</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={() => showToast?.('Đang kết nối video tư vấn sách...', 'info')}
-                    className="w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Gọi video"
+                    disabled
+                    className="w-9 h-9 rounded-xl opacity-40 cursor-not-allowed pointer-events-none flex items-center justify-center text-slate-400"
+                    title="Gọi video tư vấn (Tính năng đang phát triển)"
                   >
                     <span className="material-symbols-outlined text-lg">videocam</span>
                   </button>
@@ -1738,8 +1680,9 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
 
               <button
                 type="button"
-                onClick={() => showToast?.('Chuyển kỹ thuật DRM hỗ trợ thiết bị độc giả.', 'info')}
-                className="w-full py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                disabled
+                className="w-full py-2 rounded-xl border border-slate-200 opacity-40 cursor-not-allowed pointer-events-none text-slate-400 font-semibold text-xs flex items-center justify-center gap-1.5"
+                title="Chuyên viên kỹ thuật DRM (Tính năng đang phát triển)"
               >
                 <span className="material-symbols-outlined text-sm">security</span>
                 <span>Chuyên Viên Kỹ Thuật DRM</span>

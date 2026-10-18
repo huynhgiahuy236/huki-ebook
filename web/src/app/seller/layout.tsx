@@ -98,7 +98,7 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
     return <SellerPortalLayout>{children}</SellerPortalLayout>;
   }
 
-  // Standalone Full-Page Chat Workspace (mở ở browser mới / tab riêng như Shopee Web Chat)
+  // Standalone Full-Page Chat Workspace (Trang chat toàn màn hình riêng biệt)
   if (pathname === '/seller/chat' || pathname.startsWith('/seller/chat/')) {
     return <>{children}</>;
   }

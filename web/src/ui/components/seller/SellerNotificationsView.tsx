@@ -2,77 +2,38 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
-import {
-  adminNotificationService,
-  AdminBroadcastNotification,
-  NotificationCategory,
-} from '@/ui/services/adminNotificationService';
-import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
-import { useAuth } from '@/ui/context/AuthContext';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useRealtimeNotifications, RealtimeNotification } from '@/ui/hooks/useRealtimeNotifications';
 import { SellerPagination } from './SellerUI';
 
-type TabFilter = 'all' | 'admin' | 'finance' | 'orders' | 'marketing';
+type TabFilter = 'all' | 'admin' | 'alerts' | 'orders' | 'messages';
 
 export default function SellerNotificationsView() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const highlightId = searchParams.get('id');
 
-  const { user, activeBusinessId } = useAuth();
-  const currentBizId = user?.business?.id || activeBusinessId || undefined;
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    markAsRead,
+    markAllAsRead,
+    refresh,
+  } = useRealtimeNotifications();
 
-  // Xác định mốc thời gian tạo gian hàng / tài khoản người bán
-  const sellerCreatedAt = useMemo(() => {
-    if (user?.business?.createdAt) return user.business.createdAt;
-    if (user?.createdAt) return user.createdAt;
-    if (typeof window !== 'undefined') {
-      if (currentBizId) {
-        const stored = localStorage.getItem(`huki_seller_registered_at_${currentBizId}`);
-        if (stored) return stored;
-        try {
-          const p = localStorage.getItem(`huki_enterprise_profile_${currentBizId}`);
-          if (p) {
-            const parsed = JSON.parse(p);
-            if (parsed.submitted_at || parsed.createdAt) return parsed.submitted_at || parsed.createdAt;
-          }
-        } catch {}
-      }
-      const userReg = localStorage.getItem(`huki_seller_registered_at_${user?.id || 'current'}`);
-      if (userReg) return userReg;
-    }
-    // Mặc định shop đang thao tác nếu không có mốc cũ thì xem là mới tạo để lọc đúng quy tắc
-    return new Date().toISOString();
-  }, [user?.business?.createdAt, user?.createdAt, currentBizId, user?.id]);
-
-  const [notifications, setNotifications] = useState<AdminBroadcastNotification[]>([]);
   const [activeTab, setActiveTab] = useState<TabFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [selectedNotif, setSelectedNotif] = useState<AdminBroadcastNotification | null>(null);
+  const [selectedNotif, setSelectedNotif] = useState<RealtimeNotification | null>(null);
+
+  // Multi-select bulk state
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-
-  const loadNotifs = () => {
-    const list = adminNotificationService.getForSeller(currentBizId, true, sellerCreatedAt);
-    setNotifications(list);
-  };
-
-  useEffect(() => {
-    loadNotifs();
-    window.addEventListener('huki_admin_notifications_updated', loadNotifs);
-    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
-      if (msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' || msg.type === 'FEATURE_FLAGS_UPDATED') {
-        loadNotifs();
-      }
-    });
-
-    return () => {
-      window.removeEventListener('huki_admin_notifications_updated', loadNotifs);
-      unsubscribe();
-    };
-  }, [currentBizId, sellerCreatedAt]);
 
   // Open modal if URL has ?id=
   useEffect(() => {
@@ -80,83 +41,161 @@ export default function SellerNotificationsView() {
       const found = notifications.find((n) => n.id === highlightId);
       if (found) {
         setSelectedNotif(found);
-        adminNotificationService.markAsRead(found.id, currentBizId);
+        if (!found.isRead) {
+          markAsRead(found.id);
+        }
       }
     }
-  }, [highlightId, notifications, currentBizId]);
+  }, [highlightId, notifications, markAsRead]);
 
-  const handleMarkAllRead = () => {
-    adminNotificationService.markAllAsRead(currentBizId);
-  };
-
-  const handleOpenDetail = (notif: AdminBroadcastNotification) => {
-    adminNotificationService.markAsRead(notif.id, currentBizId);
+  const handleOpenDetail = (notif: RealtimeNotification) => {
     setSelectedNotif(notif);
+    if (!notif.isRead) {
+      markAsRead(notif.id);
+    }
   };
 
+  // Toggle selection for bulk actions
+  const handleToggleSelect = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectAll = (filteredIds: string[]) => {
+    const areAllSelected = filteredIds.every((id) => selectedIds.includes(id));
+    if (areAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleBulkMarkAsRead = async () => {
+    if (selectedIds.length === 0) return;
+    const ids = [...selectedIds];
+    setSelectedIds([]);
+    for (const id of ids) {
+      await markAsRead(id);
+    }
+  };
+
+  // Stats calculation
   const stats = useMemo(() => {
     const total = notifications.length;
-    const unread = notifications.filter(
-      (n) => !currentBizId || !n.readByBusinessIds?.includes(currentBizId)
-    ).length;
+    const unread = unreadCount;
     const adminNotifs = notifications.filter(
-      (n) => n.category === 'MAINTENANCE' || n.category === 'POLICY' || n.category === 'SECURITY'
+      (n) => n.senderType === 'ADMIN' || n.category === 'MANUAL_BROADCAST'
     ).length;
-    const financeNotifs = notifications.filter((n) => n.category === 'FINANCE').length;
-    return { total, unread, adminNotifs, financeNotifs };
-  }, [notifications, currentBizId]);
+    const alertNotifs = notifications.filter(
+      (n) => n.priority === 'CRITICAL' || n.priority === 'HIGH' || n.category === 'AUTO_WATCHDOG'
+    ).length;
+    const orderNotifs = notifications.filter(
+      (n) => n.category === 'AUTO_LIFECYCLE' || n.type?.includes('ORDER')
+    ).length;
+    return { total, unread, adminNotifs, alertNotifs, orderNotifs };
+  }, [notifications, unreadCount]);
 
+  // Filtering notifications
   const filteredList = useMemo(() => {
     return notifications.filter((n) => {
-      // Tab filter
+      // 1. Tab filter
       if (activeTab === 'admin') {
-        if (n.category !== 'MAINTENANCE' && n.category !== 'POLICY' && n.category !== 'SECURITY') return false;
-      } else if (activeTab === 'finance') {
-        if (n.category !== 'FINANCE') return false;
+        if (n.senderType !== 'ADMIN' && n.category !== 'MANUAL_BROADCAST') return false;
+      } else if (activeTab === 'alerts') {
+        if (
+          n.priority !== 'CRITICAL' &&
+          n.priority !== 'HIGH' &&
+          n.category !== 'AUTO_WATCHDOG' &&
+          !n.type?.includes('ALERT') &&
+          !n.type?.includes('OVERDUE')
+        ) {
+          return false;
+        }
       } else if (activeTab === 'orders') {
-        if (n.category !== 'ORDER') return false;
-      } else if (activeTab === 'marketing') {
-        if (n.category !== 'MARKETING') return false;
+        if (n.category !== 'AUTO_LIFECYCLE' && !n.type?.includes('ORDER') && !n.title?.toLowerCase().includes('đơn')) {
+          return false;
+        }
+      } else if (activeTab === 'messages') {
+        if (
+          n.category !== 'MANUAL_DIRECT' &&
+          n.senderType !== 'USER' &&
+          n.senderType !== 'SHIPPER'
+        ) {
+          return false;
+        }
       }
 
-      // Unread only filter
-      if (unreadOnly) {
-        const isRead = currentBizId && n.readByBusinessIds?.includes(currentBizId);
-        if (isRead) return false;
+      // 2. Unread only filter
+      if (unreadOnly && n.isRead) {
+        return false;
       }
 
-      // Search query
+      // 3. Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
-        const matchTitle = n.title.toLowerCase().includes(q);
-        const matchSummary = n.summary.toLowerCase().includes(q);
-        const matchContent = n.content.toLowerCase().includes(q);
-        if (!matchTitle && !matchSummary && !matchContent) return false;
+        const matchTitle = n.title?.toLowerCase().includes(q);
+        const matchMessage = n.message?.toLowerCase().includes(q);
+        const matchSender = n.senderName?.toLowerCase().includes(q);
+        if (!matchTitle && !matchMessage && !matchSender) return false;
       }
 
       return true;
     });
-  }, [notifications, activeTab, unreadOnly, searchQuery, currentBizId]);
+  }, [notifications, activeTab, unreadOnly, searchQuery]);
 
-  const getCategoryMeta = (cat: NotificationCategory) => {
-    switch (cat) {
-      case 'MAINTENANCE':
-        return { label: 'Bảo Trì', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: 'build' };
-      case 'POLICY':
-        return { label: 'Chính Sách', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: 'policy' };
-      case 'FINANCE':
-        return { label: 'Tài Chính & Escrow', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: 'account_balance_wallet' };
-      case 'ORDER':
-        return { label: 'Đơn Hàng', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: 'local_shipping' };
-      case 'MARKETING':
-        return { label: 'Khuyến Mãi & Deal', color: 'bg-rose-100 text-rose-800 border-rose-200', icon: 'campaign' };
-      case 'SECURITY':
+  const pagedList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredList.slice(start, start + pageSize);
+  }, [filteredList, currentPage, pageSize]);
+
+  const pagedIds = useMemo(() => pagedList.map((n) => n.id), [pagedList]);
+  const areAllCurrentPageSelected = pagedIds.length > 0 && pagedIds.every((id) => selectedIds.includes(id));
+
+  // Sender badges
+  const getSenderBadge = (senderType: string, senderName?: string) => {
+    switch (senderType) {
+      case 'ADMIN':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 flex items-center gap-1">
+            <span>🛡️</span>
+            <span>Ban Quản Trị HUKI</span>
+          </span>
+        );
+      case 'SELLER':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center gap-1">
+            <span>🏪</span>
+            <span>{senderName || 'Người bán'}</span>
+          </span>
+        );
+      case 'SHIPPER':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
+            <span>🛵</span>
+            <span>{senderName || 'Bưu tá Express'}</span>
+          </span>
+        );
+      case 'USER':
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 flex items-center gap-1">
+            <span>👤</span>
+            <span>{senderName || 'Khách hàng'}</span>
+          </span>
+        );
       default:
-        return { label: 'Bảo Mật', color: 'bg-slate-100 text-slate-800 border-slate-200', icon: 'security' };
+        return (
+          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center gap-1">
+            <span>⚙️</span>
+            <span>Hệ thống</span>
+          </span>
+        );
     }
   };
 
-  const formatRelativeTime = (isoString: string) => {
+  const formatRelativeTime = (isoString?: string) => {
+    if (!isoString) return '';
     const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
     if (diff < 60) return 'Vừa xong';
     if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
@@ -177,13 +216,13 @@ export default function SellerNotificationsView() {
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-[#94F5D6] text-xs font-bold backdrop-blur-md border border-white/20">
               <span className="material-symbols-outlined text-[15px] text-[#FBBF24]">notifications_active</span>
-              <span>Thông Báo Quản Trị Sàn &amp; Vận Hành Realtime</span>
+              <span>Trung Tâm Thông Báo &amp; Lịch Sử Toàn Sàn Realtime</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               Trung Tâm Thông Báo Gian Hàng
             </h1>
             <p className="text-white/80 text-xs sm:text-sm leading-relaxed">
-              Theo dõi kịp thời mọi thông báo bảo trì, lịch đối soát tài chính Escrow, thay đổi quy định và cơ hội bán hàng độc quyền từ Ban quản trị HUKI.
+              Theo dõi và quản lý đầy đủ lịch sử thông báo: bảo trì hệ thống, lịch đối soát tài chính, cập nhật đơn hàng và tương tác trực tiếp từ khách hàng &amp; bưu tá.
             </p>
           </div>
 
@@ -191,36 +230,39 @@ export default function SellerNotificationsView() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full md:w-auto">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
               <span className="block text-xl font-black text-white">{stats.total}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Tổng thông báo</span>
+              <span className="text-[11px] text-emerald-200/90 font-medium">Tổng lịch sử</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
               <span className="block text-xl font-black text-rose-300">{stats.unread}</span>
               <span className="text-[11px] text-emerald-200/90 font-medium">Chưa đọc</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-amber-300">{stats.adminNotifs}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Từ BQT Sàn</span>
+              <span className="block text-xl font-black text-amber-300">{stats.alertNotifs}</span>
+              <span className="text-[11px] text-emerald-200/90 font-medium">Cảnh báo</span>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/15 text-center min-w-[90px]">
-              <span className="block text-xl font-black text-[#94F5D6]">{stats.financeNotifs}</span>
-              <span className="text-[11px] text-emerald-200/90 font-medium">Tài chính</span>
+              <span className="block text-xl font-black text-[#94F5D6]">{stats.adminNotifs}</span>
+              <span className="text-[11px] text-emerald-200/90 font-medium">Từ BQT</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 2. Controls & Tabs */}
-      <section className="bg-white border border-slate-200/80 rounded-2xl p-3.5 sm:p-4 shadow-xs space-y-3">
+      {/* 2. Controls & Tabs (Framed Card) */}
+      <section className="bg-white dark:bg-neutral-900 border border-slate-200/80 dark:border-neutral-800 rounded-2xl p-3.5 sm:p-4 shadow-2xs space-y-3">
         {/* Horizontal Category Tabs */}
         <div className="flex items-center justify-between gap-2 overflow-x-auto pb-1 scrollbar-none">
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap sm:flex-nowrap">
             <button
               type="button"
-              onClick={() => setActiveTab('all')}
+              onClick={() => {
+                setActiveTab('all');
+                setCurrentPage(1);
+              }}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'all'
                   ? 'bg-[#003B2B] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">all_inbox</span>
@@ -229,59 +271,99 @@ export default function SellerNotificationsView() {
 
             <button
               type="button"
-              onClick={() => setActiveTab('admin')}
+              onClick={() => {
+                setActiveTab('admin');
+                setCurrentPage(1);
+              }}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'admin'
-                  ? 'bg-[#00875A] text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-rose-700 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px]">campaign</span>
-              <span>Từ Ban Quản Trị Sàn</span>
+              <span className="material-symbols-outlined text-[16px]">shield</span>
+              <span>Từ Ban Quản Trị ({stats.adminNotifs})</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('finance')}
+              onClick={() => {
+                setActiveTab('alerts');
+                setCurrentPage(1);
+              }}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                activeTab === 'finance'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                activeTab === 'alerts'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px]">account_balance_wallet</span>
-              <span>Tài Chính &amp; Escrow</span>
+              <span className="material-symbols-outlined text-[16px]">warning</span>
+              <span>Cảnh Báo &amp; Khẩn ({stats.alertNotifs})</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveTab('orders')}
+              onClick={() => {
+                setActiveTab('orders');
+                setCurrentPage(1);
+              }}
               className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
                 activeTab === 'orders'
                   ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
               <span className="material-symbols-outlined text-[16px]">local_shipping</span>
-              <span>Đơn Hàng &amp; Vận Hành</span>
+              <span>Đơn Hàng ({stats.orderNotifs})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('messages');
+                setCurrentPage(1);
+              }}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                activeTab === 'messages'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[16px]">chat</span>
+              <span>Chủ Động (1-1)</span>
             </button>
           </div>
 
-          {/* Mark all as read */}
-          {stats.unread > 0 && (
+          {/* Right Action buttons */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={handleMarkAllRead}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:text-[#00875A] hover:bg-emerald-50 text-xs font-bold shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer"
+              onClick={() => setIsMultiSelectMode(!isMultiSelectMode)}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-colors flex items-center gap-1 cursor-pointer ${
+                isMultiSelectMode
+                  ? 'bg-emerald-800 text-white border-emerald-800'
+                  : 'border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50'
+              }`}
             >
-              <span className="material-symbols-outlined text-[15px]">done_all</span>
-              <span>Đánh dấu đã đọc tất cả</span>
+              <span className="material-symbols-outlined text-sm">checklist</span>
+              <span>{isMultiSelectMode ? 'Đang chọn nhiều' : 'Chọn nhiều'}</span>
             </button>
-          )}
+
+            {stats.unread > 0 && (
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-slate-200 hover:text-[#00875A] hover:bg-emerald-50 text-xs font-bold shrink-0 transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[15px]">done_all</span>
+                <span>Đã đọc tất cả</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Search & Filter row */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-zinc-800">
           <div className="relative w-full sm:max-w-md">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">
               search
@@ -289,9 +371,12 @@ export default function SellerNotificationsView() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tiêu đề, từ khóa hoặc nội dung thông báo..."
-              className="w-full h-10 pl-9 pr-8 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Tìm theo tiêu đề, người gửi hoặc nội dung thông báo..."
+              className="w-full h-10 pl-9 pr-8 bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl text-xs sm:text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
             />
             {searchQuery && (
               <button
@@ -304,28 +389,77 @@ export default function SellerNotificationsView() {
             )}
           </div>
 
-          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer self-start sm:self-auto select-none">
+          <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer self-start sm:self-auto select-none">
             <input
               type="checkbox"
               checked={unreadOnly}
-              onChange={(e) => setUnreadOnly(e.target.checked)}
+              onChange={(e) => {
+                setUnreadOnly(e.target.checked);
+                setCurrentPage(1);
+              }}
               className="w-4 h-4 rounded text-[#00875A] focus:ring-[#00875A] border-slate-300 rounded cursor-pointer"
             />
             <span>Chỉ xem thông báo chưa đọc</span>
           </label>
         </div>
+
+        {/* Bulk Action Bar (When selection is active) */}
+        {(isMultiSelectMode || selectedIds.length > 0) && (
+          <div className="px-4 py-2.5 bg-slate-900 text-white rounded-xl flex items-center justify-between gap-3 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-2.5">
+              <label className="flex items-center gap-2 cursor-pointer font-semibold select-none">
+                <input
+                  type="checkbox"
+                  checked={areAllCurrentPageSelected}
+                  onChange={() => handleToggleSelectAll(pagedIds)}
+                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                />
+                <span>Chọn tất cả trang này ({pagedList.length})</span>
+              </label>
+
+              {selectedIds.length > 0 && (
+                <span className="text-amber-400 font-bold">
+                  • Đã chọn: {selectedIds.length} thông báo
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBulkMarkAsRead}
+                disabled={selectedIds.length === 0}
+                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">done_all</span>
+                <span>Đánh dấu đã đọc ({selectedIds.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedIds([]);
+                  setIsMultiSelectMode(false);
+                }}
+                className="text-slate-400 hover:text-white px-2 py-1 text-xs cursor-pointer"
+              >
+                Bỏ chọn
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* 3. Notification List */}
+      {/* 3. Notification List (Card Container) */}
       <section className="space-y-3">
         {filteredList.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center space-y-3 shadow-xs">
-            <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+          <div className="bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-800 rounded-3xl p-12 text-center space-y-3 shadow-xs">
+            <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-zinc-800 text-slate-400 flex items-center justify-center mx-auto">
               <span className="material-symbols-outlined text-3xl">notifications_off</span>
             </div>
             <div className="space-y-1">
-              <h3 className="font-bold text-base text-slate-900">Không có thông báo nào</h3>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white">Không có thông báo nào</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                 {searchQuery || unreadOnly
                   ? 'Thử điều chỉnh lại bộ lọc hoặc từ khóa tìm kiếm.'
                   : 'Hiện tại bạn đã cập nhật đầy đủ mọi thông báo mới nhất từ Ban quản trị sàn.'}
@@ -334,175 +468,233 @@ export default function SellerNotificationsView() {
           </div>
         ) : (
           <>
-            {filteredList.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((n) => {
-            const isRead = currentBizId && n.readByBusinessIds?.includes(currentBizId);
-            const catMeta = getCategoryMeta(n.category);
+            {pagedList.map((n) => {
+              const isCritical = n.priority === 'CRITICAL';
+              const isHigh = n.priority === 'HIGH';
+              const isSelected = selectedIds.includes(n.id);
 
-            return (
-              <div
-                key={n.id}
-                onClick={() => handleOpenDetail(n)}
-                className={`bg-white rounded-2xl border transition-all p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:shadow-md relative overflow-hidden ${
-                  !isRead
-                    ? 'border-emerald-300/80 bg-emerald-50/15 ring-1 ring-emerald-500/10'
-                    : 'border-slate-200/90 hover:border-slate-300'
-                }`}
-              >
-                {/* Left: Icon & Body */}
-                <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
-                      n.severity === 'CRITICAL'
-                        ? 'bg-rose-100 text-rose-700'
-                        : n.severity === 'WARNING'
-                        ? 'bg-amber-100 text-amber-800'
-                        : 'bg-emerald-100 text-[#00875A]'
-                    }`}
-                  >
-                    <span className="material-symbols-outlined text-[20px]">{catMeta.icon}</span>
-                  </div>
+              return (
+                <div
+                  key={n.id}
+                  onClick={(e) => {
+                    if (isMultiSelectMode) {
+                      handleToggleSelect(n.id, e);
+                    } else {
+                      handleOpenDetail(n);
+                    }
+                  }}
+                  className={`bg-white dark:bg-neutral-900 rounded-2xl border transition-all p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer hover:shadow-md relative overflow-hidden ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30 ring-1 ring-emerald-500/30'
+                      : !n.isRead
+                      ? isCritical
+                        ? 'border-rose-300 bg-rose-50/20 dark:bg-rose-950/20 ring-1 ring-rose-500/20'
+                        : isHigh
+                        ? 'border-amber-300 bg-amber-50/20 dark:bg-amber-950/20 ring-1 ring-amber-500/20'
+                        : 'border-emerald-300/80 bg-emerald-50/15 ring-1 ring-emerald-500/10'
+                      : 'border-slate-200/90 dark:border-neutral-800 hover:border-slate-300'
+                  }`}
+                >
+                  {/* Left: Icon, Checkbox & Body */}
+                  <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                    {/* Checkbox */}
+                    {(isMultiSelectMode || isSelected) && (
+                      <div className="pt-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleSelect(n.id)}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                      </div>
+                    )}
 
-                  <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${catMeta.color}`}>
-                        {catMeta.label}
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${
+                        isCritical
+                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
+                          : isHigh
+                          ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300'
+                          : 'bg-emerald-100 text-[#00875A] dark:bg-emerald-950 dark:text-emerald-300'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {isCritical
+                          ? 'warning'
+                          : isHigh
+                          ? 'report_problem'
+                          : n.category === 'MANUAL_DIRECT'
+                          ? 'chat'
+                          : n.category === 'MANUAL_BROADCAST'
+                          ? 'campaign'
+                          : 'notifications'}
                       </span>
-                      {n.severity === 'CRITICAL' && (
-                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-rose-600 text-white">
-                          Khẩn cấp
-                        </span>
-                      )}
-                      {n.isPinnedTop && (
-                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-amber-500 text-white flex items-center gap-0.5">
-                          <span className="material-symbols-outlined text-[11px]">push_pin</span>
-                          <span>Ghim Đầu Trang</span>
-                        </span>
-                      )}
-                      {(n.scheduleType === 'RECURRING' || (n.scheduleType === 'SCHEDULED' && new Date(n.scheduledAt || '').getTime() >= Date.now())) && (
-                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-sky-100 text-sky-800 border border-sky-300 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[11px]">event_upcoming</span>
-                          <span>Sắp Diễn Ra</span>
-                        </span>
-                      )}
-                      {n.category === 'POLICY' && (
-                        <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                          <span className="material-symbols-outlined text-[11px]">verified</span>
-                          <span>Hiện Hành</span>
-                        </span>
-                      )}
-                      <span className="text-[11px] text-slate-400 font-medium">
-                        • {formatRelativeTime(n.createdAt)}
-                      </span>
-                      {!isRead && (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Chưa đọc" />
-                      )}
                     </div>
 
-                    <h3 className={`text-sm sm:text-base leading-snug line-clamp-1 ${!isRead ? 'font-black text-slate-900' : 'font-bold text-slate-800'}`}>
-                      {n.title}
-                    </h3>
+                    <div className="space-y-1 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {getSenderBadge(n.senderType, n.senderName)}
+                        {isCritical && (
+                          <span className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded-md bg-rose-600 text-white animate-pulse">
+                            Khẩn cấp
+                          </span>
+                        )}
+                        {isHigh && (
+                          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-amber-500 text-white">
+                            Ưu tiên
+                          </span>
+                        )}
+                        <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium">
+                          • {formatRelativeTime(n.createdAt)}
+                        </span>
+                        {!n.isRead && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Chưa đọc" />
+                        )}
+                      </div>
 
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {n.summary}
-                    </p>
+                      <h3
+                        className={`text-sm sm:text-base leading-snug line-clamp-1 ${
+                          !n.isRead ? 'font-black text-slate-900 dark:text-white' : 'font-bold text-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        {n.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {n.message}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Right: Action CTA */}
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    {n.actionUrl && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!n.isRead) markAsRead(n.id);
+                          router.push(n.actionUrl!);
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-[#00875A] hover:text-white dark:bg-zinc-800 dark:hover:bg-emerald-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                      >
+                        Xử lý ngay →
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleOpenDetail(n)}
+                      className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                      title="Xem chi tiết"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </button>
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Right: Action CTA */}
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
-                  {n.actionUrl && (
-                    <Link
-                      href={n.actionUrl}
-                      onClick={(e) => e.stopPropagation()}
-                      className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-[#00875A] hover:text-white text-slate-700 text-xs font-bold transition-all shadow-2xs"
-                    >
-                      {n.actionLabel || 'Truy Cập Nhanh'}
-                    </Link>
-                  )}
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                    title="Xem chi tiết"
-                  >
-                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
-                  </button>
-                </div>
+            {/* Pagination Toolbar */}
+            {filteredList.length > pageSize && (
+              <div className="pt-2">
+                <SellerPagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredList.length / pageSize) || 1}
+                  totalItems={filteredList.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  itemLabel="thông báo"
+                />
               </div>
-            );
-          })}
-
-          {/* Pagination Toolbar */}
-          {filteredList.length > pageSize && (
-            <div className="pt-2">
-              <SellerPagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(filteredList.length / pageSize) || 1}
-                totalItems={filteredList.length}
-                pageSize={pageSize}
-                onPageChange={setCurrentPage}
-                itemLabel="thông báo"
-              />
-            </div>
-          )}
+            )}
           </>
         )}
       </section>
 
-      {/* 4. Detail Modal */}
+      {/* 4. Notification Detail Modal */}
       {selectedNotif && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setSelectedNotif(null)}
+        >
+          <div
+            className="bg-white dark:bg-zinc-900 rounded-3xl max-w-xl w-full p-6 sm:p-7 space-y-5 shadow-2xl border border-slate-100 dark:border-zinc-800 animate-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col text-slate-900 dark:text-slate-100"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
             {/* Modal Header */}
-            <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-100">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md border ${getCategoryMeta(selectedNotif.category).color}`}>
-                    {getCategoryMeta(selectedNotif.category).label}
-                  </span>
-                  <span className="text-[11px] text-slate-400">
+            <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-100 dark:border-zinc-800">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {getSenderBadge(selectedNotif.senderType, selectedNotif.senderName)}
+                  {selectedNotif.priority === 'CRITICAL' && (
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-600 text-white animate-pulse">
+                      Báo động đỏ
+                    </span>
+                  )}
+                  {selectedNotif.priority === 'HIGH' && (
+                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-amber-500 text-white">
+                      Ưu tiên cao
+                    </span>
+                  )}
+                  <span className="text-[11px] text-slate-400 dark:text-slate-500">
                     {new Date(selectedNotif.createdAt).toLocaleString('vi-VN')}
                   </span>
                 </div>
-                <h2 className="text-lg sm:text-xl font-black text-slate-900 leading-tight">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white leading-tight">
                   {selectedNotif.title}
                 </h2>
-                <p className="text-xs text-slate-400">Người gửi: {selectedNotif.authorName}</p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setSelectedNotif(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-500 flex items-center justify-center transition-colors cursor-pointer shrink-0 font-bold"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                ✕
               </button>
             </div>
 
             {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/60 font-semibold text-slate-800">
-                📌 {selectedNotif.summary}
+            <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+              <div className="p-4 bg-slate-50 dark:bg-zinc-800/60 rounded-2xl border border-slate-200/60 dark:border-zinc-700 font-medium">
+                {selectedNotif.message}
               </div>
-              <div className="space-y-2">{selectedNotif.content}</div>
+
+              {selectedNotif.imageUrl && (
+                <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-zinc-700 max-h-64">
+                  <img src={selectedNotif.imageUrl} alt="Attachment" className="w-full h-full object-cover" />
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-              <span className="text-[11px] text-slate-400 font-medium">HUKI Partner Notification Portal</span>
+            <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between gap-3">
+              <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                <span>Đã ghi nhận đã đọc</span>
+              </span>
+
               <div className="flex items-center gap-2">
                 {selectedNotif.actionUrl && (
-                  <Link
-                    href={selectedNotif.actionUrl}
-                    onClick={() => setSelectedNotif(null)}
-                    className="bg-[#00875A] hover:bg-[#00704A] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = selectedNotif.actionUrl!;
+                      setSelectedNotif(null);
+                      router.push(url);
+                    }}
+                    className="bg-[#00875A] hover:bg-[#00704A] text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                   >
-                    {selectedNotif.actionLabel || 'Đi Tới Trang Liên Quan'}
-                  </Link>
+                    <span>Truy cập xử lý ngay</span>
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setSelectedNotif(null)}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  className="bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Đóng
                 </button>

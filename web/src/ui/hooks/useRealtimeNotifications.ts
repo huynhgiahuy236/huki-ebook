@@ -110,10 +110,11 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
+      await fetchUnreadCount();
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
     }
-  }, []);
+  }, [fetchUnreadCount]);
 
   // Initial load
   useEffect(() => {

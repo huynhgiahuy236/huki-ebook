@@ -32,60 +32,72 @@ const QUICK_PROMPTS = [
   '💳 Chính sách đổi trả & hoàn tiền?',
 ];
 
+const AI_SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 phút không hoạt động thì tự động làm mới phiên chat
+
+const DEFAULT_WELCOME_MESSAGE: AIMessage = {
+  id: 'welcome',
+  role: 'assistant',
+  content:
+    'Xin chào bạn! 👋 Tôi là **Bé Cáo AI HUKI**.\nTôi có thể giúp bạn tìm sách thật trong kho, hướng dẫn đọc Ebook DRM hoặc giải đáp mọi thắc mắc về đơn hàng. Bạn cần mình tư vấn điều gì hôm nay?',
+  time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+};
+
 export default function FloatingAIChatbox() {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState('');
-  const [messages, setMessages] = useState<AIMessage[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      content:
-        'Xin chào bạn! 👋 Tôi là **Bé Cáo AI HUKI**.\nTôi có thể giúp bạn tìm sách thật trong kho, hướng dẫn đọc Ebook DRM hoặc giải đáp mọi thắc mắc về đơn hàng. Bạn cần mình tư vấn điều gì hôm nay?',
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    },
-  ]);
+  const [messages, setMessages] = useState<AIMessage[]>([DEFAULT_WELCOME_MESSAGE]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Khởi tạo persistent sessionId cho Redis chat history
+  // Khởi tạo và khôi phục lịch sử chat với cơ chế Smart Session Inactivity Timeout (30 phút)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      let sid = localStorage.getItem('huki_ai_session_id');
-      if (!sid) {
-        sid = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        localStorage.setItem('huki_ai_session_id', sid);
-      }
-      setSessionId(sid);
-    } catch {}
-  }, []);
+      const lastActiveStr = localStorage.getItem('huki_ai_chat_last_active');
+      const lastActive = lastActiveStr ? Number(lastActiveStr) : 0;
+      const now = Date.now();
+      const isExpired = !lastActive || (now - lastActive > AI_SESSION_TIMEOUT_MS);
 
-  // Khôi phục lịch sử chat từ localStorage khi vào trang
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const saved = localStorage.getItem('huki_ai_chat_messages');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setMessages(parsed);
+      if (isExpired) {
+        // Đã quá 30 phút không hoạt động -> Làm mới phiên và xóa sạch tin nhắn cũ
+        localStorage.removeItem('huki_ai_chat_messages');
+        localStorage.removeItem('huki_ai_chat_last_active');
+        const newSid = `sess_${now}_${Math.random().toString(36).substring(2, 7)}`;
+        localStorage.setItem('huki_ai_session_id', newSid);
+        setSessionId(newSid);
+        setMessages([DEFAULT_WELCOME_MESSAGE]);
+      } else {
+        // Vẫn trong 30 phút -> Khôi phục tin nhắn và duy trì phiên
+        const saved = localStorage.getItem('huki_ai_chat_messages');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setMessages(parsed);
+          }
         }
+        let sid = localStorage.getItem('huki_ai_session_id');
+        if (!sid) {
+          sid = `sess_${now}_${Math.random().toString(36).substring(2, 7)}`;
+          localStorage.setItem('huki_ai_session_id', sid);
+        }
+        setSessionId(sid);
       }
     } catch {
       // ignore
     }
   }, []);
 
-  // Tự động lưu tin nhắn vào localStorage khi có thay đổi
+  // Tự động lưu tin nhắn và cập nhật thời điểm hoạt động gần nhất vào localStorage khi có thay đổi
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
       if (messages.length > 1) {
         localStorage.setItem('huki_ai_chat_messages', JSON.stringify(messages));
+        localStorage.setItem('huki_ai_chat_last_active', Date.now().toString());
       }
     } catch {
       // ignore
@@ -181,10 +193,31 @@ export default function FloatingAIChatbox() {
     }
   };
 
+  const handleOpenChat = () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const lastActiveStr = localStorage.getItem('huki_ai_chat_last_active');
+        const lastActive = lastActiveStr ? Number(lastActiveStr) : 0;
+        const now = Date.now();
+        if (lastActive && now - lastActive > AI_SESSION_TIMEOUT_MS) {
+          // Phiên đã quá 30 phút không hoạt động -> tự động dọn dẹp và làm mới
+          localStorage.removeItem('huki_ai_chat_messages');
+          localStorage.removeItem('huki_ai_chat_last_active');
+          const newSid = `sess_${now}_${Math.random().toString(36).substring(2, 7)}`;
+          localStorage.setItem('huki_ai_session_id', newSid);
+          setSessionId(newSid);
+          setMessages([DEFAULT_WELCOME_MESSAGE]);
+        }
+      } catch {}
+    }
+    setIsOpen(true);
+  };
+
   const handleResetChat = () => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem('huki_ai_chat_messages');
+        localStorage.removeItem('huki_ai_chat_last_active');
         const newSid = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         localStorage.setItem('huki_ai_session_id', newSid);
         setSessionId(newSid);
@@ -260,7 +293,7 @@ export default function FloatingAIChatbox() {
         <div className="fixed bottom-24 sm:bottom-28 right-4 sm:right-6 z-40 flex flex-col items-end pointer-events-auto select-none">
           {/* Floating Speech Bubble Callout */}
           <div
-            onClick={() => setIsOpen(true)}
+            onClick={handleOpenChat}
             className="mb-1.5 cursor-pointer bg-white text-slate-800 text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-emerald-500/20 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300 hover:scale-105 active:scale-95 transition-all hover:border-emerald-500/50"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -270,7 +303,7 @@ export default function FloatingAIChatbox() {
           {/* Mascot Floating 3D Character Container */}
           <button
             type="button"
-            onClick={() => setIsOpen(true)}
+            onClick={handleOpenChat}
             className="relative group cursor-pointer flex flex-col items-center focus:outline-none transition-transform duration-300 hover:scale-110 active:scale-95"
             title="Trò chuyện cùng Bé Cáo AI HUKI"
             aria-label="Mở Trợ Lý AI HUKI"

@@ -30,13 +30,19 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
   const pathname = usePathname() || '';
   const { user, activeBusinessId } = useAuth();
   const currentBizId = user?.business?.id || activeBusinessId || undefined;
-
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const isChatPage = pathname.startsWith('/seller/chat');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(isChatPage);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [featureCheck, setFeatureCheck] = useState<{ accessible: boolean; reason?: string }>({ accessible: true });
 
   const { showToast } = useToast();
   const lastBroadcastTimeRef = useRef<number>(Date.now());
+
+  useEffect(() => {
+    if (isChatPage) {
+      setIsSidebarCollapsed(true);
+    }
+  }, [isChatPage]);
 
   useEffect(() => {
     const handleBroadcastUpdate = (msg: { type: string; payload?: unknown }) => {
@@ -172,7 +178,6 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
     setIsMobileOpen(false);
   };
 
-  const isChatPage = pathname.startsWith('/seller/chat');
   const isProductFormPage = pathname.includes('/seller/product/create') || 
                              pathname.includes('/seller/product/edit') ||
                              pathname.includes('/seller/product/correction');
@@ -214,7 +219,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
       />
 
       {/* WordPress-style Top Announcement Notice Bar */}
-      <SellerTopNoticeBar />
+      {!isChatPage && <SellerTopNoticeBar />}
 
       <div className={`flex flex-1 min-w-0 relative ${isChatPage ? 'overflow-hidden min-h-0' : ''}`}>
         {/* Desktop Sidebar */}

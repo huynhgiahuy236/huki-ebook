@@ -14,11 +14,13 @@ describe("NotificationsService", () => {
   const preferences = { findOneAndUpdate: jest.fn() };
   const devices = { updateOne: jest.fn(), deleteOne: jest.fn() };
   const gateway = { read: jest.fn(), readAll: jest.fn() };
+  const delivery = { deliver: jest.fn() };
   const service = new NotificationsService(
     notifications as any,
     preferences as any,
     devices as any,
     gateway as any,
+    delivery as any,
   );
   const actor = { sub: "user-1", role: "USER" };
 

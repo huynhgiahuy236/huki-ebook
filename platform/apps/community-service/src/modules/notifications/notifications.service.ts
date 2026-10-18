@@ -52,12 +52,22 @@ export class NotificationsService {
     ];
     if (actorRole === "PLATFORM_ADMIN" || actorRole === "ADMIN") {
       conditions.push({ recipientType: "ADMIN" });
+      conditions.push({ recipientId: "admin_channel" });
     } else if (actorRole === "BUSINESS" || actorRole === "SELLER") {
-      conditions.push({ recipientType: "BUSINESS" });
+      conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
+      conditions.push({ recipientType: "BUSINESS", recipientId: actor.sub });
       const extra = actor as unknown as Record<string, unknown>;
-      if (extra.storeId) conditions.push({ recipientId: extra.storeId });
+      if (extra.storeId) {
+        conditions.push({ recipientId: extra.storeId });
+        conditions.push({ recipientType: "BUSINESS", recipientId: extra.storeId });
+      }
+      if (extra.businessId) {
+        conditions.push({ recipientId: extra.businessId });
+        conditions.push({ recipientType: "BUSINESS", recipientId: extra.businessId });
+      }
     } else if (actorRole === "DELIVERY_STAFF" || actorRole === "DELIVERY") {
-      conditions.push({ recipientType: "DELIVERY" });
+      conditions.push({ recipientType: "DELIVERY", recipientId: "*" });
+      conditions.push({ recipientType: "DELIVERY", recipientId: actor.sub });
     }
     return conditions;
   }
@@ -128,11 +138,19 @@ export class NotificationsService {
   async markRead(actor: CommunityActor, id: string) {
     const objectId = new Types.ObjectId(id);
     let notification = await this.accessible(actor, id);
+    const extra = actor as unknown as Record<string, unknown>;
+    const isDirectRecipient =
+      notification.recipientId === actor.sub ||
+      (extra.storeId && notification.recipientId === extra.storeId) ||
+      (extra.businessId && notification.recipientId === extra.businessId);
 
-    if (notification.recipientId === actor.sub) {
+    if (isDirectRecipient) {
       notification = (await this.notifications.findByIdAndUpdate(
         objectId,
-        { $set: { isRead: true, readAt: new Date() } },
+        {
+          $set: { isRead: true, readAt: new Date() },
+          $addToSet: { readBy: actor.sub },
+        },
         { new: true },
       ))!;
     } else {
@@ -149,10 +167,15 @@ export class NotificationsService {
 
   async markAllRead(actor: CommunityActor) {
     const roleConditions = this.getRoleConditions(actor);
+    const extra = actor as unknown as Record<string, unknown>;
+    const targetIds = [actor.sub];
+    if (extra.storeId) targetIds.push(String(extra.storeId));
+    if (extra.businessId) targetIds.push(String(extra.businessId));
+
     await Promise.all([
       this.notifications.updateMany(
-        { recipientId: actor.sub, isRead: false },
-        { $set: { isRead: true, readAt: new Date() } },
+        { recipientId: { $in: targetIds }, isRead: false },
+        { $set: { isRead: true, readAt: new Date() }, $addToSet: { readBy: actor.sub } },
       ),
       this.notifications.updateMany(
         { $or: roleConditions, readBy: { $ne: actor.sub } },
@@ -312,9 +335,15 @@ export class NotificationsService {
 
     const roleConditions = this.getRoleConditions(actor);
     const hasAccess = roleConditions.some((cond) => {
-      if (cond.recipientId && cond.recipientId === notification.recipientId) return true;
-      if (cond.recipientType && cond.recipientType === notification.recipientType) return true;
-      return false;
+      const typeMatches =
+        !cond.recipientType ||
+        cond.recipientType === "ALL" ||
+        cond.recipientType === notification.recipientType;
+      const idMatches =
+        !cond.recipientId ||
+        cond.recipientId === "*" ||
+        cond.recipientId === notification.recipientId;
+      return typeMatches && idMatches;
     });
 
     if (!hasAccess) {

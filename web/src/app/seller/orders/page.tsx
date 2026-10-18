@@ -154,7 +154,37 @@ function SellerOrdersContent() {
     if (currentParam !== activeTab) {
       setActiveTab(currentParam);
     }
-  }, [searchParams, activeTab]);
+
+    const codeParam = searchParams.get('code') || searchParams.get('orderCode') || searchParams.get('search');
+    if (codeParam) {
+      const cleanCode = codeParam.replace(/^#/, '').trim();
+      setSearchQuery(cleanCode);
+      if (currentParam === 'ALL') {
+        setActiveTab('ALL');
+      }
+    }
+  }, [searchParams]);
+
+  // Auto-expand and scroll to matched order if code or search is provided in URL
+  useEffect(() => {
+    const codeParam = searchParams.get('code') || searchParams.get('orderCode') || searchParams.get('search');
+    if (!codeParam || orders.length === 0) return;
+    const cleanCode = codeParam.replace(/^#/, '').toLowerCase().trim();
+    const matched = orders.find(
+      (o) =>
+        o.code?.toLowerCase().includes(cleanCode) ||
+        o.id?.toLowerCase().includes(cleanCode)
+    );
+    if (matched) {
+      setExpandedOrderIds((prev) => new Set([...prev, matched.id]));
+      setTimeout(() => {
+        const el = document.getElementById(`order-row-${matched.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 350);
+    }
+  }, [searchParams, orders]);
 
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab);
@@ -878,16 +908,29 @@ function SellerOrdersContent() {
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="py-16 text-center text-slate-400 text-xs">
-            <div className="flex flex-col items-center justify-center gap-2">
+            <div className="flex flex-col items-center justify-center gap-2 max-w-md mx-auto">
               <span className="material-symbols-outlined text-3xl text-slate-300">
                 receipt_long
               </span>
-              <p className="font-semibold text-slate-700">Chưa có đơn hàng nào</p>
-              <p className="text-[11.5px] text-slate-400">
+              <p className="font-semibold text-slate-700 text-sm">
+                {searchQuery ? `Không tìm thấy đơn hàng "${searchQuery}"` : 'Chưa có đơn hàng nào'}
+              </p>
+              <p className="text-[11.5px] text-slate-400 leading-relaxed">
                 {orders.length === 0
                   ? 'Hiện tại gian hàng chưa có đơn hàng phát sinh.'
-                  : 'Không tìm thấy đơn hàng nào phù hợp với bộ lọc.'}
+                  : searchQuery
+                  ? 'Không tìm thấy đơn hàng nào trùng khớp với mã tìm kiếm. Nếu đây là mã từ thông báo kiểm thử của bưu tá/hệ thống, đơn hàng mẫu này có thể không nằm trong CSDL thật của gian hàng FAHASA.'
+                  : 'Không tìm thấy đơn hàng nào phù hợp với bộ lọc hiện tại.'}
               </p>
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="mt-2 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors cursor-pointer shadow-2xs"
+                >
+                  Xóa tìm kiếm / Xem tất cả ({orders.length}) đơn
+                </button>
+              )}
             </div>
           </div>
         ) : (
