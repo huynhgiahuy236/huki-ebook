@@ -9,6 +9,21 @@ import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 
 import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
+
+const escrowBulkActionGroups: BulkActionGroup[] = [
+  {
+    groupLabel: 'XUẤT DỮ LIỆU',
+    actions: [
+      { value: 'EXPORT_CSV', label: 'Xuất danh sách món hàng ký quỹ (.csv)' },
+    ],
+  },
+];
 
 function formatVietnamDateTime(dateStr?: string | null): string {
   if (!dateStr) return 'N/A';
@@ -53,8 +68,9 @@ export default function SellerEscrowPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState<'ALL' | 'PHYSICAL' | 'DIGITAL'>('ALL');
   const [paymentFilter, setPaymentFilter] = useState<'ALL' | 'COD' | 'PAYOS'>('ALL');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -161,17 +177,9 @@ export default function SellerEscrowPage() {
       if (paymentFilter === 'COD' && it.paymentMethod !== 'COD') return false;
       if (paymentFilter === 'PAYOS' && it.paymentMethod === 'COD') return false;
 
-      // 4. Date Range
-      if (startDate || endDate) {
-        const itemTime = new Date(it.orderCreatedAt).getTime();
-        if (startDate) {
-          const start = new Date(startDate).getTime();
-          if (itemTime < start) return false;
-        }
-        if (endDate) {
-          const end = new Date(endDate).getTime() + 24 * 60 * 60 * 1000;
-          if (itemTime > end) return false;
-        }
+      // 4. Date Filter (Split Presets + Specific Dates)
+      if (!matchesDateFilter(it.orderCreatedAt, dateFilter)) {
+        return false;
       }
 
       // 5. Search query
@@ -188,7 +196,87 @@ export default function SellerEscrowPage() {
 
       return true;
     });
-  }, [escrowItems, activeStatusTab, formatFilter, paymentFilter, startDate, endDate, searchQuery]);
+  }, [escrowItems, activeStatusTab, formatFilter, paymentFilter, dateFilter, searchQuery]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredItems.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredItems.map((it) => it.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionId === 'EXPORT_CSV') {
+        const selected = escrowItems.filter((it) => selectedIds.includes(it.id));
+        const headers = [
+          'Mã Đơn Hàng',
+          'Thời Gian Đặt',
+          'Khách Hàng',
+          'Số Điện Thoại',
+          'Địa Chỉ Giao',
+          'Tên Sách',
+          'Phân Loại',
+          'Số Lượng',
+          'Đơn Giá (VNĐ)',
+          'Tổng Tiền (VNĐ)',
+          'Phí Sàn 5% (VNĐ)',
+          'Shop Thực Nhận 95% (VNĐ)',
+          'Phương Thức TT',
+          'Trạng Thái Ký Quỹ',
+        ];
+
+        const rows = selected.map((it) => [
+          `"${it.orderCode || it.orderId}"`,
+          `"${formatVietnamDateTime(it.orderCreatedAt)}"`,
+          `"${it.customerName || 'Khách hàng HuKi'}"`,
+          `"${it.customerPhone || ''}"`,
+          `"${it.shippingAddress || 'Nhận sách điện tử / Giao hàng tận nơi'}"`,
+          `"${it.bookTitle?.replace(/"/g, '""') || ''}"`,
+          `"${it.format === 'DIGITAL' ? 'Ebook' : 'Sách Giấy'}"`,
+          it.quantity,
+          it.unitPrice,
+          it.subtotal,
+          it.platformFee,
+          it.sellerNet,
+          `"${it.paymentMethod === 'COD' ? 'COD' : 'PayOS / VietQR'}"`,
+          `"${
+            it.escrowStatus === 'RELEASED'
+              ? 'Đã giải ngân'
+              : it.escrowStatus === 'HOLDING'
+              ? 'Đang ký quỹ đếm ngược'
+              : it.escrowStatus === 'PENDING_PAYMENT'
+              ? 'Chờ thu COD'
+              : 'Đóng băng'
+          }"`,
+        ]);
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Ky_Quy_Tien_Treo_HuKi_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast({ title: 'Xuất file thành công', message: `Đã xuất ${selected.length} dòng ký quỹ.` }, 'success');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Thao tác thất bại' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Pagination Logic
   const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
@@ -200,7 +288,7 @@ export default function SellerEscrowPage() {
   // Reset page when filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeStatusTab, searchQuery, formatFilter, paymentFilter, startDate, endDate, pageSize]);
+  }, [activeStatusTab, searchQuery, formatFilter, paymentFilter, dateFilter, pageSize]);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -390,94 +478,68 @@ export default function SellerEscrowPage() {
         </div>
       </div>
 
-      {/* 3. RICH FILTER & SEARCH TOOLBAR */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-xs space-y-4">
-        {/* Status Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 border-b border-gray-100">
-          {[
-            { key: 'ALL', label: `Tất Cả (${stats.totalCount})` },
-            { key: 'PENDING_PAYMENT', label: `Chờ Thu COD (${stats.pendingCount})` },
-            { key: 'HOLDING', label: `Đang Ký Quỹ Đếm Ngược (${stats.holdingCount})` },
-            { key: 'RELEASED', label: `Đã Giải Ngân (${stats.releasedCount})` },
-            { key: 'FROZEN', label: `Đóng Băng (${stats.frozenCount})` },
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveStatusTab(tab.key)}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                activeStatusTab === tab.key
-                  ? 'bg-[#003B2B] text-white shadow-xs'
-                  : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Multi Filters Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Search Box */}
-          <div className="lg:col-span-2 relative">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Tìm mã đơn, tên sách, tên khách, SĐT..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
-            />
-          </div>
-
-          {/* Format Filter */}
-          <div>
+      {/* 3. RICH FILTER & SEARCH TOOLBAR WITH SPLIT DATE FILTER AND BULK ACTIONS */}
+      <DataTableFilterBar
+        searchPlaceholder="Tìm mã đơn, tên sách, tên khách, SĐT..."
+        searchQuery={searchQuery}
+        onSearchChange={(v: string) => {
+          setSearchQuery(v);
+          setCurrentPage(1);
+        }}
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        tabs={[
+          { key: 'ALL', label: 'Tất Cả', count: stats.totalCount },
+          { key: 'PENDING_PAYMENT', label: 'Chờ Thu COD', count: stats.pendingCount },
+          { key: 'HOLDING', label: 'Đang Ký Quỹ Đếm Ngược', count: stats.holdingCount },
+          { key: 'RELEASED', label: 'Đã Giải Ngân', count: stats.releasedCount },
+          { key: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
+        ]}
+        activeTab={activeStatusTab}
+        onTabChange={(tab: string) => {
+          setActiveStatusTab(tab);
+          setCurrentPage(1);
+        }}
+        extraFilters={
+          <div className="flex items-center gap-2">
             <select
               value={formatFilter}
-              onChange={(e) => setFormatFilter(e.target.value as any)}
-              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white cursor-pointer"
+              onChange={(e) => {
+                setFormatFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
             >
-              <option value="ALL">📦 Tất Cả Định Dạng</option>
-              <option value="PHYSICAL">📦 Sách Giấy Vật Lý</option>
-              <option value="DIGITAL">📱 Sách Điện Tử (Ebook)</option>
+              <option value="ALL">Tất Cả Định Dạng</option>
+              <option value="PHYSICAL">Sách Giấy Vật Lý</option>
+              <option value="DIGITAL">Sách Điện Tử (Ebook)</option>
             </select>
-          </div>
-
-          {/* Payment Method Filter */}
-          <div>
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value as any)}
-              className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-xl text-gray-700 focus:outline-hidden focus:border-emerald-600 focus:bg-white cursor-pointer"
+              onChange={(e) => {
+                setPaymentFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
             >
-              <option value="ALL">💳 Mọi Phương Thức TT</option>
-              <option value="COD">💵 Tiền Mặt COD</option>
-              <option value="PAYOS">💳 PayOS / VietQR</option>
+              <option value="ALL">Mọi Phương Thức TT</option>
+              <option value="COD">Tiền Mặt COD</option>
+              <option value="PAYOS">PayOS / VietQR</option>
             </select>
           </div>
-
-          {/* Clear Filters Button */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setActiveStatusTab('ALL');
-                setSearchQuery('');
-                setFormatFilter('ALL');
-                setPaymentFilter('ALL');
-                setStartDate('');
-                setEndDate('');
-              }}
-              className="w-full px-3 py-2 text-xs font-semibold rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[16px]">restart_alt</span>
-              <span>Đặt Lại Lọc</span>
-            </button>
-          </div>
-        </div>
-      </div>
+        }
+        dateFilter={dateFilter}
+        onDateFilterChange={(v: DateFilterValue) => {
+          setDateFilter(v);
+          setCurrentPage(1);
+        }}
+        bulkActionGroups={escrowBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredItems.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="món ký quỹ"
+      />
 
       {/* 4. MAIN RICH DATA TABLE */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
@@ -494,7 +556,15 @@ export default function SellerEscrowPage() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3.5 pl-4 pr-2 w-[24%]">Mã Đơn &amp; Thời Gian</th>
+                <th className="py-3.5 pl-4 pr-1 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length === filteredItems.length && filteredItems.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                  />
+                </th>
+                <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn &amp; Thời Gian</th>
                 <th className="py-3.5 px-3 w-[28%]">Sách &amp; Phân Loại</th>
                 <th className="py-3.5 px-3 w-[22%]">Doanh Thu &amp; Thực Nhận</th>
                 <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái Ký Quỹ</th>
@@ -504,7 +574,7 @@ export default function SellerEscrowPage() {
             <tbody className="divide-y divide-slate-100">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-slate-500">
+                  <td colSpan={6} className="py-16 text-center text-slate-500">
                     <div className="flex items-center justify-center gap-2">
                       <span className="w-5 h-5 rounded-full border-2 border-[#00875A] border-t-transparent animate-spin"></span>
                       <span>Đang tải bảng đối soát ký quỹ từ cơ sở dữ liệu...</span>
@@ -513,7 +583,7 @@ export default function SellerEscrowPage() {
                 </tr>
               ) : paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-slate-400">
+                  <td colSpan={6} className="py-16 text-center text-slate-400">
                     Không tìm thấy món hàng ký quỹ nào phù hợp với bộ lọc.
                   </td>
                 </tr>
@@ -531,6 +601,16 @@ export default function SellerEscrowPage() {
                           isExpanded ? 'bg-emerald-50/40' : 'bg-white'
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(it.id)}
+                            onChange={() => toggleSelectRow(it.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                          />
+                        </td>
+
                         {/* 1. Mã đơn & Thời gian */}
                         <td className="py-3 pl-4 pr-2 align-middle">
                           <div className="flex items-center gap-2">
@@ -636,7 +716,7 @@ export default function SellerEscrowPage() {
                       {/* Expandable Subcards Detail Panel */}
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
                               {/* Card 1: Doanh thu & Phân bổ */}
                               <div className="space-y-2">

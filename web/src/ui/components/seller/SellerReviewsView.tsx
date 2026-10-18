@@ -21,6 +21,21 @@ import {
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
 import { VerifiedPurchaseBadge } from '@/ui/components/review/VerifiedPurchaseBadge';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
+
+const reviewBulkActionGroups: BulkActionGroup[] = [
+  {
+    groupLabel: 'XUẤT DỮ LIỆU',
+    actions: [
+      { value: 'EXPORT_CSV', label: 'Xuất danh sách đánh giá (.csv)' },
+    ],
+  },
+];
 
 interface ReviewRowItem extends ReviewItemData {
   bookTitle?: string;
@@ -39,6 +54,9 @@ export function SellerReviewsView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<string>('ALL');
   const [formatFilter, setFormatFilter] = useState<'ALL' | 'PHYSICAL' | 'DIGITAL'>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -320,9 +338,61 @@ export function SellerReviewsView() {
         }
       }
 
+      // Date filter
+      if (!matchesDateFilter(r.createdAt, dateFilter)) return false;
+
       return true;
     });
-  }, [reviews, filterTab, formatFilter, searchQuery]);
+  }, [reviews, filterTab, formatFilter, searchQuery, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredReviews.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredReviews.map((r) => r.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionId === 'EXPORT_CSV') {
+        const selected = reviews.filter((r) => selectedIds.includes(r.id));
+        const headers = ['Mã Đánh Giá', 'Sản Phẩm', 'Khách Hàng', 'Số Sao', 'Tiêu Đề', 'Nội Dung', 'Định Dạng', 'Đã Phản Hồi', 'Ngày Đánh Giá'];
+        const rows = selected.map((r) => [
+          r.id,
+          `"${(r.bookTitle || '').replace(/"/g, '""')}"`,
+          `"${(r.author?.fullName || 'Khách hàng').replace(/"/g, '""')}"`,
+          r.rating || 5,
+          `"${(r.title || '').replace(/"/g, '""')}"`,
+          `"${(r.content || '').replace(/"/g, '""')}"`,
+          r.format === 'DIGITAL' ? 'Ebook' : 'Sách in',
+          r.replies && r.replies.length > 0 ? 'CÓ' : 'CHƯA',
+          r.createdAt || '',
+        ].join(','));
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Danh_Sach_Danh_Gia_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast({ title: 'Xuất file thành công', message: `Đã xuất ${selected.length} dòng đánh giá.` }, 'success');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Thao tác thất bại' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filteredReviews.length / pageSize));
@@ -448,101 +518,62 @@ export function SellerReviewsView() {
         </div>
       </div>
 
-      {/* 3. Controls & Filter Bar */}
-      <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs space-y-3.5">
-        {/* Filter Tabs */}
-        <SellerFilterTabs
-          tabs={filterTabs}
-          activeTab={filterTab}
-          onChange={(tab) => {
-            setFilterTab(tab);
-            setCurrentPage(1);
-          }}
-        />
-
-        {/* Search & Secondary Format Filter */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1 border-t border-slate-100">
-          {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Tìm theo tên sách, tác giả, khách hàng, nội dung..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white border border-slate-200 focus:border-[#00875A] rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#00875A]/20 transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            )}
-          </div>
-
-          {/* Format Selection Buttons */}
-          <div className="flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/70 self-start md:self-auto text-xs font-semibold">
-            <button
-              type="button"
-              onClick={() => {
-                setFormatFilter('ALL');
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer ${
-                formatFilter === 'ALL'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Tất Cả Định Dạng
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFormatFilter('PHYSICAL');
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                formatFilter === 'PHYSICAL'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-sm">menu_book</span>
-              Sách In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setFormatFilter('DIGITAL');
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                formatFilter === 'DIGITAL'
-                  ? 'bg-white text-slate-900 shadow-2xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className="material-symbols-outlined text-sm">bolt</span>
-              Ebook
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* 3. Controls & Filter Bar with Split Date Filter and Integrated Bulk Actions */}
+      <DataTableFilterBar
+        searchPlaceholder="Tìm theo tên sách, tác giả, khách hàng, nội dung..."
+        searchQuery={searchQuery}
+        onSearchChange={(v: string) => {
+          setSearchQuery(v);
+          setCurrentPage(1);
+        }}
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        tabs={filterTabs.map((t) => ({ key: t.id, label: t.label, count: t.count }))}
+        activeTab={filterTab}
+        onTabChange={(tab: string) => {
+          setFilterTab(tab);
+          setCurrentPage(1);
+        }}
+        extraFilters={
+          <select
+            value={formatFilter}
+            onChange={(e) => {
+              setFormatFilter(e.target.value as any);
+              setCurrentPage(1);
+            }}
+            className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+          >
+            <option value="ALL">Tất Cả Định Dạng</option>
+            <option value="PHYSICAL">Sách In</option>
+            <option value="DIGITAL">Ebook</option>
+          </select>
+        }
+        dateFilter={dateFilter}
+        onDateFilterChange={(v: DateFilterValue) => {
+          setDateFilter(v);
+          setCurrentPage(1);
+        }}
+        bulkActionGroups={reviewBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredReviews.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="đánh giá"
+      />
 
       {/* 4. Grouped Data Table */}
       <SellerTableContainer minWidth="min-w-[1100px]">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider select-none">
+              <th className="py-3.5 pl-4 pr-1 w-8">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === filteredReviews.length && filteredReviews.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                />
+              </th>
               <th className="py-3.5 px-4 w-[280px]">Sản Phẩm / Sách</th>
               <th className="py-3.5 px-4 w-[200px]">Khách Hàng</th>
               <th className="py-3.5 px-4">Đánh Giá &amp; Nội Dung</th>
@@ -554,7 +585,7 @@ export function SellerReviewsView() {
           <tbody className="divide-y divide-slate-100 font-medium">
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
+                <td colSpan={7} className="py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2.5">
                     <span className="material-symbols-outlined text-3xl animate-spin text-[#00875A]">
                       progress_activity
@@ -567,7 +598,7 @@ export function SellerReviewsView() {
               </tr>
             ) : paginatedReviews.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
+                <td colSpan={7} className="py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
                     <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
                       <span className="material-symbols-outlined text-3xl">rate_review</span>
@@ -615,6 +646,15 @@ export function SellerReviewsView() {
                       }
                     }}
                   >
+                    {/* Checkbox */}
+                    <td className="py-3.5 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(rev.id)}
+                        onChange={() => toggleSelectRow(rev.id)}
+                        className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                      />
+                    </td>
                     {/* 1. Sách / Sản phẩm */}
                     <td className="py-3.5 px-4 align-top">
                       <div className="flex items-start gap-3">

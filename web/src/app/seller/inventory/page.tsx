@@ -14,6 +14,13 @@ import {
 } from '@/ui/components/seller/SellerUI';
 import { useRealtimeInventory } from '@/ui/hooks/useRealtimeInventory';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+  StatusTab,
+} from '@/ui/components/common';
 
 interface InventoryBook {
   id: string;
@@ -26,6 +33,8 @@ interface InventoryBook {
   cover?: string;
   stock?: number;
   reserved?: number;
+  createdAt?: string;
+  updatedAt?: string;
   physicalDetails?: {
     stock?: number;
     reserved?: number;
@@ -59,7 +68,11 @@ export default function SellerInventoryPage() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [bulkLoading, setBulkLoading] = useState(false);
   const pageSize = 10;
+
 
   // In-Page Adjust State (NO POPUP)
   const [adjustState, setAdjustState] = useState<AdjustState | null>(null);
@@ -291,6 +304,11 @@ export default function SellerInventoryPage() {
         (b.isbn || '').toLowerCase().includes(search.toLowerCase());
       if (!titleMatch) return false;
 
+      // Date filter
+      if (b.createdAt || b.updatedAt) {
+        if (!matchesDateFilter(b.createdAt || b.updatedAt, dateFilter)) return false;
+      }
+
       const stock = Number(b.stock ?? b.physicalDetails?.stock ?? 0);
       const reserved = Number(b.reserved ?? b.physicalDetails?.reserved ?? 0);
       const available = Math.max(0, stock - reserved);
@@ -300,13 +318,122 @@ export default function SellerInventoryPage() {
       if (filterStatus === 'IN_STOCK') return available > 5;
       return true;
     });
-  }, [books, search, filterStatus]);
+  }, [books, search, filterStatus, dateFilter]);
 
   const totalPages = Math.ceil(filteredBooks.length / pageSize) || 1;
   const paginatedBooks = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredBooks.slice(start, start + pageSize);
   }, [filteredBooks, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, filterStatus, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredBooks.length && filteredBooks.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredBooks.map((b) => b.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
+  const inventoryStatusTabs: StatusTab[] = useMemo(() => [
+    { key: 'ALL', label: 'Tất Cả Sách', count: metrics.totalTitles },
+    { key: 'IN_STOCK', label: 'Tồn Ổn Định', count: metrics.totalTitles - metrics.lowStockCount - metrics.outOfStockCount },
+    { key: 'LOW_STOCK', label: 'Sắp Hết Hàng', count: metrics.lowStockCount },
+    { key: 'OUT_OF_STOCK', label: 'Hết Hàng', count: metrics.outOfStockCount },
+  ], [metrics]);
+
+
+  const inventoryBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'Điều chỉnh tồn kho',
+      actions: [
+        { value: 'ADD_STOCK_10', label: 'Nhập thêm +10 cuốn vào kho' },
+        {
+          value: 'SET_STOCK_0',
+          label: 'Đặt hết hàng (Tồn = 0)',
+          isDanger: true,
+          confirmMessage: 'Bạn có chắc chắn muốn cập nhật số lượng tồn của các sách đã chọn về 0 không?',
+        },
+      ],
+    },
+    {
+      groupLabel: 'In ấn & xuất file',
+      actions: [
+        { value: 'EXPORT_CSV', label: 'Xuất bảng kiểm kê tồn kho (.csv)' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'ADD_STOCK_10') {
+        let count = 0;
+        for (const id of selectedIds) {
+          try {
+            await catalogApi.updateInventory(id, {
+              operation: 'ADD',
+              quantity: 10,
+              reason: 'RESTOCK' as any,
+              note: 'Nhập kho hàng loạt +10',
+            });
+            count++;
+          } catch { /* ignore individual */ }
+        }
+        showToast?.(`Đã nhập thêm +10 cuốn cho ${count}/${selectedIds.length} đầu sách!`, 'success');
+        setSelectedIds([]);
+        await fetchInventory();
+      } else if (actionValue === 'SET_STOCK_0') {
+        let count = 0;
+        for (const id of selectedIds) {
+          try {
+            await catalogApi.updateInventory(id, {
+              operation: 'SET',
+              quantity: 0,
+              reason: 'AUDIT_CORRECTION' as any,
+              note: 'Điều chỉnh hết hàng hàng loạt',
+            });
+            count++;
+          } catch { /* ignore */ }
+        }
+        showToast?.(`Đã đặt tồn kho về 0 cho ${count}/${selectedIds.length} đầu sách!`, 'warning');
+        setSelectedIds([]);
+        await fetchInventory();
+      } else if (actionValue === 'EXPORT_CSV') {
+        const selectedList = books.filter((b) => selectedIds.includes(b.id));
+        const header = ['Tên Sách', 'ISBN', 'Tác Giả', 'Tồn Thực', 'Tạm Giữ', 'Khả Dụng'];
+        const rows = selectedList.map((b) => {
+          const stock = Number(b.stock ?? b.physicalDetails?.stock ?? 0);
+          const reserved = Number(b.reserved ?? b.physicalDetails?.reserved ?? 0);
+          const available = Math.max(0, stock - reserved);
+          const author = typeof b.author === 'object' ? b.author?.name : b.author || '';
+          return [b.title, b.isbn || '', author, stock, reserved, available];
+        });
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `kiem_ke_kho_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast?.(`Đã xuất ${selectedList.length} đầu sách sang CSV kiểm kê!`, 'success');
+      }
+    } catch {
+      showToast?.('Không thể thực hiện thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
 
   const handleOpenAdjust = (book: InventoryBook, operation: 'ADD' | 'SUBTRACT' | 'SET' = 'ADD') => {
     setLogBook(null); // Close log if open
@@ -875,40 +1002,28 @@ export default function SellerInventoryPage() {
         </div>
       )}
 
-      {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <SellerFilterTabs
-          tabs={tabs}
-          activeTab={filterStatus}
-          onChange={(key) => {
-            setFilterStatus(key as any);
-            setCurrentPage(1);
-          }}
-        />
-
-        <div className="relative min-w-[200px] sm:min-w-[260px]">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm theo tên sách hoặc ISBN..."
-            className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Filter Bar with Status Tabs & Multi-tier Date Filter & Bulk Actions */}
+      <DataTableFilterBar
+        tabs={inventoryStatusTabs}
+        activeTab={filterStatus}
+        onTabChange={(key) => {
+          setFilterStatus(key as any);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Tìm theo tên sách hoặc ISBN..."
+        className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+        bulkActionGroups={inventoryBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredBooks.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="sản phẩm kho"
+      />
 
       {/* Inventory Table Container */}
       <SellerTableContainer>
@@ -931,13 +1046,22 @@ export default function SellerInventoryPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-2 w-[34%]">Sách &amp; Phân Loại</th>
+                  <th className="py-3.5 pl-4 pr-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                    />
+                  </th>
+                  <th className="py-3.5 pl-2 pr-2 w-[34%]">Sách &amp; Phân Loại</th>
                   <th className="py-3.5 px-3 w-[22%]">Tồn Thực &amp; Tạm Giữ</th>
                   <th className="py-3.5 px-3 w-[16%] text-center">Khả Dụng</th>
                   <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái</th>
                   <th className="py-3.5 pl-2 pr-4 w-[14%] text-right">Thao Tác</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-100 font-medium">
                 {paginatedBooks.map((book) => {
                   const isExpanded = !!expandedBookIds[book.id];
@@ -958,11 +1082,24 @@ export default function SellerInventoryPage() {
                               : 'bg-emerald-50 border-l-4 border-emerald-500 animate-pulse'
                             : isExpanded
                             ? 'bg-emerald-50/40 hover:bg-emerald-50/50'
+                            : selectedIds.includes(book.id)
+                            ? 'bg-emerald-50/20'
                             : 'hover:bg-emerald-50/30 bg-white'
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(book.id)}
+                            onChange={() => toggleSelect(book.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                          />
+                        </td>
+
                         {/* 1. Sách & Phân loại */}
-                        <td className="py-3 pl-4 pr-2 align-middle">
+                        <td className="py-3 pl-2 pr-2 align-middle">
+
                           <div className="flex items-center gap-2.5">
                             <button
                               type="button"
@@ -1089,8 +1226,9 @@ export default function SellerInventoryPage() {
                       {/* Expandable Subcards Detail Panel */}
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
+
                               {/* Card 1: Số liệu chi tiết kho */}
                               <div className="space-y-2">
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
@@ -1197,3 +1335,4 @@ export default function SellerInventoryPage() {
     </div>
   );
 }
+

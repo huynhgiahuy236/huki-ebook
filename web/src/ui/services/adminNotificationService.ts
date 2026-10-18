@@ -476,6 +476,61 @@ class AdminNotificationService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newNotif),
       }).catch(() => {});
+
+      // Realtime dispatch via universal notification backend (/api/v1/notifications/dispatch)
+      const recipientType =
+        newNotif.targetRole === 'ALL'
+          ? 'ALL'
+          : newNotif.targetRole === 'CUSTOMER'
+          ? 'USER'
+          : newNotif.targetRole === 'SHIPPER'
+          ? 'DELIVERY'
+          : newNotif.targetRole === 'SELLER'
+          ? 'BUSINESS'
+          : 'ALL';
+
+      const recipientId =
+        recipientType === 'ALL'
+          ? '*'
+          : recipientType === 'BUSINESS' && newNotif.targetBusinessIds?.length
+          ? newNotif.targetBusinessIds[0]
+          : '*';
+
+      const priority =
+        newNotif.severity === 'CRITICAL'
+          ? 'CRITICAL'
+          : newNotif.severity === 'WARNING'
+          ? 'HIGH'
+          : 'NORMAL';
+
+      const token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('accessToken') ||
+        localStorage.getItem('huki_auth_token') ||
+        '';
+
+      fetch('/api/v1/notifications/dispatch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          recipientId,
+          recipientType,
+          title: newNotif.title,
+          message: newNotif.summary || newNotif.content,
+          priority,
+          category: 'MANUAL_BROADCAST',
+          type: 'BROADCAST',
+          actionUrl: newNotif.actionUrl || '/notifications',
+          payload: {
+            broadcastId: newNotif.id,
+            category: newNotif.category,
+            severity: newNotif.severity,
+          },
+        }),
+      }).catch(() => {});
     }
 
     return newNotif;

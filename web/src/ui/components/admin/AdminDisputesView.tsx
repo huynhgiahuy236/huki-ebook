@@ -9,6 +9,12 @@ import { playAdminAlertSound } from '@/ui/utils/chatSound';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 const DISPUTE_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   NOT_AS_DESCRIBED: { label: 'Sai mô tả', color: 'bg-amber-100 text-amber-800 border-amber-200' },
@@ -54,6 +60,9 @@ export function AdminDisputesView() {
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedDisputeIds, setSelectedDisputeIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [selectedDispute, setSelectedDispute] = useState<DisputeDetailData | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailTab, setDetailTab] = useState<'evidence' | 'timeline' | 'governance'>('evidence');
@@ -192,17 +201,71 @@ export function AdminDisputesView() {
     }
   };
 
-  // Metrics
-  const totalCount = disputes.length;
-  const pendingCount = useMemo(() => disputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length, [disputes]);
-  const buyerWinsCount = useMemo(() => disputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length, [disputes]);
-  const sellerWinsCount = useMemo(() => disputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length, [disputes]);
+  // Filtered & Paginated Disputes
+  const filteredDisputes = useMemo(() => {
+    return disputes.filter((d) => {
+      if (!matchesDateFilter(d.createdAt, dateFilter)) return false;
+      return true;
+    });
+  }, [disputes, dateFilter]);
 
-  const totalPages = Math.ceil(disputes.length / pageSize) || 1;
+  // Metrics
+  const totalCount = filteredDisputes.length;
+  const pendingCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW').length, [filteredDisputes]);
+  const buyerWinsCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'RULING_BUYER_WINS' || d.ruling === 'BUYER_WINS').length, [filteredDisputes]);
+  const sellerWinsCount = useMemo(() => filteredDisputes.filter((d) => d.status === 'RULING_SELLER_WINS' || d.ruling === 'SELLER_WINS').length, [filteredDisputes]);
+
+  const totalPages = Math.ceil(filteredDisputes.length / pageSize) || 1;
   const paginatedDisputes = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return disputes.slice(start, start + pageSize);
-  }, [disputes, currentPage, pageSize]);
+    return filteredDisputes.slice(start, start + pageSize);
+  }, [filteredDisputes, currentPage, pageSize]);
+
+  const disputeBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Phán quyết trọng tài',
+        actions: [
+          {
+            label: 'Phán quyết Người mua thắng (Hoàn tiền)',
+            value: 'RULING_BUYER_WINS',
+            icon: 'gavel',
+            variant: 'primary',
+          },
+          {
+            label: 'Phán quyết Người bán thắng (Bác khiếu nại)',
+            value: 'RULING_SELLER_WINS',
+            icon: 'verified_user',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteDisputeBulkAction = async (actionValue: string) => {
+    if (selectedDisputeIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      const pendingItems = disputes.filter(d => selectedDisputeIds.includes(d.id) && (d.status === 'DISPUTE_OPENED' || d.status === 'UNDER_PLATFORM_REVIEW'));
+      if (pendingItems.length === 0) {
+        showToast('Các tranh chấp đã chọn đã được phán quyết trước đó.', 'info');
+        return;
+      }
+      const rulingType: ArbitrationRuling = actionValue === 'RULING_BUYER_WINS' ? 'BUYER_WINS' : 'SELLER_WINS';
+      await Promise.all(pendingItems.map(d => adminApi.arbitrateDispute(d.id, {
+        ruling: rulingType,
+        notes: `Phán quyết hàng loạt bởi Quản trị viên sàn: ${rulingType === 'BUYER_WINS' ? 'Người mua thắng' : 'Người bán thắng'}`,
+      })));
+      showToast(`Đã ra phán quyết hàng loạt thành công cho ${pendingItems.length} hồ sơ!`, 'success');
+      setSelectedDisputeIds([]);
+      await fetchDisputes();
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi khi xử lý phán quyết hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Map Governance Audit Logs from actual Dispute Data
   const disputeAuditLogs: AuditLogItem[] = useMemo(() => {
@@ -395,23 +458,42 @@ export function AdminDisputesView() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row gap-3 items-center justify-between">
-        <AdminFilterTabs
-          tabs={[
-            { key: 'ALL', label: 'Tất cả', count: totalCount },
-            { key: 'DISPUTE_OPENED', label: 'Chờ xử lý', count: pendingCount },
-            { key: 'RULING_BUYER_WINS', label: 'Khách thắng', count: buyerWinsCount },
-            { key: 'RULING_SELLER_WINS', label: 'Shop thắng', count: sellerWinsCount },
-          ]}
-          activeTab={filterStatus}
-          onChange={(tab) => {
+      {/* Filter, Multi-Tier Date & Search Bar with Bulk Actions */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Mã đơn, ID tranh chấp..."
+        searchValue={searchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: filterStatus,
+          options: [
+            { value: 'ALL', label: 'Tất cả', count: totalCount },
+            { value: 'DISPUTE_OPENED', label: 'Chờ xử lý', count: pendingCount },
+            { value: 'RULING_BUYER_WINS', label: 'Khách thắng', count: buyerWinsCount },
+            { value: 'RULING_SELLER_WINS', label: 'Shop thắng', count: sellerWinsCount },
+          ],
+          onChange: (tab) => {
             setFilterStatus(tab);
             setCurrentPage(1);
-          }}
-        />
-
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
+          },
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedDisputeIds.length,
+          loading: bulkLoading,
+          groups: disputeBulkActionGroups,
+          onSelectAction: handleExecuteDisputeBulkAction,
+        }}
+        leftCustomActions={
           <select
             value={filterType}
             onChange={(e) => {
@@ -428,22 +510,8 @@ export function AdminDisputesView() {
             <option value="COUNTERFEIT">Nghi vấn sách giả</option>
             <option value="OTHER">Khác</option>
           </select>
-
-          <div className="relative w-full md:w-60">
-            <span className="material-symbols-outlined text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px]">search</span>
-            <input
-              type="text"
-              placeholder="Mã đơn, ID tranh chấp..."
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl pl-8 pr-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-800 placeholder:text-gray-400 transition-all"
-            />
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* GroupedDataTable Container */}
       <GroupedDataTable<DisputeItem>
@@ -451,6 +519,9 @@ export function AdminDisputesView() {
         columns={columns}
         keyField="id"
         loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedDisputeIds}
+        onSelectionChange={(keys) => setSelectedDisputeIds(keys as string[])}
         expandable={true}
         expandedRowRender={(item: DisputeItem) => {
           const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;

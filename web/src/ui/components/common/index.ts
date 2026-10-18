@@ -35,3 +35,19 @@ export type { InputProps } from './Input';
 
 export { default as Select } from './Select';
 export type { SelectProps } from './Select';
+
+export { default as DataTableFilterBar, matchesDateFilter } from './DataTableFilterBar';
+export type {
+  DataTableFilterBarProps,
+  DateFilterMode,
+  DateFilterValue,
+  StatusTab,
+} from './DataTableFilterBar';
+
+export { default as DataTableBulkActionBar } from './DataTableBulkActionBar';
+export type {
+  DataTableBulkActionBarProps,
+  BulkActionGroup,
+  BulkActionItem,
+} from './DataTableBulkActionBar';
+

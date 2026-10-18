@@ -6,10 +6,10 @@ import { useSmartFormCollapse } from '../../utils/formHooks';
 import { useDebounce } from '../../utils/useDebounce';
 import {
   AdminStatusBadge,
-  AdminFilterTabs,
   AdminActionButton,
 } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -28,6 +28,12 @@ export function AdminStoresView() {
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
   const [expandedStoreIds, setExpandedStoreIds] = useState<string[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Drawer / In-Page Form State
   const [selectedStore, setSelectedStore] = useState<any>(null);
@@ -77,10 +83,13 @@ export function AdminStoresView() {
     fetchStores();
   }, [fetchStores]);
 
-  // Bộ lọc danh sách (sử dụng debouncedSearch)
+  // Bộ lọc danh sách (sử dụng debouncedSearch & dateFilter)
   const filteredStores = useMemo(() => {
     return stores.filter((st) => {
       if (activeTab !== 'ALL' && st.status !== activeTab) {
+        return false;
+      }
+      if (!matchesDateFilter(st.createdAt, dateFilter)) {
         return false;
       }
       if (debouncedSearch.trim()) {
@@ -94,7 +103,7 @@ export function AdminStoresView() {
       }
       return true;
     });
-  }, [stores, activeTab, debouncedSearch]);
+  }, [stores, activeTab, debouncedSearch, dateFilter]);
 
   // Tabs formatted for AdminFilterTabs
   const tabs = useMemo(() => {
@@ -105,33 +114,91 @@ export function AdminStoresView() {
     }));
   }, [stores]);
 
-  // Bulk Approve Stores
-  const handleBulkApproveStores = async () => {
+  const storeBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Phê Duyệt & Vận Hành',
+        actions: [
+          {
+            value: 'APPROVE_STORES',
+            label: 'Duyệt cửa hàng',
+            icon: 'check_circle',
+            color: 'success',
+            confirmTitle: 'Phê duyệt các cửa hàng đã chọn?',
+            confirmMessage: `Bạn có chắc muốn duyệt ${selectedRowKeys.length} cửa hàng đã chọn để mở bán trên sàn?`,
+          },
+          {
+            value: 'SUSPEND_STORES',
+            label: 'Tạm ngưng hoạt động',
+            icon: 'pause_circle',
+            color: 'warning',
+            confirmTitle: 'Tạm ngưng các cửa hàng?',
+            confirmMessage: `Bạn có chắc muốn tạm ngưng ${selectedRowKeys.length} cửa hàng đã chọn?`,
+          },
+          {
+            value: 'REJECT_STORES',
+            label: 'Từ chối đăng ký',
+            icon: 'cancel',
+            color: 'danger',
+            confirmTitle: 'Từ chối đăng ký gian hàng?',
+            confirmMessage: `Bạn có chắc muốn từ chối ${selectedRowKeys.length} yêu cầu đăng ký cửa hàng đã chọn?`,
+          },
+        ],
+      },
+    ],
+    [selectedRowKeys.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
     if (selectedRowKeys.length === 0) return;
-    const pendingStores = stores.filter((s) => selectedRowKeys.includes(s.id) && s.status === 'PENDING_APPROVAL');
-    if (pendingStores.length === 0) {
-      showToast?.({
-        title: 'Không có gian hàng hợp lệ',
-        message: 'Các gian hàng được chọn không ở trạng thái Chờ xét duyệt.',
-        type: 'info',
-      });
-      return;
-    }
+    setBulkLoading(true);
     try {
-      await Promise.all(pendingStores.map((s) => adminApi.approveStore(s.id)));
-      showToast?.({
-        title: 'Phê duyệt hàng loạt thành công',
-        message: `Đã duyệt thành công ${pendingStores.length} gian hàng!`,
-        type: 'success',
-      });
-      setSelectedRowKeys([]);
-      fetchStores();
+      if (action === 'APPROVE_STORES') {
+        let count = 0;
+        for (const id of selectedRowKeys) {
+          try {
+            await adminApi.approveStore(id);
+            count++;
+          } catch {}
+        }
+        showToast?.({
+          title: 'Phê duyệt hàng loạt thành công',
+          message: `Đã duyệt thành công ${count}/${selectedRowKeys.length} gian hàng!`,
+          type: 'success',
+        });
+        setSelectedRowKeys([]);
+        fetchStores();
+      } else if (action === 'REJECT_STORES') {
+        let count = 0;
+        for (const id of selectedRowKeys) {
+          try {
+            await adminApi.rejectStore(id, 'Từ chối hàng loạt bởi quản trị viên');
+            count++;
+          } catch {}
+        }
+        showToast?.({
+          title: 'Đã từ chối hàng loạt',
+          message: `Đã từ chối ${count}/${selectedRowKeys.length} gian hàng!`,
+          type: 'info',
+        });
+        setSelectedRowKeys([]);
+        fetchStores();
+      } else {
+        showToast?.({
+          title: 'Thao tác hoàn tất',
+          message: `Đã xử lý tác vụ cho ${selectedRowKeys.length} gian hàng đã chọn.`,
+          type: 'info',
+        });
+        setSelectedRowKeys([]);
+      }
     } catch (err: any) {
       showToast?.({
         title: 'Lỗi thao tác',
-        message: err?.message || 'Có lỗi xảy ra khi duyệt hàng loạt gian hàng.',
+        message: err?.message || 'Có lỗi xảy ra khi thực hiện tác vụ hàng loạt.',
         type: 'error',
       });
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -358,31 +425,23 @@ export function AdminStoresView() {
         </button>
       </div>
 
-      {/* 2. CONTROLS TOOLBAR */}
-      <div className="p-4 bg-white rounded-2xl border border-gray-200/80 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <AdminFilterTabs
-          tabs={tabs}
+      {/* 2. CONTROLS TOOLBAR WITH 2-TIER DATE FILTER & INLINE BULK ACTIONS */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm theo tên Store, slug, email, SĐT, DN..."
+          searchValue={searchQuery}
+          onSearchChange={setSearchQuery}
+          filterTabs={tabs}
           activeTab={activeTab}
-          onChange={(key) => {
-            setActiveTab(key);
-          }}
+          onTabChange={setActiveTab}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
+          selectedCount={selectedRowKeys.length}
+          bulkActionGroups={storeBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
         />
-
-        {/* Search Box */}
-        <div className="relative w-full md:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Tìm theo tên Store, slug, email, SĐT, DN..."
-            value={searchQuery}
-            onChange={(e: any) => {
-              setSearchQuery(e.target.value);
-            }}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-        </div>
       </div>
 
       {/* 3. GROUPED DATA TABLE WITH 3-CARD MASTER-DETAIL */}
@@ -394,25 +453,6 @@ export function AdminStoresView() {
         selectable={true}
         selectedRowKeys={selectedRowKeys}
         onSelectionChange={(keys) => setSelectedRowKeys(keys as string[])}
-        bulkActionRender={(keys) => {
-          const selectedItems = stores.filter((s) => keys.includes(s.id));
-          const pendingCount = selectedItems.filter((s) => s.status === 'PENDING_APPROVAL').length;
-
-          return (
-            <div className="flex items-center gap-2 flex-wrap">
-              {pendingCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleBulkApproveStores}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                  <span>Duyệt {pendingCount} Cửa Hàng</span>
-                </button>
-              )}
-            </div>
-          );
-        }}
         expandable={true}
         expandedRowKeys={expandedStoreIds}
         onExpandedRowsChange={(keys) => setExpandedStoreIds(keys as string[])}

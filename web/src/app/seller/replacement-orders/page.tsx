@@ -10,6 +10,13 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+  StatusTab,
+} from '@/ui/components/common';
 
 export default function SellerReplacementOrdersPage() {
   const { showToast } = useToast();
@@ -17,7 +24,12 @@ export default function SellerReplacementOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [bulkLoading, setBulkLoading] = useState(false);
   const pageSize = 10;
+
 
   // In-Page Shipping Form State (NO POPUP)
   const [shippingTarget, setShippingTarget] = useState<ReturnRequestData | null>(null);
@@ -84,21 +96,107 @@ export default function SellerReplacementOrdersPage() {
 
   const filteredItems = useMemo(() => {
     return replacements.filter((it) => {
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase();
-      const code = (it.order?.code || it.orderId || '').toLowerCase();
-      const title = (it.orderItem?.title || '').toLowerCase();
-      const customer = (it.user?.fullName || it.user?.name || '').toLowerCase();
-      const track = (it.replacementTrackingCode || '').toLowerCase();
-      return code.includes(q) || title.includes(q) || customer.includes(q) || track.includes(q);
+      // Tab filter
+      if (activeTab === 'WAITING_SHIP' && it.replacementTrackingCode) return false;
+      if (activeTab === 'SHIPPED' && !it.replacementTrackingCode) return false;
+
+      // Date filter
+      if (!matchesDateFilter(it.createdAt, dateFilter)) return false;
+
+      // Search
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const code = (it.order?.code || it.orderId || '').toLowerCase();
+        const title = (it.orderItem?.title || '').toLowerCase();
+        const customer = (it.user?.fullName || it.user?.name || '').toLowerCase();
+        const track = (it.replacementTrackingCode || '').toLowerCase();
+        if (!code.includes(q) && !title.includes(q) && !customer.includes(q) && !track.includes(q)) {
+          return false;
+        }
+      }
+      return true;
     });
-  }, [replacements, searchQuery]);
+  }, [replacements, searchQuery, activeTab, dateFilter]);
 
   const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredItems.slice(start, start + pageSize);
   }, [filteredItems, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, activeTab, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredItems.length && filteredItems.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredItems.map((it) => it.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
+  const replacementStatusTabs: StatusTab[] = useMemo(() => {
+    const waitingCount = replacements.filter((it) => !it.replacementTrackingCode).length;
+    const shippedCount = replacements.filter((it) => !!it.replacementTrackingCode).length;
+    return [
+      { key: 'ALL', label: 'Tất Cả', count: replacements.length },
+      { key: 'WAITING_SHIP', label: 'Chờ Giao Kiện Đổi', count: waitingCount },
+      { key: 'SHIPPED', label: 'Đã Bàn Giao', count: shippedCount },
+    ];
+  }, [replacements]);
+
+  const replacementBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'In ấn & xuất file',
+      actions: [
+        { value: 'PRINT_LABELS', label: 'In phiếu đổi hàng (A4/A5)' },
+        { value: 'EXPORT_CSV', label: 'Xuất danh sách kiện đổi (.csv)' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'PRINT_LABELS') {
+        showToast({ title: 'In ấn', message: `Đang mở trình in cho ${selectedIds.length} kiện đổi mới...` }, 'info');
+        if (typeof window !== 'undefined') {
+          window.print();
+        }
+      } else if (actionValue === 'EXPORT_CSV') {
+        const selectedList = replacements.filter((it) => selectedIds.includes(it.id));
+        const header = ['Mã Yêu Cầu', 'Mã Đơn Gốc', 'Sản Phẩm Đổi', 'Khách Hàng', 'Đơn Vị Vận Chuyển', 'Mã Vận Đơn', 'Ngày Tạo'];
+        const rows = selectedList.map((it) => [
+          it.id,
+          it.order?.code || it.orderId || '',
+          it.orderItem?.title || '',
+          it.user?.fullName || it.user?.name || '',
+          it.replacementCarrier || '',
+          it.replacementTrackingCode || '',
+          it.createdAt ? new Date(it.createdAt).toLocaleString('vi-VN') : '',
+        ]);
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `danh_sach_doi_moi_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast({ title: 'Thành công', message: `Đã xuất ${selectedList.length} kiện đổi hàng sang CSV!`, type: 'success' });
+      }
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Không thể thực thi thao tác hàng loạt', type: 'error' });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
@@ -108,6 +206,7 @@ export default function SellerReplacementOrdersPage() {
       [id]: !prev[id],
     }));
   };
+
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
@@ -228,33 +327,25 @@ export default function SellerReplacementOrdersPage() {
         </div>
       )}
 
-      {/* Filter and Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="relative flex-1 max-w-md">
-          <span className="material-symbols-outlined text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 text-sm">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm mã đơn gốc, mã vận đơn, tên sách, khách hàng..."
-            className="w-full pl-9 pr-8 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-[#00875A] text-slate-900"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-        <span className="text-xs text-slate-500 self-center">
-          Tổng: <b className="text-[#00875A]">{filteredItems.length}</b> kiện hàng đổi
-        </span>
-      </div>
+      {/* Filter Bar with Status Tabs & Multi-tier Date Filter & Bulk Actions */}
+      <DataTableFilterBar
+        tabs={replacementStatusTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Tìm mã đơn gốc, mã vận đơn, tên sách, khách hàng..."
+        className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+        bulkActionGroups={replacementBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredItems.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="kiện đổi mới"
+      />
 
       {/* Table Container */}
       <SellerTableContainer>
@@ -277,13 +368,22 @@ export default function SellerReplacementOrdersPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
+                  <th className="py-3.5 pl-4 pr-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filteredItems.length && filteredItems.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                    />
+                  </th>
+                  <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
                   <th className="py-3.5 px-3 w-[28%]">Sản Phẩm Đổi</th>
                   <th className="py-3.5 px-3 w-[24%]">Khách Hàng &amp; Vận Đơn</th>
                   <th className="py-3.5 px-3 w-[12%] text-center">Trạng Thái</th>
                   <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Thao Tác</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-100">
                 {paginatedItems.map((item) => {
                   const isExpanded = !!expandedIds[item.id];
@@ -296,11 +396,22 @@ export default function SellerReplacementOrdersPage() {
                       <tr
                         onClick={() => toggleExpand(item.id)}
                         className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
+                          isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(item.id)}
+                            onChange={() => toggleSelect(item.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                          />
+                        </td>
+
                         {/* 1. Mã đơn / Yêu cầu */}
-                        <td className="py-3 pl-4 pr-2 align-middle">
+                        <td className="py-3 pl-2 pr-2 align-middle">
+
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
@@ -403,7 +514,8 @@ export default function SellerReplacementOrdersPage() {
                       {/* Expandable Subcards Detail Panel */}
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
+
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
                               {/* Card 1: Thông tin đơn hàng & sản phẩm */}
                               <div className="space-y-2">
@@ -510,4 +622,5 @@ export default function SellerReplacementOrdersPage() {
       )}
     </div>
   );
+
 }

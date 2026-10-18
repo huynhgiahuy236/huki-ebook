@@ -5,6 +5,12 @@ import Link from 'next/link';
 import { orderApi } from '@/ui/api/orderApi';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import { AdminStatusBadge } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 interface ShipperRecord {
   id: string;
@@ -46,6 +52,11 @@ export default function AdminShippersView() {
   const [currentPageFleet, setCurrentPageFleet] = useState(1);
   const [currentPageRemittance, setCurrentPageRemittance] = useState(1);
   const pageSize = 10;
+
+  // Date Filter & Bulk Actions State for Fleet
+  const [dateFilterFleet, setDateFilterFleet] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedShipperIds, setSelectedShipperIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -89,18 +100,68 @@ export default function AdminShippersView() {
     );
   };
 
+  const shipperBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'Điều Phối & Hoạt Động',
+      actions: [
+        { value: 'SET_ACTIVE', label: 'Kích hoạt trực tuyến' },
+        { value: 'SET_OFFLINE', label: 'Chuyển trạng thái ngoại tuyến' },
+      ],
+    },
+    {
+      groupLabel: 'Kỷ Luật & Bảo Mật',
+      actions: [
+        {
+          value: 'SUSPEND',
+          label: 'Tạm khóa quyền nhận đơn',
+          isDanger: true,
+          confirmMessage: 'Bạn có chắc chắn muốn tạm khóa các bưu tá được chọn? Bưu tá sẽ không thể nhận đơn giao mới.',
+        },
+        { value: 'UNSUSPEND', label: 'Mở khóa tài khoản bưu tá' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedShipperIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'SET_ACTIVE') {
+        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'ACTIVE' } : s));
+      } else if (actionValue === 'SET_OFFLINE') {
+        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'OFFLINE' } : s));
+      } else if (actionValue === 'SUSPEND') {
+        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'SUSPENDED' } : s));
+      } else if (actionValue === 'UNSUSPEND') {
+        setShippers(prev => prev.map(s => selectedShipperIds.includes(s.id) ? { ...s, status: 'ACTIVE' } : s));
+      }
+      setSelectedShipperIds([]);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const filteredShippers = useMemo(() => {
+    const parseVNDate = (dStr: string) => {
+      const parts = dStr.split('/');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dStr;
+    };
+
     return shippers.filter((s) => {
       const matchStatus = statusFilter === 'ALL' || s.status === statusFilter;
+      const matchDate = matchesDateFilter(parseVNDate(s.joinDate), dateFilterFleet);
       const matchQuery =
         !searchQuery.trim() ||
         s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         s.phone.includes(searchQuery) ||
         s.licensePlate.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchStatus && matchQuery;
+      return matchStatus && matchDate && matchQuery;
     });
-  }, [shippers, statusFilter, searchQuery]);
+  }, [shippers, statusFilter, dateFilterFleet, searchQuery]);
 
   // Aggregate stats
   const totalShippers = shippers.length;
@@ -411,50 +472,39 @@ export default function AdminShippersView() {
       {/* TAB 1: FLEET LIST */}
       {activeTab === 'FLEET' && (
         <div className="space-y-4">
-          {/* SEARCH & FILTER TOOLBAR */}
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-md">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Tìm tên bưu tá, mã shipper, biển số, SĐT..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPageFleet(1);
-                }}
-                className="w-full pl-9 pr-3 py-1.5 text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg text-gray-800 placeholder-gray-400 focus:outline-hidden focus:border-[#00875A] focus:bg-white transition-all shadow-2xs"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              {(['ALL', 'ACTIVE', 'OFFLINE', 'SUSPENDED'] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => {
-                    setStatusFilter(st);
-                    setCurrentPageFleet(1);
-                  }}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                    statusFilter === st
-                      ? 'bg-[#003B2B] text-white'
-                      : 'bg-[#F1F5F9] text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  {st === 'ALL'
-                    ? 'Tất cả'
-                    : st === 'ACTIVE'
-                    ? 'Đang Trực Tuyến'
-                    : st === 'OFFLINE'
-                    ? 'Ngoại Tuyến'
-                    : 'Tạm Khóa'}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* SEARCH & FILTER TOOLBAR WITH SPLIT DATE FILTER AND BULK ACTIONS */}
+          <DataTableFilterBar
+            tabs={[
+              { key: 'ALL', label: 'Tất cả bưu tá', count: shippers.length },
+              { key: 'ACTIVE', label: 'Đang Trực Tuyến', count: shippers.filter(s => s.status === 'ACTIVE').length },
+              { key: 'OFFLINE', label: 'Ngoại Tuyến', count: shippers.filter(s => s.status === 'OFFLINE').length },
+              { key: 'SUSPENDED', label: 'Tạm Khóa', count: shippers.filter(s => s.status === 'SUSPENDED').length },
+            ]}
+            activeTab={statusFilter}
+            onTabChange={(st) => {
+              setStatusFilter(st as any);
+              setCurrentPageFleet(1);
+            }}
+            dateFilter={dateFilterFleet}
+            onDateFilterChange={(df) => {
+              setDateFilterFleet(df);
+              setCurrentPageFleet(1);
+            }}
+            searchQuery={searchQuery}
+            onSearchChange={(q) => {
+              setSearchQuery(q);
+              setCurrentPageFleet(1);
+            }}
+            searchPlaceholder="Tìm tên bưu tá, mã shipper, biển số, SĐT..."
+            className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+            bulkActionGroups={shipperBulkActionGroups}
+            selectedCount={selectedShipperIds.length}
+            totalCount={filteredShippers.length}
+            onExecuteBulkAction={handleExecuteBulkAction}
+            onClearSelection={() => setSelectedShipperIds([])}
+            bulkLoading={bulkLoading}
+            itemName="bưu tá"
+          />
 
           {/* GroupedDataTable for Fleet */}
           <GroupedDataTable<ShipperRecord>
@@ -462,6 +512,9 @@ export default function AdminShippersView() {
             data={filteredShippers}
             keyField="id"
             loading={isLoading}
+            selectable={true}
+            selectedRowKeys={selectedShipperIds}
+            onSelectionChange={(keys) => setSelectedShipperIds(keys as string[])}
             expandable={true}
             expandedRowRender={(shipper) => (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">

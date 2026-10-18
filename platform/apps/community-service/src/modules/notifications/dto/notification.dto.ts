@@ -13,7 +13,16 @@ import {
   ValidateNested,
 } from "class-validator";
 import { NOTIFICATION_DEVICE_TYPES } from "../../../entities/notification-device.schema";
-import { NOTIFICATION_TYPES } from "../../../entities/notification.schema";
+import {
+  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_PRIORITIES,
+  NOTIFICATION_RECIPIENT_TYPES,
+  NOTIFICATION_TYPES,
+  NotificationCategory,
+  NotificationPriority,
+  NotificationRecipientType,
+  NotificationType,
+} from "../../../entities/notification.schema";
 
 function optionalBoolean(value: unknown) {
   if (value === "true" || value === true) return true;
@@ -44,7 +53,66 @@ export class NotificationListQueryDto {
   @ApiPropertyOptional({ enum: NOTIFICATION_TYPES })
   @IsOptional()
   @IsIn(NOTIFICATION_TYPES)
-  type?: (typeof NOTIFICATION_TYPES)[number];
+  type?: NotificationType;
+
+  @ApiPropertyOptional({ enum: NOTIFICATION_CATEGORIES })
+  @IsOptional()
+  @IsIn(NOTIFICATION_CATEGORIES)
+  category?: NotificationCategory;
+
+  @ApiPropertyOptional({ enum: NOTIFICATION_PRIORITIES })
+  @IsOptional()
+  @IsIn(NOTIFICATION_PRIORITIES)
+  priority?: NotificationPriority;
+}
+
+export class DispatchNotificationDto {
+  @ApiProperty({ description: "Target recipient ID (user ID, store ID, or '*' for broadcast)" })
+  @IsString()
+  @Length(1, 100)
+  recipientId!: string;
+
+  @ApiProperty({ enum: NOTIFICATION_RECIPIENT_TYPES, default: "USER" })
+  @IsIn(NOTIFICATION_RECIPIENT_TYPES)
+  recipientType!: NotificationRecipientType;
+
+  @ApiProperty({ enum: NOTIFICATION_TYPES, default: "SYSTEM" })
+  @IsIn(NOTIFICATION_TYPES)
+  type!: NotificationType;
+
+  @ApiPropertyOptional({ enum: NOTIFICATION_CATEGORIES, default: "MANUAL_DIRECT" })
+  @IsOptional()
+  @IsIn(NOTIFICATION_CATEGORIES)
+  category?: NotificationCategory;
+
+  @ApiPropertyOptional({ enum: NOTIFICATION_PRIORITIES, default: "NORMAL" })
+  @IsOptional()
+  @IsIn(NOTIFICATION_PRIORITIES)
+  priority?: NotificationPriority;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 200)
+  title!: string;
+
+  @ApiProperty()
+  @IsString()
+  @Length(1, 2000)
+  message!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  actionUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  payload?: Record<string, unknown>;
 }
 
 export class NotificationIdParamDto {

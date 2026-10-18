@@ -3,12 +3,27 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useShipper } from '@/ui/context/ShipperContext';
+import QuickDispatchNotificationModal from '../common/QuickDispatchNotificationModal';
 
 export default function ShipperActiveDeliveriesView() {
   const { activeDeliveries, confirmPickup, completeDelivery, failDelivery } = useShipper();
 
   const [selectedOrderToFail, setSelectedOrderToFail] = useState<string | null>(null);
   const [failReason, setFailReason] = useState('Khách không nghe máy (đã gọi 3 lần)');
+  const [dispatchModal, setDispatchModal] = useState<{
+    open: boolean;
+    targetRole: 'SELLER' | 'USER';
+    targetId: string;
+    targetName: string;
+    orderCode: string;
+    orderId?: string;
+  }>({
+    open: false,
+    targetRole: 'USER',
+    targetId: '',
+    targetName: '',
+    orderCode: '',
+  });
 
   return (
     <div className="space-y-5 animate-in fade-in duration-200">
@@ -323,7 +338,43 @@ export default function ShipperActiveDeliveriesView() {
                       </strong>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDispatchModal({
+                            open: true,
+                            targetRole: 'USER',
+                            targetId: order.customerPhone || order.deliveryAddress,
+                            targetName: `Khách hàng: ${order.customerName || 'Người nhận'}`,
+                            orderCode: order.code,
+                            orderId: order.id,
+                          })
+                        }
+                        className="px-3 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">phone_in_talk</span>
+                        <span>Nhắn Khách</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDispatchModal({
+                            open: true,
+                            targetRole: 'SELLER',
+                            targetId: order.shopAddress || 'store_channel',
+                            targetName: `Shop: ${order.shopName || 'Gian hàng'}`,
+                            orderCode: order.code,
+                            orderId: order.id,
+                          })
+                        }
+                        className="px-3 py-2 rounded-xl border border-blue-300 bg-blue-50 text-blue-800 hover:bg-blue-100 text-xs font-bold transition-all cursor-pointer flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">storefront</span>
+                        <span>Báo Shop</span>
+                      </button>
+
                       {!isReturn && (
                         <button
                           type="button"
@@ -422,6 +473,20 @@ export default function ShipperActiveDeliveriesView() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cross-role Dispatch Modal */}
+      {dispatchModal.open && (
+        <QuickDispatchNotificationModal
+          isOpen={dispatchModal.open}
+          onClose={() => setDispatchModal((prev) => ({ ...prev, open: false }))}
+          senderRole="SHIPPER"
+          targetRole={dispatchModal.targetRole}
+          targetId={dispatchModal.targetId}
+          targetName={dispatchModal.targetName}
+          orderCode={dispatchModal.orderCode}
+          orderId={dispatchModal.orderId}
+        />
       )}
     </div>
   );

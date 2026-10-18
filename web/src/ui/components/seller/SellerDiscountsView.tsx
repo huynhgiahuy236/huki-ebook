@@ -17,6 +17,32 @@ import {
   SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
+
+const discountBulkActionGroups: BulkActionGroup[] = [
+  {
+    groupLabel: 'QUẢN LÝ GIẢM GIÁ',
+    actions: [
+      {
+        value: 'CANCEL_DISCOUNT',
+        label: 'Hủy giảm giá các sách đã chọn',
+        isDanger: true,
+        confirmMessage: 'Bạn có chắc chắn muốn hủy áp dụng giảm giá cho các sách đã chọn?',
+      },
+    ],
+  },
+  {
+    groupLabel: 'XUẤT DỮ LIỆU',
+    actions: [
+      { value: 'EXPORT_CSV', label: 'Xuất danh sách sách & giảm giá (.csv)' },
+    ],
+  },
+];
 
 interface BookItem {
   id: string;
@@ -39,6 +65,9 @@ export function SellerDiscountsView() {
   const [discountsMap, setDiscountsMap] = useState<Record<string, BookDiscount>>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<'ALL' | 'DISCOUNTED' | 'NOT_DISCOUNTED'>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -278,9 +307,81 @@ export function SellerDiscountsView() {
       if (filterTab === 'DISCOUNTED') matchesTab = hasDisc;
       if (filterTab === 'NOT_DISCOUNTED') matchesTab = !hasDisc;
 
-      return matchesSearch && matchesTab;
+      const disc = discountsMap[b.id];
+      const dateToCheck = disc?.startsAt || disc?.createdAt || (b as any).createdAt;
+      const matchesDate = matchesDateFilter(dateToCheck, dateFilter);
+
+      return matchesSearch && matchesTab && matchesDate;
     });
-  }, [books, discountsMap, searchQuery, filterTab]);
+  }, [books, discountsMap, searchQuery, filterTab, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredBooks.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredBooks.map((b) => b.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionId === 'CANCEL_DISCOUNT') {
+        let count = 0;
+        for (const bookId of selectedIds) {
+          const disc = discountsMap[bookId];
+          if (disc) {
+            await discountApi.cancelDiscount(disc.id);
+            count++;
+          }
+        }
+        setDiscountsMap((prev) => {
+          const next = { ...prev };
+          selectedIds.forEach((id) => delete next[id]);
+          return next;
+        });
+        showToast({ title: 'Thành công', message: `Đã hủy giảm giá cho ${count} sách.` }, 'success');
+        setSelectedIds([]);
+      } else if (actionId === 'EXPORT_CSV') {
+        const selectedBooks = books.filter((b) => selectedIds.includes(b.id));
+        const headers = ['Mã Sách', 'Tên Sách', 'Tác Giả', 'Giá Gốc', 'Có Giảm Giá', 'Loại Giảm', 'Giá Trị Giảm', 'Bắt Đầu', 'Kết Thúc'];
+        const rows = selectedBooks.map((b) => {
+          const disc = discountsMap[b.id];
+          return [
+            b.id,
+            `"${b.title.replace(/"/g, '""')}"`,
+            `"${getAuthorName(b).replace(/"/g, '""')}"`,
+            b.price || 0,
+            disc ? 'CÓ' : 'KHÔNG',
+            disc ? disc.type : '',
+            disc ? disc.value : '',
+            disc ? disc.startsAt : '',
+            disc ? disc.expiresAt : '',
+          ].join(',');
+        });
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Danh_Sach_Giam_Gia_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast({ title: 'Xuất file thành công', message: `Đã xuất ${selectedBooks.length} dòng.` }, 'success');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Thao tác thất bại' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const totalPages = Math.ceil(filteredBooks.length / pageSize) || 1;
   const paginatedBooks = useMemo(() => {
@@ -493,40 +594,34 @@ export function SellerDiscountsView() {
         </div>
       )}
 
-      {/* Filter and Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <SellerFilterTabs
-          tabs={tabs}
-          activeTab={filterTab}
-          onChange={(key) => {
-            setFilterTab(key as any);
-            setCurrentPage(1);
-          }}
-        />
-
-        <div className="relative min-w-[200px] sm:min-w-[260px]">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm theo tên sách..."
-            className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Filter Bar with Tabs, Search, Split Date Filter, and Integrated Bulk Actions */}
+      <DataTableFilterBar
+        searchPlaceholder="Tìm theo tên sách hoặc mã ID..."
+        searchQuery={searchQuery}
+        onSearchChange={(v: string) => {
+          setSearchQuery(v);
+          setCurrentPage(1);
+        }}
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        tabs={tabs}
+        activeTab={filterTab}
+        onTabChange={(k: string) => {
+          setFilterTab(k as any);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={(v: DateFilterValue) => {
+          setDateFilter(v);
+          setCurrentPage(1);
+        }}
+        bulkActionGroups={discountBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredBooks.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="đầu sách"
+      />
 
       {/* Discounts Table */}
       <SellerTableContainer>
@@ -549,7 +644,15 @@ export function SellerDiscountsView() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-2 w-[34%]">Sách &amp; Tác Giả</th>
+                  <th className="py-3.5 pl-4 pr-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                    />
+                  </th>
+                  <th className="py-3.5 pl-2 pr-2 w-[34%]">Sách &amp; Tác Giả</th>
                   <th className="py-3.5 px-3 w-[22%]">Giá Bán &amp; Giảm Giá</th>
                   <th className="py-3.5 px-3 w-[18%]">Thời Hạn Áp Dụng</th>
                   <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái</th>
@@ -577,6 +680,16 @@ export function SellerDiscountsView() {
                           isExpanded ? 'bg-emerald-50/40' : 'bg-white'
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(book.id)}
+                            onChange={() => toggleSelectRow(book.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                          />
+                        </td>
+
                         {/* 1. Sách & Tác Giả */}
                         <td className="py-3 pl-4 pr-2 align-middle">
                           <div className="flex items-center gap-2.5">
@@ -700,7 +813,7 @@ export function SellerDiscountsView() {
                       {/* Expandable Subcards Detail Panel */}
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
                               {/* Card 1: Thông tin giá & Mức chiết khấu */}
                               <div className="space-y-2">

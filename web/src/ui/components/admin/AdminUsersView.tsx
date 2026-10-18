@@ -7,6 +7,12 @@ import { adminApi } from '../../api/adminApi';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 interface DrmDevice {
   id: string;
@@ -45,6 +51,11 @@ export default function AdminUsersView() {
   const [userTab, setUserTab] = useState<'info' | 'history'>('info');
   const [userAuditLogs, setUserAuditLogs] = useState<AuditLogItem[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  // Multi-tier Date Filter & Bulk Actions State
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
     if (inspectingUser?.id && userTab === 'history') {
@@ -282,11 +293,75 @@ export default function AdminUsersView() {
     }
   };
 
+  // Grouped Bulk Actions Definition
+  const userBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'Hạng & Điểm Thưởng',
+      actions: [
+        { value: 'UPGRADE_GOLD', label: 'Nâng hạng lên VIP Vàng' },
+        { value: 'REWARD_POINTS', label: 'Tặng 200 HukiXu tri ân' },
+      ],
+    },
+    {
+      groupLabel: 'Bảo Mật & Quản Trị',
+      actions: [
+        { value: 'REVOKE_ALL_DRM', label: 'Thu hồi thiết bị DRM các máy' },
+        {
+          value: 'LOCK_ACCOUNTS',
+          label: 'Khóa tài khoản được chọn',
+          isDanger: true,
+          confirmMessage: 'Bạn có chắc chắn muốn khóa các tài khoản độc giả đã chọn? Người dùng sẽ không thể đăng nhập hoặc đọc sách.',
+        },
+        { value: 'UNLOCK_ACCOUNTS', label: 'Mở khóa tài khoản' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedUserIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'UPGRADE_GOLD') {
+        setUsers(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, tier: 'gold', tierLabel: 'Vàng' } : u));
+        showToast?.(`Đã nâng hạng VIP Vàng cho ${selectedUserIds.length} độc giả.`, 'success');
+      } else if (actionValue === 'REWARD_POINTS') {
+        setUsers(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, points: u.points + 200 } : u));
+        showToast?.(`Đã tặng 200 HukiXu cho ${selectedUserIds.length} độc giả.`, 'success');
+      } else if (actionValue === 'REVOKE_ALL_DRM') {
+        setUsers(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, devicesList: [], devicesCount: 0, status: 'active', statusLabel: 'Hoạt động tốt' } : u));
+        showToast?.(`Đã thu hồi toàn bộ thiết bị DRM của ${selectedUserIds.length} độc giả.`, 'info');
+      } else if (actionValue === 'LOCK_ACCOUNTS') {
+        setUsers(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, status: 'locked', statusLabel: 'Đã bị khóa tài khoản' } : u));
+        showToast?.(`Đã khóa thành công ${selectedUserIds.length} tài khoản vi phạm.`, 'info');
+      } else if (actionValue === 'UNLOCK_ACCOUNTS') {
+        setUsers(prev => prev.map(u => selectedUserIds.includes(u.id) ? { ...u, status: 'active', statusLabel: 'Hoạt động tốt' } : u));
+        showToast?.(`Đã mở khóa thành công ${selectedUserIds.length} tài khoản độc giả.`, 'success');
+      }
+      setSelectedUserIds([]);
+    } catch {
+      showToast?.('Có lỗi xảy ra khi thực hiện thao tác hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const filteredUsers = useMemo(() => {
+    const parseVNDate = (dStr: string) => {
+      const parts = dStr.split('/');
+      if (parts.length === 3) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dStr;
+    };
+
     return users.filter(user => {
       if (activeTab === 'diamond' && user.tier !== 'diamond') return false;
       if (activeTab === 'gold' && user.tier !== 'gold') return false;
       if (activeTab === 'warning' && user.status !== 'warning') return false;
+
+      // Date filter matching
+      if (!matchesDateFilter(parseVNDate(user.joinedDate), dateFilter)) return false;
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -298,7 +373,7 @@ export default function AdminUsersView() {
       }
       return true;
     });
-  }, [users, activeTab, searchQuery]);
+  }, [users, activeTab, dateFilter, searchQuery]);
 
   const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
   const paginatedUsers = useMemo(() => {
@@ -522,42 +597,48 @@ export default function AdminUsersView() {
         </div>
       </div>
 
-      {/* 3. FILTERS & SEARCH */}
-      <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <AdminFilterTabs
-          tabs={[
-            { key: 'all', label: 'Tất cả độc giả', count: users.length },
-            { key: 'diamond', label: 'VIP Kim Cương', count: users.filter(u => u.tier === 'diamond').length },
-            { key: 'gold', label: 'VIP Vàng', count: users.filter(u => u.tier === 'gold').length },
-            { key: 'warning', label: 'Cần kiểm tra', count: users.filter(u => u.status === 'warning').length },
-          ]}
-          activeTab={activeTab}
-          onChange={(tab) => {
-            setActiveTab(tab);
-            setCurrentPage(1);
-          }}
-        />
-
-        <div className="relative w-full md:w-72">
-          <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
-          <input
-            type="text"
-            placeholder="Tìm tên, email, SĐT..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-        </div>
-      </div>
+      {/* 3. FILTERS & SEARCH TOOLBAR WITH SPLIT DATE FILTER AND BULK ACTIONS */}
+      <DataTableFilterBar
+        tabs={[
+          { key: 'all', label: 'Tất cả độc giả', count: users.length },
+          { key: 'diamond', label: 'VIP Kim Cương', count: users.filter(u => u.tier === 'diamond').length },
+          { key: 'gold', label: 'VIP Vàng', count: users.filter(u => u.tier === 'gold').length },
+          { key: 'warning', label: 'Cần kiểm tra', count: users.filter(u => u.status === 'warning').length },
+        ]}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={(df) => {
+          setDateFilter(df);
+          setCurrentPage(1);
+        }}
+        searchQuery={searchQuery}
+        onSearchChange={(q) => {
+          setSearchQuery(q);
+          setCurrentPage(1);
+        }}
+        searchPlaceholder="Tìm tên, email, SĐT, mã ID..."
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        bulkActionGroups={userBulkActionGroups}
+        selectedCount={selectedUserIds.length}
+        totalCount={filteredUsers.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedUserIds([])}
+        bulkLoading={bulkLoading}
+        itemName="độc giả"
+      />
 
       {/* 4. USERS GROUPED DATA TABLE */}
       <GroupedDataTable<AdminUser>
         data={paginatedUsers}
         columns={columns}
         keyField="id"
+        selectable={true}
+        selectedRowKeys={selectedUserIds}
+        onSelectionChange={(keys) => setSelectedUserIds(keys as string[])}
         emptyTitle="Không Tìm Thấy Độc Giả"
         emptyMessage="Không tìm thấy bạn đọc phù hợp với bộ lọc tìm kiếm."
         pagination={{

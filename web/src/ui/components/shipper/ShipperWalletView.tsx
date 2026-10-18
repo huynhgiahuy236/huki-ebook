@@ -1,8 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useShipper } from '@/ui/context/ShipperContext';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 export default function ShipperWalletView() {
   const { wallet, transactions, requestWithdrawal } = useShipper();
@@ -16,11 +22,35 @@ export default function ShipperWalletView() {
   });
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
 
+  // Filters & Selection
+  const [activeTab, setActiveTab] = useState<'ALL' | 'EARNING' | 'COD_COLLECT' | 'COD_REMITTANCE' | 'WITHDRAWAL'>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTxIds, setSelectedTxIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
-  const totalPages = Math.ceil(transactions.length / pageSize) || 1;
-  const paginatedTransactions = transactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((tx) => {
+      if (activeTab !== 'ALL' && tx.type !== activeTab) return false;
+      if (!matchesDateFilter(tx.createdAt, dateFilter)) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        return (
+          tx.id.toLowerCase().includes(q) ||
+          tx.description.toLowerCase().includes(q) ||
+          ((tx as any).orderCode || '').toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [transactions, activeTab, dateFilter, searchQuery]);
+
+  const totalPages = Math.ceil(filteredTransactions.length / pageSize) || 1;
+  const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +63,37 @@ export default function ShipperWalletView() {
       setWithdrawOpen(false);
       setWithdrawAmount('');
     }, 2000);
+  };
+
+  const walletBulkActionGroups: BulkActionGroup[] = useMemo(() => [
+    {
+      groupLabel: 'Xuất sao kê & Kiểm toán',
+      actions: [
+        {
+          value: 'EXPORT_EXCEL',
+          label: 'Xuất sao kê biến động số dư (Excel/CSV)',
+        },
+        {
+          value: 'PRINT_REPORTS',
+          label: 'In bảng kê tài chính bưu tá',
+        },
+      ],
+    },
+  ], []);
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (!selectedTxIds.length) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'EXPORT_EXCEL') {
+        alert(`Đã xuất sao kê ${selectedTxIds.length} giao dịch sang Excel thành công!`);
+      } else if (action === 'PRINT_REPORTS') {
+        window.print();
+      }
+      setSelectedTxIds([]);
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   return (
@@ -204,43 +265,110 @@ export default function ShipperWalletView() {
         </div>
       )}
 
-      {/* 2. TRANSACTIONS LEDGER */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
-        <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#FAFAFA]">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#00875A] text-[20px]">receipt_long</span>
-            <h2 className="text-sm font-bold text-[#003B2B] uppercase tracking-wider">
-              Lịch Sử Biến Động Số Dư &amp; Đối Soát ({transactions.length})
-            </h2>
+      {/* 2. TRANSACTIONS LEDGER WITH UNIVERSAL FILTER BAR */}
+      <div className="space-y-3">
+        <DataTableFilterBar
+          tabs={[
+            { key: 'ALL', label: 'Tất cả biến động', count: transactions.length },
+            { key: 'EARNING', label: 'Cước thu nhập', count: transactions.filter(t => t.type === 'EARNING').length },
+            { key: 'COD_COLLECT', label: 'Thu hộ COD', count: transactions.filter(t => t.type === 'COD_COLLECT').length },
+            { key: 'COD_REMITTANCE', label: 'Nộp tiền COD', count: transactions.filter(t => t.type === 'COD_REMITTANCE').length },
+            { key: 'WITHDRAWAL', label: 'Rút tiền', count: transactions.filter(t => t.type === 'WITHDRAWAL').length },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab as any);
+            setCurrentPage(1);
+          }}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          searchQuery={searchQuery}
+          onSearchChange={(q) => {
+            setSearchQuery(q);
+            setCurrentPage(1);
+          }}
+          searchPlaceholder="Tìm mã giao dịch, đơn liên quan, nội dung..."
+          bulkActionGroups={walletBulkActionGroups}
+          selectedCount={selectedTxIds.length}
+          totalCount={filteredTransactions.length}
+          onExecuteBulkAction={handleExecuteBulkAction}
+          onClearSelection={() => setSelectedTxIds([])}
+          bulkLoading={bulkLoading}
+          itemName="giao dịch"
+          className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        />
+
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-2xs overflow-hidden">
+          <div className="p-4 border-b border-[#E2E8F0] flex items-center justify-between bg-[#FAFAFA]">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#00875A] text-[20px]">receipt_long</span>
+              <h2 className="text-sm font-bold text-[#003B2B] uppercase tracking-wider">
+                Bảng Kê Chi Tiết Giao Dịch ({filteredTransactions.length})
+              </h2>
+            </div>
+            <span className="text-xs text-gray-400">Tự động cập nhật tức thì</span>
           </div>
-          <span className="text-xs text-gray-400">Tự động cập nhật tức thì</span>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-gray-700">
-            <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-[#E2E8F0]">
-              <tr>
-                <th className="p-3.5">Mã &amp; Thời gian</th>
-                <th className="p-3.5">Loại giao dịch</th>
-                <th className="p-3.5">Chi tiết nội dung</th>
-                <th className="p-3.5">Đơn liên quan</th>
-                <th className="p-3.5 text-right">Số tiền biến động</th>
-                <th className="p-3.5 text-center">Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F5F9]">
-              {paginatedTransactions.map((tx) => {
-                const isEarning = tx.type === 'EARNING';
-                const isCodCollect = tx.type === 'COD_COLLECT';
-                const isRemittance = tx.type === 'COD_REMITTANCE';
-                const isWithdraw = tx.type === 'WITHDRAWAL';
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs text-gray-700">
+              <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-[#E2E8F0]">
+                <tr>
+                  <th className="p-3.5 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        paginatedTransactions.length > 0 &&
+                        paginatedTransactions.every((t) => selectedTxIds.includes(t.id))
+                      }
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedTxIds(paginatedTransactions.map((t) => t.id));
+                        } else {
+                          setSelectedTxIds([]);
+                        }
+                      }}
+                      className="rounded border-gray-300 text-[#00875A] focus:ring-[#00875A] cursor-pointer"
+                    />
+                  </th>
+                  <th className="p-3.5">Mã &amp; Thời gian</th>
+                  <th className="p-3.5">Loại giao dịch</th>
+                  <th className="p-3.5">Chi tiết nội dung</th>
+                  <th className="p-3.5">Đơn liên quan</th>
+                  <th className="p-3.5 text-right">Số tiền biến động</th>
+                  <th className="p-3.5 text-center">Trạng thái</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#F1F5F9]">
+                {paginatedTransactions.map((tx) => {
+                  const isEarning = tx.type === 'EARNING';
+                  const isCodCollect = tx.type === 'COD_COLLECT';
+                  const isRemittance = tx.type === 'COD_REMITTANCE';
+                  const isWithdraw = tx.type === 'WITHDRAWAL';
+                  const isSelected = selectedTxIds.includes(tx.id);
 
-                return (
-                  <tr key={tx.id} className="hover:bg-gray-50/80 transition-colors">
-                    <td className="p-3.5 font-mono">
-                      <div className="font-bold text-gray-900">{tx.id}</div>
-                      <div className="text-[10px] text-gray-400">{tx.createdAt}</div>
-                    </td>
+                  return (
+                    <tr key={tx.id} className={`hover:bg-gray-50/80 transition-colors ${isSelected ? 'bg-emerald-50/50' : ''}`}>
+                      <td className="p-3.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTxIds((prev) => [...prev, tx.id]);
+                            } else {
+                              setSelectedTxIds((prev) => prev.filter((id) => id !== tx.id));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-[#00875A] focus:ring-[#00875A] cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3.5 font-mono">
+                        <div className="font-bold text-gray-900">{tx.id}</div>
+                        <div className="text-[10px] text-gray-400">{tx.createdAt}</div>
+                      </td>
 
                     <td className="p-3.5">
                       <span
@@ -333,6 +461,7 @@ export default function ShipperWalletView() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

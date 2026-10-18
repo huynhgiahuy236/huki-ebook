@@ -16,6 +16,14 @@ import {
   SellerTableContainer,
   SellerActionButton,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+  StatusTab,
+} from '@/ui/components/common';
+
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -119,6 +127,8 @@ function SellerOrdersContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('ALL');
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // In-Page Action Box state (No-Popup architecture)
   const [activeActionBox, setActiveActionBox] = useState<{
@@ -359,16 +369,22 @@ function SellerOrdersContent() {
         if (!hasFormat) return false;
       }
 
+      // Multi-tier Date filter
+      if (!matchesDateFilter(order.createdAt, dateFilter)) {
+        return false;
+      }
+
       return true;
     });
-  }, [orders, activeTab, searchQuery, formatFilter]);
+  }, [orders, activeTab, searchQuery, formatFilter, dateFilter]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, formatFilter]);
+  }, [activeTab, searchQuery, formatFilter, dateFilter]);
+
 
   const totalItems = filteredOrders.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -507,6 +523,134 @@ function SellerOrdersContent() {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
+
+  const filterTabs: StatusTab[] = useMemo(() => [
+    { key: 'ALL', label: 'Tất Cả', count: counts.total },
+    { key: 'PENDING_CONFIRMATION', label: 'Chờ Xác Nhận', count: counts.pending },
+    { key: 'CONFIRMED', label: 'Đang Đóng Gói', count: counts.confirmed },
+    { key: 'PREPARING', label: 'Chờ Giao Bưu Tá', count: counts.readyForPickup },
+    { key: 'SHIPPED', label: 'Đang Giao', count: counts.shipped },
+    { key: 'COMPLETED', label: 'Hoàn Tất', count: counts.completed },
+    { key: 'CANCELLED', label: 'Đã Hủy', count: counts.cancelled },
+  ], [counts]);
+
+  const orderBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'Tiến trình xử lý',
+      actions: [
+        { value: 'CONFIRM_ALL', label: 'Xác nhận hàng loạt đơn chờ' },
+        { value: 'PREPARE_ALL', label: 'Chuyển đóng gói hàng loạt' },
+      ],
+    },
+    {
+      groupLabel: 'In ấn & xuất file',
+      actions: [
+        { value: 'PRINT_SHIPPING_LABELS', label: 'In phiếu giao hàng (A4/A5)' },
+        { value: 'EXPORT_EXCEL', label: 'Xuất danh sách đơn (.csv / .xlsx)' },
+      ],
+    },
+    {
+      groupLabel: 'Nguy hiểm / Hủy bỏ',
+      actions: [
+        {
+          value: 'CANCEL_ALL',
+          label: 'Hủy hàng loạt đơn được chọn',
+          isDanger: true,
+          confirmMessage: 'Bạn có chắc chắn muốn hủy tất cả các đơn hàng đã chọn không? Thao tác này không thể hoàn tác.',
+        },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedOrderIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'CONFIRM_ALL') {
+        const pendingOrders = orders.filter((o) => selectedOrderIds.includes(o.id) && o.status === 'PENDING_CONFIRMATION');
+        if (pendingOrders.length === 0) {
+          showToast?.({ title: 'Thông báo', message: 'Không có đơn nào ở trạng thái Chờ Xác Nhận trong các đơn đã chọn', type: 'warning' });
+          return;
+        }
+        let successCount = 0;
+        for (const o of pendingOrders) {
+          const res = await orderApi.confirmOrder(o.id);
+          if (res.success) {
+            successCount++;
+            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, status: 'CONFIRMED' });
+            realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: o.id, status: 'CONFIRMED' });
+          }
+        }
+        showToast?.({ title: 'Thành công', message: `Đã xác nhận ${successCount}/${pendingOrders.length} đơn hàng!`, type: 'success' });
+        setSelectedOrderIds([]);
+        await loadData();
+      } else if (actionValue === 'PREPARE_ALL') {
+        const confirmedOrders = orders.filter((o) => selectedOrderIds.includes(o.id) && o.status === 'CONFIRMED');
+        if (confirmedOrders.length === 0) {
+          showToast?.({ title: 'Thông báo', message: 'Không có đơn nào ở trạng thái Đang Đóng Gói để chuyển giao bưu tá', type: 'warning' });
+          return;
+        }
+        let successCount = 0;
+        for (const o of confirmedOrders) {
+          const res = await orderApi.prepareOrder(o.id);
+          if (res.success) {
+            successCount++;
+            realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { orderId: o.id, status: 'PREPARING' });
+            realtimeSyncBus.publish('SHIPPER_AVAILABLE_ORDER_BROADCAST', { orderId: o.id, status: 'PREPARING' });
+          }
+        }
+        showToast?.({ title: 'Thành công', message: `Đã chuyển ${successCount}/${confirmedOrders.length} đơn hàng sang Chờ Giao Bưu Tá!`, type: 'success' });
+        setSelectedOrderIds([]);
+        await loadData();
+      } else if (actionValue === 'PRINT_SHIPPING_LABELS') {
+        showToast?.({ title: 'In phiếu giao hàng', message: `Đang mở trình in cho ${selectedOrderIds.length} đơn hàng đã chọn...`, type: 'info' });
+        if (typeof window !== 'undefined') {
+          window.print();
+        }
+      } else if (actionValue === 'EXPORT_EXCEL') {
+        const selectedList = orders.filter((o) => selectedOrderIds.includes(o.id));
+        const header = ['Mã Đơn', 'Trạng Thái', 'Ngày Tạo', 'Khách Hàng', 'SĐT', 'Tổng Tiền (VNĐ)'];
+        const rows = selectedList.map((o) => {
+          const address = o.order?.shippingAddress || o.shippingAddress || {};
+          const buyerName = address.recipientName || address.fullName || o.order?.buyer?.fullName || o.buyerName || 'Khách Hàng';
+          const phone = address.phone || address.phoneNumber || o.order?.buyer?.phone || '';
+          return [o.code || o.id, o.status, o.createdAt ? new Date(o.createdAt).toLocaleString('vi-VN') : '', buyerName, phone, o.grandTotal || 0];
+        });
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `danh_sach_don_hang_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast?.({ title: 'Thành công', message: `Đã xuất file dữ liệu cho ${selectedList.length} đơn hàng!`, type: 'success' });
+      } else if (actionValue === 'CANCEL_ALL') {
+        const cancellable = orders.filter((o) => selectedOrderIds.includes(o.id) && ['PENDING_CONFIRMATION', 'CONFIRMED'].includes(o.status));
+        if (cancellable.length === 0) {
+          showToast?.({ title: 'Thông báo', message: 'Không có đơn nào có thể hủy trong danh sách đã chọn', type: 'warning' });
+          return;
+        }
+        let successCount = 0;
+        for (const o of cancellable) {
+          const res = await orderApi.cancelSellerOrder(o.id, { reason: 'Hủy hàng loạt bởi người bán' });
+          if (res.success) {
+            successCount++;
+            realtimeSyncBus.publish('ORDER_CANCELLED', { orderId: o.id });
+          }
+        }
+        showToast?.({ title: 'Hủy hoàn tất', message: `Đã hủy ${successCount}/${cancellable.length} đơn hàng đã chọn!`, type: 'info' });
+        setSelectedOrderIds([]);
+        await loadData();
+      }
+    } catch (err) {
+      console.error('Bulk action error:', err);
+      showToast?.({ title: 'Lỗi', message: 'Không thể hoàn tất thao tác hàng loạt', type: 'error' });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
 
   if (!canViewOrders) {
     return (
@@ -693,60 +837,37 @@ function SellerOrdersContent() {
         </div>
       )}
 
-      {/* 4. Bộ Lọc Tabs & Ô Tìm Kiếm */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Tabs Trạng Thái */}
-        <SellerFilterTabs
-          tabs={[
-            { id: 'ALL', label: 'Tất Cả', count: counts.total },
-            { id: 'PENDING_CONFIRMATION', label: 'Chờ Xác Nhận', count: counts.pending },
-            { id: 'CONFIRMED', label: 'Đang Đóng Gói', count: counts.confirmed },
-            { id: 'PREPARING', label: 'Chờ Đơn Vị Giao Hàng', count: counts.readyForPickup },
-            { id: 'SHIPPED', label: 'Đang Giao', count: counts.shipped },
-            { id: 'COMPLETED', label: 'Hoàn Tất', count: counts.completed },
-            { id: 'CANCELLED', label: 'Đã Hủy', count: counts.cancelled },
-          ]}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-        />
-
-        {/* Ô Tìm Kiếm & Format Filter */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
-          {/* Format Selector */}
+      {/* 4. Bộ Lọc Tabs Đa Tầng, Ngày Tháng Năm & Tìm Kiếm */}
+      <DataTableFilterBar
+        tabs={filterTabs}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Tìm mã đơn, SĐT, tên sách..."
+        className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+        extraFilters={
           <select
             value={formatFilter}
             onChange={(e) => setFormatFilter(e.target.value)}
-            className="px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-[#00875A] focus:bg-white"
+            className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="ALL">Mọi Định Dạng</option>
             <option value="PHYSICAL">Sách In (Giấy)</option>
             <option value="DIGITAL">Ebook (Bản Quyền)</option>
           </select>
+        }
+        bulkActionGroups={orderBulkActionGroups}
+        selectedCount={selectedOrderIds.length}
+        totalCount={filteredOrders.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedOrderIds([])}
+        bulkLoading={bulkLoading}
+        itemName="đơn hàng"
+      />
 
-          {/* Search Input */}
-          <div className="relative w-full md:w-72 shrink-0">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm mã đơn, SĐT, tên sách..."
-              className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-              >
-                <span className="material-symbols-outlined text-xs">close</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* 5. Bảng Danh Sách Đơn Hàng */}
       <SellerTableContainer>
@@ -1097,6 +1218,7 @@ function SellerOrdersContent() {
       </SellerTableContainer>
     </div>
   );
+
 }
 
 export default function SellerOrdersPage() {

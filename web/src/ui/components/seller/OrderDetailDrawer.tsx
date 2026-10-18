@@ -1,5 +1,6 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import OrderItemBadge from '../common/OrderItemBadge';
+import QuickDispatchNotificationModal from '../common/QuickDispatchNotificationModal';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_PAYMENT: 'Chờ thanh toán',
@@ -56,9 +57,23 @@ export default function OrderDetailDrawer({
     };
   }, [order, loading, onClose]);
 
+  const [dispatchModal, setDispatchModal] = useState<{
+    open: boolean;
+    targetRole: 'SHIPPER' | 'USER';
+    targetId: string;
+    targetName: string;
+  }>({
+    open: false,
+    targetRole: 'USER',
+    targetId: '',
+    targetName: '',
+  });
+
   if (!order && !loading) return null;
   const address = order?.order?.shippingAddress || {};
   const recipient = address.recipientName || address.fullName || 'Chưa cập nhật';
+  const customerId = order?.order?.userId || order?.userId || 'buyer_customer';
+  const shipperId = order?.shipperId || order?.carrierId || 'shipper_channel';
   const addressText = address.fullAddress || [address.line1 || address.address, address.ward, address.district, address.province || address.city].filter(Boolean).join(', ') || 'Không yêu cầu giao hàng';
   const timeline = order?.timeline?.length ? order.timeline : order ? [{ toStatus: order.status, title: STATUS_LABELS[order.status], createdAt: order.createdAt }] : [];
 
@@ -167,15 +182,65 @@ export default function OrderDetailDrawer({
         )}
 
         {!loading && order && (
-          <footer className="px-5 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-wrap justify-end gap-2">
-            {canCancel && ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING'].includes(order.status) && onCancel && <button type="button" onClick={() => onCancel(order)} disabled={actionLoading} className="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 font-bold text-sm hover:bg-rose-50 disabled:opacity-50 cursor-pointer">Hủy đơn hàng</button>}
-            {canProcess && order.status === 'PENDING_CONFIRMATION' && onConfirm && <button type="button" onClick={() => onConfirm(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Xác nhận đơn hàng</button>}
-            {canProcess && order.status === 'CONFIRMED' && onPrepare && <button type="button" onClick={() => onPrepare(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Chờ đơn vị giao hàng</button>}
-            {canProcess && order.status === 'PREPARING' && onShip && <button type="button" onClick={() => onShip(order)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Tự bàn giao vận chuyển</button>}
-            {canProcess && order.status === 'SHIPPED' && onDeliver && <button type="button" onClick={() => onDeliver(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-teal-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Xác nhận đã giao</button>}
+          <footer className="px-5 sm:px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() =>
+                  setDispatchModal({
+                    open: true,
+                    targetRole: 'USER',
+                    targetId: customerId,
+                    targetName: `Khách: ${recipient}`,
+                  })
+                }
+                className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 text-xs font-bold flex items-center gap-1.5 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">chat</span>
+                <span>Nhắn Khách hàng</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setDispatchModal({
+                    open: true,
+                    targetRole: 'SHIPPER',
+                    targetId: shipperId,
+                    targetName: 'Bưu tá vận chuyển',
+                  })
+                }
+                className="px-3 py-1.5 rounded-xl border border-blue-300 dark:border-blue-700/60 bg-blue-50/70 dark:bg-blue-950/30 text-blue-800 dark:text-blue-300 text-xs font-bold flex items-center gap-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                <span>Dặn dò Shipper</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap ml-auto">
+              {canCancel && ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING'].includes(order.status) && onCancel && <button type="button" onClick={() => onCancel(order)} disabled={actionLoading} className="px-4 py-2 rounded-xl border border-rose-200 text-rose-700 font-bold text-sm hover:bg-rose-50 disabled:opacity-50 cursor-pointer">Hủy đơn hàng</button>}
+              {canProcess && order.status === 'PENDING_CONFIRMATION' && onConfirm && <button type="button" onClick={() => onConfirm(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Xác nhận đơn hàng</button>}
+              {canProcess && order.status === 'CONFIRMED' && onPrepare && <button type="button" onClick={() => onPrepare(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Chờ đơn vị giao hàng</button>}
+              {canProcess && order.status === 'PREPARING' && onShip && <button type="button" onClick={() => onShip(order)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-purple-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Tự bàn giao vận chuyển</button>}
+              {canProcess && order.status === 'SHIPPED' && onDeliver && <button type="button" onClick={() => onDeliver(order.id)} disabled={actionLoading} className="px-4 py-2 rounded-xl bg-teal-600 text-white font-bold text-sm disabled:opacity-50 cursor-pointer">Xác nhận đã giao</button>}
+            </div>
           </footer>
         )}
       </aside>
+
+      {/* Cross-role Dispatch Modal */}
+      {dispatchModal.open && (
+        <QuickDispatchNotificationModal
+          isOpen={dispatchModal.open}
+          onClose={() => setDispatchModal((prev) => ({ ...prev, open: false }))}
+          senderRole="SELLER"
+          targetRole={dispatchModal.targetRole}
+          targetId={dispatchModal.targetId}
+          targetName={dispatchModal.targetName}
+          orderCode={order?.code}
+          orderId={order?.id}
+        />
+      )}
     </div>
   );
 }

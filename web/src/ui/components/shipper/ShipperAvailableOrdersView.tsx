@@ -1,8 +1,12 @@
-"use client";
-
 import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useShipper, ShipperOrder } from '@/ui/context/ShipperContext';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 type GroupByMode = 'SHOP' | 'ZONE' | 'PAYMENT' | 'NONE';
 
@@ -11,6 +15,8 @@ export default function ShipperAvailableOrdersView() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'COD' | 'PREPAID'>('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByMode>('SHOP');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [selectedOrderIds, setSelectedOrderIds] = useState<Record<string, boolean>>({});
@@ -24,6 +30,7 @@ export default function ShipperAvailableOrdersView() {
     return availableOrders.filter((order) => {
       if (filterType === 'COD' && order.paymentMethod !== 'COD') return false;
       if (filterType === 'PREPAID' && order.paymentMethod !== 'ONLINE_PAYMENT') return false;
+      if (!matchesDateFilter(order.createdAt, dateFilter)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchCode = order.code.toLowerCase().includes(q);
@@ -132,6 +139,36 @@ export default function ShipperAvailableOrdersView() {
   const totalEarningsAll = filteredOrders.reduce((sum, o) => sum + o.shippingFee, 0);
   const totalCodAll = filteredOrders.reduce((sum, o) => sum + o.codAmount, 0);
 
+  const shipperBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Nhận việc & Điều phối tuyến',
+        actions: [
+          {
+            value: 'BATCH_ACCEPT',
+            label: `Nhận ${selectedCount} đơn đã chọn vào tuyến giao`,
+            confirmTitle: 'Xác nhận nhận đơn hàng loạt',
+            confirmMessage: `Bạn có chắc chắn muốn nhận ${selectedCount} đơn hàng này và bắt đầu di chuyển tới shop lấy sách?`,
+          },
+        ],
+      },
+    ],
+    [selectedCount]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (action === 'BATCH_ACCEPT') {
+      const ordersToAccept = availableOrders.filter((o) => selectedOrderIds[o.id]);
+      setBulkLoading(true);
+      try {
+        handleBatchAccept(ordersToAccept);
+        setSelectedOrderIds({});
+      } finally {
+        setBulkLoading(false);
+      }
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* 1. TOP METRICS & STATS */}
@@ -174,34 +211,40 @@ export default function ShipperAvailableOrdersView() {
         </div>
       </div>
 
-      {/* 2. FILTER & GROUPING TOOLBAR */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-2xs space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          {/* Search Input */}
-          <div className="relative flex-1 max-w-md">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm mã đơn, tên shop, người nhận, địa chỉ..."
-              className="w-full pl-9 pr-8 py-1.5 text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg text-gray-800 placeholder-gray-400 focus:outline-hidden focus:border-[#00875A] focus:bg-white transition-all shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Group By Selector Buttons */}
-          <div className="flex items-center gap-1.5 bg-[#F1F5F9] p-1 rounded-lg border border-[#E2E8F0] text-xs">
-            <span className="text-[11px] font-bold text-gray-500 px-2 flex items-center gap-1">
+      {/* 2. UNIVERSAL DATA TABLE FILTER BAR WITH CARD CONTAINER FRAME */}
+      <DataTableFilterBar
+        tabs={[
+          { key: 'ALL', label: 'Tất cả đơn', count: availableOrders.length },
+          { key: 'COD', label: 'Thu COD', count: availableOrders.filter(o => o.paymentMethod === 'COD').length },
+          { key: 'PREPAID', label: 'Đã trả Online', count: availableOrders.filter(o => o.paymentMethod === 'ONLINE_PAYMENT').length },
+        ]}
+        activeTab={filterType}
+        onTabChange={(tab) => {
+          setFilterType(tab as any);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={(df) => {
+          setDateFilter(df);
+          setCurrentPage(1);
+        }}
+        searchQuery={searchQuery}
+        onSearchChange={(q) => {
+          setSearchQuery(q);
+          setCurrentPage(1);
+        }}
+        searchPlaceholder="Tìm mã đơn, tên shop, người nhận, địa chỉ..."
+        bulkActionGroups={shipperBulkActionGroups}
+        selectedCount={selectedCount}
+        totalCount={filteredOrders.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedOrderIds({})}
+        bulkLoading={bulkLoading}
+        itemName="đơn hàng"
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        leftCustomActions={
+          <div className="flex items-center gap-1.5 bg-[#F1F5F9] dark:bg-neutral-800 p-1 rounded-xl border border-[#E2E8F0] dark:border-neutral-700 text-xs">
+            <span className="text-[11px] font-bold text-gray-500 dark:text-neutral-400 px-2 flex items-center gap-1">
               <span className="material-symbols-outlined text-[15px]">workspaces</span>
               <span>Gom nhóm:</span>
             </span>
@@ -209,116 +252,65 @@ export default function ShipperAvailableOrdersView() {
             <button
               type="button"
               onClick={() => setGroupBy('SHOP')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                 groupBy === 'SHOP'
                   ? 'bg-white text-[#003B2B] shadow-2xs border border-[#CBD5E1]'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-neutral-300 hover:text-gray-900'
               }`}
             >
-              Cửa Hàng / Shop
+              Shop
             </button>
 
             <button
               type="button"
               onClick={() => setGroupBy('ZONE')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                 groupBy === 'ZONE'
                   ? 'bg-white text-[#003B2B] shadow-2xs border border-[#CBD5E1]'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-neutral-300 hover:text-gray-900'
               }`}
             >
-              Khu Vực Giao
+              Khu Vực
             </button>
 
             <button
               type="button"
               onClick={() => setGroupBy('PAYMENT')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                 groupBy === 'PAYMENT'
                   ? 'bg-white text-[#003B2B] shadow-2xs border border-[#CBD5E1]'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-neutral-300 hover:text-gray-900'
               }`}
             >
-              Hình Thức Tiền
+              Tiền
             </button>
 
             <button
               type="button"
               onClick={() => setGroupBy('NONE')}
-              className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer ${
+              className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
                 groupBy === 'NONE'
                   ? 'bg-white text-[#003B2B] shadow-2xs border border-[#CBD5E1]'
-                  : 'text-gray-600 hover:text-gray-900'
+                  : 'text-gray-600 dark:text-neutral-300 hover:text-gray-900'
               }`}
             >
-              Bảng Phẳng
+              Phẳng
             </button>
           </div>
-        </div>
-
-        {/* Sub filter tabs + Batch action bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-[#F1F5F9] text-xs">
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setFilterType('ALL')}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                filterType === 'ALL'
-                  ? 'bg-[#003B2B] text-white font-bold'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Tất cả ({availableOrders.length})
-            </button>
-            <button
-              onClick={() => setFilterType('COD')}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                filterType === 'COD'
-                  ? 'bg-[#003B2B] text-white font-bold'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Thu COD
-            </button>
-            <button
-              onClick={() => setFilterType('PREPAID')}
-              className={`px-2.5 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
-                filterType === 'PREPAID'
-                  ? 'bg-[#003B2B] text-white font-bold'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              Đã Trả Online
-            </button>
-            <button
-              type="button"
-              onClick={() => refreshOrders()}
-              disabled={isLoading}
-              className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 flex items-center gap-1 font-semibold transition-all cursor-pointer text-xs ml-1"
-              title="Làm mới từ CSDL thật"
-            >
-              <span className={`material-symbols-outlined text-[15px] ${isLoading ? 'animate-spin' : ''}`}>sync</span>
-              <span>{isLoading ? 'Đang tải...' : 'Làm mới CSDL'}</span>
-            </button>
-          </div>
-
-          {/* Batch Accept Action */}
-          {selectedCount > 0 && (
-            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-lg">
-              <span className="text-emerald-800 font-bold">Đã chọn {selectedCount} đơn</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const ordersToAccept = availableOrders.filter((o) => selectedOrderIds[o.id]);
-                  handleBatchAccept(ordersToAccept);
-                }}
-                className="px-3 py-1 bg-[#00875A] hover:bg-[#003B2B] text-white font-bold rounded shadow-2xs transition-colors cursor-pointer"
-              >
-                Nhận {selectedCount} Đơn Đã Chọn
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+        }
+        extraFilters={
+          <button
+            type="button"
+            onClick={() => refreshOrders()}
+            disabled={isLoading}
+            className="h-9 px-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 hover:bg-emerald-100 flex items-center gap-1 font-semibold transition-all cursor-pointer text-xs"
+            title="Làm mới từ CSDL thật"
+          >
+            <span className={`material-symbols-outlined text-[15px] ${isLoading ? 'animate-spin' : ''}`}>sync</span>
+            <span>{isLoading ? 'Đang nạp...' : 'Làm mới'}</span>
+          </button>
+        }
+      />
 
       {/* 3. GROUPED DATA TABLES */}
       {groupedData.length === 0 ? (

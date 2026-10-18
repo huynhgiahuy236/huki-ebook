@@ -6,3 +6,4 @@ export * from './notification.schema';
 export * from './notification-preference.schema';
 export * from './notification-device.schema';
 export * from './report.schema';
+export * from './quick-reply.schema';

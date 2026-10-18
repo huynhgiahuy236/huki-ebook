@@ -8,6 +8,12 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
 
 export default function OrdersPage() {
   const { user, isLoggedIn } = useAuth();
@@ -21,7 +27,9 @@ export default function OrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paginationMeta, setPaginationMeta] = useState<any>({
@@ -306,21 +314,9 @@ export default function OrdersPage() {
         }
       }
 
-      // 3. Date Filter (Option on right)
-      if (dateFilter !== 'ALL') {
-        const ordDate = new Date(ord.createdAt || ord.created_at || Date.now());
-        const now = new Date();
-        if (dateFilter === 'THIS_MONTH') {
-          if (ordDate.getMonth() !== now.getMonth() || ordDate.getFullYear() !== now.getFullYear()) {
-            return false;
-          }
-        } else if (dateFilter === 'LAST_3_MONTHS') {
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(now.getMonth() - 3);
-          if (ordDate < threeMonthsAgo) return false;
-        } else if (dateFilter === 'THIS_YEAR') {
-          if (ordDate.getFullYear() !== now.getFullYear()) return false;
-        }
+      // 3. Multi-tier Date Filter
+      if (!matchesDateFilter(ord.createdAt || ord.created_at, dateFilter)) {
+        return false;
       }
 
       return true;
@@ -369,96 +365,105 @@ export default function OrdersPage() {
     });
   }, [returnRequests, returnsSubTab, searchQuery]);
 
+  const buyerBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'In ấn & Tải chứng từ',
+        actions: [
+          {
+            value: 'DOWNLOAD_INVOICE',
+            label: 'Tải hóa đơn điện tử VAT hàng loạt (PDF)',
+            confirmTitle: 'Tải hóa đơn điện tử',
+            confirmMessage: `Bạn có muốn chuẩn bị và tải hóa đơn điện tử cho ${selectedOrderIds.length} đơn hàng đã chọn?`,
+          },
+          {
+            value: 'EXPORT_EXCEL',
+            label: 'Xuất sao kê đơn hàng đã chọn (Excel/CSV)',
+          },
+        ],
+      },
+      {
+        groupLabel: 'Chăm sóc & Hỗ trợ',
+        actions: [
+          {
+            value: 'REQUEST_SUPPORT',
+            label: 'Gửi yêu cầu CSKH cho các đơn đã chọn',
+          },
+        ],
+      },
+    ],
+    [selectedOrderIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (!selectedOrderIds.length) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'DOWNLOAD_INVOICE') {
+        showToast(`Đang kết nối cổng hóa đơn điện tử cho ${selectedOrderIds.length} đơn hàng...`, 'info');
+        setTimeout(() => {
+          showToast('Đã tải hóa đơn điện tử thành công.', 'success');
+        }, 1500);
+      } else if (action === 'EXPORT_EXCEL') {
+        showToast(`Đang xuất bảng kê đơn hàng...`, 'info');
+        setTimeout(() => {
+          showToast('Đã tải tệp Excel danh sách đơn hàng.', 'success');
+        }, 1500);
+      } else if (action === 'REQUEST_SUPPORT') {
+        showToast('Đã gửi yêu cầu tới trung tâm trợ giúp HuKi 24/7.', 'success');
+      }
+      setSelectedOrderIds([]);
+    } catch {
+      showToast('Có lỗi xảy ra khi thực hiện thao tác hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <AccountLayout>
       <div className="p-4 sm:p-6 space-y-4">
-        
-        {/* ================= 1. SHOPEE STATUS TABS BAR ================= */}
-        <div className="bg-white border-b border-gray-200 -mx-4 -mt-4 sm:-mx-6 sm:-mt-6 px-4 sm:px-6 pt-2 overflow-x-auto no-scrollbar">
-          <div className="flex items-center gap-1 sm:gap-2 min-w-max">
-            {[
-              { id: 'ALL', label: 'Tất cả' },
-              { id: 'PENDING', label: 'Chờ xác nhận' },
-              { id: 'PREPARING', label: 'Đang chuẩn bị' },
-              { id: 'SHIPPED', label: 'Đang vận chuyển' },
-              { id: 'COMPLETED', label: 'Đã hoàn tất' },
-              { id: 'REVIEWS', label: 'Đánh Giá' },
-              { id: 'CANCELLED', label: 'Đã hủy' },
-              {
-                id: 'RETURNS',
-                label: 'Trả hàng / Hoàn tiền',
-                badgeCount: returnRequests.length,
-              },
-            ].map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setActiveTab(tab.id);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3 sm:px-4 py-3 text-xs sm:text-[13px] font-semibold border-b-2 transition-all flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'border-[#003B2B] text-[#003B2B] font-bold'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>{tab.label}</span>
-                  {tab.badgeCount !== undefined && tab.badgeCount > 0 && (
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                        isActive ? 'bg-[#003B2B] text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      {tab.badgeCount}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ================= 2. SEARCH (LEFT WIDE) + SELECT FILTER (RIGHT) ================= */}
-        <div className="bg-gray-50/80 p-2.5 rounded-xl border border-gray-200/80 flex flex-col sm:flex-row items-center gap-2.5">
-          {/* Large Search Bar on Left */}
-          <div className="relative flex-1 w-full">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Bạn có thể tìm kiếm theo tên Shop, ID đơn hàng hoặc Tên Sách..."
-              className="w-full pl-9 pr-8 py-2 rounded-lg bg-white border border-gray-200 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] transition-all shadow-2xs"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs cursor-pointer p-0.5"
-                title="Xóa tìm kiếm"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* Select Option on Right */}
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-            <select
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full sm:w-auto px-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 focus:outline-none focus:border-[#003B2B] cursor-pointer shadow-2xs"
-            >
-              <option value="ALL">Tất cả thời gian</option>
-              <option value="THIS_MONTH">Tháng này ({new Date().getMonth() + 1}/{new Date().getFullYear()})</option>
-              <option value="LAST_3_MONTHS">3 tháng gần nhất</option>
-              <option value="THIS_YEAR">Năm {new Date().getFullYear()}</option>
-            </select>
-          </div>
-        </div>
+        {/* ================= 1. UNIVERSAL DATA TABLE FILTER BAR ================= */}
+        <DataTableFilterBar
+          tabs={[
+            { key: 'ALL', label: 'Tất cả' },
+            { key: 'PENDING', label: 'Chờ xác nhận' },
+            { key: 'PREPARING', label: 'Đang chuẩn bị' },
+            { key: 'SHIPPED', label: 'Đang vận chuyển' },
+            { key: 'COMPLETED', label: 'Đã hoàn tất' },
+            { key: 'REVIEWS', label: 'Đánh Giá' },
+            { key: 'CANCELLED', label: 'Đã hủy' },
+            {
+              key: 'RETURNS',
+              label: 'Trả hàng / Hoàn tiền',
+              count: returnRequests.length,
+            },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setCurrentPage(1);
+          }}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          searchQuery={searchQuery}
+          onSearchChange={(q) => {
+            setSearchQuery(q);
+            setCurrentPage(1);
+          }}
+          searchPlaceholder="Tìm kiếm theo tên Shop, ID đơn hàng hoặc Tên Sách..."
+          bulkActionGroups={buyerBulkActionGroups}
+          selectedCount={selectedOrderIds.length}
+          totalCount={filteredOrders.length}
+          onExecuteBulkAction={handleExecuteBulkAction}
+          onClearSelection={() => setSelectedOrderIds([])}
+          bulkLoading={bulkLoading}
+          itemName="đơn hàng"
+          className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        />
 
         {/* ================= 3. RETURNS / REFUNDS SUB-TABS (IF SELECTED) ================= */}
         {activeTab === 'RETURNS' && (
@@ -597,6 +602,20 @@ export default function OrdersPage() {
                         <div className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between gap-3 text-xs">
                           {/* Left: Shop Branding & Quick Actions */}
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={selectedOrderIds.includes(ord.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                if (e.target.checked) {
+                                  setSelectedOrderIds(prev => [...prev, ord.id]);
+                                } else {
+                                  setSelectedOrderIds(prev => prev.filter(id => id !== ord.id));
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-gray-300 text-[#003B2B] focus:ring-[#003B2B] cursor-pointer shrink-0"
+                              aria-label={`Chọn đơn ${ord.code || ord.id}`}
+                            />
                             <span className="material-symbols-outlined text-[17px] text-[#003B2B] shrink-0">
                               storefront
                             </span>

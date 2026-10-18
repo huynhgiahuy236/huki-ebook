@@ -73,7 +73,11 @@ export class ServiceProxyMiddleware implements NestMiddleware {
 
     const headers = this.forwardHeaders(req.headers);
     const body = this.serializeBody(req);
-    if (body) headers['content-length'] = Buffer.byteLength(body).toString();
+    if (body) {
+      headers['content-length'] = Buffer.byteLength(body).toString();
+    } else if (req.headers['content-length']) {
+      headers['content-length'] = req.headers['content-length'];
+    }
 
     const canRetry = RETRYABLE_METHODS.has(req.method.toUpperCase());
     const attempts = canRetry ? this.maxRetries + 1 : 1;

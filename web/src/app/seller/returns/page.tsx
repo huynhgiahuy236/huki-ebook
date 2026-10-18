@@ -14,6 +14,13 @@ import {
   SellerTableContainer,
   SellerActionButton,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+  StatusTab,
+} from '@/ui/components/common';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -32,7 +39,11 @@ export default function SellerReturnsPage() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [bulkLoading, setBulkLoading] = useState(false);
   const pageSize = 10;
+
 
   const fetchReturns = useCallback(async () => {
     setLoading(true);
@@ -88,15 +99,18 @@ export default function SellerReturnsPage() {
   const filteredReturns = useMemo(() => {
     return returns.filter((it) => {
       if (activeTab === 'RESOLVED') {
-        return (
+        const isResolved =
           it.status === 'COMPLETED' ||
           it.status === 'ARBITRATED_BUYER_WINS' ||
-          it.status === 'ARBITRATED_SELLER_WINS'
-        );
-      }
-      if (activeTab !== 'ALL' && it.status !== activeTab) {
+          it.status === 'ARBITRATED_SELLER_WINS';
+        if (!isResolved) return false;
+      } else if (activeTab !== 'ALL' && it.status !== activeTab) {
         return false;
       }
+
+      // Multi-tier Date filter
+      if (!matchesDateFilter(it.createdAt, dateFilter)) return false;
+
       if (!searchQuery.trim()) return true;
 
       const q = searchQuery.toLowerCase();
@@ -106,7 +120,7 @@ export default function SellerReturnsPage() {
 
       return code.includes(q) || title.includes(q) || customer.includes(q);
     });
-  }, [returns, activeTab, searchQuery]);
+  }, [returns, activeTab, searchQuery, dateFilter]);
 
   const totalItems = filteredReturns.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
@@ -116,6 +130,115 @@ export default function SellerReturnsPage() {
     const start = (validPage - 1) * pageSize;
     return filteredReturns.slice(start, start + pageSize);
   }, [filteredReturns, validPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredReturns.length && filteredReturns.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredReturns.map((it) => it.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
+  const returnStatusTabs: StatusTab[] = useMemo(() => {
+    const forwardCount = returns.filter((it) => it.status === 'FORWARDED_TO_SELLER').length;
+    const acceptedCount = returns.filter((it) => it.status === 'SELLER_ACCEPTED').length;
+    const disputedCount = returns.filter((it) => it.status === 'SELLER_DISPUTED').length;
+    const resolvedCount = returns.filter(
+      (it) =>
+        it.status === 'COMPLETED' ||
+        it.status === 'ARBITRATED_BUYER_WINS' ||
+        it.status === 'ARBITRATED_SELLER_WINS'
+    ).length;
+
+    return [
+      { key: 'ALL', label: 'Tất Cả', count: returns.length },
+      { key: 'FORWARDED_TO_SELLER', label: 'Cần Xử Lý', count: forwardCount },
+      { key: 'SELLER_ACCEPTED', label: 'Đã Đồng Ý', count: acceptedCount },
+      { key: 'SELLER_DISPUTED', label: 'Đã Phản Biện', count: disputedCount },
+      { key: 'RESOLVED', label: 'Đã Giải Quyết', count: resolvedCount },
+    ];
+  }, [returns]);
+
+  const returnBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'Tiến trình xử lý',
+      actions: [
+        {
+          value: 'ACCEPT_ALL',
+          label: 'Chấp thuận đổi trả hàng loạt',
+          confirmMessage: 'Bạn có chắc chắn muốn chấp nhận hàng loạt các yêu cầu đổi trả đã chọn không?',
+        },
+      ],
+    },
+    {
+      groupLabel: 'In ấn & xuất file',
+      actions: [
+        { value: 'EXPORT_CSV', label: 'Xuất danh sách yêu cầu (.csv)' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'ACCEPT_ALL') {
+        const actionable = returns.filter(
+          (it) => selectedIds.includes(it.id) && it.status === 'FORWARDED_TO_SELLER'
+        );
+        if (actionable.length === 0) {
+          showToast('Không có yêu cầu nào ở trạng thái "Cần Xử Lý" trong danh sách đã chọn.', 'warning');
+          return;
+        }
+        let successCount = 0;
+        for (const item of actionable) {
+          const res = await orderApi.sellerAcceptReturnRequest(item.id);
+          if (res.success) {
+            successCount++;
+            realtimeSyncBus.publish('RETURN_SELLER_ACCEPTED', { returnId: item.id });
+          }
+        }
+
+        showToast(`Đã chấp thuận ${successCount}/${actionable.length} yêu cầu đổi trả!`, 'success');
+        setSelectedIds([]);
+        await fetchReturns();
+      } else if (actionValue === 'EXPORT_CSV') {
+        const selectedList = returns.filter((it) => selectedIds.includes(it.id));
+        const header = ['Mã Yêu Cầu', 'Mã Đơn', 'Trạng Thái', 'Lý Do', 'Sản Phẩm', 'Khách Hàng', 'Ngày Tạo'];
+        const rows = selectedList.map((it) => [
+          it.id,
+          it.order?.code || it.orderId || '',
+          it.status,
+          it.reason || '',
+          it.orderItem?.title || '',
+          it.user?.fullName || it.user?.name || '',
+          it.createdAt ? new Date(it.createdAt).toLocaleString('vi-VN') : '',
+        ]);
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `danh_sach_doi_tra_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast(`Đã xuất ${selectedList.length} yêu cầu sang CSV!`, 'success');
+      }
+    } catch {
+      showToast('Lỗi khi thực hiện thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
 
   const [expandedReturnIds, setExpandedReturnIds] = useState<Record<string, boolean>>({});
 
@@ -166,45 +289,28 @@ export default function SellerReturnsPage() {
         </button>
       </div>
 
-      {/* 2. Filter Tabs & Search */}
-      <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <SellerFilterTabs
-          tabs={STATUS_TABS.map(t => ({ id: t.key, label: t.label }))}
-          activeTab={activeTab}
-          onChange={(tab) => {
-            setActiveTab(tab);
-            setCurrentPage(1);
-          }}
-        />
-
-        <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm mã đơn, tên sách, người mua..."
-            className="w-full pl-9 pr-7 py-2 bg-slate-50/80 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* 2. Filter Bar with Status Tabs & Multi-tier Date Filter & Bulk Actions */}
+      <DataTableFilterBar
+        tabs={returnStatusTabs}
+        activeTab={activeTab}
+        onTabChange={(tab) => {
+          setActiveTab(tab);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Tìm mã đơn, tên sách, người mua..."
+        className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+        bulkActionGroups={returnBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredReturns.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="yêu cầu đổi trả"
+      />
 
       {/* 3. Table */}
       <SellerTableContainer>
@@ -228,13 +334,22 @@ export default function SellerReturnsPage() {
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
+                  <th className="py-3.5 pl-4 pr-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filteredReturns.length && filteredReturns.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                    />
+                  </th>
+                  <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
                   <th className="py-3.5 px-3 w-[30%]">Sản Phẩm &amp; Phân Loại</th>
                   <th className="py-3.5 px-3 w-[22%]">Khách Hàng &amp; Lý Do</th>
                   <th className="py-3.5 px-3 w-[12%] text-center">Trạng Thái</th>
                   <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Thao Tác</th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-slate-100">
                 {paginatedReturns.map((item) => {
                   const isExpanded = !!expandedReturnIds[item.id];
@@ -248,11 +363,22 @@ export default function SellerReturnsPage() {
                       <tr
                         onClick={() => toggleExpand(item.id)}
                         className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
+                          isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
                         }`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(item.id)}
+                            onChange={() => toggleSelect(item.id)}
+                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                          />
+                        </td>
+
                         {/* 1. Mã đơn / Yêu cầu */}
-                        <td className="py-3 pl-4 pr-2 align-middle">
+                        <td className="py-3 pl-2 pr-2 align-middle">
+
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
@@ -341,8 +467,9 @@ export default function SellerReturnsPage() {
                       {/* Expandable Subcards Detail Panel */}
                       {isExpanded && (
                         <tr className="bg-slate-50/60">
-                          <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
+
                               {/* Card 1: Thông tin yêu cầu & đơn hàng */}
                               <div className="space-y-2">
                                 <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
@@ -448,3 +575,4 @@ export default function SellerReturnsPage() {
     </div>
   );
 }
+

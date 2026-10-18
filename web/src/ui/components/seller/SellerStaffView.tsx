@@ -14,6 +14,28 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
+
+const staffBulkActionGroups: BulkActionGroup[] = [
+  {
+    groupLabel: 'TRẠNG THÁI NHÂN SỰ',
+    actions: [
+      { value: 'ACTIVATE_ALL', label: 'Mở khóa hoạt động các nhân sự đã chọn' },
+      { value: 'SUSPEND_ALL', label: 'Tạm khóa các nhân sự đã chọn', isDanger: true, confirmMessage: 'Bạn có chắc chắn muốn tạm khóa các tài khoản nhân sự đã chọn?' },
+    ],
+  },
+  {
+    groupLabel: 'XUẤT DỮ LIỆU',
+    actions: [
+      { value: 'EXPORT_CSV', label: 'Xuất danh sách nhân viên (.csv)' },
+    ],
+  },
+];
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 import SecurityPinModal from '../common/SecurityPinModal';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -89,6 +111,9 @@ export function SellerStaffView() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -711,9 +736,73 @@ export function SellerStaffView() {
       const matchesStatus =
         statusFilter === 'ALL' || member.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      const memberDate = (member as any).createdAt || (member as any).joinedAt;
+      const matchesDate = matchesDateFilter(memberDate, dateFilter);
+
+      return matchesSearch && matchesStatus && matchesDate;
     });
-  }, [members, searchQuery, statusFilter]);
+  }, [members, searchQuery, statusFilter, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredMembers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredMembers.map((m) => m.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    const currentBizId = businessId || user?.business?.id || activeBusinessId;
+    if (!currentBizId) return;
+
+    setBulkLoading(true);
+    try {
+      if (actionId === 'ACTIVATE_ALL' || actionId === 'SUSPEND_ALL') {
+        const newStatus = actionId === 'ACTIVATE_ALL' ? 'ACTIVE' : 'SUSPENDED';
+        const targetMembers = members.filter((m) => selectedIds.includes(m.id) && m.role !== 'OWNER');
+        let count = 0;
+        for (const m of targetMembers) {
+          const res = await memberApi.updateMemberStatus(currentBizId, m.id, newStatus);
+          if (res.success) count++;
+        }
+        showToast({ title: 'Cập nhật hàng loạt', message: `Đã cập nhật trạng thái cho ${count} nhân sự.` }, 'success');
+        await loadMembers();
+        setSelectedIds([]);
+      } else if (actionId === 'EXPORT_CSV') {
+        const selected = members.filter((m) => selectedIds.includes(m.id));
+        const headers = ['Mã Nhân Sự', 'Họ Và Tên', 'Email', 'Số Điện Thoại', 'Vai Trò', 'Trạng Thái', 'Số Lượng Quyền'];
+        const rows = selected.map((m) => [
+          m.id,
+          `"${(m.user?.fullName || '').replace(/"/g, '""')}"`,
+          `"${(m.user?.email || '').replace(/"/g, '""')}"`,
+          `"${(m.user?.phone || '').replace(/"/g, '""')}"`,
+          m.role,
+          m.status,
+          m.permissions ? m.permissions.length : 0,
+        ].join(','));
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Danh_Sach_Nhan_Su_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast({ title: 'Xuất file thành công', message: `Đã xuất ${selected.length} dòng nhân sự.` }, 'success');
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi', message: err.message || 'Thao tác thất bại' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const totalPages = Math.ceil(filteredMembers.length / pageSize) || 1;
   const paginatedMembers = useMemo(() => {
@@ -1052,49 +1141,42 @@ export function SellerStaffView() {
         </div>
       )}
 
-      {/* Filter and Search */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <div className="flex items-center gap-2">
+      {/* Filter and Search with Split Date Filter and Integrated Bulk Actions */}
+      <DataTableFilterBar
+        searchPlaceholder="Tìm tên, email, sđt..."
+        searchQuery={searchQuery}
+        onSearchChange={(v: string) => {
+          setSearchQuery(v);
+          setCurrentPage(1);
+        }}
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        extraFilters={
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-700 focus:outline-none focus:border-slate-400 cursor-pointer font-medium"
+            className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="ALL">Tất cả trạng thái</option>
             <option value="ACTIVE">Đang hoạt động</option>
             <option value="SUSPENDED">Tạm khóa</option>
           </select>
-          <span className="text-xs text-slate-400">
-            Tổng: <b className="text-slate-700">{filteredMembers.length}</b> nhân sự
-          </span>
-        </div>
-
-        <div className="relative min-w-[200px] sm:min-w-[260px]">
-          <span className="material-symbols-outlined text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 text-sm">search</span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm tên, email, sđt..."
-            className="w-full pl-8 pr-7 py-1.5 text-xs rounded-xl border border-slate-200 bg-slate-50 text-slate-900 focus:outline-none focus:border-slate-400"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-      </div>
+        }
+        dateFilter={dateFilter}
+        onDateFilterChange={(v: DateFilterValue) => {
+          setDateFilter(v);
+          setCurrentPage(1);
+        }}
+        bulkActionGroups={staffBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredMembers.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="nhân sự"
+      />
 
       {error && (
         <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center gap-2">
@@ -1108,6 +1190,14 @@ export function SellerStaffView() {
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
+              <th className="py-3.5 pl-4 pr-1 w-8">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === filteredMembers.length && filteredMembers.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                />
+              </th>
               <th className="py-3.5 px-4">Nhân Viên</th>
               <th className="py-3.5 px-3">Email & SĐT</th>
               <th className="py-3.5 px-3 text-center">Vai Trò</th>
@@ -1119,7 +1209,7 @@ export function SellerStaffView() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
+                <td colSpan={7} className="py-16 text-center text-slate-400">
                   <div className="flex items-center justify-center gap-2">
                     <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
                     <span className="text-xs">Đang tải danh sách nhân sự...</span>
@@ -1128,7 +1218,7 @@ export function SellerStaffView() {
               </tr>
             ) : filteredMembers.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-16 text-center text-slate-400">
+                <td colSpan={7} className="py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                     <span className="material-symbols-outlined text-4xl text-slate-300">group</span>
                     <p className="font-medium text-slate-600">Không tìm thấy nhân viên phù hợp.</p>
@@ -1144,6 +1234,15 @@ export function SellerStaffView() {
                 return (
                   <React.Fragment key={member.id}>
                     <tr className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
+                      <td className="py-3.5 pl-4 pr-1 w-8 align-middle">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(member.id)}
+                          onChange={() => toggleSelectRow(member.id)}
+                          disabled={isOwner}
+                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A] disabled:opacity-30 disabled:cursor-not-allowed"
+                        />
+                      </td>
                       <td className="py-3.5 px-4">
                         <div className="flex items-center gap-2.5">
                           <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs uppercase border border-slate-200">
@@ -1234,7 +1333,7 @@ export function SellerStaffView() {
                     {/* In-Page Expandable Edit Permissions Drawer */}
                     {isEditingThis && (
                       <tr className="bg-slate-50/70 border-y border-slate-200">
-                        <td colSpan={6} className="p-4 sm:p-5">
+                        <td colSpan={7} className="p-4 sm:p-5">
                           <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-4 shadow-xs">
                             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                               <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">

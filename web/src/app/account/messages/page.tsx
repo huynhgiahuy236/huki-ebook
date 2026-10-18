@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/ui/context/ToastContext';
 import { useCart } from '@/ui/context/CartContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
-import { chatService, type ChatConversation, type ChatMessage } from '@/ui/services/chatService';
+import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
+import { voucherApi } from '@/ui/api/voucherApi';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -53,7 +54,9 @@ interface MessageItem {
   id: string | number;
   sender: 'user' | 'other';
   text?: string;
-  type?: 'voucher' | 'order_status';
+  type?: 'voucher' | 'order_status' | 'media';
+  attachments?: ChatAttachment[];
+  voucherId?: string;
   voucherCode?: string;
   discountText?: string;
   minSpend?: string;
@@ -102,8 +105,17 @@ function MessengerContent() {
   const storeTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const buyerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [savedVouchers, setSavedVouchers] = useState<Record<string, boolean>>({});
+  const [savingVoucherId, setSavingVoucherId] = useState<string | null>(null);
   const [activeCallModal, setActiveCallModal] = useState<'voice' | 'video' | null>(null);
   const [callTimer] = useState('00:24');
+
+  // Media upload states for buyer (Hình ảnh & Video)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<Array<{ file: File; url: string; isVideo: boolean; name: string; size: number }>>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [previewMediaUrl, setPreviewMediaUrl] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -125,6 +137,16 @@ function MessengerContent() {
 
   const activeChannelData = channels.find(c => c.id === activeChannel) || (channels.length > 0 ? channels[0] : null);
   const activeMessages = activeChannelData ? (messagesMap[activeChannelData.id] || []) : [];
+
+  const conversationMedia = useMemo(() => {
+    const list: ChatAttachment[] = [];
+    activeMessages.forEach((m) => {
+      if (m.attachments && m.attachments.length > 0) {
+        list.push(...m.attachments);
+      }
+    });
+    return list;
+  }, [activeMessages]);
 
   const lastMessage = activeMessages[activeMessages.length - 1];
   const lastMessageKey = lastMessage ? `${lastMessage.id}-${lastMessage.time}` : '';
@@ -371,7 +393,9 @@ function MessengerContent() {
         id: (newMsg.id as any) || (newMsg as any)._id || Date.now(),
         sender: isMe ? 'user' : 'other',
         text: newMsg.content,
-        type: newMsg.messageType === 'VOUCHER' ? 'voucher' : (newMsg.messageType === 'ORDER' ? 'order_status' : undefined),
+        type: newMsg.messageType === 'VOUCHER' ? 'voucher' : (newMsg.messageType === 'ORDER' ? 'order_status' : ((newMsg.attachments && newMsg.attachments.length > 0) ? 'media' : undefined)),
+        attachments: newMsg.attachments,
+        voucherId: newMsg.metadata?.voucherId,
         voucherCode: newMsg.metadata?.voucherCode,
         discountText: newMsg.metadata?.discountText,
         minSpend: newMsg.metadata?.minSpend,
@@ -477,7 +501,9 @@ function MessengerContent() {
               id: (m.id as any) || (m as any)._id || Math.random().toString(),
               sender: isMe ? 'user' : 'other',
               text: m.content,
-              type: m.messageType === 'VOUCHER' ? 'voucher' : (m.messageType === 'ORDER' ? 'order_status' : undefined),
+              type: m.messageType === 'VOUCHER' ? 'voucher' : (m.messageType === 'ORDER' ? 'order_status' : ((m.attachments && m.attachments.length > 0) ? 'media' : undefined)),
+              attachments: m.attachments,
+              voucherId: m.metadata?.voucherId,
               voucherCode: m.metadata?.voucherCode,
               discountText: m.metadata?.discountText,
               minSpend: m.metadata?.minSpend,
@@ -505,10 +531,59 @@ function MessengerContent() {
     };
   }, [activeChannel, joinConversation, leaveConversation, markAsRead, scrollToBottom]);
 
-  // 4. Gửi tin nhắn qua Socket / REST API
-  const handleSendMessageWithText = async (textToSend: string) => {
-    const content = textToSend.trim();
-    if (!content || !activeChannelData) return;
+  // Quản lý tệp đính kèm người mua (Ảnh / Video)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    setMediaError(null);
+    const valid: File[] = [];
+    const previews: Array<{ file: File; url: string; isVideo: boolean; name: string; size: number }> = [];
+
+    for (const f of files) {
+      const isImg = f.type.startsWith('image/');
+      const isVid = f.type.startsWith('video/');
+      if (!isImg && !isVid) {
+        setMediaError('Chỉ hỗ trợ gửi hình ảnh hoặc video.');
+        continue;
+      }
+      if (isImg && f.size > 15 * 1024 * 1024) {
+        setMediaError(`Ảnh "${f.name}" vượt quá 15MB.`);
+        continue;
+      }
+      if (isVid && f.size > 30 * 1024 * 1024) {
+        setMediaError(`Video "${f.name}" vượt quá 30MB.`);
+        continue;
+      }
+      valid.push(f);
+      previews.push({
+        file: f,
+        url: URL.createObjectURL(f),
+        isVideo: isVid,
+        name: f.name,
+        size: f.size,
+      });
+    }
+
+    setSelectedFiles(prev => [...prev, ...valid]);
+    setFilePreviews(prev => [...prev, ...previews]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleRemoveFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    setFilePreviews(prev => {
+      const target = prev[index];
+      if (target?.url) URL.revokeObjectURL(target.url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  // 4. Gửi tin nhắn qua Socket / REST API (Hỗ trợ văn bản và tệp hình ảnh/video)
+  const handleSendMessageWithText = async (textToSend?: string) => {
+    const content = (textToSend !== undefined ? textToSend : messageInput).trim();
+    const hasFiles = selectedFiles.length > 0;
+    if ((!content && !hasFiles) || !activeChannelData) return;
 
     // Ngăn chặn bấm nút gợi ý liên tục tạo nhiều tin nhắn trùng lặp
     if (isSendingRef.current) return;
@@ -518,12 +593,27 @@ function MessengerContent() {
     }, 600);
 
     const tempId = `temp-${Date.now()}`;
+    const optimisticAttachments: ChatAttachment[] = filePreviews.map(p => ({
+      type: p.isVideo ? 'VIDEO' : 'IMAGE',
+      url: p.url,
+      name: p.name,
+      size: p.size,
+    }));
+
+    const hasVideo = filePreviews.some(p => p.isVideo);
+    const hasImage = filePreviews.some(p => !p.isVideo);
+    const resolvedType = hasVideo ? 'VIDEO' : hasImage ? 'IMAGE' : 'TEXT';
+    const fallbackText = hasVideo ? '[Video đính kèm]' : hasImage ? '[Hình ảnh đính kèm]' : 'Tệp đính kèm';
+    const resolvedContent = content || fallbackText;
+
     const newMsg: MessageItem = {
       id: tempId,
       sender: 'user',
-      text: content,
+      text: content || fallbackText,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       status: 'sent',
+      type: (hasVideo || hasImage) ? 'media' : undefined,
+      attachments: optimisticAttachments.length > 0 ? optimisticAttachments : undefined,
     };
 
     setMessagesMap(prev => ({
@@ -552,7 +642,7 @@ function MessengerContent() {
           storeName: activeChannelData.name || targetStoreName || 'NXB KIM ĐỒNG',
           contextType: 'ORDER',
           contextId: targetOrderId || 'GENERAL',
-          initialMessage: content,
+          initialMessage: resolvedContent,
         });
 
         if (createRes.success && createRes.data) {
@@ -570,33 +660,59 @@ function MessengerContent() {
           setActiveChannel(createdId);
           joinConversation(createdId);
           setTimeout(() => scrollToBottom('smooth'), 50);
-          return;
         }
       } catch (err) {
         console.error('Lỗi khởi tạo hội thoại khi gửi tin:', err);
       }
     }
 
+    const filesToUpload = [...selectedFiles];
+    setSelectedFiles([]);
+    setFilePreviews([]);
+    setMediaError(null);
+
     try {
-      const serverMsg = await sendSocketMessage(realConversationId, content);
-      if (serverMsg) {
-        const realId = (serverMsg.id as any) || (serverMsg as any)._id;
-        if (realId) {
+      if (filesToUpload.length > 0) {
+        setIsUploading(true);
+        const res = await chatService.sendMessage(
+          realConversationId,
+          {
+            content: resolvedContent,
+            messageType: resolvedType,
+          },
+          filesToUpload
+        );
+        if (res.success && res.data) {
+          const msgObj = (res.data as any)?.data || res.data;
+          const realId = msgObj?.id || msgObj?._id;
+          if (realId) {
+            setMessagesMap(prev => {
+              const list = prev[realConversationId] || prev[activeChannelData.id] || [];
+              return {
+                ...prev,
+                [realConversationId]: list.map(m => m.id === tempId ? {
+                  ...m,
+                  id: realId,
+                  status: 'sent',
+                  attachments: msgObj.attachments || m.attachments,
+                } : m),
+              };
+            });
+          }
+        } else {
+          showToast((res as any)?.message || (res as any)?.error?.message || 'Không thể tải tệp lên máy chủ.', 'error');
           setMessagesMap(prev => {
             const list = prev[realConversationId] || prev[activeChannelData.id] || [];
             return {
               ...prev,
-              [realConversationId]: list.map(m => m.id === tempId ? { ...m, id: realId, status: 'sent' } : m),
+              [realConversationId]: list.filter(m => m.id !== tempId),
             };
           });
         }
-      }
-    } catch {
-      try {
-        const res = await chatService.sendMessage(realConversationId, { content });
-        if (res.success && res.data) {
-          const msgObj = (res.data as any)?.data || res.data;
-          const realId = msgObj?.id || msgObj?._id;
+      } else {
+        const serverMsg = await sendSocketMessage(realConversationId, content);
+        if (serverMsg) {
+          const realId = (serverMsg.id as any) || (serverMsg as any)._id;
           if (realId) {
             setMessagesMap(prev => {
               const list = prev[realConversationId] || prev[activeChannelData.id] || [];
@@ -607,17 +723,49 @@ function MessengerContent() {
             });
           }
         }
-      } catch (err) {
-        console.error('Lỗi gửi tin nhắn qua REST fallback:', err);
+      }
+    } catch (err: any) {
+      if (filesToUpload.length > 0) {
+        showToast('Tải tệp đính kèm thất bại. Vui lòng thử lại!', 'error');
+        setMessagesMap(prev => {
+          const list = prev[realConversationId] || prev[activeChannelData.id] || [];
+          return {
+            ...prev,
+            [realConversationId]: list.filter(m => m.id !== tempId),
+          };
+        });
+      } else {
+        try {
+          const res = await chatService.sendMessage(realConversationId, {
+            content: resolvedContent,
+            messageType: resolvedType,
+          });
+          if (res.success && res.data) {
+            const msgObj = (res.data as any)?.data || res.data;
+            const realId = msgObj?.id || msgObj?._id;
+            if (realId) {
+              setMessagesMap(prev => {
+                const list = prev[realConversationId] || prev[activeChannelData.id] || [];
+                return {
+                  ...prev,
+                  [realConversationId]: list.map(m => m.id === tempId ? { ...m, id: realId, status: 'sent' } : m),
+                };
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Lỗi gửi tin nhắn qua REST fallback:', err);
+        }
       }
     } finally {
+      setIsUploading(false);
       setTimeout(() => scrollToBottom('smooth'), 50);
     }
   };
 
   const handleSendMessage = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!messageInput.trim()) return;
+    if (!messageInput.trim() && selectedFiles.length === 0) return;
     const text = messageInput.trim();
     setMessageInput('');
     await handleSendMessageWithText(text);
@@ -633,10 +781,37 @@ function MessengerContent() {
     }, 2000);
   };
 
-  const handleSaveVoucher = (code?: string) => {
-    if (!code) return;
-    setSavedVouchers(prev => ({ ...prev, [code]: true }));
-    showToast(`Đã lưu mã [${code}] vào kho Voucher của bạn!`, 'success');
+  const handleSaveVoucher = async (code?: string, voucherId?: string) => {
+    if (!code && !voucherId) return;
+    const targetKey = voucherId || code || '';
+    setSavingVoucherId(targetKey);
+
+    try {
+      if (voucherId) {
+        const res = await voucherApi.saveVoucher(voucherId);
+        if (res.success) {
+          setSavedVouchers(prev => ({
+            ...prev,
+            [targetKey]: true,
+            ...(code ? { [code]: true } : {}),
+          }));
+          showToast(`Đã lưu mã [${code || voucherId}] vào kho Voucher của bạn!`, 'success');
+          realtimeSyncBus.publish('VOUCHER_CLAIMED', { voucherId, code });
+        } else {
+          showToast((res as any)?.message || 'Không thể lưu voucher vào ví.', 'error');
+        }
+      } else {
+        // Fallback lưu mã tạm
+        setSavedVouchers(prev => ({ ...prev, [targetKey]: true }));
+        showToast(`Đã lưu mã [${code}] vào kho Voucher của bạn!`, 'success');
+        realtimeSyncBus.publish('VOUCHER_CLAIMED', { code });
+      }
+    } catch (err: any) {
+      console.error('Lỗi lưu voucher:', err);
+      showToast(err?.message || 'Có lỗi xảy ra khi lưu voucher.', 'error');
+    } finally {
+      setSavingVoucherId(null);
+    }
   };
 
   // Filter channels
@@ -969,6 +1144,8 @@ function MessengerContent() {
               <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                 {activeMessages.map((msg) => {
                   const isMe = msg.sender === 'user';
+                  const imageAttachments = msg.attachments?.filter((a) => a.type === 'IMAGE') || [];
+                  const videoAttachments = msg.attachments?.filter((a) => a.type === 'VIDEO') || [];
 
                   return (
                     <div
@@ -984,8 +1161,8 @@ function MessengerContent() {
                       )}
 
                       <div className="max-w-md lg:max-w-xl space-y-1">
-                        {/* Normal Text Message */}
-                        {msg.text && (
+                        {/* Normal Text or Media Message */}
+                        {(msg.text || videoAttachments.length > 0 || imageAttachments.length > 0) && msg.type !== 'voucher' && msg.type !== 'order_status' && (
                           <div
                             className={`px-4 py-3 text-xs sm:text-sm leading-relaxed shadow-2xs ${
                               isMe
@@ -993,7 +1170,61 @@ function MessengerContent() {
                                 : 'bg-white text-gray-800 border border-gray-200 rounded-2xl rounded-tl-xs'
                             }`}
                           >
-                            <p>{msg.text}</p>
+                            {/* Videos */}
+                            {videoAttachments.length > 0 && (
+                              <div className="space-y-1.5 my-1">
+                                {videoAttachments.map((vid, idx) => (
+                                  <div key={idx} className="relative rounded-xl overflow-hidden bg-black max-w-[280px]">
+                                    <video
+                                      src={vid.url}
+                                      controls
+                                      playsInline
+                                      preload="metadata"
+                                      className="w-full max-h-56 object-contain rounded-xl"
+                                    />
+                                    <div className="px-2 py-0.5 bg-black/70 text-[9px] text-white/90 flex items-center justify-between">
+                                      <span className="flex items-center gap-1">
+                                        <span className="material-symbols-outlined text-[12px] text-emerald-400">videocam</span>
+                                        <span className="truncate max-w-[150px]">{vid.name || 'Video cận cảnh'}</span>
+                                      </span>
+                                      {vid.size && <span>{(vid.size / (1024 * 1024)).toFixed(1)} MB</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Images */}
+                            {imageAttachments.length > 0 && (
+                              <div
+                                className={`grid gap-1.5 my-1 max-w-[280px] ${
+                                  imageAttachments.length > 1 ? 'grid-cols-2' : 'grid-cols-1'
+                                }`}
+                              >
+                                {imageAttachments.map((img, idx) => (
+                                  <div
+                                    key={idx}
+                                    onClick={() => setPreviewMediaUrl(img.url)}
+                                    className="relative group cursor-pointer overflow-hidden rounded-xl bg-gray-100 border border-black/5"
+                                  >
+                                    <img
+                                      src={img.thumbnail || img.url}
+                                      alt={img.name || 'Ảnh đính kèm'}
+                                      className="w-full h-32 object-cover transition-transform duration-200 group-hover:scale-105"
+                                      loading="lazy"
+                                    />
+                                    <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                      <span className="material-symbols-outlined text-lg">zoom_in</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {msg.text && (
+                              <p className="whitespace-pre-wrap">{msg.text}</p>
+                            )}
+
                             <div
                               className={`text-[10px] mt-1 text-right flex items-center justify-end gap-1 ${
                                 isMe ? 'text-emerald-100/70' : 'text-gray-400'
@@ -1021,18 +1252,26 @@ function MessengerContent() {
                             </div>
 
                             <button
-                              onClick={() => handleSaveVoucher(msg.voucherCode)}
-                              disabled={msg.voucherCode ? savedVouchers[msg.voucherCode] : false}
+                              onClick={() => handleSaveVoucher(msg.voucherCode, msg.voucherId)}
+                              disabled={Boolean(
+                                (msg.voucherCode && savedVouchers[msg.voucherCode]) ||
+                                (msg.voucherId && savedVouchers[msg.voucherId]) ||
+                                (savingVoucherId && (savingVoucherId === msg.voucherId || savingVoucherId === msg.voucherCode))
+                              )}
                               className={`w-full py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                                msg.voucherCode && savedVouchers[msg.voucherCode]
+                                (msg.voucherCode && savedVouchers[msg.voucherCode]) || (msg.voucherId && savedVouchers[msg.voucherId])
                                   ? 'bg-emerald-200 text-emerald-800 cursor-default'
                                   : 'bg-[#006953] hover:bg-[#00523c] text-white shadow-sm'
                               }`}
                             >
                               <span className="material-symbols-outlined text-sm">
-                                {msg.voucherCode && savedVouchers[msg.voucherCode] ? 'check_circle' : 'bookmark_add'}
+                                {(msg.voucherCode && savedVouchers[msg.voucherCode]) || (msg.voucherId && savedVouchers[msg.voucherId])
+                                  ? 'check_circle'
+                                  : (savingVoucherId && (savingVoucherId === msg.voucherId || savingVoucherId === msg.voucherCode) ? 'sync' : 'bookmark_add')}
                               </span>
-                              {msg.voucherCode && savedVouchers[msg.voucherCode] ? 'ĐÃ LƯU VOUCHER' : `LƯU MÃ [${msg.voucherCode}]`}
+                              {(msg.voucherCode && savedVouchers[msg.voucherCode]) || (msg.voucherId && savedVouchers[msg.voucherId])
+                                ? 'ĐÃ LƯU VOUCHER'
+                                : (savingVoucherId && (savingVoucherId === msg.voucherId || savingVoucherId === msg.voucherCode) ? 'ĐANG LƯU VÍ...' : `LƯU MÃ [${msg.voucherCode || 'VOUCHER'}]`)}
                             </button>
                           </div>
                         )}
@@ -1122,16 +1361,62 @@ function MessengerContent() {
                 ))}
               </div>
 
+              {/* Selected Files Preview Tray for Buyer */}
+              {filePreviews.length > 0 && (
+                <div className="px-5 py-2.5 bg-gray-100 border-t border-gray-200 flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0">
+                  {filePreviews.map((preview, idx) => (
+                    <div key={idx} className="relative shrink-0 w-14 h-14 rounded-xl overflow-hidden border border-gray-300 bg-white group shadow-2xs">
+                      {preview.isVideo ? (
+                        <div className="w-full h-full bg-gray-800 flex flex-col items-center justify-center text-white">
+                          <span className="material-symbols-outlined text-[20px] text-emerald-400">play_circle</span>
+                          <span className="text-[8px] font-bold">VIDEO</span>
+                        </div>
+                      ) : (
+                        <img src={preview.url} alt={preview.name} className="w-full h-full object-cover" />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(idx)}
+                        className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-rose-600 text-white flex items-center justify-center shadow-xs cursor-pointer hover:bg-rose-700"
+                        title="Xóa tệp"
+                      >
+                        <span className="material-symbols-outlined text-[10px]">close</span>
+                      </button>
+                    </div>
+                  ))}
+                  <span className="text-[11px] text-gray-600 font-medium ml-1">
+                    {filePreviews.length} tệp đính kèm (Ảnh / Video)
+                  </span>
+                </div>
+              )}
+
+              {/* Buyer Media Error Banner */}
+              {mediaError && (
+                <div className="px-5 py-1.5 bg-rose-50 border-t border-rose-200 text-rose-700 text-xs flex items-center justify-between shrink-0">
+                  <span>{mediaError}</span>
+                  <button type="button" onClick={() => setMediaError(null)} className="font-bold cursor-pointer">✕</button>
+                </div>
+              )}
+
               {/* Bottom Chat Input Form */}
               <form
                 onSubmit={handleSendMessage}
                 className="p-3.5 bg-white border-t border-gray-200 flex items-center gap-2.5 shrink-0"
               >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                />
+
                 <button
                   type="button"
-                  onClick={() => showToast('Mở công cụ đính kèm file ảnh & tài liệu', 'info')}
-                  className="p-2 text-gray-400 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors"
-                  title="Đính kèm tệp"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-2 text-gray-400 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                  title="Đính kèm ảnh hoặc video"
                 >
                   <span className="material-symbols-outlined text-xl">add_circle</span>
                 </button>
@@ -1139,7 +1424,7 @@ function MessengerContent() {
                 <button
                   type="button"
                   onClick={() => setMessageInput(prev => prev + ' 😊')}
-                  className="p-2 text-gray-400 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors"
+                  className="p-2 text-gray-400 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
                   title="Biểu tượng cảm xúc"
                 >
                   <span className="material-symbols-outlined text-xl">mood</span>
@@ -1155,11 +1440,20 @@ function MessengerContent() {
 
                 <button
                   type="submit"
-                  disabled={!messageInput.trim()}
-                  className="px-4 py-2.5 bg-[#006953] hover:bg-[#00523c] text-white rounded-2xl font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-30 disabled:hover:bg-[#006953]"
+                  disabled={(!messageInput.trim() && selectedFiles.length === 0) || isUploading}
+                  className="px-4 py-2.5 bg-[#006953] hover:bg-[#00523c] text-white rounded-2xl font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-30 disabled:hover:bg-[#006953] cursor-pointer"
                 >
-                  <span>Gửi</span>
-                  <span className="material-symbols-outlined text-base">send</span>
+                  {isUploading ? (
+                    <>
+                      <span className="material-symbols-outlined text-base animate-spin">progress_activity</span>
+                      <span>Đang tải...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Gửi</span>
+                      <span className="material-symbols-outlined text-base">send</span>
+                    </>
+                  )}
                 </button>
               </form>
             </>
@@ -1290,16 +1584,58 @@ function MessengerContent() {
                   onClick={() => toggleSection('media')}
                   className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 font-bold text-gray-800 transition-colors"
                 >
-                  <span>File phương tiện và file</span>
+                  <div className="flex items-center gap-1.5">
+                    <span>File phương tiện và file</span>
+                    {conversationMedia.length > 0 && (
+                      <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
+                        {conversationMedia.length}
+                      </span>
+                    )}
+                  </div>
                   <span className="material-symbols-outlined text-lg text-gray-400 transition-transform">
                     {expandedSection.media ? 'expand_less' : 'expand_more'}
                   </span>
                 </button>
 
                 {expandedSection.media && (
-                  <div className="pt-2 px-2 text-center text-gray-400 text-xs py-4">
-                    <span className="material-symbols-outlined text-2xl text-gray-300 block mb-1">perm_media</span>
-                    <span className="text-[11px]">Chưa có hình ảnh hoặc file đính kèm</span>
+                  <div className="pt-2 px-2">
+                    {conversationMedia.length > 0 ? (
+                      <div className="grid grid-cols-3 gap-1.5 max-h-56 overflow-y-auto no-scrollbar">
+                        {conversationMedia.map((att: ChatAttachment, idx: number) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              if (att.type === 'IMAGE') {
+                                setPreviewMediaUrl(att.url);
+                              } else {
+                                window.open(att.url, '_blank');
+                              }
+                            }}
+                            className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer group border border-gray-200 shadow-2xs hover:opacity-90 transition-opacity"
+                            title={att.name || (att.type === 'VIDEO' ? 'Video' : 'Ảnh')}
+                          >
+                            {att.type === 'VIDEO' ? (
+                              <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-white">
+                                <span className="material-symbols-outlined text-xl text-emerald-400">play_circle</span>
+                                <span className="text-[8px] font-bold mt-0.5">VIDEO</span>
+                              </div>
+                            ) : (
+                              <img
+                                src={att.thumbnail || att.url}
+                                alt={att.name || 'Ảnh hội thoại'}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                loading="lazy"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-400 text-xs py-4">
+                        <span className="material-symbols-outlined text-2xl text-gray-300 block mb-1">perm_media</span>
+                        <span className="text-[11px]">Chưa có hình ảnh hoặc file đính kèm</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1382,6 +1718,37 @@ function MessengerContent() {
                 <span className="material-symbols-outlined text-xl">videocam</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Preview Modal for Images */}
+      {previewMediaUrl && (
+        <div
+          onClick={() => setPreviewMediaUrl(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-in fade-in"
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={previewMediaUrl}
+              alt="Media Preview"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl border border-white/10"
+            />
+            <button
+              onClick={() => setPreviewMediaUrl(null)}
+              className="absolute -top-3 -right-3 w-9 h-9 rounded-full bg-white text-gray-900 flex items-center justify-center font-bold shadow-xl hover:bg-gray-100 transition-colors cursor-pointer"
+            >
+              ✕
+            </button>
+            <a
+              href={previewMediaUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 px-4 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-semibold backdrop-blur-sm transition-colors flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm">open_in_new</span>
+              <span>Mở ảnh trong tab mới</span>
+            </a>
           </div>
         </div>
       )}

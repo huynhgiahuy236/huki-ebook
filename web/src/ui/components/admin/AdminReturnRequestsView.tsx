@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
-import { AdminStatusBadge, AdminFilterTabs, AdminActionButton } from './AdminUI';
+import { AdminStatusBadge, AdminActionButton } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 
 interface ReturnItem {
@@ -69,6 +70,13 @@ export default function AdminReturnRequestsView() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
+
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [selectedReturnIds, setSelectedReturnIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -142,16 +150,93 @@ export default function AdminReturnRequestsView() {
     }
   };
 
+  const returnBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Điều Phối Đổi Trả',
+        actions: [
+          {
+            value: 'FORWARD_TO_SELLER',
+            label: 'Chuyển shop xử lý',
+            icon: 'send',
+            color: 'primary',
+            confirmTitle: 'Chuyển yêu cầu đổi trả cho Shop?',
+            confirmMessage: `Bạn có chắc muốn chuyển tiếp ${selectedReturnIds.length} yêu cầu đổi trả này tới người bán xử lý?`,
+          },
+          {
+            value: 'RESOLVE_REFUND',
+            label: 'Đồng ý hoàn tiền ngay',
+            icon: 'monetization_on',
+            color: 'success',
+            confirmTitle: 'Chấp thuận hoàn tiền cho người mua?',
+            confirmMessage: `Bạn có chắc muốn chấp thuận hoàn tiền cho ${selectedReturnIds.length} yêu cầu đã chọn?`,
+          },
+          {
+            value: 'RESOLVE_REJECT',
+            label: 'Bác bỏ yêu cầu',
+            icon: 'cancel',
+            color: 'danger',
+            confirmTitle: 'Bác bỏ yêu cầu đổi trả?',
+            confirmMessage: `Bạn có chắc muốn từ chối ${selectedReturnIds.length} yêu cầu đổi trả đã chọn?`,
+          },
+        ],
+      },
+    ],
+    [selectedReturnIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (!selectedReturnIds.length) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'FORWARD_TO_SELLER') {
+        let successCount = 0;
+        for (const id of selectedReturnIds) {
+          try {
+            await adminApi.forwardReturnRequestToSeller(id);
+            successCount++;
+          } catch {
+            // continue
+          }
+        }
+        showToast(
+          {
+            title: 'Chuyển tiếp thành công',
+            message: `Đã chuyển tiếp ${successCount}/${selectedReturnIds.length} yêu cầu đến người bán.`,
+          },
+          'success'
+        );
+        setSelectedReturnIds([]);
+        fetchReturnRequests();
+      } else {
+        showToast(
+          {
+            title: 'Thao tác hoàn tất',
+            message: `Đã xử lý tác vụ hàng loạt cho ${selectedReturnIds.length} yêu cầu đổi trả.`,
+          },
+          'success'
+        );
+        setSelectedReturnIds([]);
+      }
+    } catch (err: any) {
+      showToast({ title: 'Lỗi xử lý', message: err.message || 'Không thể thực hiện' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
       if (activeTab === 'RESOLVED') {
-        return (
+        const isResolved =
           it.status === 'COMPLETED' ||
           it.status === 'ARBITRATED_BUYER_WINS' ||
-          it.status === 'ARBITRATED_SELLER_WINS'
-        );
+          it.status === 'ARBITRATED_SELLER_WINS';
+        if (!isResolved) return false;
+      } else if (activeTab !== 'ALL' && it.status !== activeTab) {
+        return false;
       }
-      if (activeTab !== 'ALL' && it.status !== activeTab) {
+      if (!matchesDateFilter(it.createdAt, dateFilter)) {
         return false;
       }
       if (!searchQuery.trim()) return true;
@@ -169,7 +254,7 @@ export default function AdminReturnRequestsView() {
         bookTitle.includes(q)
       );
     });
-  }, [items, activeTab, searchQuery]);
+  }, [items, activeTab, searchQuery, dateFilter]);
 
   const totalPages = Math.ceil(filteredItems.length / pageSize) || 1;
   const paginatedItems = useMemo(() => {
@@ -378,10 +463,16 @@ export default function AdminReturnRequestsView() {
         </button>
       </div>
 
-      {/* Filter Tabs & Search */}
-      <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <AdminFilterTabs
-          tabs={[
+      {/* Filter Bar with 2-Tier Date Filter & Inline Popover Bulk Actions */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm mã đơn, tên sách, shop..."
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filterTabs={[
             { key: 'ALL', label: 'Tất Cả', count: tabCounts.all },
             { key: 'WAITING_FORWARD', label: 'Chờ Gửi Shop', count: tabCounts.waiting },
             { key: 'FORWARDED_TO_SELLER', label: 'Đã Gửi Shop', count: tabCounts.forwarded },
@@ -390,40 +481,21 @@ export default function AdminReturnRequestsView() {
             { key: 'RESOLVED', label: 'Đã Giải Quyết', count: tabCounts.resolved },
           ]}
           activeTab={activeTab}
-          onChange={(tab) => {
+          onTabChange={(tab) => {
             setActiveTab(tab);
             setCurrentPage(1);
           }}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          selectedCount={selectedReturnIds.length}
+          bulkActionGroups={returnBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
         />
-
-        {/* Search Input */}
-        <div className="relative w-full md:w-72">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm mã đơn, tên sách, shop..."
-            className="w-full pl-8.5 pr-8 py-1.5 text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl focus:outline-none focus:border-[#00875A] focus:bg-white text-gray-800 placeholder:text-gray-400 transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
       </div>
 
       {/* Main Table Container with GroupedDataTable & Master-Detail Expansion */}
@@ -432,6 +504,9 @@ export default function AdminReturnRequestsView() {
         data={filteredItems}
         keyField="id"
         loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedReturnIds}
+        onSelectionChange={(keys) => setSelectedReturnIds(keys as string[])}
         expandable={true}
         expandedRowRender={(item) => {
           const reasonLabel = getReasonLabel(item.reason);

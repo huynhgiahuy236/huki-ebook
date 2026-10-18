@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
 import { businessApi } from '../../api/businessApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
-import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
+import { AdminStatusBadge } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 const PUBLISHER_TABS = [
@@ -25,6 +26,13 @@ export function AdminPublishersView() {
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<any>(null);
 
+  const [selectedPublisherIds, setSelectedPublisherIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [bulkLoading, setBulkLoading] = useState(false);
+
   const publisherPanelRef = useSmartFormCollapse({
     isOpen: Boolean(selectedPublisher),
     onClose: () => setSelectedPublisher(null),
@@ -32,7 +40,7 @@ export function AdminPublishersView() {
   });
 
   // Danh sách NXB 100% lấy từ Database Backend
-  const [publishersList, setPublishersList] = useState<any[]>([]);;
+  const [publishersList, setPublishersList] = useState<any[]>([]);
 
   const fetchBusinesses = async () => {
     setIsLoading(true);
@@ -57,6 +65,7 @@ export function AdminPublishersView() {
           status: b.status,
           statusLabel: b.status === 'APPROVED' ? 'Đang hoạt động' : b.status === 'PENDING_APPROVAL' ? 'Chờ thẩm định hồ sơ' : b.status === 'SUSPENDED' ? 'Bị đình chỉ / Khóa quyền' : 'Từ chối',
           rating: b.status === 'APPROVED' ? 5.0 : 0,
+          createdAt: b.createdAt,
           joinedDate: b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN') : 'Hôm nay'
         }));
         setPublishersList(apiBusinesses);
@@ -203,6 +212,8 @@ export function AdminPublishersView() {
       if (activeTab === 'suspended' && p.status !== 'SUSPENDED') return false;
       if (activeTab === 'rejected' && p.status !== 'REJECTED') return false;
 
+      if (!matchesDateFilter(p.createdAt, dateFilter)) return false;
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = p.name.toLowerCase().includes(q);
@@ -213,7 +224,87 @@ export function AdminPublishersView() {
       }
       return true;
     });
-  }, [publishersList, activeTab, searchQuery]);
+  }, [publishersList, activeTab, searchQuery, dateFilter]);
+
+  const publisherBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Thao Tác Doanh Nghiệp',
+        actions: [
+          {
+            value: 'APPROVE_PUBLISHERS',
+            label: 'Duyệt hồ sơ NXB',
+            icon: 'check_circle',
+            color: 'success',
+            confirmTitle: 'Duyệt các hồ sơ đã chọn?',
+            confirmMessage: `Bạn có chắc muốn phê duyệt ${selectedPublisherIds.length} doanh nghiệp / nhà xuất bản đã chọn?`,
+          },
+          {
+            value: 'SUSPEND_PUBLISHERS',
+            label: 'Đình chỉ / Khóa quyền',
+            icon: 'block',
+            color: 'warning',
+            confirmTitle: 'Đình chỉ các NXB đã chọn?',
+            confirmMessage: `Bạn có chắc muốn khóa quyền bán ${selectedPublisherIds.length} NXB đã chọn?`,
+          },
+          {
+            value: 'ACTIVATE_PUBLISHERS',
+            label: 'Mở khóa hoạt động',
+            icon: 'lock_open',
+            color: 'primary',
+            confirmTitle: 'Kích hoạt lại các NXB?',
+            confirmMessage: `Bạn có chắc muốn mở khóa ${selectedPublisherIds.length} đơn vị đã chọn?`,
+          },
+        ],
+      },
+    ],
+    [selectedPublisherIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (selectedPublisherIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'APPROVE_PUBLISHERS') {
+        let count = 0;
+        for (const id of selectedPublisherIds) {
+          try {
+            await businessApi.approveBusiness(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã phê duyệt ${count}/${selectedPublisherIds.length} hồ sơ NXB thành công!`, 'success');
+        setSelectedPublisherIds([]);
+        fetchBusinesses();
+      } else if (action === 'SUSPEND_PUBLISHERS') {
+        let count = 0;
+        for (const id of selectedPublisherIds) {
+          try {
+            await businessApi.suspendBusiness(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã đình chỉ ${count}/${selectedPublisherIds.length} đơn vị đã chọn.`, 'warning');
+        setSelectedPublisherIds([]);
+        fetchBusinesses();
+      } else if (action === 'ACTIVATE_PUBLISHERS') {
+        let count = 0;
+        for (const id of selectedPublisherIds) {
+          try {
+            await businessApi.activateBusiness(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã mở khóa ${count}/${selectedPublisherIds.length} đơn vị thành công.`, 'success');
+        setSelectedPublisherIds([]);
+        fetchBusinesses();
+      }
+    } catch (err: any) {
+      showToast?.(err.message || 'Lỗi thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -442,30 +533,38 @@ export function AdminPublishersView() {
         </div>
       </div>
 
-      {/* 3. TABLE FILTER & SEARCH */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
-        {/* Status Tabs */}
-        <AdminFilterTabs
-          tabs={PUBLISHER_TABS}
+      {/* 3. TABLE FILTER WITH 2-TIER DATE FILTER & INLINE BULK ACTIONS */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm tên NXB, MST, email, hotline..."
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filterTabs={[
+            { key: 'all', label: 'Tất Cả', count: counts.all },
+            { key: 'pending', label: 'Chờ Thẩm Định', count: counts.pending },
+            { key: 'active', label: 'Đang Hoạt Động', count: counts.active },
+            { key: 'suspended', label: 'Bị Khóa Quyền', count: counts.suspended },
+            { key: 'rejected', label: 'Đã Từ Chối', count: counts.rejected },
+          ]}
           activeTab={activeTab}
-          onChange={handleTabChange}
-          counts={counts}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            setCurrentPage(1);
+          }}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          selectedCount={selectedPublisherIds.length}
+          bulkActionGroups={publisherBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
         />
-
-        {/* Search Box */}
-        <div className="relative w-full md:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">search</span>
-          <input
-            type="text"
-            placeholder="Tìm tên NXB, MST, email, hotline..."
-            value={searchQuery}
-            onChange={(e: any) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-        </div>
       </div>
 
       {/* 4. PUBLISHER LIST TABLE WITH GROUPED DATA TABLE */}
@@ -474,6 +573,9 @@ export function AdminPublishersView() {
         data={filteredPublishers}
         keyField="id"
         loading={isLoading}
+        selectable={true}
+        selectedRowKeys={selectedPublisherIds}
+        onSelectionChange={(keys) => setSelectedPublisherIds(keys as string[])}
         expandable={true}
         expandedRowRender={(p) => (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">

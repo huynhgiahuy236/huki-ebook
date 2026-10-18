@@ -6,6 +6,7 @@ import { useToast } from '@/ui/context/ToastContext';
 import { useAuth } from '@/ui/context/AuthContext';
 import UserAvatar from '@/ui/components/common/UserAvatar';
 import { chatService, type ChatConversation, type ChatMessage, type ChatAttachment } from '@/ui/services/chatService';
+import { chatQuickReplyService, type QuickReply } from '@/ui/services/chatQuickReplyService';
 import { voucherApi, type Voucher } from '@/ui/api/voucherApi';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { playChatPopSound, playMessageSentSound } from '@/ui/utils/chatSound';
@@ -117,6 +118,19 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const [shopVouchers, setShopVouchers] = useState<Voucher[]>([]);
   const [isLoadingVouchers, setIsLoadingVouchers] = useState(false);
   const [selectedVoucherId, setSelectedVoucherId] = useState<string>('');
+
+  // Quick reply (/mã phím tắt) states (Lưu DB MongoDB + Cache Redis)
+  const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+  const [isLoadingQuickReplies, setIsLoadingQuickReplies] = useState(false);
+  const [isQuickReplyModalOpen, setIsQuickReplyModalOpen] = useState(false);
+  const [editingQuickReply, setEditingQuickReply] = useState<QuickReply | null>(null);
+  const [quickReplyForm, setQuickReplyForm] = useState({ shortcut: '', title: '', content: '' });
+  const [isSavingQuickReply, setIsSavingQuickReply] = useState(false);
+
+  // Slash autocomplete popover states
+  const [isSlashOpen, setIsSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashIndex, setSlashIndex] = useState(0);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -442,25 +456,155 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     });
   };
 
+  // 1. Tải danh sách phím tắt (/mã) từ DB (được cache qua Redis)
+  const targetStoreForQuickReply = useMemo(() => {
+    return primaryStoreId || (storeAliases.length > 0 ? storeAliases[0] : storeId) || 'store-default';
+  }, [primaryStoreId, storeAliases, storeId]);
+
+  const loadQuickReplies = useCallback(async () => {
+    if (!targetStoreForQuickReply) return;
+    setIsLoadingQuickReplies(true);
+    try {
+      const res = await chatQuickReplyService.list(targetStoreForQuickReply);
+      if (res.success && Array.isArray(res.data)) {
+        setQuickReplies(res.data);
+      }
+    } catch (err) {
+      console.warn('Lỗi tải tin nhắn nhanh:', err);
+    } finally {
+      setIsLoadingQuickReplies(false);
+    }
+  }, [targetStoreForQuickReply]);
+
+  useEffect(() => {
+    loadQuickReplies();
+  }, [loadQuickReplies]);
+
+  // Bộ lọc phím tắt khi gõ /
+  const filteredQuickReplies = useMemo(() => {
+    if (!slashQuery) return quickReplies;
+    const q = slashQuery.toLowerCase();
+    return quickReplies.filter(
+      (qr) =>
+        qr.shortcut.toLowerCase().includes(q) ||
+        qr.title.toLowerCase().includes(q) ||
+        qr.content.toLowerCase().includes(q)
+    );
+  }, [quickReplies, slashQuery]);
+
+  // Chọn phím tắt từ popover
+  const handleSelectQuickReply = (qr: QuickReply) => {
+    const words = messageInput.split(/\s+/);
+    if (words.length > 0 && words[words.length - 1].startsWith('/')) {
+      words.pop();
+    }
+    const prefix = words.length > 0 ? words.join(' ') + ' ' : '';
+    setMessageInput(prefix + qr.content);
+    setIsSlashOpen(false);
+
+    if (qr.id || qr._id) {
+      chatQuickReplyService.markUsed(qr.id || qr._id || '', targetStoreForQuickReply);
+    }
+  };
+
+  // Lưu hoặc cập nhật phím tắt trong modal cài đặt
+  const handleSaveQuickReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanShortcut = quickReplyForm.shortcut.replace(/^\/+/, '').trim();
+    if (!cleanShortcut || !quickReplyForm.title.trim() || !quickReplyForm.content.trim()) {
+      showToast?.('Vui lòng điền đầy đủ mã phím tắt, tiêu đề và nội dung.', 'error');
+      return;
+    }
+
+    setIsSavingQuickReply(true);
+    try {
+      if (editingQuickReply && (editingQuickReply.id || editingQuickReply._id)) {
+        const id = editingQuickReply.id || editingQuickReply._id || '';
+        const res = await chatQuickReplyService.update(id, targetStoreForQuickReply, {
+          shortcut: cleanShortcut,
+          title: quickReplyForm.title.trim(),
+          content: quickReplyForm.content.trim(),
+        });
+        if (res.success) {
+          showToast?.(`Đã cập nhật phím tắt /${cleanShortcut} thành công!`, 'success');
+          await loadQuickReplies();
+          setEditingQuickReply(null);
+          setQuickReplyForm({ shortcut: '', title: '', content: '' });
+        } else {
+          showToast?.(res.error?.message || 'Không thể cập nhật phím tắt.', 'error');
+        }
+      } else {
+        const res = await chatQuickReplyService.create({
+          storeId: targetStoreForQuickReply,
+          shortcut: cleanShortcut,
+          title: quickReplyForm.title.trim(),
+          content: quickReplyForm.content.trim(),
+        });
+        if (res.success) {
+          showToast?.(`Đã thêm mới phím tắt /${cleanShortcut} vào hệ thống!`, 'success');
+          await loadQuickReplies();
+          setQuickReplyForm({ shortcut: '', title: '', content: '' });
+        } else {
+          showToast?.(res.error?.message || 'Không thể thêm phím tắt.', 'error');
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi lưu phím tắt:', err);
+      showToast?.('Có lỗi xảy ra khi lưu tin nhắn nhanh.', 'error');
+    } finally {
+      setIsSavingQuickReply(false);
+    }
+  };
+
+  // Xóa phím tắt
+  const handleDeleteQuickReply = async (id?: string) => {
+    if (!id) return;
+    try {
+      const res = await chatQuickReplyService.delete(id, targetStoreForQuickReply);
+      if (res.success) {
+        showToast?.('Đã xóa phím tắt thành công.', 'info');
+        await loadQuickReplies();
+        if (editingQuickReply && (editingQuickReply.id === id || editingQuickReply._id === id)) {
+          setEditingQuickReply(null);
+          setQuickReplyForm({ shortcut: '', title: '', content: '' });
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi xóa phím tắt:', err);
+      showToast?.('Không thể xóa phím tắt.', 'error');
+    }
+  };
+
   // Open voucher modal & fetch real shop vouchers
   const handleOpenVoucherModal = async () => {
     setIsVoucherModalOpen(true);
     setIsLoadingVouchers(true);
     try {
-      if (storeId) {
-        const res = await voucherApi.getVouchersByStore(storeId);
-        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
-          setShopVouchers(res.data);
-          setSelectedVoucherId(res.data[0].id);
+      const targetStoreId = primaryStoreId || (storeAliases.length > 0 ? storeAliases[0] : storeId);
+      if (targetStoreId) {
+        const res = await voucherApi.getVouchersByStore(targetStoreId);
+        const list = Array.isArray(res.data)
+          ? res.data
+          : (Array.isArray((res.data as any)?.data)
+            ? (res.data as any).data
+            : ((res.data as any)?.items || []));
+        if (res.success && list.length > 0) {
+          setShopVouchers(list);
+          setSelectedVoucherId(list[0].id);
           setIsLoadingVouchers(false);
           return;
         }
       }
       const allRes = await voucherApi.getAllVouchers({ scope: 'STORE', status: 'ACTIVE' });
-      if (allRes.success && allRes.data?.items) {
-        setShopVouchers(allRes.data.items);
-        if (allRes.data.items.length > 0) {
-          setSelectedVoucherId(allRes.data.items[0].id);
+      const fallbackList = Array.isArray(allRes.data)
+        ? allRes.data
+        : (Array.isArray((allRes.data as any)?.data)
+          ? (allRes.data as any).data
+          : ((allRes.data as any)?.items || []));
+      if (allRes.success && fallbackList.length > 0) {
+        setShopVouchers(fallbackList);
+        if (fallbackList.length > 0) {
+          setSelectedVoucherId(fallbackList[0].id);
         }
       }
     } catch (err) {
@@ -595,22 +739,29 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
     try {
       if (filesToUpload.length > 0) {
         setIsSellerUploading(true);
+        const resolvedContent = content || (hasVideo ? '[Video gửi từ shop]' : hasImage ? '[Hình ảnh gửi từ shop]' : 'Tệp đính kèm');
         const res = await chatService.sendMessage(
           currentCustomer.id,
           {
-            content: content || '',
+            content: resolvedContent,
             storeId: replyStoreId,
             messageType: resolvedType,
           },
           filesToUpload
         );
-        if (res.success && res.data?.data) {
-          const sentMsg = res.data.data;
+        const sentMsg = (res.data as any)?.data || res.data;
+        if (res.success && sentMsg) {
           setMessagesByCustomer((prev) => ({
             ...prev,
             [currentCustomer.id]: (prev[currentCustomer.id] || []).map((m) =>
               m.id === tempId ? mapApiMessageToSellerMessage(sentMsg, storeId) : m
             ),
+          }));
+        } else {
+          showToast?.((res as any)?.message || (res as any)?.error?.message || 'Không thể tải ảnh/video lên máy chủ.', 'error');
+          setMessagesByCustomer((prev) => ({
+            ...prev,
+            [currentCustomer.id]: (prev[currentCustomer.id] || []).filter((m) => m.id !== tempId),
           }));
         }
       } else {
@@ -638,6 +789,18 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
   const handleTypingInput = (val: string) => {
     setMessageInput(val);
     if (!currentCustomer) return;
+
+    // Phát hiện gõ /mã phím tắt
+    const lastWord = val.split(/\s+/).pop() || '';
+    if (lastWord.startsWith('/')) {
+      const q = lastWord.slice(1).toLowerCase();
+      setSlashQuery(q);
+      setIsSlashOpen(true);
+      setSlashIndex(0);
+    } else {
+      setIsSlashOpen(false);
+    }
+
     setTyping(currentCustomer.id, true, storeId);
     if (sellerTypingTimeoutRef.current) clearTimeout(sellerTypingTimeoutRef.current);
     sellerTypingTimeoutRef.current = setTimeout(() => {
@@ -1253,68 +1416,180 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
               )}
 
               {/* Message Input Box */}
-              <div className="p-4 bg-white border-t border-slate-200/90 flex items-center gap-2.5">
-                {/* Hidden file input */}
-                <input
-                  ref={sellerFileInputRef}
-                  type="file"
-                  accept="image/*,video/*"
-                  multiple
-                  onChange={handleSellerFileSelect}
-                  className="hidden"
-                />
+              <div className="p-4 bg-white border-t border-slate-200/90 relative">
+                {/* 1. SLASH AUTOCOMPLETE POPOVER (/MÃ) */}
+                {isSlashOpen && filteredQuickReplies.length > 0 && (
+                  <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-2xl shadow-2xl border border-indigo-200 overflow-hidden z-40 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white px-3.5 py-2 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className="material-symbols-outlined text-sm text-indigo-300">bolt</span>
+                        <span>Phím Tắt Tin Nhắn Nhanh</span>
+                        <span className="text-[10px] text-indigo-300 font-normal">
+                          (Dùng ↑ ↓ và Enter để chọn nhanh)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingQuickReply(null);
+                          setQuickReplyForm({ shortcut: '', title: '', content: '' });
+                          setIsQuickReplyModalOpen(true);
+                          setIsSlashOpen(false);
+                        }}
+                        className="text-[10.5px] text-indigo-200 hover:text-white flex items-center gap-1 underline transition-colors cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[13px]">tune</span>
+                        <span>Cài đặt phím tắt</span>
+                      </button>
+                    </div>
 
-                <button
-                  type="button"
-                  onClick={() => sellerFileInputRef.current?.click()}
-                  className="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Đính kèm ảnh hoặc video cận cảnh sách"
-                >
-                  <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
-                </button>
+                    <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 p-1">
+                      {filteredQuickReplies.map((qr, idx) => {
+                        const isHighlighted = idx === slashIndex;
+                        return (
+                          <div
+                            key={qr.id || qr._id || idx}
+                            onClick={() => handleSelectQuickReply(qr)}
+                            onMouseEnter={() => setSlashIndex(idx)}
+                            className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-start gap-2.5 ${
+                              isHighlighted ? 'bg-indigo-50/90 text-indigo-950' : 'hover:bg-slate-50 text-slate-800'
+                            }`}
+                          >
+                            <span className="shrink-0 px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-mono font-black text-xs tracking-wider shadow-2xs">
+                              /{qr.shortcut}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-xs flex items-center gap-2">
+                                <span className="truncate">{qr.title}</span>
+                                {qr.usageCount !== undefined && qr.usageCount > 0 && (
+                                  <span className="text-[9.5px] text-slate-400 font-normal">
+                                    • dùng {qr.usageCount} lần
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 font-normal">
+                                {qr.content}
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-[10px] text-indigo-600 font-bold opacity-0 group-hover:opacity-100 flex items-center">
+                              Enter ↵
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                <button
-                  type="button"
-                  onClick={handleOpenVoucherModal}
-                  className="w-9 h-9 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-amber-50 flex items-center justify-center transition-colors cursor-pointer"
-                  title="Chọn voucher của shop để tặng"
-                >
-                  <span className="material-symbols-outlined text-xl">confirmation_number</span>
-                </button>
+                <div className="flex items-center gap-2.5">
+                  {/* Hidden file input */}
+                  <input
+                    ref={sellerFileInputRef}
+                    type="file"
+                    accept="image/*,video/*"
+                    multiple
+                    onChange={handleSellerFileSelect}
+                    className="hidden"
+                  />
 
-                <input
-                  type="text"
-                  value={messageInput}
-                  onChange={(e) => handleTypingInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSendMessage();
+                  {/* Button: Đính kèm ảnh / video */}
+                  <button
+                    type="button"
+                    onClick={() => sellerFileInputRef.current?.click()}
+                    className="w-9 h-9 rounded-xl text-slate-500 hover:text-emerald-700 hover:bg-emerald-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Đính kèm ảnh hoặc video cận cảnh sách"
+                  >
+                    <span className="material-symbols-outlined text-xl">add_photo_alternate</span>
+                  </button>
+
+                  {/* Button: Tặng voucher shop */}
+                  <button
+                    type="button"
+                    onClick={handleOpenVoucherModal}
+                    className="w-9 h-9 rounded-xl text-slate-500 hover:text-amber-600 hover:bg-amber-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Chọn voucher của shop để tặng"
+                  >
+                    <span className="material-symbols-outlined text-xl">confirmation_number</span>
+                  </button>
+
+                  {/* Button: Cài đặt phím tắt tin nhắn nhanh (/mã) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingQuickReply(null);
+                      setQuickReplyForm({ shortcut: '', title: '', content: '' });
+                      setIsQuickReplyModalOpen(true);
+                      setIsSlashOpen(false);
+                    }}
+                    className="w-9 h-9 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 flex items-center justify-center transition-colors cursor-pointer"
+                    title="Cài đặt phím tắt tin nhắn nhanh (/mã)"
+                  >
+                    <span className="material-symbols-outlined text-xl">tune</span>
+                  </button>
+
+                  <input
+                    type="text"
+                    value={messageInput}
+                    onChange={(e) => handleTypingInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (isSlashOpen && filteredQuickReplies.length > 0) {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setSlashIndex((prev) => (prev + 1) % filteredQuickReplies.length);
+                          return;
+                        }
+                        if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setSlashIndex((prev) => (prev - 1 + filteredQuickReplies.length) % filteredQuickReplies.length);
+                          return;
+                        }
+                        if (e.key === 'Enter' || e.key === 'Tab') {
+                          e.preventDefault();
+                          const selected = filteredQuickReplies[slashIndex] || filteredQuickReplies[0];
+                          if (selected) {
+                            handleSelectQuickReply(selected);
+                          }
+                          return;
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          setIsSlashOpen(false);
+                          return;
+                        }
+                      }
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    placeholder={
+                      sellerFilePreviews.length > 0
+                        ? "Thêm ghi chú đính kèm... (Gõ / để mở phím tắt)"
+                        : "Nhập nội dung tư vấn... (Gõ / để mở phím tắt tin nhắn nhanh)"
                     }
-                  }}
-                  placeholder={sellerFilePreviews.length > 0 ? "Thêm ghi chú đính kèm... (Nhấn Enter để gửi)" : "Nhập nội dung tư vấn... (Nhấn Enter để gửi)"}
-                  className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
-                />
+                    className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700 focus:bg-white font-medium transition-all"
+                  />
 
-                <button
-                  type="button"
-                  onClick={() => handleSendMessage()}
-                  disabled={(!messageInput.trim() && sellerFilePreviews.length === 0) || isSellerUploading}
-                  className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
-                    (messageInput.trim() || sellerFilePreviews.length > 0) && !isSellerUploading
-                      ? 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-sm'
-                      : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                    }`}
-                >
-                  {isSellerUploading ? (
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  ) : (
-                    <>
-                      <span>Gửi</span>
-                      <span className="material-symbols-outlined text-sm">send</span>
-                    </>
-                  )}
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage()}
+                    disabled={(!messageInput.trim() && sellerFilePreviews.length === 0) || isSellerUploading}
+                    className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                      (messageInput.trim() || sellerFilePreviews.length > 0) && !isSellerUploading
+                        ? 'bg-emerald-800 hover:bg-emerald-900 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                      }`}
+                  >
+                    {isSellerUploading ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <>
+                        <span>Gửi</span>
+                        <span className="material-symbols-outlined text-sm">send</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </>
           ) : (
@@ -1679,6 +1954,218 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                 type="button"
                 onClick={() => setSellerPreviewMediaUrl(null)}
                 className="px-4 py-1.5 rounded-full bg-white text-slate-900 text-xs font-bold hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL CÀI ĐẶT TIN NHẮN NHANH (/PHÍM TẮT) (LƯU DB MONGODB + CACHE REDIS) */}
+      {isQuickReplyModalOpen && (
+        <div
+          onClick={() => setIsQuickReplyModalOpen(false)}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[88vh] animate-in zoom-in-95"
+          >
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-900 to-slate-900 text-white px-5 py-4 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-xl text-indigo-300">tune</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Cài Đặt Tin Nhắn Nhanh (/phím tắt)</h3>
+                  <p className="text-[11px] text-indigo-200">
+                    Cấu hình các mẫu câu phản hồi tự động (Lưu vĩnh viễn trên Database và Cache Redis tốc độ cao)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsQuickReplyModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 overflow-y-auto space-y-5 flex-1 bg-slate-50">
+              {/* Form Thêm mới / Sửa phím tắt */}
+              <form onSubmit={handleSaveQuickReply} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-indigo-600">
+                      {editingQuickReply ? 'edit_note' : 'add_circle'}
+                    </span>
+                    <span>{editingQuickReply ? `Chỉnh sửa phím tắt /${editingQuickReply.shortcut}` : 'Thêm phím tắt tin nhắn mới'}</span>
+                  </span>
+                  {editingQuickReply && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingQuickReply(null);
+                        setQuickReplyForm({ shortcut: '', title: '', content: '' });
+                      }}
+                      className="text-[11px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    >
+                      Hủy chỉnh sửa
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Mã phím tắt (gõ /mã để dùng):
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2 text-xs font-mono font-bold text-indigo-600">/</span>
+                      <input
+                        type="text"
+                        value={quickReplyForm.shortcut}
+                        onChange={(e) => setQuickReplyForm({ ...quickReplyForm, shortcut: e.target.value.replace(/^\/+/, '') })}
+                        placeholder="chao, ship, voucher..."
+                        required
+                        className="w-full pl-6 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Tiêu đề ngắn gợi nhớ:
+                    </label>
+                    <input
+                      type="text"
+                      value={quickReplyForm.title}
+                      onChange={(e) => setQuickReplyForm({ ...quickReplyForm, title: e.target.value })}
+                      placeholder="Chào khách hàng, Báo còn hàng..."
+                      required
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                    Nội dung tin nhắn mẫu đầy đủ:
+                  </label>
+                  <textarea
+                    value={quickReplyForm.content}
+                    onChange={(e) => setQuickReplyForm({ ...quickReplyForm, content: e.target.value })}
+                    placeholder="Nhập nội dung tin nhắn sẽ tự động điền khi gõ /mã..."
+                    rows={3}
+                    required
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white font-normal"
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={isSavingQuickReply}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
+                  >
+                    {isSavingQuickReply ? (
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <span className="material-symbols-outlined text-sm">save</span>
+                    )}
+                    <span>{editingQuickReply ? 'Lưu Thay Đổi' : 'Thêm Phím Tắt'}</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Danh sách các phím tắt hiện có */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>Danh Sách Phím Tắt Của Gian Hàng ({quickReplies.length})</span>
+                  <span className="text-[10.5px] text-slate-400 font-normal">
+                    Lưu trên DB + Cache Redis
+                  </span>
+                </div>
+
+                {isLoadingQuickReplies ? (
+                  <div className="py-8 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+                    <span className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"></span>
+                    <span className="text-xs">Đang tải phím tắt từ hệ thống...</span>
+                  </div>
+                ) : quickReplies.length === 0 ? (
+                  <div className="py-8 text-center text-slate-400 text-xs bg-white rounded-xl border border-slate-200">
+                    Chưa có phím tắt nào. Hãy tạo phím tắt đầu tiên ở form trên.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {quickReplies.map((qr) => (
+                      <div
+                        key={qr.id || qr._id}
+                        className="p-3 bg-white rounded-xl border border-slate-200/90 shadow-2xs flex items-start justify-between gap-3 hover:border-indigo-300 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-indigo-600 text-white font-mono font-black text-xs">
+                              /{qr.shortcut}
+                            </span>
+                            <span className="font-bold text-xs text-slate-900">{qr.title}</span>
+                            {qr.usageCount !== undefined && qr.usageCount > 0 && (
+                              <span className="text-[10px] text-slate-400">
+                                • {qr.usageCount} lượt dùng
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600 whitespace-pre-wrap leading-relaxed">
+                            {qr.content}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingQuickReply(qr);
+                              setQuickReplyForm({
+                                shortcut: qr.shortcut,
+                                title: qr.title,
+                                content: qr.content,
+                              });
+                            }}
+                            className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
+                            title="Chỉnh sửa phím tắt"
+                          >
+                            <span className="material-symbols-outlined text-base">edit</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuickReply(qr.id || qr._id)}
+                            className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                            title="Xóa phím tắt"
+                          >
+                            <span className="material-symbols-outlined text-base">delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3.5 bg-white border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+              <span className="flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm text-emerald-600">bolt</span>
+                <span>Gõ <strong>/</strong> trong ô chat để gọi nhanh các mẫu câu trên</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsQuickReplyModalOpen(false)}
+                className="px-4 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition-colors cursor-pointer"
               >
                 Đóng
               </button>

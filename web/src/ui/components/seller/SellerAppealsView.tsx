@@ -13,6 +13,13 @@ import {
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { SellerPagination } from './SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+  StatusTab,
+} from '@/ui/components/common';
 
 export function SellerAppealsView() {
   const { user, activeBusinessId, setActiveBusinessId } = useAuth();
@@ -24,7 +31,13 @@ export function SellerAppealsView() {
   const [loading, setLoading] = useState(true);
   const [loadingSanctions, setLoadingSanctions] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [activeTab, setActiveTab] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [bulkLoading, setBulkLoading] = useState(false);
   const pageSize = 10;
+
 
   // Appeal Modal State
   const [activeSanctionForAppeal, setActiveSanctionForAppeal] = useState<Sanction | null>(null);
@@ -217,8 +230,99 @@ export function SellerAppealsView() {
     }
   };
 
+  const filteredSanctions = useMemo(() => {
+    return sanctions.filter((s) => {
+      if (activeTab !== 'ALL' && s.level !== activeTab) return false;
+      if (!matchesDateFilter(s.issuedAt, dateFilter)) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const reason = (s.reason || '').toLowerCase();
+        const code = (s.violationCode || '').toLowerCase();
+        if (!reason.includes(q) && !code.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [sanctions, activeTab, dateFilter, searchQuery]);
+
+  const paginatedSanctions = useMemo(() => {
+    return filteredSanctions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [filteredSanctions, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, dateFilter, searchQuery]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredSanctions.length && filteredSanctions.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredSanctions.map((s) => s.id));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
+  };
+
+  const appealStatusTabs: StatusTab[] = useMemo(() => {
+    const warningCount = sanctions.filter((s) => s.level === 'WARNING').length;
+    const probationCount = sanctions.filter((s) => s.level === 'PROBATION').length;
+    const suspensionCount = sanctions.filter((s) => s.level === 'SUSPENSION').length;
+    const banCount = sanctions.filter((s) => s.level === 'BAN').length;
+    return [
+      { key: 'ALL', label: 'Tất Cả', count: sanctions.length },
+      { key: 'WARNING', label: 'Cảnh Báo', count: warningCount },
+      { key: 'PROBATION', label: 'Thử Thách', count: probationCount },
+      { key: 'SUSPENSION', label: 'Tạm Khóa', count: suspensionCount },
+      { key: 'BAN', label: 'Khóa Vĩnh Viễn', count: banCount },
+    ];
+  }, [sanctions]);
+
+  const appealBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'In ấn & xuất file',
+      actions: [
+        { value: 'EXPORT_CSV', label: 'Xuất danh sách quyết định (.csv)' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'EXPORT_CSV') {
+        const selectedList = sanctions.filter((s) => selectedIds.includes(s.id));
+        const header = ['Mã Quyết Định', 'Mức Độ', 'Lý Do', 'Mã Vi Phạm', 'Ngày Ban Hành', 'Hạn Hiệu Lực', 'Trạng Thái'];
+        const rows = selectedList.map((s) => [
+          s.id,
+          s.level,
+          s.reason || '',
+          s.violationCode || '',
+          s.issuedAt ? new Date(s.issuedAt).toLocaleString('vi-VN') : '',
+          s.expiresAt ? new Date(s.expiresAt).toLocaleString('vi-VN') : 'Vĩnh viễn',
+          s.status,
+        ]);
+        const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [header.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(','))].join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `danh_sach_xu_phat_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast?.(`Đã xuất ${selectedList.length} quyết định xử phạt sang CSV!`, 'success');
+      }
+    } catch {
+      showToast?.('Không thể thực hiện thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   // Helper formatting badges
   const renderStatusBadge = (sanction: Sanction) => {
+
     const isExpired = sanction.expiresAt && new Date(sanction.expiresAt) <= new Date();
 
     if (sanction.status === 'LIFTED') {
@@ -393,6 +497,41 @@ export function SellerAppealsView() {
         </div>
       )}
 
+      {/* Filter Bar with Status Tabs & Multi-tier Date Filter */}
+      <DataTableFilterBar
+        tabs={appealStatusTabs}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Tìm mã vi phạm, lý do xử phạt..."
+        className="bg-white dark:bg-zinc-900 p-3.5 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-2xs"
+        extraFilters={
+          stores.length > 1 ? (
+            <select
+              value={selectedStoreId}
+              onChange={(e) => setSelectedStoreId(e.target.value)}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:border-zinc-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+            >
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          ) : undefined
+        }
+        bulkActionGroups={appealBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredSanctions.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="quyết định xử phạt"
+      />
+
       {/* Sanctions History Table */}
       <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
         <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
@@ -400,13 +539,13 @@ export function SellerAppealsView() {
             Lịch Sử Xử Phạt Của Cửa Hàng
           </h2>
           <span className="text-xs text-zinc-500">
-            Tổng cộng: {sanctions.length} quyết định
+            Tổng cộng: {filteredSanctions.length} quyết định
           </span>
         </div>
 
         {loadingSanctions ? (
           <div className="p-8 text-center text-zinc-500 text-sm">Đang tải lịch sử xử phạt...</div>
-        ) : sanctions.length === 0 ? (
+        ) : filteredSanctions.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center mb-3">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -423,8 +562,16 @@ export function SellerAppealsView() {
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-[10.5px] uppercase text-zinc-500 font-bold tracking-wider border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
+                  <th className="py-3 pl-4 pr-1 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.length === filteredSanctions.length && filteredSanctions.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </th>
                   <th className="px-5 py-3">Mức độ</th>
-                  <th className="px-5 py-3">Lý do & Mã vi phạm</th>
+                  <th className="px-5 py-3">Lý do &amp; Mã vi phạm</th>
                   <th className="px-5 py-3">Thời gian ban hành</th>
                   <th className="px-5 py-3">Thời hạn</th>
                   <th className="px-5 py-3">Trạng thái</th>
@@ -433,11 +580,21 @@ export function SellerAppealsView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {sanctions.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((s) => {
+                {paginatedSanctions.map((s) => {
                   const eligibility = checkAppealEligibility(s);
+                  const isSelected = selectedIds.includes(s.id);
                   return (
-                    <tr key={s.id} className="hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors">
+                    <tr key={s.id} className={`hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors ${isSelected ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}>
+                      <td className="py-4 pl-4 pr-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(s.id)}
+                          className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                      </td>
                       <td className="px-5 py-4 whitespace-nowrap">{renderLevelBadge(s.level)}</td>
+
                       <td className="px-5 py-4 max-w-xs">
                         <div className="font-medium text-zinc-900 dark:text-zinc-100">{s.reason}</div>
                         {s.violationCode && (
@@ -497,12 +654,12 @@ export function SellerAppealsView() {
         )}
 
         {/* Pagination Toolbar */}
-        {sanctions.length > pageSize && (
+        {filteredSanctions.length > pageSize && (
           <div className="p-3 border-t border-zinc-200 dark:border-zinc-800">
             <SellerPagination
               currentPage={currentPage}
-              totalPages={Math.ceil(sanctions.length / pageSize) || 1}
-              totalItems={sanctions.length}
+              totalPages={Math.ceil(filteredSanctions.length / pageSize) || 1}
+              totalItems={filteredSanctions.length}
               pageSize={pageSize}
               onPageChange={setCurrentPage}
               itemLabel="quyết định xử phạt"
@@ -510,6 +667,7 @@ export function SellerAppealsView() {
           </div>
         )}
       </div>
+
 
       {/* Appeal Submission Modal */}
       {activeSanctionForAppeal && (
@@ -671,3 +829,4 @@ export function SellerAppealsView() {
     </div>
   );
 }
+

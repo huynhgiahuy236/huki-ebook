@@ -14,6 +14,7 @@ import PaymentCountdownModal from '@/ui/components/checkout/PaymentCountdownModa
 import { paymentApi } from '@/ui/api/paymentApi';
 import { realtimeSyncBus, type SyncMessage } from '@/ui/services/realtimeSyncBus';
 import { playChatChimeSound } from '@/ui/utils/chatSound';
+import QuickDispatchNotificationModal from '@/ui/components/common/QuickDispatchNotificationModal';
 
 export default function OrderDetailPage() {
   const params = useParams();
@@ -37,6 +38,7 @@ export default function OrderDetailPage() {
   const [cancelOrderModal, setCancelOrderModal] = useState<{ open: boolean; reason: string }>({ open: false, reason: '' });
   const [disputeModal, setDisputeModal] = useState<{ open: boolean; subOrder: any | null }>({ open: false, subOrder: null });
   const [returnModal, setReturnModal] = useState<{ open: boolean; item: any; storeName: string; subOrderId?: string }>({ open: false, item: null, storeName: '' });
+  const [showDispatchModal, setShowDispatchModal] = useState(false);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
   const fetchOrderDetail = useCallback(async (isSilent?: boolean) => {
@@ -563,6 +565,15 @@ export default function OrderDetailPage() {
                   <span>Thanh Toán VietQR</span>
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={() => setShowDispatchModal(true)}
+                className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-bold inline-flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-base text-amber-600">notifications_active</span>
+                <span>Dặn dò / Nhắn Shop</span>
+              </button>
 
               <button
                 type="button"
@@ -1796,6 +1807,20 @@ export default function OrderDetailPage() {
           onSuccess={() => {
             fetchOrderDetail();
           }}
+        />
+      )}
+
+      {/* Cross-role Dispatch Modal (Buyer -> Seller) */}
+      {showDispatchModal && (
+        <QuickDispatchNotificationModal
+          isOpen={showDispatchModal}
+          onClose={() => setShowDispatchModal(false)}
+          senderRole="USER"
+          targetRole="SELLER"
+          targetId={primarySellerOrder?.storeId || primarySellerOrder?.businessId || 'seller_channel'}
+          targetName={primarySellerOrder?.storeName || 'Nhà Sách / Người Bán'}
+          orderCode={order.code}
+          orderId={order.id}
         />
       )}
     </div>

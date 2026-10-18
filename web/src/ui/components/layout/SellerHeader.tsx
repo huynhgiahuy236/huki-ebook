@@ -8,8 +8,7 @@ import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { chatService } from '@/ui/services/chatService';
 import { playChatChimeSound } from '@/ui/utils/chatSound';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
-
-import SellerNotificationBell from '../seller/SellerNotificationBell';
+import UniversalNotificationBell from '../common/UniversalNotificationBell';
 
 export interface SellerHeaderProps {
   isSidebarCollapsed: boolean;
@@ -159,8 +158,8 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
       {/* Right Actions */}
       <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-        {/* Chuông Thông Báo Realtime & Bản Tin Sàn */}
-        <SellerNotificationBell />
+        {/* Chuông Thông Báo Realtime Toàn Diện */}
+        <UniversalNotificationBell variant="seller" />
 
         {/* Nút Bật/Tắt Âm Thanh Thông Báo & Nổ Đơn */}
         <button

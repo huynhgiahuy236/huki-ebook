@@ -1,11 +1,26 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, type FollowerItem } from '@/ui/api/businessApi';
 import { getFollowerBadge } from '@/ui/api/sellerVoucherApi';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
+
+const followerBulkActionGroups: BulkActionGroup[] = [
+  {
+    groupLabel: 'XUẤT DỮ LIỆU',
+    actions: [
+      { value: 'EXPORT_CSV', label: 'Xuất danh sách người theo dõi (.csv)' },
+    ],
+  },
+];
 
 function SellerFollowersContent() {
   const { user, activeBusinessId } = useAuth();
@@ -22,6 +37,9 @@ function SellerFollowersContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isDebouncing, setIsDebouncing] = useState(false);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Debounce 2 seconds (2000ms)
   useEffect(() => {
@@ -71,6 +89,55 @@ function SellerFollowersContent() {
       setIsLoading(false);
     }
   }, [businessId, page, debouncedSearch, showToast]);
+
+  const filteredFollowers = useMemo(() => {
+    return followers.filter((f: FollowerItem) => matchesDateFilter(f.createdAt, dateFilter));
+  }, [followers, dateFilter]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredFollowers.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredFollowers.map((f: FollowerItem) => f.id));
+    }
+  };
+
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionId === 'EXPORT_CSV') {
+        const selected = followers.filter((f: FollowerItem) => selectedIds.includes(f.id));
+        const headers = ['Mã Khách Hàng', 'Họ Và Tên', 'Số Điện Thoại', 'Ngày Theo Dõi', 'Trạng Thái'];
+        const rows = selected.map((f: FollowerItem) => [
+          f.customerCode || 'KH-HUKI',
+          `"${(f.fullName || '').replace(/"/g, '""')}"`,
+          `"${(f.phone || '').replace(/"/g, '""')}"`,
+          f.createdAt || '',
+          f.status || 'ACTIVE',
+        ].join(','));
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Nguoi_Theo_Doi_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast('Đã xuất danh sách người theo dõi thành công', 'success');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Thao tác thất bại', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchFollowers();
@@ -149,55 +216,42 @@ function SellerFollowersContent() {
         </div>
       </div>
 
+      {/* Filter Bar with Search, Split Date Filter, and Integrated Bulk Actions */}
+      <DataTableFilterBar
+        searchPlaceholder="Tìm theo tên, SĐT, mã KH..."
+        searchQuery={searchQuery}
+        onSearchChange={(v: string) => {
+          setSearchQuery(v);
+        }}
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        dateFilter={dateFilter}
+        onDateFilterChange={(v: DateFilterValue) => {
+          setDateFilter(v);
+        }}
+        bulkActionGroups={followerBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredFollowers.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="người theo dõi"
+      />
+
       {/* Table Container */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-2xs overflow-hidden">
-        {/* Search & Filter Header */}
-        <div className="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="w-full sm:w-80 relative">
-            <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo tên, SĐT, mã KH..."
-              className="w-full pl-10 pr-9 py-2 bg-gray-50/50 border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-[#006953] focus:bg-white focus:ring-1 focus:ring-[#006953] transition-all"
-            />
-            {isDebouncing ? (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
-                <span className="w-4 h-4 border-2 border-gray-200 border-t-[#006953] rounded-full animate-spin"></span>
-              </div>
-            ) : searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer flex items-center justify-center"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-              </button>
-            ) : null}
-          </div>
-
-          <div className="text-xs text-gray-500 self-end sm:self-auto font-medium">
-            {isDebouncing ? (
-              <span className="text-amber-600 flex items-center gap-1.5 font-medium">
-                <span className="w-3.5 h-3.5 border-2 border-amber-300 border-t-amber-600 rounded-full animate-spin shrink-0"></span>
-                <span>Đang chờ nhập (2s)...</span>
-              </span>
-            ) : (
-              <span>
-                Hiển thị <strong>{followers.length}</strong> / <strong>{total}</strong> người theo dõi
-              </span>
-            )}
-          </div>
-        </div>
-
         {/* Table Body */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/80 border-b border-gray-200 text-[11px] font-bold text-gray-600 uppercase tracking-wider">
+                <th className="py-3.5 pl-4 pr-1 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length === filteredFollowers.length && filteredFollowers.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                  />
+                </th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Mã Khách Hàng</th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Tên Khách Hàng</th>
                 <th className="py-3.5 px-5 whitespace-nowrap">Số Điện Thoại</th>
@@ -210,14 +264,14 @@ function SellerFollowersContent() {
             <tbody className="divide-y divide-gray-100 text-xs">
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <span className="inline-block w-7 h-7 border-3 border-[#006953]/20 border-t-[#006953] rounded-full animate-spin mb-2"></span>
                     <p className="text-xs text-gray-500 font-medium">Đang tải danh sách người theo dõi...</p>
                   </td>
                 </tr>
-              ) : followers.length === 0 ? (
+              ) : filteredFollowers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={8} className="py-16 text-center">
                     <div className="w-12 h-12 rounded-full bg-gray-50 text-gray-400 flex items-center justify-center mx-auto mb-3">
                       <span className="material-symbols-outlined text-2xl">group_off</span>
                     </div>
@@ -232,7 +286,7 @@ function SellerFollowersContent() {
                   </td>
                 </tr>
               ) : (
-                followers.map((item) => {
+                filteredFollowers.map((item: FollowerItem) => {
                   const fullName = item.fullName || 'Khách Hàng';
                   const isLongName = fullName.length > 10;
                   const displayName = isLongName ? `${fullName.slice(0, 10)}...` : fullName;
@@ -251,6 +305,16 @@ function SellerFollowersContent() {
                       key={item.id}
                       className="hover:bg-gray-50/70 transition-colors group"
                     >
+                      {/* Checkbox */}
+                      <td className="py-3.5 pl-4 pr-1 w-8 align-middle">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelectRow(item.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                        />
+                      </td>
+
                       {/* Cột 1: Mã khách hàng */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
                         <span className="font-mono font-bold text-xs text-gray-800 px-2 py-0.5 bg-gray-100 rounded-md border border-gray-200/60">

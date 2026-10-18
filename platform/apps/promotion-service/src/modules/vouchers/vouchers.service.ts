@@ -977,6 +977,8 @@ export class VouchersService {
 
   private async getRelatedStoreAndBusinessIds(id?: string | null): Promise<string[]> {
     if (!id) return [];
+    const inputIds = id.split(',').map((s) => s.trim()).filter(Boolean);
+    if (!inputIds.length) return [];
     try {
       const { Client } = require('pg');
       const bizDbUrl =
@@ -988,11 +990,11 @@ export class VouchersService {
         `SELECT s.id as store_id, s.business_id, b.owner_id
          FROM stores s
          LEFT JOIN businesses b ON s.business_id = b.id
-         WHERE s.id = $1 OR s.business_id = $1 OR b.id = $1 OR b.owner_id = $1`,
-        [id],
+         WHERE s.id = ANY($1::text[]) OR s.business_id = ANY($1::text[]) OR b.id = ANY($1::text[]) OR b.owner_id = ANY($1::text[])`,
+        [inputIds],
       );
       await pgClient.end();
-      const ids = new Set<string>([id]);
+      const ids = new Set<string>(inputIds);
       if (res.rows && res.rows.length > 0) {
         for (const row of res.rows) {
           if (row.store_id) ids.add(row.store_id);
@@ -1002,7 +1004,7 @@ export class VouchersService {
       }
       return Array.from(ids);
     } catch {
-      return [id];
+      return inputIds;
     }
   }
 

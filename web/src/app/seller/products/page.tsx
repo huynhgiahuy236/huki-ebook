@@ -12,9 +12,14 @@ import {
   SellerTableContainer,
   SellerStatusBadge,
   SellerActionButton,
-  SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
 
 interface BookAuthor {
   name?: string;
@@ -120,6 +125,25 @@ export default function SellerProductsPage() {
   const [isSubscribingAi, setIsSubscribingAi] = useState<boolean>(false);
   const [isCreateDropdownOpen, setIsCreateDropdownOpen] = useState<boolean>(false);
   const createDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Standard Multi-tier Date Filter & Bulk Actions State
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState<boolean>(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredBooks.length && filteredBooks.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredBooks.map((b) => b.id));
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -379,6 +403,11 @@ export default function SellerProductsPage() {
         return false;
       }
 
+      // Multi-tier Date Filter
+      if (!matchesDateFilter(b.createdAt, dateFilter)) {
+        return false;
+      }
+
       // Tab status filter
       if (activeTab === 'PUBLISHED' && b.status !== 'PUBLISHED') return false;
       if (activeTab === 'DRAFT' && b.status !== 'DRAFT' && b.status) return false;
@@ -389,13 +418,83 @@ export default function SellerProductsPage() {
 
       return true;
     });
-  }, [books, searchQuery, selectedFormat, activeTab]);
+  }, [books, searchQuery, selectedFormat, activeTab, dateFilter]);
 
   const totalPages = Math.ceil(filteredBooks.length / pageSize) || 1;
   const paginatedBooks = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredBooks.slice(start, start + pageSize);
   }, [filteredBooks, currentPage, pageSize]);
+
+  // Bulk action groups definition
+  const productBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'TIẾN TRÌNH PHÁT HÀNH',
+      actions: [
+        { value: 'PUBLISH_ALL', label: 'Xuất bản hàng loạt (Công khai)' },
+        { value: 'HIDE_ALL', label: 'Tạm ẩn hàng loạt (Ẩn khỏi sàn)' },
+      ],
+    },
+    {
+      groupLabel: 'XUẤT DỮ LIỆU',
+      actions: [{ value: 'EXPORT_CSV', label: 'Xuất danh sách sách (.csv)' }],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'PUBLISH_ALL') {
+        let count = 0;
+        for (const id of selectedIds) {
+          try {
+            const res = await catalogApi.publishBook(id);
+            if (res.success) count++;
+          } catch {}
+        }
+        showToast?.(`Đã xuất bản thành công ${count} đầu sách!`, 'success');
+        setSelectedIds([]);
+        void loadBooks();
+      } else if (actionValue === 'HIDE_ALL') {
+        let count = 0;
+        for (const id of selectedIds) {
+          try {
+            const res = await catalogApi.hideBook(id);
+            if (res.success) count++;
+          } catch {}
+        }
+        showToast?.(`Đã tạm ẩn ${count} đầu sách khỏi sàn!`, 'success');
+        setSelectedIds([]);
+        void loadBooks();
+      } else if (actionValue === 'EXPORT_CSV') {
+        const rows = books.filter((b) => selectedIds.includes(b.id));
+        const headers = ['ID,Tên sách,Tác giả,Định dạng,Giá bán,Tồn kho,Trạng thái,Ngày tạo'];
+        const csvContent =
+          'data:text/csv;charset=utf-8,\uFEFF' +
+          headers
+            .concat(
+              rows.map(
+                (r) =>
+                  `"${r.id}","${(r.title || '').replace(/"/g, '""')}","${(typeof r.author === 'string' ? r.author : r.author?.name || '').replace(/"/g, '""')}","${r.format || ''}",${r.price || 0},${r.physicalDetails?.stock ?? 0},"${r.status || ''}","${r.createdAt || ''}"`
+              )
+            )
+            .join('\n');
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement('a');
+        link.setAttribute('href', encodedUri);
+        link.setAttribute('download', `danh_sach_san_pham_${Date.now()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast?.(`Đã xuất CSV cho ${rows.length} tựa sách!`, 'success');
+      }
+    } catch {
+      showToast?.('Có lỗi xảy ra trong quá trình thực hiện hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   if (!canViewProduct) {
     return (
@@ -779,62 +878,57 @@ export default function SellerProductsPage() {
         </div>
       )}
 
-      {/* 4. FILTER TABS & SEARCH BAR */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <SellerFilterTabs
-          tabs={tabs}
-          activeTab={activeTab}
-          onChange={(key) => {
-            setActiveTab(key);
-            setCurrentPage(1);
-          }}
-        />
-
-        <div className="flex items-center gap-2">
+      {/* 4. FILTER BAR VỚI 2 SELECT THỜI GIAN & THAO TÁC HÀNG LOẠT TRÊN THANH LỌC */}
+      <DataTableFilterBar
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(key) => {
+          setActiveTab(key);
+          setCurrentPage(1);
+        }}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Tìm tên sách, slug..."
+        className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+        extraFilters={
           <select
             value={selectedFormat}
             onChange={(e) => {
               setSelectedFormat(e.target.value);
               setCurrentPage(1);
             }}
-            className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 focus:outline-none focus:border-slate-400 cursor-pointer"
+            className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
           >
             <option value="ALL">Mọi Định Dạng</option>
             <option value="PHYSICAL">Sách Giấy</option>
             <option value="DIGITAL">Ebook DRM</option>
             <option value="BOTH">Combo Sách + Ebook</option>
           </select>
-
-          <div className="relative min-w-[200px] sm:min-w-[240px]">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">search</span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder="Tìm tên sách, slug..."
-              className="w-full pl-8 pr-7 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-slate-400"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-xs">close</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+        }
+        bulkActionGroups={productBulkActionGroups}
+        selectedCount={selectedIds.length}
+        totalCount={filteredBooks.length}
+        onExecuteBulkAction={handleExecuteBulkAction}
+        onClearSelection={() => setSelectedIds([])}
+        bulkLoading={bulkLoading}
+        itemName="đầu sách"
+      />
 
       {/* 5. PRODUCTS TABLE LIST */}
       <SellerTableContainer>
         <table className="w-full text-left border-collapse text-xs">
           <thead>
             <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80">
+              <th className="py-3.5 pl-4 pr-1 w-8">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                />
+              </th>
               <th className="py-3.5 px-2 w-8 text-center"></th>
               <th className="py-3.5 px-2 w-10 text-center">STT</th>
               <th className="py-3.5 px-4">Sản Phẩm &amp; Bìa</th>
@@ -847,7 +941,7 @@ export default function SellerProductsPage() {
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
+                <td colSpan={8} className="py-16 text-center text-slate-400">
                   <div className="flex items-center justify-center gap-2">
                     <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
                     <span className="text-xs">Đang tải danh mục sách...</span>
@@ -856,7 +950,7 @@ export default function SellerProductsPage() {
               </tr>
             ) : filteredBooks.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
+                <td colSpan={8} className="py-16 text-center text-slate-400">
                   <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                     <span className="material-symbols-outlined text-4xl text-slate-300">auto_stories</span>
                     <p className="font-medium text-slate-600">Chưa có sản phẩm nào phù hợp.</p>
@@ -880,9 +974,19 @@ export default function SellerProductsPage() {
                   <React.Fragment key={book.id}>
                     <tr
                       className={`hover:bg-slate-50/60 transition-colors group ${
-                        isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                        isExpanded ? 'bg-emerald-50/30' : selectedIds.includes(book.id) ? 'bg-emerald-50/20' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
                       }`}
                     >
+                      {/* Checkbox column */}
+                      <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(book.id)}
+                          onChange={() => toggleSelect(book.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                        />
+                      </td>
+
                       {/* Chevron toggle */}
                       <td className="py-3 px-2 text-center align-middle">
                         <button
@@ -1054,7 +1158,7 @@ export default function SellerProductsPage() {
                     {/* Master-Detail Expandable Subcard (4 cards bao gồm Giọng Đọc AI) */}
                     {isExpanded && (
                       <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={7} className="p-4 sm:p-5">
+                        <td colSpan={8} className="p-4 sm:p-5">
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
                             {/* Cột 1: Thông số kho & kích thước */}
                             <div className="space-y-2 text-xs border-r border-slate-100 pr-3">

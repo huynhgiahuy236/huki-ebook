@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import {
   AdminStatusBadge,
-  AdminFilterTabs,
   AdminPagination,
   AdminTableContainer,
 } from './AdminUI';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 import {
   adminDrmApi,
   type DrmOverviewData,
@@ -36,6 +36,13 @@ export function AdminDrmVaultView() {
   const [expandedDrmIds, setExpandedDrmIds] = useState<Set<string>>(new Set());
   const [hasActiveReadersPulse, setHasActiveReadersPulse] = useState(false);
   const previousActiveReadersRef = useRef<number | null>(null);
+
+  const [selectedDrmIds, setSelectedDrmIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Debounce tìm kiếm 300ms
   useEffect(() => {
@@ -267,6 +274,90 @@ export function AdminDrmVaultView() {
     { key: 'revoked', label: 'Bị Thu Hồi (Đọc Lậu)', count: overview ? overview.revokedDevicesCount : 0 },
   ];
 
+  const filteredLicenses = useMemo(() => {
+    return licenses.filter((item) => matchesDateFilter(item.createdAt, dateFilter));
+  }, [licenses, dateFilter]);
+
+  const drmBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Vận Hành Khóa Bản Quyền',
+        actions: [
+          {
+            value: 'ROTATE_KEYS',
+            label: 'Luân chuyển khóa (Rotate Key)',
+            icon: 'sync',
+            color: 'primary',
+            confirmTitle: 'Luân chuyển khóa AES-GCM-256?',
+            confirmMessage: `Bạn có chắc muốn cấp phát và luân chuyển khóa mã hóa mới cho ${selectedDrmIds.length} giấy phép DRM đã chọn?`,
+          },
+          {
+            value: 'REVOKE_KEYS',
+            label: 'Thu hồi giấy phép (Kill-Switch)',
+            icon: 'block',
+            color: 'danger',
+            confirmTitle: 'Thu hồi giấy phép bản quyền?',
+            confirmMessage: `Bạn có chắc muốn thu hồi từ xa ${selectedDrmIds.length} giấy phép DRM đã chọn? Các phiên đọc số liên quan sẽ bị ngắt kết nối ngay lập tức.`,
+          },
+          {
+            value: 'RESTORE_KEYS',
+            label: 'Khôi phục giấy phép',
+            icon: 'lock_open',
+            color: 'success',
+            confirmTitle: 'Khôi phục giấy phép DRM?',
+            confirmMessage: `Bạn có chắc muốn khôi phục quyền truy cập cho ${selectedDrmIds.length} giấy phép đã chọn?`,
+          },
+        ],
+      },
+    ],
+    [selectedDrmIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (selectedDrmIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'ROTATE_KEYS') {
+        let count = 0;
+        for (const id of selectedDrmIds) {
+          try {
+            await adminDrmApi.rotateKey(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã luân chuyển khóa thành công cho ${count}/${selectedDrmIds.length} giấy phép!`, 'success');
+        setSelectedDrmIds([]);
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
+      } else if (action === 'REVOKE_KEYS') {
+        let count = 0;
+        for (const id of selectedDrmIds) {
+          try {
+            await adminDrmApi.revokeLicense(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã thu hồi thành công ${count}/${selectedDrmIds.length} giấy phép DRM!`, 'warning');
+        setSelectedDrmIds([]);
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
+      } else if (action === 'RESTORE_KEYS') {
+        let count = 0;
+        for (const id of selectedDrmIds) {
+          try {
+            await adminDrmApi.restoreLicense(id);
+            count++;
+          } catch {}
+        }
+        showToast?.(`Đã khôi phục thành công ${count}/${selectedDrmIds.length} giấy phép DRM!`, 'success');
+        setSelectedDrmIds([]);
+        await Promise.all([fetchLicenses(true), fetchOverview()]);
+      }
+    } catch (err: any) {
+      showToast?.(err.message || 'Lỗi thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. TOP HEADER */}
@@ -368,38 +459,58 @@ export function AdminDrmVaultView() {
         </div>
       </div>
 
-      {/* 3. LICENSES LIST TABLE */}
+      {/* 3. CONTROLS TOOLBAR WITH 2-TIER DATE FILTER & INLINE BULK ACTIONS */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm theo ID giấy phép, tên sách, NXB..."
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filterTabs={tabs}
+          activeTab={activeTab}
+          onTabChange={(key) => {
+            setActiveTab(key as any);
+            setCurrentPage(1);
+          }}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          selectedCount={selectedDrmIds.length}
+          bulkActionGroups={drmBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
+        />
+      </div>
+
+      {/* 4. LICENSES LIST TABLE */}
       <AdminTableContainer>
-        {/* Controls Toolbar */}
-        <div className="p-4 border-b border-[#E2E8F0] flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
-          <AdminFilterTabs
-            tabs={tabs}
-            activeTab={activeTab}
-            onChange={(key) => {
-              setActiveTab(key as any);
-              setCurrentPage(1);
-            }}
-          />
-
-          <div className="relative w-full sm:w-80">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo ID giấy phép, tên sách, NXB..."
-              className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-purple-600 focus:bg-white transition-colors"
-            />
-          </div>
-        </div>
-
         {/* Table View */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
               <tr>
+                <th className="py-3 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-600 cursor-pointer"
+                    checked={
+                      filteredLicenses.length > 0 &&
+                      filteredLicenses.every((it: DrmLicenseItem) => selectedDrmIds.includes(it.id))
+                    }
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedDrmIds(filteredLicenses.map((it: DrmLicenseItem) => it.id));
+                      } else {
+                        setSelectedDrmIds([]);
+                      }
+                    }}
+                  />
+                </th>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>
                 <th className="py-3 px-3.5">Tác Phẩm &amp; Mã Giấy Phép</th>
@@ -411,16 +522,16 @@ export function AdminDrmVaultView() {
             <tbody className="divide-y divide-gray-100 font-normal">
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-gray-400">
+                  <td colSpan={7} className="py-12 text-center text-gray-400">
                     <span className="material-symbols-outlined text-4xl text-purple-400 animate-spin block mb-2">
                       progress_activity
                     </span>
                     Đang nạp dữ liệu chứng chỉ DRM từ máy chủ...
                   </td>
                 </tr>
-              ) : licenses.length === 0 ? (
+              ) : filteredLicenses.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-gray-400">
+                  <td colSpan={7} className="py-16 text-center text-gray-400">
                     <span className="material-symbols-outlined text-4xl text-gray-300 block mb-2">
                       enhanced_encryption
                     </span>
@@ -431,18 +542,42 @@ export function AdminDrmVaultView() {
                   </td>
                 </tr>
               ) : (
-                licenses.map((item, idx) => {
+                filteredLicenses.map((item: DrmLicenseItem, idx: number) => {
                   const itemIndex = (currentPage - 1) * pageSize + idx + 1;
                   const isExpanded = expandedDrmIds.has(item.id);
                   const isRotating = isRotatingId === item.id;
+                  const isSelected = selectedDrmIds.includes(item.id);
 
                   return (
                     <React.Fragment key={item.id}>
                       <tr
                         className={`transition-colors group ${
-                          isExpanded ? 'bg-purple-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
+                          isSelected
+                            ? 'bg-purple-50/50'
+                            : isExpanded
+                            ? 'bg-purple-50/30'
+                            : idx % 2 === 0
+                            ? 'bg-white'
+                            : 'bg-[#F9FAFB]'
                         } hover:bg-purple-50/40`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-600 cursor-pointer"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setSelectedDrmIds((prev) =>
+                                prev.includes(item.id)
+                                  ? prev.filter((id) => id !== item.id)
+                                  : [...prev, item.id]
+                              );
+                            }}
+                          />
+                        </td>
+
                         {/* Chevron toggle */}
                         <td className="py-3 px-2 text-center">
                           <button
@@ -581,7 +716,7 @@ export function AdminDrmVaultView() {
                       {/* Master-Detail Expandable Subcard */}
                       {isExpanded && (
                         <tr className="bg-purple-50/20 border-b border-purple-100">
-                          <td colSpan={6} className="p-4 sm:p-5">
+                          <td colSpan={7} className="p-4 sm:p-5">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-purple-200/70 shadow-xs">
                               {/* Cột 1: Cấu hình khóa */}
                               <div className="space-y-2 text-xs border-r border-gray-100 pr-3">

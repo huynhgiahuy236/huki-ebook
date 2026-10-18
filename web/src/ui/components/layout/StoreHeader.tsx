@@ -15,6 +15,7 @@ import { catalogApi, BookData } from '@/ui/api/catalogApi';
 import { personalizationService } from '@/ui/services/personalizationService';
 import { useDebounce } from '@/ui/utils/useDebounce';
 import UserAvatar from '@/ui/components/common/UserAvatar';
+import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
 
 interface StoreHeaderProps {
   onToggleSidebar?: () => void;
@@ -542,6 +543,11 @@ export default function StoreHeader({
               </span>
             )}
           </Link>
+
+          {/* Universal Notification Bell */}
+          {isLoggedIn && (
+            <UniversalNotificationBell variant="user" />
+          )}
 
           {/* Chat / Tin Nhắn - Opens in New Tab */}
           {isLoggedIn && (

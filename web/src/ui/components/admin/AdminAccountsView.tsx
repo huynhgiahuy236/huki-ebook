@@ -3,8 +3,9 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '../../context/ToastContext';
 import { adminApi } from '../../api/adminApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
-import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
+import { AdminStatusBadge, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
 
 export function AdminAccountsView() {
@@ -22,6 +23,12 @@ export function AdminAccountsView() {
   const [selectedRole, setSelectedRole] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [visiblePasswords, setVisiblePasswords] = useState<Record<string, any>>({});
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Modals state
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -168,6 +175,9 @@ export function AdminAccountsView() {
       if (selectedStatus !== 'ALL' && u.status !== selectedStatus) {
         return false;
       }
+      if (!matchesDateFilter(u.createdAt, dateFilter)) {
+        return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const nameMatch = u.fullName?.toLowerCase().includes(q);
@@ -181,7 +191,88 @@ export function AdminAccountsView() {
       }
       return true;
     });
-  }, [users, selectedRole, selectedStatus, searchQuery]);
+  }, [users, selectedRole, selectedStatus, searchQuery, dateFilter]);
+
+  const accountBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Quản Lý Tài Khoản',
+        actions: [
+          {
+            value: 'LOCK_USERS',
+            label: 'Khóa tài khoản',
+            icon: 'lock',
+            color: 'danger',
+            confirmTitle: 'Khóa các tài khoản đã chọn?',
+            confirmMessage: `Bạn có chắc muốn khóa ${selectedUserIds.length} tài khoản này? Người dùng sẽ không thể đăng nhập.`,
+          },
+          {
+            value: 'UNLOCK_USERS',
+            label: 'Mở khóa tài khoản',
+            icon: 'lock_open',
+            color: 'success',
+            confirmTitle: 'Mở khóa tài khoản?',
+            confirmMessage: `Bạn có chắc muốn mở khóa cho ${selectedUserIds.length} tài khoản đã chọn?`,
+          },
+        ],
+      },
+    ],
+    [selectedUserIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (selectedUserIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'LOCK_USERS') {
+        let count = 0;
+        for (const id of selectedUserIds) {
+          const user = users.find((u) => u.id === id);
+          if (user && user.role !== 'PLATFORM_ADMIN') {
+            try {
+              if (user.status !== 'LOCKED') {
+                await adminApi.toggleLockUser(id);
+              }
+              count++;
+            } catch {}
+          }
+        }
+        showToast?.({
+          title: 'Khóa tài khoản thành công',
+          message: `Đã khóa ${count}/${selectedUserIds.length} tài khoản đã chọn.`,
+          type: 'warning',
+        });
+        setSelectedUserIds([]);
+        loadUsers();
+      } else if (action === 'UNLOCK_USERS') {
+        let count = 0;
+        for (const id of selectedUserIds) {
+          const user = users.find((u) => u.id === id);
+          if (user && (user.status === 'LOCKED' || user.status === 'BLOCKED')) {
+            try {
+              await adminApi.toggleLockUser(id);
+              count++;
+            } catch {}
+          }
+        }
+        showToast?.({
+          title: 'Mở khóa thành công',
+          message: `Đã mở khóa ${count}/${selectedUserIds.length} tài khoản đã chọn.`,
+          type: 'success',
+        });
+        setSelectedUserIds([]);
+        loadUsers();
+      }
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi thao tác',
+        message: err?.message || 'Có lỗi khi xử lý thao tác hàng loạt.',
+        type: 'error',
+      });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredUsers.length / pageSize) || 1;
@@ -748,10 +839,16 @@ export function AdminAccountsView() {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        <AdminFilterTabs
-          tabs={[
+      {/* Filter Tabs & Search Bar with 2-Tier Date Filter & Inline Bulk Actions */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm tên, email, SĐT..."
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filterTabs={[
             { key: 'ALL', label: 'Tất Cả', count: stats.total },
             { key: 'CUSTOMER', label: 'Khách Hàng', count: stats.customers },
             { key: 'SELLER_ADMIN', label: 'Admin Seller', count: stats.sellers },
@@ -759,53 +856,35 @@ export function AdminAccountsView() {
             { key: 'PLATFORM_ADMIN', label: 'Admin Sàn', count: users.filter(u => u.role === 'PLATFORM_ADMIN').length },
           ]}
           activeTab={selectedRole}
-          onChange={(tab) => {
+          onTabChange={(tab) => {
             setSelectedRole(tab);
             setCurrentPage(1);
           }}
-        />
-
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
-          <select
-            value={selectedStatus}
-            onChange={(e) => {
-              setSelectedStatus(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="text-xs bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl px-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-700"
-          >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="ACTIVE">Đang hoạt động</option>
-            <option value="LOCKED">Đã bị khóa</option>
-          </select>
-
-          <div className="relative w-full md:w-64">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">
-              search
-            </span>
-            <input
-              type="text"
-              value={searchQuery}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          selectedCount={selectedUserIds.length}
+          bulkActionGroups={accountBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
+          leftCustomActions={
+            <select
+              value={selectedStatus}
               onChange={(e) => {
-                setSearchQuery(e.target.value);
+                setSelectedStatus(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Tìm tên, email, SĐT..."
-              className="w-full pl-8 pr-7 py-1.5 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setCurrentPage(1);
-                }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <span className="material-symbols-outlined text-xs">close</span>
-              </button>
-            )}
-          </div>
-        </div>
+              className="text-xs bg-[#F8FAFC] dark:bg-neutral-800 border border-[#E2E8F0] dark:border-neutral-700 rounded-xl px-3 py-1.5 focus:border-[#00875A] focus:outline-none text-gray-700 dark:text-gray-200"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="ACTIVE">Đang hoạt động</option>
+              <option value="LOCKED">Đã bị khóa</option>
+            </select>
+          }
+        />
       </div>
 
       {/* Main Table Container */}
@@ -814,6 +893,9 @@ export function AdminAccountsView() {
         data={filteredUsers}
         keyField="id"
         loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedUserIds}
+        onSelectionChange={(keys) => setSelectedUserIds(keys as string[])}
         expandable={true}
         expandedRowRender={(u) => (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 p-4 bg-slate-50/80 rounded-2xl border border-slate-200">

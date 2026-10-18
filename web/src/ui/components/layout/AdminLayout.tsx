@@ -8,6 +8,7 @@ import UserAvatar from '@/ui/components/common/UserAvatar';
 import { adminApi } from '@/ui/api/adminApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { soundEffects } from '@/ui/utils/soundEffects';
+import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
 
 export interface AdminLayoutProps {
   children?: React.ReactNode;
@@ -406,14 +407,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </span>
           </button>
 
-          {/* Admin Notification Bell */}
-          <Link
-            href="/admin/notifications"
-            className="flex items-center justify-center w-8 h-8 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] hover:bg-gray-100 text-gray-600 hover:text-[#003B2B] transition-colors relative shadow-2xs"
-            title="Quản lý & Phát sóng thông báo tới người bán"
-          >
-            <span className="material-symbols-outlined text-[18px]">campaign</span>
-          </Link>
+          {/* Chuông Thông Báo Realtime Toàn Sàn (Admin) */}
+          <UniversalNotificationBell variant="admin" />
 
           {/* Profile & Avatar */}
           <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-[#E2E8F0]">

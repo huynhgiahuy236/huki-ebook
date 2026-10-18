@@ -53,6 +53,20 @@ export class NotificationGateway implements OnGatewayConnection {
       if (!actor || !actor.sub) throw new Error("Invalid access token");
       client.data.actor = actor;
       await client.join(this.room(actor.sub));
+      await client.join("broadcast_channel");
+
+      const role = actor.role?.toUpperCase();
+      if (role === "PLATFORM_ADMIN" || role === "ADMIN") {
+        await client.join("admin_channel");
+      } else if (role === "BUSINESS" || role === "SELLER") {
+        await client.join("seller_channel");
+        const extra = actor as unknown as Record<string, unknown>;
+        if (extra.storeId) await client.join(`store:${extra.storeId}`);
+        if (extra.businessId) await client.join(`business:${extra.businessId}`);
+      } else if (role === "DELIVERY_STAFF" || role === "DELIVERY") {
+        await client.join("shipper_channel");
+        await client.join(`shipper:${actor.sub}`);
+      }
     } catch (error) {
       this.logger.warn(
         `Notification socket authentication failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -61,8 +75,17 @@ export class NotificationGateway implements OnGatewayConnection {
     }
   }
 
+  sendToRoom(room: string, data: Record<string, unknown>) {
+    this.server?.to(room).emit("notification", data);
+  }
+
+  broadcast(data: Record<string, unknown>) {
+    this.server?.to("broadcast_channel").emit("notification", data);
+  }
+
   notification(recipientId: string, data: Record<string, unknown>) {
     this.server?.to(this.room(recipientId)).emit("notification", data);
+    this.server?.to(`store:${recipientId}`).emit("notification", data);
   }
 
   read(recipientId: string, notificationId: string) {

@@ -18,6 +18,7 @@ import { FirebaseMessagingService } from "./firebase-messaging.service";
 import { NotificationDeliveryService } from "./notification-delivery.service";
 import { NotificationEventConsumer } from "./notification-event.consumer";
 import { NotificationGateway } from "./notification.gateway";
+import { NotificationWatchdogService } from "./notification-watchdog.service";
 import { NotificationsController } from "./notifications.controller";
 import { NotificationsService } from "./notifications.service";
 
@@ -37,10 +38,12 @@ import { NotificationsService } from "./notifications.service";
   providers: [
     NotificationsService,
     NotificationDeliveryService,
+    NotificationWatchdogService,
     NotificationEventConsumer,
     NotificationGateway,
     FirebaseMessagingService,
     AuthenticatedCommunityGuard,
   ],
+  exports: [NotificationWatchdogService, NotificationDeliveryService],
 })
 export class NotificationsModule {}

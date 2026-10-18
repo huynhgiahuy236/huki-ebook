@@ -4,6 +4,12 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { walletApi, type WalletTransactionItem } from '@/ui/api/walletApi';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '@/ui/components/common';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0đ';
@@ -110,8 +116,23 @@ export default function SellerTransactionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredTransactions.map((tx) => tx.id));
+    }
+  };
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -160,10 +181,8 @@ export default function SellerTransactionsPage() {
       if (filterType === 'DEBIT' && tx.type !== 'DEBIT_AVAILABLE') {
         return false;
       }
-      if (startDate || endDate) {
-        const txTime = new Date(tx.createdAt).getTime();
-        if (startDate && txTime < new Date(startDate).getTime()) return false;
-        if (endDate && txTime > new Date(endDate).getTime() + 24 * 60 * 60 * 1000) return false;
+      if (!matchesDateFilter(tx.createdAt, dateFilter)) {
+        return false;
       }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -173,7 +192,7 @@ export default function SellerTransactionsPage() {
       }
       return true;
     });
-  }, [transactions, filterType, startDate, endDate, searchQuery]);
+  }, [transactions, filterType, dateFilter, searchQuery]);
 
   const totalCredit = useMemo(() => {
     return transactions
@@ -196,7 +215,60 @@ export default function SellerTransactionsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterType, searchQuery, startDate, endDate, pageSize]);
+  }, [filterType, searchQuery, dateFilter, pageSize]);
+
+  // Bulk action groups definition
+  const transactionBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'XUẤT DỮ LIỆU & BÁO CÁO',
+      actions: [{ value: 'EXPORT_CSV', label: 'Xuất danh sách đã chọn (.csv)' }],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'EXPORT_CSV') {
+        const rows = transactions.filter((t) => selectedIds.includes(t.id));
+        const headers = [
+          'Mã Giao Dịch',
+          'Thời Gian',
+          'Loại Giao Dịch',
+          'Mô Tả',
+          'Mã Tham Chiếu',
+          'Số Tiền Biến Động (VNĐ)',
+          'Số Dư Sau Giao Dịch (VNĐ)',
+        ];
+
+        const csvRows = rows.map((tx) => {
+          const typeMeta = getTransactionTypeDetails(tx.type);
+          return [
+            `"${tx.id}"`,
+            `"${formatVietnamDateTime(tx.createdAt)}"`,
+            `"${typeMeta.label}"`,
+            `"${tx.description?.replace(/"/g, '""') || ''}"`,
+            `"${tx.referenceId || ''}"`,
+            typeMeta.isPositive ? Number(tx.amount) : -Number(tx.amount),
+            Number(tx.availableAfter),
+          ];
+        });
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `Giao_Dich_Da_Chon_${new Date().toISOString().slice(0, 10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setSelectedIds([]);
+      }
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   const handleExportCSV = () => {
     const headers = [
@@ -320,44 +392,32 @@ export default function SellerTransactionsPage() {
 
       {/* 3. TABLE TRANSACTIONS */}
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-xs overflow-hidden">
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {[
-              { key: 'ALL', label: 'Tất Cả' },
-              { key: 'CREDIT', label: 'Cộng Doanh Thu' },
-              { key: 'DEBIT', label: 'Lệnh Rút Tiền' },
-            ].map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFilterType(f.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer ${
-                  filterType === f.key
-                    ? 'bg-[#003B2B] text-white shadow-xs'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="relative w-full sm:w-64">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">
-                search
-              </span>
-              <input
-                type="text"
-                placeholder="Tìm nội dung, mã đơn..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-hidden focus:border-emerald-600"
-              />
-            </div>
-          </div>
-        </div>
+        {/* Standard Multi-Tier Filter & Bulk Actions Bar */}
+        <DataTableFilterBar
+          tabs={[
+            { key: 'ALL', label: 'Tất Cả' },
+            { key: 'CREDIT', label: 'Cộng Doanh Thu' },
+            { key: 'DEBIT', label: 'Lệnh Rút Tiền' },
+          ]}
+          activeTab={filterType}
+          onTabChange={(tab) => {
+            setFilterType(tab);
+            setCurrentPage(1);
+          }}
+          dateFilter={dateFilter}
+          onDateFilterChange={setDateFilter}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          searchPlaceholder="Tìm nội dung, mã đơn..."
+          className="mb-5"
+          bulkActionGroups={transactionBulkActionGroups}
+          selectedCount={selectedIds.length}
+          totalCount={filteredTransactions.length}
+          onExecuteBulkAction={handleExecuteBulkAction}
+          onClearSelection={() => setSelectedIds([])}
+          bulkLoading={bulkLoading}
+          itemName="giao dịch"
+        />
 
         {isLoading ? (
           <div className="space-y-3 py-6">
@@ -378,7 +438,15 @@ export default function SellerTransactionsPage() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3.5 pl-4 pr-2 w-[24%]">Thời Gian &amp; Mã Ref</th>
+                <th className="py-3.5 pl-4 pr-1 w-8">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                  />
+                </th>
+                <th className="py-3.5 pl-2 pr-2 w-[24%]">Thời Gian &amp; Mã Ref</th>
                 <th className="py-3.5 px-3 w-[32%]">Loại Giao Dịch &amp; Nội Dung</th>
                 <th className="py-3.5 px-3 w-[18%] text-right">Biến Động</th>
                 <th className="py-3.5 px-3 w-[16%] text-right">Số Dư Sau Giao Dịch</th>
@@ -395,11 +463,21 @@ export default function SellerTransactionsPage() {
                     <tr
                       onClick={() => toggleExpand(item.id)}
                       className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                        isExpanded ? 'bg-emerald-50/40' : 'bg-white'
+                        isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
                       }`}
                     >
+                      {/* Checkbox */}
+                      <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
+                        />
+                      </td>
+
                       {/* 1. Thời gian & Mã Ref */}
-                      <td className="py-3 pl-4 pr-2 align-middle">
+                      <td className="py-3 pl-2 pr-2 align-middle">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
@@ -496,7 +574,7 @@ export default function SellerTransactionsPage() {
                     {/* Expandable Subcards Detail Panel */}
                     {isExpanded && (
                       <tr className="bg-slate-50/60">
-                        <td colSpan={5} className="p-4 border-t border-b border-emerald-100/70">
+                        <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
                             {/* Card 1: Thông tin giao dịch */}
                             <div className="space-y-2">

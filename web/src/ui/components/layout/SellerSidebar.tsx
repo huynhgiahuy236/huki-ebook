@@ -158,16 +158,18 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
     window.addEventListener('huki_feature_flags_updated', syncFeatures);
 
     const unsubscribeBus = realtimeSyncBus.subscribe((msg) => {
-      if (msg.type === 'FEATURE_FLAGS_UPDATED') {
+      const eventType = typeof msg?.type === 'string' ? msg.type : '';
+      if (!eventType) return;
+      if (eventType === 'FEATURE_FLAGS_UPDATED') {
         syncFeatures();
       }
-      if (msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' || msg.type === 'NOTIFICATION_READ') {
+      if (eventType === 'ADMIN_NOTIFICATIONS_UPDATED' || eventType === 'NOTIFICATION_READ') {
         syncAdminNotifs();
       }
-      if (msg.type.startsWith('ORDER_')) {
+      if (eventType.startsWith('ORDER_')) {
         fetchBadges();
       }
-      if (msg.type === 'CHAT_MESSAGE_RECEIVED' || msg.type === 'CHAT_UNREAD_COUNT_CHANGED') {
+      if (eventType === 'CHAT_MESSAGE_RECEIVED' || eventType === 'CHAT_UNREAD_COUNT_CHANGED') {
         fetchBadges();
       }
     });

@@ -14,13 +14,20 @@ import {
   Notification,
   NotificationDocument,
 } from "../../entities/notification.schema";
+import { randomUUID } from "crypto";
 import {
+  DispatchNotificationDto,
   NotificationListQueryDto,
   RegisterNotificationDeviceDto,
   UpdateNotificationPreferenceDto,
 } from "./dto/notification.dto";
 import { NotificationGateway } from "./notification.gateway";
-import { throwNotFound } from '@huki/shared/errors';
+import { NotificationDeliveryService } from "./notification-delivery.service";
+import {
+  NotificationRecipientType,
+  NotificationSenderType,
+} from "../../entities/notification.schema";
+import { throwNotFound, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
 
 @Injectable()
@@ -33,12 +40,48 @@ export class NotificationsService {
     @InjectModel(NotificationDevice.name)
     private readonly devices: Model<NotificationDeviceDocument>,
     private readonly gateway: NotificationGateway,
+    private readonly delivery: NotificationDeliveryService,
   ) {}
 
+  private getRoleConditions(actor: CommunityActor): Array<Record<string, unknown>> {
+    const actorRole = (actor.role ?? "").toUpperCase();
+    const conditions: Array<Record<string, unknown>> = [
+      { recipientId: actor.sub },
+      { recipientType: "ALL" },
+      { recipientId: "*" },
+    ];
+    if (actorRole === "PLATFORM_ADMIN" || actorRole === "ADMIN") {
+      conditions.push({ recipientType: "ADMIN" });
+    } else if (actorRole === "BUSINESS" || actorRole === "SELLER") {
+      conditions.push({ recipientType: "BUSINESS" });
+      const extra = actor as unknown as Record<string, unknown>;
+      if (extra.storeId) conditions.push({ recipientId: extra.storeId });
+    } else if (actorRole === "DELIVERY_STAFF" || actorRole === "DELIVERY") {
+      conditions.push({ recipientType: "DELIVERY" });
+    }
+    return conditions;
+  }
+
   async list(actor: CommunityActor, query: NotificationListQueryDto) {
-    const filter: Record<string, unknown> = { recipientId: actor.sub };
-    if (query.isRead !== undefined) filter.isRead = query.isRead;
+    const roleConditions = this.getRoleConditions(actor);
+    const filter: Record<string, unknown> = {
+      $or: roleConditions,
+    };
+
+    if (query.isRead !== undefined) {
+      if (query.isRead) {
+        filter.$and = [
+          { $or: [{ isRead: true }, { readBy: actor.sub }] },
+        ];
+      } else {
+        filter.isRead = false;
+        filter.readBy = { $ne: actor.sub };
+      }
+    }
     if (query.type) filter.type = query.type;
+    if (query.category) filter.category = query.category;
+    if (query.priority) filter.priority = query.priority;
+
     const [rows, total, unreadCount] = await Promise.all([
       this.notifications
         .find(filter)
@@ -48,52 +91,140 @@ export class NotificationsService {
         .exec(),
       this.notifications.countDocuments(filter),
       this.notifications.countDocuments({
-        recipientId: actor.sub,
+        $or: roleConditions,
         isRead: false,
+        readBy: { $ne: actor.sub },
       }),
     ]);
+
     return {
-      data: rows.map((row) => this.view(row)),
+      data: rows.map((row) => this.view(row, actor.sub)),
       pagination: {
         page: query.page,
         limit: query.limit,
         total,
         totalPages: Math.ceil(total / query.limit),
       },
+      summary: { unreadCount },
       unreadCount,
     };
   }
 
+  async unreadCount(actor: CommunityActor) {
+    const roleConditions = this.getRoleConditions(actor);
+    const count = await this.notifications.countDocuments({
+      $or: roleConditions,
+      isRead: false,
+      readBy: { $ne: actor.sub },
+    });
+    return { count };
+  }
+
   async detail(actor: CommunityActor, id: string) {
-    const notification = await this.owned(actor.sub, id);
-    return { data: this.view(notification!) };
+    const notification = await this.accessible(actor, id);
+    return { data: this.view(notification, actor.sub) };
   }
 
   async markRead(actor: CommunityActor, id: string) {
     const objectId = new Types.ObjectId(id);
-    let notification = await this.notifications.findOneAndUpdate(
-      { _id: objectId, recipientId: actor.sub, isRead: false },
-      { $set: { isRead: true, readAt: new Date() } },
-      { new: true },
-    );
-    notification ??= await this.notifications.findOne({
-      _id: objectId,
-      recipientId: actor.sub,
-    });
-    if (!notification) throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
-    this.gateway.read(actor.sub, notification!.id);
-    return { data: this.view(notification!) };
+    let notification = await this.accessible(actor, id);
+
+    if (notification.recipientId === actor.sub) {
+      notification = (await this.notifications.findByIdAndUpdate(
+        objectId,
+        { $set: { isRead: true, readAt: new Date() } },
+        { new: true },
+      ))!;
+    } else {
+      notification = (await this.notifications.findByIdAndUpdate(
+        objectId,
+        { $addToSet: { readBy: actor.sub }, $set: { readAt: new Date() } },
+        { new: true },
+      ))!;
+    }
+
+    this.gateway.read(actor.sub, notification.id);
+    return { data: this.view(notification, actor.sub) };
   }
 
   async markAllRead(actor: CommunityActor) {
-    await this.notifications.updateMany(
-      { recipientId: actor.sub, isRead: false },
-      { $set: { isRead: true, readAt: new Date() } },
-    );
+    const roleConditions = this.getRoleConditions(actor);
+    await Promise.all([
+      this.notifications.updateMany(
+        { recipientId: actor.sub, isRead: false },
+        { $set: { isRead: true, readAt: new Date() } },
+      ),
+      this.notifications.updateMany(
+        { $or: roleConditions, readBy: { $ne: actor.sub } },
+        { $addToSet: { readBy: actor.sub } },
+      ),
+    ]);
+
     this.gateway.readAll(actor.sub);
     return {
       message: "All notifications marked as read",
       data: { unreadCount: 0 },
+    };
+  }
+
+  async dispatch(actor: CommunityActor, dto: DispatchNotificationDto) {
+    const role = (actor.role ?? "").toUpperCase();
+    const isAdmin = role === "PLATFORM_ADMIN" || role === "ADMIN";
+    const isSeller = role === "BUSINESS" || role === "SELLER";
+    const isShipper = role === "DELIVERY_STAFF" || role === "DELIVERY";
+    const isUser = !isAdmin && !isSeller && !isShipper;
+
+    let senderType: NotificationSenderType = "USER";
+    if (isAdmin) senderType = "ADMIN";
+    else if (isSeller) senderType = "SELLER";
+    else if (isShipper) senderType = "SHIPPER";
+
+    if ((dto.recipientType === "ALL" || dto.recipientId === "*") && !isAdmin) {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        "Only platform administrators can dispatch broadcast notifications",
+      );
+    }
+
+    if (dto.priority === "CRITICAL" && !isAdmin) {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        "Only platform administrators can dispatch critical priority notifications",
+      );
+    }
+
+    if (isSeller && !["USER", "DELIVERY", "ADMIN"].includes(dto.recipientType)) {
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, "Sellers cannot dispatch to this recipient type");
+    }
+    if (isShipper && !["USER", "BUSINESS", "ADMIN"].includes(dto.recipientType)) {
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, "Shippers cannot dispatch to this recipient type");
+    }
+    if (isUser && !["BUSINESS", "DELIVERY", "ADMIN"].includes(dto.recipientType)) {
+      throwForbidden(ErrorCode.AUTHZ_FORBIDDEN, "Users cannot dispatch to this recipient type");
+    }
+
+    const sourceKey = `dispatch-${randomUUID()}`;
+    const result = await this.delivery.deliver({
+      sourceKey,
+      recipientId: dto.recipientId,
+      recipientType: dto.recipientType,
+      type: dto.type,
+      category: dto.category ?? "MANUAL_DIRECT",
+      priority: dto.priority ?? "NORMAL",
+      title: dto.title,
+      message: dto.message,
+      imageUrl: dto.imageUrl,
+      actionUrl: dto.actionUrl,
+      payload: dto.payload ?? {},
+      senderType,
+      senderId: actor.sub,
+      senderName: actor.fullName ?? actor.email ?? "Huki Member",
+      senderAvatar: actor.avatar,
+    });
+
+    return {
+      message: "Notification dispatched successfully",
+      data: result ? this.view(result, actor.sub) : null,
     };
   }
 
@@ -174,25 +305,45 @@ export class NotificationsService {
     return { message: "Device unregistered" };
   }
 
-  private async owned(recipientId: string, id: string) {
-    const notification = await this.notifications.findOne({
-      _id: new Types.ObjectId(id),
-      recipientId,
-    });
+  private async accessible(actor: CommunityActor, id: string) {
+    const objectId = new Types.ObjectId(id);
+    const notification = await this.notifications.findById(objectId);
     if (!notification) throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
+
+    const roleConditions = this.getRoleConditions(actor);
+    const hasAccess = roleConditions.some((cond) => {
+      if (cond.recipientId && cond.recipientId === notification.recipientId) return true;
+      if (cond.recipientType && cond.recipientType === notification.recipientType) return true;
+      return false;
+    });
+
+    if (!hasAccess) {
+      throwNotFound(ErrorCode.NOTIFICATION_NOT_FOUND);
+    }
     return notification;
   }
 
-  private view(notification: NotificationDocument) {
+  private view(notification: NotificationDocument, actorSub?: string) {
+    const isRead = actorSub && notification.readBy?.includes(actorSub)
+      ? true
+      : notification.isRead;
     return {
       id: notification.id,
+      recipientId: notification.recipientId,
+      recipientType: notification.recipientType,
+      senderType: notification.senderType,
+      senderId: notification.senderId,
+      senderName: notification.senderName,
+      senderAvatar: notification.senderAvatar,
+      category: notification.category,
+      priority: notification.priority,
       type: notification.type,
       title: notification.title,
       message: notification.message,
       payload: notification.payload,
       imageUrl: notification.imageUrl,
       actionUrl: notification.actionUrl,
-      isRead: notification.isRead,
+      isRead,
       readAt: notification.readAt,
       createdAt: notification.createdAt,
       updatedAt: notification.updatedAt,

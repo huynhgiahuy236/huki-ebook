@@ -10,6 +10,12 @@ import {
 import { useToast } from '@/ui/context/ToastContext';
 import { useSmartFormCollapse } from '@/ui/utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 export function AdminAppealsView() {
   const { showToast } = useToast();
@@ -20,6 +26,9 @@ export function AdminAppealsView() {
   const pageSize = 10;
   const [filterDecision, setFilterDecision] = useState<AppealDecision | 'ALL'>('PENDING');
   const [searchStoreId, setSearchStoreId] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedAppealIds, setSelectedAppealIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Review Form State
@@ -149,18 +158,79 @@ export function AdminAppealsView() {
   const filteredAppeals = useMemo(() => {
     return appeals.filter((a) => {
       if (filterDecision !== 'ALL' && a.decision !== filterDecision) return false;
+      if (!matchesDateFilter(a.submittedAt, dateFilter)) return false;
       if (searchStoreId.trim()) {
         return a.storeId.toLowerCase().includes(searchStoreId.toLowerCase().trim());
       }
       return true;
     });
-  }, [appeals, filterDecision, searchStoreId]);
+  }, [appeals, filterDecision, dateFilter, searchStoreId]);
 
   const totalPages = Math.ceil(filteredAppeals.length / pageSize) || 1;
   const paginatedAppeals = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredAppeals.slice(start, start + pageSize);
   }, [filteredAppeals, currentPage, pageSize]);
+
+  const appealBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Xử lý kháng nghị',
+        actions: [
+          {
+            label: 'Chấp thuận kháng nghị (Gỡ chế tài)',
+            value: 'APPROVE_APPEALS',
+            icon: 'check_circle',
+            variant: 'primary',
+          },
+          {
+            label: 'Bác bỏ kháng nghị (Giữ nguyên phạt)',
+            value: 'REJECT_APPEALS',
+            icon: 'block',
+            variant: 'danger',
+            confirmMessage: 'Bạn có chắc chắn muốn bác bỏ các kháng nghị đã chọn không? Gian hàng sẽ tiếp tục chịu chế tài phạt.',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteAppealBulkAction = async (actionValue: string) => {
+    if (selectedAppealIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      const pendingAppeals = appeals.filter(a => selectedAppealIds.includes(a.id) && a.decision === 'PENDING');
+      if (pendingAppeals.length === 0) {
+        showToast('Các kháng nghị đã chọn đã được xử lý trước đó.', 'info');
+        return;
+      }
+      const decision = actionValue === 'APPROVE_APPEALS' ? 'APPROVED' : 'REJECTED';
+      await Promise.all(pendingAppeals.map(a => sanctionsApi.reviewAppeal(a.id, {
+        decision,
+        decisionReason: `Xử lý đồng loạt bởi Quản trị viên: ${decision === 'APPROVED' ? 'Chấp thuận' : 'Bác bỏ'}`,
+      })));
+      showToast(`Đã xử lý thành công ${pendingAppeals.length} hồ sơ kháng nghị!`, 'success');
+      setSelectedAppealIds([]);
+      await fetchAppeals();
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi khi thao tác hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const toggleSelectAppeal = (id: string) => {
+    setSelectedAppealIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllAppeals = (allIds: string[]) => {
+    if (selectedAppealIds.length === allIds.length && allIds.length > 0) {
+      setSelectedAppealIds([]);
+    } else {
+      setSelectedAppealIds(allIds);
+    }
+  };
 
   const renderLevelBadge = (level?: SanctionLevel) => {
     switch (level) {
@@ -226,36 +296,42 @@ export function AdminAppealsView() {
         </div>
       </div>
 
-      {/* Filter Tabs & Search Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-[#E2E8F0] shadow-2xs">
-        <AdminFilterTabs
-          tabs={[
-            { key: 'PENDING', label: 'Chờ duyệt', count: pendingCount },
-            { key: 'ALL', label: 'Tất cả', count: appeals.length },
-            { key: 'APPROVED', label: 'Đã chấp thuận', count: approvedCount },
-            { key: 'REJECTED', label: 'Đã bác bỏ', count: rejectedCount },
-          ]}
-          activeTab={filterDecision}
-          onChange={(tab) => {
+      {/* Filter Tabs, Multi-Tier Date & Search Bar with Bulk Actions */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Lọc theo Store ID..."
+        searchValue={searchStoreId}
+        onSearchChange={(val) => {
+          setSearchStoreId(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: filterDecision,
+          options: [
+            { value: 'PENDING', label: 'Chờ duyệt', count: pendingCount },
+            { value: 'ALL', label: 'Tất cả', count: appeals.length },
+            { value: 'APPROVED', label: 'Đã chấp thuận', count: approvedCount },
+            { value: 'REJECTED', label: 'Đã bác bỏ', count: rejectedCount },
+          ],
+          onChange: (tab) => {
             setFilterDecision(tab as any);
             setCurrentPage(1);
-          }}
-        />
-
-        <div className="relative w-full sm:w-60">
-          <span className="material-symbols-outlined text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px]">search</span>
-          <input
-            type="text"
-            value={searchStoreId}
-            onChange={(e) => {
-              setSearchStoreId(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Lọc theo Store ID..."
-            className="w-full text-xs rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] pl-8 pr-3 py-1.5 text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] transition-all"
-          />
-        </div>
-      </div>
+          },
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedAppealIds.length,
+          loading: bulkLoading,
+          groups: appealBulkActionGroups,
+          onSelectAction: handleExecuteAppealBulkAction,
+        }}
+      />
 
       {/* Appeals Queue Table Container */}
       <AdminTableContainer>
@@ -280,6 +356,14 @@ export function AdminAppealsView() {
             <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
               <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                 <tr>
+                  <th className="py-3 px-2 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={paginatedAppeals.length > 0 && paginatedAppeals.every(a => selectedAppealIds.includes(a.id))}
+                      onChange={() => toggleSelectAllAppeals(paginatedAppeals.map(a => a.id))}
+                      className="rounded text-[#00875A] cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
                   <th className="py-3 px-3.5 whitespace-nowrap">Mã Hồ Sơ</th>
                   <th className="py-3 px-3.5 whitespace-nowrap">Store ID</th>
@@ -306,6 +390,16 @@ export function AdminAppealsView() {
                       key={a.id}
                       className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}
                     >
+                      {/* Checkbox */}
+                      <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedAppealIds.includes(a.id)}
+                          onChange={() => toggleSelectAppeal(a.id)}
+                          className="rounded text-[#00875A] cursor-pointer"
+                        />
+                      </td>
+
                       {/* 1. STT */}
                       <td className="py-3 px-3.5 whitespace-nowrap text-center font-mono text-[11px] text-gray-400">
                         {itemIndex}

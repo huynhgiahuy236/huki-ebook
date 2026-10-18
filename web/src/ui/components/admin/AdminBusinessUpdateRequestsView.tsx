@@ -5,6 +5,12 @@ import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 const STATUS_CONFIG = {
   PENDING: {
@@ -26,10 +32,13 @@ const STATUS_CONFIG = {
 
 export function AdminBusinessUpdateRequestsView() {
   const { showToast } = useToast();
-  const [requests, setRequests] = useState<any[]>([]);;
+  const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeStatusTab, setActiveStatusTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Read tracking state for Admin
   const [readMap, setReadMap] = useState<Record<string, any>>({});
@@ -120,6 +129,9 @@ export function AdminBusinessUpdateRequestsView() {
       if (activeStatusTab !== 'ALL' && req.status !== activeStatusTab) {
         return false;
       }
+      if (!matchesDateFilter(req.createdAt, dateFilter)) {
+        return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const bizName = req.business?.name?.toLowerCase() || '';
@@ -129,7 +141,67 @@ export function AdminBusinessUpdateRequestsView() {
       }
       return true;
     });
-  }, [requests, activeStatusTab, searchQuery]);
+  }, [requests, activeStatusTab, dateFilter, searchQuery]);
+
+  const requestBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Xử lý yêu cầu',
+        actions: [
+          {
+            label: 'Phê duyệt các yêu cầu đã chọn',
+            value: 'APPROVE_REQUESTS',
+            icon: 'check_circle',
+            variant: 'primary',
+          },
+          {
+            label: 'Đánh dấu đã xem toàn bộ',
+            value: 'MARK_AS_READ',
+            icon: 'done_all',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'APPROVE_REQUESTS') {
+        const pendingSelected = requests.filter(r => selectedIds.includes(r.id) && r.status === 'PENDING');
+        if (pendingSelected.length === 0) {
+          showToast?.('Không có yêu cầu nào đang ở trạng thái chờ duyệt.', 'info');
+          return;
+        }
+        await Promise.all(pendingSelected.map(r => businessApi.approveUpdateRequest(r.id)));
+        showToast?.(`Đã phê duyệt thành công ${pendingSelected.length} yêu cầu chỉnh sửa.`, 'success');
+        setSelectedIds([]);
+        await fetchRequests();
+      } else if (actionValue === 'MARK_AS_READ') {
+        selectedIds.forEach(id => markAsRead(id));
+        showToast?.(`Đã đánh dấu đã xem ${selectedIds.length} yêu cầu.`, 'success');
+        setSelectedIds([]);
+      }
+    } catch (err: any) {
+      showToast?.(err?.message || 'Có lỗi khi thực hiện thao tác hàng loạt.', 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = (allIds: string[]) => {
+    if (selectedIds.length === allIds.length && allIds.length > 0) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(allIds);
+    }
+  };
 
   const counts = useMemo(() => {
     return {
@@ -286,49 +358,39 @@ export function AdminBusinessUpdateRequestsView() {
         </div>
       </div>
 
-      {/* 2. Filter Tabs & Search */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-3.5 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3.5">
-        {/* Status Tabs chuẩn AdminFilterTabs */}
-        <AdminFilterTabs
-          tabs={[
-            { id: 'ALL', label: 'Tất Cả', count: counts.ALL },
-            { id: 'PENDING', label: 'Chờ Xét Duyệt', count: counts.PENDING },
-            { id: 'APPROVED', label: 'Đã Phê Duyệt', count: counts.APPROVED },
-            { id: 'REJECTED', label: 'Đã Từ Chối', count: counts.REJECTED },
-          ]}
-          activeTab={activeStatusTab}
-          onChange={handleTabChange}
-        />
-
-        {/* Search Input */}
-        <div className="relative min-w-[240px] sm:min-w-[280px]">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e: any) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Tìm theo tên doanh nghiệp, MST..."
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-gray-50 border border-gray-300 rounded-xl focus:bg-white focus:border-[#00875A] outline-hidden text-gray-900"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchQuery('');
-                setCurrentPage(1);
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      </div>
+      {/* 2. Filter Tabs, Multi-Tier Date & Search with Inline Bulk Actions */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm theo tên doanh nghiệp, MST..."
+        searchValue={searchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: activeStatusTab,
+          options: [
+            { value: 'ALL', label: 'Tất Cả', count: counts.ALL },
+            { value: 'PENDING', label: 'Chờ Xét Duyệt', count: counts.PENDING },
+            { value: 'APPROVED', label: 'Đã Phê Duyệt', count: counts.APPROVED },
+            { value: 'REJECTED', label: 'Đã Từ Chối', count: counts.REJECTED },
+          ],
+          onChange: handleTabChange,
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedIds.length,
+          loading: bulkLoading,
+          groups: requestBulkActionGroups,
+          onSelectAction: handleExecuteBulkAction,
+        }}
+      />
 
       {/* 3. Requests Table - Compact Stacked Rows & Expandable Detail */}
       <AdminTableContainer>
@@ -353,6 +415,14 @@ export function AdminBusinessUpdateRequestsView() {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
               <tr>
+                <th className="py-3 px-2 w-8 text-center">
+                  <input
+                    type="checkbox"
+                    checked={paginatedRequests.length > 0 && paginatedRequests.every(r => selectedIds.includes(r.id))}
+                    onChange={() => toggleSelectAll(paginatedRequests.map(r => r.id))}
+                    className="rounded text-[#00875A] cursor-pointer"
+                  />
+                </th>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>
                 <th className="py-3 px-3.5">Doanh Nghiệp &amp; Mã Số Thuế</th>
@@ -376,6 +446,16 @@ export function AdminBusinessUpdateRequestsView() {
                         isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
                       } hover:bg-emerald-50/40 ${isUnread ? 'border-l-4 border-l-rose-500' : ''}`}
                     >
+                      {/* Checkbox */}
+                      <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(req.id)}
+                          onChange={() => toggleSelect(req.id)}
+                          className="rounded text-[#00875A] cursor-pointer"
+                        />
+                      </td>
+
                       {/* Chevron toggle */}
                       <td className="py-3 px-2 text-center">
                         <button
@@ -466,7 +546,7 @@ export function AdminBusinessUpdateRequestsView() {
                     {/* Master-Detail Expandable Subcard (3 cards) */}
                     {isExpanded && (
                       <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={6} className="p-4 sm:p-5">
+                        <td colSpan={7} className="p-4 sm:p-5">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
                             {/* Cột 1: Dữ liệu hiện tại */}
                             <div className="space-y-2 text-xs border-r border-gray-100 pr-3">

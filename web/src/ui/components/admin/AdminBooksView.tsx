@@ -4,6 +4,12 @@ import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -59,6 +65,9 @@ export function AdminBooksView() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [formatFilter, setFormatFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
   const [expandedBookIds, setExpandedBookIds] = useState<Set<string>>(new Set());
 
@@ -144,6 +153,11 @@ export function AdminBooksView() {
         return false;
       }
 
+      // Date filter matching
+      if (!matchesDateFilter(b.createdAt || b.publishedAt, dateFilter)) {
+        return false;
+      }
+
       // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -156,7 +170,77 @@ export function AdminBooksView() {
 
       return true;
     });
-  }, [books, activeTab, formatFilter, searchQuery]);
+  }, [books, activeTab, formatFilter, dateFilter, searchQuery]);
+
+  const bookBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Quản trị ấn phẩm',
+        actions: [
+          {
+            label: 'Mở bán / Kích hoạt sách đã chọn',
+            value: 'ACTIVATE_BOOKS',
+            icon: 'verified',
+            variant: 'primary',
+          },
+          {
+            label: 'Đình chỉ / Khóa phát hành sách',
+            value: 'SUSPEND_BOOKS',
+            icon: 'block',
+            variant: 'danger',
+            confirmMessage: 'Bạn có chắc chắn muốn đình chỉ phát hành các cuốn sách đã chọn? Bạn đọc sẽ không thể mua sách này nữa.',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedBookIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'ACTIVATE_BOOKS') {
+        await Promise.all(selectedBookIds.map(id => adminApi.activateBook(id)));
+        showToast?.({
+          title: 'Mở bán thành công',
+          message: `Đã mở bán lại ${selectedBookIds.length} cuốn sách.`,
+          type: 'success',
+        });
+        setSelectedBookIds([]);
+        fetchBooks();
+      } else if (actionValue === 'SUSPEND_BOOKS') {
+        await Promise.all(selectedBookIds.map(id => adminApi.suspendBook(id)));
+        showToast?.({
+          title: 'Đình chỉ thành công',
+          message: `Đã đình chỉ phát hành ${selectedBookIds.length} cuốn sách.`,
+          type: 'warning',
+        });
+        setSelectedBookIds([]);
+        fetchBooks();
+      }
+    } catch (err: any) {
+      showToast?.({
+        title: 'Lỗi thao tác',
+        message: err?.message || 'Có lỗi xảy ra khi thực hiện thao tác hàng loạt.',
+        type: 'error',
+      });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const toggleSelectBook = (id: string) => {
+    setSelectedBookIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllBooks = (allIds: string[]) => {
+    if (selectedBookIds.length === allIds.length && allIds.length > 0) {
+      setSelectedBookIds([]);
+    } else {
+      setSelectedBookIds(allIds);
+    }
+  };
 
   // Thống kê đếm số lượng
   // Thống kê đếm số lượng
@@ -280,18 +364,38 @@ export function AdminBooksView() {
         </button>
       </div>
 
-      {/* 2. TABS & SEARCH & FORMAT FILTERS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
-        {/* Status Tabs */}
-        <AdminFilterTabs
-          tabs={STATUS_TABS}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-          counts={counts}
-        />
-
-        {/* Format Filter & Search */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
+      {/* 2. TABS & SEARCH & FORMAT FILTERS & BULK ACTIONS */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm theo tựa sách, tác giả, NXB..."
+        searchValue={searchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: activeTab,
+          options: STATUS_TABS.map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: counts[t.key as keyof typeof counts],
+          })),
+          onChange: handleTabChange,
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedBookIds.length,
+          loading: bulkLoading,
+          groups: bookBulkActionGroups,
+          onSelectAction: handleExecuteBulkAction,
+        }}
+        leftCustomActions={
           <select
             value={formatFilter}
             onChange={(e: any) => {
@@ -305,24 +409,8 @@ export function AdminBooksView() {
             <option value="DIGITAL">Ebook Số</option>
             <option value="BOTH">Combo Hybrid</option>
           </select>
-
-          <div className="relative w-full md:w-72">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-              search
-            </span>
-            <input
-              type="text"
-              placeholder="Tìm theo tựa sách, tác giả, NXB..."
-              value={searchQuery}
-              onChange={(e: any) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-            />
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* 3. BOOKS TABLE / CATALOG LIST */}
       <AdminTableContainer>
@@ -344,6 +432,14 @@ export function AdminBooksView() {
             <table className="w-full text-left text-xs border-collapse">
               <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                 <tr>
+                  <th className="py-3 px-2 w-8 text-center">
+                    <input
+                      type="checkbox"
+                      checked={paginatedBooks.length > 0 && paginatedBooks.every(b => selectedBookIds.includes(b.id))}
+                      onChange={() => toggleSelectAllBooks(paginatedBooks.map(b => b.id))}
+                      className="rounded text-[#00875A] cursor-pointer"
+                    />
+                  </th>
                   <th className="py-3 px-2 w-10 text-center"></th>
                   <th className="py-3 px-2 w-12 text-center">STT</th>
                   <th className="py-3 px-3.5">Tác Phẩm &amp; Bìa Sách</th>
@@ -396,6 +492,16 @@ export function AdminBooksView() {
                           isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
                         } hover:bg-emerald-50/50`}
                       >
+                        {/* Checkbox */}
+                        <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedBookIds.includes(book.id)}
+                            onChange={() => toggleSelectBook(book.id)}
+                            className="rounded text-[#00875A] cursor-pointer"
+                          />
+                        </td>
+
                         {/* 1. Mũi tên mở rộng */}
                         <td className="py-3 px-2 text-center">
                           <button
@@ -533,7 +639,7 @@ export function AdminBooksView() {
                       {/* Dòng thẻ chi tiết mở rộng (Expanded Detail Sub-Panel) */}
                       {isExpanded && (
                         <tr className="bg-emerald-50/20 border-b border-emerald-100/80 animate-in fade-in duration-200">
-                          <td colSpan={7} className="p-4 sm:p-5">
+                          <td colSpan={8} className="p-4 sm:p-5">
                             <div className="bg-white rounded-2xl p-4.5 border border-emerald-200/70 shadow-xs space-y-4">
                               {/* 3 Cột Chi Tiết Đầy Đủ */}
                               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">

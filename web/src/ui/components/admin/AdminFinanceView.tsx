@@ -8,11 +8,17 @@ import {
   type PayoutRequestView,
   type EodReconciliationRunView,
 } from '../../api/walletApi';
+import { adminApi } from '../../api/adminApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import FinancialTransactionTable, { type FinancialTransactionItem } from '../common/FinancialTransactionTable';
-import { adminApi, type AdminWalletTransactionItem } from '../../api/adminApi';
 import { AdminStatusBadge, AdminFilterTabs } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0 ₫';
@@ -53,7 +59,7 @@ export function AdminFinanceView() {
   const pageSize = 10;
 
   // Real Wallet Transactions State (Commerce Service Financial Traceability)
-  const [walletTransactions, setWalletTransactions] = useState<AdminWalletTransactionItem[]>([]);
+  const [walletTransactions, setWalletTransactions] = useState<any[]>([]);
   const [totalWalletTransactions, setTotalWalletTransactions] = useState(0);
   const [isLoadingWallet, setIsLoadingWallet] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
@@ -62,6 +68,9 @@ export function AdminFinanceView() {
   const [liveRequests, setLiveRequests] = useState<PayoutRequestView[]>([]);
   const [isLoadingLive, setIsLoadingLive] = useState(true);
   const [liveError, setLiveError] = useState<string | null>(null);
+  const [dateFilterLive, setDateFilterLive] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedLiveKeys, setSelectedLiveKeys] = useState<string[]>([]);
+  const [bulkLoadingLive, setBulkLoadingLive] = useState(false);
 
   // EOD Reconciliation State (Task 78)
   const [eodRuns, setEodRuns] = useState<EodReconciliationRunView[]>([]);
@@ -443,6 +452,7 @@ export function AdminFinanceView() {
   const filteredLiveRequests = useMemo(() => {
     return liveRequests.filter((req) => {
       if (statusFilter !== 'ALL' && req.status !== statusFilter) return false;
+      if (!matchesDateFilter(req.createdAt, dateFilterLive)) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchId = req.id.toLowerCase().includes(q);
@@ -453,7 +463,61 @@ export function AdminFinanceView() {
       }
       return true;
     });
-  }, [liveRequests, statusFilter, searchQuery]);
+  }, [liveRequests, statusFilter, dateFilterLive, searchQuery]);
+
+  const payoutBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Xử lý lệnh chi',
+        actions: [
+          {
+            label: 'Giải ngân hàng loạt (Batch Payout)',
+            value: 'DISBURSE_BATCH',
+            icon: 'payments',
+            variant: 'primary',
+          },
+          {
+            label: 'Phê duyệt các yêu cầu đã chọn',
+            value: 'APPROVE_BATCH',
+            icon: 'verified',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteLiveBulkAction = async (actionValue: string) => {
+    if (selectedLiveKeys.length === 0) return;
+    setBulkLoadingLive(true);
+    try {
+      if (actionValue === 'DISBURSE_BATCH') {
+        const approved = liveRequests.filter(r => selectedLiveKeys.includes(r.id) && r.status === 'APPROVED').map(r => r.id);
+        if (approved.length === 0) {
+          showToast('Vui lòng chọn các lệnh đã ở trạng thái ĐÃ DUYỆT để giải ngân.', 'info');
+          return;
+        }
+        await payoutApi.disburseBatch(approved);
+        showToast(`Đã gửi lệnh giải ngân hàng loạt cho ${approved.length} yêu cầu!`, 'success');
+        setSelectedLiveKeys([]);
+        await fetchLivePayoutRequests();
+      } else if (actionValue === 'APPROVE_BATCH') {
+        const pending = liveRequests.filter(r => selectedLiveKeys.includes(r.id) && r.status === 'PENDING').map(r => r.id);
+        if (pending.length === 0) {
+          showToast('Không có lệnh nào đang chờ duyệt trong các mục đã chọn.', 'info');
+          return;
+        }
+        await Promise.all(pending.map(id => payoutApi.reviewPayoutRequest(id, { action: 'APPROVE' })));
+        showToast(`Đã phê duyệt ${pending.length} lệnh rút tiền!`, 'success');
+        setSelectedLiveKeys([]);
+        await fetchLivePayoutRequests();
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Có lỗi khi thao tác hàng loạt.', 'error');
+    } finally {
+      setBulkLoadingLive(false);
+    }
+  };
 
   const pendingCount = useMemo(() => liveRequests.filter((r) => r.status === 'PENDING').length, [liveRequests]);
   const approvedCount = useMemo(() => liveRequests.filter((r) => r.status === 'APPROVED').length, [liveRequests]);
@@ -937,37 +1001,43 @@ export function AdminFinanceView() {
       {/* SECTION 1: LIVE PAYOUT REQUESTS AUDIT LOG */}
       {viewSection === 'live_requests' && (
         <div className="space-y-4">
-          {/* Filter & Search Bar */}
-          <div className="bg-white rounded-2xl p-3.5 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-            <AdminFilterTabs
-              tabs={[
-                { key: 'ALL', label: 'Tất cả', count: liveRequests.length },
-                { key: 'COMPLETED', label: 'Đã giải ngân', count: completedCount },
-                { key: 'PENDING', label: 'Đang xử lý', count: pendingCount },
-                { key: 'FAILED', label: 'Chi lỗi', count: failedCount },
-                { key: 'REJECTED', label: 'Đã hủy', count: rejectedCount },
-              ]}
-              activeTab={statusFilter}
-              onChange={(tab) => {
+          {/* Filter, Multi-Tier Date & Search Bar with Bulk Actions */}
+          <DataTableFilterBar
+            className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+            searchPlaceholder="Tìm mã lệnh, gian hàng, STK..."
+            searchValue={searchQuery}
+            onSearchChange={(val) => {
+              setSearchQuery(val);
+              setCurrentPageLive(1);
+            }}
+            statusFilter={{
+              current: statusFilter,
+              options: [
+                { value: 'ALL', label: 'Tất cả', count: liveRequests.length },
+                { value: 'COMPLETED', label: 'Đã giải ngân', count: completedCount },
+                { value: 'PENDING', label: 'Đang xử lý', count: pendingCount },
+                { value: 'FAILED', label: 'Chi lỗi', count: failedCount },
+                { value: 'REJECTED', label: 'Đã hủy', count: rejectedCount },
+              ],
+              onChange: (tab) => {
                 setStatusFilter(tab as any);
                 setCurrentPageLive(1);
-              }}
-            />
-
-            <div className="relative w-full md:w-72">
-              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
-              <input
-                type="text"
-                placeholder="Tìm mã lệnh, gian hàng, STK..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPageLive(1);
-                }}
-                className="w-full pl-8.5 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-              />
-            </div>
-          </div>
+              },
+            }}
+            dateFilter={{
+              value: dateFilterLive,
+              onChange: (df) => {
+                setDateFilterLive(df);
+                setCurrentPageLive(1);
+              },
+            }}
+            bulkActions={{
+              selectedCount: selectedLiveKeys.length,
+              loading: bulkLoadingLive,
+              groups: payoutBulkActionGroups,
+              onSelectAction: handleExecuteLiveBulkAction,
+            }}
+          />
 
           {liveError && (
             <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
@@ -987,6 +1057,9 @@ export function AdminFinanceView() {
             columns={payoutColumns}
             keyField="id"
             loading={isLoadingLive}
+            selectable={true}
+            selectedRowKeys={selectedLiveKeys}
+            onSelectionChange={(keys) => setSelectedLiveKeys(keys as string[])}
             error={liveError}
             onRetry={fetchLivePayoutRequests}
             emptyTitle="Không Có Lệnh Rút Tiền Phù Hợp"

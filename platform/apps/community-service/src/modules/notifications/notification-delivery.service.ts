@@ -13,8 +13,11 @@ import {
 } from "../../entities/notification-preference.schema";
 import {
   Notification,
+  NotificationCategory,
   NotificationDocument,
+  NotificationPriority,
   NotificationRecipientType,
+  NotificationSenderType,
   NotificationType,
 } from "../../entities/notification.schema";
 import { FirebaseMessagingService } from "./firebase-messaging.service";
@@ -27,9 +30,15 @@ export interface NotificationInput {
   type: NotificationType;
   title: string;
   message: string;
-  payload: Record<string, unknown>;
+  payload?: Record<string, unknown>;
   imageUrl?: string;
   actionUrl?: string;
+  senderType?: NotificationSenderType;
+  senderId?: string;
+  senderName?: string;
+  senderAvatar?: string;
+  category?: NotificationCategory;
+  priority?: NotificationPriority;
 }
 
 @Injectable()
@@ -51,16 +60,33 @@ export class NotificationDeliveryService {
   async deliver(
     input: NotificationInput,
   ): Promise<NotificationDocument | null> {
-    const preference = await this.preferences.findOne({
-      recipientId: input.recipientId,
-    });
-    if (!this.inAppEnabled(input.type, preference)) return null;
+    const isBroadcast =
+      input.recipientId === "*" ||
+      input.recipientType === "ALL" ||
+      input.recipientId === "admin_channel";
+    let preference = null;
+    if (!isBroadcast) {
+      preference = await this.preferences.findOne({
+        recipientId: input.recipientId,
+      });
+      if (!this.inAppEnabled(input.type, preference)) return null;
+    }
 
     let created: NotificationDocument | null = null;
     try {
       const result = await this.notifications.updateOne(
         { sourceKey: input.sourceKey },
-        { $setOnInsert: { ...input, isRead: false } },
+        {
+          $setOnInsert: {
+            ...input,
+            category: input.category ?? "AUTO_LIFECYCLE",
+            priority: input.priority ?? "NORMAL",
+            senderType: input.senderType ?? "SYSTEM",
+            payload: input.payload ?? {},
+            isRead: false,
+            readBy: [],
+          },
+        },
         { upsert: true },
       );
       if (!result.upsertedCount) return null;
@@ -74,8 +100,28 @@ export class NotificationDeliveryService {
     if (!created) return null;
 
     const view = this.view(created);
-    this.gateway.notification(input.recipientId, view);
-    await this.push(created, preference);
+    if (isBroadcast) {
+      if (input.recipientType === "ALL" || input.recipientId === "*") {
+        this.gateway.broadcast(view);
+      } else if (input.recipientType === "ADMIN" || input.recipientId === "admin_channel") {
+        this.gateway.sendToRoom("admin_channel", view);
+      } else if (input.recipientType === "BUSINESS") {
+        this.gateway.sendToRoom("seller_channel", view);
+      } else if (input.recipientType === "DELIVERY") {
+        this.gateway.sendToRoom("shipper_channel", view);
+      } else {
+        this.gateway.broadcast(view);
+      }
+    } else {
+      if (input.recipientType === "ADMIN" || input.recipientId === "admin_channel") {
+        this.gateway.sendToRoom("admin_channel", view);
+      }
+      this.gateway.notification(input.recipientId, view);
+    }
+
+    if (!isBroadcast) {
+      await this.push(created, preference);
+    }
     void this.publishCreated(created);
     return created;
   }
@@ -155,9 +201,17 @@ export class NotificationDeliveryService {
     return true;
   }
 
-  private view(notification: NotificationDocument): Record<string, unknown> {
+  view(notification: NotificationDocument): Record<string, unknown> {
     return {
       id: notification.id,
+      recipientId: notification.recipientId,
+      recipientType: notification.recipientType,
+      senderType: notification.senderType,
+      senderId: notification.senderId,
+      senderName: notification.senderName,
+      senderAvatar: notification.senderAvatar,
+      category: notification.category,
+      priority: notification.priority,
       type: notification.type,
       title: notification.title,
       message: notification.message,

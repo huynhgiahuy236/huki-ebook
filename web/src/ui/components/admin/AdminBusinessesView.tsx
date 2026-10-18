@@ -11,6 +11,12 @@ import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeli
 import { useDebounce } from '../../utils/useDebounce';
 import { featureFlagsService, SellerFeature } from '../../services/featureFlagsService';
 import CustomModal from '../common/CustomModal';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 const STATUS_TABS = [
   { key: 'ALL', label: 'Tất Cả' },
@@ -133,6 +139,8 @@ export function AdminBusinessesView() {
 
   // Selection & Bulk Actions State
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [allFeatures, setAllFeatures] = useState<SellerFeature[]>([]);
 
   // Feature Flag Modal for single business
@@ -232,10 +240,13 @@ export function AdminBusinessesView() {
     runAudit();
   }, [selectedBiz]);
 
-  // Bộ lọc danh sách (sử dụng debouncedSearch)
+  // Bộ lọc danh sách (sử dụng debouncedSearch & dateFilter)
   const filteredBusinesses = useMemo(() => {
     return businesses.filter((biz: any) => {
       if (activeTab !== 'ALL' && biz.status !== activeTab) {
+        return false;
+      }
+      if (!matchesDateFilter(biz.createdAt || biz.issue_date, dateFilter)) {
         return false;
       }
       if (debouncedSearch.trim()) {
@@ -248,7 +259,7 @@ export function AdminBusinessesView() {
       }
       return true;
     });
-  }, [businesses, activeTab, debouncedSearch]);
+  }, [businesses, activeTab, dateFilter, debouncedSearch]);
 
   // Load features list
   useEffect(() => {
@@ -701,6 +712,58 @@ export function AdminBusinessesView() {
     setBulkFeatureModalOpen(false);
     setBulkFeatureIds([]);
     setAllFeatures(featureFlagsService.getAllFeatures());
+  };
+
+  const businessBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Xét duyệt hồ sơ',
+        actions: [
+          {
+            label: 'Phê duyệt doanh nghiệp đã chọn',
+            value: 'APPROVE',
+            icon: 'check_circle',
+            variant: 'primary',
+          },
+          {
+            label: 'Tạm ngưng / Khóa doanh nghiệp',
+            value: 'SUSPEND',
+            icon: 'block',
+            variant: 'danger',
+            confirmMessage: 'Bạn có chắc chắn muốn tạm ngưng các doanh nghiệp đã chọn? Tất cả gian hàng trực thuộc sẽ bị tạm khóa.',
+          },
+        ],
+      },
+      {
+        groupLabel: 'Cấu hình & Phân quyền',
+        actions: [
+          {
+            label: 'Khóa / Mở tính năng doanh nghiệp',
+            value: 'TOGGLE_FEATURES',
+            icon: 'toggle_on',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedRowKeys.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'APPROVE') {
+        await handleBulkApprove();
+      } else if (actionValue === 'SUSPEND') {
+        await handleBulkSuspend();
+      } else if (actionValue === 'TOGGLE_FEATURES') {
+        setBulkFeatureIds([]);
+        setBulkFeatureAction('BLOCK');
+        setBulkFeatureModalOpen(true);
+      }
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   // Helper render 1 ô thông tin thẩm định (Xanh / Đỏ / Vàng)
@@ -1484,33 +1547,38 @@ export function AdminBusinessesView() {
         </div>
       </div>
 
-      {/* 2. TABS & SEARCH BAR */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-gray-200 shadow-2xs">
-        {/* Status Tabs */}
-        <AdminFilterTabs
-          tabs={STATUS_TABS}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-          counts={counts}
-        />
-
-        {/* Search Box */}
-        <div className="relative w-full md:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-[18px]">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Tìm theo tên DN, MST, email, SĐT..."
-            value={searchQuery}
-            onChange={(e: any) => {
-              setSearchQuery(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-          />
-        </div>
-      </div>
+      {/* 2. TABS & SEARCH BAR WITH MULTI-TIER DATE & BULK ACTIONS */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm theo tên DN, MST, email, SĐT..."
+        searchValue={searchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: activeTab,
+          options: STATUS_TABS.map((t) => ({
+            value: t.key,
+            label: t.label,
+            count: counts[t.key as keyof typeof counts],
+          })),
+          onChange: handleTabChange,
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedRowKeys.length,
+          loading: bulkLoading,
+          groups: businessBulkActionGroups,
+          onSelectAction: handleExecuteBulkAction,
+        }}
+      />
 
       {/* 3. BUSINESSES TABLE / LIST */}
       <GroupedDataTable
@@ -1521,50 +1589,6 @@ export function AdminBusinessesView() {
         selectable={true}
         selectedRowKeys={selectedRowKeys}
         onSelectionChange={(keys) => setSelectedRowKeys(keys as string[])}
-        bulkActionRender={(keys) => {
-          const selectedItems = businesses.filter((b) => keys.includes(b.id));
-          const pendingCount = selectedItems.filter((b) => b.status === 'PENDING_APPROVAL').length;
-          const activeCount = selectedItems.filter((b) => b.status === 'APPROVED').length;
-
-          return (
-            <div className="flex items-center gap-2 flex-wrap">
-              {pendingCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleBulkApprove}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                  <span>Duyệt {pendingCount} DN</span>
-                </button>
-              )}
-
-              {activeCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleBulkSuspend}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-[15px]">block</span>
-                  <span>Khóa {activeCount} DN</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setBulkFeatureIds([]);
-                  setBulkFeatureAction('BLOCK');
-                  setBulkFeatureModalOpen(true);
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs shadow-2xs transition-colors cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-[15px]">toggle_on</span>
-                <span>Khóa/Mở Tính Năng ({keys.length})</span>
-              </button>
-            </div>
-          );
-        }}
         expandable={true}
         expandedRowRender={(biz: any) => {
           const full = buildFullEnterpriseProfile(biz);

@@ -110,6 +110,59 @@ class SoundEffectsManager {
       // ignore
     }
   }
+
+  /**
+   * Phát âm thanh tương ứng theo cấp độ ưu tiên thông báo
+   */
+  public playPriorityAlert(priority: 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL' = 'NORMAL'): void {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      if (priority === 'CRITICAL') {
+        // 3-tone urgent alert siren (880Hz -> 1174Hz -> 1760Hz)
+        [880, 1174.66, 1760].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const start = now + idx * 0.12;
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.25, start);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.35);
+        });
+      } else if (priority === 'HIGH') {
+        // High alert double-bell
+        [1318.5, 1760].forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          const start = now + idx * 0.1;
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.2, start);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + 0.4);
+        });
+      } else {
+        // LOW or NORMAL
+        this.playChime();
+      }
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const soundEffects = new SoundEffectsManager();
+
+export function playNotificationChime(priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL' | string) {
+  soundEffects.playPriorityAlert(priority as 'LOW' | 'NORMAL' | 'HIGH' | 'CRITICAL' | undefined);
+}

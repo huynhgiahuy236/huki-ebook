@@ -39,6 +39,7 @@ export interface SubscriberFilter {
 export type SyncEventType =
   | 'FEATURE_FLAGS_UPDATED'
   | 'ADMIN_NOTIFICATIONS_UPDATED'
+  | 'NOTIFICATIONS_UPDATED'
   | 'NOTIFICATION_READ'
   | 'NOTIFICATION_DISMISSED'
   | 'SELLER_FEATURE_TOGGLED'
@@ -363,26 +364,42 @@ class RealtimeSyncBus {
    * Phát sự kiện đồng bộ kèm thông tin vai trò đích (Target Auditing)
    */
   public publish<T = unknown>(
-    type: SyncEventType,
+    typeOrMessage: SyncEventType | { type: SyncEventType; payload?: T; target?: NotificationTarget },
     payload?: T,
     target?: NotificationTarget
   ): void {
-    const payloadObj = (payload as any) || {};
-    const resolvedRoles = target?.roles && target.roles.length > 0
-      ? target.roles
-      : getDefaultRolesForEventType(type);
+    let eventType: SyncEventType;
+    let eventPayload: T | undefined = payload;
+    let eventTarget: NotificationTarget | undefined = target;
+
+    if (typeOrMessage && typeof typeOrMessage === 'object' && 'type' in typeOrMessage) {
+      eventType = (typeOrMessage as any).type;
+      eventPayload = (typeOrMessage as any).payload !== undefined ? (typeOrMessage as any).payload : payload;
+      eventTarget = (typeOrMessage as any).target || target;
+    } else {
+      eventType = typeOrMessage as SyncEventType;
+    }
+
+    if (!eventType || typeof eventType !== 'string') {
+      return;
+    }
+
+    const payloadObj = (eventPayload as any) || {};
+    const resolvedRoles = eventTarget?.roles && eventTarget.roles.length > 0
+      ? eventTarget.roles
+      : getDefaultRolesForEventType(eventType);
 
     const resolvedTarget: NotificationTarget = {
       roles: resolvedRoles,
-      userId: target?.userId || payloadObj.userId || payloadObj.buyerId,
-      storeId: target?.storeId || payloadObj.storeId,
-      shipperId: target?.shipperId || payloadObj.shipperId,
-      orderId: target?.orderId || payloadObj.orderId,
+      userId: eventTarget?.userId || payloadObj.userId || payloadObj.buyerId,
+      storeId: eventTarget?.storeId || payloadObj.storeId,
+      shipperId: eventTarget?.shipperId || payloadObj.shipperId,
+      orderId: eventTarget?.orderId || payloadObj.orderId,
     };
 
     const message: SyncMessage<T> = {
-      type,
-      payload,
+      type: eventType,
+      payload: eventPayload,
       timestamp: Date.now(),
       senderId: this.instanceId,
       target: resolvedTarget,
@@ -402,42 +419,42 @@ class RealtimeSyncBus {
 
     // 3. Fallback to localStorage & DOM events
     if (typeof window !== 'undefined') {
-      if (type === 'FEATURE_FLAGS_UPDATED') {
-        window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: payload }));
+      if (eventType === 'FEATURE_FLAGS_UPDATED') {
+        window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: eventPayload }));
       }
-      if (type === 'ADMIN_NOTIFICATIONS_UPDATED') {
-        window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: payload }));
+      if (eventType === 'ADMIN_NOTIFICATIONS_UPDATED') {
+        window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: eventPayload }));
       }
 
-      const storagePayload = JSON.stringify({ type, payload, target: resolvedTarget, t: Date.now() });
+      const storagePayload = JSON.stringify({ type: eventType, payload: eventPayload, target: resolvedTarget, t: Date.now() });
 
-      if (type.startsWith('ORDER_') || type.startsWith('RETURN_') || type.startsWith('ESCROW_')) {
+      if (eventType.startsWith('ORDER_') || eventType.startsWith('RETURN_') || eventType.startsWith('ESCROW_')) {
         try {
           localStorage.setItem('huki_latest_order_event', storagePayload);
         } catch {}
       }
-      if (type === 'INVENTORY_UPDATED') {
+      if (eventType === 'INVENTORY_UPDATED') {
         try {
           localStorage.setItem('huki_latest_inventory_event', storagePayload);
-          window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: payload }));
+          window.dispatchEvent(new CustomEvent('huki_inventory_updated', { detail: eventPayload }));
         } catch {}
       }
-      if (type.startsWith('DRM_')) {
+      if (eventType.startsWith('DRM_')) {
         try {
           localStorage.setItem('huki_drm_sync_event', storagePayload);
-          window.dispatchEvent(new CustomEvent('huki_drm_event', { detail: { type, payload } }));
+          window.dispatchEvent(new CustomEvent('huki_drm_event', { detail: { type: eventType, payload: eventPayload } }));
         } catch {}
       }
-      if (type.startsWith('PAYOUT_')) {
+      if (eventType.startsWith('PAYOUT_')) {
         try {
           localStorage.setItem('huki_latest_payout_event', storagePayload);
-          window.dispatchEvent(new CustomEvent('huki_payout_event', { detail: { type, payload } }));
+          window.dispatchEvent(new CustomEvent('huki_payout_event', { detail: { type: eventType, payload: eventPayload } }));
         } catch {}
       }
-      if (type === 'WALLET_BALANCE_UPDATED' || type === 'ESCROW_RELEASED') {
+      if (eventType === 'WALLET_BALANCE_UPDATED' || eventType === 'ESCROW_RELEASED') {
         try {
           localStorage.setItem('huki_latest_wallet_event', storagePayload);
-          window.dispatchEvent(new CustomEvent('huki_wallet_event', { detail: { type, payload } }));
+          window.dispatchEvent(new CustomEvent('huki_wallet_event', { detail: { type: eventType, payload: eventPayload } }));
         } catch {}
       }
     }

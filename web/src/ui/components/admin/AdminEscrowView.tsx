@@ -5,6 +5,12 @@ import { orderApi } from '../../api/orderApi';
 import { useToast } from '../../context/ToastContext';
 import { AdminFilterTabs } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 import { realtimeSyncBus, type SyncMessage } from '../../services/realtimeSyncBus';
 import { playAdminAlertSound } from '@/ui/utils/chatSound';
 
@@ -128,6 +134,9 @@ export function AdminEscrowView() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedOrderCodes, setSelectedOrderCodes] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [mounted, setMounted] = useState<boolean>(false);
   const [nowTime, setNowTime] = useState<number>(0);
@@ -575,6 +584,9 @@ export function AdminEscrowView() {
           if (it.escrowStatus !== 'RELEASED') return false;
         }
       }
+      if (!matchesDateFilter(it.orderCreatedAt, dateFilter)) {
+        return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchStore = (it.storeName || '').toLowerCase().includes(q) || (it.storeId || '').toLowerCase().includes(q);
@@ -585,7 +597,59 @@ export function AdminEscrowView() {
       }
       return true;
     });
-  }, [items, activeTab, searchQuery]);
+  }, [items, activeTab, dateFilter, searchQuery]);
+
+  const escrowBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Quản trị ký quỹ',
+        actions: [
+          {
+            label: 'Đóng băng các đơn đã chọn',
+            value: 'FREEZE_ORDERS',
+            icon: 'ac_unit',
+            variant: 'danger',
+            confirmMessage: 'Bạn có chắc chắn muốn đóng băng dòng tiền ký quỹ của các đơn hàng đã chọn? Tiền sẽ tạm giữ cho đến khi có kết luận trọng tài.',
+          },
+          {
+            label: 'Bàn giao tiền cho gian hàng (Hết hạn đổi trả)',
+            value: 'RELEASE_ORDERS',
+            icon: 'payments',
+            variant: 'primary',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteEscrowBulkAction = async (actionValue: string) => {
+    if (selectedOrderCodes.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'FREEZE_ORDERS') {
+        const targetItems = items.filter(it => selectedOrderCodes.includes(it.orderCode) && it.escrowStatus !== 'RELEASED' && it.escrowStatus !== 'REFUNDED');
+        if (targetItems.length === 0) {
+          showToast?.({ title: 'Không có mục hợp lệ', message: 'Các đơn đã chọn đã được bàn giao hoặc hoàn tiền.', type: 'info' });
+          return;
+        }
+        await Promise.all(targetItems.map(it => handleStatusChange(it.id, 'FROZEN')));
+        showToast?.({ title: 'Đóng băng thành công', message: `Đã đóng băng ${targetItems.length} sản phẩm thuộc các đơn đã chọn.`, type: 'warning' });
+        setSelectedOrderCodes([]);
+      } else if (actionValue === 'RELEASE_ORDERS') {
+        const targetItems = items.filter(it => selectedOrderCodes.includes(it.orderCode) && it.escrowStatus === 'HOLDING');
+        if (targetItems.length === 0) {
+          showToast?.({ title: 'Không có mục hợp lệ', message: 'Không có đơn nào ở trạng thái Đang giữ để giải ngân.', type: 'info' });
+          return;
+        }
+        await Promise.all(targetItems.map(it => handleStatusChange(it.id, 'RELEASED')));
+        showToast?.({ title: 'Bàn giao thành công', message: `Đã giải ngân ${targetItems.length} sản phẩm cho gian hàng.`, type: 'success' });
+        setSelectedOrderCodes([]);
+      }
+    } finally {
+      setBulkLoading(false);
+    }
+  };
 
   // Gom nhóm các sản phẩm theo đơn hàng
   const groupedOrders = useMemo<EscrowOrderGroup[]>(() => {
@@ -1351,51 +1415,38 @@ export function AdminEscrowView() {
         </div>
       </div>
 
-      {/* 3. Thanh Bộ Lọc & Tìm Kiếm */}
-      <div className="bg-theme-surface rounded-2xl p-3 border border-theme-border shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
-        {/* Tabs Trạng Thái */}
-        <AdminFilterTabs
-          tabs={[
-            { id: 'ALL', label: 'Tất Cả', count: stats.totalCount },
-            { id: 'HOLDING', label: 'Đang Giữ Ký Quỹ', count: stats.actualEscrowCount },
-            { id: 'COD_PENDING', label: 'COD Chờ Nộp Quỹ', count: stats.codPendingCount },
-            { id: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
-            { id: 'REFUNDED', label: 'Đã Hoàn Trả', count: stats.refundedCount },
-            { id: 'RELEASED', label: 'Đã Bàn Giao', count: stats.releasedCount },
-          ]}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-        />
-
-        {/* Ô Tìm Kiếm */}
-        <div className="relative w-full md:w-72 shrink-0">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-theme-text-muted text-[16px]">
-            search
-          </span>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm mã đơn, SĐT, tên sách..."
-            className="w-full pl-9 pr-7 py-2 bg-theme-surface-subtle border border-theme-border rounded-xl text-xs text-theme-text placeholder:text-theme-text-muted focus:outline-none focus:border-[#00875A] focus:bg-theme-surface transition-all"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-theme-text-muted hover:text-theme-text p-0.5"
-            >
-              <span className="material-symbols-outlined text-xs">close</span>
-            </button>
-          )}
-        </div>
-      </div>
+      {/* 3. Thanh Bộ Lọc & Tìm Kiếm, Multi-Tier Date & Thao Tác Hàng Loạt */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm mã đơn, SĐT, tên sách..."
+        searchQuery={searchQuery}
+        onSearchChange={(val) => setSearchQuery(val)}
+        tabs={[
+          { key: 'ALL', label: 'Tất Cả', count: stats.totalCount },
+          { key: 'HOLDING', label: 'Đang Giữ Ký Quỹ', count: stats.actualEscrowCount },
+          { key: 'COD_PENDING', label: 'COD Chờ Nộp Quỹ', count: stats.codPendingCount },
+          { key: 'FROZEN', label: 'Đóng Băng', count: stats.frozenCount },
+          { key: 'REFUNDED', label: 'Đã Hoàn Trả', count: stats.refundedCount },
+          { key: 'RELEASED', label: 'Đã Bàn Giao', count: stats.releasedCount },
+        ]}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        dateFilter={dateFilter}
+        onDateFilterChange={(df) => setDateFilter(df)}
+        selectedCount={selectedOrderCodes.length}
+        bulkLoading={bulkLoading}
+        bulkActionGroups={escrowBulkActionGroups}
+        onExecuteBulkAction={handleExecuteEscrowBulkAction}
+      />
 
       {/* 4. Grouped Data Table */}
       <GroupedDataTable
         columns={orderColumns}
         data={groupedOrders}
         keyField="id"
+        selectable={true}
+        selectedRowKeys={selectedOrderCodes}
+        onSelectionChange={(keys) => setSelectedOrderCodes(keys as string[])}
         expandable={true}
         expandedRowRender={renderOrderItemsDetail}
         expandedRowKeys={expandedKeys}

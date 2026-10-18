@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useToast } from "../../context/ToastContext";
 import { voucherApi, Voucher } from "../../api/voucherApi";
 import { AdminStatusBadge, AdminPagination } from './AdminUI';
+import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 
 export function AdminVouchersView() {
   const { showToast } = useToast();
@@ -16,6 +17,13 @@ export function AdminVouchersView() {
   const [expandedVoucherIds, setExpandedVoucherIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({
+    tier1: 'ALL',
+    preset: 'ALL',
+  });
+  const [selectedVoucherIds, setSelectedVoucherIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const toggleExpandVoucher = (id: string) => {
     setExpandedVoucherIds((prev) => {
@@ -110,6 +118,11 @@ export function AdminVouchersView() {
   const filteredVouchers = useMemo(() => {
     const now = new Date();
     return vouchers.filter((v: any) => {
+      // Date filter
+      if (!matchesDateFilter(v.startsAt || v.createdAt, dateFilter)) {
+        return false;
+      }
+
       // Search
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
@@ -133,12 +146,12 @@ export function AdminVouchersView() {
       }
       return true;
     });
-  }, [vouchers, activeTab, searchQuery]);
+  }, [vouchers, activeTab, searchQuery, dateFilter]);
 
   // Pagination & Reset
   useEffect(() => {
     setCurrentPage(1);
-  }, [activeTab, searchQuery, groupBy]);
+  }, [activeTab, searchQuery, groupBy, dateFilter]);
 
   const paginatedVouchers = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -315,6 +328,82 @@ export function AdminVouchersView() {
       }
     } catch {
       showToast?.("Không thể xóa voucher", "error");
+    }
+  };
+
+  const voucherBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        label: 'Vận Hành Voucher Sàn',
+        actions: [
+          {
+            value: 'ACTIVATE_VOUCHERS',
+            label: 'Kích hoạt voucher',
+            icon: 'play_circle',
+            color: 'success',
+            confirmTitle: 'Kích hoạt voucher đã chọn?',
+            confirmMessage: `Bạn có chắc muốn kích hoạt ${selectedVoucherIds.length} mã voucher sàn đã chọn?`,
+          },
+          {
+            value: 'PAUSE_VOUCHERS',
+            label: 'Tạm dừng voucher',
+            icon: 'pause_circle',
+            color: 'warning',
+            confirmTitle: 'Tạm dừng voucher đã chọn?',
+            confirmMessage: `Bạn có chắc muốn tạm dừng hoạt động ${selectedVoucherIds.length} voucher đã chọn?`,
+          },
+          {
+            value: 'DELETE_VOUCHERS',
+            label: 'Xóa vĩnh viễn voucher',
+            icon: 'delete',
+            color: 'danger',
+            confirmTitle: 'Xóa các voucher sàn đã chọn?',
+            confirmMessage: `Bạn có chắc muốn xóa vĩnh viễn ${selectedVoucherIds.length} voucher đã chọn? Thao tác này không thể hoàn tác.`,
+          },
+        ],
+      },
+    ],
+    [selectedVoucherIds.length]
+  );
+
+  const handleExecuteBulkAction = async (action: string) => {
+    if (!selectedVoucherIds.length) return;
+    setBulkLoading(true);
+    try {
+      if (action === 'ACTIVATE_VOUCHERS') {
+        for (const id of selectedVoucherIds) {
+          try {
+            await voucherApi.updateAdminVoucher(id, { status: 'ACTIVE' });
+          } catch {}
+        }
+        showToast?.(`Đã kích hoạt ${selectedVoucherIds.length} voucher thành công`, 'success');
+        setSelectedVoucherIds([]);
+        fetchVouchers();
+      } else if (action === 'PAUSE_VOUCHERS') {
+        for (const id of selectedVoucherIds) {
+          try {
+            await voucherApi.updateAdminVoucher(id, { status: 'INACTIVE' });
+          } catch {}
+        }
+        showToast?.(`Đã tạm dừng ${selectedVoucherIds.length} voucher thành công`, 'success');
+        setSelectedVoucherIds([]);
+        fetchVouchers();
+      } else if (action === 'DELETE_VOUCHERS') {
+        let deletedCount = 0;
+        for (const id of selectedVoucherIds) {
+          try {
+            const res = await voucherApi.deleteAdminVoucher(id);
+            if (res.success) deletedCount++;
+          } catch {}
+        }
+        showToast?.(`Đã xóa ${deletedCount}/${selectedVoucherIds.length} voucher`, 'success');
+        setSelectedVoucherIds([]);
+        fetchVouchers();
+      }
+    } catch (err: any) {
+      showToast?.(err.message || 'Lỗi xử lý thao tác hàng loạt', 'error');
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -944,61 +1033,52 @@ export function AdminVouchersView() {
         </div>
       )}
 
-      {/* 4. FILTER & GROUPING TOOLBAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-[#E2E8F0] shadow-2xs">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {[
-            { id: 'ALL', label: 'Tất Cả', count: vouchers.length },
-            { id: 'ACTIVE', label: 'Đang Hoạt Động', count: stats.activeCount },
-            { id: 'UPCOMING', label: 'Đã Lên Lịch', count: vouchers.filter((v: any) => new Date(v.startsAt) > new Date()).length },
-            { id: 'EXPIRED', label: 'Hết Lượt / Tạm Dừng', count: vouchers.filter((v: any) => new Date(v.expiresAt) < new Date() || v.status === 'INACTIVE' || v.status === 'USED_UP').length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                activeTab === tab.id
-                  ? "bg-[#00875A] text-white shadow-xs"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100 border border-gray-200"
-              }`}
-            >
-              <span>{tab.label}</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'}`}>
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Group By Selector */}
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold">
-            <span className="material-symbols-outlined text-sm">table_rows</span>
-            <span>Nhóm theo:</span>
-            <select
-              value={groupBy}
-              onChange={(e: any) => setGroupBy(e.target.value)}
-              className="px-2.5 py-1.5 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-700 focus:border-[#00875A]"
-            >
-              <option value="TYPE">Loại Giảm Giá</option>
-              <option value="AUDIENCE">Đối Tượng Bạn Đọc</option>
-              <option value="NONE">Không Nhóm (Bảng phẳng)</option>
-            </select>
-          </div>
-
-          <div className="relative w-full sm:w-56">
-            <input
-              type="text"
-              placeholder="Tìm theo mã, tên..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-gray-200 text-xs focus:outline-none focus:border-[#00875A]"
-            />
-            <span className="material-symbols-outlined absolute left-2.5 top-2 text-gray-400 text-sm">
-              search
-            </span>
-          </div>
-        </div>
+      {/* 4. FILTER & GROUPING TOOLBAR WITH 2-TIER DATE FILTER & INLINE BULK ACTIONS */}
+      <div className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs">
+        <DataTableFilterBar
+          searchPlaceholder="Tìm theo mã, tên voucher..."
+          searchValue={searchQuery}
+          onSearchChange={(v) => {
+            setSearchQuery(v);
+            setCurrentPage(1);
+          }}
+          filterTabs={[
+            { key: 'ALL', label: 'Tất Cả', count: vouchers.length },
+            { key: 'ACTIVE', label: 'Đang Hoạt Động', count: stats.activeCount },
+            { key: 'UPCOMING', label: 'Đã Lên Lịch', count: vouchers.filter((v: any) => new Date(v.startsAt) > new Date()).length },
+            { key: 'EXPIRED', label: 'Hết Lượt / Tạm Dừng', count: vouchers.filter((v: any) => new Date(v.expiresAt) < new Date() || v.status === 'INACTIVE' || v.status === 'USED_UP').length },
+          ]}
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab as any);
+            setCurrentPage(1);
+          }}
+          enableDateFilter={true}
+          dateFilter={dateFilter}
+          onDateFilterChange={(df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          }}
+          selectedCount={selectedVoucherIds.length}
+          bulkActionGroups={voucherBulkActionGroups}
+          onBulkAction={handleExecuteBulkAction}
+          isBulkLoading={bulkLoading}
+          leftCustomActions={
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 font-bold shrink-0">
+              <span className="material-symbols-outlined text-sm">table_rows</span>
+              <span>Nhóm:</span>
+              <select
+                value={groupBy}
+                onChange={(e: any) => setGroupBy(e.target.value)}
+                className="px-2.5 py-1.5 rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bold text-gray-700 dark:text-gray-200 focus:border-[#00875A]"
+              >
+                <option value="TYPE">Loại Giảm Giá</option>
+                <option value="AUDIENCE">Đối Tượng Bạn Đọc</option>
+                <option value="NONE">Không Nhóm (Bảng phẳng)</option>
+              </select>
+            </div>
+          }
+        />
       </div>
 
       {/* 5. GROUPED DATA TABLES (Chi tiết, tường minh, không lơ là) */}
@@ -1040,6 +1120,25 @@ export function AdminVouchersView() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                     <tr>
+                      <th className="py-3 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-[#00875A] focus:ring-[#00875A] cursor-pointer"
+                          checked={
+                            group.items.length > 0 &&
+                            group.items.every((it: any) => selectedVoucherIds.includes(it.id || it.code))
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const idsToAdd = group.items.map((it: any) => it.id || it.code);
+                              setSelectedVoucherIds((prev) => Array.from(new Set([...prev, ...idsToAdd])));
+                            } else {
+                              const idsToRemove = new Set(group.items.map((it: any) => it.id || it.code));
+                              setSelectedVoucherIds((prev) => prev.filter((id) => !idsToRemove.has(id)));
+                            }
+                          }}
+                        />
+                      </th>
                       <th className="py-3 px-2 w-10 text-center"></th>
                       <th className="py-3 px-2 w-12 text-center">STT</th>
                       <th className="py-3 px-3.5">Mã &amp; Chiến Dịch</th>
@@ -1068,16 +1167,35 @@ export function AdminVouchersView() {
                           ? 'Đã theo dõi'
                           : 'Tất cả bạn đọc';
 
-                      const isExpanded = expandedVoucherIds.has(v.id || v.code);
+                      const voucherKey = v.id || v.code;
+                      const isSelected = selectedVoucherIds.includes(voucherKey);
+                      const isExpanded = expandedVoucherIds.has(voucherKey);
 
                       return (
-                        <React.Fragment key={v.id || v.code}>
-                          <tr className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
+                        <React.Fragment key={voucherKey}>
+                          <tr className={`transition-colors group ${isSelected ? 'bg-emerald-50/50' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'} hover:bg-emerald-50/40`}>
+                            {/* Checkbox */}
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-[#00875A] focus:ring-[#00875A] cursor-pointer"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedVoucherIds((prev) =>
+                                    prev.includes(voucherKey)
+                                      ? prev.filter((id) => id !== voucherKey)
+                                      : [...prev, voucherKey]
+                                  );
+                                }}
+                              />
+                            </td>
+
                             {/* Expand arrow */}
                             <td className="py-3 px-2 text-center">
                               <button
                                 type="button"
-                                onClick={() => toggleExpandVoucher(v.id || v.code)}
+                                onClick={() => toggleExpandVoucher(voucherKey)}
                                 className="w-7 h-7 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
                                 aria-label={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
                               >
@@ -1182,7 +1300,7 @@ export function AdminVouchersView() {
                           {/* Expandable Master-Detail Subcard */}
                           {isExpanded && (
                             <tr className="bg-[#F0FDF4]/30 border-b border-emerald-100">
-                              <td colSpan={7} className="p-4 sm:p-5">
+                              <td colSpan={8} className="p-4 sm:p-5">
                                 <div className="rounded-2xl border border-emerald-200/80 bg-white p-4 shadow-2xs flex flex-col gap-4">
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                                     {/* Card 1: Quy chế chiết khấu */}

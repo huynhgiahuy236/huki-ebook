@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
+import { useToast } from '@/ui/context/ToastContext';
 import { useChatSocket } from '@/ui/hooks/useChatSocket';
 import { chatService, type ChatMessage, type ChatConversation, type ChatAttachment } from '@/ui/services/chatService';
 import { voucherApi } from '@/ui/api/voucherApi';
@@ -24,6 +25,7 @@ interface FilePreviewItem {
 }
 
 export default function FloatingChatWidget({ initialStoreId, initialStoreName }: FloatingChatWidgetProps) {
+  const { showToast } = useToast();
   const pathname = usePathname() || '';
   const { user } = useAuth();
 
@@ -368,14 +370,17 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
         const res = await chatService.sendMessage(
           targetConvId,
           {
-            content: content || '',
+            content: content || (hasVideo ? '[Video đính kèm]' : hasImage ? '[Hình ảnh đính kèm]' : 'Tệp đính kèm'),
             messageType: resolvedType,
           },
           filesToUpload
         );
-        if (res.success && res.data?.data) {
-          const sentMsg = res.data.data;
+        const sentMsg = (res.data as any)?.data || res.data;
+        if (res.success && sentMsg) {
           setMessages((prev) => prev.map((m) => (m.id === tempId ? sentMsg : m)));
+        } else {
+          showToast?.((res as any)?.message || (res as any)?.error?.message || 'Không thể tải ảnh/video lên máy chủ.', 'error');
+          setMessages((prev) => prev.filter((m) => m.id !== tempId));
         }
       } else {
         if (isConnected) {

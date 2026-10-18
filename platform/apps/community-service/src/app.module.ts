@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import configuration from '../config/configuration';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ChatModule } from './modules/chat/chat.module';
@@ -11,7 +12,12 @@ import { HealthController } from './health.controller';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration] }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env', '../../.env.local', '../../.env'],
+      load: [configuration],
+    }),
+    ScheduleModule.forRoot(),
     JwtModule.registerAsync({
       global: true,
       imports: [ConfigModule],

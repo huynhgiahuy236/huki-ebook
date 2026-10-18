@@ -12,10 +12,23 @@ import { AttachmentType } from "../../entities/message.schema";
 @Injectable()
 export class ChatAttachmentStorage {
   constructor(config: ConfigService) {
+    const cloudName =
+      config.get<string>("storage.cloudinary.cloudName") ||
+      config.get<string>("CLOUDINARY_CLOUD_NAME") ||
+      process.env.CLOUDINARY_CLOUD_NAME;
+    const apiKey =
+      config.get<string>("storage.cloudinary.apiKey") ||
+      config.get<string>("CLOUDINARY_API_KEY") ||
+      process.env.CLOUDINARY_API_KEY;
+    const apiSecret =
+      config.get<string>("storage.cloudinary.apiSecret") ||
+      config.get<string>("CLOUDINARY_API_SECRET") ||
+      process.env.CLOUDINARY_API_SECRET;
+
     cloudinary.config({
-      cloud_name: config.get<string>("storage.cloudinary.cloudName"),
-      api_key: config.get<string>("storage.cloudinary.apiKey"),
-      api_secret: config.get<string>("storage.cloudinary.apiSecret"),
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret,
       secure: true,
     });
   }

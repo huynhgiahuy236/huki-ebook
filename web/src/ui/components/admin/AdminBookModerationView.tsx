@@ -1,17 +1,26 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useToast } from '../../context/ToastContext';
 import { catalogApi, BookData } from '../../api/catalogApi';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer } from './AdminUI';
+import {
+  DataTableFilterBar,
+  DateFilterValue,
+  matchesDateFilter,
+  BulkActionGroup,
+} from '../common';
 
 export function AdminBookModerationView() {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('all');
+  const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [inspectingBook, setInspectingBook] = useState<any>(null);
@@ -22,7 +31,7 @@ export function AdminBookModerationView() {
   const [isLoading, setIsLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<any>(null);
 
-  const [queueItems, setQueueItems] = useState<any[]>([]);;
+  const [queueItems, setQueueItems] = useState<any[]>([]);
 
   const inspectPanelRef = useSmartFormCollapse({
     isOpen: Boolean(inspectingBook),
@@ -74,6 +83,7 @@ export function AdminBookModerationView() {
             licenseNo: `QĐXB-${b.id.substring(0, 6).toUpperCase()}-2026`,
             price: b.price || 0,
             ebookPrice: b.format !== 'PHYSICAL' ? (b.price ? Math.round(b.price * 0.6) : 0) : null,
+            createdAt: b.createdAt || new Date().toISOString(),
             submittedAt: b.createdAt ? new Date(b.createdAt).toLocaleDateString('vi-VN') : 'Gần đây',
             status: isPublished ? 'approved' : 'pending',
             statusLabel: isPublished ? 'Đã phê duyệt' : 'Chờ kiểm duyệt',
@@ -157,6 +167,7 @@ export function AdminBookModerationView() {
   const filteredItems = queueItems.filter(item => {
     if (activeTab !== 'all' && item.status !== activeTab) return false;
     if (selectedFormat !== 'all' && item.format !== selectedFormat) return false;
+    if (!matchesDateFilter(item.createdAt, dateFilter)) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -169,6 +180,69 @@ export function AdminBookModerationView() {
     }
     return true;
   });
+
+  const moderationBulkActionGroups: BulkActionGroup[] = useMemo(
+    () => [
+      {
+        groupLabel: 'Xử lý kiểm duyệt',
+        actions: [
+          {
+            label: 'Phê duyệt lên kệ sách đã chọn',
+            value: 'APPROVE_BOOKS',
+            icon: 'verified',
+            variant: 'primary',
+          },
+          {
+            label: 'Yêu cầu bổ sung giấy phép',
+            value: 'NEED_UPDATE',
+            icon: 'edit_note',
+          },
+          {
+            label: 'Từ chối kiểm duyệt sách đã chọn',
+            value: 'REJECT_BOOKS',
+            icon: 'cancel',
+            variant: 'danger',
+            confirmMessage: 'Bạn có chắc chắn muốn từ chối các tựa sách đã chọn không? Nhà xuất bản sẽ nhận thông báo từ chối.',
+          },
+        ],
+      },
+    ],
+    []
+  );
+
+  const handleExecuteBulkAction = async (actionValue: string) => {
+    if (selectedItemIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionValue === 'APPROVE_BOOKS') {
+        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'approved', statusLabel: 'Đã phê duyệt' } : item));
+        showToast?.(`Đã phê duyệt thành công ${selectedItemIds.length} tựa sách lên kệ!`, 'success');
+        setSelectedItemIds([]);
+      } else if (actionValue === 'NEED_UPDATE') {
+        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'need_update', statusLabel: 'Cần bổ sung' } : item));
+        showToast?.(`Đã yêu cầu bổ sung giấy phép cho ${selectedItemIds.length} tựa sách.`, 'info');
+        setSelectedItemIds([]);
+      } else if (actionValue === 'REJECT_BOOKS') {
+        setQueueItems(prev => prev.map(item => selectedItemIds.includes(item.id) ? { ...item, status: 'rejected', statusLabel: 'Đã từ chối' } : item));
+        showToast?.(`Đã từ chối ${selectedItemIds.length} tựa sách.`, 'warning');
+        setSelectedItemIds([]);
+      }
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedItemIds(prev => prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllItems = (allIds: string[]) => {
+    if (selectedItemIds.length === allIds.length && allIds.length > 0) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(allIds);
+    }
+  };
 
   const pendingCount = queueItems.filter(i => i.status === 'pending').length;
   const needUpdateCount = queueItems.filter(i => i.status === 'need_update').length;
@@ -278,22 +352,39 @@ export function AdminBookModerationView() {
         </div>
       </div>
 
-      {/* 3. FILTERS, SEARCH & FORMAT TABS */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-[#E2E8F0] shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3.5">
-        {/* Status Tabs chuẩn AdminFilterTabs */}
-        <AdminFilterTabs
-          tabs={[
-            { id: 'all', label: 'Tất Cả', count: queueItems.length },
-            { id: 'pending', label: 'Chờ Xét Duyệt', count: pendingCount },
-            { id: 'need_update', label: 'Cần Bổ Sung', count: needUpdateCount },
-            { id: 'approved', label: 'Đã Phê Duyệt', count: approvedCount },
-          ]}
-          activeTab={activeTab}
-          onChange={handleTabChange}
-        />
-
-        {/* Search & Format Filter */}
-        <div className="flex items-center gap-2.5 w-full md:w-auto">
+      {/* 3. FILTERS, SEARCH, FORMAT TABS & BULK ACTIONS */}
+      <DataTableFilterBar
+        className="bg-white dark:bg-neutral-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-neutral-800 shadow-2xs"
+        searchPlaceholder="Tìm tên sách, ISBN, NXB..."
+        searchValue={searchQuery}
+        onSearchChange={(val) => {
+          setSearchQuery(val);
+          setCurrentPage(1);
+        }}
+        statusFilter={{
+          current: activeTab,
+          options: [
+            { value: 'all', label: 'Tất Cả', count: queueItems.length },
+            { value: 'pending', label: 'Chờ Xét Duyệt', count: pendingCount },
+            { value: 'need_update', label: 'Cần Bổ Sung', count: needUpdateCount },
+            { value: 'approved', label: 'Đã Phê Duyệt', count: approvedCount },
+          ],
+          onChange: handleTabChange,
+        }}
+        dateFilter={{
+          value: dateFilter,
+          onChange: (df) => {
+            setDateFilter(df);
+            setCurrentPage(1);
+          },
+        }}
+        bulkActions={{
+          selectedCount: selectedItemIds.length,
+          loading: bulkLoading,
+          groups: moderationBulkActionGroups,
+          onSelectAction: handleExecuteBulkAction,
+        }}
+        leftCustomActions={
           <select
             value={selectedFormat}
             onChange={(e: any) => {
@@ -307,28 +398,22 @@ export function AdminBookModerationView() {
             <option value="ebook">Ebook DRM Độc Quyền</option>
             <option value="physical">Sách Giấy In</option>
           </select>
-
-          <div className="relative flex-1 md:w-60">
-            <span className="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-[16px]">search</span>
-            <input
-              type="text"
-              placeholder="Tìm tên sách, ISBN, NXB..."
-              value={searchQuery}
-              onChange={(e: any) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#00875A] focus:bg-white transition-all"
-            />
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* 4. MODERATION QUEUE TABLE - Compact Stacked Rows & Expandable Detail */}
       <AdminTableContainer>
         <table className="w-full text-left text-xs border-collapse">
           <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
             <tr>
+              <th className="py-3 px-2 w-8 text-center">
+                <input
+                  type="checkbox"
+                  checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedItemIds.includes(i.id))}
+                  onChange={() => toggleSelectAllItems(paginatedItems.map(i => i.id))}
+                  className="rounded text-[#00875A] cursor-pointer"
+                />
+              </th>
               <th className="py-3 px-2 w-8 text-center"></th>
               <th className="py-3 px-2 w-10 text-center">STT</th>
               <th className="py-3 px-4">Tác Phẩm &amp; Mã ISBN</th>
@@ -341,7 +426,7 @@ export function AdminBookModerationView() {
           <tbody className="divide-y divide-gray-100">
             {paginatedItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="py-12 text-center text-gray-400">
+                <td colSpan={8} className="py-12 text-center text-gray-400">
                   <span className="material-symbols-outlined text-4xl mb-2 text-gray-300">find_in_page</span>
                   <p className="font-semibold text-xs">Không tìm thấy hồ sơ sách nào phù hợp điều kiện lọc.</p>
                 </td>
@@ -359,6 +444,16 @@ export function AdminBookModerationView() {
                         isExpanded ? 'bg-emerald-50/30' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
                       } hover:bg-emerald-50/50`}
                     >
+                      {/* Checkbox */}
+                      <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedItemIds.includes(item.id)}
+                          onChange={() => toggleSelectItem(item.id)}
+                          className="rounded text-[#00875A] cursor-pointer"
+                        />
+                      </td>
+
                       {/* Mũi tên mở rộng */}
                       <td className="py-3 px-2 text-center">
                         <button
@@ -475,7 +570,7 @@ export function AdminBookModerationView() {
                     {/* Khối Master-Detail mở rộng (3-card subpanel) */}
                     {isExpanded && (
                       <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={7} className="p-4 sm:p-5">
+                        <td colSpan={8} className="p-4 sm:p-5">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
                             {/* Cột 1: Thông tin xuất bản & Hồ sơ */}
                             <div className="space-y-2 text-xs border-r border-gray-100 pr-3">

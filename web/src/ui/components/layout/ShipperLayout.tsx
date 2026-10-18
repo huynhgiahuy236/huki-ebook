@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { ShipperProvider, useShipper } from '@/ui/context/ShipperContext';
 import { useAuth } from '@/ui/context/AuthContext';
+import UniversalNotificationBell from '@/ui/components/common/UniversalNotificationBell';
 
 export interface ShipperMenuItem {
   label: string;
@@ -271,6 +272,9 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
               </>
             )}
           </Link>
+
+          {/* Chuông Thông Báo Realtime Bưu Tá */}
+          <UniversalNotificationBell variant="shipper" />
 
           {/* Profile & Avatar */}
           <div className="flex items-center gap-2 pl-2 sm:pl-2.5 border-l border-[#E2E8F0]">

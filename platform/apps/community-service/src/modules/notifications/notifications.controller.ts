@@ -9,6 +9,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -30,19 +32,54 @@ import {
 } from "../../common/community-auth.guard";
 import { CurrentCommunityActor } from "../../common/current-community-actor.decorator";
 import {
+  DispatchNotificationDto,
   NotificationIdParamDto,
   NotificationListQueryDto,
   RegisterNotificationDeviceDto,
   UpdateNotificationPreferenceDto,
 } from "./dto/notification.dto";
 import { NotificationsService } from "./notifications.service";
+import {
+  NotificationWatchdogService,
+  WatchdogScanInput,
+} from "./notification-watchdog.service";
+import { throwForbidden, ErrorCode } from "@huki/shared/errors";
 
 @ApiTags("Notifications")
 @ApiBearerAuth()
 @UseGuards(AuthenticatedCommunityGuard)
 @Controller("notifications")
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly watchdog: NotificationWatchdogService,
+  ) {}
+
+  @Post("watchdog/scan")
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: "Trigger Auto Watchdog anomaly scan",
+    description: "Scans for Order SLA violations, shipping delays, low stock, payment risks, and microservice downtime.",
+  })
+  @ApiResponse({ status: 200, description: "Watchdog scan completed" })
+  async scanWatchdog(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Body() body?: WatchdogScanInput,
+  ) {
+    const role = (actor.role ?? "").toUpperCase();
+    if (role !== "PLATFORM_ADMIN" && role !== "ADMIN") {
+      throwForbidden(
+        ErrorCode.AUTHZ_ROLE_INSUFFICIENT,
+        "Chỉ Quản trị viên hệ thống (ADMIN) mới có quyền kích hoạt quét Watchdog!",
+      );
+    }
+    const result = await this.watchdog.scanAll(body);
+    return {
+      success: true,
+      message: "Watchdog scan completed successfully",
+      data: result,
+    };
+  }
 
   @Get()
   @ApiOperation({
@@ -58,7 +95,33 @@ export class NotificationsController {
     return this.notifications.list(actor, query);
   }
 
+  @Get("unread-count")
+  @ApiOperation({
+    summary: "Get unread notifications count",
+    description: "Returns unread notifications count for the authenticated actor.",
+  })
+  @ApiResponse({ status: 200, description: "Unread count" })
+  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  unreadCount(@CurrentCommunityActor() actor: CommunityActor) {
+    return this.notifications.unreadCount(actor);
+  }
+
+  @Post("dispatch")
+  @ApiOperation({
+    summary: "Dispatch a notification across roles (Any-to-Any or Broadcast)",
+    description: "Allows users, sellers, shippers, and admins to dispatch notifications with role-based checks.",
+  })
+  @ApiResponse({ status: 201, description: "Notification dispatched successfully" })
+  @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
+  dispatch(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Body() dto: DispatchNotificationDto,
+  ) {
+    return this.notifications.dispatch(actor, dto);
+  }
+
   @Post("read-all")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Mark all notifications as read",
     description: "Marks all notifications as read for the current user.",
@@ -70,6 +133,7 @@ export class NotificationsController {
   }
 
   @Delete("clear-all")
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: "Clear all notifications",
     description: "Deletes all notifications for the current user.",
