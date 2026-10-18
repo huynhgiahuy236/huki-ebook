@@ -7,6 +7,7 @@ import {
   DateFilterValue,
   matchesDateFilter,
   BulkActionGroup,
+  StandardPaginationBar,
 } from '../common';
 
 export default function ShipperHistoryView() {
@@ -217,37 +218,16 @@ export default function ShipperHistoryView() {
             })}
           </div>
 
-          {/* Pagination Toolbar */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-[var(--theme-border,#e8e5df)] text-xs text-slate-600 shadow-2xs">
-              <div>
-                Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
-                <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> trên{' '}
-                <strong>{filtered.length}</strong> chuyến giao
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-                >
-                  ← Trước
-                </button>
-                <span className="px-2.5 py-1 font-bold text-slate-900">
-                  Trang {currentPage} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-                >
-                  Sau →
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Standard Pagination Toolbar */}
+          <div className="bg-white rounded-2xl border border-[var(--theme-border,#e8e5df)] shadow-2xs overflow-hidden">
+            <StandardPaginationBar
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              currentPage={currentPage}
+              onPageChange={setCurrentPage}
+              itemLabel="chuyến giao"
+            />
+          </div>
         </div>
       )}
     </div>

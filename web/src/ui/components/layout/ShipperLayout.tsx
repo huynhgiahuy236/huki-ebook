@@ -38,11 +38,11 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
     user?.role === 'PLATFORM_ADMIN'
   );
 
-  // Protected route guard: Redirect unauthenticated users to /shipper/login
+  // Protected route guard: Redirect unauthenticated users to shared login
   useEffect(() => {
     if (pathname === '/shipper/login') return;
     if (!isLoading && !isLoggedIn) {
-      router.replace('/shipper/login');
+      router.replace('/auth/login?redirect=' + encodeURIComponent(pathname || '/shipper'));
     }
   }, [pathname, isLoading, isLoggedIn, router]);
 
@@ -111,12 +111,16 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
     '/shipper': { parent: 'Điều Hành Giao Hàng', title: 'Bảng Điều Khiển Bưu Tá' },
     '/shipper/available-orders': { parent: 'Sàn Điều Phối', title: 'Sàn Đơn Hàng Chờ Nhận' },
     '/shipper/active-deliveries': { parent: 'Hành Trình Giao', title: 'Đơn Hàng Đang Thực Hiện' },
+    '/shipper/returns': { parent: 'Hành Trình Thu Hồi', title: 'Thu Hồi & Hoàn Trả Sách' },
     '/shipper/history': { parent: 'Dữ Liệu Vận Hành', title: 'Lịch Sử Giao Hàng & Báo Cáo' },
     '/shipper/wallet': { parent: 'Tài Chính & Kế Toán', title: 'Ví Thu Nhập & Đối Soát COD' },
     '/shipper/profile': { parent: 'Thiết Lập Tài Xế', title: 'Hồ Sơ & Phương Tiện Giao Sách' },
   };
 
   const currentRouteInfo = routeMap[pathname] || { parent: 'Bưu Tá HuKi Express', title: 'Hệ Thống Vận Hành' };
+
+  const normalActiveDeliveries = activeDeliveries.filter((o) => o.orderType !== 'RETURN');
+  const returnOrders = activeDeliveries.filter((o) => o.orderType === 'RETURN');
 
   const menuSections: ShipperMenuSection[] = [
     {
@@ -138,7 +142,14 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
           label: 'Đơn Đang Giao',
           to: '/shipper/active-deliveries',
           icon: 'route',
-          count: activeDeliveries.length > 0 ? String(activeDeliveries.length) : undefined,
+          count: normalActiveDeliveries.length > 0 ? String(normalActiveDeliveries.length) : undefined,
+        },
+        {
+          label: 'Thu Hồi & Hoàn Trả',
+          to: '/shipper/returns',
+          icon: 'assignment_return',
+          count: returnOrders.length > 0 ? String(returnOrders.length) : undefined,
+          badgeColor: 'bg-purple-600',
         },
         {
           label: 'Lịch Sử Giao Hàng',

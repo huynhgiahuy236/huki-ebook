@@ -8,6 +8,7 @@ import {
   DateFilterValue,
   matchesDateFilter,
   BulkActionGroup,
+  StandardPaginationBar,
 } from '../common';
 
 export default function ShipperWalletView() {
@@ -430,37 +431,14 @@ export default function ShipperWalletView() {
           </table>
         </div>
 
-        {/* Pagination Toolbar */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between p-3.5 border-t border-[#E2E8F0] bg-[#FAFAFA] text-xs text-gray-600">
-            <div>
-              Hiển thị <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
-              <strong>{Math.min(currentPage * pageSize, transactions.length)}</strong> trên{' '}
-              <strong>{transactions.length}</strong> biến động số dư
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-              >
-                ← Trước
-              </button>
-              <span className="px-2.5 py-1 font-bold text-gray-900">
-                Trang {currentPage} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-              >
-                Sau →
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Standard Pagination Toolbar */}
+        <StandardPaginationBar
+          totalItems={filteredTransactions.length}
+          pageSize={pageSize}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          itemLabel="giao dịch"
+        />
       </div>
       </div>
     </div>

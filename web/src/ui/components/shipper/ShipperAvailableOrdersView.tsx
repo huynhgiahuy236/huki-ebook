@@ -7,6 +7,7 @@ import {
   matchesDateFilter,
   BulkActionGroup,
 } from '../common';
+import { StandardPaginationBar } from '../common/GroupedDataTable';
 
 type GroupByMode = 'SHOP' | 'ZONE' | 'PAYMENT' | 'NONE';
 
@@ -47,13 +48,14 @@ export default function ShipperAvailableOrdersView() {
   // 2. Group orders
   const groupedData = useMemo(() => {
     if (groupBy === 'NONE') {
+      const paged = filteredOrders.slice((currentPage - 1) * 10, currentPage * 10);
       return [
         {
           key: 'ALL',
           title: 'Tất Cả Đơn Hàng Chờ Nhận',
-          subtitle: 'Danh sách đơn chưa phân nhóm',
+          subtitle: `Hiển thị ${paged.length} trên tổng số ${filteredOrders.length} đơn hàng`,
           icon: 'inventory_2',
-          orders: filteredOrders,
+          orders: paged,
         },
       ];
     }
@@ -323,7 +325,7 @@ export default function ShipperAvailableOrdersView() {
         </div>
       ) : (
         <div className="space-y-4">
-          {groupedData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((group) => {
+          {(groupBy === 'NONE' ? groupedData : groupedData.slice((currentPage - 1) * pageSize, currentPage * pageSize)).map((group) => {
             const isCollapsed = !!collapsedGroups[group.key];
             const groupTotalEarnings = group.orders.reduce((sum, o) => sum + o.shippingFee, 0);
             const groupTotalCod = group.orders.reduce((sum, o) => sum + o.codAmount, 0);
@@ -520,37 +522,16 @@ export default function ShipperAvailableOrdersView() {
             );
           })}
 
-          {/* Pagination Toolbar */}
-          {Math.ceil(groupedData.length / pageSize) > 1 && (
-            <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-[#CBD5E1] text-xs text-gray-600 shadow-2xs">
-              <div>
-                Hiển thị nhóm <strong>{(currentPage - 1) * pageSize + 1}</strong> -{' '}
-                <strong>{Math.min(currentPage * pageSize, groupedData.length)}</strong> trên{' '}
-                <strong>{groupedData.length}</strong> nhóm ({filteredOrders.length} đơn hàng)
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-                >
-                  ← Trước
-                </button>
-                <span className="px-2.5 py-1 font-bold text-gray-900">
-                  Trang {currentPage} / {Math.ceil(groupedData.length / pageSize)}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage >= Math.ceil(groupedData.length / pageSize)}
-                  onClick={() => setCurrentPage((p) => Math.min(Math.ceil(groupedData.length / pageSize), p + 1))}
-                  className="px-2.5 py-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-                >
-                  Sau →
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Universal Standard Pagination Toolbar */}
+          <div className="rounded-2xl overflow-hidden border border-[#E2E8F0] dark:border-neutral-800 shadow-2xs">
+            <StandardPaginationBar
+              currentPage={currentPage}
+              totalItems={groupBy === 'NONE' ? filteredOrders.length : groupedData.length}
+              pageSize={groupBy === 'NONE' ? 10 : pageSize}
+              onPageChange={(p) => setCurrentPage(p)}
+              itemLabel={groupBy === 'NONE' ? 'đơn hàng' : 'nhóm đơn'}
+            />
+          </div>
         </div>
       )}
     </div>
