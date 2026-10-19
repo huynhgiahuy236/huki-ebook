@@ -184,7 +184,7 @@ export function SellerPayoutGroupedTable({
         align: 'center',
         render: (_val, req) => {
           const status = req.status;
-          let badge = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
+          let badge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
           if (status === 'PENDING') {
             badge = { label: 'Chờ kế toán duyệt', bg: 'bg-amber-50 text-amber-700 border-amber-200' };
           } else if (status === 'APPROVED') {
@@ -228,7 +228,7 @@ export function SellerPayoutGroupedTable({
         </div>
         <div>
           <span className="text-gray-400 block text-[11px]">Chi Nhánh &amp; Đối Soát Ngân Hàng:</span>
-          <p className="font-bold text-gray-900 mt-0.5">{req.bankSnapshot?.bankBranch || 'Hội sở chính'}</p>
+          <p className="font-bold text-gray-900 mt-0.5">{req.bankSnapshot?.branch || (req.bankSnapshot as any)?.bankBranch || 'Hội sở chính'}</p>
           <p className="text-emerald-700 font-medium text-[11px] mt-0.5">✓ Chuyển khoản NAPAS 24/7</p>
         </div>
         <div>

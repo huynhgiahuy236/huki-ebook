@@ -67,6 +67,9 @@ export interface GroupedDataTableProps<T = any> {
   sortColumn?: string | null;
   sortDirection?: SortDirection;
   onSortChange?: (sortKey: string, direction: SortDirection) => void;
+
+  // Summary / Footer Row
+  summaryRow?: React.ReactNode;
 }
 
 /**
@@ -228,6 +231,7 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
   sortColumn: controlledSortColumn,
   sortDirection: controlledSortDirection,
   onSortChange,
+  summaryRow,
 }: GroupedDataTableProps<T>) {
   // Key resolver helper
   const getRowKey = useCallback(
@@ -680,6 +684,12 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
               displayData.map((row, rowIdx) => renderRow(row, rowIdx))
             )}
           </tbody>
+
+          {summaryRow && (
+            <tfoot className="border-t-2 border-theme-border bg-theme-surface-subtle font-bold">
+              {summaryRow}
+            </tfoot>
+          )}
         </table>
       </div>
 

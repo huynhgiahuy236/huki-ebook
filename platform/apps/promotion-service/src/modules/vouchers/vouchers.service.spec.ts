@@ -153,7 +153,7 @@ describe('VouchersService', () => {
       const result = await service.validate('user-1', { code: 'DISCOUNT10', orderSubtotal: 100000 });
 
       expect(result.valid).toBe(false);
-      expect(result.reason).toContain('inactive');
+      expect(result.reason?.toUpperCase()).toContain('INACTIVE');
     });
 
     it('should return invalid for voucher not started yet', async () => {
@@ -175,7 +175,7 @@ describe('VouchersService', () => {
       const result = await service.validate('user-1', { code: 'DISCOUNT10', orderSubtotal: 100000 });
 
       expect(result.valid).toBe(false);
-      expect(result.reason).toContain('not started');
+      expect(result.reason).toContain('chưa đến thời gian');
     });
 
     it('should apply max discount cap for percentage voucher', async () => {

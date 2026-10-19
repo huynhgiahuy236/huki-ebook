@@ -112,20 +112,9 @@ export class ChatService {
     });
 
     if (existing) {
-      let delivery: ChatDelivery | undefined;
-      if (dto.initialMessage?.trim()) {
-        delivery = await this.sendMessage(actor, existing.id, {
-          content: dto.initialMessage.trim(),
-          messageType: "TEXT",
-        });
-      }
       return {
         message: "Conversation already exists",
-        data: {
-          ...this.conversationView(existing, actor.sub, storeIds),
-          messages: delivery ? [delivery.data] : [],
-        },
-        delivery,
+        data: this.conversationView(existing, actor.sub, storeIds),
       };
     }
 

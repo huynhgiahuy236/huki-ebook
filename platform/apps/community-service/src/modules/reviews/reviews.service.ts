@@ -196,16 +196,12 @@ export class ReviewsService {
       // verification service error fallback
     }
 
+    if (!purchase) {
+      throwBadRequest(ErrorCode.REVIEW_PURCHASE_REQUIRED);
+    }
+
     let storeId: string | undefined = purchase?.storeId;
     let storeOwnerId: string | undefined = purchase?.storeOwnerId;
-
-    if (!storeId) {
-      const bookStore = await this.verification.lookupBookStore(bookId);
-      if (bookStore) {
-        storeId = bookStore.storeId;
-        storeOwnerId = bookStore.ownerUserId;
-      }
-    }
 
     return this.create(actor, {
       targetType: "BOOK",
@@ -375,7 +371,7 @@ export class ReviewsService {
         authorId: actor.sub,
         authorName: this.actorName(actor),
         authorAvatar: actor.avatar,
-        status: moderation.flagged ? "FLAGGED" : "PUBLISHED",
+        status: moderation.flagged ? "FLAGGED" : "PENDING_REVIEW",
         moderationNote: this.autoModeration.note(moderation),
       });
       void this.publishCreated(review);

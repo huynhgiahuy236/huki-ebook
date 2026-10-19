@@ -28,10 +28,13 @@ describe('WalletService (Task 70 / POL-15 WAL-001)', () => {
     prisma = {
       wallet: {
         findUnique: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
         create: jest.fn(),
         update: jest.fn(),
       },
       walletTransaction: {
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         create: jest.fn(),
       },
       $transaction: jest.fn(async (cb) => cb(prisma)),

@@ -143,12 +143,14 @@ export class WalletService {
     if (!walletIds.includes(wallet.id)) walletIds.push(wallet.id);
 
     if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
-      const isAuthorized =
-        scope?.isPlatformAdmin ||
-        wallet.ownerUserId === actor.sub ||
-        scope?.ownerUserIds?.includes(wallet.ownerUserId) ||
-        storeIdList.includes(wallet.storeId) ||
-        storeIdList.includes(storeId);
+      const isOwner = wallet.ownerUserId === actor.sub;
+      const isInActorScope =
+        Boolean(scope?.isPlatformAdmin) ||
+        Boolean(scope?.ownerUserIds?.includes(wallet.ownerUserId)) ||
+        Boolean(scope?.storeIds?.includes(wallet.storeId)) ||
+        Boolean(scope?.businessIds?.includes(wallet.storeId));
+
+      const isAuthorized = isOwner || isInActorScope;
       if (!isAuthorized) {
         throw new ForbiddenException('Access denied: Unauthorized store wallet');
       }
@@ -347,12 +349,14 @@ export class WalletService {
     if (!walletIds.includes(wallet.id)) walletIds.push(wallet.id);
 
     if (actor && actor.role !== 'ADMIN' && actor.role !== 'PLATFORM_ADMIN') {
-      const isAuthorized =
-        scope?.isPlatformAdmin ||
-        wallet.ownerUserId === actor.sub ||
-        scope?.ownerUserIds?.includes(wallet.ownerUserId) ||
-        storeIdList.includes(wallet.storeId) ||
-        storeIdList.includes(storeId);
+      const isOwner = wallet.ownerUserId === actor.sub;
+      const isInActorScope =
+        Boolean(scope?.isPlatformAdmin) ||
+        Boolean(scope?.ownerUserIds?.includes(wallet.ownerUserId)) ||
+        Boolean(scope?.storeIds?.includes(wallet.storeId)) ||
+        Boolean(scope?.businessIds?.includes(wallet.storeId));
+
+      const isAuthorized = isOwner || isInActorScope;
       if (!isAuthorized) {
         throw new ForbiddenException('Access denied: Unauthorized store wallet');
       }

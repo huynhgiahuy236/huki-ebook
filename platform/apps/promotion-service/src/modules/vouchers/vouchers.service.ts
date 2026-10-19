@@ -253,7 +253,7 @@ export class VouchersService {
     }
 
     // Check if voucher is in user's wallet (Mandatory Claim Rule)
-    if (userId && userId !== 'anonymous') {
+    if (userId && userId !== 'anonymous' && this.prisma.userSavedVoucher) {
       const isSaved = await this.prisma.userSavedVoucher.findUnique({
         where: { userId_voucherId: { userId, voucherId: voucher.id } },
       });

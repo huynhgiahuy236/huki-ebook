@@ -7,6 +7,7 @@ import { useAuth } from '../../context/AuthContext';
 import {
   analyticsApi,
   type PlatformGmvResponse,
+  type PlatformGmvTimelineItem,
   type BestsellerItem,
 } from '../../api/analyticsApi';
 import { exportGmvAnalyticsToCsv } from '../../utils/csvExport';

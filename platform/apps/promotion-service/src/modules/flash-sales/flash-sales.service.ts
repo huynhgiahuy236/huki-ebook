@@ -1183,7 +1183,7 @@ export class FlashSalesService
       include: { items: true },
     });
 
-    for (const fs of pendingPlatformSales) {
+    for (const fs of pendingPlatformSales || []) {
       const storeIds = await this.getParticipatingStoreIds(fs.id, fs.items);
       const minStores = fs.minStores ?? 3;
       if (storeIds.length < minStores) {

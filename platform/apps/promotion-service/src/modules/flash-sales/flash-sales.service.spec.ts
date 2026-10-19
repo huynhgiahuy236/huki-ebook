@@ -58,7 +58,9 @@ describe("FlashSalesService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockResolvedValue([]);
+    prisma.flashSale.findMany.mockResolvedValue([]);
     prisma.flashSale.updateMany.mockResolvedValue({ count: 0 });
+    prisma.flashSaleItem.findMany.mockResolvedValue([]);
   });
 
   it("rejects a campaign whose end is not after its start", async () => {

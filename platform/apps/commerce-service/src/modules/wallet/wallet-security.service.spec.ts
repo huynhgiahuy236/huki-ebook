@@ -540,7 +540,7 @@ describe('WalletSecurityService (Task 75 Withdrawal PIN & 2FA Security)', () => 
         {
           storeId: 'store-1',
           currentPin: '123456',
-          newPin: '888888',
+          newPin: '987321',
           twoFactorToken: validToken,
         },
         mockStoreOwnerActor,
@@ -573,7 +573,7 @@ describe('WalletSecurityService (Task 75 Withdrawal PIN & 2FA Security)', () => 
           {
             storeId: 'store-1',
             currentPin: '123456',
-            newPin: '888888',
+            newPin: '987321',
             twoFactorToken: mismatchToken,
           },
           mockStoreOwnerActor,

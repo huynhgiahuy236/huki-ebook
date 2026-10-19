@@ -7,6 +7,8 @@ describe("NotificationsService", () => {
     countDocuments: jest.fn(),
     findOne: jest.fn(),
     findOneAndUpdate: jest.fn(),
+    findById: jest.fn(),
+    findByIdAndUpdate: jest.fn(),
     updateMany: jest.fn(),
     deleteOne: jest.fn(),
     deleteMany: jest.fn(),
@@ -44,26 +46,44 @@ describe("NotificationsService", () => {
       isRead: false,
     });
 
-    expect(notifications.find).toHaveBeenCalledWith({
-      recipientId: actor.sub,
-      isRead: false,
-    });
+    expect(notifications.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $or: expect.arrayContaining([
+          expect.objectContaining({ recipientId: actor.sub }),
+        ]),
+        isRead: false,
+        readBy: { $ne: actor.sub },
+      }),
+    );
     expect(result.unreadCount).toBe(4);
     expect(result.pagination.totalPages).toBe(1);
   });
 
   it("marks an owned notification as read idempotently", async () => {
     const id = new Types.ObjectId().toString();
-    notifications.findOneAndUpdate.mockResolvedValue({
+    notifications.findById.mockResolvedValue({
       id,
+      recipientId: actor.sub,
+      recipientType: "USER",
+      isRead: false,
+      readBy: [],
+    });
+    notifications.findByIdAndUpdate.mockResolvedValue({
+      id,
+      recipientId: actor.sub,
+      recipientType: "USER",
       type: "SYSTEM",
       isRead: true,
       readAt: new Date(),
+      readBy: [actor.sub],
     });
     await service.markRead(actor, id);
-    expect(notifications.findOneAndUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ recipientId: actor.sub, isRead: false }),
-      { $set: { isRead: true, readAt: expect.any(Date) } },
+    expect(notifications.findByIdAndUpdate).toHaveBeenCalledWith(
+      expect.any(Types.ObjectId),
+      expect.objectContaining({
+        $set: expect.objectContaining({ isRead: true }),
+        $addToSet: { readBy: actor.sub },
+      }),
       { new: true },
     );
     expect(gateway.read).toHaveBeenCalledWith(actor.sub, id);

@@ -194,6 +194,10 @@ export class WalletSecurityService {
 
     const { wallet, security } = await this.getOrCreateWalletSecurity(dto.storeId);
 
+    if (security.pinHash) {
+      throw new BadRequestException('Mã PIN đã được thiết lập. Vui lòng sử dụng chức năng đổi mã PIN hoặc đặt lại mã PIN.');
+    }
+
     const pinHash = await bcrypt.hash(dto.pin, this.BCRYPT_SALT_ROUNDS);
 
     await this.prisma.walletSecurity.update({
