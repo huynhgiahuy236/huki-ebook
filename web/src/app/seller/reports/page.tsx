@@ -13,6 +13,8 @@ import {
 } from '@/ui/api/walletApi';
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
 import { SellerPagination } from '@/ui/components/seller/SellerUI';
+import { SellerGroupedOrderTable } from '@/ui/components/seller/SellerGroupedOrderTable';
+import { SellerPayoutGroupedTable } from '@/ui/components/seller/SellerPayoutGroupedTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 import { calculateSellerFinancials, formatVND } from '@/ui/utils/sellerFinanceEngine';
@@ -829,130 +831,16 @@ export default function SellerFinancialReportsPage() {
           </Link>
         </div>
 
-        {/* TAB 1: BẢNG KÊ CHI TIẾT TỪNG MÓN HÀNG */}
+        {/* TAB 1: BẢNG KÊ CHI TIẾT TỪNG MÓN HÀNG (GROUPED DATA TABLE) */}
         {activeTab === 'ITEMS' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200">
-                <tr>
-                  <th className="p-3.5">Mã Đơn &amp; Thời Gian</th>
-                  <th className="p-3.5">Sách &amp; Ảnh Bìa</th>
-                  <th className="p-3.5">Khách Hàng &amp; Nhận Hàng</th>
-                  <th className="p-3.5 text-right">Tổng Tiền (100%)</th>
-                  <th className="p-3.5 text-right text-amber-700">Phí Sàn (5%)</th>
-                  <th className="p-3.5 text-right text-emerald-700 font-bold">Thực Nhận (95%)</th>
-                  <th className="p-3.5 text-center">Trạng Thái Dòng Tiền</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {isLoading ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
-                      <div className="flex items-center justify-center gap-2">
-                        <span className="w-5 h-5 rounded-full border-2 border-emerald-600 border-t-transparent animate-spin"></span>
-                        <span>Đang tải dữ liệu báo cáo tài chính...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredItems.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-500">
-                      Không có đơn hàng nào trong khoảng thời gian đã chọn.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedItems.map((it) => (
-                    <tr key={it.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="p-3.5">
-                        <div className="font-bold text-gray-900 font-mono">{it.orderCode || it.orderId}</div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          {formatVietnamDateTime(it.orderCreatedAt)}
-                        </div>
-                        <div className="mt-1">
-                          <span
-                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${
-                              it.paymentMethod === 'COD'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}
-                          >
-                            {it.paymentMethod === 'COD' ? '💵 COD (Tiền mặt)' : '💳 Chuyển khoản VietQR'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2.5">
-                          {it.coverUrl ? (
-                            <img
-                              src={it.coverUrl}
-                              alt={it.bookTitle}
-                              className="w-10 h-14 object-cover rounded-md border border-gray-200 shadow-2xs shrink-0"
-                            />
-                          ) : (
-                            <div className="w-10 h-14 rounded-md bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-                              <span className="material-symbols-outlined text-lg">menu_book</span>
-                            </div>
-                          )}
-                          <div>
-                            <div className="font-semibold text-gray-900 max-w-xs line-clamp-2" title={it.bookTitle}>
-                              {it.bookTitle}
-                            </div>
-                            <div className="text-[11px] text-gray-500 mt-0.5">
-                              SL: <span className="font-bold text-gray-700">{it.quantity}</span> × {formatVND(it.unitPrice)}
-                            </div>
-                            <div className="mt-0.5">
-                              <span
-                                className={`inline-block px-1.5 py-0.2 rounded text-[9.5px] font-semibold ${
-                                  it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook')
-                                    ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                }`}
-                              >
-                                {it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook')
-                                  ? '📱 Ebook'
-                                  : '📦 Sách Giấy'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-semibold text-gray-900">{it.customerName || 'Khách hàng HuKi'}</div>
-                        <div className="text-[11px] text-gray-500">{it.customerPhone || '0901234567'}</div>
-                        <div className="text-[11px] text-gray-500 truncate max-w-xs" title={it.shippingAddress}>
-                          {it.shippingAddress || 'Nhận sách điện tử / Giao hàng tận nơi'}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-gray-900">
-                        {formatVND(it.subtotal)}
-                      </td>
-                      <td className="p-3.5 text-right font-semibold text-amber-700">
-                        -{formatVND(it.platformFee)}
-                      </td>
-                      <td className="p-3.5 text-right font-bold text-emerald-700 font-mono">
-                        +{formatVND(it.sellerNet)}
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <EscrowTableBadge item={it} onAutoRelease={handleAutoReleaseItem} />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {/* Phân trang Tab 1 */}
-            {filteredItems.length > 0 && (
-              <div className="p-3.5 border-t border-gray-100 bg-white">
-                <SellerPagination
-                  currentPage={itemsPage}
-                  totalPages={itemsTotalPages}
-                  totalItems={filteredItems.length}
-                  pageSize={itemsPageSize}
-                  onPageChange={(p) => setItemsPage(p)}
-                />
-              </div>
-            )}
+          <div className="p-4 sm:p-6">
+            <SellerGroupedOrderTable
+              items={filteredItems}
+              loading={isLoading}
+              onAutoReleaseItem={handleAutoReleaseItem}
+              title="Bảng Kê Chi Tiết Đơn Hàng & Dòng Tiền"
+              subtitle="Báo cáo sao kê đơn hàng thực nhận 95% theo thời gian thực"
+            />
           </div>
         )}
 
@@ -1051,75 +939,16 @@ export default function SellerFinancialReportsPage() {
           </div>
         )}
 
-        {/* TAB 3: LỆNH RÚT TIỀN VỀ NGÂN HÀNG */}
+        {/* TAB 3: LỆNH RÚT TIỀN VỀ NGÂN HÀNG (GROUPED DATA TABLE) */}
         {activeTab === 'PAYOUTS' && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-gray-700">
-              <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-gray-200">
-                <tr>
-                  <th className="p-3.5">Mã Lệnh Rút</th>
-                  <th className="p-3.5">Thời Gian Yêu Cầu</th>
-                  <th className="p-3.5">Ngân Hàng Thụ Hưởng</th>
-                  <th className="p-3.5 text-right">Số Tiền Rút</th>
-                  <th className="p-3.5 text-center">Trạng Thái Xử Lý</th>
-                  <th className="p-3.5 text-right">Cơ Chế Giải Ngân</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {payouts.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500">
-                      Chưa có lệnh rút tiền nào được tạo.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedPayouts.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="p-3.5 font-bold font-mono text-gray-900">
-                        #{req.id.slice(0, 8)}
-                      </td>
-                      <td className="p-3.5 font-mono text-gray-500 whitespace-nowrap">
-                        {formatVietnamDateTime(req.createdAt)}
-                      </td>
-                      <td className="p-3.5">
-                        <div className="font-semibold text-gray-900">{req.bankSnapshot?.bankName}</div>
-                        <div className="text-[11px] text-gray-500 font-mono">
-                          STK: {req.bankSnapshot?.maskedAccountNumber || req.bankSnapshot?.accountNumber} ({req.bankSnapshot?.accountHolder})
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-right font-black font-mono text-emerald-700 text-sm">
-                        {formatVND(req.amount)}
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="material-symbols-outlined text-[13px]">verified</span>
-                          <span>Hoàn Tất</span>
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-right text-gray-600 text-[11px]">
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
-                          <span className="material-symbols-outlined text-[13px]">lock</span>
-                          <span>Xác thực mã PIN 6 số</span>
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-
-            {/* Phân trang Tab 3 */}
-            {payouts.length > 0 && (
-              <div className="p-3.5 border-t border-gray-100 bg-white">
-                <SellerPagination
-                  currentPage={payoutPage}
-                  totalPages={payoutTotalPages}
-                  totalItems={payouts.length}
-                  pageSize={payoutPageSize}
-                  onPageChange={(p) => setPayoutPage(p)}
-                />
-              </div>
-            )}
+          <div className="p-4 sm:p-6">
+            <SellerPayoutGroupedTable
+              items={payouts}
+              loading={isLoading}
+              totalItems={payouts.length}
+              currentPage={payoutPage}
+              onPageChange={(p) => setPayoutPage(p)}
+            />
           </div>
         )}
       </div>

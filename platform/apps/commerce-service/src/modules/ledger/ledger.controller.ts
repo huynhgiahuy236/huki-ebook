@@ -18,6 +18,30 @@ import { LedgerService } from './ledger.service';
 export class LedgerController {
   constructor(private readonly ledgerService: LedgerService) {}
 
+  @Get('transactions')
+  @ApiBearerAuth()
+  @UseGuards(AuthenticatedGuard)
+  @ApiOperation({
+    summary: 'List double-entry ledger transactions with entries',
+    description: 'Enforces tenant isolation and immutable audit trail. Accessible by Platform Admin or Store Owner.',
+  })
+  async listTransactions(
+    @CurrentBookActor() actor: BookActor,
+    @Query('storeId') storeId?: string,
+    @Query('referenceType') referenceType?: string,
+    @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.ledgerService.listTransactions(actor, {
+      storeId,
+      referenceType,
+      search,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+    });
+  }
+
   @Get('transactions/:id')
   @ApiBearerAuth()
   @UseGuards(AuthenticatedGuard)

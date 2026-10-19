@@ -16,6 +16,7 @@ import { TopSellersTable } from '../analytics/TopSellersTable';
 import { TopProductsTable } from '../analytics/TopProductsTable';
 import { AdminLedgerView } from './AdminLedgerView';
 import { FlashSaleAnalyticsView } from '../analytics/FlashSaleAnalyticsView';
+import { ConversionAndCategoryView } from '../analytics/ConversionAndCategoryView';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0 ₫';
@@ -24,8 +25,45 @@ function formatVND(amount?: number | string | null): string {
   return `${Math.round(num).toLocaleString('vi-VN')} ₫`;
 }
 
-type DatePreset = '7D' | '30D' | 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME' | 'CUSTOM';
-type ReportTab = 'SALES_ANALYTICS' | 'FLASH_SALE_ANALYTICS' | 'FINANCIAL_LEDGER';
+type DatePreset =
+  | '7D'
+  | '30D'
+  | 'THIS_MONTH'
+  | 'QUARTER_3'
+  | '3_QUARTERS'
+  | '6_MONTHS'
+  | 'THIS_YEAR'
+  | 'ALL_TIME'
+  | 'CUSTOM';
+type IntervalType = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+type ReportTab = 'SALES_ANALYTICS' | 'FLASH_SALE_ANALYTICS' | 'CONVERSION_CATEGORY' | 'FINANCIAL_LEDGER';
+
+function fillDailyTimelineGaps(timeline: PlatformGmvTimelineItem[]): PlatformGmvTimelineItem[] {
+  if (!timeline || timeline.length <= 1) return timeline || [];
+  const sorted = [...timeline].sort((a, b) => a.period.localeCompare(b.period));
+  const start = new Date(sorted[0].period);
+  const end = new Date(sorted[sorted.length - 1].period);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return timeline;
+
+  const diffDays = Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays > 120) return timeline;
+
+  const map = new Map(sorted.map((t) => [t.period, t]));
+  const result: PlatformGmvTimelineItem[] = [];
+  const curr = new Date(start);
+  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+
+  while (curr <= end) {
+    const key = `${curr.getFullYear()}-${pad(curr.getMonth() + 1)}-${pad(curr.getDate())}`;
+    if (map.has(key)) {
+      result.push(map.get(key)!);
+    } else {
+      result.push({ period: key, gmv: '0.00', orders: 0 });
+    }
+    curr.setDate(curr.getDate() + 1);
+  }
+  return result;
+}
 
 function getInitialDates(): { from: string; to: string } {
   const now = new Date();
@@ -48,7 +86,7 @@ export function AdminReportsView() {
 
   // Filter States with initial 30D values
   const [preset, setPreset] = useState<DatePreset>('30D');
-  const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [interval, setInterval] = useState<IntervalType>('daily');
   const [fromDate, setFromDate] = useState<string>(() => getInitialDates().from);
   const [toDate, setToDate] = useState<string>(() => getInitialDates().to);
   const [customError, setCustomError] = useState<string | null>(null);
@@ -94,15 +132,31 @@ export function AdminReportsView() {
       setFromDate(formatDateOnly(firstDay));
       setToDate(formatDateOnly(now));
       setInterval('daily');
+    } else if (targetPreset === 'QUARTER_3') {
+      setFromDate(`${now.getFullYear()}-07-01`);
+      setToDate(`${now.getFullYear()}-09-30`);
+      setInterval('monthly');
+    } else if (targetPreset === '3_QUARTERS') {
+      const past9Months = new Date();
+      past9Months.setMonth(now.getMonth() - 9);
+      setFromDate(formatDateOnly(past9Months));
+      setToDate(formatDateOnly(now));
+      setInterval('quarterly');
+    } else if (targetPreset === '6_MONTHS') {
+      const past6Months = new Date();
+      past6Months.setMonth(now.getMonth() - 6);
+      setFromDate(formatDateOnly(past6Months));
+      setToDate(formatDateOnly(now));
+      setInterval('monthly');
     } else if (targetPreset === 'THIS_YEAR') {
       const firstDayYear = new Date(now.getFullYear(), 0, 1);
       setFromDate(formatDateOnly(firstDayYear));
       setToDate(formatDateOnly(now));
-      setInterval('monthly');
+      setInterval('quarterly');
     } else if (targetPreset === 'ALL_TIME') {
       setFromDate('');
       setToDate('');
-      setInterval('monthly');
+      setInterval('yearly');
     }
   }, []);
 
@@ -329,7 +383,19 @@ export function AdminReportsView() {
         >
           <span className="material-symbols-outlined text-[18px] text-amber-500">bolt</span>
           <span>Hiệu Quả &amp; Doanh Thu Flash Sale</span>
-          <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-black">
+        </button>
+
+        <button
+          onClick={() => setActiveTab('CONVERSION_CATEGORY')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'CONVERSION_CATEGORY'
+              ? 'bg-white text-gray-900 shadow-xs border border-gray-200/50'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-blue-600">filter_alt</span>
+          <span>Phễu Chuyển Đổi &amp; Hiệu Quả Danh Mục</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-800 text-[9px] font-black">
             Mới
           </span>
         </button>
@@ -353,6 +419,8 @@ export function AdminReportsView() {
         <AdminLedgerView />
       ) : activeTab === 'FLASH_SALE_ANALYTICS' ? (
         <FlashSaleAnalyticsView />
+      ) : activeTab === 'CONVERSION_CATEGORY' ? (
+        <ConversionAndCategoryView />
       ) : (
         <>
           {/* 3. FILTER TOOLBAR (SALES ANALYTICS) */}
@@ -364,6 +432,9 @@ export function AdminReportsView() {
                 { id: '7D', label: '7 Ngày' },
                 { id: '30D', label: '30 Ngày' },
                 { id: 'THIS_MONTH', label: 'Tháng Này' },
+                { id: 'QUARTER_3', label: 'Quý 3 (Q3)' },
+                { id: '3_QUARTERS', label: '3 Quý (9 Tháng)' },
+                { id: '6_MONTHS', label: '6 Tháng (2 Quý)' },
                 { id: 'THIS_YEAR', label: 'Năm Nay' },
                 { id: 'ALL_TIME', label: 'Toàn Bộ Dữ Liệu' },
                 { id: 'CUSTOM', label: 'Tùy Chỉnh' },
@@ -408,13 +479,15 @@ export function AdminReportsView() {
                 <select
                   value={interval}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
-                    setInterval(e.target.value as 'daily' | 'weekly' | 'monthly')
+                    setInterval(e.target.value as IntervalType)
                   }
                   className="px-2.5 py-1.5 rounded-xl bg-white border border-gray-200 text-xs font-bold text-gray-700 focus:outline-none focus:border-[#00875A]"
                 >
                   <option value="daily">Theo Ngày (Daily)</option>
                   <option value="weekly">Theo Tuần (Weekly ISO)</option>
                   <option value="monthly">Theo Tháng (Monthly)</option>
+                  <option value="quarterly">Theo Quý (Quarterly)</option>
+                  <option value="yearly">Theo Năm (Yearly)</option>
                 </select>
               </div>
             </div>
@@ -503,7 +576,11 @@ export function AdminReportsView() {
 
           {/* 5. GMV TIMELINE TREND CHART */}
           <GMVChart
-            timeline={gmvData?.timeline || []}
+            timeline={
+              interval === 'daily' && gmvData?.timeline
+                ? fillDailyTimelineGaps(gmvData.timeline)
+                : gmvData?.timeline || []
+            }
             interval={interval}
             loading={loading}
           />

@@ -30,7 +30,7 @@ export interface PlatformGmvResponse {
   completedOrders: number;
   from: string | null;
   to: string | null;
-  interval: 'daily' | 'weekly' | 'monthly';
+  interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   timeline: PlatformGmvTimelineItem[];
   byStore: PlatformGmvByStoreItem[];
 }
@@ -40,7 +40,7 @@ export interface StoreGmvResponse {
   totalGmv: string;
   from: string | null;
   to: string | null;
-  interval: 'daily' | 'weekly' | 'monthly';
+  interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   timeline: StoreGmvTimelineItem[];
   byBook: StoreGmvByBookItem[];
 }
@@ -102,6 +102,21 @@ export class GMVService {
   }
 
   /**
+   * Helper: Format Date object to calendar quarter string YYYY-Qq
+   */
+  private getQuarter(date: Date): string {
+    const quarter = Math.floor(date.getUTCMonth() / 3) + 1;
+    return `${date.getUTCFullYear()}-Q${quarter}`;
+  }
+
+  /**
+   * Helper: Format Date object to calendar year string YYYY
+   */
+  private getYear(date: Date): string {
+    return `${date.getUTCFullYear()}`;
+  }
+
+  /**
    * Helper: Format Date object to daily string YYYY-MM-DD
    */
   private getDay(date: Date): string {
@@ -115,7 +130,7 @@ export class GMVService {
   async getPlatformGMV(
     from?: string,
     to?: string,
-    interval: 'daily' | 'weekly' | 'monthly' = 'daily',
+    interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' = 'daily',
   ): Promise<PlatformGmvResponse> {
     const { fromDate, toDate } = this.parseDateRange(from, to);
 
@@ -149,6 +164,10 @@ export class GMVService {
         period = this.getIsoWeek(agg.businessDate);
       } else if (interval === 'monthly') {
         period = this.getMonth(agg.businessDate);
+      } else if (interval === 'quarterly') {
+        period = this.getQuarter(agg.businessDate);
+      } else if (interval === 'yearly') {
+        period = this.getYear(agg.businessDate);
       } else {
         period = this.getDay(agg.businessDate);
       }
@@ -241,7 +260,7 @@ export class GMVService {
     storeId: string,
     from?: string,
     to?: string,
-    interval: 'daily' | 'weekly' | 'monthly' = 'daily',
+    interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' = 'daily',
   ): Promise<StoreGmvResponse> {
     const { fromDate, toDate } = this.parseDateRange(from, to);
 
@@ -273,6 +292,10 @@ export class GMVService {
         period = this.getIsoWeek(agg.businessDate);
       } else if (interval === 'monthly') {
         period = this.getMonth(agg.businessDate);
+      } else if (interval === 'quarterly') {
+        period = this.getQuarter(agg.businessDate);
+      } else if (interval === 'yearly') {
+        period = this.getYear(agg.businessDate);
       } else {
         period = this.getDay(agg.businessDate);
       }

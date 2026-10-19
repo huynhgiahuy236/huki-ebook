@@ -476,29 +476,41 @@ export const adminApi = {
    * Tạo khách hàng mới vào database
    */
   async createCustomer(dto: { fullName: string; email: string; phone: string; password?: string }): Promise<ApiResponse<any>> {
-    return apiClient<any>('/users/admin/customer', {
+    const res = await apiClient<any>('/users/admin/customer', {
       method: 'POST',
       body: JSON.stringify(dto),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('USER_REGISTERED', { email: dto.email, fullName: dto.fullName });
+    }
+    return res;
   },
 
   /**
    * Cập nhật thông tin người dùng trong database
    */
   async updateUser(id: string, dto: { fullName?: string; email?: string; phone?: string; password?: string; role?: string; status?: string; storeName?: string }): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/users/admin/${id}`, {
+    const res = await apiClient<any>(`/users/admin/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(dto),
     });
+    if (res.success) {
+      realtimeSyncBus.publish('USER_UPDATED', { userId: id, ...dto });
+    }
+    return res;
   },
 
   /**
    * Khóa hoặc mở khóa người dùng trong database
    */
   async toggleLockUser(id: string): Promise<ApiResponse<any>> {
-    return apiClient<any>(`/users/admin/${id}/toggle-lock`, {
+    const res = await apiClient<any>(`/users/admin/${id}/toggle-lock`, {
       method: 'POST',
     });
+    if (res.success) {
+      realtimeSyncBus.publish('USER_STATUS_UPDATED', { userId: id });
+    }
+    return res;
   },
 
   /**
@@ -664,6 +676,39 @@ export const adminApi = {
       `/wallet/admin/transactions${qs ? `?${qs}` : ''}`,
       { method: 'GET' },
     );
+  },
+
+  /**
+   * Lấy danh sách bút toán kế toán kép chuẩn (Double-entry ledger transactions) từ PostgreSQL
+   */
+  async getLedgerTransactions(
+    params: {
+      page?: number;
+      limit?: number;
+      storeId?: string;
+      referenceType?: string;
+      search?: string;
+    } = {},
+  ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number; totalPages: number }>> {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', String(params.page));
+    if (params.limit) query.append('limit', String(params.limit));
+    if (params.storeId) query.append('storeId', params.storeId);
+    if (params.referenceType) query.append('referenceType', params.referenceType);
+    if (params.search) query.append('search', params.search);
+    const qs = query.toString();
+    return apiClient<{ items: any[]; total: number; page: number; limit: number; totalPages: number }>(
+      `/ledger/transactions${qs ? `?${qs}` : ''}`,
+      { method: 'GET' },
+    );
+  },
+
+  /**
+   * Lấy số dư tài khoản tổng hợp kế toán kép (Escrow Holding, Seller Pending, Revenue...)
+   */
+  async getLedgerSummaries(storeId?: string): Promise<ApiResponse<any[]>> {
+    const qs = storeId ? `?storeId=${storeId}` : '';
+    return apiClient<any[]>(`/ledger/summaries${qs}`, { method: 'GET' });
   },
 };
 

@@ -39,6 +39,12 @@ export class CategoriesController {
     return { data: await this.categoriesService.findTree(includeInactive) };
   }
 
+  @Get('performance')
+  @ApiOperation({ summary: 'Get category sales and performance analytics' })
+  async getPerformance() {
+    return { data: await this.categoriesService.getCategoryPerformance() };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get a category by id' })
   async findOne(@Param('id', ParseUUIDPipe) id: string) {

@@ -5,7 +5,7 @@ import type { PlatformGmvTimelineItem } from '../../api/analyticsApi';
 
 export interface GMVChartProps {
   timeline: PlatformGmvTimelineItem[];
-  interval: 'daily' | 'weekly' | 'monthly';
+  interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   loading?: boolean;
 }
 
@@ -15,7 +15,20 @@ function formatVND(val: number | string): string {
   return `${Math.round(num).toLocaleString('vi-VN')} ₫`;
 }
 
-function formatPeriodLabel(period: string, interval: 'daily' | 'weekly' | 'monthly'): string {
+function formatYAxisLabel(val: number, metricMode: 'gmv' | 'orders'): string {
+  if (metricMode === 'orders') return `${Math.round(val)} đơn`;
+  if (val >= 1_000_000) {
+    const tr = val / 1_000_000;
+    return `${tr % 1 === 0 ? tr : tr.toFixed(1)} Tr ₫`;
+  }
+  if (val >= 1_000) {
+    const k = val / 1_000;
+    return `${k % 1 === 0 ? k : k.toFixed(0)} K ₫`;
+  }
+  return `${Math.round(val)} ₫`;
+}
+
+function formatPeriodLabel(period: string, interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly'): string {
   if (!period) return '';
   if (interval === 'daily') {
     // YYYY-MM-DD -> DD/MM
@@ -30,8 +43,17 @@ function formatPeriodLabel(period: string, interval: 'daily' | 'weekly' | 'month
   if (interval === 'monthly') {
     // YYYY-MM -> MM/YYYY
     const parts = period.split('-');
-    if (parts.length === 2) return `${parts[1]}/${parts[0]}`;
+    if (parts.length === 2) return `Thg ${parts[1]}`;
     return period;
+  }
+  if (interval === 'quarterly') {
+    // YYYY-Qq -> Qq/YY
+    const parts = period.split('-');
+    if (parts.length === 2) return `${parts[1]}/${parts[0].slice(2)}`;
+    return period;
+  }
+  if (interval === 'yearly') {
+    return `Năm ${period}`;
   }
   return period;
 }
@@ -77,9 +99,9 @@ export function GMVChart({ timeline, interval, loading = false }: GMVChartProps)
   const minVal = 0;
   const range = maxVal - minVal || 1;
 
-  const svgWidth = 800;
-  const svgHeight = 220;
-  const padLeft = 40;
+  const svgWidth = 840;
+  const svgHeight = 230;
+  const padLeft = 75;
   const padRight = 30;
   const padTop = 20;
   const padBottom = 35;
@@ -110,11 +132,22 @@ export function GMVChart({ timeline, interval, loading = false }: GMVChartProps)
     const ratio = idx / gridSteps;
     const yVal = minVal + ratio * range;
     const yCoord = padTop + plotHeight - ratio * plotHeight;
-    const label = metricMode === 'gmv' ? formatVND(yVal) : `${Math.round(yVal)} đơn`;
+    const label = formatYAxisLabel(yVal, metricMode);
     return { yCoord, label };
   });
 
   const activeItem = hoveredIdx !== null && points[hoveredIdx] ? points[hoveredIdx] : null;
+
+  const intervalLabel =
+    interval === 'daily'
+      ? 'Ngày'
+      : interval === 'weekly'
+      ? 'Tuần'
+      : interval === 'monthly'
+      ? 'Tháng'
+      : interval === 'quarterly'
+      ? 'Quý'
+      : 'Năm';
 
   return (
     <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between relative overflow-hidden">
@@ -128,7 +161,7 @@ export function GMVChart({ timeline, interval, loading = false }: GMVChartProps)
             </h3>
           </div>
           <p className="text-[11px] text-gray-500 mt-0.5">
-            Dữ liệu tổng hợp theo chu kỳ <strong>{interval === 'daily' ? 'Ngày' : interval === 'weekly' ? 'Tuần ISO' : 'Tháng'}</strong>
+            Dữ liệu tổng hợp theo chu kỳ <strong>{intervalLabel}</strong>
           </p>
         </div>
 

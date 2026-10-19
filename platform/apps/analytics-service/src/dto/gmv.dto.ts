@@ -14,8 +14,8 @@ export class GmvQueryDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'to must be in YYYY-MM-DD format' })
   to?: string;
 
-  @ApiPropertyOptional({ description: 'Time-bucket aggregation interval', enum: ['daily', 'weekly', 'monthly'], default: 'daily' })
+  @ApiPropertyOptional({ description: 'Time-bucket aggregation interval', enum: ['daily', 'weekly', 'monthly', 'quarterly', 'yearly'], default: 'daily' })
   @IsOptional()
-  @IsIn(['daily', 'weekly', 'monthly'], { message: "interval must be one of 'daily', 'weekly', 'monthly'" })
-  interval?: 'daily' | 'weekly' | 'monthly';
+  @IsIn(['daily', 'weekly', 'monthly', 'quarterly', 'yearly'], { message: "interval must be one of 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'" })
+  interval?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 }

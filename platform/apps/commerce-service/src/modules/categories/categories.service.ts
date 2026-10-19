@@ -207,6 +207,95 @@ export class CategoriesService {
     await this.invalidateCache();
   }
 
+  async getCategoryPerformance() {
+    // 1. Query category metrics directly from PostgreSQL
+    const rows: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        c.id, 
+        c.name, 
+        c.slug, 
+        COUNT(DISTINCT b.id)::int as book_count, 
+        COALESCE(SUM(b.view_count), 0)::bigint as view_count, 
+        COUNT(DISTINCT oi.id)::int as item_sold_count, 
+        COALESCE(SUM(oi.quantity), 0)::int as total_units, 
+        COALESCE(SUM(oi.subtotal), 0)::numeric as total_revenue, 
+        COUNT(DISTINCT so.id)::int as order_count 
+      FROM categories c 
+      LEFT JOIN books b ON b.category_id = c.id 
+      LEFT JOIN order_items oi ON oi.book_id = b.id 
+      LEFT JOIN seller_orders so ON so.id = oi.seller_order_id AND so.status IN ('COMPLETED', 'DELIVERED') 
+      GROUP BY c.id, c.name, c.slug 
+      ORDER BY total_revenue DESC, book_count DESC
+    `;
+
+    // 2. Query top books per category
+    const bookRows: any[] = await this.prisma.$queryRaw`
+      SELECT 
+        b.id, 
+        b.title, 
+        b.cover_url, 
+        b.category_id, 
+        COALESCE(a.name, 'Nhiều tác giả') as author, 
+        b.price::numeric, 
+        b.view_count::int, 
+        COALESCE(SUM(oi.quantity), 0)::int as units_sold, 
+        COALESCE(SUM(oi.subtotal), 0)::numeric as revenue 
+      FROM books b 
+      LEFT JOIN authors a ON a.id = b.author_id 
+      LEFT JOIN order_items oi ON oi.book_id = b.id 
+      LEFT JOIN seller_orders so ON so.id = oi.seller_order_id AND so.status IN ('COMPLETED', 'DELIVERED') 
+      WHERE b.category_id IS NOT NULL 
+      GROUP BY b.id, b.title, b.cover_url, b.category_id, a.name, b.price, b.view_count 
+      ORDER BY units_sold DESC, revenue DESC
+    `;
+
+    const booksByCat = new Map<string, any[]>();
+    for (const b of bookRows) {
+      const list = booksByCat.get(b.category_id) || [];
+      if (list.length < 8) {
+        list.push({
+          id: b.id,
+          title: b.title,
+          coverUrl: b.cover_url,
+          author: b.author,
+          price: Number(b.price || 0),
+          viewCount: Number(b.view_count || 0),
+          unitsSold: Number(b.units_sold || 0),
+          revenue: Number(b.revenue || 0),
+        });
+        booksByCat.set(b.category_id, list);
+      }
+    }
+
+    let grandRevenue = 0;
+    for (const r of rows) {
+      grandRevenue += Number(r.total_revenue || 0);
+    }
+
+    return rows.map((r) => {
+      const rev = Number(r.total_revenue || 0);
+      const share = grandRevenue > 0 ? (rev / grandRevenue) * 100 : 0;
+      const views = Number(r.view_count || 0);
+      const units = Number(r.total_units || 0);
+      const cvr = views > 0 ? (units / views) * 100 : 0;
+
+      return {
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        bookCount: Number(r.book_count || 0),
+        viewCount: views,
+        itemSoldCount: Number(r.item_sold_count || 0),
+        totalUnits: units,
+        totalRevenue: rev,
+        orderCount: Number(r.order_count || 0),
+        sharePercent: Number(share.toFixed(1)),
+        cvrPercent: Number(cvr.toFixed(2)),
+        topBooks: booksByCat.get(r.id) || [],
+      };
+    });
+  }
+
   private async invalidateCache(): Promise<void> {
     await this.redis.del(CATEGORY_TREE_CACHE_KEY);
     await this.redis.del(`${CATEGORY_TREE_CACHE_KEY}:all`);

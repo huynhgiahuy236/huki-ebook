@@ -91,7 +91,7 @@ export default function FlashSalePage() {
             ? new Date(s.registrationEndsAt).getTime()
             : new Date(s.startsAt).getTime();
           const isCancelled = s.status === 'CANCELLED';
-          const isRegistrationStage = now < regEnd;
+          const isRegistrationStage = s.status !== 'ACTIVE' && now < regEnd;
           return now <= end && !isCancelled && !isRegistrationStage && (s.items?.length ?? 0) > 0;
         });
 

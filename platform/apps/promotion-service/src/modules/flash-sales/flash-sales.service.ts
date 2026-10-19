@@ -662,8 +662,8 @@ export class FlashSalesService
 
     const publicVisible = mapped.filter((c) => {
       if (c.status === FlashSaleStatus.CANCELLED) return false;
-      // For platform scope: hide from public customer time slots if registration is ongoing
-      if (c.scope === FlashSaleScope.PLATFORM) {
+      // For platform scope: hide from public customer time slots if registration is ongoing and not ACTIVE
+      if (c.scope === FlashSaleScope.PLATFORM && c.status !== FlashSaleStatus.ACTIVE) {
         const regEnd = c.registrationEndsAt ? new Date(c.registrationEndsAt) : new Date(c.startsAt);
         if (now < regEnd) return false;
       }

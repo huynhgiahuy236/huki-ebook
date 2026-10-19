@@ -337,6 +337,67 @@ export class LedgerService {
   }
 
   /**
+   * List double-entry ledger transactions with full entries for audit trail
+   */
+  async listTransactions(
+    actor: BookActor,
+    options?: {
+      storeId?: string;
+      referenceType?: string;
+      page?: number;
+      limit?: number;
+      search?: string;
+    },
+  ) {
+    const isAdmin = actor.role === 'ADMIN' || actor.role === 'PLATFORM_ADMIN';
+    const isBusiness = actor.role === 'BUSINESS' || actor.role === 'STORE_OWNER' || actor.role === 'MERCHANT';
+    const actorStoreId = (actor as any).storeId;
+
+    if (!isAdmin && (!isBusiness || !actorStoreId)) {
+      throw new ForbiddenException('Access denied: Admin role or verified merchant store ownership required');
+    }
+
+    const effectiveStoreId = isAdmin ? options?.storeId : actorStoreId;
+    const page = Math.max(1, options?.page || 1);
+    const limit = Math.max(1, Math.min(100, options?.limit || 50));
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+    if (effectiveStoreId) {
+      where.storeId = effectiveStoreId;
+    }
+    if (options?.referenceType) {
+      where.referenceType = options.referenceType;
+    }
+    if (options?.search) {
+      where.OR = [
+        { transactionNumber: { contains: options.search, mode: 'insensitive' } },
+        { description: { contains: options.search, mode: 'insensitive' } },
+        { referenceId: { contains: options.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, transactions] = await Promise.all([
+      this.prisma.ledgerTransaction.count({ where }),
+      this.prisma.ledgerTransaction.findMany({
+        where,
+        include: { entries: true },
+        orderBy: { postedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return {
+      items: transactions.map((tx) => this.formatTransactionView(tx)),
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    };
+  }
+
+  /**
    * List account summaries for audit (Admin can see all, Merchant sees own store accounts)
    */
   async listAccountSummaries(actor: BookActor, storeId?: string) {

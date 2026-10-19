@@ -4,7 +4,7 @@ import type { ApiResponse } from './types';
 export interface GmvQueryParams {
   from?: string | null;
   to?: string | null;
-  interval?: 'daily' | 'weekly' | 'monthly';
+  interval?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 }
 
 export interface PlatformGmvTimelineItem {
@@ -24,7 +24,7 @@ export interface PlatformGmvResponse {
   completedOrders: number;
   from: string | null;
   to: string | null;
-  interval: 'daily' | 'weekly' | 'monthly';
+  interval: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   timeline: PlatformGmvTimelineItem[];
   byStore: PlatformGmvByStoreItem[];
 }

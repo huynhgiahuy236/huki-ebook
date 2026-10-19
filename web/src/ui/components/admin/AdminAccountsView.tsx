@@ -7,6 +7,7 @@ import { AdminStatusBadge, AdminPagination, AdminTableContainer, AdminActionButt
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import DataTableFilterBar, { DateFilterValue, matchesDateFilter, BulkActionGroup } from '../common/DataTableFilterBar';
 import AuditHistoryTimeline, { AuditLogItem } from '../common/AuditHistoryTimeline';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 
 export function AdminAccountsView() {
   const { showToast } = useToast();
@@ -145,6 +146,20 @@ export function AdminAccountsView() {
 
   useEffect(() => {
     loadUsers();
+
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'USER_REGISTERED' ||
+        msg.type === 'USER_STATUS_UPDATED' ||
+        msg.type === 'USER_UPDATED'
+      ) {
+        loadUsers();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [loadUsers]);
 
   // Toggle Password visibility for a specific row
@@ -890,7 +905,7 @@ export function AdminAccountsView() {
       {/* Main Table Container */}
       <GroupedDataTable
         columns={userColumns}
-        data={filteredUsers}
+        data={paginatedUsers}
         keyField="id"
         loading={loading}
         selectable={true}
