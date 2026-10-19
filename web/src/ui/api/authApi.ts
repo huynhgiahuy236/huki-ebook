@@ -20,7 +20,36 @@ export interface ChangePasswordPayload {
   newPassword?: string;
 }
 
+export interface GoogleLoginPayload {
+  idToken?: string;
+  accessToken?: string;
+  email?: string;
+  fullName?: string;
+  avatar?: string;
+}
+
 export const authApi = {
+  /**
+   * Lấy Google Client ID công khai được cấu hình từ máy chủ Backend
+   */
+  async getGoogleClientId(): Promise<ApiResponse<{ clientId: string }>> {
+    return apiClient<{ clientId: string }>('/auth/google/client-id', {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
+
+  /**
+   * Đăng nhập bằng Google OAuth ID Token
+   */
+  async loginGoogle(payload: GoogleLoginPayload): Promise<ApiResponse<LoginResponseData>> {
+    return apiClient<LoginResponseData>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      skipAuth: true,
+    });
+  },
+
   /**
    * Đăng nhập tài khoản với email + password (Khớp DTO Backend LoginDto)
    */

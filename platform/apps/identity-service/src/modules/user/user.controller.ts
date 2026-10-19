@@ -15,6 +15,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../../../../../libs/shared/src/decorators/roles.decorator';
 import { CurrentUser } from '../../../../../libs/shared/src/decorators/current-user.decorator';
 import { UserService } from './user.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @ApiTags('Users')
 @Controller('users')
@@ -25,8 +26,19 @@ export class UserController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get current user profile' })
-  async getProfile(@CurrentUser() user: any) {
-    return { data: user };
+  async getProfile(@CurrentUser('id') userId: string) {
+    const user = await this.userService.findById(userId);
+    return {
+      data: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        phone: user.phone,
+        avatar: user.avatar,
+        role: user.role,
+        status: user.status,
+      },
+    };
   }
 
   @Patch('profile')
@@ -35,7 +47,7 @@ export class UserController {
   @ApiOperation({ summary: 'Update current user profile' })
   async updateProfile(
     @CurrentUser('id') userId: string,
-    @Body() body: { fullName?: string; phone?: string; avatar?: string },
+    @Body() body: UpdateProfileDto,
   ) {
     const user = await this.userService.updateProfile(userId, body);
     return {

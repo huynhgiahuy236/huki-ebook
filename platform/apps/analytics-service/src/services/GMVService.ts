@@ -16,6 +16,7 @@ export interface StoreGmvTimelineItem {
 export interface PlatformGmvByStoreItem {
   storeId: string;
   gmv: string;
+  orders?: number;
 }
 
 export interface StoreGmvByBookItem {
@@ -178,7 +179,7 @@ export class GMVService {
     // 2. Query store-level GMV breakdown (scope = STORE)
     const storeWhere: Prisma.DailyAggregateWhereInput = {
       scope: AggregateScope.STORE,
-      metricName: 'STORE_GMV',
+      metricName: { in: ['STORE_GMV', 'STORE_ORDER_COUNT'] },
     };
 
     if (fromDate || toDate) {
@@ -191,23 +192,34 @@ export class GMVService {
       where: storeWhere,
     });
 
-    const storeMap = new Map<string, Prisma.Decimal>();
+    const storeMap = new Map<string, { gmv: Prisma.Decimal; orders: number }>();
     for (const agg of storeAggregates) {
       if (!agg.storeId) continue;
-      const current = storeMap.get(agg.storeId) || new Prisma.Decimal(0);
-      storeMap.set(agg.storeId, current.add(agg.metricValue));
+      const current = storeMap.get(agg.storeId) || {
+        gmv: new Prisma.Decimal(0),
+        orders: 0,
+      };
+
+      if (agg.metricName === 'STORE_GMV') {
+        current.gmv = current.gmv.add(agg.metricValue);
+      } else if (agg.metricName === 'STORE_ORDER_COUNT') {
+        current.orders += Number(agg.metricValue);
+      }
+
+      storeMap.set(agg.storeId, current);
     }
 
     // Sort by store GMV desc
     const sortedStores = Array.from(storeMap.entries()).sort((a, b) => {
-      const diff = b[1].comparedTo(a[1]);
+      const diff = b[1].gmv.comparedTo(a[1].gmv);
       if (diff !== 0) return diff;
       return a[0].localeCompare(b[0]);
     });
 
-    const byStore: PlatformGmvByStoreItem[] = sortedStores.map(([storeId, gmvDecimal]) => ({
+    const byStore: PlatformGmvByStoreItem[] = sortedStores.map(([storeId, data]) => ({
       storeId,
-      gmv: gmvDecimal.toFixed(2),
+      gmv: data.gmv.toFixed(2),
+      orders: data.orders,
     }));
 
     return {

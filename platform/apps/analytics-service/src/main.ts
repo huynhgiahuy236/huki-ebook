@@ -35,4 +35,5 @@ async function bootstrap() {
   console.log(`🚀 Analytics Service running on: http://localhost:${port}`);
 }
 
+// Trigger reload for updated RolesGuard: 2026-10-20
 bootstrap();

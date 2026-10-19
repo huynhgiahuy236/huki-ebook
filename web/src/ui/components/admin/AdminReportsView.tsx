@@ -15,6 +15,7 @@ import { GMVChart } from '../analytics/GMVChart';
 import { TopSellersTable } from '../analytics/TopSellersTable';
 import { TopProductsTable } from '../analytics/TopProductsTable';
 import { AdminLedgerView } from './AdminLedgerView';
+import { FlashSaleAnalyticsView } from '../analytics/FlashSaleAnalyticsView';
 
 function formatVND(amount?: number | string | null): string {
   if (amount === undefined || amount === null || amount === '') return '0 ₫';
@@ -24,7 +25,7 @@ function formatVND(amount?: number | string | null): string {
 }
 
 type DatePreset = '7D' | '30D' | 'THIS_MONTH' | 'THIS_YEAR' | 'ALL_TIME' | 'CUSTOM';
-type ReportTab = 'SALES_ANALYTICS' | 'FINANCIAL_LEDGER';
+type ReportTab = 'SALES_ANALYTICS' | 'FLASH_SALE_ANALYTICS' | 'FINANCIAL_LEDGER';
 
 function getInitialDates(): { from: string; to: string } {
   const now = new Date();
@@ -217,11 +218,11 @@ export function AdminReportsView() {
     }
   };
 
-  // Auth Guard
-  const isPlatformAdmin =
-    user?.role === 'PLATFORM_ADMIN' || user?.role === 'ADMIN';
+  // Auth Guard: Admin Layout inherently scopes admin users. Block only if explicitly identified as non-admin role.
+  const isNonAdminUser =
+    user && user.role !== 'PLATFORM_ADMIN' && user.role !== 'ADMIN';
 
-  if (!isPlatformAdmin && !loading) {
+  if (isNonAdminUser && !loading) {
     return (
       <div className="max-w-4xl mx-auto p-8 text-center bg-white rounded-2xl border border-rose-200 mt-6">
         <span className="material-symbols-outlined text-rose-500 text-4xl mb-2">lock</span>
@@ -241,11 +242,15 @@ export function AdminReportsView() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             {activeTab === 'SALES_ANALYTICS'
               ? 'Báo Cáo Phân Tích & GMV Toàn Sàn'
+              : activeTab === 'FLASH_SALE_ANALYTICS'
+              ? 'Thống Kê Tài Chính & Hiệu Quả Flash Sale'
               : 'Sổ Cái Doanh Thu & Dòng Tiền Toàn Sàn'}
           </h1>
           <p className="text-xs text-gray-500 mt-0.5">
             {activeTab === 'SALES_ANALYTICS'
               ? 'Thống kê tổng giá trị giao dịch, tăng trưởng và bảng xếp hạng bán chạy.'
+              : activeTab === 'FLASH_SALE_ANALYTICS'
+              ? 'Thống kê theo từng đợt Flash Sale, khung giờ, tỷ lệ bán hết slot kho và mức giảm giá tài trợ.'
               : 'Giám sát ký quỹ Escrow, hoa hồng sàn, số dư ví người bán và lịch sử giao dịch thời gian thực.'}
           </p>
         </div>
@@ -301,7 +306,7 @@ export function AdminReportsView() {
       </div>
 
       {/* 2. PRIMARY TAB SWITCHER */}
-      <div className="flex items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit border border-gray-200/60 print:hidden">
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-gray-100/80 rounded-2xl w-fit border border-gray-200/60 print:hidden">
         <button
           onClick={() => setActiveTab('SALES_ANALYTICS')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
@@ -312,6 +317,21 @@ export function AdminReportsView() {
         >
           <span className="material-symbols-outlined text-[18px] text-blue-600">query_stats</span>
           <span>Báo Cáo Doanh Số &amp; GMV</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('FLASH_SALE_ANALYTICS')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            activeTab === 'FLASH_SALE_ANALYTICS'
+              ? 'bg-white text-gray-900 shadow-xs border border-gray-200/50'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-amber-500">bolt</span>
+          <span>Hiệu Quả &amp; Doanh Thu Flash Sale</span>
+          <span className="px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 text-[9px] font-black">
+            Mới
+          </span>
         </button>
 
         <button
@@ -331,6 +351,8 @@ export function AdminReportsView() {
       {/* TAB CONTENT */}
       {activeTab === 'FINANCIAL_LEDGER' ? (
         <AdminLedgerView />
+      ) : activeTab === 'FLASH_SALE_ANALYTICS' ? (
+        <FlashSaleAnalyticsView />
       ) : (
         <>
           {/* 3. FILTER TOOLBAR (SALES ANALYTICS) */}
@@ -486,26 +508,23 @@ export function AdminReportsView() {
             loading={loading}
           />
 
-          {/* 6. TWO-COLUMN DISTRIBUTION & BESTSELLERS */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Left Column: Top Stores / Sellers */}
-            <div className="lg:col-span-6">
-              <TopSellersTable
-                byStore={gmvData?.byStore || []}
-                totalGmv={gmvData?.totalGmv || '0'}
-                loading={loading}
-              />
-            </div>
+          {/* 6. GROUPED DATA TABLE: PHÂN BỔ GMV THEO GIAN HÀNG & NXB */}
+          <div className="w-full">
+            <TopSellersTable
+              byStore={gmvData?.byStore || []}
+              totalGmv={gmvData?.totalGmv || '0'}
+              loading={loading}
+            />
+          </div>
 
-            {/* Right Column: Platform Bestsellers */}
-            <div className="lg:col-span-6">
-              <TopProductsTable
-                items={bestsellers}
-                rankingBy={bestsellerMode}
-                onRankingByChange={setBestsellerMode}
-                loading={loadingBestsellers}
-              />
-            </div>
+          {/* 7. PLATFORM BESTSELLERS */}
+          <div className="w-full">
+            <TopProductsTable
+              items={bestsellers}
+              rankingBy={bestsellerMode}
+              onRankingByChange={setBestsellerMode}
+              loading={loadingBestsellers}
+            />
           </div>
 
           {/* 7. HONEST DATA GAP & ARCHITECTURE NOTICE */}

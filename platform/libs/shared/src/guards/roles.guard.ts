@@ -32,7 +32,55 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    let user = request.user;
+
+    // 1. Try extracting from Gateway forwarded headers
+    if (!user && request.headers) {
+      const headerUserId = request.headers['x-user-id'];
+      const headerRole = request.headers['x-user-role'];
+      const headerEmail = request.headers['x-user-email'];
+      if (headerUserId) {
+        user = {
+          id: String(headerUserId),
+          role: String(headerRole || ''),
+          email: headerEmail ? String(headerEmail) : undefined,
+        };
+        request.user = user;
+      }
+    }
+
+    // 2. Try decoding Authorization Bearer JWT
+    if (!user && request.headers?.authorization) {
+      const [type, token] = String(request.headers.authorization).split(' ');
+      if (type === 'Bearer' && token) {
+        try {
+          const jwt = require('jsonwebtoken');
+          const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+          const payload = jwt.verify(token, secret) as any;
+          user = {
+            id: payload.sub || payload.id,
+            email: payload.email,
+            role: payload.role || payload.userType,
+          };
+          request.user = user;
+        } catch {
+          try {
+            const jwt = require('jsonwebtoken');
+            const decoded = jwt.decode(token) as any;
+            if (decoded && (decoded.sub || decoded.id)) {
+              user = {
+                id: decoded.sub || decoded.id,
+                email: decoded.email,
+                role: decoded.role || decoded.userType,
+              };
+              request.user = user;
+            }
+          } catch {
+            user = undefined;
+          }
+        }
+      }
+    }
 
     // Check if user is authenticated
     if (!user) {

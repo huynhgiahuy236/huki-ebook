@@ -4,13 +4,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { libraryApi, type UserLibraryBook } from '@/ui/api/libraryApi';
+import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import BookCover from '@/ui/components/common/BookCover';
 
-type FilterTab = 'all' | 'reading' | 'favorite' | 'completed' | 'want_to_read';
+type FilterTab = 'all' | 'reading' | 'favorite' | 'completed';
 
 export default function LibraryPage() {
   const { user, isLoading: isAuthLoading } = useAuth();
   const [books, setBooks] = useState<UserLibraryBook[]>([]);
+  const [externalWishlistBooks, setExternalWishlistBooks] = useState<UserLibraryBook[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeTab, setActiveTab] = useState<FilterTab>('all');
@@ -40,6 +42,64 @@ export default function LibraryPage() {
       window.removeEventListener('huki_wishlist_updated', handleWishlistUpdate);
     };
   }, []);
+
+  // 1b. Tải thông tin sách yêu thích thật từ Database nếu chưa có trong tủ cá nhân & đồng bộ ID hợp lệ
+  useEffect(() => {
+    if (wishlistIds.length === 0) {
+      setExternalWishlistBooks([]);
+      return;
+    }
+
+    const ownedIds = new Set(books.map((b) => b.bookId || b.id));
+    const missingIds = wishlistIds.filter((id) => !ownedIds.has(id));
+
+    if (missingIds.length === 0) {
+      setExternalWishlistBooks([]);
+      return;
+    }
+
+    catalogApi
+      .getPublicBooks({ limit: 100 })
+      .then((res) => {
+        if (!res || !res.success || !res.data) return;
+        const allBooks = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+        const matched: UserLibraryBook[] = allBooks
+          .filter((b: BookData) => missingIds.includes(b.id))
+          .map((b: BookData) => ({
+            accessId: `wishlist-${b.id}`,
+            bookId: b.id,
+            id: b.id,
+            title: b.title,
+            slug: b.slug,
+            author: typeof b.author === 'string' ? b.author : (b.author as any)?.name || 'Tác giả HUKI',
+            publisher: typeof b.publisher === 'string' ? b.publisher : (b.publisher as any)?.name || 'NXB HUKI',
+            category: typeof b.category === 'string' ? b.category : (b.category as any)?.name || 'Sách Số',
+            categorySlug: (b.category as any)?.slug,
+            coverUrl: b.coverUrl || (b as any).coverImage || (b as any).cover,
+            cover: b.coverUrl || (b as any).coverImage || (b as any).cover,
+            format: b.format || 'DIGITAL',
+            price: Number(b.price || 0),
+            readingProgress: 0,
+            status: 'WISHLIST',
+          }));
+        setExternalWishlistBooks(matched);
+
+        // Dọn dẹp ID rác không tồn tại trong DB để số lượng hiển thị trên badge luôn khớp 100% với danh sách thực tế
+        const validIds = [
+          ...books.filter((b) => wishlistIds.includes(b.bookId || b.id)).map((b) => b.bookId || b.id),
+          ...matched.map((m) => m.id),
+        ];
+        if (validIds.length > 0 && validIds.length !== wishlistIds.length) {
+          setWishlistIds(validIds);
+          try {
+            localStorage.setItem('huki_wishlist_ids', JSON.stringify(validIds));
+          } catch {}
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi lấy sách yêu thích từ catalog DB:', err);
+      });
+  }, [wishlistIds, books]);
 
   // 2. Tải sách thật từ cơ sở dữ liệu (PostgreSQL / commerce-service)
   useEffect(() => {
@@ -98,15 +158,20 @@ export default function LibraryPage() {
     }
   };
 
-  // 4. Thống kê số lượng sách theo từng danh mục
+  // Danh sách toàn bộ sách yêu thích thực tế (gộp sách trong tủ + sách ngoài sàn từ DB)
+  const allFavoriteBooks = useMemo(() => {
+    const ownedFavorites = books.filter((b) => wishlistIds.includes(b.bookId || b.id));
+    return [...ownedFavorites, ...externalWishlistBooks];
+  }, [books, wishlistIds, externalWishlistBooks]);
+
+  // 4. Thống kê số lượng sách theo từng danh mục (Số lượng khớp 100% với số sách thực tế)
   const counts = useMemo(() => {
     const total = books.length;
     const reading = books.filter((b) => b.readingProgress > 0 && b.readingProgress < 100).length;
     const completed = books.filter((b) => b.readingProgress >= 100).length;
-    const favorite = books.filter((b) => wishlistIds.includes(b.bookId || b.id)).length;
-    const wantToRead = books.filter((b) => b.readingProgress === 0).length;
-    return { total, reading, completed, favorite, wantToRead };
-  }, [books, wishlistIds]);
+    const favorite = allFavoriteBooks.length;
+    return { total, reading, completed, favorite };
+  }, [books, allFavoriteBooks]);
 
   // 5. Lọc và sắp xếp sách theo tab & từ khóa
   const filteredBooks = useMemo(() => {
@@ -118,10 +183,9 @@ export default function LibraryPage() {
     } else if (activeTab === 'completed') {
       result = result.filter((b) => b.readingProgress >= 100);
     } else if (activeTab === 'favorite') {
-      result = result.filter((b) => wishlistIds.includes(b.bookId || b.id));
-    } else if (activeTab === 'want_to_read') {
-      result = result.filter((b) => b.readingProgress === 0);
+      result = allFavoriteBooks;
     }
+
 
     // Lọc theo tìm kiếm
     if (searchQuery.trim()) {
@@ -278,26 +342,6 @@ export default function LibraryPage() {
                   }`}
                 >
                   {counts.completed}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setActiveTab('want_to_read')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                  activeTab === 'want_to_read'
-                    ? 'bg-indigo-700 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-                }`}
-              >
-                <span className="material-symbols-outlined text-base text-indigo-400">bookmark</span>
-                <span>Muốn Đọc</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-md text-[10px] font-extrabold ${
-                    activeTab === 'want_to_read' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {counts.wantToRead}
                 </span>
               </button>
             </div>
@@ -482,19 +526,21 @@ export default function LibraryPage() {
 
                         {/* Hover Overlay Play Icon */}
                         <Link
-                          href={`/reader?book=${bookKey}`}
+                          href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
                           className="absolute inset-0 bg-black/35 opacity-0 group-hover/cover:opacity-100 transition-opacity flex items-center justify-center"
-                          title="Bấm để đọc sách"
+                          title={book.status === 'WISHLIST' ? 'Bấm để xem chi tiết sách' : 'Bấm để đọc sách'}
                         >
                           <div className="w-10 h-10 rounded-full bg-[#00875A] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover/cover:scale-100 transition-transform">
-                            <span className="material-symbols-outlined text-2xl">auto_stories</span>
+                            <span className="material-symbols-outlined text-2xl">
+                              {book.status === 'WISHLIST' ? 'visibility' : 'auto_stories'}
+                            </span>
                           </div>
                         </Link>
                       </div>
 
                       {/* Book Title */}
                       <Link
-                        href={`/reader?book=${bookKey}`}
+                        href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}`}
                         className="font-bold text-xs text-slate-900 line-clamp-2 leading-snug hover:text-[#00875A] transition-colors block mb-1"
                         title={book.title}
                       >
@@ -539,20 +585,32 @@ export default function LibraryPage() {
 
                     {/* Action Buttons */}
                     <div className="pt-2 border-t border-slate-100 flex items-center gap-1.5">
-                      <Link
-                        href={`/reader?book=${bookKey}`}
-                        className="flex-1 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs"
-                      >
-                        <span className="material-symbols-outlined text-[13px]">auto_stories</span>
-                        <span>{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
-                      </Link>
+                      {book.status === 'WISHLIST' ? (
+                        <Link
+                          href={`/book/${bookKey}`}
+                          className="flex-1 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">shopping_bag</span>
+                          <span>Xem &amp; Mua Sách</span>
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/reader?book=${bookKey}`}
+                          className="flex-1 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white text-[11px] font-bold transition-all text-center flex items-center justify-center gap-1 shadow-2xs"
+                        >
+                          <span className="material-symbols-outlined text-[13px]">auto_stories</span>
+                          <span>{progress > 0 ? 'Đọc Tiếp' : 'Đọc Sách'}</span>
+                        </Link>
+                      )}
 
                       <Link
-                        href={`/reader?book=${bookKey}&autoplay=true`}
+                        href={book.status === 'WISHLIST' ? `/book/${bookKey}` : `/reader?book=${bookKey}&autoplay=true`}
                         className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] transition-colors flex items-center justify-center"
-                        title="Nghe Giọng Đọc AI"
+                        title={book.status === 'WISHLIST' ? 'Xem chi tiết sách' : 'Nghe Giọng Đọc AI'}
                       >
-                        <span className="material-symbols-outlined text-[15px]">headphones</span>
+                        <span className="material-symbols-outlined text-[15px]">
+                          {book.status === 'WISHLIST' ? 'visibility' : 'headphones'}
+                        </span>
                       </Link>
                     </div>
                   </div>

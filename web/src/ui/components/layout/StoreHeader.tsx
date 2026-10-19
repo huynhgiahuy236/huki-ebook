@@ -231,14 +231,58 @@ export default function StoreHeader({
     return user.role || 'Hội viên';
   }, [user, isAdmin]);
 
-  const TRENDING_KEYWORDS = [
-    'Thám Tử Lừng Danh Conan',
-    'Dế Mèn Phiêu Lưu Ký',
+  // Từ khóa phổ biến động lấy trực tiếp từ CSDL thật (PostgreSQL)
+  const [trendingKeywords, setTrendingKeywords] = useState<string[]>([
     'Đắc Nhân Tâm',
-    'Kinh Tế Học',
-    'Vũ Trụ Trong Vỏ Hạt Dẻ',
-    'Manga',
-  ];
+    'Nhà Giả Kim',
+    'Dế Mèn Phiêu Lưu Ký',
+    'Thám Tử Lừng Danh Conan',
+    'Tâm Lý Học Về Tiền',
+    'One Piece',
+    'Cha Giàu Cha Nghèo',
+    'Hoàng Tử Bé',
+  ]);
+  const [isLoadingTrending, setIsLoadingTrending] = useState(false);
+
+  // Fetch từ khóa phổ biến từ DB thật qua catalogApi
+  useEffect(() => {
+    let isCancelled = false;
+    setIsLoadingTrending(true);
+
+    catalogApi
+      .getPublicBooks({ limit: 20, sortBy: 'publishedAt', order: 'DESC' })
+      .then((res) => {
+        if (isCancelled || !res || !res.success || !res.data) return;
+        const items = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
+        if (items.length > 0) {
+          const list: string[] = [];
+          for (const item of items) {
+            if (!item.title) continue;
+            // Rút gọn tiêu đề sách (loại bỏ phụ đề dài dòng nếu có)
+            const clean = item.title.split(/–|-|\(/)[0].trim();
+            if (clean && clean.length >= 3 && clean.length <= 28 && !list.includes(clean)) {
+              list.push(clean);
+            }
+            if (list.length >= 7) break;
+          }
+          if (list.length > 0) {
+            // Thêm từ khóa Manga/Văn Học nếu chưa có
+            if (!list.includes('Manga')) list.push('Manga');
+            setTrendingKeywords(list.slice(0, 8));
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Lỗi tải từ khóa phổ biến từ DB:', err);
+      })
+      .finally(() => {
+        if (!isCancelled) setIsLoadingTrending(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const handleSelectKeyword = (keyword: string) => {
     setSearchQuery(keyword);
@@ -261,6 +305,36 @@ export default function StoreHeader({
     setShowUserMenu(false);
     router.push('/auth/login');
   };
+
+  // Đóng Search Suggestions và User Menu khi click ra ngoài hoặc nhấn phím ESC
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target as Node;
+      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
+        setShowSearchSuggestions(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowSearchSuggestions(false);
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200">
@@ -372,6 +446,16 @@ export default function StoreHeader({
                 }}
                 className="w-full bg-transparent border-none outline-none text-[11.5px] text-[var(--theme-text,#17201f)] placeholder-[var(--theme-text-muted,#6b7280)]"
               />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-slate-400 hover:text-slate-700 p-0.5 mr-1 cursor-pointer"
+                  title="Xóa từ khóa"
+                >
+                  <span className="material-symbols-outlined text-[14px] block">close</span>
+                </button>
+              )}
               <button
                 type="submit"
                 className="bg-[#003b2b] text-white px-2.5 py-0.5 rounded-md text-[11px] font-semibold hover:bg-[#00281d] transition-colors ml-1 shrink-0 cursor-pointer shadow-2xs"
@@ -384,6 +468,23 @@ export default function StoreHeader({
           {/* Live Search Autocomplete Popover */}
           {showSearchSuggestions && (
             <div className="absolute left-0 right-0 top-full mt-1.5 bg-[var(--theme-surface,#ffffff)] rounded-2xl shadow-2xl border border-[var(--theme-border,#e8e5df)] p-3 z-50 animate-fade-in-up text-xs overflow-hidden max-h-[460px] overflow-y-auto">
+              {/* Header popover có nút đóng rõ ràng */}
+              <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100">
+                <span className="text-[10.5px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px] text-emerald-600">travel_explore</span>
+                  <span>Gợi Ý Tìm Kiếm HuKi</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowSearchSuggestions(false)}
+                  className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-md px-1.5 py-0.5 text-[10px] font-bold flex items-center gap-0.5 transition-colors cursor-pointer"
+                  title="Đóng bảng gợi ý (ESC hoặc click ra ngoài)"
+                >
+                  <span>Đóng</span>
+                  <span className="material-symbols-outlined text-[13px]">close</span>
+                </button>
+              </div>
+
               {/* Case 1: Search Query is Empty -> Show Search History & Trending */}
               {!searchQuery.trim() ? (
                 <div className="flex flex-col gap-3">
@@ -426,21 +527,30 @@ export default function StoreHeader({
                     </div>
                   )}
 
-                  {/* Trending Keywords */}
+                  {/* Trending Keywords from Real DB */}
                   <div>
-                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1.5 flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px] text-amber-500">trending_up</span>
-                      <span>Từ khóa phổ biến</span>
+                    <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-1 mb-1.5 flex items-center justify-between">
+                      <span className="flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] text-amber-500">trending_up</span>
+                        <span>Từ khóa phổ biến</span>
+                      </span>
+                      {isLoadingTrending && (
+                        <span className="text-[10px] text-slate-400 font-normal flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[11px] animate-spin text-emerald-600">sync</span>
+                          <span>Đang tải từ CSDL...</span>
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-1.5">
-                      {TRENDING_KEYWORDS.map((kw, idx) => (
+                      {trendingKeywords.map((kw, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => handleSelectKeyword(kw)}
-                          className="px-2.5 py-1 bg-emerald-50/60 hover:bg-emerald-100 text-[#003b2b] border border-emerald-200/60 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-102"
+                          className="px-2.5 py-1 bg-emerald-50/70 hover:bg-emerald-100 text-[#003b2b] border border-emerald-200/70 hover:border-emerald-300 rounded-lg text-xs font-semibold cursor-pointer transition-all hover:scale-102 flex items-center gap-1 shadow-2xs"
                         >
-                          {kw}
+                          <span className="material-symbols-outlined text-[11px] text-emerald-600">search</span>
+                          <span>{kw}</span>
                         </button>
                       ))}
                     </div>

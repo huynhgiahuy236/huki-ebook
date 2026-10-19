@@ -1,11 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Allow Base64 avatar uploads up to 10MB
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
 
   // Enable CORS
   app.enableCors();

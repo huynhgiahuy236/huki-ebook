@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
@@ -13,14 +13,62 @@ export default function ProfilePage() {
   const { showToast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [formError, setFormError] = useState('');
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [loadingBusiness, setLoadingBusiness] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     fullName: user?.fullName || user?.name || '',
     phone: user?.phone || '',
   });
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Kiểm tra định dạng
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Định dạng ảnh không hỗ trợ. Vui lòng chọn .JPEG, .PNG hoặc .WEBP', 'error');
+      return;
+    }
+
+    // Kiểm tra dung lượng (tối đa 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Dung lượng ảnh vượt quá 2 MB. Vui lòng chọn ảnh nhẹ hơn', 'error');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const base64Url = reader.result as string;
+        try {
+          const res = await updateUserProfile({ avatar: base64Url });
+          if (res.success) {
+            showToast('Cập nhật ảnh đại diện thành công!', 'success');
+          } else {
+            showToast(res.error?.message || 'Không thể lưu ảnh đại diện.', 'error');
+          }
+        } catch {
+          showToast('Lỗi máy chủ khi cập nhật ảnh đại diện.', 'error');
+        } finally {
+          setIsUploadingAvatar(false);
+        }
+      };
+      reader.onerror = () => {
+        showToast('Không thể đọc file ảnh.', 'error');
+        setIsUploadingAvatar(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      showToast('Có lỗi xảy ra khi xử lý ảnh.', 'error');
+      setIsUploadingAvatar(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -309,12 +357,31 @@ export default function ProfilePage() {
               <span className="text-[11px] text-gray-400 block mt-0.5">{displayEmail}</span>
             </div>
 
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
+
             <button
               type="button"
-              onClick={() => showToast('Mở trình chọn ảnh đại diện từ máy tính', 'info')}
-              className="px-4 py-2 bg-white border border-gray-300 hover:border-[#003B2B] text-gray-700 hover:text-[#003B2B] font-bold rounded-xl text-xs transition-colors shadow-2xs cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingAvatar}
+              className="px-4 py-2 bg-white border border-gray-300 hover:border-[#003B2B] text-gray-700 hover:text-[#003B2B] font-bold rounded-xl text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
             >
-              Chọn Ảnh Đại Diện
+              {isUploadingAvatar ? (
+                <>
+                  <span className="inline-block w-3.5 h-3.5 border-2 border-[#003B2B]/30 border-t-[#003B2B] rounded-full animate-spin"></span>
+                  <span>Đang tải lên...</span>
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[16px]">upload</span>
+                  <span>Chọn Ảnh Đại Diện</span>
+                </>
+              )}
             </button>
 
             <p className="text-[11px] text-gray-400 leading-relaxed">

@@ -71,7 +71,7 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     const port = this.config.get<number>(`services.${service}.port`);
     if (!host || !port) return next(new Error(`No target configured for ${service}`));
 
-    const headers = this.forwardHeaders(req.headers);
+    const headers = this.forwardHeaders(req.headers, req);
     const body = this.serializeBody(req);
     if (body) {
       headers['content-length'] = Buffer.byteLength(body).toString();
@@ -213,11 +213,19 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     return undefined;
   }
 
-  private forwardHeaders(headers: IncomingHttpHeaders): IncomingHttpHeaders {
+  private forwardHeaders(headers: IncomingHttpHeaders, req?: Request): IncomingHttpHeaders {
     const forwarded = { ...headers };
     delete forwarded.host;
     delete forwarded['content-length'];
     delete forwarded.connection;
+
+    if (req && (req as any).user) {
+      const user = (req as any).user;
+      if (user.id) forwarded['x-user-id'] = user.id;
+      if (user.role) forwarded['x-user-role'] = user.role;
+      if (user.email) forwarded['x-user-email'] = user.email;
+    }
+
     return forwarded;
   }
 

@@ -12,6 +12,8 @@ import {
   Body,
   UseGuards,
   Req,
+  Res,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -23,7 +25,8 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { Request } from 'express';
+import { Request, Response } from 'express';
+import { OAuth2Client } from 'google-auth-library';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from '@huki/shared';
@@ -31,6 +34,7 @@ import {
   RegisterDto,
   LoginDto,
   RefreshTokenDto,
+  GoogleLoginDto,
 } from './dto';
 import {
   ForgotPasswordDto,
@@ -97,6 +101,86 @@ export class AuthController {
       message: 'Đăng nhập thành công',
       data: result,
     };
+  }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Login with Google OAuth ID Token',
+    description: 'Authenticates or creates a user account via verified Google OAuth credential.',
+  })
+  @ApiResponse({ status: 200, description: 'Google login successful' })
+  @ApiBadRequestResponse({ description: 'Invalid Google token or missing email' })
+  async loginWithGoogle(@Body() dto: GoogleLoginDto, @Req() req: Request) {
+    const userAgent = req.get('user-agent');
+    const ipAddress = req.ip;
+    const result = await this.authService.loginWithGoogle(dto, userAgent, ipAddress);
+    return {
+      message: 'Đăng nhập Google thành công',
+      data: result,
+    };
+  }
+
+  @Get('google/client-id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Google OAuth Client ID for frontend integration',
+    description: 'Returns the public Google Client ID configured on the backend.',
+  })
+  @ApiResponse({ status: 200, description: 'Google Client ID returned' })
+  getGoogleClientId() {
+    return {
+      data: {
+        clientId: this.authService.getGoogleClientId(),
+      },
+    };
+  }
+
+  @Get('google/callback')
+  @ApiOperation({
+    summary: 'Google OAuth2 Callback URL (Server-side redirect flow)',
+    description: 'Handles OAuth2 redirect from Google and sets session tokens.',
+  })
+  async googleCallback(
+    @Query('code') code: string,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
+    if (!code) {
+      return res.redirect('http://localhost:3100/auth/login?error=missing_code');
+    }
+    try {
+      const clientId =
+        process.env.GOOGLE_CLIENT_ID || this.authService.getGoogleClientId();
+      const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+      const callbackUrl =
+        process.env.GOOGLE_CALLBACK_URL ||
+        'http://localhost:3000/api/v1/auth/google/callback';
+
+      const client = new OAuth2Client(clientId, clientSecret, callbackUrl);
+      const { tokens } = await client.getToken(code);
+
+      if (tokens.access_token) {
+        const userAgent = req.get('user-agent');
+        const ipAddress = req.ip;
+        const result = await this.authService.loginWithGoogle(
+          { accessToken: tokens.access_token },
+          userAgent,
+          ipAddress,
+        );
+
+        return res.redirect(
+          `http://localhost:3100/auth/login?token=${result.accessToken}&refreshToken=${result.refreshToken}`,
+        );
+      }
+      return res.redirect('http://localhost:3100/auth/login?error=auth_failed');
+    } catch (err: any) {
+      return res.redirect(
+        `http://localhost:3100/auth/login?error=${encodeURIComponent(
+          err?.message || 'google_auth_failed',
+        )}`,
+      );
+    }
   }
 
   @Post('logout')

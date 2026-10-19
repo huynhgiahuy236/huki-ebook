@@ -1,12 +1,13 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import * as bcrypt from "bcrypt";
 import { createHash, randomBytes, randomUUID } from "crypto";
+import { OAuth2Client } from "google-auth-library";
 import { User, UserRole, UserStatus, Prisma } from "../../../prisma/generated/client";
 import { PrismaService } from "../../prisma/prisma.service";
-import { LoginDto, RefreshTokenDto, RegisterDto } from "./dto";
+import { LoginDto, RefreshTokenDto, RegisterDto, GoogleLoginDto } from "./dto";
 import {
   ChangePasswordDto,
   ForgotPasswordDto,
@@ -251,6 +252,152 @@ export class AuthService {
     };
   }
 
+  async loginWithGoogle(dto: GoogleLoginDto, userAgent?: string, ipAddress?: string) {
+    let email = dto.email ? dto.email.trim().toLowerCase() : undefined;
+    let fullName = dto.fullName ? dto.fullName.trim() : undefined;
+    let avatar = dto.avatar;
+
+    // 1. Xác thực qua Google ID Token hoặc Google OAuth2 Access Token
+    if (dto.accessToken) {
+      try {
+        const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${dto.accessToken}` },
+        });
+        if (userInfoRes.ok) {
+          const profile = await userInfoRes.json();
+          if (profile?.email) {
+            const userEmail = String(profile.email).trim().toLowerCase();
+            email = userEmail;
+            fullName = profile.name || fullName || userEmail.split('@')[0];
+            avatar = profile.picture || avatar;
+          }
+        }
+      } catch (err: any) {
+        new Logger('AuthService').warn(`Gọi Google UserInfo API thất bại: ${err?.message || err}`);
+      }
+    }
+
+    if (!email && dto.idToken) {
+      try {
+        const googleClientId =
+          this.configService.get<string>('GOOGLE_CLIENT_ID') ||
+          process.env.GOOGLE_CLIENT_ID;
+
+        const client = new OAuth2Client(googleClientId);
+        const ticket = await client.verifyIdToken({
+          idToken: dto.idToken,
+          audience: googleClientId || undefined,
+        });
+
+        const payload = ticket.getPayload();
+        if (payload?.email) {
+          email = payload.email.trim().toLowerCase();
+          fullName = payload.name || fullName || email.split('@')[0];
+          avatar = payload.picture || avatar;
+        }
+      } catch (err: any) {
+        new Logger('AuthService').warn(`Xác thực Google ID Token thất bại: ${err?.message || err}`);
+        if (!email) {
+          throwUnauthorized(
+            ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
+            'Chứng chỉ Google ID Token không hợp lệ hoặc đã hết hạn',
+          );
+        }
+      }
+    }
+
+    if (!email) {
+      throwBadRequest(
+        ErrorCode.AUTH_LOGIN_INVALID_CREDENTIALS,
+        'Email Google là bắt buộc để tiến hành đăng nhập',
+      );
+    }
+
+    // 2. Tìm kiếm người dùng theo email
+    let user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
+    let isNewUser = false;
+
+    if (user) {
+      // Kiểm tra trạng thái tài khoản
+      if (user.status === UserStatus.BLOCKED) {
+        throwUnauthorized(
+          ErrorCode.AUTH_LOGIN_ACCOUNT_BLOCKED,
+          'Tài khoản của bạn đã bị khóa',
+        );
+      }
+
+      // Nếu tài khoản đang PENDING, kích hoạt ngay vì Google đã xác thực quyền sở hữu email
+      const updateData: any = {};
+      if (user.status === UserStatus.PENDING) {
+        updateData.status = UserStatus.ACTIVE;
+        updateData.emailVerifiedAt = new Date();
+        updateData.emailVerificationToken = null;
+        updateData.emailVerificationExpiresAt = null;
+      }
+      if (avatar) {
+        updateData.avatar = avatar;
+      }
+      if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+        updateData.failedLoginAttempts = 0;
+        updateData.lockedUntil = null;
+      }
+
+      if (Object.keys(updateData).length > 0) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: updateData,
+        });
+      }
+    } else {
+      // 3. Tự động tạo tài khoản mới nếu chưa tồn tại
+      isNewUser = true;
+      const randomPassword = randomBytes(24).toString('hex');
+      const passwordHash = await bcrypt.hash(randomPassword, 12);
+
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          fullName: fullName || email.split('@')[0],
+          avatar: avatar || null,
+          passwordHash,
+          role: UserRole.USER,
+          status: UserStatus.ACTIVE,
+          emailVerifiedAt: new Date(),
+        },
+      });
+
+      this.emitUserRegistered({
+        userId: user.id,
+        email: user.email,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    // Đảm bảo cập nhật role BUSINESS nếu user sở hữu doanh nghiệp đã duyệt
+    user = await this.ensureBusinessRoleIfApproved(user);
+
+    // Cấp phát Access Token và Refresh Token chuẩn của hệ thống
+    const tokens = await this.generateTokens(user, { userAgent, ipAddress });
+
+    this.emitUserLoggedIn({
+      userId: user.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      user: {
+        ...this.sanitizeUser(user),
+        hasCompletedOnboarding: !isNewUser,
+        isNewUser,
+      },
+      isNewUser,
+      ...tokens,
+    };
+  }
+
   async logout(refreshToken: string) {
     if (!refreshToken) return;
     const tokenHash = this.hashToken(refreshToken);
@@ -437,6 +584,14 @@ export class AuthService {
       }),
     ]);
     return { message: "Password changed successfully" };
+  }
+
+  getGoogleClientId(): string {
+    return (
+      this.configService.get<string>('GOOGLE_CLIENT_ID') ||
+      process.env.GOOGLE_CLIENT_ID ||
+      ''
+    );
   }
 
   async validateUser(userId: string): Promise<User | null> {

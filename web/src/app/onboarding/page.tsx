@@ -20,25 +20,15 @@ export default function OnboardingPage() {
   const { showToast } = useToast();
 
   useEffect(() => {
-    // Chỉ hiển thị onboarding 1 lần lúc đăng ký: nếu đã hoàn tất thì điều hướng về trang chủ
-    if (user?.hasCompletedOnboarding) {
-      router.replace('/');
-      return;
-    }
-    if (typeof window !== 'undefined') {
-      const isCompleted = localStorage.getItem('huki_onboarding_completed');
-      if (isCompleted === 'true') {
+    if (typeof window === 'undefined') return;
+
+    // Dọn dẹp biến global cũ từng gây đá văng mọi tài khoản mới
+    localStorage.removeItem('huki_onboarding_completed');
+
+    if (user?.id) {
+      const userSpecificCompleted = localStorage.getItem(`huki_onboarding_completed_${user.id}`);
+      if (user.hasCompletedOnboarding || userSpecificCompleted === 'true') {
         router.replace('/');
-        return;
-      }
-      const stored = localStorage.getItem('huki_onboarding_preferences');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          if (parsed.hasCompletedOnboarding) {
-            router.replace('/');
-          }
-        } catch {}
       }
     }
   }, [user, router]);
@@ -128,8 +118,10 @@ export default function OnboardingPage() {
     } catch {}
 
     if (typeof window !== 'undefined') {
-      localStorage.setItem('huki_onboarding_completed', 'true');
-      localStorage.setItem('huki_onboarding_preferences', JSON.stringify({ hasCompletedOnboarding: true, skipped: true }));
+      if (user?.id) {
+        localStorage.setItem(`huki_onboarding_completed_${user.id}`, 'true');
+        localStorage.setItem(`huki_onboarding_preferences_${user.id}`, JSON.stringify({ hasCompletedOnboarding: true, skipped: true }));
+      }
     }
 
     showToast({
@@ -173,8 +165,10 @@ export default function OnboardingPage() {
       };
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem('huki_onboarding_completed', 'true');
-        localStorage.setItem('huki_onboarding_preferences', JSON.stringify(preferences));
+        if (user?.id) {
+          localStorage.setItem(`huki_onboarding_completed_${user.id}`, 'true');
+          localStorage.setItem(`huki_onboarding_preferences_${user.id}`, JSON.stringify(preferences));
+        }
       }
 
       showToast({

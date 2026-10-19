@@ -241,4 +241,5 @@ Most endpoints require JWT Bearer token authentication.
   console.log('============================================\n');
 }
 
+// Trigger reload for forwardHeaders: 2026-10-20
 bootstrap();

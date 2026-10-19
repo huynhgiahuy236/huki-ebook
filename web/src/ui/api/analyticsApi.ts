@@ -16,6 +16,7 @@ export interface PlatformGmvTimelineItem {
 export interface PlatformGmvByStoreItem {
   storeId: string;
   gmv: string;
+  orders?: number;
 }
 
 export interface PlatformGmvResponse {

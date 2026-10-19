@@ -11,6 +11,7 @@ import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/f
 import { voucherApi } from "@/ui/api/voucherApi";
 import BookCard from "@/ui/components/common/BookCard";
 import { personalizationService } from "@/ui/services/personalizationService";
+import { recordBannerClick } from "@/ui/components/admin/AdminMarketingView";
 
 export default function HomePage() {
   const router = useRouter();
@@ -134,23 +135,94 @@ export default function HomePage() {
   const isPlatformLive = platformSalePhase === "LIVE";
   const isPlatformTeaser = platformSalePhase === "TEASER";
 
+  // Load custom banners configured by Admin in Marketing Media Hub
+  const [customBanners, setCustomBanners] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("huki_admin_marketing_banners");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const activeOnly = parsed.filter((b: any) => b.status === "active");
+          if (activeOnly.length > 0) {
+            setCustomBanners(activeOnly);
+          }
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  }, []);
+
   // Hero Slides with Real Photography Backgrounds
   const heroSlides = useMemo(() => {
-    const defaultSlide1 = {
-      id: "slide-1",
-      badge: "Hội Sách Tri Thức Mùa Xuất Bản 2026",
-      icon: "auto_awesome",
-      title: "Chăm sóc tâm hồn –\nTỏa sáng cùng tri thức",
-      desc: "Hơn 50.000 đầu sách tuyển chọn & Ebook bản quyền từ các NXB uy tín. Giao nhanh 2H nội thành.",
-      bgImage: "/banners/hero-library.jpg",
-      overlay:
-        "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
-      primaryBtn: { text: "Khám phá ngay", to: "/books" },
-      secondaryBtn: { text: "Đọc thử Ebook", to: "/books?format=ebook" },
-      accent: "#006953",
-    };
+    let baseSlides: any[] = [];
 
-    let firstSlide = defaultSlide1;
+    if (customBanners.length > 0) {
+      baseSlides = customBanners.map((cb, idx) => ({
+        id: cb.id,
+        badge: cb.badge || "HỘI SÁCH TRI THỨC HUKI",
+        icon: idx === 0 ? "auto_awesome" : idx === 1 ? "tablet_mac" : "workspace_premium",
+        title: cb.title,
+        desc: cb.subtitle || "Khám phá hàng chục ngàn tựa sách hay cùng HUKI.",
+        bgImage: cb.bgImage || "/banners/hero-library.jpg",
+        overlay:
+          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.2) 100%)",
+        primaryBtn: { text: "Khám phá ngay", to: cb.link || "/books" },
+        secondaryBtn: { text: "Đọc Thử Ebook", to: "/books?format=ebook" },
+        accent: "#006953",
+      }));
+    } else {
+      baseSlides = [
+        {
+          id: "slide-1",
+          badge: "Hội Sách Tri Thức Mùa Xuất Bản 2026",
+          icon: "auto_awesome",
+          title: "Chăm sóc tâm hồn –\nTỏa sáng cùng tri thức",
+          desc: "Hơn 50.000 đầu sách tuyển chọn & Ebook bản quyền từ các NXB uy tín. Giao nhanh 2H nội thành.",
+          bgImage: "/banners/hero-library.jpg",
+          overlay:
+            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
+          primaryBtn: { text: "Khám phá ngay", to: "/books" },
+          secondaryBtn: { text: "Đọc thử Ebook", to: "/books?format=ebook" },
+          accent: "#006953",
+        },
+        {
+          id: "slide-2",
+          badge: "Không Gian Đọc Ebook DRM & Audio",
+          icon: "tablet_mac",
+          title: "Đọc mọi lúc mọi nơi –\nĐồng bộ đa thiết bị",
+          desc: "Kho Ebook bản quyền chuẩn DRM, highlight và ghi chú thông minh, đọc mượt mà trên App & Web.",
+          bgImage: "/banners/sub-hybrid.jpg",
+          overlay:
+            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.2) 100%)",
+          primaryBtn: { text: "Trải nghiệm Ebook", to: "/books?format=ebook" },
+          secondaryBtn: {
+            text: "Mua Combo Tiết Kiệm",
+            to: "/books?format=hybrid",
+          },
+          accent: "#006953",
+        },
+        {
+          id: "slide-3",
+          badge: "Ấn Bản Sách Đẹp & Sưu Tầm Cao Cấp",
+          icon: "workspace_premium",
+          title: "Bìa cứng mạ vàng –\nQuà tặng tri thức sang trọng",
+          desc: "Tuyển tập kiệt tác văn học, sách giới hạn kèm chữ ký tác giả và bookmark cao cấp.",
+          bgImage: "/banners/hero-podium.jpg",
+          overlay:
+            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
+          primaryBtn: { text: "Xem bộ sưu tập", to: "/books?filter=special" },
+          secondaryBtn: {
+            text: "Săn Deal Bán Chạy",
+            to: "/books?filter=flash-sale",
+          },
+          accent: "#006953",
+        },
+      ];
+    }
+
+    let firstSlide = baseSlides[0];
     if ((isPlatformLive || isPlatformTeaser) && activeFlashSale) {
       firstSlide = {
         id: "slide-flash-sale",
@@ -176,42 +248,8 @@ export default function HomePage() {
       };
     }
 
-    return [
-      firstSlide,
-      {
-        id: "slide-2",
-        badge: "Không Gian Đọc Ebook DRM & Audio",
-        icon: "tablet_mac",
-        title: "Đọc mọi lúc mọi nơi –\nĐồng bộ đa thiết bị",
-        desc: "Kho Ebook bản quyền chuẩn DRM, highlight và ghi chú thông minh, đọc mượt mà trên App & Web.",
-        bgImage: "/banners/sub-hybrid.jpg",
-        overlay:
-          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.2) 100%)",
-        primaryBtn: { text: "Trải nghiệm Ebook", to: "/books?format=ebook" },
-        secondaryBtn: {
-          text: "Mua Combo Tiết Kiệm",
-          to: "/books?format=hybrid",
-        },
-        accent: "#006953",
-      },
-      {
-        id: "slide-3",
-        badge: "Ấn Bản Sách Đẹp & Sưu Tầm Cao Cấp",
-        icon: "workspace_premium",
-        title: "Bìa cứng mạ vàng –\nQuà tặng tri thức sang trọng",
-        desc: "Tuyển tập kiệt tác văn học, sách giới hạn kèm chữ ký tác giả và bookmark cao cấp.",
-        bgImage: "/banners/hero-podium.jpg",
-        overlay:
-          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
-        primaryBtn: { text: "Xem bộ sưu tập", to: "/books?filter=special" },
-        secondaryBtn: {
-          text: "Săn Deal Bán Chạy",
-          to: "/books?filter=flash-sale",
-        },
-        accent: "#006953",
-      },
-    ];
-  }, [isPlatformLive, isPlatformTeaser, activeFlashSale]);
+    return [firstSlide, ...baseSlides.slice(1)];
+  }, [isPlatformLive, isPlatformTeaser, activeFlashSale, customBanners]);
 
   // Autoplay Hero Slider
   useEffect(() => {
@@ -1252,6 +1290,10 @@ export default function HomePage() {
               <div className="flex flex-wrap items-center gap-2.5 mt-6">
                 <Link
                   href={heroSlides[activeHeroSlide].primaryBtn.to}
+                  onClick={() => {
+                    const curId = heroSlides[activeHeroSlide]?.id;
+                    if (curId) recordBannerClick(curId);
+                  }}
                   className="px-4 py-2 rounded-xl bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold shadow-md transition-all inline-flex items-center gap-1.5 transform hover:-translate-y-0.5 cursor-pointer"
                 >
                   <span>{heroSlides[activeHeroSlide].primaryBtn.text}</span>
@@ -1261,6 +1303,10 @@ export default function HomePage() {
                 </Link>
                 <Link
                   href={heroSlides[activeHeroSlide].secondaryBtn.to}
+                  onClick={() => {
+                    const curId = heroSlides[activeHeroSlide]?.id;
+                    if (curId) recordBannerClick(curId);
+                  }}
                   className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold backdrop-blur-md border border-white/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
                 >
                   {heroSlides[activeHeroSlide].secondaryBtn.text}

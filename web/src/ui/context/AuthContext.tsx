@@ -16,7 +16,7 @@ export interface AuthContextType {
   activeBusinessId: string | null;
   setActiveBusinessId: React.Dispatch<React.SetStateAction<string | null>>;
   login: (emailOrPhone?: string, password?: string) => Promise<{ success: boolean; user?: UserSession; error?: string; code?: string }>;
-  loginWithGoogle: (googleData?: { email: string; fullName: string; avatar?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
+  loginWithGoogle: (googleData?: { idToken?: string; accessToken?: string; email?: string; fullName?: string; avatar?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   logout: () => Promise<void>;
   register: (formData: { email: string; password?: string; name?: string; fullName?: string; phone?: string }) => Promise<{ success: boolean; user?: UserSession; error?: string }>;
   changePassword: (currentPassword?: string, newPassword?: string) => Promise<ApiResponse<{ message: string }>>;
@@ -407,44 +407,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Đăng nhập Google
-  const loginWithGoogle = async (googleData?: { email: string; fullName: string; avatar?: string }) => {
+  const loginWithGoogle = async (googleData?: { idToken?: string; accessToken?: string; email?: string; fullName?: string; avatar?: string }) => {
     setAuthError(null);
     setIsLoading(true);
     try {
-      const email = googleData?.email || 'huynhgiahuy@gmail.com';
-      const fullName = googleData?.fullName || 'Huỳnh Gia Huy';
+      const email = googleData?.email;
+      const fullName = googleData?.fullName;
 
-      // Sinh Access Token và Refresh Token cho phiên Google
-      const encodedPayload = typeof window !== 'undefined' ? btoa(JSON.stringify({ email, fullName, time: Date.now() })) : 'google_auth';
-      const mockAccessToken = `huki_google_${encodedPayload}`;
-      const mockRefreshToken = `huki_google_refresh_${Date.now()}`;
-
-      tokenStorage.setTokens({
-        accessToken: mockAccessToken,
-        refreshToken: mockRefreshToken,
-      });
-
-      let userData: UserSession = {
-        id: `google_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
+      // Gửi yêu cầu đăng nhập Google lên Backend Platform (Identity Service)
+      const res = await authApi.loginGoogle({
+        idToken: googleData?.idToken,
+        accessToken: googleData?.accessToken,
         email,
         fullName,
-        name: fullName,
-        role: 'USER',
-        hasCompletedOnboarding: true,
-        avatar: googleData?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-      };
+        avatar: googleData?.avatar,
+      });
 
-      userData = (await hydrateBusiness(userData)) || userData;
-      setUser(userData);
+      if (res.success && res.data) {
+        const { accessToken, refreshToken, user: rawUser } = res.data as any;
+        if (accessToken && refreshToken) {
+          tokenStorage.setTokens({ accessToken, refreshToken });
+        }
 
-      if (userData.id) {
-        getTracker().setUserId(userData.id);
+        const isNewUser = Boolean((res.data as any).isNewUser);
+        let userData: UserSession = rawUser
+          ? {
+              ...rawUser,
+              isNewUser,
+              hasCompletedOnboarding: rawUser.hasCompletedOnboarding ?? !isNewUser,
+            }
+          : {
+              id: `google_${(email || 'user').replace(/[^a-zA-Z0-9]/g, '_')}`,
+              email: email || '',
+              fullName: fullName || 'Người dùng Google',
+              name: fullName || 'Người dùng Google',
+              role: 'USER',
+              hasCompletedOnboarding: !isNewUser,
+              isNewUser,
+              avatar: googleData?.avatar,
+            };
+
+        userData = (await hydrateBusiness(userData)) || userData;
+        setUser(userData);
+
+        if (userData.id) {
+          getTracker().setUserId(userData.id);
+        }
+
+        setIsLoading(false);
+        return { success: true, user: userData };
       }
 
+      // Nếu API trả về lỗi
+      const errorMsg = res.error?.message || 'Đăng nhập Google thất bại. Vui lòng thử lại.';
+      setAuthError(errorMsg);
       setIsLoading(false);
-      return { success: true, user: userData };
+      return { success: false, error: errorMsg };
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Lỗi đăng nhập Google.';
+      const errorMsg = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ khi đăng nhập Google.';
       setAuthError(errorMsg);
       setIsLoading(false);
       return { success: false, error: errorMsg };
