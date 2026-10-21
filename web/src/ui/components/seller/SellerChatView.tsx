@@ -33,6 +33,7 @@ export interface SellerChatCustomer {
   userId?: string;
   storeId?: string;
   name: string;
+  email?: string;
   tier?: 'VIP Gold' | 'VIP Bạc' | 'Khách mới' | 'VIP Platinum';
   avatar?: string;
   isOnline: boolean;
@@ -197,12 +198,19 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
         if (res.success && Array.isArray(res.data)) {
           const mapped: SellerChatCustomer[] = res.data.map((conv: ChatConversation) => {
             const custUser = conv.user;
-            const contextOrder = conv.context?.type === 'ORDER' ? conv.context.id : undefined;
+            const contextOrder = (conv.context?.type === 'ORDER' && conv.context.id && conv.context.id !== 'GENERAL') ? conv.context.id : undefined;
+
+            let displayName: string = custUser?.fullName?.trim() || 'Khách Hàng';
+            if (displayName.includes('@')) {
+              const prefix = displayName.split('@')[0];
+              displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+            }
+
             return {
               id: conv.id,
               userId: custUser?.id,
               storeId: conv.store?.id,
-              name: custUser?.fullName || 'Khách Hàng',
+              name: displayName,
               avatar: custUser?.avatar,
               tier: 'Khách mới',
               isOnline: true,
@@ -1570,7 +1578,9 @@ export function SellerChatView({ initialCustomers }: SellerChatViewProps) {
                   <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-extrabold uppercase">
                     {currentCustomer.tier || 'Thành Viên'}
                   </span>
-                  <span className="text-[11px] text-slate-400 font-mono">#{currentCustomer.id}</span>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    KH-{(currentCustomer.userId || currentCustomer.id).slice(-6).toUpperCase()}
+                  </span>
                 </div>
               </div>
 

@@ -15,6 +15,7 @@ export class SellerOrderQueryDto {
   @ApiPropertyOptional({ enum: SellerOrderStatus }) @IsOptional() @IsEnum(SellerOrderStatus) status?: SellerOrderStatus;
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() business?: string;
   @ApiPropertyOptional({ format: 'uuid' }) @IsOptional() store?: string;
+  @ApiPropertyOptional() @IsOptional() search?: string;
 }
 
 

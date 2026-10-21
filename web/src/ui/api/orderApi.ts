@@ -150,6 +150,7 @@ export const orderApi = {
       if (params.status && params.status !== 'ALL') query.append('status', params.status);
       if (params.business) query.append('business', params.business);
       if (params.store) query.append('store', params.store);
+      if (params.search) query.append('search', params.search);
     }
 
     const queryString = query.toString();

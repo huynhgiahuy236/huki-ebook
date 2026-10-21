@@ -145,6 +145,18 @@ export class OrdersService {
     }
 
     if (query.status) where.status = query.status;
+    if (query.search?.trim()) {
+      const term = query.search.trim();
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { code: { contains: term, mode: 'insensitive' } },
+            { order: { code: { contains: term, mode: 'insensitive' } } },
+          ],
+        },
+      ];
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.sellerOrder.findMany({
