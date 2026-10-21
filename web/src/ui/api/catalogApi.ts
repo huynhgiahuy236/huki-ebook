@@ -65,6 +65,11 @@ export interface BookData {
   discountPercent?: number;
   discountAmount?: number;
   hasActiveDiscount?: boolean;
+  isAffiliateEligible?: boolean;
+  affiliateSetting?: {
+    isEligible: boolean;
+    customRate?: number | null;
+  } | null;
 }
 
 export interface CreateBookPayload {
@@ -83,6 +88,7 @@ export interface CreateBookPayload {
   coverUrl?: string;
   physicalDetails?: PhysicalDetails;
   digitalDetails?: DigitalDetails;
+  enableAffiliate?: boolean;
 }
 
 function isUuid(val: unknown): boolean {

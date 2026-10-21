@@ -13,6 +13,7 @@ import {
   QueryStoreBooksAffiliateDto,
 } from '../dto/seller-affiliate.dto';
 import { BookFormat, Prisma } from '../../../../prisma/generated/client';
+import { resolveStoreAndBusinessIds } from '../../../common/seller-scope.util';
 
 export interface SellerNetBreakdown {
   grossPrice: number;
@@ -299,38 +300,41 @@ export class SellerAffiliateService {
     const limit = Math.min(100, Math.max(1, Number(query.limit || 20)));
     const skip = (page - 1) * limit;
 
-    const where: Prisma.BookWhereInput = {
-      storeId,
-    };
+    const storeAndBizIds = await resolveStoreAndBusinessIds(storeId);
+    const andConditions: Prisma.BookWhereInput[] = [
+      { storeId: { in: storeAndBizIds } },
+    ];
+
+    if (query.format && (query.format as any) !== 'ALL' && query.format !== BookFormat.BOTH) {
+      andConditions.push({ format: query.format as BookFormat });
+    }
 
     if (query.search?.trim()) {
       const search = query.search.trim();
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { isbn: { contains: search, mode: 'insensitive' } },
-        { slug: { contains: search, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: search, mode: 'insensitive' } },
+          { isbn: { contains: search, mode: 'insensitive' } },
+          { slug: { contains: search, mode: 'insensitive' } },
+        ],
+      });
     }
 
-    if (query.format && query.format !== 'BOTH') {
-      where.format = query.format as BookFormat;
+    const wantIneligible = query.isEligible === false || query.eligibility === 'INELIGIBLE';
+    if (wantIneligible) {
+      andConditions.push({
+        affiliateSetting: { isEligible: false },
+      });
+    } else {
+      // Default & Eligible: ONLY include books where affiliate is turned ON (Rule: "những cuốn bật sẽ vào trong list đó cuốn nào không thì không")
+      andConditions.push({
+        affiliateSetting: { isEligible: true },
+      });
     }
 
-    if (query.eligibility === 'ELIGIBLE') {
-      where.OR = [
-        { affiliateSetting: { isEligible: true } },
-        {
-          affiliateSetting: null,
-          ...(isStoreEnabled && autoEnroll ? {} : { id: 'none' }),
-        },
-      ];
-    } else if (query.eligibility === 'INELIGIBLE') {
-      if (!isStoreEnabled) {
-        // all ineligible
-      } else {
-        where.affiliateSetting = { isEligible: false };
-      }
-    }
+    const where: Prisma.BookWhereInput = {
+      AND: andConditions,
+    };
 
     const [total, books] = await Promise.all([
       this.prisma.book.count({ where }),
@@ -365,7 +369,7 @@ export class SellerAffiliateService {
           );
         }
       } else {
-        // Decision 2: Dynamic Inheritance
+        // Dynamic Inheritance
         isEligible = isStoreEnabled && autoEnroll;
         effectiveRate = this.resolveFormatRate(
           book.format,
@@ -383,11 +387,14 @@ export class SellerAffiliateService {
 
       return {
         id: book.id,
+        bookId: book.id,
         title: book.title,
         slug: book.slug,
         isbn: book.isbn,
         format: book.format,
         coverUrl: book.coverUrl,
+        coverImage: book.coverUrl,
+        cover: book.coverUrl,
         price: grossPrice,
         status: book.status,
         category: book.category?.name || 'Khác',
@@ -400,6 +407,7 @@ export class SellerAffiliateService {
           : null,
         notes: (book.affiliateSetting as any)?.notes || null,
         netPreview: netBreakdown,
+        sellerNetBreakdown: netBreakdown,
       };
     });
 

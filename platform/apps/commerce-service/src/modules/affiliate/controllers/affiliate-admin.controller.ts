@@ -20,6 +20,7 @@ import { AffiliateReconciliationService } from '../services/affiliate-reconcilia
 import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
 import { AffiliatePayoutService } from '../services/affiliate-payout.service';
 import { AffiliateFraudService } from '../services/affiliate-fraud.service';
+import { AffiliateHealthService } from '../monitoring/affiliate-health.service';
 import {
   AdminReviewApplicationDto,
   AdminSuspendPartnerDto,
@@ -48,6 +49,7 @@ export class AffiliateAdminController {
     private readonly dashboardService: AffiliateDashboardService,
     private readonly payoutService: AffiliatePayoutService,
     private readonly fraudService: AffiliateFraudService,
+    private readonly healthService: AffiliateHealthService,
   ) {}
 
   /**
@@ -403,5 +405,13 @@ export class AffiliateAdminController {
   ) {
     const reviewerId = req.user!.sub;
     return this.fraudService.resolveFraudCase(id, reviewerId, dto);
+  }
+
+  /**
+   * Admin: Get Affiliate Subsystem operational health & SLO metrics
+   */
+  @Get('health')
+  async getHealth() {
+    return this.healthService.checkHealth();
   }
 }

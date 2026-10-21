@@ -1,17 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { AffiliateLifecycleService } from './affiliate-lifecycle.service';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { AffiliateMetricsService } from '../monitoring/affiliate-metrics.service';
+import { AffiliateAlertService } from '../monitoring/affiliate-alert.service';
 
 @Injectable()
-export class AffiliateSettlementWorker {
+export class AffiliateSettlementWorker implements OnApplicationShutdown {
   private readonly logger = new Logger(AffiliateSettlementWorker.name);
   private isRunning = false;
+  private isShuttingDown = false;
 
   constructor(
     private readonly lifecycleService: AffiliateLifecycleService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly metricsService?: AffiliateMetricsService,
+    @Optional() private readonly alertService?: AffiliateAlertService,
   ) {}
+
+  onApplicationShutdown(signal?: string) {
+    this.logger.log(`AffiliateSettlementWorker received shutdown signal (${signal}). Preventing new settlement batches.`);
+    this.isShuttingDown = true;
+  }
 
   /**
    * Daily Settlement Batch at 00:00 Asia/Ho_Chi_Minh (UTC+7 -> 17:00 UTC).
@@ -25,6 +35,9 @@ export class AffiliateSettlementWorker {
       this.logger.log(`Daily settlement completed: ${JSON.stringify(result)}`);
     } catch (error: any) {
       this.logger.error(`Daily settlement worker failed: ${error.message}`, error.stack);
+      if (this.alertService) {
+        await this.alertService.notifySettlementWorkerCrash(error);
+      }
     }
   }
 
@@ -32,9 +45,14 @@ export class AffiliateSettlementWorker {
    * Run settlement batch with lock to prevent concurrent executions
    */
   async runSettlementBatch(cutoffDate?: Date, batchSize: number = 200) {
+    if (this.isShuttingDown) {
+      this.logger.warn('Application is shutting down. Rejecting settlement execution.');
+      return { status: 'SKIPPED_SHUTTING_DOWN' as const };
+    }
+
     if (this.isRunning) {
       this.logger.warn('Settlement batch is already running. Skipping concurrent invocation.');
-      return { status: 'SKIPPED_ALREADY_RUNNING' };
+      return { status: 'SKIPPED_ALREADY_RUNNING' as const };
     }
 
     this.isRunning = true;
@@ -48,6 +66,14 @@ export class AffiliateSettlementWorker {
         (sum, c) => sum + Number(c.amount),
         0,
       );
+
+      // Record Prometheus metrics
+      if (this.metricsService) {
+        this.metricsService.observeSettlementDuration(elapsedMs / 1000);
+        for (let i = 0; i < settledCount; i++) {
+          this.metricsService.recordSettlement('CREDIT');
+        }
+      }
 
       // Record system audit log
       await this.prisma.affiliateAuditLog.create({
@@ -75,6 +101,11 @@ export class AffiliateSettlementWorker {
         settledCommissions: result.settledCommissions,
         elapsedMs,
       };
+    } catch (error: any) {
+      if (this.alertService) {
+        await this.alertService.notifySettlementWorkerCrash(error);
+      }
+      throw error;
     } finally {
       this.isRunning = false;
     }

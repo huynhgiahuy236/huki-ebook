@@ -32,15 +32,20 @@ export interface RealtimeNotification {
 export interface UseRealtimeNotificationsOptions {
   autoFetch?: boolean;
   limit?: number;
+  recipientType?: 'USER' | 'BUSINESS' | 'DELIVERY' | 'ADMIN';
 }
 
 export function useRealtimeNotifications(options: UseRealtimeNotificationsOptions = {}) {
-  const { autoFetch = true, limit = 20 } = options;
+  const { autoFetch = true, limit = 20, recipientType } = options;
   const { showToast } = useToast();
 
   const [notifications, setNotifications] = useState<RealtimeNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [totalCount, setTotalCount] = useState<number>(0);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isConnected, setIsConnected] = useState<boolean>(false);
 
   const socketRef = useRef<Socket | null>(null);
@@ -53,41 +58,96 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       return;
     }
     try {
-      const res = await apiClient<{ count: number }>('/notifications/unread-count');
+      const queryParams = new URLSearchParams();
+      if (recipientType) {
+        queryParams.set('recipientType', recipientType);
+      }
+      const qs = queryParams.toString();
+      const res = await apiClient<{ count: number }>(`/notifications/unread-count${qs ? `?${qs}` : ''}`);
       if (res && res.data) {
         setUnreadCount(res.data.count ?? 0);
       }
     } catch {
       // Ignore
     }
-  }, []);
+  }, [recipientType]);
 
   // Fetch notifications list
-  const fetchNotifications = useCallback(async (category?: string) => {
-    const token = tokenStorage.getAccessToken();
-    if (!token) return;
+  const fetchNotifications = useCallback(
+    async (page = 1, append = false, isReadFilter?: boolean) => {
+      const token = tokenStorage.getAccessToken();
+      if (!token) return;
 
-    setIsLoading(true);
-    try {
-      const queryParams = new URLSearchParams();
-      queryParams.set('limit', String(limit));
-      if (category && category !== 'ALL') {
-        queryParams.set('category', category);
+      if (append) {
+        setIsLoadingMore(true);
+      } else {
+        setIsLoading(true);
       }
-      const res = await apiClient<RealtimeNotification[]>(`/notifications?${queryParams.toString()}`);
-      if (res && res.data) {
-        const items = Array.isArray(res.data) ? res.data : (res.data as any).data || [];
-        setNotifications(items);
-        if ((res as any).summary?.unreadCount !== undefined) {
-          setUnreadCount((res as any).summary.unreadCount);
+
+      try {
+        const queryParams = new URLSearchParams();
+        queryParams.set('page', String(page));
+        queryParams.set('limit', String(limit));
+        if (recipientType) {
+          queryParams.set('recipientType', recipientType);
         }
+        if (isReadFilter !== undefined) {
+          queryParams.set('isRead', String(isReadFilter));
+        }
+
+        const res = await apiClient<{
+          data: RealtimeNotification[];
+          pagination?: { page: number; limit: number; total: number; totalPages: number };
+          summary?: { unreadCount: number };
+        } | RealtimeNotification[]>(`/notifications?${queryParams.toString()}`);
+
+        if (res && res.data) {
+          let items: RealtimeNotification[] = [];
+          let total = 0;
+
+          if (Array.isArray(res.data)) {
+            items = res.data;
+            total = items.length;
+          } else {
+            const raw = res.data as any;
+            items = raw.data || [];
+            total = raw.pagination?.total ?? items.length;
+          }
+
+          if (append) {
+            setNotifications((prev) => {
+              const existingIds = new Set(prev.map((n) => n.id));
+              const newItems = items.filter((n) => !existingIds.has(n.id));
+              return [...prev, ...newItems];
+            });
+          } else {
+            setNotifications(items);
+          }
+
+          setCurrentPage(page);
+          setTotalCount(total);
+          setHasMore(page * limit < total);
+
+          const summaryUnread = (res as any).summary?.unreadCount ?? (res.data as any)?.summary?.unreadCount;
+          if (summaryUnread !== undefined) {
+            setUnreadCount(summaryUnread);
+          }
+        }
+      } catch {
+        // Ignore
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
       }
-    } catch {
-      // Ignore
-    } finally {
-      setIsLoading(false);
-    }
-  }, [limit]);
+    },
+    [limit, recipientType]
+  );
+
+  // Load more pages
+  const loadMore = useCallback(async () => {
+    if (isLoadingMore || !hasMore) return;
+    await fetchNotifications(currentPage + 1, true);
+  }, [fetchNotifications, currentPage, hasMore, isLoadingMore]);
 
   // Mark single as read
   const markAsRead = useCallback(async (id: string) => {
@@ -106,7 +166,10 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
   // Mark all as read
   const markAllAsRead = useCallback(async () => {
     try {
-      await apiClient('/notifications/read-all', { method: 'POST' });
+      await apiClient('/notifications/read-all', {
+        method: 'POST',
+        body: JSON.stringify({ recipientType }),
+      });
       setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
       realtimeSyncBus.publish('NOTIFICATIONS_UPDATED');
@@ -114,13 +177,13 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     } catch (err) {
       console.error('Failed to mark all notifications as read:', err);
     }
-  }, [fetchUnreadCount]);
+  }, [fetchUnreadCount, recipientType]);
 
   // Initial load
   useEffect(() => {
     if (autoFetch) {
       fetchUnreadCount();
-      fetchNotifications();
+      fetchNotifications(1, false);
     }
   }, [autoFetch, fetchUnreadCount, fetchNotifications]);
 
@@ -148,6 +211,15 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
     });
 
     socket.on('notification', (newNoti: RealtimeNotification) => {
+      // Filter by recipientType if specified
+      if (recipientType) {
+        const matches =
+          newNoti.recipientType === 'ALL' || newNoti.recipientType === recipientType;
+        if (!matches) {
+          return;
+        }
+      }
+
       // 1. Play priority sound
       soundEffects.playPriorityAlert(newNoti.priority || 'NORMAL');
 
@@ -156,6 +228,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
 
       // 3. Increment unread count
       setUnreadCount((prev) => prev + 1);
+      setTotalCount((prev) => prev + 1);
 
       // 4. Show Toast popup with appropriate priority style
       const toastType =
@@ -195,7 +268,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [showToast]);
+  }, [showToast, recipientType]);
 
   // Sync across tabs via realtimeSyncBus
   useEffect(() => {
@@ -210,11 +283,15 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
   return {
     notifications,
     unreadCount,
+    totalCount,
+    hasMore,
     isLoading,
+    isLoadingMore,
     isConnected,
     markAsRead,
     markAllAsRead,
-    refresh: fetchNotifications,
+    loadMore,
+    refresh: () => fetchNotifications(1, false),
     fetchUnreadCount,
   };
 }

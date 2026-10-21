@@ -40,7 +40,7 @@ export class AffiliateLifecycleService {
       status: AffiliateCommissionStatus.PENDING,
     };
     if (sellerOrderId) {
-      where.sellerOrderId = sellerOrderId;
+      where.orderItem = { sellerOrderId };
     }
 
     const pendingCommissions = await client.affiliateCommission.findMany({
@@ -49,17 +49,31 @@ export class AffiliateLifecycleService {
 
     const results: any[] = [];
     for (const comm of pendingCommissions) {
+      const snapshot = comm.policySnapshot as Record<string, unknown> | null;
+      const snapshotHoldingHours = Number(snapshot?.holdingDurationHours);
       const isDigital =
         comm.bookFormat === 'DIGITAL' ||
         comm.bookFormat === 'EBOOK' ||
         comm.bookFormat === 'AUDIO';
-      const holdingDurationHours = isDigital ? 24 : 168; // 24h for digital, 7 days (168h) for physical
+      const holdingDurationHours =
+        Number.isFinite(snapshotHoldingHours) && snapshotHoldingHours >= 0
+          ? snapshotHoldingHours
+          : isDigital
+            ? 24
+            : 168;
 
-      const updated = await this.stateMachine.transitionToHolding(
-        comm.id,
-        holdingDurationHours,
-        deliveredAt,
-      );
+      const updated = tx
+        ? await this.stateMachine.transitionToHolding(
+            comm.id,
+            holdingDurationHours,
+            deliveredAt,
+            tx,
+          )
+        : await this.stateMachine.transitionToHolding(
+            comm.id,
+            holdingDurationHours,
+            deliveredAt,
+          );
       results.push(updated);
     }
 
@@ -343,5 +357,41 @@ export class AffiliateLifecycleService {
       processedCount: maturedCommissions.length,
       settledCommissions,
     };
+  }
+
+  /**
+   * Release commissions when the commerce escrow is actually released.
+   * This is the canonical path for environments whose real return window is
+   * shorter than the affiliate policy fallback (for example the 2-minute
+   * local/UAT window).
+   */
+  async handleEscrowReleased(orderId: string, releasedAt: Date = new Date()) {
+    const commissions = await this.prisma.affiliateCommission.findMany({
+      where: {
+        orderId,
+        status: AffiliateCommissionStatus.HOLDING,
+        disputeBlocked: false,
+      },
+    });
+
+    const settled: Array<
+      Awaited<
+        ReturnType<AffiliateCommissionStateMachineService['settleCommission']>
+      >
+    > = [];
+    for (const commission of commissions) {
+      const result = await this.stateMachine.settleCommission(
+        commission.id,
+        releasedAt,
+      );
+      settled.push(result);
+    }
+
+    if (settled.length > 0) {
+      this.logger.log(
+        `[Escrow Released] Settled ${settled.length} commissions for order ${orderId}`,
+      );
+    }
+    return settled;
   }
 }

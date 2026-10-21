@@ -1,6 +1,7 @@
 import { apiClient } from '@/ui/api/apiClient';
 import type { ApiResponse } from '@/ui/api/types';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
+import { validateAndCanonicalizeChannelUrl } from './schemas';
 
 export interface CodeAvailabilityResponse {
   code: string;
@@ -81,9 +82,63 @@ export const affiliateApi = {
    * Authenticated: Submit new application
    */
   async submitApplication(data: any): Promise<ApiResponse<AffiliateProfile>> {
+    const {
+      useAccountAvatar,
+      acceptedAffiliateTerms,
+      acceptedPrivacyNotice,
+      confirmedInformationAccuracy,
+      taxId,
+      channels,
+      ...rest
+    } = data || {};
+
+    const cleanChannels = Array.isArray(channels)
+      ? channels.map((ch: any) => {
+          let canonicalUrl = ch.canonicalUrl;
+          if (!canonicalUrl && ch.url) {
+            const canon = validateAndCanonicalizeChannelUrl(ch.url);
+            canonicalUrl = canon.valid && canon.canonicalUrl ? canon.canonicalUrl : ch.url.trim();
+          }
+          const cleanCh: any = {
+            type: ch.type === 'WEBSITE' ? 'BLOG' : ch.type,
+            url: ch.url ? ch.url.trim() : '',
+            canonicalUrl: canonicalUrl || ch.url?.trim() || '',
+            followersRange: ch.followersRange,
+            isPrimary: Boolean(ch.isPrimary),
+          };
+          if (ch.handle && typeof ch.handle === 'string' && ch.handle.trim()) {
+            cleanCh.handle = ch.handle.trim();
+          }
+          return cleanCh;
+        })
+      : [];
+
+    const cleanPayload: Record<string, any> = {
+      ...rest,
+      channels: cleanChannels,
+      termsVersion: rest.termsVersion || '1.4.1',
+      privacyVersion: rest.privacyVersion || '1.4.1',
+      payoutSetupLater: rest.payoutSetupLater ?? true,
+      hasPaidTraffic: Boolean(rest.hasPaidTraffic),
+      paidTrafficSources: rest.hasPaidTraffic ? (rest.paidTrafficSources || []) : [],
+      marketingConsent: Boolean(rest.marketingConsent),
+    };
+
+    if (taxId && typeof taxId === 'string' && taxId.trim()) {
+      cleanPayload.taxId = taxId.trim();
+    } else {
+      delete cleanPayload.taxId;
+    }
+
+    if (rest.avatarUrl && typeof rest.avatarUrl === 'string' && rest.avatarUrl.trim()) {
+      cleanPayload.avatarUrl = rest.avatarUrl.trim();
+    } else {
+      delete cleanPayload.avatarUrl;
+    }
+
     return apiClient<AffiliateProfile>('/affiliate/applications', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(cleanPayload),
     });
   },
 
@@ -91,9 +146,48 @@ export const affiliateApi = {
    * Authenticated: Resubmit requested changes
    */
   async resubmitApplication(data: any): Promise<ApiResponse<AffiliateProfile>> {
+    const {
+      useAccountAvatar,
+      acceptedAffiliateTerms,
+      acceptedPrivacyNotice,
+      confirmedInformationAccuracy,
+      taxId,
+      channels,
+      ...rest
+    } = data || {};
+
+    const cleanPayload: Record<string, any> = { ...rest };
+
+    if (Array.isArray(channels)) {
+      cleanPayload.channels = channels.map((ch: any) => {
+        let canonicalUrl = ch.canonicalUrl;
+        if (!canonicalUrl && ch.url) {
+          const canon = validateAndCanonicalizeChannelUrl(ch.url);
+          canonicalUrl = canon.valid && canon.canonicalUrl ? canon.canonicalUrl : ch.url.trim();
+        }
+        const cleanCh: any = {
+          type: ch.type === 'WEBSITE' ? 'BLOG' : ch.type,
+          url: ch.url ? ch.url.trim() : '',
+          canonicalUrl: canonicalUrl || ch.url?.trim() || '',
+          followersRange: ch.followersRange,
+          isPrimary: Boolean(ch.isPrimary),
+        };
+        if (ch.handle && typeof ch.handle === 'string' && ch.handle.trim()) {
+          cleanCh.handle = ch.handle.trim();
+        }
+        return cleanCh;
+      });
+    }
+
+    if (taxId && typeof taxId === 'string' && taxId.trim()) {
+      cleanPayload.taxId = taxId.trim();
+    } else {
+      delete cleanPayload.taxId;
+    }
+
     return apiClient<AffiliateProfile>('/affiliate/me/resubmit', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(cleanPayload),
     });
   },
 
@@ -247,6 +341,7 @@ export const affiliateApi = {
       search?: string;
       format?: string;
       isEligible?: boolean;
+      eligibility?: string;
       page?: number;
       limit?: number;
     } = {}
@@ -287,6 +382,7 @@ export const affiliateApi = {
     if (params.search) query.set('search', params.search);
     if (params.format) query.set('format', params.format);
     if (params.isEligible !== undefined) query.set('isEligible', String(params.isEligible));
+    if (params.eligibility) query.set('eligibility', params.eligibility);
     if (params.page) query.set('page', params.page.toString());
     if (params.limit) query.set('limit', params.limit.toString());
 
@@ -358,6 +454,60 @@ export const affiliateApi = {
     return apiClient(`/seller/stores/${encodeURIComponent(storeId)}/affiliate/preview-net?${query.toString()}`, {
       method: 'GET',
     });
+  },
+
+  /**
+   * Seller: Get Affiliate Performance Overview & Top Books
+   */
+  async getSellerDashboard(storeId: string): Promise<ApiResponse<{
+    storeId: string;
+    metrics: {
+      totalAttributedOrders: number;
+      totalAttributedRevenue: number;
+      totalCommissionCost: number;
+      pendingCommissionCost: number;
+      settledCommissionCost: number;
+      currency: string;
+    };
+    topBooks: Array<{
+      bookId: string;
+      bookTitle: string;
+      ordersCount: number;
+      revenue: number;
+      commissionCost: number;
+    }>;
+    version: string;
+    refreshedAt: string;
+  }>> {
+    return apiClient(`/seller/stores/${encodeURIComponent(storeId)}/affiliate/dashboard`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Seller: Export affiliate commission orders report
+   */
+  async exportSellerReport(
+    storeId: string,
+    format: 'csv' | 'xlsx' = 'csv',
+    fromDate?: string,
+    toDate?: string
+  ): Promise<string> {
+    const query = new URLSearchParams({ format });
+    if (fromDate) query.set('fromDate', fromDate);
+    if (toDate) query.set('toDate', toDate);
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('huki_access_token') : null;
+    const res = await fetch(`/api/v1/seller/stores/${encodeURIComponent(storeId)}/affiliate/reports/export?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Export failed with status ${res.status}`);
+    }
+    return res.text();
   },
 
   // ==========================================
@@ -453,6 +603,48 @@ export const affiliateApi = {
   },
 
   /**
+   * Public/CTV: Get books eligible for affiliate marketing with live rates
+   */
+  async getAffiliateCatalog(params: {
+    search?: string;
+    format?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+  } = {}): Promise<ApiResponse<{
+    items: Array<{
+      bookId: string;
+      id: string;
+      title: string;
+      slug: string;
+      cover: string | null;
+      coverImage: string | null;
+      coverUrl: string | null;
+      price: number;
+      format: string;
+      storeId: string;
+      effectiveRate: number;
+      estimatedCommissionAmount: number;
+      existingShortUrl: string | null;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>> {
+    const query = new URLSearchParams();
+    if (params.search) query.set('search', params.search);
+    if (params.format && params.format !== 'ALL') query.set('format', params.format);
+    if (params.page) query.set('page', params.page.toString());
+    if (params.limit) query.set('limit', params.limit.toString());
+    if (params.sortBy) query.set('sortBy', params.sortBy);
+
+    return apiClient(`/affiliate/catalog?${query.toString()}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Public: Resolve short code for /r/[shortCode]
    */
   async resolveShortCode(shortCode: string): Promise<ApiResponse<{
@@ -460,6 +652,7 @@ export const affiliateApi = {
     cookieToken: string | null;
     cookieMaxAgeSeconds?: number;
     shortCode?: string;
+    profileId?: string;
     isBot?: boolean;
     isThrottled?: boolean;
   }>> {
@@ -639,6 +832,63 @@ export const affiliateApi = {
     refreshedAt: string;
   }>> {
     return apiClient('/admin/affiliates/dashboard', { method: 'GET' });
+  },
+
+  // ==========================================
+  // PHASE 7: KYC & BANK ACCOUNT DETAILS
+  // ==========================================
+
+  /**
+   * CTV: Submit KYC identification & bank account details
+   */
+  async submitKyc(data: {
+    legalName: string;
+    idCardNumber: string;
+    idCardIssueDate?: string;
+    idCardIssuePlace?: string;
+    frontImageUrl?: string;
+    backImageUrl?: string;
+    bankName: string;
+    bankCode: string;
+    accountNumber: string;
+    accountHolderName: string;
+  }): Promise<ApiResponse<any>> {
+    const payload = {
+      legalName: data.legalName.trim().toUpperCase(),
+      idCardNumber: data.idCardNumber.trim(),
+      idCardIssueDate: data.idCardIssueDate || '2023-01-01',
+      idCardIssuePlace: data.idCardIssuePlace || 'Cục Cảnh sát QLHC về TTXH',
+      frontImageUrl: data.frontImageUrl || 'https://placehold.co/600x400/png?text=CCCD+Mat+Truoc',
+      backImageUrl: data.backImageUrl || 'https://placehold.co/600x400/png?text=CCCD+Mat+Sau',
+      bankName: data.bankName,
+      bankCode: data.bankCode,
+      accountNumber: data.accountNumber.trim(),
+      accountHolderName: data.accountHolderName.trim().toUpperCase(),
+    };
+    return apiClient('/affiliate/kyc', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  /**
+   * CTV: Check KYC verification status & bank snapshot
+   */
+  async getMyKycStatus(): Promise<ApiResponse<{
+    status: 'NOT_SUBMITTED' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+    isVerified: boolean;
+    rejectionReason?: string | null;
+    bankSnapshot?: {
+      bankName: string;
+      bankCode: string;
+      accountNumber: string;
+      accountHolderName: string;
+    } | null;
+    lastUpdated?: string;
+  }>> {
+    return apiClient('/affiliate/kyc', {
+      method: 'GET',
+    });
   },
 };
 

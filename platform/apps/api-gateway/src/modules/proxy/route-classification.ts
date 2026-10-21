@@ -110,6 +110,9 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       normPath === '/shipping/methods' ||
       normPath === '/affiliate/program' ||
       normPath === '/affiliate/code-availability' ||
+      normPath === '/affiliate/catalog' ||
+      normPath.startsWith('/affiliate/resolve/') ||
+      normPath.startsWith('/affiliate/books/') ||
       normPath.startsWith('/r/')
     ) {
       return 'PUBLIC';

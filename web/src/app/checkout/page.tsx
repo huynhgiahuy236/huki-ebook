@@ -736,10 +736,9 @@ export default function CheckoutPage() {
       try {
         const platformVoucherCode = appliedPlatformVoucher?.code;
         const storeVoucherCodes: Record<string, string> = {};
-        storeGroups.forEach((g) => {
-          const applied = appliedStoreVouchers[g.canonicalId];
+        Object.entries(appliedStoreVouchers || {}).forEach(([storeId, applied]: [string, any]) => {
           if (applied?.code) {
-            storeVoucherCodes[g.canonicalId] = applied.code;
+            storeVoucherCodes[storeId] = applied.code;
           }
         });
         const shippingVoucherCode = appliedShippingVoucher?.code;
@@ -799,17 +798,17 @@ export default function CheckoutPage() {
   }, [
     isLoggedIn,
     isDirectMode,
-    directItem,
-    checkedItems,
+    directItem?.bookId,
+    directItem?.id,
+    directItem?.format,
+    directItem?.quantity,
+    checkedItems.length,
     effectiveHasPhysical,
-    activeAddress,
     selectedAddressId,
     note,
-    user,
-    appliedPlatformVoucher,
-    appliedStoreVouchers,
-    appliedShippingVoucher,
-    storeGroups,
+    appliedPlatformVoucher?.code,
+    appliedShippingVoucher?.code,
+    JSON.stringify(appliedStoreVouchers),
   ]);
 
   const serverUnitPrices = useMemo(() => {
@@ -1152,6 +1151,11 @@ export default function CheckoutPage() {
             grandTotal: orderData.grandTotal,
             paymentMethod: isOnline ? 'ONLINE_PAYMENT' : 'COD',
             sellerOrders: effectiveSellerOrders,
+          });
+
+          realtimeSyncBus.publish('AFFILIATE_COMMISSION_CREATED', {
+            orderId: orderData.id,
+            orderCode: orderData.code,
           });
 
           // RT-03: Broadcast realtime inventory reservation update directly from physicalItems

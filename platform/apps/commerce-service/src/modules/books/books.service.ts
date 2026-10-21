@@ -84,6 +84,18 @@ export class BooksService {
         });
       }
 
+      // Persist affiliate eligibility choice (Seller explicitly chooses Yes/No during creation)
+      if (dto.enableAffiliate !== undefined) {
+        await tx.bookAffiliateSetting.create({
+          data: {
+            bookId: created.id,
+            storeId,
+            isEligible: Boolean(dto.enableAffiliate),
+            updatedBy: actor.sub,
+          },
+        });
+      }
+
       return created;
     });
 
@@ -109,6 +121,7 @@ export class BooksService {
         publisher: true,
         physicalDetails: true,
         digitalDetails: true,
+        affiliateSetting: true,
       },
     });
 
@@ -310,6 +323,7 @@ export class BooksService {
           publisher: true,
           physicalDetails: true,
           digitalDetails: true,
+          affiliateSetting: true,
         },
         orderBy,
         skip: (query.page - 1) * query.limit,
@@ -436,6 +450,22 @@ export class BooksService {
           },
           update: {
             ...(dto.digitalDetails.digitalEnabled !== undefined ? { digitalEnabled: dto.digitalDetails.digitalEnabled } : {}),
+          },
+        });
+      }
+
+      if (dto.enableAffiliate !== undefined) {
+        await tx.bookAffiliateSetting.upsert({
+          where: { bookId: id },
+          create: {
+            bookId: id,
+            storeId: existing!.storeId,
+            isEligible: Boolean(dto.enableAffiliate),
+            updatedBy: actor.sub,
+          },
+          update: {
+            isEligible: Boolean(dto.enableAffiliate),
+            updatedBy: actor.sub,
           },
         });
       }
@@ -609,6 +639,15 @@ export class BooksService {
       available,
       weight: physical?.weight ?? null,
       physicalEnabled: physical?.physicalEnabled ?? true,
+      isAffiliateEligible: Boolean(book.affiliateSetting?.isEligible),
+      affiliateSetting: book.affiliateSetting
+        ? {
+            isEligible: book.affiliateSetting.isEligible,
+            customRate: book.affiliateSetting.customRate
+              ? Number(book.affiliateSetting.customRate)
+              : null,
+          }
+        : null,
       ...(isPrivate && {
         physicalDetails: book.physicalDetails,
         digitalDetails: book.digitalDetails,

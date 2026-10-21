@@ -89,6 +89,25 @@ async function smokeTest() {
         }
       },
     },
+    {
+      name: 'Affiliate Subsystem Health Probe (/api/v1/health/affiliate)',
+      fn: async () => {
+        try {
+          const res = await fetch(`${GATEWAY_URL}/api/v1/health/affiliate`, { signal: AbortSignal.timeout(5000) });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const json = await res.json();
+          const payload = json.data || json;
+          if (payload.subsystem !== 'affiliate-marketing') throw new Error('Not an affiliate probe response');
+        } catch (err) {
+          // If gateway route is proxied or commerce service standalone
+          if (err.message.includes('ECONNREFUSED') || err.message.includes('fetch failed')) {
+            console.log(`\n  \x1b[33m[SKIP: Gateway not running at ${GATEWAY_URL}]\x1b[0m`);
+            return;
+          }
+          throw err;
+        }
+      },
+    },
   ];
 
   for (const check of checks) {

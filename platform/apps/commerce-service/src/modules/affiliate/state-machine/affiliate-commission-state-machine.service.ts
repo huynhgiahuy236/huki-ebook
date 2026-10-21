@@ -46,8 +46,13 @@ export class AffiliateCommissionStateMachineService {
    * Transition: PENDING -> HOLDING
    * Starts holding countdown based on order delivery (physical) or payment (digital).
    */
-  async transitionToHolding(commissionId: string, holdingDurationHours: number, holdingStartedAt?: Date): Promise<any> {
-    return this.prisma.$transaction(async (tx) => {
+  async transitionToHolding(
+    commissionId: string,
+    holdingDurationHours: number,
+    holdingStartedAt?: Date,
+    transactionClient?: any,
+  ): Promise<any> {
+    const transition = async (tx: any) => {
       const commission = await tx.affiliateCommission.findUnique({
         where: { id: commissionId },
       });
@@ -111,7 +116,10 @@ export class AffiliateCommissionStateMachineService {
       });
 
       return updatedCommission;
-    });
+    };
+    return transactionClient
+      ? transition(transactionClient)
+      : this.prisma.$transaction(transition);
   }
 
   /**

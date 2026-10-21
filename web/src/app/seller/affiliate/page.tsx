@@ -12,11 +12,40 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import {
+  DataTableFilterBar,
+  BulkActionGroup,
+} from '@/ui/components/common';
+import GroupedDataTable, { type Column } from '@/ui/components/common/GroupedDataTable';
 
 interface StoreOption {
   id: string;
   name: string;
   status: string;
+}
+
+interface SellerDashboardData {
+  storeId: string;
+  metrics: {
+    totalAttributedOrders: number;
+    totalAttributedRevenue: number;
+    totalCommissionCost: number;
+    pendingCommissionCost: number;
+    settledCommissionCost: number;
+    currency: string;
+  };
+  topBooks: Array<{
+    bookId: string;
+    bookTitle: string;
+    coverUrl?: string | null;
+    format?: string;
+    price?: number;
+    ordersCount: number;
+    revenue: number;
+    commissionCost: number;
+  }>;
+  version: string;
+  refreshedAt: string;
 }
 
 export default function SellerAffiliatePage() {
@@ -27,8 +56,19 @@ export default function SellerAffiliatePage() {
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [loadingStores, setLoadingStores] = useState<boolean>(true);
 
-  // Active Tab: 'SETTINGS' | 'BOOKS'
-  const [activeTab, setActiveTab] = useState<'SETTINGS' | 'BOOKS'>('SETTINGS');
+  // Active Tab: 'DASHBOARD' | 'BOOKS' | 'SETTINGS'
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'BOOKS' | 'SETTINGS'>('DASHBOARD');
+
+  // Dashboard Stats State (Real DB - No Mock)
+  const [dashboardLoading, setDashboardLoading] = useState<boolean>(false);
+  const [dashboardData, setDashboardData] = useState<SellerDashboardData | null>(null);
+  const [exportingReport, setExportingReport] = useState<boolean>(false);
+
+  // Top Books Filter & Pagination State
+  const [topSearch, setTopSearch] = useState<string>('');
+  const [topFormatFilter, setTopFormatFilter] = useState<string>('');
+  const [topSortTab, setTopSortTab] = useState<'REVENUE' | 'ORDERS' | 'COMMISSION'>('REVENUE');
+  const [topPage, setTopPage] = useState<number>(1);
 
   // Store Settings State
   const [storeSettingsLoading, setStoreSettingsLoading] = useState<boolean>(false);
@@ -75,7 +115,7 @@ export default function SellerAffiliatePage() {
   const [totalPages, setTotalPages] = useState<number>(1);
   const [search, setSearch] = useState<string>('');
   const [formatFilter, setFormatFilter] = useState<string>('');
-  const [eligibilityFilter, setEligibilityFilter] = useState<string>('');
+  const [eligibilityFilter, setEligibilityFilter] = useState<'ELIGIBLE' | 'INELIGIBLE'>('ELIGIBLE');
 
   // Bulk Selection State
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>([]);
@@ -178,13 +218,27 @@ export default function SellerAffiliatePage() {
         limit: 10,
       };
       if (search.trim()) params.search = search.trim();
-      if (formatFilter) params.format = formatFilter;
-      if (eligibilityFilter !== '') params.isEligible = eligibilityFilter === 'true';
+      if (formatFilter && formatFilter !== 'ALL') params.format = formatFilter;
+      if (eligibilityFilter === 'ELIGIBLE') {
+        params.isEligible = true;
+        params.eligibility = 'ELIGIBLE';
+      } else {
+        params.isEligible = false;
+        params.eligibility = 'INELIGIBLE';
+      }
 
       const res = await affiliateApi.listStoreAffiliateBooks(storeId, params);
       if (res.success && res.data) {
         const responseData = res.data;
-        setBooks(responseData.items || []);
+        const normalizedItems = (responseData.items || []).map((item: any) => ({
+          ...item,
+          id: item.id || item.bookId,
+          bookId: item.bookId || item.id,
+          coverUrl: item.coverUrl || item.coverImage || item.cover,
+          coverImage: item.coverImage || item.coverUrl || item.cover,
+          sellerNetBreakdown: item.sellerNetBreakdown || item.netPreview,
+        }));
+        setBooks(normalizedItems);
         setTotalBooks(responseData.total || 0);
         setTotalPages(responseData.totalPages || 1);
         if (responseData.caps) {
@@ -206,15 +260,64 @@ export default function SellerAffiliatePage() {
     }
   }, [page, search, formatFilter, eligibilityFilter, showToast]);
 
+  // 4. Fetch Seller Affiliate Dashboard Stats (Real DB Data - No Mock)
+  const loadDashboard = useCallback(async (storeId: string) => {
+    if (!storeId) return;
+    setDashboardLoading(true);
+    try {
+      const res = await affiliateApi.getSellerDashboard(storeId);
+      if (res.success && res.data) {
+        setDashboardData(res.data);
+      }
+    } catch (err: any) {
+      console.error('Lỗi tải báo cáo hiệu quả tiếp thị:', err);
+    } finally {
+      setDashboardLoading(false);
+    }
+  }, []);
+
+  // Handle Export Report CSV
+  const handleExportReport = async () => {
+    if (!selectedStoreId) return;
+    setExportingReport(true);
+    try {
+      const csv = await affiliateApi.exportSellerReport(selectedStoreId, 'csv');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `affiliate-report-${selectedStoreId}-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      showToast({
+        type: 'success',
+        title: 'Xuất báo cáo thành công',
+        message: 'File báo cáo tiếp thị liên kết đã được tải về.',
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'Lỗi xuất báo cáo',
+        message: err.message || 'Không thể tải file báo cáo.',
+      });
+    } finally {
+      setExportingReport(false);
+    }
+  };
+
   useEffect(() => {
     if (selectedStoreId) {
-      if (activeTab === 'SETTINGS') {
+      if (activeTab === 'DASHBOARD') {
+        loadDashboard(selectedStoreId);
+      } else if (activeTab === 'SETTINGS') {
         loadStoreSettings(selectedStoreId);
-      } else {
+      } else if (activeTab === 'BOOKS') {
         loadStoreBooks(selectedStoreId);
       }
     }
-  }, [selectedStoreId, activeTab, loadStoreSettings, loadStoreBooks]);
+  }, [selectedStoreId, activeTab, loadDashboard, loadStoreSettings, loadStoreBooks]);
 
   // Handle Save Store Settings
   const handleSaveStoreSettings = async (e: React.FormEvent) => {
@@ -316,7 +419,8 @@ export default function SellerAffiliatePage() {
 
     setSavingBookSetting(true);
     try {
-      const res = await affiliateApi.updateBookAffiliateSetting(selectedStoreId, editingBook.bookId, {
+      const bookIdToUpdate = editingBook.id || editingBook.bookId;
+      const res = await affiliateApi.updateBookAffiliateSetting(selectedStoreId, bookIdToUpdate, {
         isEligible: editForm.isEligible,
         customRate: parsedCustomRate,
         notes: editForm.notes.trim() || null,
@@ -433,6 +537,157 @@ export default function SellerAffiliatePage() {
     return stores.find(s => s.id === selectedStoreId) || null;
   }, [stores, selectedStoreId]);
 
+  // Filtered & Sorted Top Books
+  const filteredTopBooks = useMemo(() => {
+    const list = dashboardData?.topBooks || [];
+    let result = list.filter((item) => {
+      if (topSearch.trim()) {
+        const q = topSearch.toLowerCase().trim();
+        const matchTitle = (item.bookTitle || '').toLowerCase().includes(q);
+        const matchId = (item.bookId || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchId) return false;
+      }
+      if (topFormatFilter && item.format !== topFormatFilter) {
+        return false;
+      }
+      return true;
+    });
+
+    result = [...result].sort((a, b) => {
+      if (topSortTab === 'ORDERS') {
+        return b.ordersCount - a.ordersCount;
+      }
+      if (topSortTab === 'COMMISSION') {
+        return b.commissionCost - a.commissionCost;
+      }
+      return b.revenue - a.revenue;
+    });
+
+    return result;
+  }, [dashboardData?.topBooks, topSearch, topFormatFilter, topSortTab]);
+
+  const paginatedTopBooks = useMemo(() => {
+    const start = (topPage - 1) * 10;
+    return filteredTopBooks.slice(start, start + 10);
+  }, [filteredTopBooks, topPage]);
+
+  const topBooksColumns: Column[] = useMemo(() => [
+    {
+      key: 'rank',
+      title: 'HẠNG',
+      width: '75px',
+      align: 'center',
+      render: (_, __, idx) => {
+        const rank = (topPage - 1) * 10 + idx + 1;
+        if (rank === 1) {
+          return (
+            <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
+              🥇
+            </span>
+          );
+        }
+        if (rank === 2) {
+          return (
+            <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 border border-slate-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
+              🥈
+            </span>
+          );
+        }
+        if (rank === 3) {
+          return (
+            <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-900 border border-orange-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
+              🥉
+            </span>
+          );
+        }
+        return (
+          <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-600 font-bold text-[11px] inline-flex items-center justify-center">
+            {rank}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'product',
+      title: 'ẤN PHẨM & ĐỊNH DẠNG',
+      width: '45%',
+      render: (_, item) => {
+        const cover = item.coverUrl || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+        const formatLabel = item.format === 'PHYSICAL' ? 'Sách Giấy' : item.format === 'DIGITAL' ? 'Ebook DRM' : 'Combo';
+        const formatBadgeClass = item.format === 'PHYSICAL'
+          ? 'bg-amber-50 text-amber-800 border-amber-200/80'
+          : item.format === 'DIGITAL'
+          ? 'bg-purple-50 text-purple-800 border-purple-200/80'
+          : 'bg-emerald-50 text-emerald-800 border-emerald-200/80';
+
+        return (
+          <div className="flex items-center gap-3 py-1">
+            <img
+              src={cover}
+              alt={item.bookTitle}
+              className="w-10 h-13 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+              }}
+            />
+            <div className="min-w-0 max-w-[340px]">
+              <span className="font-bold text-slate-900 block truncate text-xs hover:text-[#00875A] transition-colors cursor-pointer" title={item.bookTitle}>
+                {item.bookTitle}
+              </span>
+              <div className="flex items-center gap-2 mt-1">
+                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold border ${formatBadgeClass}`}>
+                  {formatLabel}
+                </span>
+                {item.price > 0 && (
+                  <span className="text-[10.5px] text-slate-500 font-mono">
+                    {Number(item.price).toLocaleString('vi-VN')} ₫
+                  </span>
+                )}
+                <span className="text-[10px] text-slate-400 font-mono">
+                  #{item.bookId.slice(0, 6).toUpperCase()}
+                </span>
+              </div>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'ordersCount',
+      title: 'SỐ ĐƠN CHỐT',
+      width: '15%',
+      align: 'center',
+      render: (val) => (
+        <span className="inline-flex items-center gap-1 font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md text-xs">
+          <span className="material-symbols-outlined text-[13px] text-slate-500">shopping_cart</span>
+          <span>{Number(val || 0).toLocaleString('vi-VN')} đơn</span>
+        </span>
+      ),
+    },
+    {
+      key: 'revenue',
+      title: 'DOANH THU MANG LẠI',
+      width: '20%',
+      align: 'right',
+      render: (val) => (
+        <span className="font-extrabold text-[#00875A] text-xs">
+          {Number(val || 0).toLocaleString('vi-VN')} ₫
+        </span>
+      ),
+    },
+    {
+      key: 'commissionCost',
+      title: 'HOA HỒNG ĐÃ TRẢ',
+      width: '18%',
+      align: 'right',
+      render: (val) => (
+        <span className="font-bold text-amber-700 text-xs">
+          {Number(val || 0).toLocaleString('vi-VN')} ₫
+        </span>
+      ),
+    },
+  ], [topPage]);
+
   return (
     <div className="w-full max-w-7xl mx-auto px-4 py-8 space-y-6 font-sans">
       {/* Top Header */}
@@ -472,6 +727,17 @@ export default function SellerAffiliatePage() {
         )}
       </div>
 
+      {/* Store Not Found Alert */}
+      {!loadingStores && stores.length === 0 && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 flex items-center gap-3 text-xs text-rose-900">
+          <span className="material-symbols-outlined text-rose-600 text-xl">warning</span>
+          <div>
+            <span className="font-bold">Chưa tìm thấy gian hàng: </span>
+            <span>Tài khoản của bạn chưa có gian hàng nào được kích hoạt. Vui lòng thiết lập hoặc kích hoạt gian hàng tại mục <a href="/seller/stores" className="underline font-bold text-rose-800">Quản lý gian hàng</a> trước khi cấu hình tiếp thị liên kết.</span>
+          </div>
+        </div>
+      )}
+
       {/* Platform Cap Notice */}
       <div className="bg-amber-50/60 border border-amber-200/70 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-950">
         <div className="flex items-center gap-2.5">
@@ -489,15 +755,15 @@ export default function SellerAffiliatePage() {
       {/* Tabs */}
       <div className="flex border-b border-slate-200">
         <button
-          onClick={() => setActiveTab('SETTINGS')}
+          onClick={() => setActiveTab('DASHBOARD')}
           className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
-            activeTab === 'SETTINGS'
+            activeTab === 'DASHBOARD'
               ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
               : 'border-transparent text-slate-600 hover:text-slate-900'
           }`}
         >
-          <span className="material-symbols-outlined text-lg">tune</span>
-          Cấu hình gian hàng
+          <span className="material-symbols-outlined text-lg">monitoring</span>
+          Hiệu quả tiếp thị (Dashboard)
         </button>
         <button
           onClick={() => setActiveTab('BOOKS')}
@@ -510,7 +776,215 @@ export default function SellerAffiliatePage() {
           <span className="material-symbols-outlined text-lg">menu_book</span>
           Danh mục sách & Trạng thái hoa hồng ({totalBooks})
         </button>
+        <button
+          onClick={() => setActiveTab('SETTINGS')}
+          className={`px-5 py-3 text-sm font-bold border-b-2 flex items-center gap-2 transition-all ${
+            activeTab === 'SETTINGS'
+              ? 'border-emerald-700 text-emerald-800 bg-emerald-50/40 rounded-t-xl'
+              : 'border-transparent text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="material-symbols-outlined text-lg">tune</span>
+          Cấu hình gian hàng
+        </button>
       </div>
+
+      {/* TAB 1: DASHBOARD (HIỆU QUẢ TIẾP THỊ - DỮ LIỆU THẬT) */}
+      {activeTab === 'DASHBOARD' && (
+        <div className="space-y-6">
+          {/* Action bar */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <div>
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-800">query_stats</span>
+                Hiệu Quả Tiếp Thị Liên Kết Thực Tế
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Tổng hợp đơn hàng và chi phí hoa hồng được hệ thống ghi nhận từ đối tác CTV/KOC cho gian hàng này.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={() => selectedStoreId && loadDashboard(selectedStoreId)}
+                disabled={dashboardLoading}
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <span className={`material-symbols-outlined text-sm ${dashboardLoading ? 'animate-spin' : ''}`}>
+                  refresh
+                </span>
+                <span>Làm mới</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportReport}
+                disabled={exportingReport || !selectedStoreId}
+                className="px-3.5 py-2 bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm disabled:opacity-50"
+              >
+                {exportingReport ? (
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-sm">download</span>
+                )}
+                <span>Xuất báo cáo (CSV)</span>
+              </button>
+            </div>
+          </div>
+
+          {dashboardLoading ? (
+            <div className="bg-white border border-slate-200 rounded-3xl p-12 flex flex-col items-center justify-center text-slate-500 gap-2">
+              <span className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+              <p className="text-sm font-semibold">Đang tải số liệu báo cáo...</p>
+            </div>
+          ) : (
+            <>
+              {/* 4 Stat Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Attributed Orders */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Đơn hàng tiếp thị</span>
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-800 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-lg">shopping_bag</span>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-slate-900">
+                    {dashboardData?.metrics?.totalAttributedOrders || 0}
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Đơn chốt thành công qua liên kết CTV
+                  </p>
+                </div>
+
+                {/* Attributed Revenue */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Doanh thu qua Affiliate</span>
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-lg">payments</span>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-slate-900">
+                    {Number(dashboardData?.metrics?.totalAttributedRevenue || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Tổng giá trị ấn phẩm bán ra từ liên kết
+                  </p>
+                </div>
+
+                {/* Total Commission Cost */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng hoa hồng phát sinh</span>
+                    <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-lg">percent</span>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-amber-950">
+                    {Number(dashboardData?.metrics?.totalCommissionCost || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Đã quyết toán: {Number(dashboardData?.metrics?.settledCommissionCost || 0).toLocaleString('vi-VN')} đ
+                  </p>
+                </div>
+
+                {/* Pending Commission */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hoa hồng chờ đối soát</span>
+                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-lg">hourglass_top</span>
+                    </div>
+                  </div>
+                  <div className="text-2xl font-black text-indigo-950">
+                    {Number(dashboardData?.metrics?.pendingCommissionCost || 0).toLocaleString('vi-VN')} đ
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Đang trong thời gian giữ hoặc chờ giao
+                  </p>
+                </div>
+              </div>
+
+              {/* Top Attributed Books */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-slate-100">
+                  <div>
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <span className="material-symbols-outlined text-emerald-800">military_tech</span>
+                      Top ấn phẩm bán chạy qua kênh Tiếp Thị Liên Kết
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Bảng xếp hạng hiệu quả phân phối theo số đơn chốt, doanh thu thực nhận và hoa hồng tiếp thị
+                    </p>
+                  </div>
+                  <span className="text-xs text-slate-400 font-medium italic">
+                    (Theo doanh thu thực nhận)
+                  </span>
+                </div>
+
+                {/* Filter Bar for Top Books */}
+                <DataTableFilterBar
+                  tabs={[
+                    { key: 'REVENUE', label: 'Doanh Thu Cao Nhất', count: filteredTopBooks.length },
+                    { key: 'ORDERS', label: 'Số Đơn Chốt Nhiều Nhất' },
+                    { key: 'COMMISSION', label: 'Hoa Hồng Đã Trả' },
+                  ]}
+                  activeTab={topSortTab}
+                  onTabChange={(key) => {
+                    setTopSortTab(key as any);
+                    setTopPage(1);
+                  }}
+                  searchQuery={topSearch}
+                  onSearchChange={(val) => {
+                    setTopSearch(val);
+                    setTopPage(1);
+                  }}
+                  searchPlaceholder="Tìm ấn phẩm trong bảng xếp hạng..."
+                  className="bg-slate-50/70 p-3 rounded-2xl border border-slate-200/80 shadow-2xs"
+                  extraFilters={
+                    <select
+                      value={topFormatFilter}
+                      onChange={(e) => {
+                        setTopFormatFilter(e.target.value);
+                        setTopPage(1);
+                      }}
+                      className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+                    >
+                      <option value="">Mọi Định Dạng</option>
+                      <option value="PHYSICAL">Sách Giấy</option>
+                      <option value="DIGITAL">Ebook DRM</option>
+                      <option value="BOTH">Combo Hybrid</option>
+                    </select>
+                  }
+                />
+
+                {/* Grouped Data Table */}
+                <GroupedDataTable
+                  columns={topBooksColumns}
+                  data={paginatedTopBooks}
+                  keyField="bookId"
+                  loading={dashboardLoading}
+                  emptyTitle="Chưa phát sinh đơn hàng qua Tiếp Thị Liên Kết"
+                  emptyMessage="Khi các đối tác CTV/KOC chia sẻ liên kết và khách đặt mua thành công, số liệu sẽ được tổng hợp tự động tại đây."
+                  emptyIcon="military_tech"
+                  pagination={
+                    filteredTopBooks.length > 10
+                      ? {
+                          currentPage: topPage,
+                          totalItems: filteredTopBooks.length,
+                          pageSize: 10,
+                          onPageChange: setTopPage,
+                          itemLabel: 'ấn phẩm',
+                        }
+                      : false
+                  }
+                  className="border border-slate-200/80 rounded-2xl overflow-hidden shadow-2xs"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* TAB 1: STORE SETTINGS */}
       {activeTab === 'SETTINGS' && (
@@ -664,269 +1138,232 @@ export default function SellerAffiliatePage() {
       {/* TAB 2: BOOKS CATALOG & ELIGIBILITY */}
       {activeTab === 'BOOKS' && (
         <div className="space-y-4">
-          {/* Filters Bar */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-sm">
-            <div className="flex-1 relative">
-              <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
-              <input
-                type="text"
-                placeholder="Tìm theo tên sách..."
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full text-xs font-medium pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
+          {/* Standard Filter Bar with Status Tabs & Extra Filters */}
+          <DataTableFilterBar
+            tabs={[
+              { key: 'ELIGIBLE', label: 'Đang Mở Tiếp Thị', count: eligibilityFilter === 'ELIGIBLE' ? totalBooks : undefined },
+              { key: 'INELIGIBLE', label: 'Tạm Ngưng Hoa Hồng', count: eligibilityFilter === 'INELIGIBLE' ? totalBooks : undefined },
+            ]}
+            activeTab={eligibilityFilter}
+            onTabChange={(key) => {
+              setEligibilityFilter(key as 'ELIGIBLE' | 'INELIGIBLE');
+              setPage(1);
+            }}
+            searchQuery={search}
+            onSearchChange={(val) => {
+              setSearch(val);
+              setPage(1);
+            }}
+            searchPlaceholder="Tìm theo tên sách, ISBN, slug..."
+            className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
+            extraFilters={
               <select
-                aria-label="Lọc định dạng"
+                aria-label="Lọc theo định dạng"
                 value={formatFilter}
                 onChange={(e) => {
                   setFormatFilter(e.target.value);
                   setPage(1);
                 }}
-                className="text-xs font-semibold px-3 py-2 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
               >
-                <option value="">Tất cả định dạng</option>
-                <option value="PHYSICAL">Sách giấy</option>
-                <option value="DIGITAL">Sách điện tử</option>
-                <option value="BOTH">Cả hai</option>
+                <option value="">Mọi Định Dạng</option>
+                <option value="PHYSICAL">Sách Giấy</option>
+                <option value="DIGITAL">Sách Số (Ebook)</option>
+                <option value="BOTH">Combo Hybrid</option>
               </select>
+            }
+            bulkActionGroups={[
+              {
+                groupLabel: 'TIẾN TRÌNH TIẾP THỊ',
+                actions: [
+                  { value: 'ENABLE_ALL', label: 'Bật hoa hồng hàng loạt' },
+                  { value: 'PAUSE_ALL', label: 'Tạm ngưng hoa hồng hàng loạt' },
+                  { value: 'SET_RATE', label: 'Đặt tỷ lệ hoa hồng chung' },
+                ],
+              },
+            ]}
+            selectedCount={selectedBookIds.length}
+            totalCount={totalBooks}
+            onExecuteBulkAction={(action) => {
+              if (action === 'ENABLE_ALL') handleBulkEligibility(true);
+              else if (action === 'PAUSE_ALL') handleBulkEligibility(false);
+              else if (action === 'SET_RATE') setBulkRateModalOpen(true);
+            }}
+            onClearSelection={() => setSelectedBookIds([])}
+            bulkLoading={bulkActionLoading}
+            itemName="ấn phẩm"
+          />
 
-              <select
-                aria-label="Lọc trạng thái hoa hồng"
-                value={eligibilityFilter}
-                onChange={(e) => {
-                  setEligibilityFilter(e.target.value);
-                  setPage(1);
-                }}
-                className="text-xs font-semibold px-3 py-2 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
-              >
-                <option value="">Tất cả trạng thái</option>
-                <option value="true">Đang mở hoa hồng</option>
-                <option value="false">Tạm ngưng hoa hồng</option>
-              </select>
-            </div>
-          </div>
+          {/* Standard Grouped Data Table */}
+          <GroupedDataTable
+            columns={[
+              {
+                key: 'product',
+                title: 'SÁCH & ĐỊNH DẠNG',
+                width: '38%',
+                render: (_, book) => {
+                  const cover = book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                  const formatLabel = book.format === 'PHYSICAL' ? 'Sách giấy' : book.format === 'DIGITAL' ? 'Sách số' : 'Cả hai';
 
-          {/* Bulk Actions Floating Bar */}
-          {selectedBookIds.length > 0 && (
-            <div className="bg-emerald-950 text-white px-5 py-3 rounded-2xl flex flex-wrap items-center justify-between gap-3 shadow-lg animate-fadeIn">
-              <div className="flex items-center gap-2 text-xs font-bold">
-                <span className="bg-emerald-600 px-2.5 py-0.5 rounded-full text-white">
-                  {selectedBookIds.length}
-                </span>
-                <span>cuốn sách đã được chọn</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={bulkActionLoading}
-                  onClick={() => handleBulkEligibility(true)}
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold rounded-lg transition-all"
-                >
-                  Bật hoa hồng
-                </button>
-                <button
-                  type="button"
-                  disabled={bulkActionLoading}
-                  onClick={() => handleBulkEligibility(false)}
-                  className="px-3 py-1.5 bg-rose-700 hover:bg-rose-600 text-white text-xs font-bold rounded-lg transition-all"
-                >
-                  Tắt hoa hồng
-                </button>
-                <button
-                  type="button"
-                  disabled={bulkActionLoading}
-                  onClick={() => setBulkRateModalOpen(true)}
-                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg transition-all"
-                >
-                  Đặt tỷ lệ chung
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedBookIds([])}
-                  className="px-2 py-1.5 text-slate-300 hover:text-white text-xs font-semibold"
-                >
-                  Bỏ chọn
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Books Table */}
-          <SellerTableContainer>
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                  <th className="p-3 w-10 text-center">
-                    <input
-                      type="checkbox"
-                      checked={books.length > 0 && selectedBookIds.length === books.length}
-                      onChange={handleToggleSelectAll}
-                      className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700"
-                    />
-                  </th>
-                  <th className="p-3">Sách & Định dạng</th>
-                  <th className="p-3">Giá bán</th>
-                  <th className="p-3 text-center">Trạng thái Affiliate</th>
-                  <th className="p-3 text-center">Tỷ lệ hiệu lực</th>
-                  <th className="p-3">Ước tính thực nhận (Seller-Net)</th>
-                  <th className="p-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {booksLoading ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500 font-semibold">
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="w-6 h-6 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
-                        <span>Đang tải danh mục sách...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : books.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400 font-medium">
-                      Không tìm thấy cuốn sách nào phù hợp.
-                    </td>
-                  </tr>
-                ) : (
-                  books.map((book) => {
-                    const isSelected = selectedBookIds.includes(book.bookId);
-                    const breakdown = book.sellerNetBreakdown;
-
-                    return (
-                      <tr key={book.bookId} className={`hover:bg-slate-50/70 transition-colors ${isSelected ? 'bg-emerald-50/30' : ''}`}>
-                        <td className="p-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleToggleSelectBook(book.bookId)}
-                            className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-14 bg-slate-100 rounded-lg overflow-hidden flex-shrink-0 relative border border-slate-200">
-                              {book.coverImage ? (
-                                <Image
-                                  src={book.coverImage}
-                                  alt={book.title}
-                                  fill
-                                  sizes="40px"
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                  <span className="material-symbols-outlined text-lg">book</span>
-                                </div>
-                              )}
-                            </div>
-                            <div className="max-w-xs">
-                              <p className="font-bold text-slate-900 line-clamp-1">{book.title}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
-                                  {book.format === 'PHYSICAL' ? 'Sách giấy' : book.format === 'DIGITAL' ? 'Sách số' : 'Cả hai'}
-                                </span>
-                                {book.hasExplicitOverride && (
-                                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
-                                    Tùy chỉnh riêng
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="p-3 font-semibold text-slate-800">
-                          {Number(book.price).toLocaleString('vi-VN')} đ
-                        </td>
-                        <td className="p-3 text-center">
-                          {book.isEligible ? (
-                            <SellerStatusBadge variant="success" text="Đang mở" dot />
-                          ) : (
-                            <SellerStatusBadge variant="neutral" text="Tạm ngưng" dot />
+                  return (
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={cover}
+                        alt={book.title}
+                        className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                        }}
+                      />
+                      <div className="min-w-0 max-w-[280px]">
+                        <p className="font-bold text-slate-900 line-clamp-1 text-xs" title={book.title}>
+                          {book.title}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                            {formatLabel}
+                          </span>
+                          {book.isCustomRate && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                              Tùy chỉnh riêng
+                            </span>
                           )}
-                        </td>
-                        <td className="p-3 text-center">
-                          <div className="flex flex-col items-center">
-                            <span className="font-black text-emerald-800 text-sm">
-                              {book.effectiveRate}%
+                          {book.id && (
+                            <span className="text-[10px] font-mono text-slate-400">
+                              #{book.id.substring(0, 6).toUpperCase()}
                             </span>
-                            <span className="text-[10px] text-slate-500">
-                              {book.rateSource === 'CUSTOM'
-                                ? 'Mức riêng'
-                                : book.rateSource === 'STORE_FORMAT'
-                                ? 'Theo shop'
-                                : 'Mặc định sàn'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2">
-                            <div className="text-left">
-                              <span className="font-bold text-slate-900">
-                                {Number(breakdown?.sellerNetRevenue || 0).toLocaleString('vi-VN')} đ
-                              </span>
-                              <span className="text-[11px] text-slate-500 block">
-                                (Tỷ suất: {breakdown?.sellerNetMarginPercent || 0}%)
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => setPreviewModalBook(book)}
-                              title="Xem chi tiết phân rã chi phí"
-                              className="text-slate-400 hover:text-emerald-700 p-1"
-                            >
-                              <span className="material-symbols-outlined text-base">info</span>
-                            </button>
-                          </div>
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => openEditBook(book)}
-                            className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold rounded-lg text-xs transition-all shadow-sm"
-                          >
-                            Chỉnh sửa
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </SellerTableContainer>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                },
+              },
+              {
+                key: 'price',
+                title: 'GIÁ BÁN',
+                align: 'left',
+                width: '14%',
+                render: (_, book) => (
+                  <span className="font-semibold text-slate-800 text-xs">
+                    {Number(book.price || 0).toLocaleString('vi-VN')} đ
+                  </span>
+                ),
+              },
+              {
+                key: 'status',
+                title: 'TRẠNG THÁI AFFILIATE',
+                align: 'center',
+                width: '15%',
+                render: (_, book) => (
+                  book.isEligible ? (
+                    <SellerStatusBadge variant="success" text="Đang mở" dot />
+                  ) : (
+                    <SellerStatusBadge variant="neutral" text="Tạm ngưng" dot />
+                  )
+                ),
+              },
+              {
+                key: 'effectiveRate',
+                title: 'TỶ LỆ HIỆU LỰC',
+                align: 'center',
+                width: '12%',
+                render: (_, book) => (
+                  <div className="flex flex-col items-center">
+                    <span className="font-bold text-emerald-800 text-sm">
+                      {book.effectiveRate}%
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {book.isCustomRate
+                        ? 'Mức riêng'
+                        : book.rateSource === 'STORE_FORMAT'
+                        ? 'Theo shop'
+                        : 'Mặc định sàn'}
+                    </span>
+                  </div>
+                ),
+              },
+              {
+                key: 'sellerNet',
+                title: 'ƯỚC TÍNH THỰC NHẬN (SELLER-NET)',
+                align: 'left',
+                width: '18%',
+                render: (_, book) => {
+                  const breakdown = book.sellerNetBreakdown || book.netPreview;
+                  const netRevenue = breakdown ? Number(breakdown.sellerNetRevenue || 0).toLocaleString('vi-VN') : '0';
+                  const margin = breakdown ? breakdown.sellerNetMarginPercent || 0 : 0;
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center py-2">
-              <span className="text-xs text-slate-500 font-medium">
-                Trang {page} / {totalPages} (Tổng số {totalBooks} sách)
-              </span>
-              <div className="flex gap-2">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold disabled:opacity-50"
-                >
-                  Trước
-                </button>
-                <button
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold disabled:opacity-50"
-                >
-                  Sau
-                </button>
-              </div>
-            </div>
-          )}
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      <div>
+                        <span className="font-bold text-slate-900 text-xs">{netRevenue} đ</span>
+                        <span className="text-[10.5px] text-slate-500 block">
+                          (Tỷ suất: {margin}%)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPreviewModalBook(book);
+                        }}
+                        title="Xem chi tiết phân rã chi phí"
+                        className="text-slate-400 hover:text-emerald-700 p-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">info</span>
+                      </button>
+                    </div>
+                  );
+                },
+              },
+              {
+                key: 'actions',
+                title: 'THAO TÁC',
+                align: 'right',
+                width: '8%',
+                render: (_, book) => (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openEditBook(book);
+                    }}
+                    className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Chỉnh sửa
+                  </button>
+                ),
+              },
+            ]}
+            data={books}
+            keyField="id"
+            loading={booksLoading}
+            selectable={true}
+            selectedRowKeys={selectedBookIds}
+            onSelectionChange={(keys) => setSelectedBookIds(keys as string[])}
+            pagination={{
+              currentPage: page,
+              totalPages: totalPages,
+              totalItems: totalBooks,
+              pageSize: 10,
+              onPageChange: (newPage) => setPage(newPage),
+              itemLabel: 'cuốn sách',
+            }}
+            emptyTitle={
+              search || formatFilter
+                ? 'Không tìm thấy ấn phẩm nào phù hợp'
+                : eligibilityFilter === 'ELIGIBLE'
+                ? 'Chưa có ấn phẩm nào bật Tiếp Thị Liên Kết'
+                : 'Không có ấn phẩm nào bị tạm ngưng'
+            }
+            emptyMessage={
+              search || formatFilter
+                ? 'Vui lòng thử điều chỉnh lại từ khóa tìm kiếm hoặc bỏ bớt các tiêu chí lọc.'
+                : eligibilityFilter === 'ELIGIBLE'
+                ? 'Các sách được chọn "Bật Tiếp Thị Liên Kết" trong trang Đăng Sách sẽ tự động xuất hiện tại đây.'
+                : 'Tất cả các sách đang hoạt động tiếp thị bình thường.'
+            }
+          />
         </div>
       )}
 

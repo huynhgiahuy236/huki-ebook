@@ -93,4 +93,9 @@ export class CreateBookDto {
   @ValidateNested()
   @Type(() => DigitalBookDetailsDto)
   digitalDetails?: DigitalBookDetailsDto;
+
+  @ApiPropertyOptional({ description: 'Whether affiliate is enabled for this book' })
+  @IsOptional()
+  @Type(() => Boolean)
+  enableAffiliate?: boolean;
 }

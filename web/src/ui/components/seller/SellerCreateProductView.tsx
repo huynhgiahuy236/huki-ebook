@@ -9,6 +9,7 @@ import { catalogApi, CategoryData, BookFormat, CatalogEntity } from '@/ui/api/ca
 import { businessApi } from '@/ui/api/businessApi';
 import { can, PERMISSIONS, PermissionKey } from '@/ui/utils/permissions';
 import { aiAudioService, AiAudioPlan } from '@/ui/services/aiAudioService';
+import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 
 // Slug Generator Utility
 function generateSlug(text: string) {
@@ -120,6 +121,9 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
   const [tags, setTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
   const [isAddingTag, setIsAddingTag] = useState(false);
+
+  // Affiliate Choice: Not selected by default (null), but required to force user awareness
+  const [enableAffiliate, setEnableAffiliate] = useState<boolean | null>(null);
 
   // AI Audio Plan Subscription State (Mục 06 - Chỉ áp dụng Ebook)
   const [enableAiAudio, setEnableAiAudio] = useState(false);
@@ -679,6 +683,11 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       }
     }
 
+    // Required Affiliate check: Must be explicitly selected (true or false), cannot be null
+    if (enableAffiliate === null) {
+      newErrors.enableAffiliate = 'Vui lòng chọn có Bật hay Không bật Tiếp thị liên kết (Affiliate) cho ấn phẩm này.';
+    }
+
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
@@ -690,6 +699,8 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         scrollToSection('sec-media');
       } else if (newErrors.physicalPrice || newErrors.ebookPrice || newErrors.comboPrice) {
         scrollToSection('sec-pricing');
+      } else if (newErrors.enableAffiliate) {
+        scrollToSection('sec-affiliate');
       } else if (newErrors.stock || newErrors.weight) {
         scrollToSection('sec-inventory');
       } else if (newErrors.ebookFile) {
@@ -802,6 +813,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
         publisherId: resolvedPublisherId,
         coverUrl: form.coverUrl?.trim() || undefined,
         businessId,
+        enableAffiliate: Boolean(enableAffiliate),
         ...(hasPhysical && {
           physicalDetails: {
             stock: Number(form.stock || 0),
@@ -826,6 +838,18 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
 
       if (res.success && res.data?.id) {
         const bookId = res.data.id;
+
+        // Đồng bộ trực tiếp cài đặt Affiliate cho sách vừa tạo
+        try {
+          const storeIdToUse = businessId || currentBizId;
+          if (storeIdToUse) {
+            await affiliateApi.updateBookAffiliateSetting(storeIdToUse, bookId, {
+              isEligible: Boolean(enableAffiliate),
+            });
+          }
+        } catch (affErr) {
+          console.warn('Lỗi đồng bộ thiết lập affiliate cho sách mới:', affErr);
+        }
 
         // Nếu có kích hoạt gói giọng đọc AI cho Ebook (Chỉ áp dụng DIGITAL/BOTH)
         if (hasDigital && enableAiAudio && selectedAiPlanId) {
@@ -913,6 +937,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
     taxonomy: Boolean(errors.categoryId || errors.customCategoryName || errors.authorId || errors.customAuthorName || errors.publisherId),
     media: Boolean(errors.coverUrl),
     pricing: Boolean(errors.physicalPrice || errors.ebookPrice || errors.comboPrice),
+    affiliate: Boolean(errors.enableAffiliate),
     inventory: Boolean(errors.stock || errors.weight),
     drm: Boolean(errors.ebookFile),
   }), [errors]);
@@ -1181,9 +1206,10 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
               { id: 'sec-taxonomy', num: '2', title: 'Phân Loại & Tác Giả', short: 'Phân Loại', done: !!(form.categoryId || form.customCategoryName) && !!(form.authorId || form.customAuthorName), hasError: sectionErrors.taxonomy },
               { id: 'sec-media', num: '3', title: 'Media & Bìa Sách', short: 'Bìa Sách', done: !!form.coverUrl, hasError: sectionErrors.media },
               { id: 'sec-pricing', num: '4', title: 'Giá Bán & Định Dạng', short: 'Giá Bán', done: !!(form.physicalPrice || form.ebookPrice || form.comboPrice), hasError: sectionErrors.pricing },
-              ...(selectedFormat !== 'DIGITAL' ? [{ id: 'sec-inventory', num: '5', title: 'Kho & Vận Chuyển', short: 'Kho Hàng', done: form.stock !== '' && Number(form.stock) >= 0 && Number(form.weight) > 0, hasError: sectionErrors.inventory }] : []),
-              ...(selectedFormat !== 'PHYSICAL' ? [{ id: 'sec-drm', num: selectedFormat === 'DIGITAL' ? '5' : '6', title: 'Bảo Mật DRM', short: 'DRM Ebook', done: !!form.ebookFile, hasError: sectionErrors.drm }] : []),
-              { id: 'sec-seo', num: selectedFormat === 'BOTH' ? '7' : '6', title: 'Tối Ưu SEO', short: 'Tối Ưu SEO', done: seoAudit.score >= 70, hasError: false },
+              { id: 'sec-affiliate', num: '5', title: 'Tiếp Thị Liên Kết', short: 'Affiliate', done: enableAffiliate !== null, hasError: sectionErrors.affiliate },
+              ...(selectedFormat !== 'DIGITAL' ? [{ id: 'sec-inventory', num: '6', title: 'Kho & Vận Chuyển', short: 'Kho Hàng', done: form.stock !== '' && Number(form.stock) >= 0 && Number(form.weight) > 0, hasError: sectionErrors.inventory }] : []),
+              ...(selectedFormat !== 'PHYSICAL' ? [{ id: 'sec-drm', num: selectedFormat === 'DIGITAL' ? '6' : '7', title: 'Bảo Mật DRM', short: 'DRM Ebook', done: !!form.ebookFile, hasError: sectionErrors.drm }] : []),
+              { id: 'sec-seo', num: selectedFormat === 'BOTH' ? '8' : '7', title: 'Tối Ưu SEO', short: 'Tối Ưu SEO', done: seoAudit.score >= 70, hasError: false },
             ].map((step, index, arr) => {
               const isActive = activeSection === step.id;
               const isLast = index === arr.length - 1;
@@ -2043,6 +2069,121 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   <span>{comboSavings.isDiscounted ? `Tiết kiệm: ${comboSavings.saved.toLocaleString('vi-VN')} ₫ (${comboSavings.percent}%)` : 'Combo chưa có ưu đãi'}</span>
                 </div>
               )}
+            </section>
+
+            {/* 05. Affiliate Marketing Choice (Mandatory Radio - Not pre-selected) */}
+            <section id="sec-affiliate" className={`bg-surface-container-lowest rounded-xl p-4 sm:p-5 border shadow-xs space-y-4 scroll-mt-20 transition-all ${
+              errors.enableAffiliate ? 'border-rose-400 ring-2 ring-rose-200 shadow-rose-100/40' : 'border-theme-border/70'
+            }`}>
+              <div className="flex items-center justify-between border-b border-theme-border/60 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                    errors.enableAffiliate ? 'bg-rose-100 text-rose-700' : 'bg-primary/10 text-primary'
+                  }`}>
+                    05
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-title-md text-sm font-bold text-on-surface">Tiếp Thị Liên Kết (Affiliate)</h3>
+                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">
+                        * Bắt buộc chọn
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-on-surface-variant">
+                      Thiết lập quyền tham gia mạng lưới tiếp thị liên kết (CTV/KOC) cho tác phẩm này.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {/* Option 1: Bật Affiliate */}
+                  <label
+                    onClick={() => {
+                      setEnableAffiliate(true);
+                      if (errors.enableAffiliate) {
+                        setErrors(prev => {
+                          const next = { ...prev };
+                          delete next.enableAffiliate;
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 relative ${
+                      enableAffiliate === true
+                        ? 'border-emerald-600 bg-emerald-50/60 shadow-xs ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="enableAffiliate"
+                      value="true"
+                      checked={enableAffiliate === true}
+                      onChange={() => {}}
+                      className="mt-1 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-slate-900">Bật Tiếp Thị Liên Kết (Affiliate)</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                          Vào danh sách
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Sách sẽ xuất hiện trong danh mục Tiếp thị liên kết của gian hàng. Các CTV/KOC có thể lấy link giới thiệu và nhận hoa hồng khi chốt đơn.
+                      </p>
+                    </div>
+                  </label>
+
+                  {/* Option 2: Không bật Affiliate */}
+                  <label
+                    onClick={() => {
+                      setEnableAffiliate(false);
+                      if (errors.enableAffiliate) {
+                        setErrors(prev => {
+                          const next = { ...prev };
+                          delete next.enableAffiliate;
+                          return next;
+                        });
+                      }
+                    }}
+                    className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 relative ${
+                      enableAffiliate === false
+                        ? 'border-slate-700 bg-slate-100/80 shadow-xs ring-2 ring-slate-400/20'
+                        : 'border-slate-200 hover:border-slate-400 hover:bg-slate-50/50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="enableAffiliate"
+                      value="false"
+                      checked={enableAffiliate === false}
+                      onChange={() => {}}
+                      className="mt-1 text-slate-700 focus:ring-slate-500 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-slate-900">Không Bật Tiếp Thị Liên Kết</span>
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700">
+                          Không tham gia
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                        Sách sẽ KHÔNG tham gia chương trình affiliate và KHÔNG xuất hiện trong danh mục tiếp thị liên kết.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {errors.enableAffiliate && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-rose-600">error</span>
+                    <span>{errors.enableAffiliate}</span>
+                  </div>
+                )}
+              </div>
             </section>
 
             {/* 05. Inventory & Shipping (Physical only) */}

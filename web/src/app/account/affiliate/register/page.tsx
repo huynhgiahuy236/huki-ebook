@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
-import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { affiliateApi, type ProgramInfoResponse } from '@/lib/affiliate/affiliateApi';
 import {
   affiliateStep1Schema,
   affiliateStep2Schema,
@@ -24,6 +24,10 @@ export default function AffiliateRegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [topErrorMessage, setTopErrorMessage] = useState<{ message: string; requestId?: string } | null>(null);
   const [validationSuccessNotice, setValidationSuccessNotice] = useState<string | null>(null);
+
+  // Policy modal state
+  const [activePolicyModal, setActivePolicyModal] = useState<'TERMS' | 'PRIVACY' | null>(null);
+  const [programInfo, setProgramInfo] = useState<ProgramInfoResponse | null>(null);
 
   // Async code availability check state
   const [codeStatus, setCodeStatus] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'UNAVAILABLE' | 'INVALID'>('IDLE');
@@ -56,7 +60,7 @@ export default function AffiliateRegisterPage() {
         type: 'FACEBOOK',
         url: '',
         handle: '',
-        followersRange: 'UNDER_5K',
+        followersRange: 'FROM_1K_TO_5K',
         isPrimary: true,
       },
     ],
@@ -88,7 +92,7 @@ export default function AffiliateRegisterPage() {
           type: 'TIKTOK',
           url: '',
           handle: '',
-          followersRange: 'UNDER_5K',
+          followersRange: 'FROM_1K_TO_5K',
           isPrimary: false,
         },
       ],
@@ -129,7 +133,7 @@ export default function AffiliateRegisterPage() {
     });
   };
 
-  // Kiểm tra hồ sơ hiện tại khi tải trang
+  // Kiểm tra hồ sơ hiện tại & tải thông tin chương trình khi tải trang
   useEffect(() => {
     let isMounted = true;
     affiliateApi.getMyProfile().then((res) => {
@@ -139,6 +143,15 @@ export default function AffiliateRegisterPage() {
     }).catch(() => {
       // ignore
     });
+
+    affiliateApi.getProgramInfo().then((res) => {
+      if (isMounted && res.success && res.data) {
+        setProgramInfo(res.data);
+      }
+    }).catch(() => {
+      // ignore
+    });
+
     return () => {
       isMounted = false;
     };
@@ -198,6 +211,13 @@ export default function AffiliateRegisterPage() {
         const path = issue.path.join('.');
         if (!errors[path]) errors[path] = [];
         errors[path].push(issue.message);
+        if (issue.path.length > 0) {
+          const rootField = String(issue.path[0]);
+          if (!errors[rootField]) errors[rootField] = [];
+          if (!errors[rootField].includes(issue.message)) {
+            errors[rootField].push(issue.message);
+          }
+        }
       });
       setFieldErrors(errors);
       setTopErrorMessage({
@@ -205,6 +225,9 @@ export default function AffiliateRegisterPage() {
       });
       return;
     }
+
+    setFieldErrors({});
+    setTopErrorMessage(null);
 
     if (currentStep < 4) {
       setCurrentStep((prev) => (prev + 1) as any);
@@ -270,7 +293,11 @@ export default function AffiliateRegisterPage() {
 
     setIsSubmitting(true);
     try {
-      const res = await affiliateApi.submitApplication(fullCheck.data);
+      const res = await affiliateApi.submitApplication({
+        ...fullCheck.data,
+        termsVersion: programInfo?.termsVersion || '1.4.1',
+        privacyVersion: programInfo?.privacyVersion || '1.4.1',
+      });
       if (res.success) {
         showToast('Nộp hồ sơ đăng ký đối tác tiếp thị thành công!', 'success');
         router.push('/account/affiliate/application');
@@ -623,7 +650,7 @@ export default function AffiliateRegisterPage() {
                           <option value="TIKTOK">TikTok</option>
                           <option value="YOUTUBE">YouTube</option>
                           <option value="INSTAGRAM">Instagram</option>
-                          <option value="WEBSITE">Website / Blog</option>
+                          <option value="BLOG">Website / Blog</option>
                           <option value="OTHER">Khác</option>
                         </select>
                       </div>
@@ -669,10 +696,12 @@ export default function AffiliateRegisterPage() {
                           onChange={(e) => handleChannelChange(idx, 'followersRange', e.target.value)}
                           className="w-full h-9 px-2.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-600"
                         >
-                          <option value="UNDER_5K">Dưới 5.000 followers</option>
-                          <option value="FROM_5K_TO_20K">5.000 – 20.000</option>
-                          <option value="FROM_20K_TO_100K">20.000 – 100.000</option>
-                          <option value="OVER_100K">Trên 100.000 followers</option>
+                          <option value="UNDER_1K">Dưới 1.000 followers</option>
+                          <option value="FROM_1K_TO_5K">1.000 – 5.000 followers</option>
+                          <option value="FROM_5K_TO_10K">5.000 – 10.000 followers</option>
+                          <option value="FROM_10K_TO_50K">10.000 – 50.000 followers</option>
+                          <option value="FROM_50K_TO_100K">50.000 – 100.000 followers</option>
+                          <option value="ABOVE_100K">Trên 100.000 followers</option>
                         </select>
                       </div>
                     </div>
@@ -883,7 +912,18 @@ export default function AffiliateRegisterPage() {
                     className="w-4 h-4 text-emerald-700 rounded focus:ring-emerald-600 mt-0.5"
                   />
                   <span>
-                    Tôi đồng ý với <strong className="text-emerald-800">Điều khoản Đối tác Tiếp thị HuKi</strong> bao gồm chính sách ghi nhận lượt giới thiệu, thời gian tạm giữ và chống tự mua qua link. <span className="text-red-500">*</span>
+                    Tôi đồng ý với{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePolicyModal('TERMS');
+                      }}
+                      className="text-emerald-800 underline font-bold hover:text-emerald-950 inline cursor-pointer text-left"
+                    >
+                      Điều khoản Đối tác Tiếp thị HuKi
+                    </button>{' '}
+                    bao gồm chính sách ghi nhận lượt giới thiệu, thời gian tạm giữ và chống tự mua qua link. <span className="text-red-500">*</span>
                   </span>
                 </label>
                 {fieldErrors.acceptedAffiliateTerms && (
@@ -898,7 +938,18 @@ export default function AffiliateRegisterPage() {
                     className="w-4 h-4 text-emerald-700 rounded focus:ring-emerald-600 mt-0.5"
                   />
                   <span>
-                    Tôi đã đọc và đồng thuận với <strong className="text-emerald-800">Chính sách Quyền riêng tư &amp; Dữ liệu</strong> của HuKi. <span className="text-red-500">*</span>
+                    Tôi đã đọc và đồng thuận với{' '}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActivePolicyModal('PRIVACY');
+                      }}
+                      className="text-emerald-800 underline font-bold hover:text-emerald-950 inline cursor-pointer text-left"
+                    >
+                      Chính sách Quyền riêng tư &amp; Dữ liệu
+                    </button>{' '}
+                    của HuKi. <span className="text-red-500">*</span>
                   </span>
                 </label>
                 {fieldErrors.acceptedPrivacyNotice && (
@@ -1006,6 +1057,121 @@ export default function AffiliateRegisterPage() {
           </div>
         </div>
       </div>
+
+      {/* Policy & Terms Modal */}
+      {activePolicyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-gray-100">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-emerald-50/50">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-emerald-700">
+                  {activePolicyModal === 'TERMS' ? 'gavel' : 'shield'}
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">
+                    {activePolicyModal === 'TERMS'
+                      ? 'Điều Khoản & Quy Chế Tiếp Thị Liên Kết'
+                      : 'Chính Sách Quyền Riêng Tư & Bảo Mật Dữ Liệu'}
+                  </h3>
+                  <span className="text-[11px] text-gray-500">
+                    Phiên bản {programInfo?.termsVersion || '1.4.1'} • Hiệu lực từ 2026
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActivePolicyModal(null)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4 text-xs text-gray-700 leading-relaxed">
+              {activePolicyModal === 'TERMS' ? (
+                <>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">1. Cơ chế ghi nhận hoa hồng (Attribution)</h4>
+                    <p>
+                      Hoa hồng được ghi nhận theo cơ chế <strong>Last-Click</strong> trong thời hạn hiệu lực của Cookie là{' '}
+                      <strong>{programInfo?.cookieDurationDays || 30} ngày</strong>. Nếu người dùng nhấp vào link tiếp thị của đối tác khác trước khi hoàn tất đặt hàng, đơn hàng sẽ được ghi nhận cho đối tác cuối cùng.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">2. Biểu phí hoa hồng đối tác</h4>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li>Sách in giấy vật lý: <strong>{programInfo?.rates?.physical || 5}%</strong> trên giá trị ròng sản phẩm.</li>
+                      <li>Sách điện tử (Ebook): <strong>{programInfo?.rates?.ebook || 10}%</strong> trên giá trị giao dịch.</li>
+                      <li>Sách nói (Audiobook): <strong>{programInfo?.rates?.audio || 10}%</strong> trên giá trị giao dịch.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">3. Thời gian đối soát &amp; Tạm giữ hoa hồng</h4>
+                    <p>
+                      - Đơn hàng sách in: Tạm giữ <strong>{programInfo?.holdingDays?.physical || 7} ngày</strong> kể từ khi đơn hàng giao thành công (chờ kết thúc hạn hoàn trả hợp lệ).
+                      <br />
+                      - Đơn hàng Ebook / Audiobook: Tạm giữ <strong>{programInfo?.holdingDays?.digitalHours || 24} giờ</strong> kể từ thời điểm thanh toán trực tuyến.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">4. Quy định chống gian lận &amp; Vi phạm</h4>
+                    <ul className="list-disc pl-5 space-y-0.5">
+                      <li>Nghiêm cấm hành vi tự mua hàng qua liên kết tiếp thị của chính mình (Self-referral fraud).</li>
+                      <li>Nghiêm cấm đấu thầu từ khóa chứa nhãn hiệu &quot;HuKi&quot;, &quot;Nhà sách HuKi&quot; trên các công cụ quảng cáo tìm kiếm (Brand bidding).</li>
+                      <li>Nghiêm cấm phát tán thư rác (spam), chèn cookie trái phép (cookie stuffing) hoặc tạo lưu lượng ảo.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">5. Thanh toán &amp; Nghĩa vụ Thuế</h4>
+                    <p>
+                      Hạn mức rút tiền tối thiểu là <strong>{(programInfo?.minPayoutAmount || 100000).toLocaleString('vi-VN')} đ</strong>.
+                      HuKi thực hiện khấu trừ và kê khai Thuế Thu nhập Cá nhân (TNCN) theo quy định của pháp luật Việt Nam trước khi giải ngân.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">1. Thu thập dữ liệu cá nhân</h4>
+                    <p>
+                      HuKi thu thập các thông tin: Họ tên, Số điện thoại, Email, Kênh truyền thông, Mã số thuế và Thông tin tài khoản ngân hàng nhằm mục đích thiết lập định danh đối tác, thanh toán hoa hồng và thực hiện nghĩa vụ thuế với cơ quan nhà nước.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">2. Bảo vệ dữ liệu cá nhân theo Nghị định 13/2023/NĐ-CP</h4>
+                    <p>
+                      Toàn bộ dữ liệu của đối tác được lưu trữ trên hạ tầng máy chủ bảo mật, mã hóa đường truyền SSL/TLS và chỉ được xử lý bởi nhân sự có thẩm quyền phê duyệt đối tác của HuKi.
+                    </p>
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-gray-900 mb-1">3. Quyền của chủ thể dữ liệu</h4>
+                    <p>
+                      Đối tác có quyền tra cứu, cập nhật thông tin hồ sơ, yêu cầu ngừng nhận bản tin tiếp thị hoặc yêu cầu đóng tài khoản tiếp thị bất kỳ lúc nào qua trang Cài đặt tài khoản hoặc liên hệ ban hỗ trợ HuKi.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  if (activePolicyModal === 'TERMS') {
+                    setFormData((prev) => ({ ...prev, acceptedAffiliateTerms: true }));
+                  } else if (activePolicyModal === 'PRIVACY') {
+                    setFormData((prev) => ({ ...prev, acceptedPrivacyNotice: true }));
+                  }
+                  setActivePolicyModal(null);
+                }}
+                className="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs transition-colors cursor-pointer"
+              >
+                Tôi đã hiểu &amp; Đồng ý
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AccountLayout>
   );
 }

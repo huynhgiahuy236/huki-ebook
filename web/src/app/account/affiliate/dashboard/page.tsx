@@ -6,6 +6,7 @@ import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 interface CtvStats {
   profile: {
@@ -84,12 +85,35 @@ export default function AffiliateDashboardPage() {
   useEffect(() => {
     fetchDashboardData();
 
-    // Decision 1: Background polling fallback every 30 seconds
-    const interval = setInterval(() => {
-      fetchDashboardData(true);
-    }, 30000);
+    // Event-driven real-time sync when clicks, orders occur or status changes (no polling)
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'AFFILIATE_CLICK_RECORDED' ||
+        msg.type === 'AFFILIATE_COMMISSION_CREATED' ||
+        msg.type === 'ORDER_CREATED' ||
+        msg.type === 'ORDER_STATUS_CHANGED' ||
+        msg.type === 'AFFILIATE_STATUS_CHANGED' ||
+        msg.type === 'WALLET_BALANCE_UPDATED'
+      ) {
+        fetchDashboardData(true);
+      }
+    });
 
-    return () => clearInterval(interval);
+    // Realtime update when tab regains focus or becomes visible
+    const handleVisibilityOrFocus = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        fetchDashboardData(true);
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
   }, [fetchDashboardData]);
 
   // Decision 2: Export CSV / Excel report
@@ -191,6 +215,15 @@ export default function AffiliateDashboardPage() {
                 <span>Xuất CSV</span>
               </button>
             )}
+
+            <Link
+              href="/account/affiliate/application"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors"
+              title="Công cụ tạo link giới thiệu và thiết lập tài khoản ngân hàng"
+            >
+              <span className="material-symbols-outlined text-[16px]">link</span>
+              <span>Tạo Link & Ngân hàng</span>
+            </Link>
 
             <Link
               href="/affiliate"

@@ -43,37 +43,77 @@ export class NotificationsService {
     private readonly delivery: NotificationDeliveryService,
   ) {}
 
-  private getRoleConditions(actor: CommunityActor): Array<Record<string, unknown>> {
-    const actorRole = (actor.role ?? "").toUpperCase();
+  private getRoleConditions(actor: CommunityActor, targetRecipientType?: string): Array<Record<string, unknown>> {
     const conditions: Array<Record<string, unknown>> = [
-      { recipientId: actor.sub },
       { recipientType: "ALL" },
-      { recipientId: "*" },
     ];
+    const extra = actor as unknown as Record<string, unknown>;
+
+    // 1. Phân lập theo recipientType rõ ràng nếu Client gửi lên (ví dụ: chuông ở Portal Seller -> BUSINESS)
+    if (targetRecipientType) {
+      const type = targetRecipientType.toUpperCase();
+      if (type === "BUSINESS" || type === "SELLER") {
+        conditions.push({ recipientType: "BUSINESS", recipientId: actor.sub });
+        conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
+        if (extra.storeId) {
+          conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.storeId) });
+          conditions.push({ recipientId: String(extra.storeId) });
+        }
+        if (extra.businessId) {
+          conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.businessId) });
+          conditions.push({ recipientId: String(extra.businessId) });
+        }
+        return conditions;
+      }
+      if (type === "DELIVERY" || type === "SHIPPER") {
+        conditions.push({ recipientType: "DELIVERY", recipientId: actor.sub });
+        conditions.push({ recipientType: "DELIVERY", recipientId: "*" });
+        return conditions;
+      }
+      if (type === "ADMIN") {
+        conditions.push({ recipientType: "ADMIN" });
+        conditions.push({ recipientType: "ADMIN", recipientId: actor.sub });
+        conditions.push({ recipientId: "admin_channel" });
+        return conditions;
+      }
+      if (type === "USER") {
+        conditions.push({ recipientType: "USER", recipientId: actor.sub });
+        conditions.push({ recipientType: "USER", recipientId: "*" });
+        return conditions;
+      }
+    }
+
+    // 2. Fallback theo role của tài khoản hiện tại
+    const actorRole = (actor.role ?? "").toUpperCase();
     if (actorRole === "PLATFORM_ADMIN" || actorRole === "ADMIN") {
       conditions.push({ recipientType: "ADMIN" });
       conditions.push({ recipientId: "admin_channel" });
+      conditions.push({ recipientId: actor.sub });
     } else if (actorRole === "BUSINESS" || actorRole === "SELLER") {
       conditions.push({ recipientType: "BUSINESS", recipientId: "*" });
       conditions.push({ recipientType: "BUSINESS", recipientId: actor.sub });
-      const extra = actor as unknown as Record<string, unknown>;
       if (extra.storeId) {
-        conditions.push({ recipientId: extra.storeId });
-        conditions.push({ recipientType: "BUSINESS", recipientId: extra.storeId });
+        conditions.push({ recipientId: String(extra.storeId) });
+        conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.storeId) });
       }
       if (extra.businessId) {
-        conditions.push({ recipientId: extra.businessId });
-        conditions.push({ recipientType: "BUSINESS", recipientId: extra.businessId });
+        conditions.push({ recipientId: String(extra.businessId) });
+        conditions.push({ recipientType: "BUSINESS", recipientId: String(extra.businessId) });
       }
     } else if (actorRole === "DELIVERY_STAFF" || actorRole === "DELIVERY") {
       conditions.push({ recipientType: "DELIVERY", recipientId: "*" });
       conditions.push({ recipientType: "DELIVERY", recipientId: actor.sub });
+    } else {
+      // Default to USER
+      conditions.push({ recipientType: "USER", recipientId: actor.sub });
+      conditions.push({ recipientType: "USER", recipientId: "*" });
+      conditions.push({ recipientId: actor.sub });
     }
     return conditions;
   }
 
   async list(actor: CommunityActor, query: NotificationListQueryDto) {
-    const roleConditions = this.getRoleConditions(actor);
+    const roleConditions = this.getRoleConditions(actor, query.recipientType);
     const filter: Record<string, unknown> = {
       $or: roleConditions,
     };
@@ -120,8 +160,8 @@ export class NotificationsService {
     };
   }
 
-  async unreadCount(actor: CommunityActor) {
-    const roleConditions = this.getRoleConditions(actor);
+  async unreadCount(actor: CommunityActor, recipientType?: string) {
+    const roleConditions = this.getRoleConditions(actor, recipientType);
     const count = await this.notifications.countDocuments({
       $or: roleConditions,
       isRead: false,
@@ -165,16 +205,24 @@ export class NotificationsService {
     return { data: this.view(notification, actor.sub) };
   }
 
-  async markAllRead(actor: CommunityActor) {
-    const roleConditions = this.getRoleConditions(actor);
+  async markAllRead(actor: CommunityActor, recipientType?: string) {
+    const roleConditions = this.getRoleConditions(actor, recipientType);
     const extra = actor as unknown as Record<string, unknown>;
     const targetIds = [actor.sub];
     if (extra.storeId) targetIds.push(String(extra.storeId));
     if (extra.businessId) targetIds.push(String(extra.businessId));
 
+    const directFilter: Record<string, unknown> = {
+      recipientId: { $in: targetIds },
+      isRead: false,
+    };
+    if (recipientType) {
+      directFilter.recipientType = recipientType;
+    }
+
     await Promise.all([
       this.notifications.updateMany(
-        { recipientId: { $in: targetIds }, isRead: false },
+        directFilter,
         { $set: { isRead: true, readAt: new Date() }, $addToSet: { readBy: actor.sub } },
       ),
       this.notifications.updateMany(

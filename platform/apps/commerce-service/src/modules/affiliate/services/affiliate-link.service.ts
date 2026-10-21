@@ -293,6 +293,9 @@ export class AffiliateLinkService {
       return {
         targetUrl,
         isThrottled: true,
+        // Do not expose an existing attribution nonce to another request that
+        // merely shares the same IP (for example users behind the same NAT).
+        // A browser that owns the original click already has its cookie.
         cookieToken: null,
       };
     }
@@ -448,6 +451,157 @@ export class AffiliateLinkService {
   }
 
   /**
+   * 4b. List books eligible for affiliate marketplace (with store-level & book-level opt-in filter)
+   */
+  async listAffiliateMarketplaceBooks(
+    userId: string | null,
+    query: {
+      search?: string;
+      format?: string;
+      page?: number;
+      limit?: number;
+      sortBy?: string;
+    },
+  ) {
+    const page = Math.max(1, query.page || 1);
+    const limit = Math.min(50, Math.max(1, query.limit || 12));
+    const skip = (page - 1) * limit;
+
+    // 1. Find stores that have disabled affiliate
+    const disabledStores = await this.prisma.storeAffiliateSetting.findMany({
+      where: { isEnabled: false },
+      select: { storeId: true },
+    });
+    const disabledStoreIds = disabledStores.map((s) => s.storeId);
+
+    // 2. Find books that have disabled affiliate
+    const disabledBooks = await this.prisma.bookAffiliateSetting.findMany({
+      where: { isEligible: false },
+      select: { bookId: true },
+    });
+    const disabledBookIds = disabledBooks.map((b) => b.bookId);
+
+    // 3. Build where clause
+    const where: any = {
+      status: { notIn: ['DRAFT', 'ARCHIVED', 'SUSPENDED'] },
+      ...(disabledStoreIds.length > 0 && {
+        storeId: { notIn: disabledStoreIds },
+      }),
+      ...(disabledBookIds.length > 0 && {
+        id: { notIn: disabledBookIds },
+      }),
+    };
+
+    if (query.search?.trim()) {
+      where.title = {
+        contains: query.search.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (query.format && query.format !== 'ALL') {
+      where.format = query.format;
+    }
+
+    // 4. Query books
+    let orderBy: any = { createdAt: 'desc' };
+    if (query.sortBy === 'price_asc') orderBy = { price: 'asc' };
+    else if (query.sortBy === 'price_desc') orderBy = { price: 'desc' };
+    else if (query.sortBy === 'oldest') orderBy = { createdAt: 'asc' };
+
+    const [total, books, policy, userProfile] = await Promise.all([
+      this.prisma.book.count({ where }),
+      this.prisma.book.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy,
+        include: {
+          affiliateSetting: true,
+        },
+      }),
+      this.getActivePolicy(),
+      userId
+        ? this.prisma.affiliateProfile.findUnique({ where: { userId } })
+        : null,
+    ]);
+
+    // 5. Fetch store settings in batch
+    const storeIds = Array.from(new Set(books.map((b) => b.storeId)));
+    const storeSettings = await this.prisma.storeAffiliateSetting.findMany({
+      where: { storeId: { in: storeIds } },
+    });
+    const storeSettingMap = new Map(storeSettings.map((s) => [s.storeId, s]));
+
+    // 6. Fetch existing links for this user if active CTV
+    const existingLinksMap = new Map<string, string>();
+    if (userProfile && userProfile.status === 'ACTIVE' && books.length > 0) {
+      const existingLinks = await this.prisma.affiliateLink.findMany({
+        where: {
+          profileId: userProfile.id,
+          targetBookId: { in: books.map((b) => b.id) },
+          isActive: true,
+        },
+      });
+      existingLinks.forEach((l) => {
+        if (l.targetBookId) {
+          existingLinksMap.set(l.targetBookId, `/r/${l.shortCode}`);
+        }
+      });
+    }
+
+    // 7. Calculate commission for each book
+    const items = books.map((book) => {
+      const storeSetting = storeSettingMap.get(book.storeId);
+      let effectiveRate: number;
+      if (
+        book.affiliateSetting?.customRate !== null &&
+        book.affiliateSetting?.customRate !== undefined
+      ) {
+        effectiveRate = Number(book.affiliateSetting.customRate);
+      } else if (book.format === BookFormat.PHYSICAL) {
+        effectiveRate =
+          storeSetting?.physicalRate !== null &&
+          storeSetting?.physicalRate !== undefined
+            ? Number(storeSetting.physicalRate)
+            : Number(policy.defaultPhysicalRate);
+      } else {
+        effectiveRate =
+          storeSetting?.ebookRate !== null && storeSetting?.ebookRate !== undefined
+            ? Number(storeSetting.ebookRate)
+            : Number(policy.defaultEbookRate);
+      }
+
+      const price = Math.max(0, Math.floor(Number(book.price)));
+      const estimatedCommissionAmount = Math.floor((price * effectiveRate) / 100);
+
+      return {
+        bookId: book.id,
+        id: book.id,
+        title: book.title,
+        slug: book.slug || book.id,
+        cover: book.coverUrl || null,
+        coverImage: book.coverUrl || null,
+        coverUrl: book.coverUrl || null,
+        price,
+        format: book.format,
+        storeId: book.storeId,
+        effectiveRate,
+        estimatedCommissionAmount,
+        existingShortUrl: existingLinksMap.get(book.id) || null,
+      };
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+    };
+  }
+
+  /**
    * 5. Verify Attribution for Checkout & Check Self-Referral
    */
   async verifyAttributionForCheckout(
@@ -528,8 +682,8 @@ export class AffiliateLinkService {
 
     const clean = url.trim();
 
-    // Check /book/:id
-    const bookMatch = clean.match(/\/book\/([a-zA-Z0-9_-]+)/);
+    // Check /book/:id or /books/:id
+    const bookMatch = clean.match(/\/(?:book|books)\/([a-zA-Z0-9_-]+)/);
     if (bookMatch) {
       return {
         targetType: AffiliateLinkTargetType.BOOK,

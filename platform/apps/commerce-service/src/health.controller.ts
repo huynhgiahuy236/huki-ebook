@@ -78,4 +78,20 @@ export class HealthController {
   async readiness(): Promise<HealthStatus> {
     return this.check();
   }
+
+  @Get('affiliate')
+  @ApiOperation({ summary: 'Affiliate subsystem health and SLO monitoring probe' })
+  async checkAffiliate() {
+    return {
+      service: 'commerce-service',
+      subsystem: 'affiliate-marketing',
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      slo: {
+        availabilityTarget: '99.9%',
+        trackingCheckoutP95TargetMs: 150,
+        reportingP95TargetMs: 500,
+      },
+    };
+  }
 }

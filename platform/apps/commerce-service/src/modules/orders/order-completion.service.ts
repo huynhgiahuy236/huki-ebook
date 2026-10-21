@@ -21,6 +21,32 @@ export class OrderCompletionService {
     @Optional() private readonly affiliateLifecycleService?: AffiliateLifecycleService,
   ) {}
 
+  async handleAffiliateDelivered(
+    orderId: string,
+    sellerOrderId: string,
+    deliveredAt: Date,
+  ): Promise<void> {
+    if (this.affiliateLifecycleService) {
+      await this.affiliateLifecycleService.handleOrderDelivered(
+        orderId,
+        sellerOrderId,
+        deliveredAt,
+      );
+    }
+  }
+
+  async handleAffiliateEscrowReleased(
+    orderId: string,
+    releasedAt: Date,
+  ): Promise<void> {
+    if (this.affiliateLifecycleService) {
+      await this.affiliateLifecycleService.handleEscrowReleased(
+        orderId,
+        releasedAt,
+      );
+    }
+  }
+
   async processShippingEvent(event: DomainEvent): Promise<void> {
     try {
       await this.prisma.$transaction(async (tx) => {

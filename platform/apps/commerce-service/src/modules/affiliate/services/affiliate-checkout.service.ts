@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AffiliatePolicyResolverService } from '../policy-engine/affiliate-policy-resolver.service';
+import { ConfigService } from '@nestjs/config';
 
 export interface CheckoutCommissionItem {
   orderItemId: string;
@@ -30,17 +31,30 @@ export class AffiliateCheckoutService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly policyResolver: AffiliatePolicyResolverService,
+    @Optional() private readonly configService?: ConfigService,
   ) {}
 
   /**
    * Resolves attribution record from plain token or session nonce.
-   * Performs validation: expiration, active link, active affiliate profile, and self-referral check.
+   * Performs validation: emergency kill-switch, expiration, active link, active affiliate profile, and self-referral check.
    */
   async resolveAttribution(
     tokenOrNonce?: string,
     buyerUserId?: string,
     tx?: any,
   ) {
+    // 0. Emergency Kill-Switch Check (Decision AFF-DEC-024)
+    const isEnabled =
+      this.configService?.get<string>('AFFILIATE_PROGRAM_ENABLED') ??
+      process.env.AFFILIATE_PROGRAM_ENABLED;
+
+    if (isEnabled === 'false') {
+      this.logger.warn(
+        '[Kill Switch Active] Affiliate program is disabled via AFFILIATE_PROGRAM_ENABLED=false. Gracefully bypassing attribution.',
+      );
+      return null;
+    }
+
     if (!tokenOrNonce || !tokenOrNonce.trim()) {
       return null;
     }

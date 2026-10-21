@@ -140,6 +140,16 @@ describe('AffiliateLinkService - Phase 5 Link, Attribution & Analytics (Unit Tes
 
     it('should generate link with custom shortCode if valid and available', async () => {
       prisma.affiliateProfile.findUnique.mockResolvedValue(mockActiveProfile);
+      prisma.book.findUnique.mockResolvedValue({
+        id: 'van-hoc',
+        storeId: 'store-1',
+        title: 'Văn học',
+        affiliateSetting: null,
+      });
+      prisma.storeAffiliateSetting.findUnique.mockResolvedValue({
+        storeId: 'store-1',
+        isEnabled: true,
+      });
       prisma.affiliateLink.findUnique.mockResolvedValue(null);
       prisma.affiliateLink.create.mockImplementation(({ data }: any) => ({
         id: 'link-1',

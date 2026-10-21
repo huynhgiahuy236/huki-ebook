@@ -6,18 +6,24 @@ import { z } from 'zod';
 export const PromotionMethodEnum = z.enum([
   'REVIEW',
   'VIDEO',
+  'SHORT_VIDEO',
   'SOCIAL_POST',
+  'BLOG',
   'BLOG_ARTICLE',
   'LIVESTREAM',
   'COMMUNITY_GROUP',
+  'OTHER',
 ]);
 
 export const PaidTrafficSourceEnum = z.enum([
   'FACEBOOK_ADS',
+  'META_ADS',
   'GOOGLE_ADS',
+  'GOOGLE_SEARCH',
   'TIKTOK_ADS',
   'YOUTUBE_ADS',
   'NATIVE_ADS',
+  'OTHER_PAID',
   'OTHER',
 ]);
 
@@ -31,10 +37,12 @@ export const ChannelTypeEnum = z.enum([
 ]);
 
 export const FollowersRangeEnum = z.enum([
-  'UNDER_5K',
-  'FROM_5K_TO_20K',
-  'FROM_20K_TO_100K',
-  'OVER_100K',
+  'UNDER_1K',
+  'FROM_1K_TO_5K',
+  'FROM_5K_TO_10K',
+  'FROM_10K_TO_50K',
+  'FROM_50K_TO_100K',
+  'ABOVE_100K',
 ]);
 
 export const ApplicantTypeEnum = z.enum(['INDIVIDUAL', 'BUSINESS']);
@@ -212,6 +220,7 @@ export const channelItemBaseShape = {
       return val;
     }),
   handle: z.string().trim().max(100, { message: 'Handle không quá 100 ký tự.' }).optional(),
+  canonicalUrl: z.string().optional(),
   followersRange: FollowersRangeEnum,
   isPrimary: z.boolean().default(false),
 };

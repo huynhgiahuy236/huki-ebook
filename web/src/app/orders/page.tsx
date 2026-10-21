@@ -226,6 +226,18 @@ export default function OrdersPage() {
         bgClass: 'bg-emerald-50 border-emerald-200 text-emerald-700',
       };
     }
+    if (
+      s === 'DELIVERED' &&
+      orderOrStatus?.paymentMethod === 'COD' &&
+      orderOrStatus?.paymentStatus !== 'SUCCEEDED'
+    ) {
+      return {
+        text: 'ĐÃ GIAO - CHỜ NỘP COD',
+        icon: 'account_balance_wallet',
+        colorClass: 'text-amber-600',
+        bgClass: 'bg-amber-50 border-amber-200 text-amber-700',
+      };
+    }
     if (s === 'COMPLETED' || s === 'DELIVERED') {
       return {
         text: isPureEbook ? 'ĐÃ NHẬN SÁCH' : 'HOÀN THÀNH',
@@ -740,7 +752,9 @@ export default function OrdersPage() {
                             {/* Buttons Group */}
                             {(() => {
                               const effectiveStatus = (ord.sellerOrders?.[0]?.status || ord.status || '').toUpperCase();
-                              const isPendingPayment = effectiveStatus === 'PENDING_PAYMENT' || ord.paymentStatus === 'PENDING';
+                              const isOnlinePayment = ord.paymentMethod !== 'COD';
+                              const isPendingPayment = isOnlinePayment &&
+                                (effectiveStatus === 'PENDING_PAYMENT' || ord.paymentStatus === 'PENDING');
                               const isPendingConfirmation = effectiveStatus === 'PENDING_CONFIRMATION' || effectiveStatus === 'PENDING';
                               const isCompleted = effectiveStatus === 'COMPLETED' || effectiveStatus === 'DELIVERED';
                               const isCancelled = effectiveStatus === 'CANCELLED';

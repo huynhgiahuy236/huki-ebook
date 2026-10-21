@@ -157,7 +157,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
       </div>
 
       {/* Right Actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
         {/* Chuông Thông Báo Realtime Toàn Diện */}
         <UniversalNotificationBell variant="seller" />
 

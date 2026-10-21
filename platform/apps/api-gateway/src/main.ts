@@ -66,6 +66,8 @@ async function bootstrap() {
       'Idempotency-Key',
       'x-business-id',
       'X-Business-Id',
+      'x-affiliate-token',
+      'X-Affiliate-Token',
     ],
     exposedHeaders: ['x-correlation-id', 'X-Correlation-Id'],
   });

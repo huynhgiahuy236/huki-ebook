@@ -64,6 +64,25 @@ export class NotificationListQueryDto {
   @IsOptional()
   @IsIn(NOTIFICATION_PRIORITIES)
   priority?: NotificationPriority;
+
+  @ApiPropertyOptional({ enum: NOTIFICATION_RECIPIENT_TYPES })
+  @IsOptional()
+  @IsIn(NOTIFICATION_RECIPIENT_TYPES)
+  recipientType?: NotificationRecipientType;
+}
+
+export class NotificationUnreadCountQueryDto {
+  @ApiPropertyOptional({ enum: NOTIFICATION_RECIPIENT_TYPES })
+  @IsOptional()
+  @IsIn(NOTIFICATION_RECIPIENT_TYPES)
+  recipientType?: NotificationRecipientType;
+}
+
+export class NotificationReadAllDto {
+  @ApiPropertyOptional({ enum: NOTIFICATION_RECIPIENT_TYPES })
+  @IsOptional()
+  @IsIn(NOTIFICATION_RECIPIENT_TYPES)
+  recipientType?: NotificationRecipientType;
 }
 
 export class DispatchNotificationDto {

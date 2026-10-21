@@ -8,6 +8,7 @@ import {
   Req,
   Ip,
   Headers,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AffiliateLinkService } from '../services/affiliate-link.service';
 import {
@@ -19,16 +20,21 @@ import {
 export class AffiliateLinkController {
   constructor(private readonly linkService: AffiliateLinkService) {}
 
+  private requireUserId(req: any): string {
+    const userId =
+      req.headers?.['x-user-id'] || req.user?.id || req.user?.userId;
+    if (!userId) {
+      throw new UnauthorizedException('Authentication token is required');
+    }
+    return userId;
+  }
+
   /**
    * 1. Create a new affiliate link (Authenticated CTV)
    */
   @Post('links')
   async createLink(@Req() req: any, @Body() dto: CreateAffiliateLinkDto) {
-    const userId =
-      req.headers?.['x-user-id'] ||
-      req.user?.id ||
-      req.user?.userId ||
-      'mock-affiliate-user-1';
+    const userId = this.requireUserId(req);
 
     const data = await this.linkService.createLink(userId, dto);
     return {
@@ -43,11 +49,7 @@ export class AffiliateLinkController {
    */
   @Get('links')
   async listMyLinks(@Req() req: any, @Query() query: QueryAffiliateLinksDto) {
-    const userId =
-      req.headers?.['x-user-id'] ||
-      req.user?.id ||
-      req.user?.userId ||
-      'mock-affiliate-user-1';
+    const userId = this.requireUserId(req);
 
     const data = await this.linkService.listMyLinks(userId, query);
     return {
@@ -57,7 +59,36 @@ export class AffiliateLinkController {
   }
 
   /**
-   * 3. Get book commission & quick affiliate card for /book/:id
+   * 3. List books eligible for affiliate marketplace
+   */
+  @Get('catalog')
+  async listAffiliateMarketplaceBooks(
+    @Req() req: any,
+    @Query('search') search?: string,
+    @Query('format') format?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sortBy') sortBy?: string,
+  ) {
+    const userId =
+      req.headers?.['x-user-id'] || req.user?.id || req.user?.userId || null;
+
+    const data = await this.linkService.listAffiliateMarketplaceBooks(userId, {
+      search,
+      format,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 12,
+      sortBy,
+    });
+
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * 4. Get book commission & quick affiliate card for /book/:id
    */
   @Get('books/:bookId/commission-card')
   async getBookCommissionCard(

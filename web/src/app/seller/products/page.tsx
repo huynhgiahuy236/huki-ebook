@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { catalogApi, BookFormat } from '@/ui/api/catalogApi';
+import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { businessApi } from '@/ui/api/businessApi';
 import { aiAudioService, AiAudioPlan, BookAiSubscription } from '@/ui/services/aiAudioService';
 import { useAuth } from '@/ui/context/AuthContext';
@@ -61,6 +62,11 @@ interface SellerBookItem {
   category?: BookCategory;
   categoryId?: string;
   physicalDetails?: BookPhysicalDetails;
+  isAffiliateEligible?: boolean;
+  affiliateSetting?: {
+    isEligible: boolean;
+    customRate?: number | null;
+  } | null;
 }
 
 interface CategoryOption {
@@ -77,6 +83,8 @@ export default function SellerProductsPage() {
   const [activeTab, setActiveTab] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState('ALL');
+  const [selectedAffiliateFilter, setSelectedAffiliateFilter] = useState<'ALL' | 'AFFILIATE_ON' | 'AFFILIATE_OFF'>('ALL');
+  const [selectedStockFilter, setSelectedStockFilter] = useState<'ALL' | 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK'>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
@@ -100,6 +108,7 @@ export default function SellerProductsPage() {
     coverUrl: string;
     description: string;
     status: string;
+    enableAffiliate: boolean;
   }>({
     title: '',
     authorName: '',
@@ -112,6 +121,7 @@ export default function SellerProductsPage() {
     coverUrl: '',
     description: '',
     status: 'PUBLISHED',
+    enableAffiliate: false,
   });
   const [isSavingBook, setIsSavingBook] = useState(false);
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(new Set());
@@ -313,6 +323,7 @@ export default function SellerProductsPage() {
       coverUrl: book.coverUrl || book.coverImage || book.cover || '',
       description: book.description || '',
       status: book.status || 'PUBLISHED',
+      enableAffiliate: Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible),
     });
   };
 
@@ -338,6 +349,7 @@ export default function SellerProductsPage() {
         description: bookFormData.description.trim() || undefined,
         coverUrl: bookFormData.coverUrl.trim() || undefined,
         categoryId: bookFormData.categoryId || undefined,
+        enableAffiliate: bookFormData.enableAffiliate,
         physicalDetails: (bookFormData.format === 'PHYSICAL' || bookFormData.format === 'BOTH') ? {
           stock: Math.max(0, Number(bookFormData.stock) || 0),
           weight: editingBook?.physicalDetails?.weight || 300,
@@ -354,6 +366,14 @@ export default function SellerProductsPage() {
 
       const res = await catalogApi.updateBook(editingBook.id, updatePayload);
       if (res.success || res.data) {
+        if (currentBizId) {
+          try {
+            await affiliateApi.updateBookAffiliateSetting(currentBizId, editingBook.id, {
+              isEligible: bookFormData.enableAffiliate,
+            });
+          } catch { /* ignore fallback */ }
+        }
+
         if (bookFormData.format === 'PHYSICAL' || bookFormData.format === 'BOTH') {
           try {
             await catalogApi.updateInventory(editingBook.id, Math.max(0, Number(bookFormData.stock) || 0), 'MANUAL_ADJUSTMENT');
@@ -403,6 +423,30 @@ export default function SellerProductsPage() {
         return false;
       }
 
+      // Affiliate filter
+      if (selectedAffiliateFilter === 'AFFILIATE_ON') {
+        const isAff = Boolean(b.isAffiliateEligible || b.affiliateSetting?.isEligible);
+        if (!isAff) return false;
+      } else if (selectedAffiliateFilter === 'AFFILIATE_OFF') {
+        const isAff = Boolean(b.isAffiliateEligible || b.affiliateSetting?.isEligible);
+        if (isAff) return false;
+      }
+
+      // Stock filter
+      if (selectedStockFilter !== 'ALL') {
+        const stock = b.physicalDetails?.stock ?? 0;
+        if (selectedStockFilter === 'IN_STOCK') {
+          // Có sẵn dồi dào: Sách giấy > 10 cuốn hoặc Ebook
+          if (b.format !== 'DIGITAL' && stock <= 10) return false;
+        } else if (selectedStockFilter === 'LOW_STOCK') {
+          // Sắp hết kho: Sách giấy từ 1 đến 10 cuốn
+          if (b.format === 'DIGITAL' || stock <= 0 || stock > 10) return false;
+        } else if (selectedStockFilter === 'OUT_OF_STOCK') {
+          // Hết hàng: stock = 0 và không phải chỉ Ebook
+          if (b.format === 'DIGITAL' || stock > 0) return false;
+        }
+      }
+
       // Multi-tier Date Filter
       if (!matchesDateFilter(b.createdAt, dateFilter)) {
         return false;
@@ -418,7 +462,7 @@ export default function SellerProductsPage() {
 
       return true;
     });
-  }, [books, searchQuery, selectedFormat, activeTab, dateFilter]);
+  }, [books, searchQuery, selectedFormat, selectedAffiliateFilter, selectedStockFilter, activeTab, dateFilter]);
 
   const totalPages = Math.ceil(filteredBooks.length / pageSize) || 1;
   const paginatedBooks = useMemo(() => {
@@ -433,6 +477,13 @@ export default function SellerProductsPage() {
       actions: [
         { value: 'PUBLISH_ALL', label: 'Xuất bản hàng loạt (Công khai)' },
         { value: 'HIDE_ALL', label: 'Tạm ẩn hàng loạt (Ẩn khỏi sàn)' },
+      ],
+    },
+    {
+      groupLabel: 'TIẾP THỊ LIÊN KẾT (AFFILIATE)',
+      actions: [
+        { value: 'AFFILIATE_ENABLE_ALL', label: 'Bật Affiliate hàng loạt (Cho phép tiếp thị)' },
+        { value: 'AFFILIATE_DISABLE_ALL', label: 'Tắt Affiliate hàng loạt (Dừng tiếp thị)' },
       ],
     },
     {
@@ -467,16 +518,42 @@ export default function SellerProductsPage() {
         showToast?.(`Đã tạm ẩn ${count} đầu sách khỏi sàn!`, 'success');
         setSelectedIds([]);
         void loadBooks();
+      } else if (actionValue === 'AFFILIATE_ENABLE_ALL') {
+        const storeId = currentBizId || 'default-store';
+        const res = await affiliateApi.bulkUpdateBooksAffiliate(storeId, {
+          bookIds: selectedIds,
+          isEligible: true,
+        });
+        if (res.success || res.data) {
+          showToast?.(`Đã bật Tiếp thị liên kết (Affiliate) cho ${selectedIds.length} đầu sách!`, 'success');
+        } else {
+          showToast?.(res.error?.message || 'Không thể cập nhật Affiliate hàng loạt.', 'error');
+        }
+        setSelectedIds([]);
+        void loadBooks();
+      } else if (actionValue === 'AFFILIATE_DISABLE_ALL') {
+        const storeId = currentBizId || 'default-store';
+        const res = await affiliateApi.bulkUpdateBooksAffiliate(storeId, {
+          bookIds: selectedIds,
+          isEligible: false,
+        });
+        if (res.success || res.data) {
+          showToast?.(`Đã tắt Tiếp thị liên kết (Affiliate) cho ${selectedIds.length} đầu sách!`, 'success');
+        } else {
+          showToast?.(res.error?.message || 'Không thể cập nhật Affiliate hàng loạt.', 'error');
+        }
+        setSelectedIds([]);
+        void loadBooks();
       } else if (actionValue === 'EXPORT_CSV') {
         const rows = books.filter((b) => selectedIds.includes(b.id));
-        const headers = ['ID,Tên sách,Tác giả,Định dạng,Giá bán,Tồn kho,Trạng thái,Ngày tạo'];
+        const headers = ['ID,Tên sách,Tác giả,Định dạng,Giá bán,Tồn kho,Affiliate,Trạng thái,Ngày tạo'];
         const csvContent =
           'data:text/csv;charset=utf-8,\uFEFF' +
           headers
             .concat(
               rows.map(
                 (r) =>
-                  `"${r.id}","${(r.title || '').replace(/"/g, '""')}","${(typeof r.author === 'string' ? r.author : r.author?.name || '').replace(/"/g, '""')}","${r.format || ''}",${r.price || 0},${r.physicalDetails?.stock ?? 0},"${r.status || ''}","${r.createdAt || ''}"`
+                  `"${r.id}","${(r.title || '').replace(/"/g, '""')}","${(typeof r.author === 'string' ? r.author : r.author?.name || '').replace(/"/g, '""')}","${r.format || ''}",${r.price || 0},${r.physicalDetails?.stock ?? 0},"${Boolean(r.isAffiliateEligible || r.affiliateSetting?.isEligible) ? 'Bật' : 'Tắt'}","${r.status || ''}","${r.createdAt || ''}"`
               )
             )
             .join('\n');
@@ -855,6 +932,41 @@ export default function SellerProductsPage() {
               </div>
             </div>
 
+            {/* Tiếp thị liên kết (Affiliate) Toggle */}
+            <div className="p-3 rounded-xl bg-amber-50/60 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-amber-600">campaign</span>
+                  <span>Tiếp Thị Liên Kết (Affiliate)</span>
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Cho phép đối tác / KOC nhận link giới thiệu và quảng bá tựa sách này để nhận hoa hồng.
+                </p>
+              </div>
+              <div className="flex items-center gap-4 shrink-0">
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-bold text-emerald-800">
+                  <input
+                    type="radio"
+                    name="quickEditAffiliate"
+                    checked={bookFormData.enableAffiliate === true}
+                    onChange={() => setBookFormData((prev) => ({ ...prev, enableAffiliate: true }))}
+                    className="w-4 h-4 text-[#00875A] focus:ring-[#00875A]"
+                  />
+                  <span>Bật Affiliate</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-600">
+                  <input
+                    type="radio"
+                    name="quickEditAffiliate"
+                    checked={bookFormData.enableAffiliate === false}
+                    onChange={() => setBookFormData((prev) => ({ ...prev, enableAffiliate: false }))}
+                    className="w-4 h-4 text-slate-500 focus:ring-slate-400"
+                  />
+                  <span>Tắt Affiliate</span>
+                </label>
+              </div>
+            </div>
+
             <div className="pt-2 border-t border-slate-100 flex items-center justify-end gap-2.5">
               <SellerActionButton
                 type="button"
@@ -893,19 +1005,51 @@ export default function SellerProductsPage() {
         searchPlaceholder="Tìm tên sách, slug..."
         className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs"
         extraFilters={
-          <select
-            value={selectedFormat}
-            onChange={(e) => {
-              setSelectedFormat(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
-          >
-            <option value="ALL">Mọi Định Dạng</option>
-            <option value="PHYSICAL">Sách Giấy</option>
-            <option value="DIGITAL">Ebook DRM</option>
-            <option value="BOTH">Combo Sách + Ebook</option>
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Format Filter */}
+            <select
+              value={selectedFormat}
+              onChange={(e) => {
+                setSelectedFormat(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+            >
+              <option value="ALL">Mọi Định Dạng</option>
+              <option value="PHYSICAL">Sách Giấy</option>
+              <option value="DIGITAL">Ebook DRM</option>
+              <option value="BOTH">Combo Sách + Ebook</option>
+            </select>
+
+            {/* Affiliate Filter */}
+            <select
+              value={selectedAffiliateFilter}
+              onChange={(e) => {
+                setSelectedAffiliateFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+            >
+              <option value="ALL">Tất Cả Affiliate</option>
+              <option value="AFFILIATE_ON">⚡ Đã bật Affiliate</option>
+              <option value="AFFILIATE_OFF">Chưa bật Affiliate</option>
+            </select>
+
+            {/* Stock Quantity Filter */}
+            <select
+              value={selectedStockFilter}
+              onChange={(e) => {
+                setSelectedStockFilter(e.target.value as any);
+                setCurrentPage(1);
+              }}
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
+            >
+              <option value="ALL">Mọi Mức Tồn Kho</option>
+              <option value="IN_STOCK">Còn Dồi Dào (&gt; 10)</option>
+              <option value="LOW_STOCK">Sắp Hết Kho (1 - 10)</option>
+              <option value="OUT_OF_STOCK">Đã Hết Hàng (0)</option>
+            </select>
+          </div>
         }
         bulkActionGroups={productBulkActionGroups}
         selectedCount={selectedIds.length}
@@ -1089,6 +1233,25 @@ export default function SellerProductsPage() {
                               </span>
                             );
                           })()}
+
+                          {/* Hiển thị trạng thái Tiếp thị liên kết (Affiliate) */}
+                          {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs"
+                              title={book.affiliateSetting?.customRate ? `Affiliate: Đang áp dụng hoa hồng riêng ${book.affiliateSetting.customRate}%` : 'Affiliate: Bật theo tỷ lệ gian hàng'}
+                            >
+                              <span className="material-symbols-outlined text-[13px] text-amber-600">campaign</span>
+                              <span>Affiliate: Bật{book.affiliateSetting?.customRate ? ` (${book.affiliateSetting.customRate}%)` : ''}</span>
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200"
+                              title="Chưa bật tiếp thị liên kết cho cuốn sách này"
+                            >
+                              <span className="material-symbols-outlined text-[13px] text-slate-400">campaign</span>
+                              <span>Affiliate: Tắt</span>
+                            </span>
+                          )}
                         </div>
                         <div className="mt-1 text-[11px]">
                           {book.format === 'DIGITAL' ? (
@@ -1184,6 +1347,16 @@ export default function SellerProductsPage() {
                                 <div><span className="text-slate-400">Giá bán trên sàn: </span><span className="font-bold text-[#00875A] text-xs">{Number(book.price || 0).toLocaleString('vi-VN')} ₫</span></div>
                                 <div><span className="text-slate-400">Giá bìa niêm yết: </span><span className="text-slate-600">{book.originalPrice ? `${Number(book.originalPrice).toLocaleString('vi-VN')} ₫` : 'Bằng giá bán'}</span></div>
                                 <div><span className="text-slate-400">Danh mục phân loại: </span><span className="font-semibold text-slate-800">{book.category?.name || 'Sách tổng hợp'}</span></div>
+                                <div>
+                                  <span className="text-slate-400">Tiếp thị liên kết (Affiliate): </span>
+                                  {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) ? (
+                                    <span className="font-bold text-amber-700">
+                                      Đang Bật {book.affiliateSetting?.customRate ? `(Hoa hồng riêng: ${book.affiliateSetting.customRate}%)` : '(Theo tỷ lệ gian hàng)'}
+                                    </span>
+                                  ) : (
+                                    <span className="font-semibold text-slate-500">Chưa Bật</span>
+                                  )}
+                                </div>
                               </div>
                             </div>
 

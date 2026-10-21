@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { AdminStatusBadge } from './AdminUI';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
 
 export function AdminAffiliatesView() {
@@ -72,6 +73,20 @@ export function AdminAffiliatesView() {
 
   useEffect(() => {
     fetchApplications();
+
+    // Event-driven real-time synchronization across tabs (zero jitter, no polling)
+    const unsubscribe = realtimeSyncBus.subscribe((msg) => {
+      if (
+        msg.type === 'AFFILIATE_APPLICATION_UPDATED' ||
+        msg.type === 'AFFILIATE_STATUS_CHANGED'
+      ) {
+        fetchApplications();
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, [fetchApplications]);
 
   // Load detail modal
@@ -127,6 +142,10 @@ export function AdminAffiliatesView() {
 
       if (res?.success) {
         showToast('Cập nhật trạng thái đối tác thành công!', 'success');
+        realtimeSyncBus.publish('AFFILIATE_STATUS_CHANGED', {
+          profileId: selectedId,
+          status: actionType === 'APPROVE' ? 'ACTIVE' : actionType,
+        });
         setActionType(null);
         setActionReason('');
         await handleOpenDetail(selectedId);

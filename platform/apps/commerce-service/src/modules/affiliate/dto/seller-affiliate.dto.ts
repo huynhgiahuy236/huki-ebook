@@ -95,6 +95,11 @@ export class QueryStoreBooksAffiliateDto {
   eligibility?: 'ALL' | 'ELIGIBLE' | 'INELIGIBLE';
 
   @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  isEligible?: boolean;
+
+  @IsOptional()
   @Type(() => Number)
   @Min(1)
   page?: number = 1;

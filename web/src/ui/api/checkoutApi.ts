@@ -137,20 +137,28 @@ export const checkoutApi = {
     idempotencyKey?: string
   ): Promise<ApiResponse<CheckoutConfirmResponse>> => {
     const key = idempotencyKey || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idemp-${Date.now()}`);
-    const affToken =
-      payload.affiliateToken ||
-      (typeof document !== 'undefined'
-        ? document.cookie
-            .split('; ')
-            .find((row) => row.startsWith('huki_aff_click='))
-            ?.split('=')[1]
-        : undefined);
+    let affToken = payload.affiliateToken;
+    if (!affToken && typeof document !== 'undefined') {
+      const match = document.cookie
+        .split(';')
+        .map((c) => c.trim())
+        .find((row) => row.startsWith('huki_aff_click='));
+      if (match) {
+        affToken = decodeURIComponent(match.substring('huki_aff_click='.length));
+      }
+    }
+    if (!affToken && typeof localStorage !== 'undefined') {
+      try {
+        affToken = localStorage.getItem('huki_aff_click') || undefined;
+      } catch (e) {
+        // Ignore localStorage error
+      }
+    }
 
     return apiClient<CheckoutConfirmResponse>('/cart/checkout/confirm', {
       method: 'POST',
       headers: {
         'idempotency-key': key,
-        ...(affToken ? { 'x-affiliate-token': affToken } : {}),
       },
       body: JSON.stringify({
         ...payload,

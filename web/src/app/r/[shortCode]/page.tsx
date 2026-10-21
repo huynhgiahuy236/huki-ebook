@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export default function AffiliateRedirectPage() {
   const params = useParams();
@@ -29,12 +30,29 @@ export default function AffiliateRedirectPage() {
           const destination = res.data.targetUrl;
           setTargetUrl(destination);
 
-          // If cookieToken returned (human click), store cookie
+          // If cookieToken returned, store in cookie and localStorage
           if (res.data.cookieToken) {
+            const token = res.data.cookieToken;
             const maxAge = res.data.cookieMaxAgeSeconds || 30 * 86400;
             document.cookie = `huki_aff_click=${encodeURIComponent(
-              res.data.cookieToken,
+              token,
             )}; path=/; max-age=${maxAge}; SameSite=Lax`;
+
+            try {
+              localStorage.setItem('huki_aff_click', token);
+              localStorage.setItem('huki_aff_click_time', Date.now().toString());
+            } catch (e) {
+              // Ignore localStorage error if disabled
+            }
+
+            // Realtime notification for active affiliate dashboard tabs
+            try {
+              realtimeSyncBus.publish('AFFILIATE_CLICK_RECORDED', {
+                shortCode,
+                profileId: res.data.profileId,
+                targetUrl: destination,
+              });
+            } catch (e) {}
           }
 
           setStatus('REDIRECTING');

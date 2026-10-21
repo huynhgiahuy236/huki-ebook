@@ -35,6 +35,8 @@ import {
   DispatchNotificationDto,
   NotificationIdParamDto,
   NotificationListQueryDto,
+  NotificationUnreadCountQueryDto,
+  NotificationReadAllDto,
   RegisterNotificationDeviceDto,
   UpdateNotificationPreferenceDto,
 } from "./dto/notification.dto";
@@ -102,8 +104,11 @@ export class NotificationsController {
   })
   @ApiResponse({ status: 200, description: "Unread count" })
   @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
-  unreadCount(@CurrentCommunityActor() actor: CommunityActor) {
-    return this.notifications.unreadCount(actor);
+  unreadCount(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Query() query: NotificationUnreadCountQueryDto,
+  ) {
+    return this.notifications.unreadCount(actor, query.recipientType);
   }
 
   @Post("dispatch")
@@ -128,8 +133,13 @@ export class NotificationsController {
   })
   @ApiResponse({ status: 200, description: "All notifications marked as read" })
   @ApiUnauthorizedResponse({ description: "Invalid or missing token" })
-  readAll(@CurrentCommunityActor() actor: CommunityActor) {
-    return this.notifications.markAllRead(actor);
+  readAll(
+    @CurrentCommunityActor() actor: CommunityActor,
+    @Body() body?: NotificationReadAllDto,
+    @Query() query?: NotificationReadAllDto,
+  ) {
+    const recipientType = body?.recipientType || query?.recipientType;
+    return this.notifications.markAllRead(actor, recipientType);
   }
 
   @Delete("clear-all")

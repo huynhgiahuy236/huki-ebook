@@ -44,10 +44,12 @@ export type ChannelType =
   | 'OTHER';
 
 export type FollowersRange =
-  | 'UNDER_5K'
-  | 'FROM_5K_TO_20K'
-  | 'FROM_20K_TO_100K'
-  | 'OVER_100K';
+  | 'UNDER_1K'
+  | 'FROM_1K_TO_5K'
+  | 'FROM_5K_TO_10K'
+  | 'FROM_10K_TO_50K'
+  | 'FROM_50K_TO_100K'
+  | 'ABOVE_100K';
 
 export type ApplicantType = 'INDIVIDUAL' | 'BUSINESS';
 

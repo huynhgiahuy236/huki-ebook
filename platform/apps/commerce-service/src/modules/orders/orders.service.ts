@@ -3988,10 +3988,35 @@ export class OrdersService {
         },
       });
 
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId: sellerOrder.orderId,
+          sellerOrderId: sellerOrder.id,
+          fromStatus: sellerOrder.status,
+          toStatus: SellerOrderStatus.DELIVERED,
+          title: 'Bưu tá đã giao hàng thành công cho khách',
+          description:
+            sellerOrder.order.paymentMethod === PaymentMethod.COD
+              ? 'Đã thu tiền COD; đang chờ bưu tá nộp tiền về sàn'
+              : 'Đơn đã được giao thành công',
+          actorType: 'SHIPPER',
+          actorId: actor?.sub,
+          metadata: dto?.note ? { note: dto.note } : undefined,
+        },
+      });
+
       await this.completion.completeIfReady(tx, sellerOrder.orderId);
 
       return updated;
     });
+
+    // DELIVERED is intentionally kept until COD is remitted, but the
+    // affiliate return/holding window starts when the buyer receives goods.
+    await this.completion.handleAffiliateDelivered(
+      sellerOrder.orderId,
+      sellerOrder.id,
+      now,
+    );
 
     return result;
   }
@@ -4076,9 +4101,28 @@ export class OrdersService {
     }
 
     for (const order of targetOrders) {
-      await this.prisma.order.update({
-        where: { id: order.id },
-        data: { paymentStatus: PaymentStatus.SUCCEEDED },
+      await this.prisma.$transaction(async (tx) => {
+        await tx.order.update({
+          where: { id: order.id },
+          data: { paymentStatus: PaymentStatus.SUCCEEDED },
+        });
+        await tx.payment.updateMany({
+          where: {
+            orderId: order.id,
+            method: PaymentMethod.COD,
+            status: { in: [PaymentStatus.PENDING, PaymentStatus.PROCESSING] },
+          },
+          data: {
+            status: PaymentStatus.SUCCEEDED,
+            paidAt: now,
+            transactionId: `COD-${order.code}`,
+          },
+        });
+        await tx.sellerOrder.updateMany({
+          where: { orderId: order.id, status: SellerOrderStatus.DELIVERED },
+          data: { status: SellerOrderStatus.COMPLETED },
+        });
+        await this.completion.completeIfReady(tx, order.id);
       });
 
       await this.prisma.orderStatusHistory.create({
@@ -4100,6 +4144,7 @@ export class OrdersService {
       });
 
       // Check return window (2 mins): if already expired, release directly to seller
+      let escrowReleased = false;
       for (const so of order.sellerOrders) {
         const deliveredTime = so.completedAt
           ? new Date(so.completedAt).getTime()
@@ -4109,6 +4154,7 @@ export class OrdersService {
         const isReturnWindowPassed = deliveredTime > 0 ? (now.getTime() - deliveredTime) >= 2 * 60 * 1000 : false;
 
         if (isReturnWindowPassed) {
+          escrowReleased = true;
           await this.prisma.orderStatusHistory.create({
             data: {
               orderId: order.id,
@@ -4125,6 +4171,10 @@ export class OrdersService {
             },
           });
         }
+      }
+
+      if (escrowReleased) {
+        await this.completion.handleAffiliateEscrowReleased(order.id, now);
       }
     }
 

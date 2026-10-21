@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AffiliateCommissionStatus } from '../../../../prisma/generated/client';
+import { resolveStoreAndBusinessIds } from '../../../common/seller-scope.util';
 
 export interface CtvDashboardStatsDto {
   profile: {
@@ -58,6 +59,9 @@ export interface SellerDashboardStatsDto {
   topBooks: Array<{
     bookId: string;
     bookTitle: string;
+    coverUrl?: string | null;
+    format?: string;
+    price?: number;
     ordersCount: number;
     revenue: number;
     commissionCost: number;
@@ -217,8 +221,9 @@ export class AffiliateDashboardService {
    * 2. Get Seller Dashboard Statistics
    */
   async getSellerDashboardStats(storeId: string): Promise<SellerDashboardStatsDto> {
+    const storeAndBizIds = await resolveStoreAndBusinessIds(storeId);
     const commissions = await this.prisma.affiliateCommission.findMany({
-      where: { storeId },
+      where: { storeId: { in: storeAndBizIds } },
     });
 
     const uniqueOrders = new Set<string>();
@@ -261,16 +266,29 @@ export class AffiliateDashboardService {
       }
     }
 
+    const bookIds = Array.from(bookMap.keys());
+    const booksDetail = bookIds.length > 0 ? await this.prisma.book.findMany({
+      where: { id: { in: bookIds } },
+      select: { id: true, title: true, coverUrl: true, format: true, price: true },
+    }) : [];
+    const bookDetailMap = new Map(booksDetail.map(b => [b.id, b]));
+
     const topBooks = Array.from(bookMap.entries())
-      .map(([bookId, data]) => ({
-        bookId,
-        bookTitle: data.title,
-        ordersCount: data.orders.size,
-        revenue: data.revenue,
-        commissionCost: data.cost,
-      }))
+      .map(([bookId, data]) => {
+        const detail = bookDetailMap.get(bookId);
+        return {
+          bookId,
+          bookTitle: detail?.title || data.title,
+          coverUrl: detail?.coverUrl || null,
+          format: detail?.format || 'PHYSICAL',
+          price: detail?.price ? Number(detail.price) : 0,
+          ordersCount: data.orders.size,
+          revenue: data.revenue,
+          commissionCost: data.cost,
+        };
+      })
       .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
+      .slice(0, 50);
 
     const now = new Date().toISOString();
 
@@ -380,7 +398,8 @@ export class AffiliateDashboardService {
       if (!profile) throw new NotFoundException('Profile not found');
       where.profileId = profile.id;
     } else if (scope === 'SELLER') {
-      where.storeId = identifier;
+      const storeAndBizIds = await resolveStoreAndBusinessIds(identifier);
+      where.storeId = { in: storeAndBizIds };
     }
 
     if (fromDate || toDate) {

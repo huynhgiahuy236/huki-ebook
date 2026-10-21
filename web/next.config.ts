@@ -39,6 +39,11 @@ const nextConfig: NextConfig = {
         destination: '/auth/register',
         permanent: true,
       },
+      {
+        source: '/books/:slug',
+        destination: '/book/:slug',
+        permanent: false,
+      },
     ];
   },
 };
