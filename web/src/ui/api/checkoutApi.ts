@@ -87,6 +87,7 @@ export interface CheckoutConfirmPayload {
   platformVoucherCode?: string; // NEW
   storeVoucherCodes?: Record<string, string>; // NEW
   shippingVoucherCode?: string; // NEW
+  affiliateToken?: string;
 }
 
 export interface CheckoutConfirmResponse {
@@ -136,12 +137,25 @@ export const checkoutApi = {
     idempotencyKey?: string
   ): Promise<ApiResponse<CheckoutConfirmResponse>> => {
     const key = idempotencyKey || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `idemp-${Date.now()}`);
+    const affToken =
+      payload.affiliateToken ||
+      (typeof document !== 'undefined'
+        ? document.cookie
+            .split('; ')
+            .find((row) => row.startsWith('huki_aff_click='))
+            ?.split('=')[1]
+        : undefined);
+
     return apiClient<CheckoutConfirmResponse>('/cart/checkout/confirm', {
       method: 'POST',
       headers: {
         'idempotency-key': key,
+        ...(affToken ? { 'x-affiliate-token': affToken } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        ...(affToken ? { affiliateToken: affToken } : {}),
+      }),
     });
   },
 };

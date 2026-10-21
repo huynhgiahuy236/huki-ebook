@@ -61,7 +61,19 @@ export class CheckoutController {
     @CurrentBookActor() actor: BookActor,
     @Headers('idempotency-key') key: string,
     @Body() dto: CheckoutConfirmDto,
+    @Headers('x-affiliate-token') headerAffiliateToken?: string,
+    @Headers('cookie') rawCookies?: string,
   ) {
+    if (!dto.affiliateToken) {
+      if (headerAffiliateToken) {
+        dto.affiliateToken = headerAffiliateToken;
+      } else if (rawCookies) {
+        const match = rawCookies.split('; ').find((row) => row.startsWith('huki_aff_click='));
+        if (match) {
+          dto.affiliateToken = match.split('=')[1];
+        }
+      }
+    }
     return this.checkout.confirm(actor.sub, key, dto);
   }
 }

@@ -112,6 +112,24 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
           icon: 'campaign',
           active: pathname === '/affiliate',
         },
+        {
+          label: 'Quản Lý Liên Kết (Links)',
+          href: '/account/affiliate/links',
+          icon: 'link',
+          active: pathname === '/account/affiliate/links',
+        },
+        {
+          label: 'Tiến Độ Hồ Sơ',
+          href: '/account/affiliate/application',
+          icon: 'assignment',
+          active: pathname === '/account/affiliate/application',
+        },
+        {
+          label: 'Bảng Điều Khiển',
+          href: '/account/affiliate/dashboard',
+          icon: 'dashboard',
+          active: pathname === '/account/affiliate/dashboard',
+        },
       ],
     },
   ];

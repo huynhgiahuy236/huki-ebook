@@ -20,6 +20,7 @@ import { SimilarBooksSection } from '@/ui/components/recommendations/SimilarBook
 import { personalizationService } from '@/ui/services/personalizationService';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
 import { reviewSummaryService } from '@/ui/services/reviewSummaryService';
+import BookAffiliateCard from '@/ui/components/affiliate/BookAffiliateCard';
 
 export interface TableOfContentItem {
   id: number | string;
@@ -1163,6 +1164,9 @@ export default function BookDetailPage() {
                   <span className="truncate">Bảo hộ HUKI DRM đọc trên 5 thiết bị</span>
                 </div>
               </div>
+
+              {/* Affiliate Partner Commission Card */}
+              <BookAffiliateCard bookId={book.id || id} bookTitle={book.title} />
 
               {/* Publisher / Store Footer */}
               <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="pt-3 border-t border-gray-100 flex items-center justify-between gap-2 group hover:opacity-95 transition-opacity">

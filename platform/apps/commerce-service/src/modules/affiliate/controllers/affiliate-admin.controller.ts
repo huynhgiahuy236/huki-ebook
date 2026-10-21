@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { BookRequest, BookWriteGuard } from '../../../common/book-auth.guard';
 import { AffiliateApplicationService } from '../services/affiliate-application.service';
+import { AffiliateLifecycleService } from '../services/affiliate-lifecycle.service';
+import { AffiliateCommissionStateMachineService } from '../state-machine/affiliate-commission-state-machine.service';
 import {
   AdminReviewApplicationDto,
   AdminSuspendPartnerDto,
@@ -20,7 +22,11 @@ import { AffiliatePartnerStatus } from '../../../../prisma/generated/client';
 @Controller('admin/affiliates')
 @UseGuards(BookWriteGuard)
 export class AffiliateAdminController {
-  constructor(private readonly applicationService: AffiliateApplicationService) {}
+  constructor(
+    private readonly applicationService: AffiliateApplicationService,
+    private readonly lifecycleService: AffiliateLifecycleService,
+    private readonly stateMachine: AffiliateCommissionStateMachineService,
+  ) {}
 
   /**
    * Admin: List applications in review queue or partner pool
@@ -133,5 +139,42 @@ export class AffiliateAdminController {
     return this.applicationService.adminActivate(id, reviewerId, reviewerRole, {
       requestId,
     });
+  }
+
+  /**
+   * Admin / Scheduled Ops: Trigger settlement of matured HOLDING commissions
+   */
+  @Post('process-matured-holdings')
+  async processMaturedHoldings(@Query('batchSize') batchSize?: number) {
+    const limit = batchSize && Number(batchSize) > 0 ? Number(batchSize) : 50;
+    return this.lifecycleService.processMaturedHoldings(limit);
+  }
+
+  /**
+   * Admin: Reverse settled commission (Refund/Fraud Reversal)
+   */
+  @Post('commissions/:id/reverse')
+  async reverseCommission(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.stateMachine.reverseCommission(
+      id,
+      reason || 'Admin manual reversal',
+    );
+  }
+
+  /**
+   * Admin: Cancel pending/holding commission
+   */
+  @Post('commissions/:id/cancel')
+  async cancelCommission(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+  ) {
+    return this.stateMachine.cancelCommission(
+      id,
+      reason || 'Admin manual cancellation',
+    );
   }
 }

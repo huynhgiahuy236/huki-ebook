@@ -129,4 +129,126 @@ describe("CheckoutService (Prisma)", () => {
     );
     expect(result.expiresAt.getTime() - startedAt).toBeLessThanOrEqual(61_000);
   });
+
+  it("calls affiliateCheckoutService.createPendingCommissions during confirm", async () => {
+    const mockAffiliateService = {
+      createPendingCommissions: jest.fn().mockResolvedValue([]),
+    };
+
+    const confirmPrisma = {
+      checkoutSession: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: "session-1",
+          userId: "user-1",
+          consumedAt: null,
+          expiresAt: new Date(Date.now() + 60000),
+          cartId: "cart-1",
+          snapshot: {
+            itemSubtotal: 100000,
+            shippingTotal: 30000,
+            discountTotal: 0,
+            grandTotal: 130000,
+            note: null,
+            shippingAddress: { recipientName: "Test", phone: "0900000000", line1: "A", ward: "B", district: "C", province: "D" },
+            groups: [
+              {
+                storeId: "store-1",
+                ownerUserId: "seller-1",
+                requiresShipping: false,
+                itemSubtotal: 100000,
+                shippingFee: 0,
+                storeVoucherDiscount: 10000,
+                grandTotal: 90000,
+                items: [
+                  {
+                    bookId: "book-1",
+                    title: "Sách Hay",
+                    coverUrl: null,
+                    isbn: null,
+                    format: CartItemFormat.DIGITAL,
+                    quantity: 1,
+                    unitPrice: 100000,
+                    subtotal: 100000,
+                    weight: 0,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      },
+      order: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: "ord-1",
+          code: "ORD-TEST-001",
+          grandTotal: 130000,
+          paymentMethod: "COD",
+          paymentStatus: "PENDING",
+        }),
+      },
+      payment: { create: jest.fn().mockResolvedValue({}) },
+      sellerOrder: { create: jest.fn().mockResolvedValue({ id: "so-1" }) },
+      orderItem: { create: jest.fn().mockResolvedValue({ id: "oi-1" }) },
+      bookAccess: { upsert: jest.fn().mockResolvedValue({}) },
+      orderStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+      outboxEvent: { create: jest.fn().mockResolvedValue({}) },
+      checkoutSession_update: jest.fn(),
+      cartItem: { deleteMany: jest.fn().mockResolvedValue({}) },
+      $transaction: jest.fn().mockImplementation(async (cb) => {
+        return cb({
+          checkoutSession: {
+            findUnique: confirmPrisma.checkoutSession.findUnique,
+            update: jest.fn().mockResolvedValue({}),
+          },
+          order: confirmPrisma.order,
+          payment: confirmPrisma.payment,
+          sellerOrder: confirmPrisma.sellerOrder,
+          orderItem: confirmPrisma.orderItem,
+          bookAccess: confirmPrisma.bookAccess,
+          orderStatusHistory: confirmPrisma.orderStatusHistory,
+          outboxEvent: confirmPrisma.outboxEvent,
+          cartItem: confirmPrisma.cartItem,
+        });
+      }),
+    };
+
+    const confirmService = new CheckoutService(
+      confirmPrisma as any,
+      {} as any,
+      config as any,
+      { reserve: jest.fn() } as any,
+      { quote: jest.fn() } as any,
+      {} as any,
+      { apply: jest.fn() } as any,
+      pricingCalculator as any,
+      undefined,
+      mockAffiliateService as any,
+    );
+
+    const result = await confirmService.confirm("user-1", "idemp-key-1", {
+      sessionId: "session-1",
+      paymentMethod: "COD" as any,
+      affiliateToken: "aff-token-abc",
+    });
+
+    expect(result.order.id).toBe("ord-1");
+    expect(mockAffiliateService.createPendingCommissions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: "ord-1",
+        orderCode: "ORD-TEST-001",
+        buyerUserId: "user-1",
+        affiliateToken: "aff-token-abc",
+        items: [
+          expect.objectContaining({
+            orderItemId: "oi-1",
+            bookId: "book-1",
+            storeId: "store-1",
+            sellerDiscountAllocated: 10000,
+          }),
+        ],
+      }),
+    );
+  });
 });
+

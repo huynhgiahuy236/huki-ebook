@@ -359,5 +359,115 @@ export const affiliateApi = {
       method: 'GET',
     });
   },
+
+  // ==========================================
+  // PHASE 5: LINK, ATTRIBUTION & ANALYTICS
+  // ==========================================
+
+  /**
+   * CTV: Create a new affiliate link
+   */
+  async createAffiliateLink(data: {
+    targetUrl: string;
+    customShortCode?: string;
+    campaignName?: string;
+    subId?: string;
+    targetBookId?: string;
+    targetStoreId?: string;
+  }): Promise<ApiResponse<{
+    id: string;
+    profileId: string;
+    shortCode: string;
+    shortUrl: string;
+    originalUrl: string;
+    targetType: string;
+    campaignName: string | null;
+    subId: string | null;
+    clickCount: number;
+    conversionCount: number;
+    createdAt: string;
+  }>> {
+    return apiClient('/affiliate/links', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * CTV: List my links
+   */
+  async listMyAffiliateLinks(params: {
+    search?: string;
+    targetType?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<ApiResponse<{
+    items: Array<{
+      id: string;
+      profileId: string;
+      shortCode: string;
+      shortUrl: string;
+      originalUrl: string;
+      targetType: string;
+      campaignName: string | null;
+      subId: string | null;
+      clickCount: number;
+      conversionCount: number;
+      isActive: boolean;
+      createdAt: string;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>> {
+    const query = new URLSearchParams();
+    if (params.search) query.set('search', params.search);
+    if (params.targetType) query.set('targetType', params.targetType);
+    if (params.page) query.set('page', params.page.toString());
+    if (params.limit) query.set('limit', params.limit.toString());
+
+    return apiClient(`/affiliate/links?${query.toString()}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Public/CTV: Get book affiliate card & live commission rate
+   */
+  async getBookAffiliateCommissionCard(bookId: string): Promise<ApiResponse<{
+    bookId: string;
+    title: string;
+    price: number;
+    format: string;
+    isEligible: boolean;
+    effectiveRate: number;
+    estimatedCommissionAmount: number;
+    isAffiliateActive: boolean;
+    existingShortUrl: string | null;
+    cookieDurationDays: number;
+  }>> {
+    return apiClient(`/affiliate/books/${encodeURIComponent(bookId)}/commission-card`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Public: Resolve short code for /r/[shortCode]
+   */
+  async resolveShortCode(shortCode: string): Promise<ApiResponse<{
+    targetUrl: string;
+    cookieToken: string | null;
+    cookieMaxAgeSeconds?: number;
+    shortCode?: string;
+    isBot?: boolean;
+    isThrottled?: boolean;
+  }>> {
+    return apiClient(`/affiliate/resolve/${encodeURIComponent(shortCode)}`, {
+      method: 'GET',
+      skipAuth: true,
+    });
+  },
 };
+
 

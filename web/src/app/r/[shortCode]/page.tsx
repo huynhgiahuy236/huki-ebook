@@ -1,52 +1,140 @@
-import React from 'react';
+"use client";
+
+import React, { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 
-interface RedirectPageProps {
-  params: Promise<{ shortCode: string }>;
-}
+export default function AffiliateRedirectPage() {
+  const params = useParams();
+  const router = useRouter();
+  const shortCode = String(params?.shortCode || '');
 
-/**
- * Route /r/[shortCode]: Short link resolver placeholder.
- * In Phase 1, attribution resolution and short-code redirect are NOT active.
- * Real implementation will be connected in Phase 5 when backend lookup,
- * signed nonce, and AttributionSession endpoints are fully deployed.
- */
-export default async function AffiliateRedirectPage({ params }: RedirectPageProps) {
-  const { shortCode } = await params;
+  const [status, setStatus] = useState<'LOADING' | 'REDIRECTING' | 'NOT_FOUND' | 'ERROR'>('LOADING');
+  const [targetUrl, setTargetUrl] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
+
+  useEffect(() => {
+    if (!shortCode) return;
+
+    let isMounted = true;
+
+    const resolveLink = async () => {
+      try {
+        const res = await affiliateApi.resolveShortCode(shortCode);
+
+        if (!isMounted) return;
+
+        if (res.success && res.data?.targetUrl) {
+          const destination = res.data.targetUrl;
+          setTargetUrl(destination);
+
+          // If cookieToken returned (human click), store cookie
+          if (res.data.cookieToken) {
+            const maxAge = res.data.cookieMaxAgeSeconds || 30 * 86400;
+            document.cookie = `huki_aff_click=${encodeURIComponent(
+              res.data.cookieToken,
+            )}; path=/; max-age=${maxAge}; SameSite=Lax`;
+          }
+
+          setStatus('REDIRECTING');
+
+          // Smooth redirect
+          setTimeout(() => {
+            if (isMounted) {
+              if (destination.startsWith('http://') || destination.startsWith('https://')) {
+                window.location.href = destination;
+              } else {
+                router.replace(destination);
+              }
+            }
+          }, 400);
+        } else {
+          setStatus('NOT_FOUND');
+          setErrorMessage('Liên kết tiếp thị không tồn tại hoặc đã ngừng hoạt động.');
+        }
+      } catch (err: any) {
+        if (!isMounted) return;
+        setStatus('NOT_FOUND');
+        setErrorMessage(err.message || 'Không thể phân giải liên kết.');
+      }
+    };
+
+    resolveLink();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [shortCode, router]);
+
+  if (status === 'LOADING' || status === 'REDIRECTING') {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4 bg-slate-50 font-sans">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-lg space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
+            <span className="w-8 h-8 border-3 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+          </div>
+
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">
+              Đang chuyển hướng tới HuKi...
+            </h1>
+            <p className="text-xs text-slate-500 mt-1">
+              Mã liên kết: <span className="font-mono font-bold text-emerald-800">{shortCode}</span>
+            </p>
+          </div>
+
+          <p className="text-xs text-slate-600">
+            Hệ thống đang chuẩn bị trang đích cho bạn. Vui lòng chờ trong giây lát.
+          </p>
+
+          {targetUrl && (
+            <div className="pt-2">
+              <a
+                href={targetUrl}
+                className="text-xs font-bold text-emerald-800 hover:underline"
+              >
+                Nhấn vào đây nếu không tự động chuyển hướng
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-[70vh] flex items-center justify-center p-4 bg-gray-50">
-      <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 text-center shadow-xs">
-        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
-          <span className="material-symbols-outlined text-[32px]">link_off</span>
+    <div className="min-h-[70vh] flex items-center justify-center p-4 bg-slate-50 font-sans">
+      <div className="max-w-md w-full bg-white rounded-3xl border border-slate-200 p-8 text-center shadow-lg space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+          <span className="material-symbols-outlined text-3xl">link_off</span>
         </div>
 
-        <h1 className="text-xl font-bold text-gray-900 mb-2">
-          Liên Kết Chưa Được Kích Hoạt
-        </h1>
+        <div>
+          <h1 className="text-xl font-black text-slate-900 tracking-tight">
+            Liên Kết Không Khả Dụng
+          </h1>
+          <p className="text-xs font-mono text-slate-400 bg-slate-100 py-1 px-2.5 rounded-lg inline-block mt-1">
+            Mã: {shortCode}
+          </p>
+        </div>
 
-        <p className="text-xs font-mono text-gray-500 bg-gray-100 py-1 px-2 rounded-md inline-block mb-3">
-          Mã liên kết: {shortCode}
+        <p className="text-xs text-slate-600 leading-relaxed">
+          {errorMessage || 'Liên kết tiếp thị liên kết này không tồn tại, đã hết hạn hoặc đã bị đối tác tạm ngưng.'}
         </p>
 
-        <p className="text-sm text-gray-600 leading-relaxed mb-6">
-          Dịch vụ phân giải liên kết tiếp thị liên kết và ghi nhận phiên giới thiệu
-          đang trong lộ trình phát triển. Hệ thống chưa hỗ trợ chuyển hướng tự động
-          cho đến khi các dịch vụ backend hoàn tất.
-        </p>
-
-        <div className="flex flex-col sm:flex-row gap-2 justify-center">
+        <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold transition-colors"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold transition-all shadow-sm"
           >
             Về Trang Chủ HuKi
           </Link>
           <Link
             href="/affiliate"
-            className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors"
+            className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all"
           >
-            Tìm Hiểu Về Tiếp Thị
+            Chương Trình Tiếp Thị
           </Link>
         </div>
       </div>

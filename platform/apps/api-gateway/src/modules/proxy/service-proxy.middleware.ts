@@ -155,6 +155,10 @@ export class ServiceProxyMiddleware implements NestMiddleware {
 
           res.status(statusCode);
           for (const [name, value] of Object.entries(upstreamResponse.headers)) {
+            // Strip upstream CORS headers to preserve API Gateway's edge CORS policies
+            if (name.toLowerCase().startsWith('access-control-')) {
+              continue;
+            }
             if (value !== undefined) res.setHeader(name, value);
           }
           upstreamResponse.pipe(res);

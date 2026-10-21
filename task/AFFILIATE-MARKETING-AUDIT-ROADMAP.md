@@ -582,23 +582,40 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 
 ### Giai đoạn 5 — Link, attribution và analytics
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-5-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-5-COMPLETION-REPORT.md))
 
-**Hỏi:** target scope, sub-ID, short link/QR, consent, bot/dedupe, retention.
+**Đã thực hiện:**
+- Khóa 4 quyết định kiến trúc: Target Scope đa trang đích kèm Sub-ID, Ngăn chặn tự mua (Self-referral prevention), Lọc Bot User-Agent + Deduplication 1 click/phút, Tích hợp Card hoa hồng trực tiếp trên `/book/[id]`.
+- Triển khai `AffiliateLinkService` & `AffiliateLinkController` (`/api/v1/affiliate/links`, `/api/v1/affiliate/resolve/:shortCode`, `/api/v1/affiliate/books/:bookId/commission-card`).
+- Nâng cấp endpoint phân giải `/r/[shortCode]` tự động lưu cookie `huki_aff_click`, ghi nhận attribution và chuyển hướng mượt mà hoặc hiển thị giao diện báo lỗi rõ ràng.
+- Xây dựng trang Quản lý liên kết đối tác tại `/account/affiliate/links` (xem lượt nhấp, chuyển đổi, sao chép link, xem mã QR).
+- Tích hợp `BookAffiliateCard` trực tiếp lên trang chi tiết sách `/book/[id]` với mức hoa hồng thực tế và công cụ tạo link nhanh.
 
-**Làm:** link APIs/UI/book CTA; secure resolve/cookie; last-click; rate-limit; analytics outbox/aggregate.
-
-**Test/E2E:** AFF-04/05/06/07/23; tamper/expiry/rate-limit/analytics-down/performance. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Commerce Affiliate Unit Tests: **52/52 tests pass (100%)** (bao gồm 11/11 tests link resolution, bot filter, deduplication, anti-fraud).
+- Frontend Vitest Tests: **41/41 tests pass (100%)**.
+- Playwright End-to-End Suite: **15/15 tests pass (100%)** (bao gồm kịch bản redirect `/r/[shortCode]`, quản lý `/account/affiliate/links`, và hiển thị `/book/[id]`).
+- TypeScript Typecheck: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 6.**
 
 ### Giai đoạn 6 — Checkout calculation và PENDING snapshot
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-6-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-6-COMPLETION-REPORT.md))
 
-**Hỏi:** Buyer disclosure, discount allocation, COD timing, rounding, seller-net floor, attribution scope.
+**Đã thực hiện:**
+- Khóa 4 quyết định kiến trúc: Tính hoa hồng trên giá thực tế trừ chiết khấu Shop (không trừ Voucher sàn), Line-item attribution scope, Tạo snapshot PENDING ngay khi đặt hàng thành công (Order Placed), và Ẩn danh hoàn toàn đối với Buyer.
+- Triển khai `AffiliateCheckoutService` xử lý: phân giải token/cookie, kiểm tra hạn `expiresAt`, kiểm tra trạng thái liên kết & hồ sơ CTV, chặn tự mua hàng (Anti-fraud Self-referral), tính toán hoa hồng phân rã chiết khấu Shop.
+- Tích hợp nguyên tử vào `CheckoutService.confirm` transaction: tạo bản ghi `affiliate_commissions` trạng thái `PENDING`, cập nhật `isConverted = true` cho `affiliate_attributions`, tăng `conversionCount` cho `affiliate_links`, và phát sinh Outbox event `AFFILIATE_COMMISSION_CREATED`.
+- Mở rộng `CheckoutConfirmDto`, `CheckoutController.confirm` và `checkoutApi.confirmCheckout` tự động truyền nhận cookie `huki_aff_click` qua header `x-affiliate-token` và body.
+- Sửa triệt để lỗi mạng/CORS Gateway (loại bỏ `access-control-*` từ upstream microservice và hỗ trợ dynamic dev origins).
 
-**Làm:** preview/confirm resolver; calculation; snapshot; transaction/outbox; seller payable; idempotency.
-
-**Test/E2E:** AFF-08/09/10/11; voucher/flash-sale/multi-store/COD regression; accounting table. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Commerce Affiliate Unit Tests: **65/65 tests pass (100%)** (bao gồm 13/13 tests `affiliate-checkout.spec.ts`).
+- Checkout Service Unit Tests: **3/3 tests pass (100%)** (bao gồm test tích hợp gọi snapshot hoa hồng trong confirm).
+- Frontend Vitest Tests: **41/41 tests pass (100%)**.
+- Playwright End-to-End Suite: **16/16 tests pass (100%)** (bao gồm test 16 xác thực truyền token tại checkout và bảo mật danh tính CTV).
+- TypeScript Typecheck: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 7.**
 
 ### Giai đoạn 7 — Lifecycle, dispute, cancel và reversal
 

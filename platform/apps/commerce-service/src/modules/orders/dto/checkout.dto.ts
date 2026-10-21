@@ -132,6 +132,12 @@ export class CheckoutConfirmDto {
   @IsString()
   @MaxLength(50)
   shippingVoucherCode?: string;
+
+  @ApiPropertyOptional({ description: 'Affiliate tracking cookie token or session nonce' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  affiliateToken?: string;
 }
 
 export class CancelOrderDto {

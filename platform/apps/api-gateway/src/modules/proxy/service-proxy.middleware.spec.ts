@@ -361,4 +361,35 @@ describe('ServiceProxyMiddleware security boundary & identity protection', () =>
     // Port 3003 is commerce service
     expect(targetPort).toBe(3003);
   });
+
+  it('strips upstream access-control-* headers so edge CORS policy is not clobbered', () => {
+    const upstreamResponseStub = new EventEmitter() as any;
+    upstreamResponseStub.statusCode = 200;
+    upstreamResponseStub.headers = {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'access-control-allow-credentials': 'true',
+      'x-custom-upstream': 'keep-this',
+    };
+    upstreamResponseStub.pipe = jest.fn();
+
+    requestMock.mockImplementation((_opts: any, callback: any) => {
+      const client = new ClientRequestStub();
+      client.end.mockImplementation(() => {
+        callback(upstreamResponseStub);
+      });
+      return client as never;
+    });
+
+    const req = request('GET', '/api/v1/catalog');
+    const res = response();
+
+    new ServiceProxyMiddleware(config()).use(req, res, jest.fn());
+
+    expect(res.setHeader).toHaveBeenCalledWith('content-type', 'application/json');
+    expect(res.setHeader).toHaveBeenCalledWith('x-custom-upstream', 'keep-this');
+    expect(res.setHeader).not.toHaveBeenCalledWith('access-control-allow-origin', '*');
+    expect(res.setHeader).not.toHaveBeenCalledWith('access-control-allow-credentials', 'true');
+  });
 });
+

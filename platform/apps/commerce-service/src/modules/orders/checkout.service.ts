@@ -26,6 +26,7 @@ import { ShippingClientService } from "../shipping/shipping-client.service";
 import { VoucherClientService } from "../voucher/voucher-client.service";
 import { PricingCalculatorService, PricingItem, VoucherSelection } from "../voucher/pricing-calculator.service";
 import { SanctionsService } from "../sanctions/sanctions.service";
+import { AffiliateCheckoutService, CheckoutCommissionItem } from "../affiliate/services/affiliate-checkout.service";
 
 export interface CheckoutSnapshotItem {
   cartItemId?: string;
@@ -100,6 +101,7 @@ export class CheckoutService {
     private readonly voucherClient: VoucherClientService,
     private readonly pricingCalculator: PricingCalculatorService,
     @Optional() private readonly sanctionsService?: SanctionsService,
+    @Optional() private readonly affiliateCheckoutService?: AffiliateCheckoutService,
   ) { }
 
   async preview(userId: string, dto: CheckoutPreviewDto) {
@@ -611,6 +613,8 @@ export class CheckoutService {
           codAmount: number;
         }> = [];
 
+        const allAffiliateItems: CheckoutCommissionItem[] = [];
+
         // Create seller orders and items
         for (let i = 0; i < finalSnapshot.groups.length; i++) {
           const group = finalSnapshot.groups[i];
@@ -672,6 +676,28 @@ export class CheckoutService {
             ),
           );
 
+          // Collect affiliate items with allocated shop discount
+          const storeSubtotal = group.itemSubtotal || 1;
+          const storeDiscount = group.storeVoucherDiscount || 0;
+          group.items.forEach((item, idx) => {
+            const itemOrder = orderItems[idx];
+            const itemSellerDiscount =
+              storeDiscount > 0
+                ? Math.floor((item.subtotal / storeSubtotal) * storeDiscount)
+                : 0;
+
+            allAffiliateItems.push({
+              orderItemId: itemOrder.id,
+              bookId: item.bookId,
+              storeId: group.storeId,
+              title: item.title,
+              format: item.format,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              sellerDiscountAllocated: itemSellerDiscount,
+            });
+          });
+
           shipmentSellerOrders.push({
             sellerOrderId: sellerOrder.id,
             storeId: group.storeId,
@@ -687,6 +713,18 @@ export class CheckoutService {
 
           // Reserve inventory for physical books
           await this.reservations.reserve(tx, order.id, orderItems);
+        }
+
+        // Create Affiliate PENDING commission snapshots if attributed
+        if (this.affiliateCheckoutService) {
+          await this.affiliateCheckoutService.createPendingCommissions({
+            orderId: order.id,
+            orderCode: order.code,
+            buyerUserId: userId,
+            items: allAffiliateItems,
+            affiliateToken: dto.affiliateToken,
+            tx,
+          });
         }
 
         // Create order status history

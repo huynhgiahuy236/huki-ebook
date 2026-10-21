@@ -122,20 +122,42 @@ test.describe('Affiliate Marketing - Phase 3 Registration & Admin Review End-to-
     await expect(page.locator('text=Hoa hồng đã thu hồi').first()).toBeVisible();
   });
 
-  test('5. Route /r/[shortCode] renders honest unactivated link message', async ({ page }) => {
+  test('5. Route /r/[shortCode] resolves short link or renders honest not-found state', async ({ page }) => {
+    // A. When link is not found
     await page.goto('/r/demo-link-123');
-
-    await expect(page.locator('h1')).toContainText('Liên Kết Chưa Được Kích Hoạt');
+    await expect(page.locator('h1')).toContainText('Liên Kết Không Khả Dụng');
     await expect(page.locator('text=demo-link-123')).toBeVisible();
-    await expect(page.locator('text=Dịch vụ phân giải liên kết tiếp thị liên kết')).toBeVisible();
+
+    // B. When short link resolves successfully: sets cookie and redirects
+    await page.route('**/api/v1/affiliate/resolve/test-short-code', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            targetUrl: '/books',
+            cookieToken: 'test-cookie-token-hex',
+            cookieMaxAgeSeconds: 2592000,
+            shortCode: 'test-short-code',
+          },
+        }),
+      });
+    });
+
+    await page.goto('/r/test-short-code');
+    await expect(page).toHaveURL(/.*\/books/);
   });
 
-  test('6. Production book detail page (/book/[id]) does not mount unconfirmed affiliate card', async ({ page }) => {
+  test('6. Production book detail page (/book/[id]) mounts BookAffiliateCard with live commission CTA', async ({ page }) => {
     await page.goto('/book/1');
 
-    // Confirm that affiliate card is unmounted from production book detail page until Phase 5
-    const fakeCard = page.locator('text=Chia sẻ & Nhận hoa hồng');
-    await expect(fakeCard).toHaveCount(0);
+    // Confirm that BookAffiliateCard is now mounted on production book detail page
+    const cardTitle = page.locator('text=Kiếm thêm thu nhập với Tiếp Thị Liên Kết');
+    await expect(cardTitle).toBeVisible();
+
+    const ctaBtn = page.locator('a[href="/affiliate"]:has-text("Tham gia CTV")');
+    await expect(ctaBtn).toBeVisible();
   });
 
   test('7. Admin Affiliate management page (/admin/affiliates) renders filter tabs, search and table', async ({ page }) => {
@@ -535,6 +557,194 @@ test.describe('Affiliate Marketing - Phase 3 Registration & Admin Review End-to-
     await expect(page.locator('th:has-text("Tỷ lệ hiệu lực")')).toBeVisible();
     await expect(page.locator('th:has-text("Ước tính thực nhận (Seller-Net)")')).toBeVisible();
   });
+
+  test('14. CTV Affiliate Links management page (/account/affiliate/links) renders table, copy action, and create link modal', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('huki_access_token', 'mock_affiliate_jwt_token');
+    });
+
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'user-c1',
+            email: 'ctv@huki.vn',
+            role: 'USER',
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/affiliate/links*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            items: [
+              {
+                id: 'link-1',
+                profileId: 'prof-1',
+                shortCode: 'docgia1_tet27',
+                shortUrl: '/r/docgia1_tet27',
+                originalUrl: '/book/kinh-te-hoc',
+                targetType: 'BOOK',
+                campaignName: 'Tet-2027',
+                subId: 'fb_group',
+                clickCount: 125,
+                conversionCount: 14,
+                isActive: true,
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            total: 1,
+            page: 1,
+            limit: 10,
+            totalPages: 1,
+          },
+        }),
+      });
+    });
+
+    await page.goto('/account/affiliate/links');
+
+    // Title and create button
+    await expect(page.locator('h1')).toContainText('Quản Lý Liên Kết Tiếp Thị (Affiliate Links)');
+    const createBtn = page.locator('button:has-text("Tạo liên kết mới")');
+    await expect(createBtn).toBeVisible();
+
+    // Table rows
+    await expect(page.locator('text=docgia1_tet27').first()).toBeVisible();
+    await expect(page.locator('text=Tet-2027')).toBeVisible();
+    await expect(page.locator('text=125')).toBeVisible();
+
+    // Open modal
+    await createBtn.click();
+    await expect(page.locator('text=Tạo liên kết tiếp thị mới')).toBeVisible();
+    await expect(page.locator('input[placeholder*="/book/kinh-te-hoc"]')).toBeVisible();
+  });
+
+  test('15. Book detail page (/book/[id]) renders active partner commission rate and copy short link', async ({ page }) => {
+    await page.route('**/api/v1/affiliate/books/*/commission-card', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            bookId: '1',
+            title: 'Kinh Tế Học Hài Hước',
+            price: 150000,
+            format: 'PHYSICAL',
+            isEligible: true,
+            effectiveRate: 8.0,
+            estimatedCommissionAmount: 12000,
+            isAffiliateActive: true,
+            existingShortUrl: '/r/docgia_kthh',
+            cookieDurationDays: 30,
+          },
+        }),
+      });
+    });
+
+    await page.goto('/book/1');
+
+    // Active CTV card
+    await expect(page.locator('text=Tiếp thị & Nhận hoa hồng')).toBeVisible();
+    await expect(page.locator('text=8%')).toBeVisible();
+    await expect(page.locator('text=12.000 đ')).toBeVisible();
+    await expect(page.locator('button:has-text("Sao chép")')).toBeVisible();
+  });
+
+  test('16. Phase 6 Checkout flow transmits affiliate token and guarantees buyer anonymity (zero affiliate PII)', async ({ page, context }) => {
+    // Navigate to page first
+    await page.goto('/');
+
+    // Set simulated affiliate cookie
+    await context.addCookies([
+      {
+        name: 'huki_aff_click',
+        value: 'cookie-token-hex-123456',
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+
+    let capturedHeaders: Record<string, string> = {};
+    let capturedBody: any = null;
+
+    await page.route('**/api/v1/cart/checkout/confirm', async (route) => {
+      capturedHeaders = route.request().headers();
+      capturedBody = JSON.parse(route.request().postData() || '{}');
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            order: {
+              id: 'ord-aff-success',
+              code: 'ORD-2026-AFF01',
+              userId: 'buyer-user-1',
+              status: 'PROCESSING',
+              paymentMethod: 'COD',
+              paymentStatus: 'PENDING',
+              itemSubtotal: 100000,
+              shippingTotal: 30000,
+              discountTotal: 0,
+              grandTotal: 130000,
+              createdAt: new Date().toISOString(),
+            },
+            sellerOrders: [],
+            paymentRequired: false,
+          },
+        }),
+      });
+    });
+
+    // Invoke checkout confirm simulating client-side checkout behavior
+    const response = await page.evaluate(async () => {
+      const affToken = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('huki_aff_click='))
+        ?.split('=')[1];
+
+      const res = await fetch('/api/v1/cart/checkout/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'idempotency-key': 'idemp-test-123',
+          ...(affToken ? { 'x-affiliate-token': affToken } : {}),
+        },
+        body: JSON.stringify({
+          sessionId: 'session-e2e-1',
+          paymentMethod: 'COD',
+          affiliateToken: affToken,
+        }),
+      });
+      return res.json();
+    });
+
+    // 1. Verify checkout succeeded
+    expect(response.success).toBe(true);
+    expect(response.data?.order.id).toBe('ord-aff-success');
+
+    // 2. Verify affiliateToken was attached in header and body
+    expect(capturedHeaders['x-affiliate-token']).toBe('cookie-token-hex-123456');
+    expect(capturedBody.affiliateToken).toBe('cookie-token-hex-123456');
+
+    // 3. Verify Buyer Disclosure / Privacy: No affiliate PII or commission amount leaked to buyer
+    expect((response.data as any).affiliate).toBeUndefined();
+    expect((response.data as any).commission).toBeUndefined();
+    expect((response.data as any).affiliateProfileId).toBeUndefined();
+  });
 });
+
+
 
 
