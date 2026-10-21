@@ -17,10 +17,12 @@ import {
 import { AffiliateApplicationService } from '../services/affiliate-application.service';
 import { AffiliateWalletService } from '../services/affiliate-wallet.service';
 import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
+import { AffiliatePayoutService } from '../services/affiliate-payout.service';
 import {
   SubmitAffiliateApplicationDto,
   ResubmitAffiliateApplicationDto,
 } from '../dto/affiliate-application.dto';
+import { SubmitKycDto, CreatePayoutRequestDto } from '../dto/affiliate-payout.dto';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Controller('affiliate')
@@ -29,6 +31,7 @@ export class AffiliateController {
     private readonly applicationService: AffiliateApplicationService,
     private readonly walletService: AffiliateWalletService,
     private readonly dashboardService: AffiliateDashboardService,
+    private readonly payoutService: AffiliatePayoutService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -194,5 +197,57 @@ export class AffiliateController {
     }
 
     return result.content;
+  }
+
+  /**
+   * Authenticated CTV: Submit KYC identity documents & bank account
+   */
+  @Post('kyc')
+  @UseGuards(AuthenticatedGuard)
+  async submitKyc(@Req() req: BookRequest, @Body() dto: SubmitKycDto) {
+    const userId = req.user!.sub;
+    return this.payoutService.submitKyc(userId, dto);
+  }
+
+  /**
+   * Authenticated CTV: Check KYC verification status
+   */
+  @Get('kyc')
+  @UseGuards(AuthenticatedGuard)
+  async getMyKycStatus(@Req() req: BookRequest) {
+    const userId = req.user!.sub;
+    return this.payoutService.getKycStatus(userId);
+  }
+
+  /**
+   * Authenticated CTV: Create payout request (subject to KYC, fraud gating, 24h limit, and tax withholding)
+   */
+  @Post('payouts')
+  @UseGuards(AuthenticatedGuard)
+  async requestPayout(@Req() req: BookRequest, @Body() dto: CreatePayoutRequestDto) {
+    const userId = req.user!.sub;
+    return this.payoutService.createPayoutRequest(userId, dto);
+  }
+
+  /**
+   * Authenticated CTV: List my payout requests
+   */
+  @Get('payouts')
+  @UseGuards(AuthenticatedGuard)
+  async getMyPayouts(
+    @Req() req: BookRequest,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    const userId = req.user!.sub;
+    const profile = await this.prisma.affiliateProfile.findUnique({
+      where: { userId },
+    });
+    if (!profile) return { items: [], total: 0, page: 1, limit: 20, totalPages: 0 };
+    return this.payoutService.listPayoutRequests({
+      profileId: profile.id,
+      page,
+      limit,
+    });
   }
 }

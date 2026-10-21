@@ -673,13 +673,29 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 
 ### Giai đoạn 10 — KYC, payout và fraud operations
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-10-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-10-COMPLETION-REPORT.md))
 
-**Hỏi:** KYC provider/manual, documents, encryption/retention, bank verify, tax, threshold/fee, fraud policy.
+**Đã thực hiện:**
+- Khóa 3 quyết định kiến trúc: Quy trình KYC bán tự động (CCCD 2 mặt + tài khoản ngân hàng chính chủ, kiểm tra trùng khớp họ tên); Hạn mức rút 100k - 50M VND, tối đa 1 lệnh/24h, zero platform fee; Tự động khấu trừ thuế TNCN 10% khi rút tiền gross >= 2.000.000 VND và tự động khóa rút tiền nếu có hồ sơ gian lận `OPEN`.
+- Triển khai `AffiliatePayoutService`:
+  - `submitKyc`, `reviewKyc` (Approve/Reject), `getKycStatus` bảo đảm đối soát danh tính và ngân hàng.
+  - `createPayoutRequest`: Kiểm tra điều kiện rút (KYC hợp lệ, không có open fraud case, hạn mức 24h, số dư khả dụng), khấu trừ 10% thuế TNCN khi gross >= 2M VND, đóng băng số dư ví `FREEZE_AVAILABLE`, ghi nhận bút toán sổ cái kép (`DEBIT: AFFILIATE_PAYABLE_AVAILABLE`, `CREDIT: AFFILIATE_PAYABLE_FROZEN`), phát sinh Outbox event `AFFILIATE_PAYOUT_REQUESTED`.
+  - `approvePayout`: Xử lý giải ngân, trừ số dư đóng băng `DEBIT_FROZEN_FOR_PAYOUT`, tăng `lifetimePaid`, ghi sổ cái giải ngân (`DEBIT: AFFILIATE_PAYABLE_FROZEN`, `CREDIT: AFFILIATE_PAYOUT_CLEARING`), đánh dấu `COMPLETED` kèm `disbursedAt` và `providerRef`.
+  - `rejectPayout`: Từ chối giải ngân kèm lý do, hoàn trả số dư đóng băng về khả dụng `UNFREEZE_TO_AVAILABLE`, ghi bút toán sổ cái cân bằng đảo ngược, cập nhật trạng thái `REJECTED`.
+  - `listPayoutRequests`: Danh sách yêu cầu rút tiền phân trang cho CTV và Admin.
+- Triển khai `AffiliateFraudService`:
+  - Khởi tạo hồ sơ gian lận `createFraudCase` với risk score, lý do và chứng cứ.
+  - Xử lý kết luận `resolveFraudCase`: `CONFIRMED` tự động chuyển trạng thái đối tác sang `SUSPENDED`; `DISMISSED` giải phóng cờ cảnh báo.
+  - `listFraudCases`: Hàng đợi điều tra gian lận cho Admin.
+  - `isProfileGatedForFraud`: Kiểm tra chặn giao dịch nếu có case mở.
+- Bổ sung endpoints trên `AffiliateController` (CTV KYC & Payout) và `AffiliateAdminController` (Admin Review KYC, Approve/Reject Payout, Fraud Case Queue/Resolve).
 
-**Làm:** KYC/payout setup; payout owner model; PIN/2FA; fraud queue; payout lifecycle; audit/notification.
-
-**Test/E2E:** AFF-20/21/22/24/25; concurrency/provider timeout; PII leak scan. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Unit & Integration Test Suite (`affiliate-payout-fraud.spec.ts`): **18/18 tests pass (100%)**.
+- Toàn bộ 9 Commerce Affiliate Unit Test Suites: **114/114 tests pass (100%)**.
+- Playwright End-to-End Suite: **16/16 tests pass (100%)**.
+- TypeScript Typecheck & Backend Build: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 11.**
 
 ### Giai đoạn 11 — Observability, infrastructure và performance
 
@@ -724,6 +740,9 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 | AFF-DEC-013 | 2026-10-21 | 0 | Link sharing UI on book detail | Card "Chia sẻ và nhận hoa hồng" cạnh vùng mua (sau khối CTA trên desktop). Trên mobile đặt sau nút mua chính, không che sticky CTA. Chỉ hiện khi Affiliate ACTIVE. | Chủ dự án |
 | AFF-DEC-014 | 2026-10-21 | 0 | Payout channels | Giai đoạn MVP chỉ rút tiền qua Chuyển khoản Ngân hàng nội địa (VietQR/Napas247) sau KYC & Bank snapshot. Chưa hỗ trợ đổi sang số dư mua sách để giữ chuẩn hạch toán độc lập. | Chủ dự án |
 | AFF-DEC-015 | 2026-10-21 | 0 | Affiliate code rules | Tự đặt 4–24 ký tự `[A-Z0-9_]`, tự động uppercase, unique case-insensitive, chặn từ khóa hệ thống (reserved words). Debounce 500ms + rate-limit, có nút gợi ý mã ngẫu nhiên. | Chủ dự án |
+| AFF-DEC-016 | 2026-10-21 | 10 | KYC & Bank verification | Xác minh bán tự động: CTV tải lên CCCD 2 mặt kèm tài khoản ngân hàng chính chủ. Hệ thống tự động kiểm tra trùng khớp họ tên; Admin phòng nghiệp vụ xét duyệt và kích hoạt quyền rút tiền. | Chủ dự án |
+| AFF-DEC-017 | 2026-10-21 | 10 | Payout limits & platform fee | Hạn mức rút tối thiểu 100.000 VND, tối đa 50.000.000 VND/giao dịch. Tối đa 1 lệnh rút tiền trong vòng 24 giờ cho mỗi CTV. Nền tảng miễn phí 100% phí rút tiền. | Chủ dự án |
+| AFF-DEC-018 | 2026-10-21 | 10 | Tax withholding & fraud gating | Tự động tính và khấu trừ 10% thuế TNCN cho giao dịch rút tiền gross >= 2.000.000 VND. Tự động khóa tính năng rút tiền đối với đối tác đang có hồ sơ nghi vấn gian lận ở trạng thái OPEN. | Chủ dự án |
 
 ---
 

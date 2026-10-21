@@ -18,11 +18,22 @@ import { AffiliateWalletService } from '../services/affiliate-wallet.service';
 import { AffiliateSettlementWorker } from '../services/affiliate-settlement-worker.service';
 import { AffiliateReconciliationService } from '../services/affiliate-reconciliation.service';
 import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
+import { AffiliatePayoutService } from '../services/affiliate-payout.service';
+import { AffiliateFraudService } from '../services/affiliate-fraud.service';
 import {
   AdminReviewApplicationDto,
   AdminSuspendPartnerDto,
 } from '../dto/affiliate-application.dto';
-import { AffiliatePartnerStatus } from '../../../../prisma/generated/client';
+import {
+  ReviewKycDto,
+  ReviewPayoutDto,
+  CreateFraudCaseDto,
+  ResolveFraudCaseDto,
+} from '../dto/affiliate-payout.dto';
+import {
+  AffiliatePartnerStatus,
+  AffiliatePayoutStatus,
+} from '../../../../prisma/generated/client';
 
 @Controller('admin/affiliates')
 @UseGuards(BookWriteGuard)
@@ -35,6 +46,8 @@ export class AffiliateAdminController {
     private readonly settlementWorker: AffiliateSettlementWorker,
     private readonly reconciliationService: AffiliateReconciliationService,
     private readonly dashboardService: AffiliateDashboardService,
+    private readonly payoutService: AffiliatePayoutService,
+    private readonly fraudService: AffiliateFraudService,
   ) {}
 
   /**
@@ -292,5 +305,103 @@ export class AffiliateAdminController {
     }
 
     return result.content;
+  }
+
+  /**
+   * Admin: Review and verify/reject CTV KYC & bank account
+   */
+  @Post('kyc/:profileId/review')
+  async reviewKyc(
+    @Param('profileId') profileId: string,
+    @Req() req: BookRequest,
+    @Body() dto: ReviewKycDto,
+  ) {
+    const reviewerId = req.user!.sub;
+    return this.payoutService.reviewKyc(profileId, reviewerId, dto);
+  }
+
+  /**
+   * Admin: List all affiliate payout requests
+   */
+  @Get('payouts')
+  async listPayoutRequests(
+    @Query('status') status?: AffiliatePayoutStatus,
+    @Query('profileId') profileId?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.payoutService.listPayoutRequests({
+      status,
+      profileId,
+      page,
+      limit,
+    });
+  }
+
+  /**
+   * Admin: Approve payout and execute bank disbursal
+   */
+  @Post('payouts/:id/approve')
+  async approvePayout(
+    @Param('id') id: string,
+    @Req() req: BookRequest,
+    @Body('providerRef') providerRef?: string,
+  ) {
+    const reviewerId = req.user!.sub;
+    return this.payoutService.approvePayout(id, reviewerId, providerRef);
+  }
+
+  /**
+   * Admin: Reject payout and restore frozen balance to available
+   */
+  @Post('payouts/:id/reject')
+  async rejectPayout(
+    @Param('id') id: string,
+    @Req() req: BookRequest,
+    @Body('reason') reason: string,
+  ) {
+    const reviewerId = req.user!.sub;
+    return this.payoutService.rejectPayout(id, reviewerId, reason);
+  }
+
+  /**
+   * Admin: List fraud investigation cases
+   */
+  @Get('fraud')
+  async listFraudCases(
+    @Query('status') status?: string,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.fraudService.listFraudCases({
+      status,
+      page,
+      limit,
+    });
+  }
+
+  /**
+   * Admin / Risk Engine: Open a fraud investigation case
+   */
+  @Post('fraud')
+  async createFraudCase(
+    @Req() req: BookRequest,
+    @Body() dto: CreateFraudCaseDto,
+  ) {
+    const adminId = req.user!.sub;
+    return this.fraudService.createFraudCase(dto, adminId);
+  }
+
+  /**
+   * Admin: Resolve fraud investigation case (CONFIRMED -> SUSPEND or DISMISSED -> CLEAR)
+   */
+  @Post('fraud/:id/resolve')
+  async resolveFraudCase(
+    @Param('id') id: string,
+    @Req() req: BookRequest,
+    @Body() dto: ResolveFraudCaseDto,
+  ) {
+    const reviewerId = req.user!.sub;
+    return this.fraudService.resolveFraudCase(id, reviewerId, dto);
   }
 }

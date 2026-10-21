@@ -14,6 +14,8 @@ import { AffiliateWalletService } from './services/affiliate-wallet.service';
 import { AffiliateSettlementWorker } from './services/affiliate-settlement-worker.service';
 import { AffiliateReconciliationService } from './services/affiliate-reconciliation.service';
 import { AffiliateDashboardService } from './services/affiliate-dashboard.service';
+import { AffiliatePayoutService } from './services/affiliate-payout.service';
+import { AffiliateFraudService } from './services/affiliate-fraud.service';
 import { AffiliateController } from './controllers/affiliate.controller';
 import { AffiliateAdminController } from './controllers/affiliate-admin.controller';
 import { SellerAffiliateController } from './controllers/seller-affiliate.controller';
@@ -40,6 +42,8 @@ import { AffiliateLinkController } from './controllers/affiliate-link.controller
     AffiliateSettlementWorker,
     AffiliateReconciliationService,
     AffiliateDashboardService,
+    AffiliatePayoutService,
+    AffiliateFraudService,
   ],
   exports: [
     AffiliatePolicyResolverService,
@@ -54,6 +58,8 @@ import { AffiliateLinkController } from './controllers/affiliate-link.controller
     AffiliateSettlementWorker,
     AffiliateReconciliationService,
     AffiliateDashboardService,
+    AffiliatePayoutService,
+    AffiliateFraudService,
   ],
 })
 export class AffiliateModule {}

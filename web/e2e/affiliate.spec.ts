@@ -675,7 +675,7 @@ test.describe('Affiliate Marketing - Phase 3 Registration & Admin Review End-to-
     ]);
 
     let capturedHeaders: Record<string, string> = {};
-    let capturedBody: any = null;
+    let capturedBody: { affiliateToken?: string } = {};
 
     await page.route('**/api/v1/cart/checkout/confirm', async (route) => {
       capturedHeaders = route.request().headers();
@@ -736,12 +736,13 @@ test.describe('Affiliate Marketing - Phase 3 Registration & Admin Review End-to-
 
     // 2. Verify affiliateToken was attached in header and body
     expect(capturedHeaders['x-affiliate-token']).toBe('cookie-token-hex-123456');
-    expect(capturedBody.affiliateToken).toBe('cookie-token-hex-123456');
+    expect(capturedBody?.affiliateToken).toBe('cookie-token-hex-123456');
 
     // 3. Verify Buyer Disclosure / Privacy: No affiliate PII or commission amount leaked to buyer
-    expect((response.data as any).affiliate).toBeUndefined();
-    expect((response.data as any).commission).toBeUndefined();
-    expect((response.data as any).affiliateProfileId).toBeUndefined();
+    const responseRecord = response.data as Record<string, unknown>;
+    expect(responseRecord.affiliate).toBeUndefined();
+    expect(responseRecord.commission).toBeUndefined();
+    expect(responseRecord.affiliateProfileId).toBeUndefined();
   });
 });
 
