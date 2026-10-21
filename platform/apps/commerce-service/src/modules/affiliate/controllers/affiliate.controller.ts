@@ -5,6 +5,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
   Headers,
 } from '@nestjs/common';
@@ -14,6 +15,8 @@ import {
   OptionalBookAuthGuard,
 } from '../../../common/book-auth.guard';
 import { AffiliateApplicationService } from '../services/affiliate-application.service';
+import { AffiliateWalletService } from '../services/affiliate-wallet.service';
+import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
 import {
   SubmitAffiliateApplicationDto,
   ResubmitAffiliateApplicationDto,
@@ -24,6 +27,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class AffiliateController {
   constructor(
     private readonly applicationService: AffiliateApplicationService,
+    private readonly walletService: AffiliateWalletService,
+    private readonly dashboardService: AffiliateDashboardService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -114,5 +119,80 @@ export class AffiliateController {
       userAgent,
       requestId,
     });
+  }
+
+  /**
+   * Authenticated: Get my affiliate wallet balance
+   * Returns available, netAvailable, debt, holding, pending, frozen, and lifetime metrics
+   */
+  @Get('wallet')
+  @UseGuards(AuthenticatedGuard)
+  async getMyWallet(@Req() req: BookRequest) {
+    const userId = req.user!.sub;
+    return this.walletService.getWalletByUserId(userId);
+  }
+
+  /**
+   * Authenticated: Get my wallet transaction history
+   */
+  @Get('wallet/transactions')
+  @UseGuards(AuthenticatedGuard)
+  async getMyWalletTransactions(
+    @Req() req: BookRequest,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('type') type?: any,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+  ) {
+    const userId = req.user!.sub;
+    return this.walletService.getTransactions(userId, {
+      page,
+      limit,
+      type,
+      fromDate,
+      toDate,
+    });
+  }
+
+  /**
+   * Authenticated: Get CTV dashboard stats (live metrics, conversion rates, recent commissions)
+   */
+  @Get('dashboard')
+  @UseGuards(AuthenticatedGuard)
+  async getMyDashboard(@Req() req: BookRequest) {
+    const userId = req.user!.sub;
+    return this.dashboardService.getCtvDashboardStats(userId);
+  }
+
+  /**
+   * Authenticated: Export CTV commissions & clicks report (CSV / Excel format)
+   */
+  @Get('reports/export')
+  @UseGuards(AuthenticatedGuard)
+  async exportMyReport(
+    @Req() req: BookRequest,
+    @Query('format') format?: 'csv' | 'xlsx',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Res({ passthrough: true }) res?: any,
+  ) {
+    const userId = req.user!.sub;
+    const result = await this.dashboardService.exportReport(
+      'CTV',
+      userId,
+      format || 'csv',
+      fromDate,
+      toDate,
+    );
+
+    if (res) {
+      res.set({
+        'Content-Type': result.contentType,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+      });
+    }
+
+    return result.content;
   }
 }

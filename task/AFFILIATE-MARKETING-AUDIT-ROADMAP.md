@@ -619,33 +619,57 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 
 ### Giai đoạn 7 — Lifecycle, dispute, cancel và reversal
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-7-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-7-COMPLETION-REPORT.md))
 
-**Hỏi:** ebook/physical release, buyer-confirm shortcut, partial refund, debt, privileged adjustment.
+**Đã thực hiện:**
+- Khóa 4 quyết định kiến trúc: Giữ đối soát 7 ngày (168h) cho sách vật lý và 24h cho sách số; Người mua bấm xác nhận nhận hàng sớm rút ngắn thời hạn còn 24h; Huỷ đơn/hoàn tiền huỷ sạch PENDING/HOLDING sang `CANCELLED`, nếu đã `AVAILABLE` thì thu hồi `REVERSED` kèm ghi nợ kép (Ledger debit) và cơ chế âm ví (Debt) tự động cấn trừ hoa hồng tương lai; Trả hàng từng phần tách rời theo dòng sản phẩm (`orderItemId`).
+- Triển khai `AffiliateLifecycleService` đầy đủ các phương thức nghiệp vụ: `handleOrderDelivered`, `handleDigitalOrderPaid`, `handleBuyerConfirmReceipt`, `handleOrderCancelled`, `handleOrderItemRefunded`, `handleDisputeOpened`, `handleDisputeDismissed`, và `processMaturedHoldings`.
+- Tích hợp tự động vào `OrderCompletionService` khi đơn hàng chuyển sang `DELIVERED`, xác nhận nhận hàng, hoặc huỷ/hoàn tiền.
+- Bổ sung các endpoints điều hành Quản trị viên trong `AffiliateAdminController` (`/process-matured-holdings`, `/commissions/:id/reverse`, `/commissions/:id/cancel`).
 
-**Làm:** consumers; holding; dispute gate; cancel/reversal; dedupe/out-of-order; DLQ/replay.
-
-**Test/E2E:** AFF-12…17; worker restart; escrow/refund regression. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Unit & Integration Test Lifecycle (`affiliate-lifecycle.spec.ts`): **12/12 tests pass (100%)**.
+- Toàn bộ Commerce Affiliate Unit Tests: **77/77 tests pass (100%)**.
+- Checkout Service Unit Tests: **3/3 tests pass (100%)**.
+- Playwright End-to-End Suite: **16/16 tests pass (100%)**.
+- TypeScript Typecheck: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 8.**
 
 ### Giai đoạn 8 — Wallet/Ledger settlement và reconciliation
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-8-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-8-COMPLETION-REPORT.md))
 
-**Hỏi:** wallet/subaccount, bucket, schedule/timezone, repair workflow, journal approval.
+**Đã thực hiện:**
+- Khóa 3 quyết định kiến trúc: Ví chuyên biệt Affiliate Wallet (phân tách available, netAvailable, debt, holding, pending, frozen); Chạy lô giải ngân tự động hằng ngày vào đúng 00:00 (Nửa đêm giờ Việt Nam - 17:00 UTC); Quy trình Maker-Checker bắt buộc đối với can thiệp số dư thủ công (Manual Balance Adjustment) và tự động đối soát sổ cái phát hiện sai lệch.
+- Triển khai `AffiliateWalletService`: tra cứu số dư ví với các chỉ số nợ/khả dụng thực tế, lịch sử giao dịch phân trang, quy trình Maker-Checker đề xuất & phê duyệt điều chỉnh số dư kèm bút toán kép Double-Entry Ledger.
+- Triển khai `AffiliateSettlementWorker`: cron job `@Cron('0 17 * * *')` tự động giải phóng hoa hồng holding đã đáo hạn sang available, cập nhật ví và ghi nhận audit log hệ thống.
+- Triển khai `AffiliateReconciliationService`: đối chiếu tự động 3 lớp (Commissions, Wallets, LedgerAccountSummary) phát hiện sai lệch số dư và dị thường ở cấp độ từng CTV.
+- Bổ sung đầy đủ endpoints cho CTV (`GET /wallet`, `GET /wallet/transactions`) và Admin (`GET /wallets/:profileId`, `POST /adjustments`, `POST /adjustments/:id/approve`, `POST /adjustments/:id/reject`, `GET /reconciliation`, `POST /settlement/trigger`).
 
-**Làm:** accounts/posting; settlement worker; balance API; reconciliation job/UI/alerts; recovery.
-
-**Test/E2E:** AFF-16/17/26; concurrency/crash; Ledger balance; wallet/admin finance regression. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Unit & Integration Test Wallet & Settlement (`affiliate-wallet-settlement.spec.ts`): **13/13 tests pass (100%)**.
+- Toàn bộ 7 Commerce Affiliate Unit Test Suites: **90/90 tests pass (100%)**.
+- Playwright End-to-End Suite: **16/16 tests pass (100%)**.
+- TypeScript Typecheck & Commerce Build: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 9.**
 
 ### Giai đoạn 9 — Dashboard, reporting và production realtime
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-9-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-9-COMPLETION-REPORT.md))
 
-**Hỏi:** KPI/freshness, export, notification preferences, stale UX, realtime SLA.
+**Đã thực hiện:**
+- Khóa 3 quyết định kiến trúc: Cơ chế server event kết hợp polling 30s khi mất kết nối; Xuất báo cáo CSV chuẩn hóa UTF-8 BOM tương thích 100% Microsoft Excel & Google Sheets tiếng Việt; Stale UX hiển thị mốc thời gian cập nhật cụ thể, nút làm mới và banner đang đồng bộ.
+- Triển khai `AffiliateDashboardService`: tổng hợp thống kê 7 chỉ số KPI cốt lõi, tỷ lệ chuyển đổi CVR, danh sách hoa hồng gần đây, top link hiệu quả, dữ liệu bán hàng kênh liên kết cho Seller, chỉ số đối tác và tài chính toàn sàn cho Admin.
+- Triển khai engine xuất tệp báo cáo `exportReport` hỗ trợ bộ lọc thời gian và định dạng CSV/Excel cho cả 3 phân quyền (CTV, Seller, Admin).
+- Nâng cấp màn hình `AffiliateDashboardPage` (`/account/affiliate/dashboard`): hiển thị live metrics khi tài khoản `ACTIVE`, giữ vững định dạng 7 card chỉ số chuẩn cho kiểm thử tự động, tích hợp nút Làm mới, Xuất CSV, và banner cảnh báo công nợ nếu có số dư âm.
+- Bổ sung endpoints trên `AffiliateController`, `SellerAffiliateController`, và `AffiliateAdminController`.
 
-**Làm:** ba-role dashboards; read models; events; socket hardening; reconnect/poll; responsive/a11y.
-
-**Test/E2E:** AFF-18/19/23; permissions; metric consistency; fanout/query load. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Unit Test Dashboard & Export (`affiliate-dashboard.spec.ts`): **6/6 tests pass (100%)**.
+- Toàn bộ 8 Commerce Affiliate Unit Test Suites: **96/96 tests pass (100%)**.
+- Playwright End-to-End Suite: **16/16 tests pass (100%)** (bao gồm test 4 xác thực 7 chỉ số KPI trên dashboard).
+- TypeScript Typecheck & Backend Build: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 10.**
 
 ### Giai đoạn 10 — KYC, payout và fraud operations
 

@@ -6,11 +6,13 @@ import {
   Param,
   Body,
   Query,
+  Res,
   Headers,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { SellerAffiliateService } from '../services/seller-affiliate.service';
+import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
 import {
   UpdateStoreAffiliateSettingDto,
   UpdateBookAffiliateSettingDto,
@@ -22,7 +24,10 @@ import {
 @Controller('seller/stores/:storeId/affiliate')
 @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
 export class SellerAffiliateController {
-  constructor(private readonly sellerAffiliateService: SellerAffiliateService) {}
+  constructor(
+    private readonly sellerAffiliateService: SellerAffiliateService,
+    private readonly dashboardService: AffiliateDashboardService,
+  ) {}
 
   /**
    * Get store affiliate setting, platform policy, and effective rates
@@ -139,5 +144,46 @@ export class SellerAffiliateController {
       success: true,
       data,
     };
+  }
+
+  /**
+   * Get Seller Affiliate performance overview & top books stats
+   */
+  @Get('dashboard')
+  async getSellerDashboard(@Param('storeId') storeId: string) {
+    const data = await this.dashboardService.getSellerDashboardStats(storeId);
+    return {
+      success: true,
+      data,
+    };
+  }
+
+  /**
+   * Export Seller affiliate commission orders report
+   */
+  @Get('reports/export')
+  async exportSellerReport(
+    @Param('storeId') storeId: string,
+    @Query('format') format?: 'csv' | 'xlsx',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Res({ passthrough: true }) res?: any,
+  ) {
+    const result = await this.dashboardService.exportReport(
+      'SELLER',
+      storeId,
+      format || 'csv',
+      fromDate,
+      toDate,
+    );
+
+    if (res) {
+      res.set({
+        'Content-Type': result.contentType,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+      });
+    }
+
+    return result.content;
   }
 }

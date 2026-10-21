@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 import { JwtModule } from '@nestjs/jwt';
 import configuration from '../config/configuration';
 import { CommonModule } from './common/common.module';
@@ -48,6 +49,7 @@ import { MonitoringModule } from '@huki/shared';
       inject: [ConfigService],
     }),
     EventEmitterModule.forRoot(),
+    ScheduleModule.forRoot(),
     CommonModule,
     PrismaModule,
     AuditModule,

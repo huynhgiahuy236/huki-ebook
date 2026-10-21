@@ -10,6 +10,10 @@ import { SellerAffiliateService } from './services/seller-affiliate.service';
 import { AffiliateLinkService } from './services/affiliate-link.service';
 import { AffiliateCheckoutService } from './services/affiliate-checkout.service';
 import { AffiliateLifecycleService } from './services/affiliate-lifecycle.service';
+import { AffiliateWalletService } from './services/affiliate-wallet.service';
+import { AffiliateSettlementWorker } from './services/affiliate-settlement-worker.service';
+import { AffiliateReconciliationService } from './services/affiliate-reconciliation.service';
+import { AffiliateDashboardService } from './services/affiliate-dashboard.service';
 import { AffiliateController } from './controllers/affiliate.controller';
 import { AffiliateAdminController } from './controllers/affiliate-admin.controller';
 import { SellerAffiliateController } from './controllers/seller-affiliate.controller';
@@ -32,6 +36,10 @@ import { AffiliateLinkController } from './controllers/affiliate-link.controller
     AffiliateLinkService,
     AffiliateCheckoutService,
     AffiliateLifecycleService,
+    AffiliateWalletService,
+    AffiliateSettlementWorker,
+    AffiliateReconciliationService,
+    AffiliateDashboardService,
   ],
   exports: [
     AffiliatePolicyResolverService,
@@ -42,6 +50,10 @@ import { AffiliateLinkController } from './controllers/affiliate-link.controller
     AffiliateLinkService,
     AffiliateCheckoutService,
     AffiliateLifecycleService,
+    AffiliateWalletService,
+    AffiliateSettlementWorker,
+    AffiliateReconciliationService,
+    AffiliateDashboardService,
   ],
 })
 export class AffiliateModule {}

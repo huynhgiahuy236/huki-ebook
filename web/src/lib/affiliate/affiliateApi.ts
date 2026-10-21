@@ -468,6 +468,178 @@ export const affiliateApi = {
       skipAuth: true,
     });
   },
+
+  // ==========================================
+  // PHASE 8 & 9: WALLET, DASHBOARDS & EXPORT
+  // ==========================================
+
+  /**
+   * Authenticated CTV: Get wallet balance details
+   */
+  async getWalletBalance(): Promise<ApiResponse<{
+    walletId: string;
+    profileId: string;
+    userId: string;
+    availableBalance: number;
+    netAvailableBalance: number;
+    debtBalance: number;
+    holdingBalance: number;
+    pendingBalance: number;
+    frozenBalance: number;
+    lifetimeEarned: number;
+    lifetimePaid: number;
+    currency: string;
+    updatedAt: string;
+  }>> {
+    return apiClient('/affiliate/wallet', { method: 'GET' });
+  },
+
+  /**
+   * Authenticated CTV: Get wallet transactions history
+   */
+  async getWalletTransactions(params: {
+    page?: number;
+    limit?: number;
+    type?: string;
+    fromDate?: string;
+    toDate?: string;
+  } = {}): Promise<ApiResponse<{
+    items: Array<{
+      id: string;
+      walletId: string;
+      type: string;
+      amount: number;
+      balanceBefore: number;
+      balanceAfter: number;
+      currency: string;
+      referenceType: string;
+      referenceId: string;
+      description: string;
+      createdAt: string;
+    }>;
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }>> {
+    const query = new URLSearchParams();
+    if (params.page) query.set('page', params.page.toString());
+    if (params.limit) query.set('limit', params.limit.toString());
+    if (params.type) query.set('type', params.type);
+    if (params.fromDate) query.set('fromDate', params.fromDate);
+    if (params.toDate) query.set('toDate', params.toDate);
+
+    return apiClient(`/affiliate/wallet/transactions?${query.toString()}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Authenticated CTV: Get live dashboard stats
+   */
+  async getCtvDashboardStats(): Promise<ApiResponse<{
+    profile: {
+      id: string;
+      affiliateCode: string;
+      displayName: string;
+      status: string;
+    };
+    metrics: {
+      clicksCount: number;
+      conversionsCount: number;
+      conversionRate: number;
+      pendingCommission: number;
+      holdingCommission: number;
+      availableCommission: number;
+      netAvailableCommission: number;
+      debtCommission: number;
+      lifetimePaid: number;
+      reversedCommission: number;
+      currency: string;
+    };
+    recentCommissions: Array<{
+      id: string;
+      orderId: string;
+      orderItemId: string;
+      bookTitle: string;
+      commissionAmount: number;
+      commissionRate: number;
+      status: string;
+      holdingUntil: string | null;
+      createdAt: string;
+    }>;
+    topLinks: Array<{
+      id: string;
+      shortCode: string;
+      targetType: string;
+      clickCount: number;
+      conversionCount: number;
+      createdAt: string;
+    }>;
+    version: string;
+    refreshedAt: string;
+  }>> {
+    return apiClient('/affiliate/dashboard', { method: 'GET' });
+  },
+
+  /**
+   * Seller: Get store affiliate performance dashboard
+   */
+  async getSellerDashboardStats(storeId: string): Promise<ApiResponse<{
+    storeId: string;
+    metrics: {
+      totalAttributedOrders: number;
+      totalAttributedRevenue: number;
+      totalCommissionCost: number;
+      pendingCommissionCost: number;
+      settledCommissionCost: number;
+      currency: string;
+    };
+    topBooks: Array<{
+      bookId: string;
+      bookTitle: string;
+      ordersCount: number;
+      revenue: number;
+      commissionCost: number;
+    }>;
+    version: string;
+    refreshedAt: string;
+  }>> {
+    return apiClient(`/seller/stores/${encodeURIComponent(storeId)}/affiliate/dashboard`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Admin: Get platform-wide affiliate dashboard overview
+   */
+  async getAdminDashboardStats(): Promise<ApiResponse<{
+    partners: {
+      total: number;
+      active: number;
+      pendingReview: number;
+      suspended: number;
+      rejected: number;
+    };
+    financials: {
+      totalAttributedRevenue: number;
+      totalCommissionsPaid: number;
+      totalCommissionsAvailable: number;
+      totalCommissionsHolding: number;
+      totalCommissionsPending: number;
+      totalCommissionsReversed: number;
+      currency: string;
+    };
+    traffic: {
+      totalClicks: number;
+      totalConversions: number;
+      averageConversionRate: number;
+    };
+    version: string;
+    refreshedAt: string;
+  }>> {
+    return apiClient('/admin/affiliates/dashboard', { method: 'GET' });
+  },
 };
 
 

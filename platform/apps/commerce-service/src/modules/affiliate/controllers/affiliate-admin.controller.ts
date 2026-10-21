@@ -6,6 +6,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
   Headers,
 } from '@nestjs/common';
@@ -13,6 +14,10 @@ import { BookRequest, BookWriteGuard } from '../../../common/book-auth.guard';
 import { AffiliateApplicationService } from '../services/affiliate-application.service';
 import { AffiliateLifecycleService } from '../services/affiliate-lifecycle.service';
 import { AffiliateCommissionStateMachineService } from '../state-machine/affiliate-commission-state-machine.service';
+import { AffiliateWalletService } from '../services/affiliate-wallet.service';
+import { AffiliateSettlementWorker } from '../services/affiliate-settlement-worker.service';
+import { AffiliateReconciliationService } from '../services/affiliate-reconciliation.service';
+import { AffiliateDashboardService } from '../services/affiliate-dashboard.service';
 import {
   AdminReviewApplicationDto,
   AdminSuspendPartnerDto,
@@ -26,6 +31,10 @@ export class AffiliateAdminController {
     private readonly applicationService: AffiliateApplicationService,
     private readonly lifecycleService: AffiliateLifecycleService,
     private readonly stateMachine: AffiliateCommissionStateMachineService,
+    private readonly walletService: AffiliateWalletService,
+    private readonly settlementWorker: AffiliateSettlementWorker,
+    private readonly reconciliationService: AffiliateReconciliationService,
+    private readonly dashboardService: AffiliateDashboardService,
   ) {}
 
   /**
@@ -176,5 +185,112 @@ export class AffiliateAdminController {
       id,
       reason || 'Admin manual cancellation',
     );
+  }
+
+  /**
+   * Admin: Get affiliate wallet detail by profileId
+   */
+  @Get('wallets/:profileId')
+  async getWallet(@Param('profileId') profileId: string) {
+    return this.walletService.getWalletByProfileId(profileId);
+  }
+
+  /**
+   * Admin Maker: Request manual balance adjustment
+   */
+  @Post('wallets/adjustments')
+  async requestAdjustment(
+    @Req() req: BookRequest,
+    @Body()
+    dto: {
+      profileId: string;
+      amount: number;
+      direction: 'CREDIT' | 'DEBIT';
+      reason: string;
+    },
+  ) {
+    const adminId = req.user!.sub;
+    return this.walletService.requestManualAdjustment({
+      ...dto,
+      requestedBy: adminId,
+    });
+  }
+
+  /**
+   * Admin Checker: Approve manual balance adjustment (must be different admin)
+   */
+  @Post('wallets/adjustments/:id/approve')
+  async approveAdjustment(
+    @Param('id') id: string,
+    @Req() req: BookRequest,
+  ) {
+    const adminId = req.user!.sub;
+    return this.walletService.approveManualAdjustment(id, adminId);
+  }
+
+  /**
+   * Admin Checker: Reject manual balance adjustment
+   */
+  @Post('wallets/adjustments/:id/reject')
+  async rejectAdjustment(
+    @Param('id') id: string,
+    @Req() req: BookRequest,
+    @Body('reason') reason: string,
+  ) {
+    const adminId = req.user!.sub;
+    return this.walletService.rejectManualAdjustment(id, adminId, reason || 'Rejected by admin');
+  }
+
+  /**
+   * Admin: View latest reconciliation report
+   */
+  @Get('reconciliation')
+  async getReconciliationReport() {
+    return this.reconciliationService.runReconciliationAudit();
+  }
+
+  /**
+   * Admin: Trigger manual run of 00:00 settlement batch
+   */
+  @Post('settlement/trigger')
+  async triggerSettlementBatch(@Query('batchSize') batchSize?: number) {
+    const limit = batchSize && Number(batchSize) > 0 ? Number(batchSize) : 200;
+    return this.settlementWorker.runSettlementBatch(undefined, limit);
+  }
+
+  /**
+   * Admin: Get platform-wide affiliate dashboard overview & financial metrics
+   */
+  @Get('dashboard')
+  async getAdminDashboard() {
+    return this.dashboardService.getAdminDashboardStats();
+  }
+
+  /**
+   * Admin: Export all platform affiliate transactions report (CSV / Excel)
+   */
+  @Get('reports/export')
+  async exportAdminReport(
+    @Query('format') format?: 'csv' | 'xlsx',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Res({ passthrough: true }) res?: any,
+  ) {
+    const result = await this.dashboardService.exportReport(
+      'ADMIN',
+      'platform',
+      format || 'csv',
+      fromDate,
+      toDate,
+    );
+
+    if (res) {
+      res.set({
+        'Content-Type': result.contentType,
+        'Content-Disposition': `attachment; filename="${result.filename}"`,
+      });
+    }
+
+    return result.content;
   }
 }
