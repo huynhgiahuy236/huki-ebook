@@ -212,6 +212,7 @@ model Book {
   readingProgresses ReadingProgress[]
   forensicEvidences ForensicEvidence[]
   drmLicense      DrmLicense?
+  affiliateSetting BookAffiliateSetting?
 
   @@unique([storeId, slug])
   @@index([storeId, status])
@@ -386,6 +387,7 @@ model OrderItem {
   sellerOrder SellerOrder           @relation(fields: [sellerOrderId], references: [id], onDelete: Cascade)
   book        Book                  @relation(fields: [bookId], references: [id])
   reservation InventoryReservation?
+  affiliateCommission AffiliateCommission?
 
   @@map("order_items")
 }
@@ -859,6 +861,11 @@ enum LedgerAccountType {
   PLATFORM_MARKETING_EXPENSE
   REFUND_CLEARING
   PAYOUT_CLEARING
+  AFFILIATE_PAYABLE_PENDING
+  AFFILIATE_PAYABLE_AVAILABLE
+  AFFILIATE_PAYABLE_FROZEN
+  SELLER_COMMISSION_EXPENSE
+  AFFILIATE_PAYOUT_CLEARING
 }
 
 enum LedgerEntryDirection {
@@ -1312,4 +1319,421 @@ model DrmAuditLog {
   @@index([licenseId, createdAt])
   @@map("drm_audit_logs")
 }
+
+// ============================================
+// AFFILIATE MARKETING (Giai đoạn 2)
+// ============================================
+
+enum AffiliatePartnerStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  REQUEST_CHANGES
+  REJECTED
+  SUSPENDED
+  TERMINATED
+}
+
+enum AffiliateApplicantType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum AffiliateChannelType {
+  FACEBOOK
+  TIKTOK
+  YOUTUBE
+  BLOG
+  INSTAGRAM
+  OTHER
+}
+
+enum AffiliateFollowersRange {
+  UNDER_1K
+  FROM_1K_TO_5K
+  FROM_5K_TO_10K
+  FROM_10K_TO_50K
+  FROM_50K_TO_100K
+  ABOVE_100K
+}
+
+enum AffiliateCommissionStatus {
+  PENDING
+  HOLDING
+  AVAILABLE
+  CANCELLED
+  REVERSED
+}
+
+enum AffiliateLinkTargetType {
+  BOOK
+  STORE
+  CATEGORY
+  HOME
+}
+
+enum AffiliatePayoutStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum AffiliateWalletTxType {
+  CREDIT_PENDING
+  MOVE_PENDING_TO_HOLDING
+  MOVE_HOLDING_TO_AVAILABLE
+  CANCEL_PENDING
+  CANCEL_HOLDING
+  FREEZE_AVAILABLE
+  UNFREEZE_TO_AVAILABLE
+  DEBIT_FROZEN_FOR_PAYOUT
+  REVERSE_AVAILABLE
+}
+
+model AffiliateProfile {
+  id                   String                 @id @default(uuid())
+  userId               String                 @unique @map("user_id")
+  affiliateCode        String                 @unique @map("affiliate_code")
+  displayName          String                 @map("display_name")
+  bio                  String
+  contactEmail         String                 @map("contact_email")
+  contactPhone         String                 @map("contact_phone")
+  applicantType        AffiliateApplicantType @default(INDIVIDUAL) @map("applicant_type")
+  promotionDescription String                 @map("promotion_description")
+  hasPaidTraffic       Boolean                @default(false) @map("has_paid_traffic")
+  paidTrafficSources   Json?                  @map("paid_traffic_sources")
+  contentCategories    Json                   @map("content_categories")
+  promotionMethods     Json                   @map("promotion_methods")
+  taxId                String?                @map("tax_id")
+  payoutSetupLater     Boolean                @default(true) @map("payout_setup_later")
+  avatarUrl            String?                @map("avatar_url")
+  status               AffiliatePartnerStatus @default(PENDING_REVIEW)
+  rejectionReason      String?                @map("rejection_reason")
+  requestedChanges     Json?                  @map("requested_changes")
+  reviewedBy           String?                @map("reviewed_by")
+  reviewedAt           DateTime?              @map("reviewed_at")
+  suspendedAt          DateTime?              @map("suspended_at")
+  suspendedReason      String?                @map("suspended_reason")
+  version              Int                    @default(1)
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+
+  channels             AffiliateChannel[]
+  consents             AffiliateConsent[]
+  links                AffiliateLink[]
+  attributions         AffiliateAttribution[]
+  commissions          AffiliateCommission[]
+  wallet               AffiliateWallet?
+  fraudCases           AffiliateFraudCase[]
+
+  @@index([status])
+  @@index([userId])
+  @@index([affiliateCode])
+  @@map("affiliate_profiles")
+}
+
+model AffiliateChannel {
+  id             String                  @id @default(uuid())
+  profileId      String                  @map("profile_id")
+  type           AffiliateChannelType
+  url            String
+  canonicalUrl   String                  @map("canonical_url")
+  handle         String?
+  followersRange AffiliateFollowersRange @map("followers_range")
+  isPrimary      Boolean                 @default(false) @map("is_primary")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  profile        AffiliateProfile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, canonicalUrl])
+  @@index([profileId])
+  @@map("affiliate_channels")
+}
+
+model AffiliateConsent {
+  id               String           @id @default(uuid())
+  profileId        String           @map("profile_id")
+  termsVersion     String           @map("terms_version")
+  privacyVersion   String           @map("privacy_version")
+  marketingConsent Boolean          @default(false) @map("marketing_consent")
+  ipAddress        String?          @map("ip_address")
+  userAgent        String?          @map("user_agent")
+  acceptedAt       DateTime         @default(now()) @map("accepted_at")
+
+  profile          AffiliateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("affiliate_consents")
+}
+
+model AffiliatePolicy {
+  id                  String    @id @default(uuid())
+  version             Int       @default(1)
+  name                String    @default("HuKi Default Affiliate Policy")
+  cookieDurationDays  Int       @default(30) @map("cookie_duration_days")
+  defaultPhysicalRate Decimal   @default(5.0) @map("default_physical_rate") @db.Decimal(5, 2)
+  defaultEbookRate    Decimal   @default(10.0) @map("default_ebook_rate") @db.Decimal(5, 2)
+  defaultAudioRate    Decimal   @default(10.0) @map("default_audio_rate") @db.Decimal(5, 2)
+  physicalHoldingDays Int       @default(7) @map("physical_holding_days")
+  digitalHoldingHours Int       @default(24) @map("digital_holding_hours")
+  minPayoutAmount     Decimal   @default(100000) @map("min_payout_amount") @db.Decimal(15, 2)
+  allowSelfReferral   Boolean   @default(false) @map("allow_self_referral")
+  isActive            Boolean   @default(true) @map("is_active")
+  effectiveFrom       DateTime  @default(now()) @map("effective_from")
+  effectiveTo         DateTime? @map("effective_to")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive, effectiveFrom])
+  @@map("affiliate_policies")
+}
+
+model StoreAffiliateSetting {
+  id           String    @id @default(uuid())
+  storeId      String    @unique @map("store_id")
+  isEnabled    Boolean   @default(true) @map("is_enabled")
+  physicalRate Decimal?  @map("physical_rate") @db.Decimal(5, 2)
+  ebookRate    Decimal?  @map("ebook_rate") @db.Decimal(5, 2)
+  audioRate    Decimal?  @map("audio_rate") @db.Decimal(5, 2)
+  version      Int       @default(1)
+  updatedBy    String?   @map("updated_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([storeId])
+  @@map("store_affiliate_settings")
+}
+
+model BookAffiliateSetting {
+  id         String   @id @default(uuid())
+  bookId     String   @unique @map("book_id")
+  storeId    String   @map("store_id")
+  isEligible Boolean  @default(true) @map("is_eligible")
+  customRate Decimal? @map("custom_rate") @db.Decimal(5, 2)
+  version    Int      @default(1)
+  updatedBy  String?  @map("updated_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("book_affiliate_settings")
+}
+
+model AffiliateLink {
+  id               String                  @id @default(uuid())
+  profileId        String                  @map("profile_id")
+  shortCode        String                  @unique @map("short_code")
+  originalUrl      String                  @map("original_url")
+  targetType       AffiliateLinkTargetType @default(BOOK) @map("target_type")
+  targetBookId     String?                 @map("target_book_id")
+  targetStoreId    String?                 @map("target_store_id")
+  campaignName     String?                 @map("campaign_name")
+  subId            String?                 @map("sub_id")
+  clickCount       Int                     @default(0) @map("click_count")
+  conversionCount  Int                     @default(0) @map("conversion_count")
+  isActive         Boolean                 @default(true) @map("is_active")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+
+  profile          AffiliateProfile        @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  attributions     AffiliateAttribution[]
+
+  @@index([profileId])
+  @@index([shortCode])
+  @@map("affiliate_links")
+}
+
+model AffiliateAttribution {
+  id                String            @id @default(uuid())
+  linkId            String            @map("link_id")
+  profileId         String            @map("profile_id")
+  sessionNonce      String            @unique @map("session_nonce")
+  cookieTokenHash   String            @unique @map("cookie_token_hash")
+  buyerUserId       String?           @map("buyer_user_id")
+  ipHash            String?           @map("ip_hash")
+  userAgent         String?           @map("user_agent")
+  targetUrl         String            @map("target_url")
+  expiresAt         DateTime          @map("expires_at")
+  lastTouchedAt     DateTime          @default(now()) @map("last_touched_at")
+  isConverted       Boolean           @default(false) @map("is_converted")
+  convertedAt       DateTime?         @map("converted_at")
+  convertedOrderId  String?           @map("converted_order_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  link              AffiliateLink     @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  profile           AffiliateProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  commissions       AffiliateCommission[]
+
+  @@index([cookieTokenHash])
+  @@index([profileId])
+  @@index([buyerUserId])
+  @@index([expiresAt])
+  @@map("affiliate_attributions")
+}
+
+model AffiliateCommission {
+  id                 String                    @id @default(uuid())
+  profileId          String                    @map("profile_id")
+  orderId            String                    @map("order_id")
+  orderItemId        String                    @unique @map("order_item_id")
+  storeId            String                    @map("store_id")
+  bookId             String                    @map("book_id")
+  bookTitle          String                    @map("book_title")
+  bookFormat         String                    @map("book_format")
+  quantity           Int                       @default(1)
+  itemPrice          Decimal                   @map("item_price") @db.Decimal(15, 2)
+  discountAllocated  Decimal                   @default(0) @map("discount_allocated") @db.Decimal(15, 2)
+  commissionBase     Decimal                   @map("commission_base") @db.Decimal(15, 2)
+  commissionRate     Decimal                   @map("commission_rate") @db.Decimal(5, 2)
+  commissionAmount   Decimal                   @map("commission_amount") @db.Decimal(15, 2)
+  currency           String                    @default("VND")
+  status             AffiliateCommissionStatus @default(PENDING)
+  holdingStartedAt   DateTime?                 @map("holding_started_at")
+  holdingUntil       DateTime?                 @map("holding_until")
+  settledAt          DateTime?                 @map("settled_at")
+  cancelledAt        DateTime?                 @map("cancelled_at")
+  cancelReason       String?                   @map("cancel_reason")
+  reversedAt         DateTime?                 @map("reversed_at")
+  reversalReason     String?                   @map("reversal_reason")
+  disputeBlocked     Boolean                   @default(false) @map("dispute_blocked")
+  policySnapshot     Json                      @map("policy_snapshot")
+  attributionId      String?                   @map("attribution_id")
+  ledgerTxId         String?                   @map("ledger_tx_id")
+  reversalLedgerTxId String?                   @map("reversal_ledger_tx_id")
+  version            Int                       @default(1)
+  createdAt          DateTime                  @default(now()) @map("created_at")
+  updatedAt          DateTime                  @updatedAt @map("updated_at")
+
+  profile            AffiliateProfile          @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  orderItem          OrderItem                 @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  attribution        AffiliateAttribution?     @relation(fields: [attributionId], references: [id], onDelete: SetNull)
+
+  @@index([profileId, status])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([status, holdingUntil])
+  @@map("affiliate_commissions")
+}
+
+model AffiliateWallet {
+  id                 String                       @id @default(uuid())
+  affiliateProfileId String                       @unique @map("affiliate_profile_id")
+  userId             String                       @unique @map("user_id")
+  availableBalance   Decimal                      @default(0) @map("available_balance") @db.Decimal(15, 2)
+  pendingBalance     Decimal                      @default(0) @map("pending_balance") @db.Decimal(15, 2)
+  holdingBalance     Decimal                      @default(0) @map("holding_balance") @db.Decimal(15, 2)
+  frozenBalance      Decimal                      @default(0) @map("frozen_balance") @db.Decimal(15, 2)
+  lifetimeEarned     Decimal                      @default(0) @map("lifetime_earned") @db.Decimal(15, 2)
+  lifetimePaid       Decimal                      @default(0) @map("lifetime_paid") @db.Decimal(15, 2)
+  currency           String                       @default("VND")
+  version            Int                          @default(1)
+  createdAt          DateTime                     @default(now()) @map("created_at")
+  updatedAt          DateTime                     @updatedAt @map("updated_at")
+
+  profile            AffiliateProfile             @relation(fields: [affiliateProfileId], references: [id], onDelete: Cascade)
+  transactions       AffiliateWalletTransaction[]
+  payoutRequests     AffiliatePayoutRequest[]
+
+  @@index([userId])
+  @@map("affiliate_wallets")
+}
+
+model AffiliateWalletTransaction {
+  id                String                @id @default(uuid())
+  walletId          String                @map("wallet_id")
+  type              AffiliateWalletTxType
+  amount            Decimal               @db.Decimal(15, 2)
+  balanceBefore     Decimal               @map("balance_before") @db.Decimal(15, 2)
+  balanceAfter      Decimal               @map("balance_after") @db.Decimal(15, 2)
+  currency          String                @default("VND")
+  referenceType     String                @map("reference_type")
+  referenceId       String                @map("reference_id")
+  idempotencyKey    String?               @unique @map("idempotency_key")
+  description       String?
+  createdAt         DateTime              @default(now()) @map("created_at")
+
+  wallet            AffiliateWallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+  @@index([referenceType, referenceId])
+  @@map("affiliate_wallet_transactions")
+}
+
+model AffiliatePayoutRequest {
+  id              String                @id @default(uuid())
+  walletId        String                @map("wallet_id")
+  profileId       String                @map("profile_id")
+  amount          Decimal               @db.Decimal(15, 2)
+  currency        String                @default("VND")
+  status          AffiliatePayoutStatus @default(PENDING)
+  bankSnapshot    Json                  @map("bank_snapshot")
+  requestedBy     String                @map("requested_by")
+  reviewedBy      String?               @map("reviewed_by")
+  requestedAt     DateTime              @default(now()) @map("requested_at")
+  reviewedAt      DateTime?             @map("reviewed_at")
+  disbursedAt     DateTime?             @map("disbursed_at")
+  rejectionReason String?               @map("rejection_reason")
+  failureReason   String?               @map("failure_reason")
+  provider        String?
+  providerRef     String?               @map("provider_ref")
+  idempotencyKey  String                @map("idempotency_key")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  wallet          AffiliateWallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, idempotencyKey])
+  @@index([profileId, status])
+  @@index([status, createdAt])
+  @@map("affiliate_payout_requests")
+}
+
+model AffiliateFraudCase {
+  id              String           @id @default(uuid())
+  profileId       String           @map("profile_id")
+  reasonCode      String           @map("reason_code")
+  riskScore       Decimal          @default(0) @map("risk_score") @db.Decimal(5, 2)
+  evidenceDetails Json             @map("evidence_details")
+  status          String           @default("OPEN")
+  reviewedBy      String?          @map("reviewed_by")
+  resolutionNote  String?          @map("resolution_note")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  profile         AffiliateProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([status])
+  @@map("affiliate_fraud_cases")
+}
+
+model AffiliateAuditLog {
+  id            String   @id @default(uuid())
+  actorId       String   @map("actor_id")
+  actorRole     String?  @map("actor_role")
+  action        String   @db.VarChar(100)
+  resource      String   @db.VarChar(100)
+  resourceId    String?  @map("resource_id")
+  beforeState   Json?    @map("before_state")
+  afterState    Json?    @map("after_state")
+  changedFields Json?    @map("changed_fields")
+  reason        String?
+  requestId     String?  @map("request_id")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  metadata      Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([actorId, createdAt])
+  @@index([resource, resourceId])
+  @@index([action, createdAt])
+  @@map("affiliate_audit_logs")
+}
+
 

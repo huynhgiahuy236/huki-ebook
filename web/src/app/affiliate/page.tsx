@@ -66,11 +66,11 @@ export default function AffiliateLandingPage() {
 
   return (
     <div className="min-h-screen bg-[#fcfbf9] text-gray-900 font-sans pb-16">
-      {/* Prototype Notice Banner */}
-      <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2 text-center text-xs text-amber-900 font-medium flex items-center justify-center gap-1.5">
+      {/* Notice Banner */}
+      <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 text-center text-xs text-amber-900 font-medium flex items-center justify-center gap-1.5">
         <span className="material-symbols-outlined text-[16px] text-amber-700">info</span>
         <span>
-          <strong>Thông báo chương trình:</strong> Chương trình Đối tác Tiếp thị HuKi đang trong giai đoạn hoàn thiện chuẩn bị kỹ thuật. Cổng đăng ký sẽ mở tiếp nhận sau khi hạ tầng backend hoàn tất.
+          <strong>Thông báo chương trình:</strong> Chương trình Đối tác Tiếp thị HuKi đang trong giai đoạn chuẩn bị và chưa mở tiếp nhận chính thức. Mẫu đăng ký bên dưới chỉ phục vụ mục đích xem trước và kiểm tra thông tin.
         </span>
       </div>
 
@@ -91,14 +91,17 @@ export default function AffiliateLandingPage() {
             Kết nối độc giả với hàng chục ngàn tựa sách bản quyền, sách nói và ebook chất lượng cao. Nhận hoa hồng minh bạch trên mỗi đơn hàng thành công.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
+          <div className="flex flex-col items-center justify-center gap-2 pt-2">
             <Link
               href="/account/affiliate/register"
               className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
-              <span>Xem Quy Trình Đăng Ký (4 Bước)</span>
+              <span className="material-symbols-outlined text-[18px]">visibility</span>
+              <span>Xem trước mẫu đăng ký</span>
             </Link>
+            <span className="text-[11px] text-gray-500">
+              * Cổng tiếp nhận hồ sơ chưa mở chính thức
+            </span>
           </div>
 
           <div className="pt-6 flex items-center justify-center gap-6 text-xs text-gray-500">
@@ -131,22 +134,20 @@ export default function AffiliateLandingPage() {
           {benefits.map((b, idx) => (
             <div
               key={idx}
-              className="p-6 rounded-2xl bg-white border border-stone-200/80 shadow-2xs hover:shadow-sm transition-all flex items-start gap-4"
+              className="p-6 rounded-2xl bg-white border border-stone-200/80 shadow-2xs hover:shadow-sm transition-all space-y-3"
             >
-              <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-100">
-                <span className="material-symbols-outlined text-[24px]">{b.icon}</span>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                <span className="material-symbols-outlined text-[22px]">{b.icon}</span>
               </div>
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-gray-900">{b.title}</h3>
-                <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">{b.desc}</p>
-              </div>
+              <h3 className="text-base font-bold text-gray-900">{b.title}</h3>
+              <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">{b.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* 3 Simple Steps */}
-      <section className="py-14 bg-stone-100/60 border-y border-stone-200/60">
+      {/* How it Works - 3 Steps */}
+      <section className="py-14 md:py-20 bg-stone-100/60 border-y border-stone-200/80">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-2 mb-12">
             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">Quy Trình Hoạt Động</span>
@@ -159,9 +160,9 @@ export default function AffiliateLandingPage() {
             {steps.map((s, idx) => (
               <div
                 key={idx}
-                className="p-6 rounded-2xl bg-white border border-stone-200/80 shadow-2xs space-y-3 relative overflow-hidden"
+                className="p-6 rounded-2xl bg-white border border-stone-200 shadow-2xs relative space-y-3"
               >
-                <span className="text-3xl font-black text-emerald-700/20 block font-mono">{s.step}</span>
+                <div className="text-2xl font-black text-emerald-700/30 font-mono">{s.step}</div>
                 <h3 className="text-base font-bold text-gray-900">{s.title}</h3>
                 <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">{s.desc}</p>
               </div>
@@ -197,21 +198,24 @@ export default function AffiliateLandingPage() {
 
       {/* Bottom CTA Banner */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-r from-emerald-800 to-teal-900 text-white text-center space-y-5 shadow-xl relative overflow-hidden">
+        <div className="p-8 sm:p-10 rounded-3xl bg-gradient-to-r from-emerald-800 to-teal-900 text-white text-center space-y-4 shadow-xl relative overflow-hidden">
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Sẵn Sàng Trở Thành Đối Tác Tiếp Thị HuKi?
+            Tìm Hiểu Chương Trình Đối Tác Tiếp Thị HuKi
           </h2>
           <p className="text-xs sm:text-sm text-emerald-100 max-w-xl mx-auto">
-            Khởi đầu hành trình chia sẻ sách yêu thích và tạo dựng nguồn thu nhập ổn định, minh bạch ngay hôm nay.
+            Xem trước quy trình 4 bước chuẩn bị hồ sơ và các yêu cầu kết nối kênh phân phối trước khi cổng đăng ký mở chính thức.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col items-center gap-1.5">
             <Link
               href="/account/affiliate/register"
               className="inline-flex items-center gap-2 px-8 py-3.5 rounded-xl bg-white text-emerald-900 font-extrabold text-sm shadow-md hover:bg-emerald-50 transition-all cursor-pointer"
             >
-              <span className="material-symbols-outlined text-[18px]">rocket_launch</span>
-              Nộp Hồ Sơ Đăng Ký Miễn Phí
+              <span className="material-symbols-outlined text-[18px]">visibility</span>
+              Xem trước mẫu đăng ký
             </Link>
+            <span className="text-[11px] text-emerald-200">
+              (Cổng đăng ký chưa mở tiếp nhận chính thức)
+            </span>
           </div>
         </div>
       </section>

@@ -8,7 +8,6 @@ import AccountLayout from '@/ui/components/layout/AccountLayout';
  * Route /account/affiliate/dashboard
  * Production runtime implementation: Honest unavailable / in-development state.
  * No mock financial data, no hardcoded KPIs, no fake links, no state switcher.
- * Real financial metrics and ledger projections will be connected in Phase 8 & 9.
  */
 export default function AffiliateDashboardPage() {
   return (
@@ -22,7 +21,7 @@ export default function AffiliateDashboardPage() {
                 Bảng Điều Khiển Đối Tác Tiếp Thị
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                Đang phát triển
+                Chưa mở chính thức
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
@@ -39,7 +38,7 @@ export default function AffiliateDashboardPage() {
           </Link>
         </div>
 
-        {/* Primary Honest Status Banner */}
+        {/* Primary Status Banner */}
         <div className="p-5 rounded-2xl bg-gradient-to-br from-stone-50 via-gray-50 to-amber-50/30 border border-stone-200/90 shadow-2xs">
           <div className="flex items-start gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0 border border-amber-200">
@@ -50,56 +49,55 @@ export default function AffiliateDashboardPage() {
                 Dịch Vụ Bảng Điều Khiển Chưa Được Kích Hoạt
               </h2>
               <p className="text-xs text-gray-600 leading-relaxed max-w-3xl">
-                Tính năng Bảng điều khiển đối tác tiếp thị đang trong lộ trình phát triển kỹ thuật.
-                Toàn bộ dữ liệu tài chính, hiệu suất nhấp chuột và báo cáo hoa hồng thực tế sẽ chỉ khả dụng
-                sau khi hệ thống backend, dịch vụ tính toán Attribution và cơ chế đối soát Double-entry Ledger
-                được triển khai hoàn chỉnh tại Giai đoạn 8 &amp; 9.
+                Tính năng Bảng điều khiển đối tác tiếp thị đang được hoàn thiện và chưa mở chính thức.
+                Dữ liệu hiệu suất nhấp chuột, báo cáo chuyển đổi và các chỉ số tài chính sẽ khả dụng
+                khi hệ thống chính thức đi vào vận hành.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Informational Policy Specification (No fake numbers) */}
+        {/* Informational Policy Specification */}
         <div className="space-y-3">
           <h2 className="text-xs font-bold text-gray-500 uppercase tracking-wider px-1">
-            Đặc tả 7 Chỉ Số Hiệu Suất Cốt Lõi (Theo UX Contract v1.4.1)
+            7 Chỉ Số Hiệu Suất Cốt Lõi Dự Kiến
           </h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
               {
                 label: 'Lượt click hợp lệ',
-                desc: 'Tổng số lượt nhấp đã qua sàng lọc bot và rate-limit.',
+                desc: 'Tổng số lượt nhấp đã qua sàng lọc bot và giới hạn tần suất.',
                 icon: 'ads_click',
               },
               {
                 label: 'Chuyển đổi',
-                desc: 'Đơn hàng đặt thành công có gắn AttributionSession hợp lệ.',
+                desc: 'Đơn hàng đặt thành công có gắn phiên giới thiệu hợp lệ.',
                 icon: 'shopping_bag',
               },
               {
                 label: 'Hoa hồng chờ duyệt',
-                desc: 'Hoa hồng PENDING tính từ đơn hàng đã thanh toán/xác nhận.',
+                desc: 'Hoa hồng ghi nhận từ các đơn hàng mới phát sinh thành công.',
                 icon: 'hourglass_top',
               },
               {
                 label: 'Đang giữ đối soát',
-                desc: 'Hoa hồng HOLDING trong thời gian chờ giao hàng và đổi trả.',
+                desc: 'Hoa hồng trong thời gian tạm giữ theo dõi giao nhận và đổi trả.',
                 icon: 'lock_clock',
               },
               {
                 label: 'Hoa hồng khả dụng',
-                desc: 'Hoa hồng AVAILABLE đã hoàn tất đối soát và sẵn sàng rút.',
+                desc: 'Hoa hồng đã hoàn tất đối soát và sẵn sàng rút về tài khoản.',
                 icon: 'account_balance_wallet',
               },
               {
                 label: 'Đã thanh toán (Gross)',
-                desc: 'Tổng hoa hồng đã giải ngân thành công qua các kỳ payout.',
+                desc: 'Tổng hoa hồng đã giải ngân thành công qua các kỳ thanh toán.',
                 icon: 'payments',
               },
               {
                 label: 'Hoa hồng đã thu hồi',
-                desc: 'Hoa hồng REVERSED do đơn hàng hoàn trả hoặc phát sinh khiếu nại.',
+                desc: 'Hoa hồng hoàn trả do đơn hàng bị hủy hoặc phát sinh khiếu nại.',
                 icon: 'history_toggle_off',
               },
             ].map((kpi, idx) => (

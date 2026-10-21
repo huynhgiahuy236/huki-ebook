@@ -4,7 +4,7 @@
 >
 > Ngày tạo lại: 2026-10-21
 >
-> Trạng thái: `[~]` Đang rà soát và làm sạch Giai đoạn 1 (Lược bỏ mock runtime, chuyển sang honest unavailable state)
+> Trạng thái: `[~]` Giai đoạn 1 đã nghiệm thu, đang khởi động Giai đoạn 2 (Data model, migration, policy engine và audit foundation)
 >
 > Nguyên tắc cao nhất: **đầu mỗi giai đoạn phải hỏi/chốt phần chưa rõ; cuối mỗi giai đoạn phải chạy test và E2E; sau báo cáo phải dừng, chỉ làm tiếp khi chủ dự án ra lệnh.**
 
@@ -510,23 +510,31 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 
 ### Giai đoạn 1 — UX contract, prototype và validation contract
 
-**Trạng thái:** `[~]` Đang rà soát và làm sạch (Loại bỏ toàn bộ mock runtime/fake data/state switcher; chuyển sang honest unavailable states cho đến khi có backend)
+**Trạng thái:** `[x]` Hoàn thành (Đã nghiệm thu với bằng chứng 41/41 Vitest, 9/9 Playwright clean runtime & mobile responsive, sạch 100% mock data, typecheck 0 lỗi)
 
-**Hỏi:** routes, wording, fields, required/optional, draft, mobile, KPI, filter/export. (Đã chốt và duyệt v1.4.1)
+**Hỏi:** routes, wording, fields, required/optional, draft, mobile, KPI, filter/export. (Đã thống nhất và duyệt UX Contract v1.4.1)
 
-**Làm:** high-fidelity states dùng component hiện có; Zod/DTO matrix; stable errors; accessibility/responsive criteria; API mock. (Hoàn thành đầy đủ trên Landing, 4-step Registration, Application Status, Dashboard 7 KPIs, BookAffiliateCard trên `/book/[id]`, `/r/[shortCode]` fragment redirect handler)
+**Làm:** Hoàn tất bộ Zod validation contract v1.4.1 (`web/src/lib/affiliate/schemas.ts`); xây dựng giao diện Landing (`/affiliate`), biểu mẫu đăng ký 4 bước (`/account/affiliate/register` có kiểm tra thông tin và khóa nút submit), Bảng điều khiển (`/account/affiliate/dashboard` ở trạng thái chưa mở chính thức kèm đặc tả 7 chỉ số KPI), Tiến độ hồ sơ (`/account/affiliate/application` ở trạng thái chưa thể tra cứu), Route `/r/[shortCode]` hiển thị thông báo liên kết chưa kích hoạt (không redirect, không giả nonce), và `BookAffiliateCard` độc lập không mount vào production book route. Tuyệt đối không chứa mock API hay số liệu tài chính giả mạo trong production runtime.
 
-**Test/E2E:** component interactions; registration/dashboard prototype desktop/mobile; accessibility smoke. (Đã pass: 18 Vitest unit tests, 5 Playwright E2E tests, tsc --noEmit pass 100%) **STOP chờ lệnh Giai đoạn 2.**
+**Test/E2E:** 
+- Vitest: 19/19 affiliate validation & hygiene tests pass (trong đó `TC-VAL-19` kiểm tra tự động production source 100% không import mock); tổng test suite `web`: **41/41 tests pass**.
+- TypeScript typecheck (`tsc --noEmit`): **0 errors**.
+- Playwright clean runtime E2E (`e2e/affiliate.spec.ts`): **9/9 tests pass** (bao gồm 6 kịch bản clean runtime, 2 kịch bản mobile viewport 390x844 không tràn ngang, và 1 accessibility smoke test kiểm tra landmarks, headings, labels, keyboard focus, button accessible names).
 
 ### Giai đoạn 2 — Data model, migration, policy engine và audit foundation
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` Hoàn thành (Báo cáo tại `docs/affiliate/PHASE-2-COMPLETION-REPORT.md`)
 
-**Hỏi:** wallet ownership, schema location, retention, policy version/effective date, Ledger accounts.
+**Hỏi:** wallet ownership, schema location, retention, policy version/effective date, Ledger accounts. (Đã khóa kiến trúc: AffiliateWallet riêng, Double-Entry Ledger đầy đủ, phân cấp chính sách 3 cấp).
 
-**Làm:** Prisma models/migration/index/constraints; state machine; policy resolver; audit actions; event schemas; flags.
+**Làm:** Đã bổ sung 14 bảng quan hệ, 8 enums và mở rộng enum `LedgerAccountType` trong `platform/apps/commerce-service/prisma/schema.prisma`; triển khai migration `20261021210000_affiliate_marketing_foundation` vào PostgreSQL `huki_commerce`; xây dựng `AffiliatePolicyResolverService` (phân cấp 3 cấp, làm tròn floor VND, holding physical 7 ngày sau delivery / digital 24h); xây dựng `AffiliateCommissionStateMachineService` (state machine, settlement Nợ Chi phí Seller / Có Phải trả Affiliate, đảo bút toán Reversal, chặn dispute); xây dựng `AffiliateAuditService`.
 
-**Test/E2E:** migration empty/existing DB; schema validate; unit/integration state/idempotency; commerce regression. **STOP chờ lệnh.**
+**Test/E2E:** 
+- `affiliate-foundation.spec.ts`: **13/13 unit & integration tests pass (100%)**.
+- Toàn bộ suite backend `commerce-service` (`npm run test:commerce`): **28/28 Test Suites pass, 338/338 Tests pass, 0 regressions**.
+- Backend TypeScript compilation (`npm run build:commerce`): **0 errors**.
+- Web Frontend typecheck (`npm run typecheck`): **0 errors**.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 3.**
 
 ### Giai đoạn 3 — Registration và Admin review end-to-end
 

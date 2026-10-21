@@ -63,11 +63,16 @@ export function isDebitNormalAccount(accountType: LedgerAccountType): boolean {
     case LedgerAccountType.PLATFORM_MARKETING_EXPENSE:
     case LedgerAccountType.REFUND_CLEARING:
     case LedgerAccountType.PAYOUT_CLEARING:
+    case LedgerAccountType.SELLER_COMMISSION_EXPENSE:
+    case LedgerAccountType.AFFILIATE_PAYOUT_CLEARING:
       return true;
     case LedgerAccountType.SELLER_PENDING:
     case LedgerAccountType.SELLER_AVAILABLE:
     case LedgerAccountType.SELLER_FROZEN:
     case LedgerAccountType.PLATFORM_REVENUE:
+    case LedgerAccountType.AFFILIATE_PAYABLE_PENDING:
+    case LedgerAccountType.AFFILIATE_PAYABLE_AVAILABLE:
+    case LedgerAccountType.AFFILIATE_PAYABLE_FROZEN:
       return false;
   }
 }
@@ -451,7 +456,8 @@ export class LedgerService {
     const isSellerAccount = (type: LedgerAccountType) =>
       type === LedgerAccountType.SELLER_PENDING ||
       type === LedgerAccountType.SELLER_AVAILABLE ||
-      type === LedgerAccountType.SELLER_FROZEN;
+      type === LedgerAccountType.SELLER_FROZEN ||
+      type === LedgerAccountType.SELLER_COMMISSION_EXPENSE;
 
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];

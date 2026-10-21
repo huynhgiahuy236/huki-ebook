@@ -6,9 +6,8 @@ import AccountLayout from '@/ui/components/layout/AccountLayout';
 
 /**
  * Route /account/affiliate/application
- * Production runtime implementation: Honest unavailable / no-profile state.
- * No hardcoded profiles, no fake status switcher, no setTimeout.
- * Real application tracking will be integrated in Phase 3 when backend review APIs are deployed.
+ * Production runtime implementation: Honest unactivated / lookup-unavailable state.
+ * Does not assert whether the user has or does not have a profile since backend lookup is not active.
  */
 export default function AffiliateApplicationStatusPage() {
   return (
@@ -22,7 +21,7 @@ export default function AffiliateApplicationStatusPage() {
                 Tiến Độ Hồ Sơ Tiếp Thị Liên Kết
               </h1>
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-700 border border-gray-200">
-                Chưa có hồ sơ
+                Chưa thể tra cứu
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
@@ -35,23 +34,23 @@ export default function AffiliateApplicationStatusPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-colors self-start sm:self-auto"
           >
             <span className="material-symbols-outlined text-[16px]">info</span>
-            <span>Điều kiện tham gia</span>
+            <span>Chính sách chương trình</span>
           </Link>
         </div>
 
         {/* Primary Honest Status Card */}
         <div className="p-6 rounded-2xl bg-white border border-gray-200 shadow-2xs text-center max-w-xl mx-auto space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-gray-100 text-gray-500 flex items-center justify-center mx-auto border border-gray-200">
-            <span className="material-symbols-outlined text-[30px]">assignment_late</span>
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center mx-auto border border-amber-200">
+            <span className="material-symbols-outlined text-[30px]">pending</span>
           </div>
 
           <div className="space-y-1.5">
             <h2 className="text-base font-bold text-gray-900">
-              Chưa Tìm Thấy Hồ Sơ Đăng Ký
+              Chưa Thể Tải Trạng Thái Hồ Sơ
             </h2>
             <p className="text-xs text-gray-600 leading-relaxed">
-              Bạn hiện chưa có hồ sơ đăng ký đối tác tiếp thị nào trên hệ thống,
-              hoặc cổng tiếp nhận hồ sơ chính thức đang trong quá trình chuẩn bị kỹ thuật (Giai đoạn 3).
+              Dịch vụ tra cứu trạng thái hồ sơ đối tác tiếp thị đang được hoàn thiện và chưa mở chính thức.
+              Hệ thống hiện tại chưa thể kết nối dịch vụ dữ liệu để kiểm tra tình trạng hồ sơ của bạn.
             </p>
           </div>
 
@@ -71,28 +70,28 @@ export default function AffiliateApplicationStatusPage() {
           </div>
         </div>
 
-        {/* Informational SLA Timeline (Policy specification only, no fake data) */}
+        {/* Informational SLA Timeline (Policy specification only) */}
         <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-3">
           <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-            Quy Trình Xét Duyệt Tiêu Chuẩn (SLA 24h - 48h làm việc)
+            Quy Trình Xét Duyệt Dự Kiến (SLA 24h - 48h làm việc)
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
             <div className="p-3 bg-white rounded-lg border border-gray-200/80 space-y-1">
-              <span className="font-bold text-gray-800 block">1. Nộp Hồ Sơ (PENDING)</span>
+              <span className="font-bold text-gray-800 block">1. Tiếp Nhận Hồ Sơ</span>
               <p className="text-gray-500 text-[11px]">
-                Kiểm tra thông tin định danh, danh sách kênh phân phối và cam kết tuân thủ chính sách nội dung.
+                Kiểm tra tính đầy đủ của thông tin định danh, danh sách kênh phân phối và cam kết tuân thủ chính sách.
               </p>
             </div>
             <div className="p-3 bg-white rounded-lg border border-gray-200/80 space-y-1">
-              <span className="font-bold text-gray-800 block">2. Đánh Giá Kênh (REVIEW)</span>
+              <span className="font-bold text-gray-800 block">2. Đánh Giá Kênh</span>
               <p className="text-gray-500 text-[11px]">
-                Đội ngũ kiểm duyệt rà soát tính xác thực của kênh quảng bá và nguồn lưu lượng khai báo.
+                Đội ngũ kiểm duyệt rà soát tính xác thực của kênh truyền thông và nguồn lưu lượng khai báo.
               </p>
             </div>
             <div className="p-3 bg-white rounded-lg border border-gray-200/80 space-y-1">
-              <span className="font-bold text-gray-800 block">3. Kích Hoạt (ACTIVE)</span>
+              <span className="font-bold text-gray-800 block">3. Kích Hoạt Quyền Lợi</span>
               <p className="text-gray-500 text-[11px]">
-                Cấp quyền tạo liên kết rút gọn, mở truy cập Bảng điều khiển hiệu suất và theo dõi hoa hồng.
+                Mở quyền tạo liên kết chia sẻ và truy cập Bảng điều khiển hiệu suất khi hồ sơ được phê duyệt.
               </p>
             </div>
           </div>

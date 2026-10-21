@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
@@ -9,7 +8,6 @@ import {
   affiliateStep1Schema,
   affiliateStep2Schema,
   affiliateStep3Schema,
-  affiliateStep4Schema,
   affiliateRegistrationSchema,
   type AffiliateRegistrationInput,
 } from '@/lib/affiliate/schemas';
@@ -164,7 +162,7 @@ export default function AffiliateRegisterPage() {
     }
   };
 
-  // Test full form validation using Zod contract (no fake submission)
+  // Kiểm tra thông tin biểu mẫu
   const handleValidateAll = () => {
     const fullCheck = affiliateRegistrationSchema.safeParse(formData);
     if (!fullCheck.success) {
@@ -177,7 +175,7 @@ export default function AffiliateRegisterPage() {
       setFieldErrors(errors);
       setValidationSuccessNotice(null);
       setTopErrorMessage({
-        message: 'Biểu mẫu còn một số trường chưa hợp lệ theo Zod Contract. Vui lòng rà soát lại.',
+        message: 'Thông tin chưa hợp lệ. Vui lòng rà soát lại các mục được đánh dấu đỏ.',
       });
       return;
     }
@@ -185,7 +183,7 @@ export default function AffiliateRegisterPage() {
     setFieldErrors({});
     setTopErrorMessage(null);
     setValidationSuccessNotice(
-      'Biểu mẫu hợp lệ 100% theo Zod Contract v1.4.1 (Không phát hiện lỗi dữ liệu). Cổng tiếp nhận hồ sơ chính thức sẽ mở tại Giai đoạn 3.'
+      'Thông tin đã được điền đầy đủ và đúng định dạng. Tính năng đang được hoàn thiện và chưa mở chính thức.'
     );
   };
 
@@ -205,7 +203,7 @@ export default function AffiliateRegisterPage() {
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
-              Biểu mẫu 4 bước định danh và kênh phân phối được chuẩn hóa theo Zod Contract v1.4.1.
+              Quy trình 4 bước hoàn thiện hồ sơ định danh và kênh phân phối.
             </p>
           </div>
           <div className="text-right">
@@ -215,15 +213,14 @@ export default function AffiliateRegisterPage() {
           </div>
         </div>
 
-        {/* Honest Status Notice Banner */}
+        {/* Notice Banner */}
         <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
           <span className="material-symbols-outlined text-amber-700 text-[20px] shrink-0 mt-0.5">info</span>
           <div>
-            <strong className="block text-amber-800">Cổng Tiếp Nhận Hồ Sơ Đang Trong Giai Đoạn Chuẩn Bị:</strong>
+            <strong className="block text-amber-800">Cổng Tiếp Nhận Hồ Sơ Chưa Mở Chính Thức:</strong>
             <p className="text-gray-700 mt-0.5 leading-relaxed">
-              Tính năng đăng ký đối tác tiếp thị HuKi đang trong giai đoạn hoàn thiện giao diện và ràng buộc kiểm thực.
-              Cổng tiếp nhận hồ sơ chính thức sẽ mở sau khi hoàn tất hạ tầng backend ở Giai đoạn 3.
-              Bạn có thể trải nghiệm đầy đủ các bước và kiểm tra tính hợp lệ của biểu mẫu bên dưới.
+              Tính năng đang được hoàn thiện và chưa mở chính thức.
+              Bạn có thể xem trước mẫu biểu và sử dụng nút &ldquo;Kiểm tra thông tin&rdquo; để rà soát hồ sơ của mình.
             </p>
           </div>
         </div>
@@ -323,7 +320,7 @@ export default function AffiliateRegisterPage() {
                   className="w-full h-10 px-3 text-xs font-mono font-bold bg-white border border-gray-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-emerald-600 uppercase"
                 />
                 <p className="text-[11px] text-gray-500 mt-1">
-                  Quy cách: 4–24 ký tự (chữ hoa, chữ số, gạch dưới). Tính duy nhất sẽ được kiểm tra và cấp phát khi hệ thống mở tiếp nhận.
+                  Quy cách: 4–24 ký tự (chữ hoa, chữ số, gạch dưới).
                 </p>
                 {fieldErrors.affiliateCode && (
                   <p className="text-[11px] text-red-600 mt-1">{fieldErrors.affiliateCode[0]}</p>
@@ -721,7 +718,7 @@ export default function AffiliateRegisterPage() {
                     className="w-4 h-4 text-emerald-700 rounded focus:ring-emerald-600 mt-0.5"
                   />
                   <span>
-                    Tôi đồng ý với <strong className="text-emerald-800">Điều khoản Đối tác Tiếp thị HuKi (v1.4.1)</strong> bao gồm chính sách last-click, thời gian holding và chống tự mua qua link. <span className="text-red-500">*</span>
+                    Tôi đồng ý với <strong className="text-emerald-800">Điều khoản Đối tác Tiếp thị HuKi</strong> bao gồm chính sách ghi nhận lượt giới thiệu, thời gian tạm giữ và chống tự mua qua link. <span className="text-red-500">*</span>
                   </span>
                 </label>
                 {fieldErrors.acceptedAffiliateTerms && (
@@ -771,16 +768,15 @@ export default function AffiliateRegisterPage() {
                 </label>
               </div>
 
-              {/* Unactivated State Submission Notice */}
+              {/* Notice */}
               <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 space-y-1.5 mt-4">
                 <div className="flex items-center gap-2 font-bold text-gray-900">
                   <span className="material-symbols-outlined text-amber-600 text-[18px]">lock</span>
                   <span>Cổng Tiếp Nhận Hồ Sơ Chưa Mở Chính Thức</span>
                 </div>
                 <p className="text-gray-600 leading-relaxed">
-                  Để bảo vệ tính toàn vẹn của dữ liệu và hệ sinh thái tài chính, nút nộp hồ sơ được tạm khóa
-                  cho đến khi dịch vụ tiếp nhận và quy trình phê duyệt của ban quản trị được kích hoạt ở Giai đoạn 3.
-                  Bạn có thể nhấn nút bên dưới để kiểm tra tính hợp lệ toàn diện của dữ liệu theo Zod Contract.
+                  Tính năng đang được hoàn thiện và chưa mở chính thức.
+                  Bạn có thể nhấn nút bên dưới để kiểm tra tính hợp lệ của các thông tin đã điền.
                 </p>
               </div>
             </div>
@@ -809,7 +805,7 @@ export default function AffiliateRegisterPage() {
                   className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <span className="material-symbols-outlined text-[16px]">verified</span>
-                  <span>Kiểm Tra Tính Hợp Lệ (Zod Contract)</span>
+                  <span>Kiểm tra thông tin</span>
                 </button>
               )}
 
@@ -826,11 +822,11 @@ export default function AffiliateRegisterPage() {
                 <button
                   type="button"
                   disabled
-                  title="Cổng đăng ký chưa mở (Chờ Backend Giai đoạn 3)"
+                  title="Tính năng đang được hoàn thiện và chưa mở chính thức"
                   className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gray-300 text-gray-500 text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5 shadow-none"
                 >
                   <span className="material-symbols-outlined text-[18px]">lock</span>
-                  <span>Nộp Hồ Sơ (Chưa Kích Hoạt)</span>
+                  <span>Nộp Hồ Sơ (Chưa Mở)</span>
                 </button>
               )}
             </div>
