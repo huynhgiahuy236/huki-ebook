@@ -103,6 +103,17 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
         },
       ],
     },
+    {
+      title: 'TIẾP THỊ LIÊN KẾT',
+      items: [
+        {
+          label: 'Giới Thiệu Chương Trình',
+          href: '/affiliate',
+          icon: 'campaign',
+          active: pathname === '/affiliate',
+        },
+      ],
+    },
   ];
 
   return (
