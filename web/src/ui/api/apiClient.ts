@@ -44,64 +44,69 @@ export async function apiClient<T = unknown>(
     const response = await fetch(url, {
       ...restOptions,
       headers,
+      credentials: restOptions.credentials || 'include',
     });
 
     // Handle 401 Unauthorized & Token Refresh
     if (response.status === 401 && !skipAuth && !endpoint.includes('/auth/refresh') && !endpoint.includes('/auth/login')) {
-      const refreshToken = tokenStorage.getRefreshToken();
-      if (refreshToken) {
-        if (!refreshPromise) {
-          refreshPromise = (async () => {
-            try {
-              const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-correlation-id': correlationId,
-                },
-                body: JSON.stringify({ refreshToken }),
-              });
+      if (!refreshPromise) {
+        refreshPromise = (async () => {
+          try {
+            const refreshToken = tokenStorage.getRefreshToken();
+            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-correlation-id': correlationId,
+              },
+              credentials: 'include',
+              body: JSON.stringify(refreshToken ? { refreshToken } : {}),
+            });
 
-              if (refreshRes.ok) {
-                const refreshBody = await refreshRes.json();
-                const refreshData = refreshBody.data || refreshBody;
-                const newTokens: AuthTokens = refreshData.tokens || refreshData;
-                const newAccessToken = newTokens?.accessToken || refreshData?.accessToken;
-                const newRefreshToken = newTokens?.refreshToken || refreshData?.refreshToken;
+            if (refreshRes.ok) {
+              const refreshBody = await refreshRes.json();
+              const refreshData = refreshBody.data || refreshBody;
+              const newTokens: AuthTokens = refreshData.tokens || refreshData;
+              const newAccessToken = newTokens?.accessToken || refreshData?.accessToken;
+              const newRefreshToken = newTokens?.refreshToken || refreshData?.refreshToken || '';
 
-                if (newAccessToken && newRefreshToken) {
-                  tokenStorage.setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
-                  return newAccessToken;
-                } else {
-                  return null;
-                }
+              if (newAccessToken) {
+                tokenStorage.setTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+                return newAccessToken;
               } else {
                 return null;
               }
-            } catch {
+            } else {
               return null;
             }
-          })().finally(() => {
-            refreshPromise = null;
-          });
-        }
+          } catch {
+            return null;
+          }
+        })().finally(() => {
+          refreshPromise = null;
+        });
+      }
 
-        const retryToken = await refreshPromise;
+      const retryToken = await refreshPromise;
 
-        if (retryToken) {
-          headers['Authorization'] = `Bearer ${retryToken}`;
-          const retryRes = await fetch(url, { ...restOptions, headers });
-          return await parseResponse<T>(retryRes);
-        } else {
-          return {
-            success: false,
-            error: {
-              code: 'UNAUTHORIZED',
-              message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
-              statusCode: 401,
-            },
-          };
-        }
+      if (retryToken) {
+        headers['Authorization'] = `Bearer ${retryToken}`;
+        const retryRes = await fetch(url, {
+          ...restOptions,
+          headers,
+          credentials: restOptions.credentials || 'include',
+        });
+        return await parseResponse<T>(retryRes);
+      } else {
+        tokenStorage.clearTokens();
+        return {
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+            statusCode: 401,
+          },
+        };
       }
     }
 
@@ -345,7 +350,7 @@ function translateValidationRule(msg: string): string {
   return trimmed;
 }
 
-function extractHumanErrorMessage(body: unknown, status: number): { title?: string; message: string; code: string } {
+export function extractHumanErrorMessage(body: unknown, status: number): { title?: string; message: string; code: string } {
   const defaultHttp = HTTP_STATUS_TRANSLATIONS[status] || {
     title: 'Thông báo',
     message: `Hệ thống gặp sự cố khi xử lý yêu cầu (Mã: ${status}). Vui lòng thử lại sau.`,

@@ -17,6 +17,7 @@ import { CatalogClientService } from './services/CatalogClientService';
 import { EventsController } from './routes/events';
 import { AnalyticsController } from './routes/analytics';
 import { RecommendationController } from './routes/recommendations';
+import { HealthController } from './routes/health.controller';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { RecommendationController } from './routes/recommendations';
     ScheduleModule.forRoot(),
   ],
   controllers: [
+    HealthController,
     EventsController,
     AnalyticsController,
     RecommendationController,

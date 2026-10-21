@@ -23,18 +23,21 @@ export default function WatermarkOverlay({
 }: WatermarkOverlayProps) {
   const { user } = useAuth();
 
+  const userName = (user as any)?.name;
+  const userPhone = (user as any)?.phone;
+
   const watermarkPayload = useMemo<WatermarkPayload>(() => {
     return {
       userId: user?.id,
-      fullName: user?.fullName || (user as any)?.name,
+      fullName: user?.fullName || userName,
       email: user?.email,
-      phone: (user as any)?.phone,
+      phone: userPhone,
       orderId,
       bookId,
       bookTitle,
       pageNum
     };
-  }, [user?.id, user?.fullName, (user as any)?.name, user?.email, (user as any)?.phone, orderId, bookId, bookTitle, pageNum]);
+  }, [user?.id, user?.fullName, userName, user?.email, userPhone, orderId, bookId, bookTitle, pageNum]);
 
   // Generate 3 clearly visible, non-intrusive watermark lines distributed across the page
   const gridItems = useMemo(() => {

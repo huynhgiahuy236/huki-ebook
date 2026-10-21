@@ -120,18 +120,19 @@ export const reviewStorage = {
       ? apiResponse.items
       : [];
 
-    // Deduplicate: local reviews take precedence
+    // Server reviews take absolute precedence under POL-13
     const seenIds = new Set<string>();
     const merged: ReviewItemData[] = [];
 
-    for (const r of localReviews) {
+    for (const r of apiData) {
       if (!seenIds.has(r.id)) {
         seenIds.add(r.id);
         merged.push(r);
       }
     }
 
-    for (const r of apiData) {
+    // Only add local reviews if not already present on server
+    for (const r of localReviews) {
       if (!seenIds.has(r.id)) {
         seenIds.add(r.id);
         merged.push(r);

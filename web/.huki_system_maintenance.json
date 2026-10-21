@@ -1,0 +1,19 @@
+{
+  "isActive": false,
+  "mode": "GRACEFUL",
+  "drainDurationMinutes": 5,
+  "reason": "Hệ thống HUKI EBOOK đang thực hiện nâng cấp cơ sở dữ liệu và bảo mật cụm máy chủ thanh toán định kỳ. Chúng tôi sẽ sớm quay trở lại!",
+  "affectedRoles": [
+    "ALL"
+  ],
+  "allowOfflineDrm": true,
+  "allowShipperOfflineCod": true,
+  "supportHotline": "1900 6868",
+  "supportEmail": "hotro@huki.vn",
+  "whitelistIps": [
+    "127.0.0.1",
+    "::1"
+  ],
+  "updatedAt": "2026-10-21T11:41:57.599Z",
+  "updatedBy": "Hệ Thống HuKi"
+}

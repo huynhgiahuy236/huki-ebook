@@ -150,7 +150,7 @@ export default function OrderDetailDrawer({
                           </span>
                         ) : (
                           (() => {
-                            let t = event.title || STATUS_LABELS[event.toStatus] || event.toStatus;
+                            const t = event.title || STATUS_LABELS[event.toStatus] || event.toStatus;
                             if (t === 'Order created') return 'Khách hàng đặt đơn thành công';
                             if (t === 'Seller confirmed order') return 'Người bán đã xác nhận đơn hàng';
                             if (t === 'Seller is preparing order') return 'Người bán đang chuẩn bị & đóng gói kiện hàng';

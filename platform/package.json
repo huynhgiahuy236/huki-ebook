@@ -5,8 +5,10 @@
   "private": true,
   "scripts": {
     "env:check": "node scripts/check-env.mjs",
-    "build": "npm run build:shared && npm run build:gateway && npm run build:identity && npm run build:business && npm run build:commerce && npm run build:shipping && npm run build:community && npm run build:promotion && npm run build:analytics",
+    "build": "npm run build:shared && npm run link:shared && npm run build:gateway && npm run build:identity && npm run build:business && npm run build:commerce && npm run build:shipping && npm run build:community && npm run build:promotion && npm run build:analytics && npm run copy:prisma && npm run link:shared",
     "build:all": "npm run build",
+    "link:shared": "node scripts/link-shared.mjs",
+    "copy:prisma": "node scripts/copy-prisma.mjs",
     "build:shared": "tsc -p libs/shared/tsconfig.lib.json",
     "build:gateway": "tsc -p apps/api-gateway/tsconfig.app.json",
     "build:identity": "tsc -p apps/identity-service/tsconfig.app.json",

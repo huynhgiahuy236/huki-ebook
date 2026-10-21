@@ -1,7 +1,13 @@
 import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IncomingHttpHeaders, request as httpRequest } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { Request, Response, NextFunction } from 'express';
+import {
+  classifyRoute,
+  ADMIN_ROLES,
+  SELLER_ROLES,
+} from './route-classification';
 
 type ServiceName = 'identity' | 'business' | 'commerce' | 'shipping' | 'community' | 'promotion' | 'analytics';
 
@@ -26,11 +32,12 @@ const ROUTES: Record<string, ServiceName> = {
   wallet: 'commerce',
   payout: 'commerce',
   ledger: 'commerce',
-  'seller': 'commerce',
+  seller: 'commerce',
   shipping: 'shipping',
   shipments: 'shipping',
   'delivery-staff': 'shipping',
   callbacks: 'shipping',
+  forum: 'community',
   chat: 'community',
   reviews: 'community',
   notifications: 'community',
@@ -67,11 +74,51 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     const service = this.resolveService(req.originalUrl);
     if (!service) return next();
 
+    // 1. Route tier classification & authorization enforcement
+    const tier = classifyRoute(req.method, req.originalUrl);
+    const authError = (req as any).authError;
+    const user = (req as any).user;
+
+    if (tier === 'ADMIN') {
+      if (authError) {
+        return this.sendUnauthorized(res, req, authError.code, authError.message);
+      }
+      if (!user) {
+        return this.sendUnauthorized(res, req, 'AUTH_TOKEN_MISSING', 'Authentication token is required');
+      }
+      if (!ADMIN_ROLES.has(user.role)) {
+        return this.sendForbidden(res, req, 'AUTHZ_ROLE_INSUFFICIENT', 'Access denied. Administrator role required.');
+      }
+    } else if (tier === 'SELLER') {
+      if (authError) {
+        return this.sendUnauthorized(res, req, authError.code, authError.message);
+      }
+      if (!user) {
+        return this.sendUnauthorized(res, req, 'AUTH_TOKEN_MISSING', 'Authentication token is required');
+      }
+      if (!SELLER_ROLES.has(user.role)) {
+        return this.sendForbidden(res, req, 'AUTHZ_ROLE_INSUFFICIENT', 'Access denied. Seller or administrator role required.');
+      }
+    } else if (tier === 'AUTHENTICATED') {
+      if (authError) {
+        return this.sendUnauthorized(res, req, authError.code, authError.message);
+      }
+      if (!user) {
+        return this.sendUnauthorized(res, req, 'AUTH_TOKEN_MISSING', 'Authentication token is required');
+      }
+    } else if (tier === 'PUBLIC') {
+      // If the client explicitly sent an invalid/expired Bearer token to a public route,
+      // return 401 so the client can trigger refresh instead of proceeding with an ambiguous session.
+      if (authError && req.headers.authorization) {
+        return this.sendUnauthorized(res, req, authError.code, authError.message);
+      }
+    }
+
     const host = this.config.get<string>(`services.${service}.host`);
     const port = this.config.get<number>(`services.${service}.port`);
     if (!host || !port) return next(new Error(`No target configured for ${service}`));
 
-    const headers = this.forwardHeaders(req.headers, req);
+    const headers = this.forwardHeaders(req.headers, req, res);
     const body = this.serializeBody(req);
     if (body) {
       headers['content-length'] = Buffer.byteLength(body).toString();
@@ -154,6 +201,28 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     proxy(1);
   }
 
+  private sendUnauthorized(res: Response, req: Request, code: string, message: string) {
+    res.status(401).json({
+      status: 'error',
+      statusCode: 401,
+      code,
+      message,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl,
+    });
+  }
+
+  private sendForbidden(res: Response, req: Request, code: string, message: string) {
+    res.status(403).json({
+      status: 'error',
+      statusCode: 403,
+      code,
+      message,
+      timestamp: new Date().toISOString(),
+      path: req.originalUrl,
+    });
+  }
+
   private scheduleRetry(
     proxy: (attempt: number) => void,
     attempt: number,
@@ -185,9 +254,9 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /stores/:id/reviews → community
-    // Route /admin/finance/* → commerce
+    // Route /admin/finance/* or /admin/drm/* → commerce
     if (firstSegment === 'admin') {
-      if (path.includes('/admin/finance')) {
+      if (path.includes('/admin/finance') || path.includes('/admin/drm')) {
         return 'commerce';
       }
       return 'community';
@@ -213,17 +282,47 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     return undefined;
   }
 
-  private forwardHeaders(headers: IncomingHttpHeaders, req?: Request): IncomingHttpHeaders {
+  private forwardHeaders(
+    headers: IncomingHttpHeaders,
+    req?: Request,
+    res?: Response,
+  ): IncomingHttpHeaders {
     const forwarded = { ...headers };
     delete forwarded.host;
     delete forwarded['content-length'];
     delete forwarded.connection;
 
+    // 1. Strip all incoming identity headers from untrusted client
+    for (const key of Object.keys(forwarded)) {
+      const lower = key.toLowerCase();
+      if (
+        lower.startsWith('x-user-') ||
+        lower === 'x-business-id' ||
+        lower === 'x-store-id' ||
+        lower === 'x-internal-service' ||
+        lower === 'x-roles'
+      ) {
+        delete forwarded[key];
+      }
+    }
+
+    // 2. Propagate or generate correlation ID
+    const correlationId =
+      (headers['x-correlation-id'] as string) ||
+      (headers['x-request-id'] as string) ||
+      randomUUID();
+    forwarded['x-correlation-id'] = correlationId;
+    if (res && !res.headersSent) {
+      res.setHeader('x-correlation-id', correlationId);
+    }
+
+    // 3. Only generate identity headers from verified user decoded from valid JWT
     if (req && (req as any).user) {
       const user = (req as any).user;
       if (user.id) forwarded['x-user-id'] = user.id;
       if (user.role) forwarded['x-user-role'] = user.role;
       if (user.email) forwarded['x-user-email'] = user.email;
+      if (user.businessId) forwarded['x-business-id'] = user.businessId;
     }
 
     return forwarded;

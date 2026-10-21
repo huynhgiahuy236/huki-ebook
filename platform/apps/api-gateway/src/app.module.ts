@@ -6,6 +6,8 @@ import { AuthMiddleware } from './modules/auth/auth.middleware';
 import { HealthController } from './modules/health/health.controller';
 import { ServiceProxyMiddleware } from './modules/proxy/service-proxy.middleware';
 
+import { getJwtSecret } from '@huki/shared';
+
 // Config
 const configuration = () => ({
   port: parseInt(process.env.API_GATEWAY_PORT || '3000', 10),
@@ -40,7 +42,7 @@ const configuration = () => ({
     },
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'your-super-secret-jwt-key',
+    secret: getJwtSecret(),
   },
 });
 

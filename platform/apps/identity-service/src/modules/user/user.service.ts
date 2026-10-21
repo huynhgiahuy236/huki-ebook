@@ -5,6 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { AuditAction, AuditDiffHelper } from '../../../../../libs/shared/src';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'node:crypto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class UserService {
@@ -36,10 +37,49 @@ export class UserService {
 
   async updateProfile(
     userId: string,
-    data: Pick<Prisma.UserUpdateInput, 'fullName' | 'phone' | 'avatar'>,
+    dto: UpdateProfileDto,
   ): Promise<User> {
-    await this.findById(userId);
-    return this.prisma.user.update({ where: { id: userId }, data });
+    const existing = await this.findById(userId);
+    const updateData: Prisma.UserUpdateInput = {};
+
+    if (dto.fullName !== undefined) updateData.fullName = dto.fullName.trim();
+    if (dto.phone !== undefined) updateData.phone = dto.phone?.trim() || null;
+    if (dto.avatar !== undefined) updateData.avatar = dto.avatar || null;
+    if (dto.hasCompletedOnboarding !== undefined) {
+      updateData.hasCompletedOnboarding = Boolean(dto.hasCompletedOnboarding);
+    }
+
+    const existingPrefs = (existing.onboardingPreferences as Record<string, any>) || {};
+    const hasPrefUpdates =
+      dto.primaryGoals !== undefined ||
+      dto.preferredCategories !== undefined ||
+      dto.favoriteGenres !== undefined ||
+      dto.preferredFormats !== undefined ||
+      dto.preferredTheme !== undefined ||
+      dto.dailyMinutesGoal !== undefined ||
+      dto.yearlyBooksTarget !== undefined ||
+      dto.preferredReadingTime !== undefined ||
+      dto.readingHabits !== undefined ||
+      dto.wishlist !== undefined;
+
+    if (hasPrefUpdates) {
+      const mergedPrefs = {
+        ...existingPrefs,
+        ...(dto.primaryGoals !== undefined && { primaryGoals: dto.primaryGoals }),
+        ...(dto.preferredCategories !== undefined && { preferredCategories: dto.preferredCategories }),
+        ...(dto.favoriteGenres !== undefined && { favoriteGenres: dto.favoriteGenres }),
+        ...(dto.preferredFormats !== undefined && { preferredFormats: dto.preferredFormats }),
+        ...(dto.preferredTheme !== undefined && { preferredTheme: dto.preferredTheme }),
+        ...(dto.dailyMinutesGoal !== undefined && { dailyMinutesGoal: dto.dailyMinutesGoal }),
+        ...(dto.yearlyBooksTarget !== undefined && { yearlyBooksTarget: dto.yearlyBooksTarget }),
+        ...(dto.preferredReadingTime !== undefined && { preferredReadingTime: dto.preferredReadingTime }),
+        ...(dto.readingHabits !== undefined && { readingHabits: dto.readingHabits }),
+        ...(dto.wishlist !== undefined && { wishlist: dto.wishlist }),
+      };
+      updateData.onboardingPreferences = mergedPrefs;
+    }
+
+    return this.prisma.user.update({ where: { id: userId }, data: updateData });
   }
 
   async getPublicProfile(userId: string) {

@@ -97,10 +97,10 @@ export const authApi = {
   /**
    * Làm mới Access Token
    */
-  async refreshToken(refreshToken: string): Promise<ApiResponse<AuthTokens>> {
+  async refreshToken(refreshToken?: string): Promise<ApiResponse<AuthTokens>> {
     return apiClient<AuthTokens>('/auth/refresh', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify(refreshToken ? { refreshToken } : {}),
       skipAuth: true,
     });
   },
@@ -109,10 +109,10 @@ export const authApi = {
    * Đăng xuất hệ thống
    */
   async logout(): Promise<ApiResponse<{ message: string }>> {
-    const refreshToken = tokenStorage.getRefreshToken() || '';
+    const refreshToken = tokenStorage.getRefreshToken();
     return apiClient<{ message: string }>('/auth/logout', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify(refreshToken ? { refreshToken } : {}),
     });
   },
 

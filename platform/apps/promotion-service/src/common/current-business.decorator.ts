@@ -1,9 +1,11 @@
 import { createParamDecorator, ExecutionContext } from "@nestjs/common";
 import * as jwt from "jsonwebtoken";
+import { getJwtSecret } from "@huki/shared";
 
 /**
  * CurrentBusiness decorator
- * Extracts business info from JWT token / request.user
+ * Extracts business info from verified JWT token / request.user
+ * Enforces business boundary: only administrators may specify an arbitrary businessId.
  */
 export const CurrentBusiness = createParamDecorator(
   (data: unknown, ctx: ExecutionContext) => {
@@ -17,7 +19,7 @@ export const CurrentBusiness = createParamDecorator(
         try {
           const payload = jwt.verify(
             token,
-            process.env.JWT_SECRET || "your-super-secret-jwt-key",
+            getJwtSecret(),
           ) as any;
           user = {
             id: payload.sub || payload.id,
@@ -27,34 +29,35 @@ export const CurrentBusiness = createParamDecorator(
           };
           request.user = user;
         } catch {
-          try {
-            const decoded = jwt.decode(token) as any;
-            if (decoded) {
-              user = {
-                id: decoded.sub || decoded.id,
-                email: decoded.email,
-                role: decoded.role,
-                businessId: decoded.businessId || decoded.business?.id,
-              };
-              request.user = user;
-            }
-          } catch {}
+          user = undefined;
         }
       }
     }
 
-    const headerBiz =
-      (request.headers?.["x-business-id"] as string) ||
+    const headerBiz = request.headers?.["x-business-id"] as string;
+    const queryBiz =
       (request.query?.["businessId"] as string) ||
       (request.query?.["business"] as string);
+    const requestedBiz = headerBiz || queryBiz;
 
-    const bizId =
-      headerBiz ||
-      user?.businessId ||
-      user?.business?.id ||
-      user?.sub ||
-      user?.id ||
-      "seller";
+    const isAdmin =
+      user?.role === 'PLATFORM_ADMIN' ||
+      user?.role === 'ADMIN' ||
+      user?.role === 'SUPER_ADMIN';
+
+    // Platform admins may target a specific business via header or query.
+    // Sellers and other roles are strictly confined to their verified business identity.
+    let bizId: string;
+    if (isAdmin && requestedBiz) {
+      bizId = requestedBiz;
+    } else {
+      bizId =
+        user?.businessId ||
+        user?.business?.id ||
+        user?.sub ||
+        user?.id ||
+        "seller";
+    }
 
     return {
       id: bizId,
@@ -65,4 +68,3 @@ export const CurrentBusiness = createParamDecorator(
     };
   },
 );
-

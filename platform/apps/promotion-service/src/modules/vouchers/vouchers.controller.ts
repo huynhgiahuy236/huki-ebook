@@ -33,6 +33,7 @@ import {
   ApiHeader,
 } from '@nestjs/swagger';
 import { Request } from 'express';
+import { getJwtSecret } from '@huki/shared';
 import { VouchersService } from './vouchers.service';
 import {
   CreateVoucherDto,
@@ -313,18 +314,18 @@ export class VouchersController {
   }
 
   private extractUserIdFromRequest(request: any): string {
+    if (request?.user?.id || request?.user?.sub) return request.user.id || request.user.sub;
     if (request?.headers?.['x-user-id']) return request.headers['x-user-id'];
     const authHeader = request?.headers?.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       try {
-        const payload = jwt.verify(token, process.env.JWT_SECRET || 'your-super-secret-jwt-key') as any;
+        const payload = jwt.verify(token, getJwtSecret()) as any;
         return payload.sub || payload.id || payload.userId || 'anonymous';
       } catch {
-        const decoded = jwt.decode(token) as any;
-        return decoded?.sub || decoded?.id || decoded?.userId || 'anonymous';
+        return 'anonymous';
       }
     }
-    return request?.user?.sub || request?.user?.id || 'anonymous';
+    return 'anonymous';
   }
 }

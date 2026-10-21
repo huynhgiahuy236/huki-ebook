@@ -24,29 +24,18 @@ function deleteCookie(name: string): void {
 
 export const tokenStorage = {
   getTokens(): AuthTokens | null {
-    let accessToken: string | null = null;
-    let refreshToken: string | null = null;
-
-    if (typeof window !== 'undefined' && window.localStorage) {
-      accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-      refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-    }
-
-    if (!accessToken || !refreshToken) {
-      accessToken = accessToken || getCookie(ACCESS_TOKEN_KEY);
-      refreshToken = refreshToken || getCookie(REFRESH_TOKEN_KEY);
-    }
-
-    return accessToken && refreshToken ? { accessToken, refreshToken } : null;
+    const accessToken = this.getAccessToken();
+    return accessToken ? { accessToken, refreshToken: '' } : null;
   },
 
   setTokens(tokens: AuthTokens): void {
     if (typeof window !== 'undefined' && window.localStorage) {
       if (tokens.accessToken) localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      if (tokens.refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
+      // Security: Do not store refreshToken in localStorage; clean up legacy key
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     }
     if (tokens.accessToken) setCookie(ACCESS_TOKEN_KEY, tokens.accessToken, 7);
-    if (tokens.refreshToken) setCookie(REFRESH_TOKEN_KEY, tokens.refreshToken, 7);
+    deleteCookie(REFRESH_TOKEN_KEY);
   },
 
   clearTokens(): void {
@@ -67,11 +56,8 @@ export const tokenStorage = {
   },
 
   getRefreshToken(): string | null {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const token = localStorage.getItem(REFRESH_TOKEN_KEY);
-      if (token) return token;
-    }
-    return getCookie(REFRESH_TOKEN_KEY);
+    // Refresh token is maintained exclusively in HttpOnly cookies by the browser.
+    return null;
   },
 };
 

@@ -83,6 +83,52 @@ describe("AuthService refresh rotation & DRM active device limits", () => {
     });
   });
 
+  it("detects token reuse and revokes entire session and all session tokens", async () => {
+    prisma.refreshToken.findFirst.mockResolvedValue({
+      id: "compromised-token-id",
+      sessionId: "session-id",
+      tokenFamily: "family-id",
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: new Date(Date.now() - 10_000),
+      revokedReason: "token_rotation",
+      session: { revokedAt: null, user: { id: "user-id" } },
+    });
+    tx.refreshToken.updateMany.mockResolvedValue({ count: 2 });
+    tx.authSession.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.refreshToken({
+        refreshToken: "reused-refresh-token",
+      }),
+    ).rejects.toThrow();
+
+    expect(tx.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { sessionId: "session-id", revokedAt: null },
+      data: { revokedAt: expect.any(Date), revokedReason: "reuse_detected" },
+    });
+    expect(tx.authSession.updateMany).toHaveBeenCalledWith({
+      where: { id: "session-id", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it("rejects expired refresh token", async () => {
+    prisma.refreshToken.findFirst.mockResolvedValue({
+      id: "expired-token-id",
+      sessionId: "session-id",
+      tokenFamily: "family-id",
+      expiresAt: new Date(Date.now() - 60_000),
+      revokedAt: null,
+      session: { revokedAt: null, user: { id: "user-id" } },
+    });
+
+    await expect(
+      service.refreshToken({
+        refreshToken: "expired-refresh-token",
+      }),
+    ).rejects.toThrow();
+  });
+
   it("stores a reset token and sends the password reset email", async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: "user-id",

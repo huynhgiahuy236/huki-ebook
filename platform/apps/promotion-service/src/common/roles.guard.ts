@@ -4,6 +4,8 @@ import * as jwt from "jsonwebtoken";
 import { throwForbidden } from "@huki/shared/errors";
 import { ErrorCode } from "@huki/shared/errors";
 
+import { getJwtSecret } from "@huki/shared";
+
 export const ROLES_KEY = "roles";
 
 export function Roles(...roles: string[]) {
@@ -42,7 +44,7 @@ export class RolesGuard implements CanActivate {
       if (headerUserId) {
         user = {
           id: headerUserId,
-          role: headerRole || 'PLATFORM_ADMIN',
+          role: headerRole || '',
         };
         request.user = user;
       }
@@ -55,7 +57,7 @@ export class RolesGuard implements CanActivate {
         try {
           const payload = jwt.verify(
             token,
-            process.env.JWT_SECRET || "your-super-secret-jwt-key",
+            getJwtSecret(),
           ) as any;
           user = {
             id: payload.sub,
@@ -64,19 +66,7 @@ export class RolesGuard implements CanActivate {
           };
           request.user = user;
         } catch {
-          try {
-            const decoded = jwt.decode(token) as any;
-            if (decoded && (decoded.sub || decoded.id)) {
-              user = {
-                id: decoded.sub || decoded.id,
-                email: decoded.email,
-                role: decoded.role || 'PLATFORM_ADMIN',
-              };
-              request.user = user;
-            }
-          } catch {
-            user = undefined;
-          }
+          user = undefined;
         }
       }
     }

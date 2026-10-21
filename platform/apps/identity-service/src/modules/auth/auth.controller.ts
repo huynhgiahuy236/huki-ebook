@@ -16,6 +16,7 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -85,6 +86,41 @@ export class AuthController {
     return { message: 'Verification email sent' };
   }
 
+  private setRefreshTokenCookie(res: Response, token: string) {
+    const isProd = process.env.NODE_ENV === 'production';
+    res.cookie('refreshToken', token, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'strict' : 'lax') as 'strict' | 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  private clearRefreshTokenCookie(res: Response) {
+    const isProd = process.env.NODE_ENV === 'production';
+    const clearOpts = {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'strict' : 'lax') as 'strict' | 'lax',
+      path: '/',
+    };
+    res.clearCookie('refreshToken', clearOpts);
+    res.clearCookie('huki_refresh_token', clearOpts);
+  }
+
+  private extractRefreshToken(req: Request, dto?: RefreshTokenDto): string | undefined {
+    if (dto?.refreshToken) return dto.refreshToken;
+    const cookies = (req as any).cookies;
+    if (cookies?.refreshToken) return cookies.refreshToken;
+    if (cookies?.huki_refresh_token) return cookies.huki_refresh_token;
+
+    const cookieHeader = req.headers?.cookie;
+    if (!cookieHeader) return undefined;
+    const match = cookieHeader.match(/(?:^|;\s*)(?:refreshToken|huki_refresh_token)=([^;]*)/);
+    return match ? decodeURIComponent(match[1]) : undefined;
+  }
+
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -93,10 +129,17 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Login successful' })
   @ApiUnauthorizedResponse({ description: 'Invalid credentials or unverified email' })
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
+  async login(
+    @Body() dto: LoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const userAgent = req.get('user-agent');
     const ipAddress = req.ip;
     const result = await this.authService.login(dto, userAgent, ipAddress);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
     return {
       message: 'Đăng nhập thành công',
       data: result,
@@ -111,10 +154,17 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Google login successful' })
   @ApiBadRequestResponse({ description: 'Invalid Google token or missing email' })
-  async loginWithGoogle(@Body() dto: GoogleLoginDto, @Req() req: Request) {
+  async loginWithGoogle(
+    @Body() dto: GoogleLoginDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const userAgent = req.get('user-agent');
     const ipAddress = req.ip;
     const result = await this.authService.loginWithGoogle(dto, userAgent, ipAddress);
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
     return {
       message: 'Đăng nhập Google thành công',
       data: result,
@@ -169,8 +219,12 @@ export class AuthController {
           ipAddress,
         );
 
+        if (result?.refreshToken) {
+          this.setRefreshTokenCookie(res, result.refreshToken);
+        }
+
         return res.redirect(
-          `http://localhost:3100/auth/login?token=${result.accessToken}&refreshToken=${result.refreshToken}`,
+          `http://localhost:3100/auth/login?token=${result.accessToken}`,
         );
       }
       return res.redirect('http://localhost:3100/auth/login?error=auth_failed');
@@ -193,8 +247,16 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Logout successful' })
   @ApiUnauthorizedResponse({ description: 'Invalid or missing token' })
-  async logout(@Body('refreshToken') refreshToken: string) {
-    await this.authService.logout(refreshToken);
+  async logout(
+    @Body('refreshToken') bodyRefreshToken: string | undefined,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = bodyRefreshToken || this.extractRefreshToken(req);
+    if (refreshToken) {
+      await this.authService.logout(refreshToken);
+    }
+    this.clearRefreshTokenCookie(res);
     return { message: 'Đăng xuất thành công' };
   }
 
@@ -221,8 +283,19 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
   @ApiUnauthorizedResponse({ description: 'Invalid or expired refresh token' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    const result = await this.authService.refreshToken(dto);
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = this.extractRefreshToken(req, dto);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh token không tồn tại');
+    }
+    const result = await this.authService.refreshToken({ refreshToken });
+    if (result?.refreshToken) {
+      this.setRefreshTokenCookie(res, result.refreshToken);
+    }
     return { data: result };
   }
 

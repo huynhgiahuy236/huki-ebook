@@ -150,7 +150,8 @@ async function run() {
   console.log('\n[Step 2] Tạo và publish sách Hybrid');
   const categoriesResponse = await request('/categories/tree');
   const categories = dataOf(categoriesResponse) || [];
-  const categoryId = categories[0]?.id;
+  const validCat = Array.isArray(categories) ? categories.find(c => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)) : undefined;
+  const categoryId = validCat?.id;
   const title = `Phase 7 Hybrid E2E ${Date.now()}`;
   const createBook = await request('/books', {
     method: 'POST',

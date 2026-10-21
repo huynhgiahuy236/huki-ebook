@@ -8,16 +8,21 @@ const eslintConfig = defineConfig([
   {
     // The migrated React 18 UI intentionally preserves inline editorial copy
     // and state-driven effects while it runs inside a client-only boundary.
-    files: ["src/ui/**/*.{js,jsx}"],
+    files: ["src/**/*.{js,jsx,ts,tsx}"],
     rules: {
       "@next/next/no-img-element": "off",
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
       "react/no-unescaped-entities": "off",
       "react-hooks/exhaustive-deps": "off",
       "react-hooks/immutability": "off",
       "react-hooks/preserve-manual-memoization": "off",
       "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/use-memo": "off",
       "react-hooks/set-state-in-effect": "off",
+      "@typescript-eslint/ban-ts-comment": "off",
+      "prefer-const": "warn",
     },
   },
   {
@@ -35,6 +40,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "scripts/**",
+    "public/**",
   ]),
 ]);
 

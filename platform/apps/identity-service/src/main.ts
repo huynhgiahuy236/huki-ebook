@@ -1,3 +1,9 @@
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../../platform/.env') });
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
@@ -7,6 +13,7 @@ import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
 
   // Allow Base64 avatar uploads up to 10MB
   app.use(json({ limit: '10mb' }));

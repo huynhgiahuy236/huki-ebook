@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Bookmark } from '@/ui/context/ReaderContext';
+import { readerApi } from '@/ui/api/readerApi';
 
 interface UseBookmarksOptions {
   bookId: string;
@@ -51,27 +52,19 @@ export function useBookmarks({ bookId, currentPage }: UseBookmarksOptions) {
     if (!bookId) return;
     setIsLoading(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
-      const res = await fetch(`/api/reader/bookmarks/${bookId}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      });
+      const res = await readerApi.getBookmarks(bookId);
 
-      if (res.ok) {
-        const json = await res.json();
-        const serverBookmarks: Bookmark[] = (json.data || []).map((b: any) => ({
+      if (res.success && res.data) {
+        const serverBookmarks: Bookmark[] = res.data.map((b: any) => ({
           id: b.id,
           bookId: b.bookId,
           page: b.pageNumber,
           note: b.note || `Dấu trang tại Trang ${b.pageNumber}`,
-          timestamp: b.createdAt || new Date().toISOString()
+          timestamp: b.createdAt || new Date().toISOString(),
         }));
         setBookmarks(serverBookmarks);
         saveLocalBookmarks(serverBookmarks);
       } else {
-        // Fallback to local cache
         const local = loadLocalBookmarks();
         setBookmarks(local);
       }
@@ -94,23 +87,17 @@ export function useBookmarks({ bookId, currentPage }: UseBookmarksOptions) {
 
   // Toggle bookmark for page
   const toggleBookmark = useCallback(async (pageNum: number, note?: string) => {
-    const existing = bookmarks.find(b => b.page === pageNum);
+    const existing = bookmarks.find((b) => b.page === pageNum);
 
     if (existing) {
       // Delete bookmark
-      const updated = bookmarks.filter(b => b.id !== existing.id);
+      const updated = bookmarks.filter((b) => b.id !== existing.id);
       setBookmarks(updated);
       saveLocalBookmarks(updated);
 
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
-        if (token && !existing.id.startsWith('local_')) {
-          await fetch(`/api/reader/bookmarks/${existing.id}`, {
-            method: 'DELETE',
-            headers: {
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            }
-          });
+        if (!existing.id.startsWith('local_')) {
+          await readerApi.deleteBookmark(existing.id);
         }
       } catch (e) {
         console.warn('Could not sync bookmark deletion to server:', e);
@@ -124,7 +111,7 @@ export function useBookmarks({ bookId, currentPage }: UseBookmarksOptions) {
         bookId,
         page: pageNum,
         note: defaultNote,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       const updated = [...bookmarks, newBm].sort((a, b) => a.page - b.page);
@@ -133,26 +120,15 @@ export function useBookmarks({ bookId, currentPage }: UseBookmarksOptions) {
 
       try {
         setIsSyncing(true);
-        const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
-        if (token) {
-          const res = await fetch('/api/reader/bookmarks', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              bookId,
-              pageNumber: pageNum,
-              note: defaultNote
-            })
-          });
-          if (res.ok) {
-            const json = await res.json();
-            if (json.data?.id) {
-              setBookmarks(prev => prev.map(b => b.id === tempId ? { ...b, id: json.data.id } : b));
-            }
-          }
+        const res = await readerApi.addBookmark({
+          bookId,
+          pageNumber: pageNum,
+          note: defaultNote,
+        });
+        if (res.success && res.data?.id) {
+          setBookmarks((prev) =>
+            prev.map((b) => (b.id === tempId ? { ...b, id: res.data!.id } : b))
+          );
         }
       } catch (e) {
         console.warn('Could not sync new bookmark to server:', e);

@@ -37,6 +37,10 @@ model User {
   lockedUntil         DateTime? @map("locked_until")
   mustChangePassword  Boolean   @default(false) @map("must_change_password")
 
+  // Onboarding & Preferences
+  hasCompletedOnboarding Boolean @default(false) @map("has_completed_onboarding")
+  onboardingPreferences  Json?   @map("onboarding_preferences")
+
   // Relations
   sessions AuthSession[]
 

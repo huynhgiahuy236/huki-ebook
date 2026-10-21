@@ -54,13 +54,13 @@ export class HealthController {
     }
   }
 
-  @Get('liveness')
+  @Get(['live', 'liveness'])
   @ApiOperation({ summary: 'Liveness probe - basic health check' })
   liveness() {
     return { service: 'community-service', status: 'ok' };
   }
 
-  @Get('readiness')
+  @Get(['ready', 'readiness'])
   @ApiOperation({ summary: 'Readiness probe - checks all dependencies' })
   async readiness(): Promise<HealthStatus> {
     return this.check();

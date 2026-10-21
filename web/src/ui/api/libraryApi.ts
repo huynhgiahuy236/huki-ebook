@@ -40,16 +40,17 @@ export const libraryApi = {
       console.warn('apiClient getMyLibrary failed, trying direct fallback:', err);
     }
 
-    // Fallback directly to commerce-service port 3003 if needed
+    // Fallback via API Gateway if needed
     try {
       const u = userId ? `?userId=${encodeURIComponent(userId)}` : '';
-      const direct = await fetch(`http://localhost:3003/api/v1/books/library/my-books${u}`);
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '/api/v1';
+      const direct = await fetch(`${baseUrl}/books/library/my-books${u}`);
       const json = await direct.json();
       if (json && json.data && Array.isArray(json.data)) {
         return json.data as UserLibraryBook[];
       }
     } catch (e) {
-      console.error('Direct commerce-service library fetch error:', e);
+      console.error('API Gateway library fetch error:', e);
     }
     return [];
   }

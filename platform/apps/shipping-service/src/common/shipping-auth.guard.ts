@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { throwUnauthorized, throwForbidden } from '@huki/shared/errors';
 import { ErrorCode } from '@huki/shared/errors';
+import { getJwtSecret } from '@huki/shared';
 
 export interface ShippingActor {
   sub: string;
@@ -26,11 +27,14 @@ export class AuthenticatedGuard implements CanActivate {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_MISSING, 'Bearer token is required');
       return false;
     }
-    const secrets = [
-      process.env.JWT_SECRET,
-      '0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0',
-      'your-super-secret-jwt-key',
-    ].filter(Boolean) as string[];
+    const secrets =
+      process.env.NODE_ENV === 'production'
+        ? [getJwtSecret()]
+        : [
+            process.env.JWT_SECRET,
+            '0521ab048d035a99b2c967bcadd4fb2bea5c6ed05b4dc7fe5cc129fe50051890d79a031d1a8c036b29e5b74dc82ab6b1e67cd5be3fb6a0838cb6bb9080f818c0',
+            'your-super-secret-jwt-key',
+          ].filter(Boolean) as string[];
 
     for (const secret of secrets) {
       try {

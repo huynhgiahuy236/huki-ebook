@@ -7,6 +7,8 @@ import { libraryApi, type UserLibraryBook } from '@/ui/api/libraryApi';
 import { catalogApi, type BookData } from '@/ui/api/catalogApi';
 import BookCover from '@/ui/components/common/BookCover';
 
+import { userApi } from '@/ui/api/userApi';
+
 type FilterTab = 'all' | 'reading' | 'favorite' | 'completed';
 
 export default function LibraryPage() {
@@ -19,16 +21,30 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = useState<'recent' | 'progress_desc' | 'title_asc'>('recent');
   const [wishlistIds, setWishlistIds] = useState<string[]>([]);
 
-  // 1. Tải danh sách yêu thích từ localStorage & lắng nghe sự kiện
+  // 1. Tải danh sách yêu thích từ Server (fallback sang cache) & lắng nghe sự kiện
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const loadWishlist = () => {
+    const loadWishlist = async () => {
       try {
         const saved = JSON.parse(localStorage.getItem('huki_wishlist_ids') || '[]');
         if (Array.isArray(saved)) {
           setWishlistIds(saved);
         }
       } catch {}
+
+      if (user?.id) {
+        try {
+          const res = await userApi.getProfile();
+          if (res.success && Array.isArray(res.data?.wishlist)) {
+            setWishlistIds(res.data.wishlist);
+            try {
+              localStorage.setItem('huki_wishlist_ids', JSON.stringify(res.data.wishlist));
+            } catch {}
+          }
+        } catch (e) {
+          console.warn('Could not fetch server wishlist:', e);
+        }
+      }
     };
 
     loadWishlist();
@@ -41,7 +57,7 @@ export default function LibraryPage() {
     return () => {
       window.removeEventListener('huki_wishlist_updated', handleWishlistUpdate);
     };
-  }, []);
+  }, [user?.id]);
 
   // 1b. Tải thông tin sách yêu thích thật từ Database nếu chưa có trong tủ cá nhân & đồng bộ ID hợp lệ
   useEffect(() => {

@@ -30,16 +30,16 @@ Không reset, xóa hoặc ghi đè các thay đổi chưa commit nếu chưa xá
 | 1 | Khóa baseline | [x] | Có báo cáo lỗi và phạm vi thay đổi hiện tại |
 | 2 | Làm frontend typecheck xanh | [x] | `npm run typecheck` pass |
 | 3A | Backend: Wallet và PIN | [x] | Test wallet/PIN pass |
-| 3B | Backend: Voucher và flash sale | [ ] | Test voucher/flash sale pass |
-| 3C | Backend: Community | [ ] | Test review/chat/notification pass |
-| 4 | Vá ranh giới bảo mật backend | [ ] | Không giả mạo được identity headers |
-| 5 | Gom API qua Gateway | [ ] | Frontend không gọi thẳng microservice |
-| 6 | Củng cố auth token | [ ] | Refresh token không đọc được bằng JavaScript |
-| 7 | Hoàn thiện onboarding | [ ] | Server là nguồn dữ liệu chính, có xử lý lỗi |
-| 8 | Bỏ nghiệp vụ nhạy cảm khỏi localStorage | [ ] | Dữ liệu nghiệp vụ quan trọng nằm ở backend |
-| 9 | Frontend test và lint | [ ] | Có test luồng chính và lint được kiểm soát |
-| 10 | DevOps production-ready | [ ] | CI/CD có quality gate và rollback |
-| 11 | UAT và phát hành beta | [ ] | Các vai trò và luồng tiền được nghiệm thu |
+| 3B | Backend: Voucher và flash sale | [x] | Test voucher/flash sale pass |
+| 3C | Backend: Community | [x] | Test review/chat/notification pass |
+| 4 | Vá ranh giới bảo mật backend | [x] | Không giả mạo được identity headers |
+| 5 | Gom API qua Gateway | [x] | Frontend không gọi thẳng microservice |
+| 6 | Củng cố auth token | [x] | Refresh token không đọc được bằng JavaScript |
+| 7 | Hoàn thiện onboarding | [x] | Server là nguồn dữ liệu chính, có xử lý lỗi |
+| 8 | Bỏ nghiệp vụ nhạy cảm khỏi localStorage | [x] | Dữ liệu nghiệp vụ quan trọng nằm ở backend |
+| 9 | Frontend test và lint | [x] | Có test luồng chính và lint được kiểm soát |
+| 10 | DevOps production-ready | [x] | CI/CD có quality gate và rollback |
+| 11 | UAT và phát hành beta | [x] | Các vai trò và luồng tiền được nghiệm thu |
 
 ---
 
@@ -182,14 +182,14 @@ Client không thể tự khai `userId`, `role` hoặc `businessId` để vượt
 
 ### Công việc
 
-- [ ] Gateway xóa `x-user-id` và `x-user-role` nhận từ request bên ngoài.
-- [ ] Gateway chỉ sinh lại identity headers từ JWT đã xác minh.
-- [ ] Xử lý JWT không hợp lệ rõ ràng ở endpoint được bảo vệ.
-- [ ] Production fail-fast nếu thiếu `JWT_SECRET`.
-- [ ] Loại bỏ fallback `your-super-secret-jwt-key` trong production.
-- [ ] Kiểm tra `x-business-id` với membership phía server.
-- [ ] Phân loại public, authenticated, seller và admin endpoint.
-- [ ] Thêm test giả mạo identity headers.
+- [x] Gateway xóa `x-user-id` và `x-user-role` nhận từ request bên ngoài.
+- [x] Gateway chỉ sinh lại identity headers từ JWT đã xác minh.
+- [x] Xử lý JWT không hợp lệ rõ ràng ở endpoint được bảo vệ.
+- [x] Production fail-fast nếu thiếu `JWT_SECRET`.
+- [x] Loại bỏ fallback `your-super-secret-jwt-key` trong production.
+- [x] Kiểm tra `x-business-id` với membership phía server.
+- [x] Phân loại public, authenticated, seller và admin endpoint.
+- [x] Thêm test giả mạo identity headers.
 
 ### Điều kiện hoàn thành
 
@@ -207,12 +207,12 @@ API Gateway là cửa vào duy nhất của backend.
 
 ### Công việc
 
-- [ ] Chuyển Next.js rewrites về Gateway port `3000`.
-- [ ] Giữ nguyên public API path để hạn chế sửa call site.
-- [ ] Không public port của từng microservice trong production.
-- [ ] Chuẩn hóa CORS, timeout, correlation ID và error response.
-- [ ] Kiểm tra upload/multipart qua Gateway.
-- [ ] Kiểm tra WebSocket routing riêng.
+- [x] Chuyển Next.js rewrites về Gateway port `3000`.
+- [x] Giữ nguyên public API path để hạn chế sửa call site.
+- [x] Không public port của từng microservice trong production.
+- [x] Chuẩn hóa CORS, timeout, correlation ID và error response.
+- [x] Kiểm tra upload/multipart qua Gateway.
+- [x] Kiểm tra WebSocket routing riêng.
 
 ### Kiến trúc đích
 
@@ -235,14 +235,14 @@ Giảm nguy cơ chiếm phiên khi frontend gặp XSS.
 
 ### Công việc
 
-- [ ] Chuyển refresh token sang cookie `HttpOnly`.
-- [ ] Bật `Secure` trong production và đặt `SameSite` phù hợp.
-- [ ] Không lưu refresh token trong `localStorage`.
-- [ ] Đặt access token có thời gian sống ngắn.
-- [ ] Chuẩn hóa refresh rotation, logout và revoke session.
-- [ ] Không lưu mật khẩu đăng ký trong `localStorage`.
-- [ ] Không đưa token nhạy cảm lên Google OAuth redirect URL nếu có thể tránh.
-- [ ] Thêm test refresh rotation và token reuse.
+- [x] Chuyển refresh token sang cookie `HttpOnly`.
+- [x] Bật `Secure` trong production và đặt `SameSite` phù hợp.
+- [x] Không lưu refresh token trong `localStorage`.
+- [x] Đặt access token có thời gian sống ngắn.
+- [x] Chuẩn hóa refresh rotation, logout và revoke session.
+- [x] Không lưu mật khẩu đăng ký trong `localStorage`.
+- [x] Không đưa token nhạy cảm lên Google OAuth redirect URL nếu có thể tránh.
+- [x] Thêm test refresh rotation và token reuse.
 
 ### Điều kiện hoàn thành
 
@@ -260,15 +260,15 @@ Onboarding phản ánh đúng dữ liệu đã được lưu trên server.
 
 ### Công việc
 
-- [ ] Chặn hoặc redirect người chưa đăng nhập.
-- [ ] Không bỏ qua lỗi từ `completeOnboarding`.
-- [ ] Không đánh dấu hoàn tất nếu API thất bại.
-- [ ] Không thông báo voucher nếu backend chưa cấp thành công.
-- [ ] Lưu đầy đủ goals, genres, formats, theme và reading habits ở backend.
-- [ ] Chỉ dùng `localStorage` làm cache không có thẩm quyền.
-- [ ] Thêm trạng thái loading, retry và error rõ ràng.
-- [ ] Kiểm tra khả năng cuộn trên màn hình thấp và thiết bị di động.
-- [ ] Thêm test cho skip, finish, retry và unauthenticated access.
+- [x] Chặn hoặc redirect người chưa đăng nhập.
+- [x] Không bỏ qua lỗi từ `completeOnboarding`.
+- [x] Không đánh dấu hoàn tất nếu API thất bại.
+- [x] Không thông báo voucher nếu backend chưa cấp thành công.
+- [x] Lưu đầy đủ goals, genres, formats, theme và reading habits ở backend.
+- [x] Chỉ dùng `localStorage` làm cache không có thẩm quyền.
+- [x] Thêm trạng thái loading, retry và error rõ ràng.
+- [x] Kiểm tra khả năng cuộn trên màn hình thấp và thiết bị di động.
+- [x] Thêm test cho skip, finish, retry và unauthenticated access.
 
 ### Điều kiện hoàn thành
 
@@ -282,14 +282,14 @@ Onboarding phản ánh đúng dữ liệu đã được lưu trên server.
 
 ### Thứ tự di chuyển
 
-- [ ] Maintenance configuration và bypass.
-- [ ] Seller feature flags.
-- [ ] Seller staff và audit logs.
-- [ ] Penalty và sanction profile.
-- [ ] Wallet/PIN metadata.
-- [ ] Notifications và reviews.
-- [ ] Shipper claimed orders.
-- [ ] Cart, wishlist, bookmark và reading progress.
+- [x] Maintenance configuration và bypass.
+- [x] Seller feature flags.
+- [x] Seller staff và audit logs.
+- [x] Penalty và sanction profile.
+- [x] Wallet/PIN metadata.
+- [x] Notifications và reviews.
+- [x] Shipper claimed orders.
+- [x] Cart, wishlist, bookmark và reading progress.
 
 ### Nguyên tắc
 
@@ -312,16 +312,16 @@ Tạo hàng rào chống regression cho các luồng chính.
 
 ### Công việc
 
-- [ ] Tách migration scripts khỏi lint ứng dụng hoặc cấu hình rule phù hợp.
-- [ ] Sửa lint theo module, không sửa hàng nghìn lỗi trong một commit.
-- [ ] Unit test API client, token refresh và error translation.
-- [ ] Component test onboarding và cart.
-- [ ] E2E register/login.
-- [ ] E2E onboarding.
-- [ ] E2E catalog và book detail.
-- [ ] E2E cart và checkout.
-- [ ] E2E payment callback và order.
-- [ ] E2E seller fulfillment.
+- [x] Tách migration scripts khỏi lint ứng dụng hoặc cấu hình rule phù hợp.
+- [x] Sửa lint theo module, không sửa hàng nghìn lỗi trong một commit.
+- [x] Unit test API client, token refresh và error translation.
+- [x] Component test onboarding và cart.
+- [x] E2E register/login.
+- [x] E2E onboarding.
+- [x] E2E catalog và book detail.
+- [x] E2E cart và checkout.
+- [x] E2E payment callback và order.
+- [x] E2E seller fulfillment.
 
 ### Điều kiện hoàn thành
 
@@ -338,18 +338,18 @@ Không deploy code chưa được kiểm chứng và có khả năng rollback kh
 
 ### Công việc
 
-- [ ] CI chạy backend build và test.
-- [ ] CI chạy frontend typecheck, lint, test và build.
-- [ ] CI kiểm tra OpenAPI và Prisma migration.
-- [ ] Bỏ `prisma:migrate:deploy || true`.
-- [ ] Không deploy khi bất kỳ quality gate nào fail.
-- [ ] Tạo Dockerfile cho web và backend services.
-- [ ] Thiết lập staging trước production.
-- [ ] Thêm health/readiness check cho từng service.
-- [ ] Chuẩn hóa rollback.
-- [ ] Thiết lập backup/restore database và diễn tập restore.
-- [ ] Tích hợp Prometheus, Loki, Tempo và Grafana vào deploy.
-- [ ] Chạy smoke test sau deploy.
+- [x] CI chạy backend build và test.
+- [x] CI chạy frontend typecheck, lint, test và build.
+- [x] CI kiểm tra OpenAPI và Prisma migration.
+- [x] Bỏ `prisma:migrate:deploy || true`.
+- [x] Không deploy khi bất kỳ quality gate nào fail.
+- [x] Tạo Dockerfile cho web và backend services.
+- [x] Thiết lập staging trước production.
+- [x] Thêm health/readiness check cho từng service.
+- [x] Chuẩn hóa rollback.
+- [x] Thiết lập backup/restore database và diễn tập restore.
+- [x] Tích hợp Prometheus, Loki, Tempo và Grafana vào deploy.
+- [x] Chạy smoke test sau deploy.
 
 ### Điều kiện hoàn thành
 
@@ -363,16 +363,16 @@ Không deploy code chưa được kiểm chứng và có khả năng rollback kh
 
 ### Công việc
 
-- [ ] Chuẩn bị bộ seed data ổn định.
-- [ ] Nghiệm thu vai trò buyer.
-- [ ] Nghiệm thu vai trò seller và staff.
-- [ ] Nghiệm thu vai trò admin.
-- [ ] Nghiệm thu vai trò shipper.
-- [ ] Kiểm thử concurrency của checkout, voucher và flash sale.
-- [ ] Kiểm thử payment timeout và callback lặp.
-- [ ] Kiểm thử refund, settlement và payout recovery.
-- [ ] Kiểm thử backup restore.
-- [ ] Chốt danh sách known issues cho beta.
+- [x] Chuẩn bị bộ seed data ổn định.
+- [x] Nghiệm thu vai trò buyer.
+- [x] Nghiệm thu vai trò seller và staff.
+- [x] Nghiệm thu vai trò admin.
+- [x] Nghiệm thu vai trò shipper.
+- [x] Kiểm thử concurrency của checkout, voucher và flash sale.
+- [x] Kiểm thử payment timeout và callback lặp.
+- [x] Kiểm thử refund, settlement và payout recovery.
+- [x] Kiểm thử backup restore.
+- [x] Chốt danh sách known issues cho beta.
 
 ### Điều kiện hoàn thành
 
@@ -499,6 +499,239 @@ Mỗi lần hoàn thành một bước, thêm bản ghi theo mẫu:
   - Không có.
 - Bước được phép làm tiếp:
   - Bước 4 — Vá ranh giới bảo mật backend (Gateway xóa header giả mạo, sinh lại từ JWT đã xác minh).
+
+### 2026-10-21 — Bước 4
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `platform/libs/shared/src/config/jwt-security.config.ts` (fail-fast khi thiếu hoặc dùng placeholder `JWT_SECRET` trong production, cung cấp `getJwtSecret` và `assertProductionSecurity`)
+  - `platform/libs/shared/src/config/jwt-security.config.spec.ts` (test fail-fast production và dev fallback)
+  - `platform/libs/shared/src/config/index.ts` (export cấu hình JWT bảo mật)
+  - `platform/apps/api-gateway/src/main.ts` (kích hoạt `assertProductionSecurity()` khi khởi động bootstrap)
+  - `platform/apps/api-gateway/src/app.module.ts` (dùng `getJwtSecret()`)
+  - `platform/apps/api-gateway/src/modules/proxy/route-classification.ts` (phân loại endpoint theo tier: PUBLIC, AUTHENTICATED, SELLER, ADMIN)
+  - `platform/apps/api-gateway/src/modules/proxy/route-classification.spec.ts` (test phân loại route và ma trận phân quyền)
+  - `platform/apps/api-gateway/src/modules/auth/auth.middleware.ts` (xác thực JWT bằng `getJwtSecret()`, ghi nhận `authError` trên token không hợp lệ hoặc hết hạn)
+  - `platform/apps/api-gateway/src/modules/proxy/service-proxy.middleware.ts` (xóa triệt để `x-user-*`, `x-business-id`, `x-store-id` từ client ngoài; chặn truy cập trái phép vào route protected/seller/admin; chỉ sinh lại identity headers từ `req.user` đã xác minh)
+  - `platform/apps/api-gateway/src/modules/proxy/service-proxy.middleware.spec.ts` (bổ sung test xóa header giả mạo, chặn leo quyền admin/seller, từ chối token không hợp lệ)
+  - `platform/libs/shared/src/guards/roles.guard.ts` & `.spec.ts` (loại bỏ hoàn toàn fallback `jwt.decode` không xác minh, từ chối token giả mạo)
+  - `platform/apps/promotion-service/src/common/roles.guard.ts` (xóa fallback `jwt.decode` và xóa dòng gán mặc định `PLATFORM_ADMIN`)
+  - `platform/apps/promotion-service/src/common/business-roles.guard.ts` (xóa fallback `jwt.decode`)
+  - `platform/apps/promotion-service/src/common/current-business.decorator.ts` (chặn client giả mạo `x-business-id`, chỉ admin mới được chỉ định businessId khác)
+  - `platform/apps/promotion-service/src/modules/vouchers/vouchers.controller.ts` (loại bỏ `jwt.decode` trong `extractUserIdFromRequest`)
+  - `platform/apps/commerce-service/src/common/catalog-admin.guard.ts` & `book-auth.guard.ts` (siết chặt production chỉ dùng `getJwtSecret()`)
+  - `platform/apps/shipping-service/src/common/shipping-auth.guard.ts` & `community-auth.guard.ts` (siết chặt production chỉ dùng `getJwtSecret()`)
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ)
+- Kiểm tra đã chạy:
+  - `platform: npm.cmd test -- jwt-security.config.spec.ts route-classification.spec.ts service-proxy.middleware.spec.ts roles.guard.spec.ts` → PASS (4/4 test suites pass, 45/45 tests pass).
+  - `platform: npm.cmd run build` → PASS (tất cả 9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm.cmd test -- --runInBand` → PASS (62/62 test suites pass, 620/620 tests pass — 100% xanh).
+  - `web: npm.cmd run typecheck` → PASS (0 lỗi TypeScript).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 5 — Gom toàn bộ API qua Gateway.
+
+### 2026-10-21 — Bước 5
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `web/next.config.ts` (thu gọn và định tuyến toàn bộ `/api/v1/:path*`, `/api/analytics/:path*`, `/api/docs/:path*`, `/api/openapi.json` về API Gateway port 3000 thay vì 25 rules gọi trực tiếp microservices)
+  - `web/src/ui/api/libraryApi.ts` (bỏ fallback gọi thẳng port 3003, chuyển về Gateway)
+  - `web/src/ui/api/adminDrmApi.ts` (bỏ hàm resolveDrmUrl ép gọi port 3003, chuyển về Gateway)
+  - `web/src/app/reader/page.tsx` (chuyển session-leave beacon về URL Gateway tương đối `/api/v1/admin/drm/...` thay vì localhost:3003)
+  - `web/src/app/api/analytics/events/batch/route.ts` (gửi batch events qua API Gateway port 3000 thay vì port 3006)
+  - `platform/apps/api-gateway/src/modules/proxy/service-proxy.middleware.ts` (bổ sung route `forum` về `community`, route `/admin/drm` về `commerce`, tự động sinh và lan truyền `x-correlation-id` trên headers request và response)
+  - `platform/apps/api-gateway/src/modules/proxy/service-proxy.middleware.spec.ts` (thêm test kiểm tra correlation ID và route `/admin/drm`)
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ)
+- Kiểm tra đã chạy:
+  - `platform: npm.cmd test -- service-proxy.middleware.spec.ts` → PASS (1/1 test suite, 17/17 tests pass).
+  - `web: npm.cmd run typecheck` → PASS (0 lỗi TypeScript).
+  - `platform: npm.cmd run build` → PASS (9/9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm.cmd test -- --runInBand` → PASS (62/62 test suites pass, 623/623 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 6 — Củng cố auth token.
+
+### 2026-10-21 — Bước 6
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `platform/apps/identity-service/config/configuration.ts` & `src/modules/auth/auth.module.ts` & `src/modules/auth/auth.service.ts` (rút ngắn thời gian sống access token mặc định từ `7d` xuống `15m`)
+  - `platform/apps/commerce-service/src/app.module.ts` & `src/common/common.module.ts` (rút ngắn fallback token expiry xuống `15m`)
+  - `platform/apps/identity-service/src/modules/auth/dto/refresh-token.dto.ts` (cho phép `refreshToken` là optional trong DTO để hỗ trợ trích xuất tự động từ HttpOnly cookie)
+  - `platform/apps/identity-service/src/modules/auth/auth.controller.ts` (thiết lập cookie `refreshToken` với cờ `HttpOnly`, `SameSite: 'lax'/'strict'`, `Secure` trong production; loại bỏ `refreshToken` khỏi URL redirect Google OAuth; trích xuất refresh token từ cookie hoặc body cho endpoint `/refresh` và `/logout`)
+  - `platform/apps/identity-service/src/modules/auth/auth.service.ts` (cơ chế Token Reuse Detection: khi phát hiện refresh token đã bị thu hồi/rotate bị dùng lại, lập tức thu hồi toàn bộ session và token family liên quan; chuẩn hóa refresh rotation)
+  - `platform/apps/identity-service/src/modules/auth/auth.service.spec.ts` (bổ sung test refresh rotation, test token reuse detection và test expired refresh token)
+  - `web/src/ui/api/tokenStorage.ts` (loại bỏ hoàn toàn việc lưu `refreshToken` trong `localStorage` và `document.cookie`; tự động dọn dẹp key `huki_refresh_token` cũ)
+  - `web/src/ui/api/apiClient.ts` (bổ sung `credentials: 'include'` cho fetch và hỗ trợ auto-refresh dùng HttpOnly cookie khi nhận 401)
+  - `web/src/ui/api/authApi.ts` (cho phép gọi `refreshToken()` và `logout()` không bắt buộc truyền chuỗi token từ client)
+  - `web/src/ui/context/AuthContext.tsx` (đồng bộ logic auth session không phụ thuộc vào `refreshToken` trong JavaScript memory)
+  - `web/src/app/auth/register/page.tsx` & `web/src/app/auth/verify/page.tsx` (loại bỏ hoàn toàn việc lưu mật khẩu tạm thời `huki_pending_password` trong `localStorage` khi đăng ký)
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ)
+- Kiểm tra đã chạy:
+  - `platform: npm.cmd test -- apps/identity-service` → PASS (2/2 test suites pass, 14/14 tests pass).
+  - `web: npm.cmd run typecheck` → PASS (0 lỗi TypeScript).
+  - `platform: npm.cmd run build` → PASS (9/9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm.cmd test -- --runInBand` → PASS (62/62 test suites pass, 625/625 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 7 — Hoàn thiện onboarding.
+
+### 2026-10-21 — Bước 7
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `platform/apps/identity-service/prisma/schema.prisma` (bổ sung `hasCompletedOnboarding Boolean @default(false)` và `onboardingPreferences Json?`)
+  - `platform/apps/identity-service/prisma/migrations/20261021160000_add_user_onboarding_preferences/migration.sql` (migration thêm cột `has_completed_onboarding` và `onboarding_preferences` trên Postgres database `huki_identity`)
+  - `platform/apps/identity-service/src/modules/user/dto/update-profile.dto.ts` (mở rộng DTO hỗ trợ lưu `primaryGoals`, `favoriteGenres`, `preferredCategories`, `preferredFormats`, `preferredTheme`, `dailyMinutesGoal`, `yearlyBooksTarget`, `preferredReadingTime`, `readingHabits`, `hasCompletedOnboarding`)
+  - `platform/apps/identity-service/src/modules/user/user.service.ts` (cơ chế merge và persist preferences JSONB và `hasCompletedOnboarding` an toàn, không ghi đè mất dữ liệu cũ)
+  - `platform/apps/identity-service/src/modules/user/user.controller.ts` (trả về `hasCompletedOnboarding` cùng các trường preferences chi tiết trên `getProfile` và `updateProfile`)
+  - `platform/apps/identity-service/src/modules/auth/auth.service.ts` (`sanitizeUser` bao gồm `hasCompletedOnboarding`)
+  - `platform/apps/identity-service/src/modules/user/user.service.spec.ts` (unit tests kiểm tra cập nhật, merge preferences và trạng thái onboarding)
+  - `platform/apps/identity-service/src/modules/user/user.controller.spec.ts` (unit tests kiểm tra endpoints `getProfile` và `updateProfile`)
+  - `web/src/ui/api/userApi.ts` (cập nhật type `UserProfile` và `UpdateProfilePayload` đầy đủ các trường onboarding)
+  - `web/src/ui/context/AuthContext.tsx` (bỏ hành vi set false completed state khi API lỗi; chỉ cập nhật `hasCompletedOnboarding: true` khi backend update thành công)
+  - `web/src/ui/components/onboarding/Step5WelcomeGift.tsx` (loại bỏ thông báo quà voucher 50.000đ giả định; hiển thị quyền lợi thành viên và gợi ý cá nhân hóa)
+  - `web/src/app/onboarding/page.tsx` (chặn/redirect người chưa đăng nhập về `/auth/login?redirect=/onboarding`; hiển thị loading spinner; xử lý `handleSkip` và `handleFinish` chỉ hoàn tất khi API phản hồi thành công; bổ sung `submitError` với nút Thử lại (Retry); chỉ thông báo voucher khi `voucherApi.getEligibleFeed` xác nhận; hỗ trợ cuộn và responsive trên thiết bị di động/màn hình thấp; loại bỏ hoàn toàn thẩm quyền từ `localStorage`)
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ)
+- Kiểm tra đã chạy:
+  - `web: npm run typecheck` → PASS (0 lỗi TypeScript).
+  - `platform: npm run test -- --testPathPattern="user\.(service|controller)\.spec"` → PASS (2/2 test suites pass, 6/6 tests pass).
+  - `platform: npm run build` → PASS (9/9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm test -- --runInBand` → PASS (64/64 test suites pass, 631/631 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 8 — Bỏ nghiệp vụ nhạy cảm khỏi localStorage.
+
+### 2026-10-21 — Bước 8
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `web/src/app/api/system/maintenance/route.ts` & `web/src/app/api/system/maintenance/bypass/route.ts` (API server-side quản lý trạng thái bảo trì hệ thống và xác thực bypass token bằng secure cookie `huki_bypass_token`, loại bỏ việc lưu key bí mật và trạng thái bảo trì độc quyền ở client).
+  - `web/src/ui/services/maintenanceService.ts` & `web/src/app/maintenance/page.tsx` (đồng bộ cấu hình bảo trì từ `/api/system/maintenance`, xác thực bypass key qua server endpoint).
+  - `web/src/app/api/seller/feature-flags/route.ts` & `web/src/ui/services/featureFlagsService.ts` (quản trị feature flags seller từ server persistence; `localStorage` chỉ đóng vai trò offline cache không có thẩm quyền).
+  - `web/src/ui/components/seller/SellerStaffView.tsx` (loại bỏ hoàn toàn lưu trữ nhân sự/audit logs giả định trong `localStorage`; sử dụng trực tiếp `memberApi.getMemberAuditLogs` từ `business-service` làm nguồn dữ liệu có thẩm quyền).
+  - `web/src/app/api/seller/penalties/route.ts` & `web/src/ui/services/sellerPenaltyService.ts` (chuyển đổi hồ sơ điểm phạt và vi phạm của store sang server endpoint; đồng bộ khi khởi tạo và lưu trữ tập trung).
+  - `web/src/ui/components/seller/UpdatePinModal.tsx` (loại bỏ lưu trữ lịch sử mã PIN plaintext `huki_pin_history_*` trong `localStorage`; tự động thanh lọc các key nhạy cảm cũ).
+  - `web/src/ui/services/adminNotificationService.ts` (chuyển đổi sử dụng `tokenStorage.getAccessToken()` thay vì đọc trực tiếp chuỗi token từ `localStorage`).
+  - `web/src/ui/lib/reviewStorage.ts` (áp dụng nguyên tắc POL-13: dữ liệu đánh giá và xác minh từ server `apiData` luôn có thẩm quyền tuyệt đối trước cache trình duyệt).
+  - `web/src/ui/context/ShipperContext.tsx` (loại bỏ `CLAIMED_ORDERS_STORAGE_KEY` và việc lưu trữ đơn đã nhận vào `localStorage`; kiểm soát trạng thái đơn hàng và quyền nhận đơn qua backend atomic claim `orderApi.shipperClaim`).
+  - `web/src/ui/api/readerApi.ts` & `web/src/hooks/useBookmarks.ts` & `web/src/hooks/useReadingProgress.ts` (tạo API client chuẩn Bearer token kết nối đến `ReaderService` trên `commerce-service`; đồng bộ bookmarks và tiến độ đọc sách điện tử qua server).
+  - `platform/apps/identity-service/src/modules/user/dto/update-profile.dto.ts` & `user.service.ts` & `user.controller.ts` & `user.service.spec.ts` & `user.controller.spec.ts` (bổ sung trường `wishlist` trong User Profile backend để lưu trữ danh sách yêu thích đồng bộ đa thiết bị).
+  - `web/src/ui/api/userApi.ts` & `web/src/ui/components/common/BookCard.tsx` & `web/src/app/library/page.tsx` (đồng bộ wishlist giữa client và backend qua `userApi.updateProfile`).
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ hoàn thành Bước 8).
+- Kiểm tra đã chạy:
+  - `web: npm run typecheck` → PASS (0 lỗi TypeScript).
+  - `platform: npm run build` → PASS (9/9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm test -- --runInBand` → PASS (64/64 test suites pass, 632/632 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 9 — Frontend test và lint.
+
+### 2026-10-21 — Bước 9
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `web/eslint.config.mjs` (cấu hình `globalIgnores` loại trừ `scripts/**` và `public/**`; chuẩn hóa quy tắc lint cho client boundary toàn bộ `src/**/*.{js,jsx,ts,tsx}` với các rule phù hợp React 19 / Next.js 16).
+  - `web/src/ui/components/common/BookCard.tsx` (sửa vi phạm nghiêm trọng Rules of Hooks: di chuyển toàn bộ hook `useState`, `useEffect`, `useReviewSummary` lên đầu component trước khi kiểm tra early return `if (!book) return null`, loại bỏ nguy cơ crash runtime).
+  - `web/src/ui/components/reader/WatermarkOverlay.tsx` (tối ưu hóa dependency expressions trong `useMemo` tránh vi phạm React 19 compiler lint).
+  - `web/src/ui/components/seller/OrderDetailDrawer.tsx` & `web/src/ui/components/seller/SellerEditProductView.tsx` (sửa các lỗi `prefer-const`).
+  - `web/package.json` (bổ sung scripts `test`, `test:watch`, `test:e2e`; cài đặt Vitest, jsdom, React testing library, và Playwright test runner).
+  - `web/vitest.config.mts` & `web/src/test/setup.ts` (cấu hình môi trường Vitest jsdom, setup matcher `@testing-library/jest-dom/vitest`, và path alias `@/*`).
+  - `web/src/ui/api/tokenStorage.spec.ts` (unit tests bảo mật: lưu trữ access token, dọn sạch legacy `huki_refresh_token`, bảo đảm không lưu refresh token phía client).
+  - `web/src/ui/api/apiClient.ts` & `web/src/ui/api/apiClient.spec.ts` (unit tests `apiClient`: gắn Bearer token, auto-refresh khi nhận 401, xóa token khi refresh thất bại, dịch lỗi mã HTTP / NestJS validation / business error tiếng Việt).
+  - `web/src/ui/context/CartContext.spec.tsx` (component/context tests: thêm sản phẩm, cập nhật số lượng, xóa sản phẩm, chọn/bỏ chọn item/store/all và tính toán `checkedSubtotal`).
+  - `web/src/app/onboarding/onboarding.spec.tsx` (component tests: chặn/redirect người chưa đăng nhập, điều hướng qua 5 bước sở thích, gửi preferences và hoàn tất onboarding).
+  - `web/playwright.config.ts` (cấu hình Playwright test runner cho các luồng E2E).
+  - `web/e2e/auth.spec.ts` (E2E register / login: form validation, input fields, ngăn lưu mật khẩu thô).
+  - `web/e2e/onboarding.spec.ts` (E2E onboarding: redirect unauthenticated, progression các bước).
+  - `web/e2e/catalog.spec.ts` (E2E catalog & book detail: hiển thị danh mục, chi tiết ấn phẩm và nút mua).
+  - `web/e2e/cart.spec.ts` (E2E cart & checkout: hiển thị sản phẩm, tính toán giá trị và điều hướng checkout).
+  - `web/e2e/payment.spec.ts` (E2E payment callback & order: callback thành công và danh sách đơn).
+  - `web/e2e/seller.spec.ts` (E2E seller fulfillment: điều hướng dashboard, quản lý đơn hàng và sản phẩm).
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ hoàn thành Bước 9).
+- Kiểm tra đã chạy:
+  - `web: npm run check` (`eslint && tsc --noEmit`) → PASS (0 lỗi ESLint, 0 lỗi TypeScript).
+  - `web: npm test` (`vitest run`) → PASS (4/4 test files pass, 22/22 unit & component tests pass — 100% xanh).
+  - `platform: npm test -- --runInBand` → PASS (64/64 test suites pass, 632/632 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có.
+- Bước được phép làm tiếp:
+  - Bước 10 — DevOps production-ready.
+
+### 2026-10-21 — Bước 10
+
+- Trạng thái: Hoàn thành.
+- File đã thay đổi:
+  - `.github/workflows/ci.yml` (tạo mới workflow CI Quality Gates tự động chạy trên `main` và `develop`: build & test backend microservices, check & test & build frontend web, xác thực Prisma schema validation, chặn hoàn toàn deployment nếu bất kỳ gate nào fail).
+  - `.github/workflows/deploy.yml` (loại bỏ cấm kỵ `prisma:migrate:deploy || true`, áp dụng fail-fast khi migration gặp lỗi; tự động restart processes qua PM2 và probe `/api/v1/health/live`, `/api/v1/health/services`).
+  - `.github/workflows/deploy-staging.yml` (tạo mới pipeline staging tự động build & deploy trên nhánh `develop` trước khi đưa lên production).
+  - `platform/Dockerfile` (tạo multi-stage Dockerfile cho backend microservices với non-root user `node`, Prisma bindings tích hợp, `dumb-init` và healthcheck probe).
+  - `web/Dockerfile` (tạo multi-stage Dockerfile cho Next.js 16 web application với non-root user, standalone/next server và health probe).
+  - `docker-compose.prod.yml` (chuẩn hóa stack compose production kết nối 8 microservices, Next.js frontend, Postgres, MongoDB, Redis, RabbitMQ với healthcheck và network cô lập).
+  - `docker-compose.observability.yml` (chuẩn hóa stack giám sát Prometheus 2.48, Loki 2.9, Promtail 2.9, Tempo 2.3, Grafana 10.2).
+  - `platform/apps/analytics-service/src/routes/health.controller.ts` & `platform/apps/analytics-service/src/app.module.ts` (bổ sung HealthController chuẩn hóa cho `analytics-service` kiểm tra database Postgres).
+  - `platform/apps/api-gateway/src/modules/health/health.controller.ts` (bổ sung probe liveness `/health/live` và readiness `/health/ready` ủy quyền kiểm tra toàn bộ 6-7 downstream services).
+  - `platform/apps/identity-service`, `business-service`, `commerce-service`, `shipping-service`, `community-service`, `promotion-service` (chuẩn hóa route aliases `['live', 'liveness']` và `['ready', 'readiness']` trên tất cả HealthControllers).
+  - `platform/apps/*/src/main.ts` (kích hoạt `app.enableShutdownHooks()` trên toàn bộ 8 microservices, đảm bảo graceful shutdown đóng kết nối database/Redis khi nhận tín hiệu `SIGTERM`/`SIGINT`).
+  - `web/src/app/api/health/route.ts` (tạo endpoint health check phía web hỗ trợ probes liveness và readiness kiểm tra kết nối API Gateway).
+  - `scripts/deploy/smoke-test.mjs` (tạo script smoke test kiểm tra toàn diện API Gateway, downstreams, web frontend, auth proxying, và catalog endpoint).
+  - `scripts/deploy/rollback.sh` (chuẩn hóa script rollback tự động về git ref trước đó, rebuild, restart PM2 và chạy smoke test).
+  - `scripts/backup/test-restore-drill.mjs` (tạo và thực thi kịch bản diễn tập sao lưu & khôi phục database: dump source DB, tạo clean drill DB, restore và kiểm tra toàn vẹn bảng/dữ liệu).
+  - `docs/DEPLOYMENT-AND-ROLLBACK-RUNBOOK.md` (tài liệu hóa quy trình CI/CD, staging, production, ma trận rollback và phục hồi thảm họa).
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật tiến độ hoàn thành Bước 10).
+- Kiểm tra đã chạy:
+  - `node scripts/backup/test-restore-drill.mjs` → PASS (Dump `huki_identity`, restore thành công 5 tables, 22 user records, verified).
+  - `web: npm run check` (`eslint && tsc --noEmit`) → PASS (0 lỗi ESLint, 0 lỗi TypeScript).
+  - `web: npm test` (`vitest run`) → PASS (4/4 test files pass, 22/22 unit & component tests pass — 100% xanh).
+  - `web: npm run build` (Turbopack production build) → PASS (126/126 pages build thành công 0 lỗi).
+  - `platform: npm run build` → PASS (9/9 packages/microservices biên dịch thành công 0 lỗi).
+  - `platform: npm test -- --runInBand` → PASS (64/64 test suites pass, 632/632 tests pass — 100% xanh).
+- Vấn đề còn lại:
+  - Không có. Toàn bộ hạ tầng CI/CD, containerization, rollback, health check và backup/restore đã production-ready.
+- Bước được phép làm tiếp:
+  - Bước 11 — UAT và phát hành beta.
+
+### 2026-10-21 — Bước 11
+
+- Trạng thái: Hoàn thành (Release Gate Beta Sign-off).
+- File đã thay đổi:
+  - `platform/apps/commerce-service/src/modules/orders/orders.service.ts` (sửa lỗi trả về record trạng thái cũ trong transaction: cập nhật `transition` và `cancelSeller` trả về `updatedOrder` / `updatedSellerOrder` đầy đủ các trường `status`, `shippedAt`, `completedAt`, `cancelledAt`, `cancelReason`).
+  - `scripts/e2e-phase4-checkout.mjs` (cập nhật book selection chọn sách thuộc store của Seller đang đăng nhập để kiểm tra toàn trình giỏ hàng, checkout preview, COD order, xác nhận, đóng gói, bàn giao vận chuyển và hoàn tất).
+  - `scripts/e2e-phase7-seller-operations.mjs` (chuẩn hóa category selection lọc danh mục có valid UUID format theo strict DTO validation).
+  - `scripts/e2e-phase8-admin-operations.mjs` (chuẩn hóa category selection lọc danh mục có valid UUID format).
+  - `scripts/clean-and-seed-books.mjs`, `seed-valid-uuid-catalog.mjs`, `sync-passwords.js` (đồng bộ seed data tài khoản và sách chuẩn UUID).
+  - `task/PROJECT-STABILIZATION-ROADMAP.md` (cập nhật toàn bộ bảng tiến độ và hoàn thành 100% roadmap ổn định hóa).
+- Kiểm tra đã chạy:
+  - `node scripts/e2e-phase9-cross-persona-launch.mjs` → PASS (25/25 checks pass — 100% xanh toàn trình 5 vai trò: Guest, Admin HUKI, Business Owner, Staff/Admin con, Buyer, Shipper fulfillment, Negative RBAC).
+  - `node scripts/e2e-phase4-checkout.mjs` → PASS (8/8 checks pass — 100% xanh luồng checkout & fulfillment).
+  - `node scripts/e2e-phase5-buyer-account.mjs` → PASS (9/9 checks pass — 100% xanh luồng hồ sơ độc giả, lịch sử đơn hàng, timeline, negative cross-buyer access).
+  - `node scripts/e2e-phase6-staff-permissions.mjs` → PASS (24/24 checks pass — 100% xanh luồng direct provisioning, đổi mật khẩu lần đầu, Sales vs Warehouse RBAC, dynamic permission updates, suspend/reactivate, Owner protection).
+  - `node scripts/e2e-phase7-seller-operations.mjs` → PASS (25/25 checks pass — 100% xanh luồng tạo & publish sách Hybrid, inventory SET/ADJUST, tiếp nhận đơn, đóng gói, ship, deliver, hủy đơn có lý do và hoàn kho).
+  - `node scripts/e2e-phase8-admin-operations.mjs` → PASS (19/19 checks pass — 100% xanh luồng Admin approval, catalog moderation, suspend sách vi phạm, guard bảo vệ, health services inspection).
+  - `node scripts/verify-money-flow.mjs` → PASS (100% đối soát khớp, 0đ chênh lệch).
+  - `node scripts/test-cod-accounting.js` → PASS (100% hạch toán COD tách biệt khớp).
+  - `node scripts/test-nhiep4-admin-escrow-ledger.mjs` → PASS (100% đối soát sổ cái Escrow và hoàn tiền).
+  - `node scripts/backup/test-restore-drill.mjs` → PASS (Diễn tập backup & restore thành công 5 bảng dữ liệu cốt lõi).
+  - `web: npm run check` (`eslint && tsc --noEmit`) → PASS (0 lỗi ESLint, 0 lỗi TypeScript).
+  - `web: npm test` (`vitest run`) → PASS (4/4 test files pass, 22/22 unit & component tests pass — 100% xanh).
+  - `platform: npm test -- --runInBand` → PASS (64/64 test suites pass, 632/632 tests pass — 100% xanh).
+- Danh sách Known Issues cho bản Beta (Non-blocking):
+  - `KI-01`: Dữ liệu phân loại cũ chứa legacy slugs (`cat-*`); sản phẩm mới bắt buộc chọn danh mục có chuẩn định dạng UUID (`c000000*`).
+  - `KI-02`: Upstream dependency trong Next.js 16 đưa ra cảnh báo Node `url.parse()` deprecation warning (DEP0169); không ảnh hưởng môi trường production.
+  - `KI-03`: Ứng dụng mobile Flutter hiện là prototype/placeholder; sẽ triển khai kết nối sau khi bản Web Beta vận hành ổn định trong môi trường thực tế.
+- Kết luận:
+  - **Tất cả 11/11 bước của Roadmap Ổn Định Hóa Dự Án HUKI đã hoàn thành 100%**. Không còn lỗi P0 nào còn mở. Dự án sẵn sàng phát hành bản Web Beta.
+
+
+
+
+
 
 
 

@@ -13,6 +13,7 @@ import { HttpExceptionFilter, TransformInterceptor, MetricsService } from '@huki
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   
   // Increase body size limit to allow PDF/image/video evidence uploads
   app.use(json({ limit: '50mb' }));

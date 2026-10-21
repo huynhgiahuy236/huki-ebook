@@ -18,6 +18,14 @@ export class UpdateProfileDto {
   @IsString()
   avatar?: string;
 
+  @ApiPropertyOptional({ description: 'Mục tiêu trải nghiệm đọc sách' })
+  @IsOptional()
+  primaryGoals?: string[];
+
+  @ApiPropertyOptional({ description: 'Thể loại sách yêu thích chi tiết' })
+  @IsOptional()
+  favoriteGenres?: string[];
+
   @ApiPropertyOptional({ description: 'Thể loại yêu thích' })
   @IsOptional()
   preferredCategories?: string[];
@@ -25,6 +33,11 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({ description: 'Định dạng yêu thích' })
   @IsOptional()
   preferredFormats?: string[];
+
+  @ApiPropertyOptional({ description: 'Giao diện đọc sách ưa thích' })
+  @IsOptional()
+  @IsString()
+  preferredTheme?: string;
 
   @ApiPropertyOptional({ description: 'Mục tiêu đọc mỗi ngày (phút)' })
   @IsOptional()
@@ -37,6 +50,18 @@ export class UpdateProfileDto {
   @ApiPropertyOptional({ description: 'Thời gian đọc ưa thích' })
   @IsOptional()
   preferredReadingTime?: string;
+
+  @ApiPropertyOptional({ description: 'Thói quen đọc sách' })
+  @IsOptional()
+  readingHabits?: {
+    dailyMinutes?: number;
+    yearlyBooksTarget?: number;
+    preferredTime?: string;
+  };
+
+  @ApiPropertyOptional({ description: 'Danh sách ID sách yêu thích' })
+  @IsOptional()
+  wishlist?: string[];
 
   @ApiPropertyOptional({ description: 'Đã hoàn thành onboarding' })
   @IsOptional()

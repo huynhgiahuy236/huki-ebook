@@ -431,18 +431,41 @@ export class AuthService {
   }
 
   async refreshToken(dto: RefreshTokenDto) {
+    if (!dto?.refreshToken) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
+    }
+    const tokenHash = this.hashToken(dto.refreshToken);
     const token = await this.prisma.refreshToken.findFirst({
-      where: { tokenHash: this.hashToken(dto.refreshToken), revokedAt: null },
+      where: { tokenHash },
       include: { session: { include: { user: true } } },
     });
-    if (!token || token.expiresAt < new Date() || token.session.revokedAt) {
+    if (!token) {
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
+    }
+
+    // Token reuse detection: if token was already revoked, someone is replaying an old rotated token!
+    if (token.revokedAt) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.refreshToken.updateMany({
+          where: { sessionId: token.sessionId, revokedAt: null },
+          data: { revokedAt: new Date(), revokedReason: "reuse_detected" },
+        });
+        await tx.authSession.updateMany({
+          where: { id: token.sessionId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      });
+      throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
+    }
+
+    if (token.expiresAt < new Date() || token.session?.revokedAt) {
       throwUnauthorized(ErrorCode.AUTH_TOKEN_EXPIRED);
     }
     const refreshToken = randomUUID();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60_000);
     await this.prisma.$transaction(async (tx) => {
       const revoked = await tx.refreshToken.updateMany({
-        where: { id: token!.id, revokedAt: null },
+        where: { id: token.id, revokedAt: null },
         data: { revokedAt: new Date(), revokedReason: "token_rotation" },
       });
       if (revoked.count !== 1) {
@@ -451,19 +474,19 @@ export class AuthService {
 
       const replacement = await tx.refreshToken.create({
         data: {
-          sessionId: token!.sessionId,
-          tokenFamily: token!.tokenFamily,
+          sessionId: token.sessionId,
+          tokenFamily: token.tokenFamily,
           tokenHash: this.hashToken(refreshToken),
           expiresAt,
         },
       });
       await tx.refreshToken.update({
-        where: { id: token!.id },
+        where: { id: token.id },
         data: { replacedByTokenId: replacement.id },
       });
     });
 
-    let tokenUser = token!.session.user;
+    let tokenUser = token.session.user;
     tokenUser = await this.ensureBusinessRoleIfApproved(tokenUser);
 
     return {
@@ -675,7 +698,7 @@ export class AuthService {
       expiresIn:
         this.configService.get('jwt.accessTokenExpiresIn') ||
         this.configService.get('JWT_ACCESS_EXPIRES_IN') ||
-        '7d',
+        '15m',
     };
 
     return this.jwtService.sign(payload, options);
@@ -700,6 +723,7 @@ export class AuthService {
       avatar: user.avatar,
       emailVerified: Boolean(user.emailVerifiedAt),
       mustChangePassword: isMustChangePassword,
+      hasCompletedOnboarding: Boolean((user as any).hasCompletedOnboarding),
       createdAt: user.createdAt,
     };
   }

@@ -74,39 +74,25 @@ export default function UpdatePinModal({
       return;
     }
 
-    // 3. Kiểm tra không được trùng với các mã PIN cũ trong lịch sử (Quy định không dùng lại PIN cũ)
-    const historyKey = `huki_pin_history_${storeId}`;
-    let pinHistory: string[] = [];
-    try {
-      pinHistory = JSON.parse(localStorage.getItem(historyKey) || '[]');
-    } catch {
-      pinHistory = [];
-    }
-
-    if (pinHistory.includes(newPin)) {
-      setErrorMsg('Mã PIN này đã từng được sử dụng trước đây. Theo quy chuẩn bảo mật định kỳ, bạn không được sử dụng lại mã PIN cũ.');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
+      // Clean up legacy plaintext PIN history from localStorage if any exists
+      try {
+        const historyKey = `huki_pin_history_${storeId}`;
+        const updateTimeKey = `huki_pin_updated_at_${storeId}`;
+        localStorage.removeItem(historyKey);
+        localStorage.removeItem(updateTimeKey);
+      } catch {}
+
       const res = await walletApi.changePin(storeId, {
         currentPin,
         newPin,
       });
 
       if (res.success || (res as any)?.data?.message) {
-        // Lưu lịch sử các mã PIN đã dùng (tối đa 5 mã gần nhất)
-        const updatedHistory = [currentPin, ...pinHistory.filter((p) => p !== currentPin && p !== newPin)].slice(0, 5);
-        localStorage.setItem(historyKey, JSON.stringify(updatedHistory));
-
-        // Lưu thời điểm cập nhật PIN để tính chu kỳ 3 tháng (90 ngày)
-        const updateTimeKey = `huki_pin_updated_at_${storeId}`;
-        localStorage.setItem(updateTimeKey, new Date().toISOString());
-
         setIsSuccess(true);
-        showToast?.('🎉 Đổi mã PIN bảo mật thành công! Mã PIN mới có hiệu lực trong 3 tháng (90 ngày).', 'success');
+        showToast?.('🎉 Đổi mã PIN bảo mật thành công! Mã PIN mới đã được cập nhật an toàn trên hệ thống.', 'success');
 
         if (onSuccess) {
           await onSuccess();

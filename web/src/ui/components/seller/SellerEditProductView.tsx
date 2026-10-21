@@ -264,7 +264,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         let authorIdVal = book.authorId || (typeof rawAuthor === 'object' ? rawAuthor?.id : '') || '';
 
         // Match in authors list
-        let matchedAuthor = authors.find(a => (authorIdVal && a.id === authorIdVal) || a.name.toLowerCase() === authorNameStr.toLowerCase());
+        const matchedAuthor = authors.find(a => (authorIdVal && a.id === authorIdVal) || a.name.toLowerCase() === authorNameStr.toLowerCase());
         if (matchedAuthor) {
           authorIdVal = matchedAuthor.id;
         } else if (authorNameStr) {
@@ -279,7 +279,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         let categoryIdVal = book.categoryId || (typeof rawCategory === 'object' ? rawCategory?.id : '') || '';
 
         // Match in categories list
-        let matchedCategory = categories.find(c => (categoryIdVal && c.id === categoryIdVal) || c.name.toLowerCase() === categoryNameStr.toLowerCase());
+        const matchedCategory = categories.find(c => (categoryIdVal && c.id === categoryIdVal) || c.name.toLowerCase() === categoryNameStr.toLowerCase());
         if (matchedCategory) {
           categoryIdVal = matchedCategory.id;
         } else if (categoryNameStr) {
@@ -293,7 +293,7 @@ export default function SellerEditProductView({ productId: propProductId }: Sell
         const publisherNameStr = (typeof rawPublisher === 'string' ? rawPublisher : rawPublisher?.name || book.publisherName || '').trim() || (book.title?.includes('Đắc Nhân Tâm') ? 'NXB Tổng Hợp TP.HCM' : (currentBizName || 'HUKI EBOOK'));
         let publisherIdVal = book.publisherId || (typeof rawPublisher === 'object' ? rawPublisher?.id : '') || '';
 
-        let matchedPublisher = publishers.find(p => (publisherIdVal && p.id === publisherIdVal) || p.name.toLowerCase() === publisherNameStr.toLowerCase());
+        const matchedPublisher = publishers.find(p => (publisherIdVal && p.id === publisherIdVal) || p.name.toLowerCase() === publisherNameStr.toLowerCase());
         if (matchedPublisher) {
           publisherIdVal = matchedPublisher.id;
           setPublisherMode('PARTNER');

@@ -132,9 +132,8 @@ export default function RegisterPage() {
     setIsLoading(false);
 
     if (regRes.success) {
-      // Lưu password tạm để auto-login sau khi verify
       if (typeof window !== 'undefined') {
-        localStorage.setItem('huki_pending_password', formData.password);
+        localStorage.removeItem('huki_pending_password');
       }
 
       showToast({

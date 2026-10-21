@@ -19,6 +19,22 @@ export class HealthController {
     };
   }
 
+  @Get(['health/live', 'health/liveness'])
+  @ApiOperation({ summary: 'Liveness probe - basic health check' })
+  liveness() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      service: 'api-gateway',
+    };
+  }
+
+  @Get(['health/ready', 'health/readiness'])
+  @ApiOperation({ summary: 'Readiness probe - checks all downstream dependencies' })
+  async readiness() {
+    return this.services();
+  }
+
   @Get('ping')
   @ApiOperation({ summary: 'Simple ping endpoint' })
   ping() {

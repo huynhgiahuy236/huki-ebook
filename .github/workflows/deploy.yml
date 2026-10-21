@@ -69,14 +69,22 @@ jobs:
               mkdir -p "dist/out-tsc/$service/apps/$service/prisma" && cp -a "apps/$service/prisma/generated" "dist/out-tsc/$service/apps/$service/prisma/"
             done
 
-            npm run prisma:migrate:deploy || true
+            # Step 1: Execute production database migrations (FAIL FAST - NO || true)
+            echo "Applying database migrations..."
+            npm run prisma:migrate:deploy
 
-            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service; do
-              pm2 restart "$process" --update-env
+            # Step 2: Restart services with PM2
+            for process in api-gateway identity-service business-service commerce-service shipping-service community-service promotion-service analytics-service; do
+              pm2 restart "$process" --update-env || pm2 start "dist/out-tsc/$process/apps/$process/src/main.js" --name "$process" --update-env
             done
 
+            # Step 3: Wait and run deployment smoke tests
+            echo "Waiting for services to warm up..."
             sleep 10
-            curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health >/dev/null
-            curl --fail --silent --show-error http://127.0.0.1:3005/api/v1/health >/dev/null
+
+            echo "Verifying API Gateway and Microservices health..."
+            curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health/live >/dev/null
+            curl --fail --silent --show-error http://127.0.0.1:3000/api/v1/health/services >/dev/null
+
             pm2 save
             pm2 status

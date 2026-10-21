@@ -5,10 +5,10 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const events = Array.isArray(body?.events) ? body.events : [];
 
-    // Optionally forward events to recommendation/analytics service if configured
-    const analyticsServiceUrl = process.env.ANALYTICS_SERVICE_URL || 'http://localhost:3006';
+    // Forward events through API Gateway
+    const gatewayUrl = process.env.API_GATEWAY_URL || process.env.NEXT_PUBLIC_GATEWAY_URL || 'http://localhost:3000';
     if (events.length > 0) {
-      fetch(`${analyticsServiceUrl}/api/v1/analytics/events/batch`, {
+      fetch(`${gatewayUrl}/api/v1/analytics/events/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events }),

@@ -55,11 +55,7 @@ export interface IntegrityScanResult {
   timestamp: string;
 }
 
-// Giúp đảm bảo kết nối thông suốt dù dev server có restart rewrite hay chưa
 function resolveDrmUrl(path: string): string {
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return `http://localhost:3003/api/v1${path}`;
-  }
   return path;
 }
 

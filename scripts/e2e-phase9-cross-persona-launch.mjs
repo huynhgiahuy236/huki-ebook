@@ -223,7 +223,8 @@ async function runE2E() {
   console.log('\n🏢 [Step 3] Persona 3 (Business Owner): Tạo & Publish sách Hybrid mới...');
   const catTreeRes = await request('/categories/tree');
   const catList = catTreeRes.data?.data || catTreeRes.data || [];
-  const categoryId = Array.isArray(catList) && catList[0]?.id ? catList[0].id : undefined;
+  const validCategory = Array.isArray(catList) ? catList.find(c => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)) : undefined;
+  const categoryId = validCategory?.id;
 
   const bookTitle = `Tuyệt Tác Sách Số & Sách Giấy E2E ${ts.toString().slice(-4)}`;
   const createBookRes = await request('/books', {
@@ -243,7 +244,7 @@ async function runE2E() {
   });
   const book = createBookRes.data?.data || createBookRes.data;
   const bookId = book?.id;
-  assert(createBookRes.ok && !!bookId, `Owner tạo sách Hybrid thành công ("${bookTitle}", ID: ${bookId})`);
+  assert(createBookRes.ok && !!bookId, `Owner tạo sách Hybrid thành công ("${bookTitle}", ID: ${bookId})`, JSON.stringify(createBookRes.data));
 
   const publishBookRes = await request(`/books/${bookId}/publish`, {
     method: 'POST',

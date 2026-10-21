@@ -1,0 +1,383 @@
+# ========================================================
+# HUKI EBOOK - Production Docker Compose Stack
+# Multi-service containerized architecture with health checks
+# ========================================================
+
+services:
+  # ============================================
+  # INFRASTRUCTURE DATABASES & BROKERS
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: huki-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_MULTIPLE_DATABASES: huki_identity,huki_business,huki_commerce,huki_shipping,huki_promotion,huki_analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-databases.sh:/docker-entrypoint-initdb.d/init.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  mongo:
+    image: mongo:6
+    container_name: huki-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: community_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: huki-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: huki-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest123}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - huki-network
+
+  # ============================================
+  # BACKEND MICROSERVICES
+  # ============================================
+  api-gateway:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-api-gateway
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/api-gateway/apps/api-gateway/src/main.js"]
+    environment:
+      PORT: 3000
+      API_GATEWAY_PORT: 3000
+      IDENTITY_SERVICE_HOST: identity-service
+      IDENTITY_SERVICE_PORT: 3001
+      BUSINESS_SERVICE_HOST: business-service
+      BUSINESS_SERVICE_PORT: 3002
+      COMMERCE_SERVICE_HOST: commerce-service
+      COMMERCE_SERVICE_PORT: 3003
+      SHIPPING_SERVICE_HOST: shipping-service
+      SHIPPING_SERVICE_PORT: 3004
+      COMMUNITY_SERVICE_HOST: community-service
+      COMMUNITY_SERVICE_PORT: 3005
+      PROMOTION_SERVICE_HOST: promotion-service
+      PROMOTION_SERVICE_PORT: 3007
+      ANALYTICS_SERVICE_HOST: analytics-service
+      ANALYTICS_SERVICE_PORT: 3008
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-min-32-chars-key}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3100}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      identity-service:
+        condition: service_started
+      business-service:
+        condition: service_started
+      commerce-service:
+        condition: service_started
+    networks:
+      - huki-network
+
+  identity-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-identity-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/identity-service/apps/identity-service/src/main.js"]
+    environment:
+      PORT: 3001
+      IDENTITY_SERVICE_PORT: 3001
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_identity
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_identity?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-this-in-production-min-32-chars-key}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-this-refresh-min-32-chars-key}
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  business-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-business-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/business-service/apps/business-service/src/main.js"]
+    environment:
+      PORT: 3002
+      BUSINESS_SERVICE_PORT: 3002
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_business
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_business?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  commerce-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-commerce-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/commerce-service/apps/commerce-service/src/main.js"]
+    environment:
+      PORT: 3003
+      COMMERCE_SERVICE_PORT: 3003
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_commerce
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_commerce?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3003/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  shipping-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-shipping-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/shipping-service/apps/shipping-service/src/main.js"]
+    environment:
+      PORT: 3004
+      SHIPPING_SERVICE_PORT: 3004
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_shipping
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_shipping?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3004/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  community-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-community-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/community-service/apps/community-service/src/main.js"]
+    environment:
+      PORT: 3005
+      COMMUNITY_SERVICE_PORT: 3005
+      MONGODB_URI: mongodb://mongo:27017/community_db
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      mongo:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  promotion-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-promotion-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/promotion-service/apps/promotion-service/src/main.js"]
+    environment:
+      PORT: 3007
+      PROMOTION_SERVICE_PORT: 3007
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_promotion
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_promotion?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3007/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  analytics-service:
+    build:
+      context: ./platform
+      dockerfile: Dockerfile
+    container_name: huki-analytics-service
+    restart: unless-stopped
+    command: ["node", "dist/out-tsc/analytics-service/apps/analytics-service/src/main.js"]
+    environment:
+      PORT: 3008
+      ANALYTICS_SERVICE_PORT: 3008
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      DATABASE_NAME: huki_analytics
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/huki_analytics?schema=public
+      INTERNAL_SERVICE_KEY: ${INTERNAL_SERVICE_KEY:-huki-production-internal-key}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3008/api/v1/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+  # ============================================
+  # FRONTEND WEB APPLICATION
+  # ============================================
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: huki-web
+    restart: unless-stopped
+    environment:
+      PORT: 3100
+      API_GATEWAY_URL: http://api-gateway:3000
+      NEXT_PUBLIC_GATEWAY_URL: http://api-gateway:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3000/api/v1
+      NEXT_PUBLIC_SITE_URL: http://localhost:3100
+    ports:
+      - "3100:3100"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3100/api/health?probe=live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    networks:
+      - huki-network
+
+networks:
+  huki-network:
+    name: huki-network
+
+volumes:
+  postgres_data:
+    name: huki-postgres-data
+  mongo_data:
+    name: huki-mongo-data
+  redis_data:
+    name: huki-redis-data
+  rabbitmq_data:
+    name: huki-rabbitmq-data

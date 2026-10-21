@@ -156,4 +156,30 @@ describe('RolesGuard', () => {
       }
     });
   });
+
+  describe('JWT token authentication and security', () => {
+    it('should reject invalid or forged token without verified signature (401)', () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(['PLATFORM_ADMIN']);
+      const forgedToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTYiLCJyb2xlIjoiUExBVEZPUk1fQURNSU4ifQ.invalid_signature';
+      const context = {
+        switchToHttp: () => ({
+          getRequest: () => ({
+            headers: {
+              authorization: `Bearer ${forgedToken}`,
+            },
+          }),
+        }),
+        getHandler: () => ({}),
+        getClass: () => ({}),
+      } as unknown as ExecutionContext;
+
+      expect(() => guard.canActivate(context)).toThrow();
+      try {
+        guard.canActivate(context);
+      } catch (e: any) {
+        expect(e.getStatus()).toBe(401);
+        expect(e.getResponse().code).toBe('AUTH_TOKEN_INVALID');
+      }
+    });
+  });
 });

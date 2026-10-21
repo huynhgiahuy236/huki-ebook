@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { readerApi } from '@/ui/api/readerApi';
 
 interface UseReadingProgressOptions {
   bookId: string;
@@ -49,21 +50,12 @@ export function useReadingProgress({
     if (!bookId || page < 1) return;
     try {
       setIsSyncing(true);
-      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
-      if (token) {
-        await fetch('/api/reader/progress', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            bookId,
-            currentPage: page,
-            percentage: pct
-          })
-        });
-      }
+      await readerApi.saveProgress({
+        bookId,
+        currentPage: page,
+        totalPages,
+        percentage: pct,
+      });
       setIsSaved(true);
       setLastSavedPage(page);
     } catch (e) {
@@ -71,7 +63,7 @@ export function useReadingProgress({
     } finally {
       setIsSyncing(false);
     }
-  }, [bookId]);
+  }, [bookId, totalPages]);
 
   // Restore progress on book mount
   const restoreProgress = useCallback(async () => {
@@ -96,23 +88,12 @@ export function useReadingProgress({
 
     // 2. Fetch authoritative progress from backend API
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_token') || localStorage.getItem('token') : null;
-      if (token) {
-        const res = await fetch(`/api/reader/progress/${bookId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data?.currentPage && json.data.currentPage >= 1) {
-            const serverPage = json.data.currentPage;
-            // Only update if server progress is further or more authoritative
-            if (serverPage !== restoredPage && onRestore) {
-              onRestore(serverPage);
-              restoredPage = serverPage;
-            }
-          }
+      const res = await readerApi.getProgress(bookId);
+      if (res.success && res.data?.currentPage && res.data.currentPage >= 1) {
+        const serverPage = res.data.currentPage;
+        if (serverPage !== restoredPage && onRestore) {
+          onRestore(serverPage);
+          restoredPage = serverPage;
         }
       }
     } catch (e) {

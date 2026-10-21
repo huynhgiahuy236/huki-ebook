@@ -126,7 +126,7 @@ export default function MaintenancePage() {
     };
   }, []);
 
-  const handleVerifyBypassKey = (e: React.FormEvent) => {
+  const handleVerifyBypassKey = async (e: React.FormEvent) => {
     e.preventDefault();
     setBypassError('');
 
@@ -135,7 +135,7 @@ export default function MaintenancePage() {
       return;
     }
 
-    const isValid = maintenanceService.verifyAndSaveBypassKey(bypassInputKey.trim());
+    const isValid = await maintenanceService.verifyAndSaveBypassKey(bypassInputKey.trim());
     if (isValid) {
       setBypassSuccess(true);
       setTimeout(() => {

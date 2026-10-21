@@ -498,13 +498,14 @@ export class OrdersService {
       const itemIds = sellerOrder!.items.map((item) => item.id);
       await this.reservations.release(tx as any, sellerOrder!.orderId, itemIds);
 
-      await tx.sellerOrder.update({
+      const updatedSellerOrder = await tx.sellerOrder.update({
         where: { id },
         data: {
           status: SellerOrderStatus.CANCELLED,
           cancelledAt: new Date(),
           cancelReason: dto.reason,
         },
+        include: { items: true, order: true },
       });
 
       await tx.orderStatusHistory.create({
@@ -545,7 +546,7 @@ export class OrdersService {
         },
       });
 
-      return sellerOrder;
+      return updatedSellerOrder;
     });
     await this.flashSales
       .releaseOrder(
@@ -849,13 +850,14 @@ export class OrdersService {
       const fromStatus = sOrder.status;
       const newStatus = await change(tx, sOrder);
 
-      await tx.sellerOrder.update({
+      const updated = await tx.sellerOrder.update({
         where: { id },
         data: {
           status: newStatus,
           completedAt:
             newStatus === SellerOrderStatus.COMPLETED ? new Date() : undefined,
         },
+        include: { items: true, order: true },
       });
 
       await tx.orderStatusHistory.create({
@@ -900,7 +902,7 @@ export class OrdersService {
         },
       });
 
-      return sOrder;
+      return updated;
     });
   }
 

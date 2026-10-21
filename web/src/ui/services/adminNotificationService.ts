@@ -59,6 +59,7 @@ export interface AdminBroadcastNotification {
 }
 
 import { realtimeSyncBus } from './realtimeSyncBus';
+import { tokenStorage } from '../api/tokenStorage';
 
 const STORAGE_KEY = 'huki_admin_broadcast_notifications';
 
@@ -503,11 +504,7 @@ class AdminNotificationService {
           ? 'HIGH'
           : 'NORMAL';
 
-      const token =
-        localStorage.getItem('token') ||
-        localStorage.getItem('accessToken') ||
-        localStorage.getItem('huki_auth_token') ||
-        '';
+      const token = tokenStorage.getAccessToken() || '';
 
       fetch('/api/v1/notifications/dispatch', {
         method: 'POST',

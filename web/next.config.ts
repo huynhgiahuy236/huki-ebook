@@ -1,160 +1,46 @@
 import type { NextConfig } from "next";
 
+const GATEWAY_URL =
+  process.env.API_GATEWAY_URL ||
+  process.env.NEXT_PUBLIC_GATEWAY_URL ||
+  'http://localhost:3000';
+
 const nextConfig: NextConfig = {
   serverExternalPackages: ['canvas', 'pdfjs-dist'],
   async rewrites() {
     return [
       {
-        source: '/api/v1/auth/:path*',
-        destination: 'http://localhost:3001/api/v1/auth/:path*',
-      },
-      {
-        source: '/api/v1/users/:path*',
-        destination: 'http://localhost:3001/api/v1/users/:path*',
-      },
-      {
-        source: '/api/v1/sessions/:path*',
-        destination: 'http://localhost:3001/api/v1/sessions/:path*',
-      },
-      {
-        source: '/api/v1/businesses/:path*',
-        destination: 'http://localhost:3002/api/v1/businesses/:path*',
-      },
-      {
-        source: '/api/v1/stores/:path*',
-        destination: 'http://localhost:3002/api/v1/stores/:path*',
-      },
-      {
-        source: '/api/v1/members/:path*',
-        destination: 'http://localhost:3002/api/v1/members/:path*',
-      },
-      {
-        source: '/api/v1/books/:id/reviews/:path*',
-        destination: 'http://localhost:3005/api/v1/books/:id/reviews/:path*',
-      },
-      {
-        source: '/api/v1/books/:id/reviews',
-        destination: 'http://localhost:3005/api/v1/books/:id/reviews',
-      },
-      {
-        source: '/api/v1/stores/:id/reviews/:path*',
-        destination: 'http://localhost:3005/api/v1/stores/:id/reviews/:path*',
-      },
-      {
-        source: '/api/v1/stores/:id/reviews',
-        destination: 'http://localhost:3005/api/v1/stores/:id/reviews',
-      },
-      {
-        source: '/api/v1/books/:path*',
-        destination: 'http://localhost:3003/api/v1/books/:path*',
-      },
-      {
-        source: '/api/v1/categories/:path*',
-        destination: 'http://localhost:3003/api/v1/categories/:path*',
-      },
-      {
-        source: '/api/v1/authors/:path*',
-        destination: 'http://localhost:3003/api/v1/authors/:path*',
-      },
-      {
-        source: '/api/v1/publishers/:path*',
-        destination: 'http://localhost:3003/api/v1/publishers/:path*',
-      },
-      {
-        source: '/api/v1/ai-audio/:path*',
-        destination: 'http://localhost:3003/api/v1/ai-audio/:path*',
-      },
-      {
-        source: '/api/v1/seller/:path*',
-        destination: 'http://localhost:3003/api/v1/seller/:path*',
-      },
-      {
-        source: '/api/v1/orders/:path*',
-        destination: 'http://localhost:3003/api/v1/orders/:path*',
-      },
-      {
-        source: '/api/v1/cart/:path*',
-        destination: 'http://localhost:3003/api/v1/cart/:path*',
-      },
-      {
-        source: '/api/v1/payments/:path*',
-        destination: 'http://localhost:3003/api/v1/payments/:path*',
-      },
-      {
-        source: '/api/v1/wallet/:path*',
-        destination: 'http://localhost:3003/api/v1/wallet/:path*',
-      },
-      {
-        source: '/api/v1/payout/:path*',
-        destination: 'http://localhost:3003/api/v1/payout/:path*',
-      },
-      {
-        source: '/api/v1/admin/finance/:path*',
-        destination: 'http://localhost:3003/api/v1/admin/finance/:path*',
-      },
-      {
-        source: '/api/v1/admin/drm/:path*',
-        destination: 'http://localhost:3003/api/v1/admin/drm/:path*',
-      },
-      {
-        source: '/api/v1/sanctions/:path*',
-        destination: 'http://localhost:3003/api/v1/sanctions/:path*',
-      },
-      {
-        source: '/api/v1/ledger/:path*',
-        destination: 'http://localhost:3003/api/v1/ledger/:path*',
-      },
-      {
-        source: '/api/v1/shipping/:path*',
-        destination: 'http://localhost:3004/api/v1/shipping/:path*',
-      },
-      {
-        source: '/api/v1/shipments/:path*',
-        destination: 'http://localhost:3004/api/v1/shipments/:path*',
-      },
-      {
-        source: '/api/v1/forum/:path*',
-        destination: 'http://localhost:3005/api/v1/forum/:path*',
-      },
-      {
-        source: '/api/v1/reviews/:path*',
-        destination: 'http://localhost:3005/api/v1/reviews/:path*',
-      },
-      {
-        source: '/api/v1/chat/:path*',
-        destination: 'http://localhost:3005/api/v1/chat/:path*',
-      },
-      {
-        source: '/api/v1/notifications/:path*',
-        destination: 'http://localhost:3005/api/v1/notifications/:path*',
-      },
-      {
-        source: '/api/v1/moderation/:path*',
-        destination: 'http://localhost:3005/api/v1/moderation/:path*',
-      },
-      {
-        source: '/api/v1/vouchers/:path*',
-        destination: 'http://localhost:3007/api/v1/vouchers/:path*',
-      },
-      {
-        source: '/api/v1/banners/:path*',
-        destination: 'http://localhost:3007/api/v1/banners/:path*',
-      },
-      {
-        source: '/api/v1/flash-sales/:path*',
-        destination: 'http://localhost:3007/api/v1/flash-sales/:path*',
+        source: '/api/v1/:path*',
+        destination: `${GATEWAY_URL}/api/v1/:path*`,
       },
       {
         source: '/api/analytics/:path*',
-        destination: 'http://localhost:3008/api/v1/analytics/:path*',
+        destination: `${GATEWAY_URL}/api/v1/analytics/:path*`,
       },
       {
-        source: '/api/v1/analytics/:path*',
-        destination: 'http://localhost:3008/api/v1/analytics/:path*',
+        source: '/api/docs/:path*',
+        destination: `${GATEWAY_URL}/api/docs/:path*`,
+      },
+      {
+        source: '/api/openapi.json',
+        destination: `${GATEWAY_URL}/api/openapi.json`,
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      {
+        source: '/login',
+        destination: '/auth/login',
+        permanent: true,
+      },
+      {
+        source: '/register',
+        destination: '/auth/register',
+        permanent: true,
       },
     ];
   },
 };
 
 export default nextConfig;
-

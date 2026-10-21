@@ -175,7 +175,7 @@ function ReaderContent() {
         deviceId,
       });
 
-      const leaveUrl = `http://localhost:3003/api/v1/admin/drm/licenses/${encodeURIComponent(effectiveBookId)}/session-leave`;
+      const leaveUrl = `/api/v1/admin/drm/licenses/${encodeURIComponent(effectiveBookId)}/session-leave`;
       if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
         try {
           navigator.sendBeacon(leaveUrl, '');

@@ -73,18 +73,18 @@ export const Step5WelcomeGift: React.FC<Step5WelcomeGiftProps> = ({
           </div>
         </div>
 
-        {/* Welcome Voucher & Coin Reward */}
+        {/* Welcome Member Perks */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="p-4 rounded-xl bg-[#f0fdf4] border border-[#bbf7d0] space-y-1">
-            <div className="text-[10px] font-bold text-[#166534] uppercase tracking-wider">VOUCHER CHÀO MỪNG</div>
-            <div className="text-xl font-bold text-[#14532d]">50.000đ</div>
-            <div className="text-xs text-[#166534]/80">Đã tự động thêm vào kho voucher của bạn</div>
+            <div className="text-[10px] font-bold text-[#166534] uppercase tracking-wider">ƯU ĐÃI THÀNH VIÊN</div>
+            <div className="text-lg font-bold text-[#14532d]">Kho Voucher Độc Quyền</div>
+            <div className="text-xs text-[#166534]/80">Tự động kích hoạt các ưu đãi mua sách dành cho bạn</div>
           </div>
 
           <div className="p-4 rounded-xl bg-[#fffbeb] border border-[#fde68a] space-y-1">
-            <div className="text-[10px] font-bold text-[#92400e] uppercase tracking-wider">XU TÍCH LŨY</div>
-            <div className="text-xl font-bold text-[#78350f]">+100 Xu</div>
-            <div className="text-xs text-[#92400e]/80">Đã cộng vào ví xu thành viên HuKi</div>
+            <div className="text-[10px] font-bold text-[#92400e] uppercase tracking-wider">CÁ NHÂN HÓA</div>
+            <div className="text-lg font-bold text-[#78350f]">Gợi Ý Sách Thông Minh</div>
+            <div className="text-xs text-[#92400e]/80">Trang chủ ưu tiên phân loại theo đúng thể loại bạn chọn</div>
           </div>
         </div>
       </div>

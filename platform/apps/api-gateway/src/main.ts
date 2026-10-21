@@ -1,17 +1,27 @@
+import * as path from 'path';
+import * as dotenv from 'dotenv';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../../platform/.env') });
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, NestApplicationOptions } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder, SwaggerDocumentOptions } from '@nestjs/swagger';
-import { HttpExceptionFilter, TransformInterceptor } from '@huki/shared';
+import { HttpExceptionFilter, TransformInterceptor, assertProductionSecurity } from '@huki/shared';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { aggregateOpenApi } from './modules/proxy/openapi-aggregator';
 
 async function bootstrap() {
+  // Fail-fast in production if security prerequisites are not satisfied
+  assertProductionSecurity();
+
   const options: NestApplicationOptions = {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   };
 
   const app = await NestFactory.create(AppModule, options);
+  app.enableShutdownHooks();
 
   // Increase body size limit to allow PDF/image/video evidence uploads
   app.use(json({ limit: '50mb' }));

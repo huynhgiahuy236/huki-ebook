@@ -24,7 +24,7 @@ export interface AuthContextType {
   resendVerification: (email: string) => Promise<ApiResponse<{ message: string }>>;
   refreshBusiness: () => Promise<BusinessData | null>;
   updateUserProfile: (payload: UpdateProfilePayload) => Promise<ApiResponse<UserProfile>>;
-  completeOnboarding: (preferences: { preferredCategories?: string[]; preferredFormats?: string[]; dailyMinutesGoal?: number; yearlyBooksTarget?: number; preferredReadingTime?: string }) => Promise<ApiResponse<UserProfile>>;
+  completeOnboarding: (preferences: Partial<UpdateProfilePayload>) => Promise<ApiResponse<UserProfile>>;
   hasRole: (allowedRoles: string | string[]) => boolean;
   hasPermission: (permission: string, targetBusinessId?: string) => boolean;
   can: (permission: string, bizId?: string) => boolean;
@@ -101,12 +101,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           memberships: existingMemberships,
           hasApprovedBusiness: true,
         };
-        const currentRefreshToken = tokenStorage.getRefreshToken();
-        if (currentRefreshToken) {
-          const tokenRes = await authApi.refreshToken(currentRefreshToken);
-          if (tokenRes.success && tokenRes.data?.accessToken && tokenRes.data?.refreshToken) {
+        try {
+          const tokenRes = await authApi.refreshToken();
+          if (tokenRes.success && tokenRes.data?.accessToken) {
             tokenStorage.setTokens(tokenRes.data);
           }
+        } catch {
+          // ignore
         }
         return userData;
       }
@@ -199,10 +200,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.success && res.data) {
         const rawData: any = res.data;
         const accessToken = rawData.accessToken || rawData.tokens?.accessToken;
-        const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken;
+        const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken || '';
         let userData = rawData.user || rawData;
 
-        if (accessToken && refreshToken) {
+        if (accessToken) {
           tokenStorage.setTokens({ accessToken, refreshToken });
         }
 
@@ -250,11 +251,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (res.success && res.data) {
         const rawData: any = res.data;
         const accessToken = rawData.accessToken || rawData.tokens?.accessToken;
-        const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken;
+        const refreshToken = rawData.refreshToken || rawData.tokens?.refreshToken || '';
         const userData = rawData.user || rawData;
 
         // Chỉ lưu session & setUser khi có token và tài khoản đã ACTIVE (không PENDING)
-        if (accessToken && refreshToken && userData?.status === 'ACTIVE') {
+        if (accessToken && userData?.status === 'ACTIVE') {
           tokenStorage.setTokens({ accessToken, refreshToken });
           setUser(normalizeUserData(userData));
           // Wire tracker với userId sau khi register thành công
@@ -361,20 +362,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Lưu onboarding preferences & đánh dấu đã hoàn thành
-  const completeOnboarding = async (preferences: {
-    preferredCategories?: string[];
-    preferredFormats?: string[];
-    dailyMinutesGoal?: number;
-    yearlyBooksTarget?: number;
-    preferredReadingTime?: string;
-  }) => {
+  const completeOnboarding = async (preferences: Partial<UpdateProfilePayload>) => {
     try {
       const res = await userApi.updateProfile({
         ...preferences,
         hasCompletedOnboarding: true,
       });
 
-      if (res.success) {
+      if (res.success && res.data) {
         // Cập nhật user state với hasCompletedOnboarding = true
         setUser((prev) => {
           if (!prev) return null;
@@ -382,27 +377,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...prev,
             hasCompletedOnboarding: true,
             profile: {
-              ...prev.profile,
+              ...(prev.profile || {}),
               ...preferences,
             },
           };
         });
 
-        // Xóa local storage onboarding preferences
+        // Xóa local storage onboarding preferences cache
         if (typeof window !== 'undefined') {
           localStorage.removeItem('huki_onboarding_preferences');
         }
+        return res;
       }
 
-      return res;
+      return {
+        success: false,
+        error: res.error || { code: 'UPDATE_FAILED', message: 'Không thể lưu thông tin hồ sơ onboarding.' },
+      };
     } catch (err) {
       console.error('Failed to complete onboarding:', err);
-      // Vẫn mark local state là completed
-      setUser((prev) => {
-        if (!prev) return null;
-        return { ...prev, hasCompletedOnboarding: true };
-      });
-      return { success: false, error: { code: 'UNKNOWN', message: 'Lỗi lưu preferences' } };
+      // KHÔNG đánh dấu hoàn tất nếu API thất bại
+      const message = err instanceof Error ? err.message : 'Lỗi kết nối máy chủ khi lưu hồ sơ.';
+      return { success: false, error: { code: 'NETWORK_ERROR', message } };
     }
   };
 
@@ -425,8 +421,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (res.success && res.data) {
         const { accessToken, refreshToken, user: rawUser } = res.data as any;
-        if (accessToken && refreshToken) {
-          tokenStorage.setTokens({ accessToken, refreshToken });
+        if (accessToken) {
+          tokenStorage.setTokens({ accessToken, refreshToken: refreshToken || '' });
         }
 
         const isNewUser = Boolean((res.data as any).isNewUser);

@@ -138,7 +138,7 @@ async function runE2E() {
 
   // Step 2: Catalog Discovery
   console.log('\n▶ [Step 2] Lấy thông tin sách từ danh mục công khai...');
-  const booksRes = await request('/books?limit=10');
+  const booksRes = await request('/books?limit=50');
   const books = Array.isArray(booksRes.data?.data) ? booksRes.data.data : (Array.isArray(booksRes.data?.items) ? booksRes.data.items : []);
   
   if (!books || books.length === 0) {
@@ -146,7 +146,9 @@ async function runE2E() {
     process.exit(1);
   }
 
-  const selectedBook = books[0];
+  // Chọn sách thuộc cửa hàng của Người bán (Phuong Thuy) để kiểm tra luồng xử lý đơn hàng
+  const sellerStoreId = '3094e54e-2549-42cc-92fb-14a8f8589277';
+  const selectedBook = books.find((b) => b.storeId === sellerStoreId) || books[0];
   console.log(`  - Sách chọn mua: "${selectedBook.title}" (ID: ${selectedBook.id})`);
   console.log(`  - Định dạng: ${selectedBook.format} | Giá: ${Number(selectedBook.price).toLocaleString('vi-VN')}đ`);
   passedSteps++;
@@ -287,8 +289,9 @@ async function runE2E() {
     headers: { Authorization: `Bearer ${sellerToken}` },
   });
 
-  const sellerOrders = Array.isArray(sellerOrdersRes.data?.data) ? sellerOrdersRes.data.data : (Array.isArray(sellerOrdersRes.data?.items) ? sellerOrdersRes.data.items : []);
-  const targetSellerOrder = sellerOrders.find((so) => so.orderId === order.id || so.code.startsWith(order.code));
+  const sellerOrdersPayload = sellerOrdersRes.data?.data || sellerOrdersRes.data;
+  const sellerOrders = Array.isArray(sellerOrdersPayload) ? sellerOrdersPayload : (sellerOrdersPayload?.items || []);
+  const targetSellerOrder = sellerOrders.find((so) => so.orderId === order.id || (so.code && order.code && so.code.startsWith(order.code)));
 
   if (!targetSellerOrder) {
     console.error('❌ Thất bại: Đơn hàng không xuất hiện trong bảng quản lý của Seller');

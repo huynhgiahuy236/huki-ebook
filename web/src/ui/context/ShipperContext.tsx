@@ -137,34 +137,18 @@ const saveManualTransaction = (tx: WalletTransaction) => {
   }
 };
 
-const CLAIMED_ORDERS_STORAGE_KEY = 'huki_shipper_claimed_ids_v1';
+const claimedOrderIdsInMemory = new Set<string>();
 
 const getStoredClaimedIds = (): string[] => {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(CLAIMED_ORDERS_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  return Array.from(claimedOrderIdsInMemory);
 };
 
 const saveClaimedId = (id: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const list = getStoredClaimedIds();
-    if (!list.includes(id)) {
-      localStorage.setItem(CLAIMED_ORDERS_STORAGE_KEY, JSON.stringify([...list, id]));
-    }
-  } catch {}
+  claimedOrderIdsInMemory.add(id);
 };
 
 const removeClaimedId = (id: string) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const list = getStoredClaimedIds();
-    localStorage.setItem(CLAIMED_ORDERS_STORAGE_KEY, JSON.stringify(list.filter((x) => x !== id)));
-  } catch {}
+  claimedOrderIdsInMemory.delete(id);
 };
 
 function playShipperChime() {
@@ -305,8 +289,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
           const isConfirmedBySeller = o.sellerOrderStatus === 'CONFIRMED' || o.sellerOrderStatus === 'PREPARING';
           const isPendingSeller = o.sellerOrderStatus === 'PENDING_CONFIRMATION' || o.sellerOrderStatus === 'PENDING_PAYMENT' || o.sellerOrderStatus === 'DRAFT';
-          const claimedIds = getStoredClaimedIds();
-          const isClaimedByMe = claimedIds.includes(item.id);
+          const isClaimedByMe = claimedOrderIdsInMemory.has(item.id) || o.status === 'PICKING_UP' || (o.carrier === 'HUKI_EXPRESS' && isConfirmedBySeller);
 
           if (o.status === 'DELIVERED' || o.sellerOrderStatus === 'DELIVERED' || o.sellerOrderStatus === 'COMPLETED' || o.status === 'FAILED' || o.sellerOrderStatus === 'CANCELLED') {
             const isDelivered = o.sellerOrderStatus !== 'CANCELLED' && o.status !== 'FAILED';
@@ -506,6 +489,23 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const target = availableOrders.find((o) => o.id === orderId);
     if (!target) return;
 
+    try {
+      const claimRes = await orderApi.shipperClaim(orderId);
+      if (!claimRes.success) {
+        showToast(
+          {
+            title: 'Không thể nhận đơn',
+            message: claimRes.error?.message || 'Đơn hàng đã được bưu tá khác tiếp nhận.',
+          },
+          'warning'
+        );
+        refreshOrders(true);
+        return;
+      }
+    } catch (err) {
+      console.warn('Error claiming order in backend:', err);
+    }
+
     setAvailableOrders((prev) => prev.filter((o) => o.id !== orderId));
     saveClaimedId(orderId);
     const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -522,12 +522,6 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
       shipperId: profile.id,
       shipperName: profile.name,
     });
-
-    try {
-      await orderApi.shipperClaim(orderId);
-    } catch (err) {
-      console.warn('Error claiming order in backend:', err);
-    }
 
     showToast(
       {

@@ -28,6 +28,7 @@ export class UserController {
   @ApiOperation({ summary: 'Get current user profile' })
   async getProfile(@CurrentUser('id') userId: string) {
     const user = await this.userService.findById(userId);
+    const prefs = (user.onboardingPreferences as Record<string, any>) || {};
     return {
       data: {
         id: user.id,
@@ -37,6 +38,17 @@ export class UserController {
         avatar: user.avatar,
         role: user.role,
         status: user.status,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
+        primaryGoals: prefs.primaryGoals,
+        favoriteGenres: prefs.favoriteGenres,
+        preferredCategories: prefs.preferredCategories,
+        preferredFormats: prefs.preferredFormats,
+        preferredTheme: prefs.preferredTheme,
+        readingHabits: prefs.readingHabits,
+        dailyMinutesGoal: prefs.dailyMinutesGoal || prefs.readingHabits?.dailyMinutes,
+        yearlyBooksTarget: prefs.yearlyBooksTarget || prefs.readingHabits?.yearlyBooksTarget,
+        preferredReadingTime: prefs.preferredReadingTime || prefs.readingHabits?.preferredTime,
+        wishlist: prefs.wishlist || [],
       },
     };
   }
@@ -50,6 +62,7 @@ export class UserController {
     @Body() body: UpdateProfileDto,
   ) {
     const user = await this.userService.updateProfile(userId, body);
+    const prefs = (user.onboardingPreferences as Record<string, any>) || {};
     return {
       message: 'Profile updated',
       data: {
@@ -58,6 +71,19 @@ export class UserController {
         fullName: user.fullName,
         phone: user.phone,
         avatar: user.avatar,
+        role: user.role,
+        status: user.status,
+        hasCompletedOnboarding: user.hasCompletedOnboarding,
+        primaryGoals: prefs.primaryGoals,
+        favoriteGenres: prefs.favoriteGenres,
+        preferredCategories: prefs.preferredCategories,
+        preferredFormats: prefs.preferredFormats,
+        preferredTheme: prefs.preferredTheme,
+        readingHabits: prefs.readingHabits,
+        dailyMinutesGoal: prefs.dailyMinutesGoal || prefs.readingHabits?.dailyMinutes,
+        yearlyBooksTarget: prefs.yearlyBooksTarget || prefs.readingHabits?.yearlyBooksTarget,
+        preferredReadingTime: prefs.preferredReadingTime || prefs.readingHabits?.preferredTime,
+        wishlist: prefs.wishlist || [],
       },
     };
   }

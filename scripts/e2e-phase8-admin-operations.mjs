@@ -155,7 +155,8 @@ async function run() {
   console.log('\n[Step 4] Seller đăng và publish sách Hybrid mới');
   const categoriesRes = await request('/categories/tree');
   const categories = dataOf(categoriesRes) || [];
-  const categoryId = categories[0]?.id;
+  const validCat = Array.isArray(categories) ? categories.find(c => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)) : undefined;
+  const categoryId = validCat?.id;
   const bookTitle = `Phase 8 E2E Book ${Date.now()}`;
 
   const createBookRes = await request('/books', {

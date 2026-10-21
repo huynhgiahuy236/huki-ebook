@@ -161,24 +161,12 @@ export function SellerStaffView() {
     }
   }, [businessId, setActiveBusinessId]);
 
-  // Helper to persist and broadcast audit log events
-  const getAuditStorageKey = (bizId?: string) => `huki_staff_audit_logs_${bizId || 'default'}`;
-
   const appendAuditLog = useCallback((bizId: string, logItem: Omit<AuditLogItem, 'id' | 'timestamp'>) => {
     const fullItem: AuditLogItem = {
       ...logItem,
       id: `audit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       timestamp: new Date().toISOString(),
     };
-
-    try {
-      const key = getAuditStorageKey(bizId);
-      const existing: AuditLogItem[] = JSON.parse(localStorage.getItem(key) || '[]');
-      const updated = [fullItem, ...existing].slice(0, 100);
-      localStorage.setItem(key, JSON.stringify(updated));
-    } catch (e) {
-      console.warn('Could not save audit log to localStorage', e);
-    }
 
     setAuditLogs((prev) => [fullItem, ...prev]);
 
@@ -203,7 +191,7 @@ export function SellerStaffView() {
     return () => unsub();
   }, []);
 
-  // Load Governance Audit Logs (Server + Persistent Local + Seed Fallback)
+  // Load Governance Audit Logs (Authoritative Server Source)
   const loadAuditLogs = useCallback(async () => {
     let currentBizId = businessId;
     if (!currentBizId) {
@@ -223,14 +211,6 @@ export function SellerStaffView() {
     setLoadingAuditLogs(true);
     setAuditError(null);
     try {
-      // 1. Get from local storage
-      const localKey = getAuditStorageKey(currentBizId);
-      let localSaved: AuditLogItem[] = [];
-      try {
-        localSaved = JSON.parse(localStorage.getItem(localKey) || '[]');
-      } catch {}
-
-      // 2. Try fetching from server
       let serverLogs: AuditLogItem[] = [];
       try {
         const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 50 });
@@ -253,20 +233,12 @@ export function SellerStaffView() {
           }));
         }
       } catch (apiErr) {
-        console.warn('Server audit log fetch failed, relying on local logs', apiErr);
+        console.warn('Server audit log fetch failed', apiErr);
       }
 
-      // Merge unique by ID
-      const combinedMap = new Map<string, AuditLogItem>();
-      localSaved.forEach((l) => combinedMap.set(l.id, l));
-      serverLogs.forEach((l) => combinedMap.set(l.id, l));
-
-      let allLogs = Array.from(combinedMap.values()).sort(
+      const allLogs = serverLogs.sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      );
-
-      // Enrich any existing logs in local storage that lack actorName/actorEmail
-      allLogs = allLogs.map((log) => {
+      ).map((log) => {
         if (!log.actorName && (log.actorId === user?.id || log.actorRole === 'OWNER')) {
           return {
             ...log,
@@ -277,49 +249,13 @@ export function SellerStaffView() {
         return log;
       });
 
-      // If still empty and members exist, seed initial provision logs so the user sees real history
-      if (allLogs.length === 0 && members.length > 0) {
-        const seeded: AuditLogItem[] = members.map((m, idx) => ({
-          id: `seed-log-${m.id || idx}`,
-          actorId: user?.id || 'admin',
-          actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
-          actorEmail: user?.email,
-          actorRole: 'OWNER',
-          action: 'CREATE',
-          resource: 'Member',
-          resourceId: m.id,
-          storeId: currentBizId,
-          timestamp: m.createdAt || new Date(Date.now() - (idx + 1) * 3600000).toISOString(),
-          changedFields: ['fullName', 'email', 'role', 'permissions', 'initialPin'],
-          stateBefore: null,
-          stateAfter: {
-            fullName: m.user?.fullName || 'Nhân viên',
-            email: m.user?.email || 'nhanvien@example.com',
-            role: m.role,
-            status: m.status,
-            permissions: m.permissions,
-          },
-          metadata: {
-            staffName: m.user?.fullName || 'Nhân viên',
-            staffEmail: m.user?.email,
-            permissionsCount: m.permissions?.length || 0,
-            initialPinConfigured: true,
-            note: 'Cấp tài khoản & mã PIN 6 số trực tiếp (Khởi tạo hệ thống)',
-          },
-        }));
-        allLogs = seeded;
-        try {
-          localStorage.setItem(localKey, JSON.stringify(seeded));
-        } catch {}
-      }
-
       setAuditLogs(allLogs);
     } catch (err: any) {
       setAuditError(err?.message || 'Không thể tải nhật ký phân quyền nhân sự.');
     } finally {
       setLoadingAuditLogs(false);
     }
-  }, [businessId, setActiveBusinessId, members, user]);
+  }, [businessId, setActiveBusinessId, user]);
 
   useEffect(() => {
     loadMembers();

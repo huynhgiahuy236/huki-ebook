@@ -50,6 +50,7 @@ export const DEFAULT_MAINTENANCE_CONFIG: SystemMaintenanceConfig = {
 class MaintenanceService {
   private config: SystemMaintenanceConfig = { ...DEFAULT_MAINTENANCE_CONFIG };
   private initialized = false;
+  private isSyncing = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -61,6 +62,7 @@ class MaintenanceService {
     if (this.initialized) return;
     this.initialized = true;
 
+    // Load offline cache first
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -71,6 +73,7 @@ class MaintenanceService {
     }
 
     this.syncCookies();
+    this.syncFromServer();
 
     // Listen to Storage events from other tabs
     window.addEventListener('storage', (e) => {
@@ -94,6 +97,30 @@ class MaintenanceService {
         }
       }
     });
+  }
+
+  public async syncFromServer(): Promise<SystemMaintenanceConfig> {
+    if (typeof window === 'undefined' || this.isSyncing) return this.config;
+    this.isSyncing = true;
+    try {
+      const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          this.config = { ...DEFAULT_MAINTENANCE_CONFIG, ...json.data };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
+          } catch {}
+          this.syncCookies();
+          this.dispatchLocalEvent();
+        }
+      }
+    } catch {
+      // offline fallback to memory config
+    } finally {
+      this.isSyncing = false;
+    }
+    return this.config;
   }
 
   public getConfig(): SystemMaintenanceConfig {
@@ -159,6 +186,12 @@ class MaintenanceService {
       } catch {}
       this.syncCookies();
       this.dispatchLocalEvent();
+
+      fetch('/api/system/maintenance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(this.config),
+      }).catch((err) => console.warn('Failed to persist maintenance to server:', err));
     }
 
     realtimeSyncBus.publish({
@@ -279,25 +312,30 @@ class MaintenanceService {
     return updated;
   }
 
-  public verifyAndSaveBypassKey(key: string): boolean {
-    if (!key || key.trim() !== this.config.masterBypassKey.trim()) {
-      return false;
+  public async verifyAndSaveBypassKey(key: string): Promise<boolean> {
+    if (!key || !key.trim()) return false;
+    try {
+      const res = await fetch('/api/system/maintenance/bypass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: key.trim() }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        return Boolean(json.success);
+      }
+    } catch (err) {
+      console.warn('Error verifying bypass key with server:', err);
     }
-
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(BYPASS_COOKIE_NAME, key.trim());
-        document.cookie = `${BYPASS_COOKIE_NAME}=${encodeURIComponent(key.trim())}; path=/; max-age=86400; SameSite=Lax`;
-      } catch {}
-    }
-    return true;
+    return false;
   }
 
-  public clearBypassKey(): void {
+  public async clearBypassKey(): Promise<void> {
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem(BYPASS_COOKIE_NAME);
         document.cookie = `${BYPASS_COOKIE_NAME}=; path=/; max-age=0; SameSite=Lax`;
+        await fetch('/api/system/maintenance/bypass', { method: 'DELETE' });
       } catch {}
     }
   }
@@ -309,26 +347,17 @@ class MaintenanceService {
     try {
       const urlParams = new URLSearchParams(window.location.search);
       const tokenInQuery = urlParams.get('bypass_token') || urlParams.get('master_key');
-      if (tokenInQuery && tokenInQuery === this.config.masterBypassKey) {
+      if (tokenInQuery) {
         this.verifyAndSaveBypassKey(tokenInQuery);
-        return true;
       }
     } catch {}
 
-    // Check localStorage
-    try {
-      const stored = localStorage.getItem(BYPASS_COOKIE_NAME);
-      if (stored && stored === this.config.masterBypassKey) {
-        return true;
-      }
-    } catch {}
-
-    // Check cookie
+    // Check cookie set by server
     try {
       const cookies = document.cookie.split(';');
       for (const cookie of cookies) {
         const [k, v] = cookie.trim().split('=');
-        if (k === BYPASS_COOKIE_NAME && decodeURIComponent(v) === this.config.masterBypassKey) {
+        if (k === BYPASS_COOKIE_NAME && v && decodeURIComponent(v).length > 0) {
           return true;
         }
       }

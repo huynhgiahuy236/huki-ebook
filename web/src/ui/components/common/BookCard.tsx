@@ -7,6 +7,8 @@ import { useCart } from '../../context/CartContext';
 import { flashSaleApi, getCachedFlashSale, preloadActiveFlashSales } from '../../api/flashSaleApi';
 import { personalizationService } from '../../services/personalizationService';
 import { useReviewSummary } from '../../services/reviewSummaryService';
+import { userApi } from '../../api/userApi';
+import { tokenStorage } from '../../api/tokenStorage';
 import BookCover from './BookCover';
 
 export interface BookCardData {
@@ -103,22 +105,6 @@ export default function BookCard({
     };
   }, [book?.id, book?.flashSaleInfo, isMock]);
 
-  if (!book) return null;
-
-  const isFlashSale = Boolean(flashSale?.salePrice);
-  const basePrice = book.price ?? book.priceEbook ?? 0;
-  const baseOriginalPrice = book.originalPrice ?? book.originalPriceEbook;
-
-  // Normalized book properties (with Flash Sale priority)
-  const price = isFlashSale ? flashSale.salePrice : basePrice;
-  const originalPrice = isFlashSale ? (flashSale.originalPrice || basePrice) : baseOriginalPrice;
-  const discountPercent = isFlashSale
-    ? flashSale.discountPercent
-    : (book.discountPercent ?? (originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : null));
-  const discountLabel = isFlashSale
-    ? `-${flashSale.discountPercent}%`
-    : (book.discount ?? (discountPercent ? `-${discountPercent}%` : null));
-
   // Wishlist state and sync with localStorage
   const [isWishlisted, setIsWishlisted] = useState(false);
 
@@ -139,6 +125,30 @@ export default function BookCard({
       window.removeEventListener('huki_wishlist_updated', handleWishlistEvent);
     };
   }, [book?.id]);
+
+  const fallbackNum = typeof book?.rating === 'number'
+    ? book.rating
+    : (!isNaN(Number((book as any)?.averageRating)) ? Number((book as any)?.averageRating) : 0);
+  const { rating: reviewRating, displayRating: hookDisplayRating } = useReviewSummary(
+    book?.id || '',
+    fallbackNum > 0 ? fallbackNum : undefined
+  );
+
+  if (!book) return null;
+
+  const isFlashSale = Boolean(flashSale?.salePrice);
+  const basePrice = book.price ?? book.priceEbook ?? 0;
+  const baseOriginalPrice = book.originalPrice ?? book.originalPriceEbook;
+
+  // Normalized book properties (with Flash Sale priority)
+  const price = isFlashSale ? flashSale.salePrice : basePrice;
+  const originalPrice = isFlashSale ? (flashSale.originalPrice || basePrice) : baseOriginalPrice;
+  const discountPercent = isFlashSale
+    ? flashSale.discountPercent
+    : (book.discountPercent ?? (originalPrice && originalPrice > price ? Math.round(((originalPrice - price) / originalPrice) * 100) : null));
+  const discountLabel = isFlashSale
+    ? `-${flashSale.discountPercent}%`
+    : (book.discount ?? (discountPercent ? `-${discountPercent}%` : null));
 
   const handleToggleWishlist = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -173,19 +183,19 @@ export default function BookCard({
       window.dispatchEvent(new CustomEvent('huki_wishlist_updated', {
         detail: { bookId: book.id, wishlisted: willWishlist }
       }));
+
+      // Sync with server if authenticated
+      if (tokenStorage.getAccessToken()) {
+        userApi.updateProfile({ wishlist: newIds }).catch((e) => {
+          console.warn('Could not sync wishlist to server profile:', e);
+        });
+      }
     } catch (err) {
       console.warn('Wishlist update error:', err);
     }
   };
 
   // Authentic rating & sales strictly from DB & reviews service - NO fake data
-  const fallbackNum = typeof book.rating === 'number'
-    ? book.rating
-    : (!isNaN(Number((book as any).averageRating)) ? Number((book as any).averageRating) : 0);
-  const { rating: reviewRating, displayRating: hookDisplayRating } = useReviewSummary(
-    book.id,
-    fallbackNum > 0 ? fallbackNum : undefined
-  );
   const displayRating = hookDisplayRating || (fallbackNum > 0 ? fallbackNum.toFixed(1) : null);
 
   const rawSales = book.soldCount ?? book.sales ?? book.soldQuantity ?? (book as any).salesCount ?? (book as any).orderCount ?? (book as any).readCount ?? 0;

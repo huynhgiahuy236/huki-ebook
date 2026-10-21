@@ -8,6 +8,8 @@ import { ROLES_KEY } from '../decorators';
 import { ErrorCode } from '../errors/error-code';
 import { throwUnauthorized, throwForbidden } from '../errors/throw-helpers';
 
+import { getJwtSecret } from '../config/jwt-security.config';
+
 /**
  * Guard to enforce role-based access control
  * Must be used after JwtAuthGuard to ensure user is authenticated
@@ -55,7 +57,7 @@ export class RolesGuard implements CanActivate {
       if (type === 'Bearer' && token) {
         try {
           const jwt = require('jsonwebtoken');
-          const secret = process.env.JWT_SECRET || 'your-super-secret-jwt-key';
+          const secret = getJwtSecret();
           const payload = jwt.verify(token, secret) as any;
           user = {
             id: payload.sub || payload.id,
@@ -64,20 +66,8 @@ export class RolesGuard implements CanActivate {
           };
           request.user = user;
         } catch {
-          try {
-            const jwt = require('jsonwebtoken');
-            const decoded = jwt.decode(token) as any;
-            if (decoded && (decoded.sub || decoded.id)) {
-              user = {
-                id: decoded.sub || decoded.id,
-                email: decoded.email,
-                role: decoded.role || decoded.userType,
-              };
-              request.user = user;
-            }
-          } catch {
-            user = undefined;
-          }
+          // Token is invalid/expired - never fallback to unverified jwt.decode
+          user = undefined;
         }
       }
     }

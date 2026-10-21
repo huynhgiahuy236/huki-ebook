@@ -479,9 +479,35 @@ export function validateBookForFlashSale(
 
 class SellerPenaltyService {
   private profiles: Record<string, StorePenaltyProfile> = {};
+  private isSyncing = false;
 
   constructor() {
     this.loadFromStorage();
+    if (typeof window !== 'undefined') {
+      this.syncFromServer();
+      window.addEventListener('focus', () => this.syncFromServer());
+    }
+  }
+
+  public async syncFromServer(): Promise<void> {
+    if (typeof window === 'undefined' || this.isSyncing) return;
+    this.isSyncing = true;
+    try {
+      const res = await fetch('/api/seller/penalties', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data && typeof json.data === 'object') {
+          this.profiles = { ...DEFAULT_SEED_PROFILES, ...json.data };
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
+          } catch {}
+        }
+      }
+    } catch {
+      // offline fallback
+    } finally {
+      this.isSyncing = false;
+    }
   }
 
   private loadFromStorage() {
@@ -494,7 +520,6 @@ class SellerPenaltyService {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         this.profiles = JSON.parse(raw);
-        // Ensure default seed profiles exist if not yet in storage
         Object.keys(DEFAULT_SEED_PROFILES).forEach((key) => {
           if (!this.profiles[key]) {
             this.profiles[key] = DEFAULT_SEED_PROFILES[key];
@@ -502,7 +527,6 @@ class SellerPenaltyService {
         });
       } else {
         this.profiles = { ...DEFAULT_SEED_PROFILES };
-        this.saveToStorage();
       }
     } catch {
       this.profiles = { ...DEFAULT_SEED_PROFILES };
@@ -513,9 +537,14 @@ class SellerPenaltyService {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profiles));
-    } catch {
-      // ignore
-    }
+    } catch {}
+
+    // Persist to server
+    fetch('/api/seller/penalties', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profiles: this.profiles }),
+    }).catch((err) => console.warn('Could not persist penalties to server:', err));
   }
 
   /**
