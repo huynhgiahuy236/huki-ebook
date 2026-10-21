@@ -538,23 +538,47 @@ Definition of done mỗi giai đoạn: acceptance/UI states/API đạt; không P
 
 ### Giai đoạn 3 — Registration và Admin review end-to-end
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` Hoàn thành (Báo cáo: `docs/affiliate/PHASE-3-COMPLETION-REPORT.md`)
 
-**Hỏi:** review SLA, reason codes, notification channels, resubmit/appeal limits, approver roles.
+**Quyết định đã khóa:** 
+- `REQUEST_CHANGES` tối đa 3 lần nộp lại (`resubmitCount <= 3`); vượt quá tự động chuyển sang `REJECTED`.
+- `REJECTED` áp dụng thời gian làm mát 14 ngày (`cooldownUntil = now() + 14 days`) chống spam.
+- Sự kiện Outbox (`affiliate.application.*`) & In-app Notification lưu trực tiếp vào cơ sở dữ liệu.
 
-**Làm:** APIs, multi-step UI, application status, Admin review, notification/outbox, audit timeline.
+**Làm:** 
+- Backend `commerce-service`: DTOs class-validator, `AffiliateApplicationService`, `AffiliateController` (check code availability, get my profile, submit application, resubmit application), `AffiliateAdminController` (list, detail, approve, request-changes, reject, suspend, activate).
+- Routing & Security: API Gateway proxy ánh xạ `/affiliate` & `/admin/affiliates` sang `commerce`, route classification phân quyền PUBLIC và ADMIN.
+- Frontend `web`:
+  - `affiliateApi.ts`: Client API helper có type safety, auto auth injection và error mapping.
+  - Wizard đăng ký `/account/affiliate/register`: Kiểm tra tính khả dụng mã affiliate debounce thời gian thực, nhận diện hồ sơ hiện có/thời gian làm mát 14 ngày, nút nộp đơn kết nối API thật.
+  - Trang tiến độ `/account/affiliate/application`: Xử lý 6 trạng thái nghiệp vụ (chưa đăng nhập, chưa có hồ sơ, PENDING_REVIEW timeline 48h SLA, REQUEST_CHANGES kèm đếm lượt & form nộp lại, REJECTED kèm đếm ngược 14 ngày, ACTIVE kèm snapshot hoa hồng 3 format, SUSPENDED).
+  - Quản trị `/admin/affiliates`: Giao diện duyệt đối tác với bộ lọc 6 tab trạng thái, tìm kiếm, modal chi tiết 4 phần (Định danh, Kênh, Lưu lượng, Audit Timeline), đầy đủ nút hành động duyệt/sửa/từ chối/ngưng/kích hoạt.
 
-**Test/E2E:** AFF-01/02/03/22/23; auth/validation; typecheck/lint/build. **STOP chờ lệnh.**
+**Test/E2E Evidence:**
+- Vitest Frontend (`web`): **5 suites / 41 tests pass (100%)**.
+- Playwright E2E (`web`): **10/10 tests pass (100%)** bao gồm wizard 4 bước, live code check, admin management view, mobile responsive 390x844 không horizontal overflow.
+- Commerce Unit Tests (`commerce-service`): **29 suites / 353 tests pass (100%)** (bao gồm 15/15 application tests + 13/13 foundation tests).
+- API Gateway Tests (`api-gateway`): **2 suites / 26 tests pass (100%)**.
+- TypeScript Typecheck: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 4.**
 
 ### Giai đoạn 4 — Seller policy và book eligibility
 
-**Trạng thái:** `[ ]`
+**Trạng thái:** `[x]` HOÀN THÀNH (Xem báo cáo chi tiết: [docs/affiliate/PHASE-4-COMPLETION-REPORT.md](file:///e:/HuKi/docs/affiliate/PHASE-4-COMPLETION-REPORT.md))
 
-**Hỏi:** default/override priority, caps, format rates, scheduling, bulk UX, disable semantics.
+**Đã thực hiện:**
+- Khóa 4 quyết định kiến trúc: Chặn cứng Cap Sàn, Kế thừa động autoEnroll, Minh bạch Seller Net Preview, Hỗ trợ Bulk Actions.
+- Migration Prisma & Database Schema: bổ sung `minRate`, `maxPhysicalRate`, `maxDigitalRate` vào `AffiliatePolicy`; `autoEnrollNewBooks` vào `StoreAffiliateSetting`; `notes` vào `BookAffiliateSetting`.
+- Triển khai Backend Service & Controller (`/api/v1/seller/stores/:storeId/affiliate/*`) với đầy đủ Hard Cap Validation, Store Isolation, Bulk Upsert transactional, và Seller-Net calculation.
+- Triển khai Frontend Seller Affiliate Portal (`/seller/affiliate`) gồm 2 Tab cấu hình gian hàng & danh mục sách, thanh công cụ Bulk Actions, modal chỉnh tỷ lệ, popover phân rã chi phí thực nhận.
+- Cập nhật Seller Sidebar navigation đưa Tiếp Thị Liên Kết vào CÔNG CỤ MARKETING.
 
-**Làm:** Seller/Admin policy API/UI; seller-net preview; concurrency; audit/realtime invalidation.
-
-**Test/E2E:** store isolation, cap/effective version, edit conflict, responsive bulk table. **STOP chờ lệnh.**
+**Kết quả kiểm thử kỹ thuật:**
+- Commerce Affiliate Unit Tests: **41/41 tests pass (100%)** (bao gồm 13/13 seller-affiliate tests).
+- Frontend Vitest Tests: **41/41 tests pass (100%)** (19 affiliate validation tests).
+- Playwright End-to-End Suite: **13/13 tests pass (100%)** (bao gồm 3 kịch bản E2E kiểm tra toàn diện Seller Affiliate Portal).
+- TypeScript Typecheck: **0 errors** trên toàn bộ `web` và `platform`.
+**DỪNG LẠI CHỜ LỆNH, CHƯA CHUYỂN GIAI ĐOẠN 5.**
 
 ### Giai đoạn 5 — Link, attribution và analytics
 

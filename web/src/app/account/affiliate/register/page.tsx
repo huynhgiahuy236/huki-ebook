@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
+import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import {
   affiliateStep1Schema,
   affiliateStep2Schema,
@@ -13,6 +16,7 @@ import {
 } from '@/lib/affiliate/schemas';
 
 export default function AffiliateRegisterPage() {
+  const router = useRouter();
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -20,6 +24,14 @@ export default function AffiliateRegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [topErrorMessage, setTopErrorMessage] = useState<{ message: string; requestId?: string } | null>(null);
   const [validationSuccessNotice, setValidationSuccessNotice] = useState<string | null>(null);
+
+  // Async code availability check state
+  const [codeStatus, setCodeStatus] = useState<'IDLE' | 'CHECKING' | 'AVAILABLE' | 'UNAVAILABLE' | 'INVALID'>('IDLE');
+  const [codeMessage, setCodeMessage] = useState<string>('');
+
+  // Profile check on mount & submission loading
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [existingProfile, setExistingProfile] = useState<any>(null);
 
   type RegisterFormState = Omit<
     AffiliateRegistrationInput,
@@ -117,6 +129,54 @@ export default function AffiliateRegisterPage() {
     });
   };
 
+  // Kiểm tra hồ sơ hiện tại khi tải trang
+  useEffect(() => {
+    let isMounted = true;
+    affiliateApi.getMyProfile().then((res) => {
+      if (isMounted && res.success && res.data?.hasProfile && res.data.profile) {
+        setExistingProfile(res.data.profile);
+      }
+    }).catch(() => {
+      // ignore
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Kiểm tra tính khả dụng của affiliateCode bất đồng bộ
+  useEffect(() => {
+    const code = formData.affiliateCode.trim();
+    if (!code) {
+      setCodeStatus('IDLE');
+      setCodeMessage('');
+      return;
+    }
+    if (!/^[A-Z0-9_]{4,24}$/.test(code)) {
+      setCodeStatus('INVALID');
+      setCodeMessage('Mã phải có từ 4 đến 24 ký tự chữ hoa, chữ số hoặc gạch dưới.');
+      return;
+    }
+
+    setCodeStatus('CHECKING');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await affiliateApi.checkCodeAvailability(code);
+        if (res.success && res.data?.available) {
+          setCodeStatus('AVAILABLE');
+          setCodeMessage('');
+        } else {
+          setCodeStatus('UNAVAILABLE');
+          setCodeMessage(res.data?.reason || 'Mã đã được sử dụng hoặc thuộc danh sách bảo lưu.');
+        }
+      } catch {
+        setCodeStatus('IDLE');
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [formData.affiliateCode]);
+
   // Step Nav & Local Validation
   const handleNextStep = () => {
     setFieldErrors({});
@@ -183,8 +243,56 @@ export default function AffiliateRegisterPage() {
     setFieldErrors({});
     setTopErrorMessage(null);
     setValidationSuccessNotice(
-      'Thông tin đã được điền đầy đủ và đúng định dạng. Tính năng đang được hoàn thiện và chưa mở chính thức.'
+      'Thông tin đã được điền đầy đủ và đúng định dạng. Bạn có thể nộp hồ sơ xét duyệt ngay.'
     );
+  };
+
+  // Nộp hồ sơ đăng ký chính thức
+  const handleSubmitApplication = async () => {
+    setFieldErrors({});
+    setTopErrorMessage(null);
+    setValidationSuccessNotice(null);
+
+    const fullCheck = affiliateRegistrationSchema.safeParse(formData);
+    if (!fullCheck.success) {
+      const errors: Record<string, string[]> = {};
+      fullCheck.error.issues.forEach((issue) => {
+        const path = issue.path.join('.');
+        if (!errors[path]) errors[path] = [];
+        errors[path].push(issue.message);
+      });
+      setFieldErrors(errors);
+      setTopErrorMessage({
+        message: 'Thông tin chưa hợp lệ. Vui lòng rà soát lại các mục được đánh dấu đỏ.',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await affiliateApi.submitApplication(fullCheck.data);
+      if (res.success) {
+        showToast('Nộp hồ sơ đăng ký đối tác tiếp thị thành công!', 'success');
+        router.push('/account/affiliate/application');
+      } else {
+        const msg = res.error?.message || 'Có lỗi xảy ra khi nộp hồ sơ';
+        showToast(msg, 'error');
+        setTopErrorMessage({
+          message: msg,
+          requestId: (res as any).requestId,
+        });
+        if ((res.error as any)?.details?.fieldErrors) {
+          setFieldErrors((res.error as any).details.fieldErrors);
+        }
+      }
+    } catch {
+      showToast('Lỗi kết nối máy chủ. Vui lòng thử lại sau.', 'error');
+      setTopErrorMessage({
+        message: 'Không thể gửi hồ sơ do lỗi kết nối mạng.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -198,8 +306,8 @@ export default function AffiliateRegisterPage() {
                 <span className="material-symbols-outlined text-emerald-700 text-[26px]">how_to_reg</span>
                 <span>Đăng Ký Đối Tác Tiếp Thị (CTV)</span>
               </h1>
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                Chưa mở tiếp nhận
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                Đang nhận hồ sơ
               </span>
             </div>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
@@ -213,17 +321,54 @@ export default function AffiliateRegisterPage() {
           </div>
         </div>
 
-        {/* Notice Banner */}
-        <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
-          <span className="material-symbols-outlined text-amber-700 text-[20px] shrink-0 mt-0.5">info</span>
-          <div>
-            <strong className="block text-amber-800">Cổng Tiếp Nhận Hồ Sơ Chưa Mở Chính Thức:</strong>
-            <p className="text-gray-700 mt-0.5 leading-relaxed">
-              Tính năng đang được hoàn thiện và chưa mở chính thức.
-              Bạn có thể xem trước mẫu biểu và sử dụng nút &ldquo;Kiểm tra thông tin&rdquo; để rà soát hồ sơ của mình.
-            </p>
+        {/* Cooldown Alert if previous application was rejected */}
+        {existingProfile?.isCoolingDown && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2.5">
+            <span className="material-symbols-outlined text-rose-600 text-[20px] shrink-0 mt-0.5">timer</span>
+            <div>
+              <strong className="block text-rose-800">Tài khoản đang trong thời gian chờ (14 ngày):</strong>
+              <p className="text-rose-700 mt-0.5 leading-relaxed">
+                Hồ sơ trước đó chưa được duyệt. Bạn có thể nộp lại hồ sơ sau ngày{' '}
+                <strong>
+                  {existingProfile.cooldownUntil
+                    ? new Date(existingProfile.cooldownUntil).toLocaleDateString('vi-VN')
+                    : '14 ngày'}
+                </strong>.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Existing Profile Alert */}
+        {existingProfile && !existingProfile.isCoolingDown && (
+          <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl text-xs text-sky-900 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-sky-700 text-[20px]">info</span>
+              <span>
+                Bạn đã có hồ sơ CTV (Trạng thái: <strong>{existingProfile.status}</strong>).
+              </span>
+            </div>
+            <Link
+              href="/account/affiliate/application"
+              className="px-3 py-1.5 rounded-lg bg-sky-700 text-white text-xs font-semibold hover:bg-sky-800 transition-colors"
+            >
+              Xem tiến độ
+            </Link>
+          </div>
+        )}
+
+        {/* Live Guidance Banner */}
+        {!existingProfile && (
+          <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+            <span className="material-symbols-outlined text-emerald-700 text-[20px] shrink-0 mt-0.5">verified_user</span>
+            <div>
+              <strong className="block text-emerald-800">Cổng Tiếp Nhận Hồ Sơ Đang Mở:</strong>
+              <p className="text-gray-700 mt-0.5 leading-relaxed">
+                Vui lòng hoàn thành 4 bước đăng ký để ban quản trị HuKi xét duyệt hồ sơ đối tác CTV của bạn (SLA phản hồi 24h - 48h).
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Top Error Message Alert */}
         {topErrorMessage && (
@@ -303,9 +448,29 @@ export default function AffiliateRegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1">
-                  Mã Đối tác Tiếp thị (Affiliate Code) <span className="text-red-500">*</span>:
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Mã Đối tác Tiếp thị (Affiliate Code) <span className="text-red-500">*</span>:
+                  </label>
+                  {codeStatus === 'CHECKING' && (
+                    <span className="text-[11px] text-gray-400 flex items-center gap-1 font-medium">
+                      <span className="material-symbols-outlined text-[14px] animate-spin">progress_activity</span>
+                      Đang kiểm tra...
+                    </span>
+                  )}
+                  {codeStatus === 'AVAILABLE' && (
+                    <span className="text-[11px] text-emerald-600 font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      Mã hợp lệ &amp; khả dụng
+                    </span>
+                  )}
+                  {codeStatus === 'UNAVAILABLE' && (
+                    <span className="text-[11px] text-red-600 font-semibold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[14px]">cancel</span>
+                      {codeMessage || 'Mã đã được sử dụng'}
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={formData.affiliateCode}
@@ -769,14 +934,13 @@ export default function AffiliateRegisterPage() {
               </div>
 
               {/* Notice */}
-              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 text-xs text-gray-700 space-y-1.5 mt-4">
-                <div className="flex items-center gap-2 font-bold text-gray-900">
-                  <span className="material-symbols-outlined text-amber-600 text-[18px]">lock</span>
-                  <span>Cổng Tiếp Nhận Hồ Sơ Chưa Mở Chính Thức</span>
+              <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-900 space-y-1.5 mt-4">
+                <div className="flex items-center gap-2 font-bold">
+                  <span className="material-symbols-outlined text-emerald-700 text-[18px]">verified_user</span>
+                  <span>Sẵn Sàng Gửi Hồ Sơ Xét Duyệt</span>
                 </div>
-                <p className="text-gray-600 leading-relaxed">
-                  Tính năng đang được hoàn thiện và chưa mở chính thức.
-                  Bạn có thể nhấn nút bên dưới để kiểm tra tính hợp lệ của các thông tin đã điền.
+                <p className="text-emerald-800 leading-relaxed text-[11px]">
+                  Hồ sơ của bạn sẽ được chuyển đến Ban Quản Trị HuKi để thẩm định kênh và thông tin trong vòng 24h - 48h làm việc. Bạn có thể theo dõi tiến độ phê duyệt tại trang Trạng thái hồ sơ.
                 </p>
               </div>
             </div>
@@ -821,12 +985,21 @@ export default function AffiliateRegisterPage() {
               ) : (
                 <button
                   type="button"
-                  disabled
-                  title="Tính năng đang được hoàn thiện và chưa mở chính thức"
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gray-300 text-gray-500 text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5 shadow-none"
+                  disabled={isSubmitting || (existingProfile && existingProfile.isCoolingDown)}
+                  onClick={handleSubmitApplication}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="material-symbols-outlined text-[18px]">lock</span>
-                  <span>Nộp Hồ Sơ (Chưa Mở)</span>
+                  {isSubmitting ? (
+                    <>
+                      <span className="material-symbols-outlined text-[18px] animate-spin">progress_activity</span>
+                      <span>Đang nộp hồ sơ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">send</span>
+                      <span>Nộp Hồ Sơ Đăng Ký</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>

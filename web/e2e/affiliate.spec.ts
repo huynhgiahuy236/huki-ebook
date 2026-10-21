@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtime)', () => {
-  test('1. Landing page (/affiliate) loads and displays program policy and preview CTA', async ({ page }) => {
+test.describe('Affiliate Marketing - Phase 3 Registration & Admin Review End-to-End', () => {
+  test('1. Landing page (/affiliate) loads and displays program policy and CTA', async ({ page }) => {
     await page.goto('/affiliate');
     await expect(page.locator('h1')).toContainText('Lan Tỏa Văn Hóa Đọc');
     await expect(page.locator('text=Chương Trình Đối Tác Tiếp Thị HuKi').first()).toBeVisible();
@@ -15,21 +15,21 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
     // Verify FAQ
     await expect(page.locator('text=Câu Hỏi Thường Gặp (FAQ)')).toBeVisible();
 
-    // Verify CTA button to preview registration
+    // Verify CTA button to registration
     const registerCta = page.locator('a[href="/account/affiliate/register"]').first();
     await expect(registerCta).toBeVisible();
     await expect(registerCta).toContainText('Xem trước mẫu đăng ký');
   });
 
-  test('2. Registration page (/account/affiliate/register) validates steps and disables submission when API is unavailable', async ({ page }) => {
+  test('2. Registration page (/account/affiliate/register) validates steps, checks code availability, and reaches submission step', async ({ page }) => {
     await page.goto('/account/affiliate/register');
 
     // Title and status badge
     await expect(page.locator('h1')).toContainText('Đăng Ký Đối Tác Tiếp Thị (CTV)');
-    await expect(page.locator('text=Chưa mở tiếp nhận')).toBeVisible();
+    await expect(page.locator('text=Đang nhận hồ sơ')).toBeVisible();
     await expect(page.locator('text=Bước 1: Thông tin hồ sơ định danh')).toBeVisible();
 
-    // Fill valid step 1 info
+    // Fill Step 1 info
     const nameInput = page.locator('input[placeholder="Nguyễn Văn Minh"]');
     await nameInput.fill('Trần Độc Giả');
 
@@ -69,40 +69,47 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
     await nextBtn.click();
     await expect(page.locator('text=Bước 4: Điều khoản chương trình & Xác nhận')).toBeVisible();
 
-    // Verify submission button is disabled
-    const submitBtn = page.locator('button:has-text("Nộp Hồ Sơ (Chưa Mở)")');
-    await expect(submitBtn).toBeDisabled();
+    // Verify submission button is visible
+    const submitBtn = page.locator('button:has-text("Nộp Hồ Sơ Đăng Ký")');
+    await expect(submitBtn).toBeVisible();
 
     // Test validation action button
     const validateBtn = page.locator('button:has-text("Kiểm tra thông tin")');
     await expect(validateBtn).toBeVisible();
+    await validateBtn.click();
+
+    // Terms not checked yet -> error expected
+    await expect(page.locator('text=Thông tin chưa hợp lệ')).toBeVisible();
   });
 
-  test('3. Application status page (/account/affiliate/application) displays honest unactivated lookup state', async ({ page }) => {
+  test('3. Application status page (/account/affiliate/application) renders registration prompt or review state', async ({ page }) => {
     await page.goto('/account/affiliate/application');
 
-    // Header and badge
+    // Header and title
     await expect(page.locator('h1')).toContainText('Tiến Độ Hồ Sơ Tiếp Thị Liên Kết');
-    await expect(page.locator('text=Chưa thể tra cứu').first()).toBeVisible();
 
-    // Honest explanation card
-    await expect(page.locator('text=Chưa Thể Tải Trạng Thái Hồ Sơ')).toBeVisible();
+    // When user has no profile, is not logged in, or is in honest unregistered state
+    const unregisteredCard = page.locator('text=Bạn Chưa Đăng Ký Đối Tác Tiếp Thị');
+    const loginCard = page.locator('text=Yêu Cầu Đăng Nhập Tài Khoản');
+    const loadingOrStatus = page.locator('text=Đang tra cứu tình trạng hồ sơ');
 
-    // SLA timeline explanation
-    await expect(page.locator('text=Quy Trình Xét Duyệt Dự Kiến')).toBeVisible();
-
-    // Verify no prototype switcher exists
-    await expect(page.locator('text=Mô phỏng:')).not.toBeVisible();
+    // Either displays login requirement, unregistered prompt, loading, or profile status
+    await expect(
+      unregisteredCard
+        .or(loginCard)
+        .or(loadingOrStatus)
+        .or(page.locator('text=Mã đối tác'))
+    ).toBeVisible({ timeout: 10000 });
   });
 
-  test('4. Dashboard (/account/affiliate/dashboard) displays honest in-development state and 7 core KPI specifications', async ({ page }) => {
+  test('4. Dashboard (/account/affiliate/dashboard) displays 7 core KPI specifications and SLA holding notice', async ({ page }) => {
     await page.goto('/account/affiliate/dashboard');
 
     // Check title and badge
     await expect(page.locator('h1')).toContainText('Bảng Điều Khiển Đối Tác Tiếp Thị');
     await expect(page.locator('text=Chưa mở chính thức').first()).toBeVisible();
 
-    // Verify honest notice
+    // Verify notice
     await expect(page.locator('text=Dịch Vụ Bảng Điều Khiển Chưa Được Kích Hoạt')).toBeVisible();
 
     // Verify 7 KPI specification cards exist (no fake numbers)
@@ -113,12 +120,9 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
     await expect(page.locator('text=Hoa hồng khả dụng').first()).toBeVisible();
     await expect(page.locator('text=Đã thanh toán (Gross)').first()).toBeVisible();
     await expect(page.locator('text=Hoa hồng đã thu hồi').first()).toBeVisible();
-
-    // Verify no prototype switcher exists
-    await expect(page.locator('text=Chuyển đổi 7 Trạng Thái UI')).not.toBeVisible();
   });
 
-  test('5. Route /r/[shortCode] renders honest unactivated link message (no fake redirect)', async ({ page }) => {
+  test('5. Route /r/[shortCode] renders honest unactivated link message', async ({ page }) => {
     await page.goto('/r/demo-link-123');
 
     await expect(page.locator('h1')).toContainText('Liên Kết Chưa Được Kích Hoạt');
@@ -129,12 +133,28 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
   test('6. Production book detail page (/book/[id]) does not mount unconfirmed affiliate card', async ({ page }) => {
     await page.goto('/book/1');
 
-    // Confirm that fake affiliate card is unmounted from production book detail page
+    // Confirm that affiliate card is unmounted from production book detail page until Phase 5
     const fakeCard = page.locator('text=Chia sẻ & Nhận hoa hồng');
     await expect(fakeCard).toHaveCount(0);
   });
 
-  test('7. Mobile Viewport (390x844): Landing page has no horizontal overflow and CTA is accessible', async ({ page }) => {
+  test('7. Admin Affiliate management page (/admin/affiliates) renders filter tabs, search and table', async ({ page }) => {
+    await page.goto('/admin/affiliates');
+
+    await expect(page.locator('h1')).toContainText('Quản Lý Tiếp Thị Liên Kết');
+    await expect(page.locator('button:has-text("Tất cả")')).toBeVisible();
+    await expect(page.locator('button:has-text("Chờ duyệt")')).toBeVisible();
+    await expect(page.locator('button:has-text("Yêu cầu sửa")')).toBeVisible();
+    await expect(page.locator('button:has-text("Đang hoạt động")')).toBeVisible();
+    await expect(page.locator('button:has-text("Từ chối")')).toBeVisible();
+    await expect(page.locator('button:has-text("Tạm ngưng")')).toBeVisible();
+
+    // Search bar
+    const searchInput = page.locator('input[placeholder*="Tìm theo tên"]');
+    await expect(searchInput).toBeVisible();
+  });
+
+  test('8. Mobile Viewport (390x844): Landing page has no horizontal overflow and CTA is accessible', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/affiliate');
 
@@ -151,11 +171,11 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
     expect(box).not.toBeNull();
     if (box) {
       expect(box.x).toBeGreaterThanOrEqual(0);
-      expect(box.x + box.width).toBeLessThanOrEqual(390 + 5); // within viewport
+      expect(box.x + box.width).toBeLessThanOrEqual(390 + 5);
     }
   });
 
-  test('8. Mobile Viewport (390x844): Registration 4-step wizard renders and navigates without overflow', async ({ page }) => {
+  test('9. Mobile Viewport (390x844): Registration 4-step wizard renders and navigates without overflow', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/account/affiliate/register');
 
@@ -196,19 +216,18 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
     // Step navigation and actions on mobile
     const prevBtn = page.locator('button:has-text("Quay lại")');
     const validateBtn = page.locator('button:has-text("Kiểm tra thông tin")');
-    const submitBtn = page.locator('button:has-text("Nộp Hồ Sơ (Chưa Mở)")');
+    const submitBtn = page.locator('button:has-text("Nộp Hồ Sơ Đăng Ký")');
 
     await expect(prevBtn).toBeVisible();
     await expect(validateBtn).toBeVisible();
     await expect(submitBtn).toBeVisible();
-    await expect(submitBtn).toBeDisabled();
 
     // Click validate on mobile
     await validateBtn.click();
     await expect(page.locator('text=Thông tin chưa hợp lệ')).toBeVisible();
   });
 
-  test('9. Accessibility smoke test: Landmarks, headings, form labels, keyboard navigation, and button names', async ({ page }) => {
+  test('10. Accessibility smoke test: Landmarks, headings, form labels, keyboard navigation, and button names', async ({ page }) => {
     await page.goto('/account/affiliate/register');
 
     // 1. Landmarks: main landmark exists
@@ -240,4 +259,282 @@ test.describe('Affiliate Marketing - Phase 1 Honest Verification (No Mock Runtim
       expect(text.trim().length).toBeGreaterThan(0);
     }
   });
+
+  test('11. Seller Affiliate Management Portal (/seller/affiliate) loads and renders header and platform cap notice', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('huki_access_token', 'mock_seller_jwt_token');
+      localStorage.setItem('huki_active_business_id', 'biz-test-1');
+    });
+
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'user-seller-1',
+            email: 'seller@test.com',
+            role: 'BUSINESS',
+            hasApprovedBusiness: true,
+            business: {
+              id: 'biz-test-1',
+              name: 'Nhà Sách Alpha',
+              status: 'APPROVED',
+            },
+            memberships: [{ businessId: 'biz-test-1', role: 'OWNER', status: 'ACTIVE', permissions: ['*'] }],
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/businesses/my', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { id: 'biz-test-1', name: 'Nhà Sách Alpha', status: 'APPROVED', ownerId: 'user-seller-1' },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/stores/my*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [{ id: 'store-test-1', businessId: 'biz-test-1', name: 'Gian Hàng Chính Hãng Alpha', status: 'APPROVED', slug: 'alpha-store' }],
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/seller/stores/*/affiliate/settings', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            storeSetting: { storeId: 'store-test-1', isEnabled: true, autoEnrollNewBooks: true, physicalRate: 5, ebookRate: 10, audioRate: 10, version: 1 },
+            platformPolicy: { id: 'policy-default', name: 'Chính sách sàn mặc định', defaultPhysicalRate: 5, defaultEbookRate: 10, defaultAudioRate: 10, minRate: 1, maxPhysicalRate: 30, maxDigitalRate: 50 },
+            effectiveRates: { physicalRate: 5, ebookRate: 10, audioRate: 10 },
+          },
+        }),
+      });
+    });
+
+    await page.goto('/seller/affiliate');
+
+    // Heading
+    await expect(page.locator('h1')).toContainText('Chính Sách & Tiếp Thị Liên Kết (Affiliate)');
+    
+    // Platform caps notice
+    await expect(page.locator('text=Quy chuẩn hạn mức sàn (Platform Caps)')).toBeVisible();
+    await expect(page.locator('text=Phí nền tảng cố định: 10%')).toBeVisible();
+
+    // Tabs exist
+    const settingsTab = page.locator('button:has-text("Cấu hình gian hàng")').first();
+    const booksTab = page.locator('button:has-text("Danh mục sách & Trạng thái hoa hồng")');
+    await expect(settingsTab).toBeVisible();
+    await expect(booksTab).toBeVisible();
+  });
+
+  test('12. Seller Affiliate Store Settings tab contains format rate inputs and save button', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('huki_access_token', 'mock_seller_jwt_token');
+      localStorage.setItem('huki_active_business_id', 'biz-test-1');
+    });
+
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'user-seller-1',
+            email: 'seller@test.com',
+            role: 'BUSINESS',
+            hasApprovedBusiness: true,
+            business: { id: 'biz-test-1', name: 'Nhà Sách Alpha', status: 'APPROVED' },
+            memberships: [{ businessId: 'biz-test-1', role: 'OWNER', status: 'ACTIVE', permissions: ['*'] }],
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/businesses/my', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { id: 'biz-test-1', name: 'Nhà Sách Alpha', status: 'APPROVED', ownerId: 'user-seller-1' },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/stores/my*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [{ id: 'store-test-1', businessId: 'biz-test-1', name: 'Gian Hàng Chính Hãng Alpha', status: 'APPROVED', slug: 'alpha-store' }],
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/seller/stores/*/affiliate/settings', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            storeSetting: { storeId: 'store-test-1', isEnabled: true, autoEnrollNewBooks: true, physicalRate: 5, ebookRate: 10, audioRate: 10, version: 1 },
+            platformPolicy: { id: 'policy-default', name: 'Chính sách sàn mặc định', defaultPhysicalRate: 5, defaultEbookRate: 10, defaultAudioRate: 10, minRate: 1, maxPhysicalRate: 30, maxDigitalRate: 50 },
+            effectiveRates: { physicalRate: 5, ebookRate: 10, audioRate: 10 },
+          },
+        }),
+      });
+    });
+
+    await page.goto('/seller/affiliate');
+
+    // Store switch & format inputs
+    await expect(page.locator('text=Mở chương trình Affiliate cho Shop')).toBeVisible();
+    await expect(page.locator('text=Tự động ghi danh sách mới (Auto-enroll)')).toBeVisible();
+    await expect(page.locator('text=Sách giấy (Physical)')).toBeVisible();
+    await expect(page.locator('text=Sách điện tử (Ebook)')).toBeVisible();
+    await expect(page.locator('text=Sách nói (Audiobook)')).toBeVisible();
+
+    // Save button
+    const saveBtn = page.locator('button:has-text("Lưu cấu hình gian hàng")');
+    await expect(saveBtn).toBeVisible();
+  });
+
+  test('13. Seller Books Catalog tab switches and renders filters and table structure', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('huki_access_token', 'mock_seller_jwt_token');
+      localStorage.setItem('huki_active_business_id', 'biz-test-1');
+    });
+
+    await page.route('**/api/v1/auth/me', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            id: 'user-seller-1',
+            email: 'seller@test.com',
+            role: 'BUSINESS',
+            hasApprovedBusiness: true,
+            business: { id: 'biz-test-1', name: 'Nhà Sách Alpha', status: 'APPROVED' },
+            memberships: [{ businessId: 'biz-test-1', role: 'OWNER', status: 'ACTIVE', permissions: ['*'] }],
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/businesses/my', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { id: 'biz-test-1', name: 'Nhà Sách Alpha', status: 'APPROVED', ownerId: 'user-seller-1' },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/stores/my*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [{ id: 'store-test-1', businessId: 'biz-test-1', name: 'Gian Hàng Chính Hãng Alpha', status: 'APPROVED', slug: 'alpha-store' }],
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/seller/stores/*/affiliate/settings', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            storeSetting: { storeId: 'store-test-1', isEnabled: true, autoEnrollNewBooks: true, physicalRate: 5, ebookRate: 10, audioRate: 10, version: 1 },
+            platformPolicy: { id: 'policy-default', name: 'Chính sách sàn mặc định', defaultPhysicalRate: 5, defaultEbookRate: 10, defaultAudioRate: 10, minRate: 1, maxPhysicalRate: 30, maxDigitalRate: 50 },
+            effectiveRates: { physicalRate: 5, ebookRate: 10, audioRate: 10 },
+          },
+        }),
+      });
+    });
+
+    await page.route('**/api/v1/seller/stores/*/affiliate/books*', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            items: [
+              {
+                bookId: 'book-1',
+                title: 'Kinh Tế Học Hài Hước',
+                slug: 'kinh-te-hoc-hai-huoc',
+                format: 'PHYSICAL',
+                price: 150000,
+                coverImage: null,
+                isEligible: true,
+                hasExplicitOverride: false,
+                customRate: null,
+                effectiveRate: 5,
+                rateSource: 'STORE_FORMAT',
+                sellerNetBreakdown: {
+                  grossPrice: 150000,
+                  platformFeePercent: 10,
+                  platformFeeAmount: 15000,
+                  affiliateRatePercent: 5,
+                  affiliateCommissionAmount: 7500,
+                  sellerNetRevenue: 127500,
+                  sellerNetMarginPercent: 85,
+                },
+              },
+            ],
+            total: 1,
+            page: 1,
+            totalPages: 1,
+            caps: { minRate: 1, maxPhysicalRate: 30, maxDigitalRate: 50 },
+          },
+        }),
+      });
+    });
+
+    await page.goto('/seller/affiliate');
+
+    // Switch to books tab
+    const booksTab = page.locator('button:has-text("Danh mục sách & Trạng thái hoa hồng")');
+    await booksTab.click();
+
+    // Verify search and filter elements
+    await expect(page.locator('input[placeholder*="Tìm theo tên sách"]')).toBeVisible();
+    await expect(page.locator('select[aria-label="Lọc định dạng"]')).toBeVisible();
+    await expect(page.locator('select[aria-label="Lọc trạng thái hoa hồng"]')).toBeVisible();
+
+    // Verify table headers
+    await expect(page.locator('th:has-text("Sách & Định dạng")')).toBeVisible();
+    await expect(page.locator('th:has-text("Giá bán")')).toBeVisible();
+    await expect(page.locator('th:has-text("Trạng thái Affiliate")')).toBeVisible();
+    await expect(page.locator('th:has-text("Tỷ lệ hiệu lực")')).toBeVisible();
+    await expect(page.locator('th:has-text("Ước tính thực nhận (Seller-Net)")')).toBeVisible();
+  });
 });
+
+

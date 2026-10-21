@@ -72,6 +72,7 @@ export interface AffiliateProfile {
   avatarUrl?: string | null;
   status: PartnerStatus;
   statusReason?: string;
+  rejectionReason?: string;
   applicantType: ApplicantType;
   channels: PromotionChannel[];
   contentCategories: string[];

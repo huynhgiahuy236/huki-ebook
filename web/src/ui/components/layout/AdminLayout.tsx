@@ -135,6 +135,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/vouchers': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Mã Giảm Giá Toàn Sàn (Voucher)' },
     '/admin/flash-sales': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Flash Sale Giờ Vàng Toàn Sàn' },
     '/admin/marketing': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Tiếp Thị & Banner Trang Chủ' },
+    '/admin/affiliates': { parent: 'Quản Lý Ưu Đãi & Truyền Thông', title: 'Quản Lý & Duyệt Tiếp Thị Liên Kết' },
     '/admin/drm-vault': { parent: 'Hạ Tầng Kỹ Thuật', title: 'Kho Khóa Bảo Mật DRM' },
     '/admin/reports': { parent: 'Báo Cáo & Phân Tích', title: 'Phân Tích Dữ Liệu' },
     '/admin/calendar': { parent: 'Vận Hành & Sự Kiện', title: 'Lịch Làm Việc & Sự Kiện' },
@@ -263,6 +264,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         { label: 'Voucher Giảm Giá', to: '/admin/vouchers', icon: 'confirmation_number' },
         { label: 'Flash Sale Giờ Vàng', to: '/admin/flash-sales', icon: 'bolt' },
         { label: 'Tiếp Thị & Banner', to: '/admin/marketing', icon: 'auto_stories' },
+        { label: 'Duyệt Tiếp Thị (Affiliate)', to: '/admin/affiliates', icon: 'handshake' },
       ],
     },
     {

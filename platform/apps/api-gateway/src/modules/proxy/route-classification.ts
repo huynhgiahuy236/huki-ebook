@@ -107,7 +107,10 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
       /^\/stores\/[^/]+\/reviews/.test(normPath) ||
       /^\/books\/[^/]+\/reviews/.test(normPath) ||
       normPath === '/shipping/rates' ||
-      normPath === '/shipping/methods'
+      normPath === '/shipping/methods' ||
+      normPath === '/affiliate/program' ||
+      normPath === '/affiliate/code-availability' ||
+      normPath.startsWith('/r/')
     ) {
       return 'PUBLIC';
     }

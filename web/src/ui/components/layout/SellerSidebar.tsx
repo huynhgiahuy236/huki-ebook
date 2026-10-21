@@ -347,6 +347,12 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
           label: 'Flash Sale (Giờ Vàng)', 
           permission: PERMISSIONS.PRODUCT_UPDATE,
           featureFlag: 'FLASH_SALE',
+        },
+        { 
+          to: '/seller/affiliate', 
+          icon: 'share_reviews', 
+          label: 'Tiếp Thị Liên Kết (Affiliate)', 
+          permission: PERMISSIONS.PRODUCT_UPDATE,
         }
       ]
     },

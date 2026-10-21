@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS "affiliate_profiles" (
     "reviewed_at" TIMESTAMP(3),
     "suspended_at" TIMESTAMP(3),
     "suspended_reason" TEXT,
+    "resubmit_count" INTEGER NOT NULL DEFAULT 0,
+    "cooldown_until" TIMESTAMP(3),
     "version" INTEGER NOT NULL DEFAULT 1,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

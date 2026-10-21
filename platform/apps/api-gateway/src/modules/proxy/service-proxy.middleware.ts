@@ -48,6 +48,7 @@ const ROUTES: Record<string, ServiceName> = {
   'flash-sales': 'promotion',
   discounts: 'promotion',
   sanctions: 'commerce',
+  affiliate: 'commerce',
   events: 'analytics',
   analytics: 'analytics',
 };
@@ -254,9 +255,13 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /stores/:id/reviews → community
-    // Route /admin/finance/* or /admin/drm/* → commerce
+    // Route /admin/finance/* or /admin/drm/* or /admin/affiliates/* → commerce
     if (firstSegment === 'admin') {
-      if (path.includes('/admin/finance') || path.includes('/admin/drm')) {
+      if (
+        path.includes('/admin/finance') ||
+        path.includes('/admin/drm') ||
+        path.includes('/admin/affiliates')
+      ) {
         return 'commerce';
       }
       return 'community';
