@@ -39,6 +39,7 @@ export default function HomePage() {
   // Local Interactivity States
   const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
   const [bestsellerTab, setBestsellerTab] = useState("all");
+  const [selectedCategoryTab, setSelectedCategoryTab] = useState("all");
   const [followedShops, setFollowedShops] = useState<string[]>([]);
   const [followedAuthors, setFollowedAuthors] = useState<string[]>([]);
   const [authorIndex, setAuthorIndex] = useState(0);
@@ -350,7 +351,7 @@ export default function HomePage() {
     if (!realVouchers || realVouchers.length === 0) return [];
 
     return realVouchers.map((v) => {
-      let badge =
+      const badge =
         v.type === 'PERCENTAGE'
           ? `GIẢM ${v.value}%`
           : v.type === 'FREE_SHIPPING'
@@ -540,64 +541,158 @@ export default function HomePage() {
     });
   }, [realPublishers, realBooks]);
 
-  // 7. Genre Category Slices (100% Real - Zero Mocks)
-  const literatureBooks = useMemo(() => {
-    return realBooks
-      .filter((b) => {
-        const slug = b.category?.slug?.toLowerCase() || '';
-        const name = b.category?.name?.toLowerCase() || '';
-        return (
-          slug.includes('van-hoc') ||
-          name.includes('văn học') ||
-          name.includes('tiểu thuyết')
-        );
-      })
-      .slice(0, 6);
-  }, [realBooks]);
+  // 7. Interactive Category Tabs & Filtered Books (Zero Mocks)
+  const categoryTabOptions = useMemo(() => [
+    {
+      id: "all",
+      label: "Tất Cả Thể Loại",
+      icon: "auto_awesome",
+      url: "/books",
+      description: "Tuyển tập sách hay chọn lọc từ mọi thể loại trên sàn HUKI",
+    },
+    {
+      id: "van-hoc",
+      label: "Văn Học & Tiểu Thuyết",
+      icon: "auto_stories",
+      url: "/books?category=van-hoc",
+      description: "Tác phẩm văn học kinh điển, tiểu thuyết đương đại & tản văn",
+    },
+    {
+      id: "kinh-doanh",
+      label: "Kinh Doanh & Đầu Tư",
+      icon: "trending_up",
+      url: "/books?category=kinh-doanh-tech",
+      description: "Quản trị doanh nghiệp, tài chính, đầu tư & khởi nghiệp",
+    },
+    {
+      id: "cong-nghe",
+      label: "Công Nghệ & AI",
+      icon: "smart_toy",
+      url: "/books?category=cong-nghe-khoa-hoc",
+      description: "Lập trình, trí tuệ nhân tạo AI, dữ liệu & công nghệ tương lai",
+    },
+    {
+      id: "ebook",
+      label: "Ebook Bản Quyền DRM",
+      icon: "tablet_mac",
+      url: "/books?format=ebook",
+      description: "Sách điện tử số hóa DRM chính chủ, đọc ngay trên mọi thiết bị",
+    },
+    {
+      id: "tam-ly",
+      label: "Tâm Lý & Kỹ Năng",
+      icon: "psychology",
+      url: "/books?category=tam-ly-ky-nang",
+      description: "Phát triển bản thân, kỹ năng tư duy & thấu hiểu cảm xúc",
+    },
+    {
+      id: "manga",
+      label: "Manga & Thiếu Nhi",
+      icon: "child_care",
+      url: "/books?category=manga-comic-khac",
+      description: "Manga, comic, light novel giải trí và truyện thiếu nhi",
+    },
+  ], []);
 
-  const businessBooks = useMemo(() => {
-    return realBooks
-      .filter((b) => {
-        const slug = b.category?.slug?.toLowerCase() || '';
-        const name = b.category?.name?.toLowerCase() || '';
-        return (
-          slug.includes('kinh-doanh') ||
-          slug.includes('kinh-te') ||
-          name.includes('kinh tế') ||
-          name.includes('kinh doanh') ||
-          name.includes('đầu tư')
-        );
-      })
-      .slice(0, 6);
-  }, [realBooks]);
+  const currentCategoryBooks = useMemo(() => {
+    if (!realBooks || realBooks.length === 0) return [];
 
-  const techBooks = useMemo(() => {
-    return realBooks
-      .filter((b) => {
-        const slug = b.category?.slug?.toLowerCase() || '';
-        const name = b.category?.name?.toLowerCase() || '';
-        return (
-          slug.includes('cong-nghe') ||
-          slug.includes('tri-thuc') ||
-          name.includes('công nghệ') ||
-          name.includes('khoa học') ||
-          name.includes('ai') ||
-          name.includes('tri thức')
-        );
-      })
-      .slice(0, 6);
-  }, [realBooks]);
+    let books: BookData[] = [];
 
-  const ebookShelfBooks = useMemo(() => {
-    return realBooks
-      .filter(
-        (b) =>
-          b.format === 'DIGITAL' ||
-          b.format === 'BOTH' ||
-          b.digitalDetails?.digitalEnabled
-      )
-      .slice(0, 6);
-  }, [realBooks]);
+    switch (selectedCategoryTab) {
+      case "van-hoc":
+        books = realBooks.filter((b) => {
+          const slug = b.category?.slug?.toLowerCase() || '';
+          const name = b.category?.name?.toLowerCase() || '';
+          return (
+            slug.includes('van-hoc') ||
+            name.includes('văn học') ||
+            name.includes('tiểu thuyết')
+          );
+        });
+        break;
+
+      case "kinh-doanh":
+        books = realBooks.filter((b) => {
+          const slug = b.category?.slug?.toLowerCase() || '';
+          const name = b.category?.name?.toLowerCase() || '';
+          return (
+            slug.includes('kinh-doanh') ||
+            slug.includes('kinh-te') ||
+            name.includes('kinh tế') ||
+            name.includes('kinh doanh') ||
+            name.includes('đầu tư')
+          );
+        });
+        break;
+
+      case "cong-nghe":
+        books = realBooks.filter((b) => {
+          const slug = b.category?.slug?.toLowerCase() || '';
+          const name = b.category?.name?.toLowerCase() || '';
+          return (
+            slug.includes('cong-nghe') ||
+            slug.includes('tri-thuc') ||
+            name.includes('công nghệ') ||
+            name.includes('khoa học') ||
+            name.includes('ai') ||
+            name.includes('tri thức')
+          );
+        });
+        break;
+
+      case "ebook":
+        books = realBooks.filter(
+          (b) =>
+            b.format === 'DIGITAL' ||
+            b.format === 'BOTH' ||
+            b.digitalDetails?.digitalEnabled
+        );
+        break;
+
+      case "tam-ly":
+        books = realBooks.filter((b) => {
+          const slug = b.category?.slug?.toLowerCase() || '';
+          const name = b.category?.name?.toLowerCase() || '';
+          return (
+            slug.includes('tam-ly') ||
+            slug.includes('phat-trien') ||
+            name.includes('tâm lý') ||
+            name.includes('kỹ năng') ||
+            name.includes('bản thân')
+          );
+        });
+        break;
+
+      case "manga":
+        books = realBooks.filter((b) => {
+          const slug = b.category?.slug?.toLowerCase() || '';
+          const name = b.category?.name?.toLowerCase() || '';
+          return (
+            slug.includes('manga') ||
+            slug.includes('thieu-nhi') ||
+            name.includes('manga') ||
+            name.includes('thiếu nhi') ||
+            name.includes('comic')
+          );
+        });
+        break;
+
+      case "all":
+      default:
+        books = realBooks;
+        break;
+    }
+
+    return books.slice(0, 12);
+  }, [realBooks, selectedCategoryTab]);
+
+  const currentCategoryTabInfo = useMemo(() => {
+    return (
+      categoryTabOptions.find((t) => t.id === selectedCategoryTab) ||
+      categoryTabOptions[0]
+    );
+  }, [categoryTabOptions, selectedCategoryTab]);
 
   // 8. Real Dynamic Combos from Real Books
   const realCombos = useMemo(() => {
@@ -1260,143 +1355,70 @@ export default function HomePage() {
       )}
 
       {/* =========================================================================
-          SECTION 6: VĂN HỌC & TIỂU THUYẾT (100% REAL BOOKS)
+          SECTION 6: SÁCH NỔI BẬT THEO THỂ LOẠI (TAB BUTTON OPTIONS NGANG TƯƠNG TÁC)
       ========================================================================= */}
-      {literatureBooks.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                auto_stories
+      {currentCategoryBooks.length > 0 && (
+        <section className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200/90 shadow-2xs flex flex-col gap-3">
+          {/* Header Section */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-200/80">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
+                <span className="material-symbols-outlined text-[20px]">
+                  {currentCategoryTabInfo.icon}
+                </span>
               </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Văn Học &amp; Tiểu Thuyết Nổi Bật
-              </h2>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                    {currentCategoryTabInfo.label}
+                  </h2>
+                  <span className="bg-emerald-100 text-[#003B2B] text-[10px] font-bold px-1.5 py-0.2 rounded-full">
+                    {currentCategoryBooks.length} Tựa Sách
+                  </span>
+                </div>
+                <p className="text-[11px] text-gray-500 hidden sm:block mt-0.5">
+                  {currentCategoryTabInfo.description}
+                </p>
+              </div>
             </div>
+
             <Link
-              href="/books?category=van-hoc"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+              href={currentCategoryTabInfo.url}
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5 self-end sm:self-auto"
             >
-              <span>Xem Thêm</span>
+              <span>Xem Tất Cả</span>
               <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-            {literatureBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book as any}
-                variant="compact"
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* =========================================================================
-          SECTION 7: KINH DOANH, ĐẦU TƯ & TÀI CHÍNH (100% REAL BOOKS)
-      ========================================================================= */}
-      {businessBooks.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                trending_up
-              </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Kinh Doanh, Đầu Tư &amp; Tài Chính
-              </h2>
-            </div>
-            <Link
-              href="/books?category=kinh-doanh-tech"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
-            >
-              <span>Xem Thêm</span>
-              <span className="material-symbols-outlined text-sm">
-                chevron_right
-              </span>
-            </Link>
+          {/* Dải Nút Option Ngang (Interactive Category Pills) */}
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+            {categoryTabOptions.map((tab) => {
+              const isActive = selectedCategoryTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedCategoryTab(tab.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-[11.5px] sm:text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                    isActive
+                      ? "bg-[#003B2B] text-white border-[#003B2B] shadow-xs scale-[1.01]"
+                      : "bg-gray-50/80 text-gray-700 border-gray-200 hover:bg-emerald-50/70 hover:text-[#003B2B] hover:border-emerald-300"
+                  }`}
+                >
+                  <span className={`material-symbols-outlined text-[15px] sm:text-[16px] ${isActive ? "text-emerald-300" : "text-gray-500"}`}>
+                    {tab.icon}
+                  </span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-            {businessBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book as any}
-                variant="compact"
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* =========================================================================
-          SECTION 8: CÔNG NGHỆ & KHOA HỌC TRI THỨC (100% REAL BOOKS)
-      ========================================================================= */}
-      {techBooks.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                smart_toy
-              </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Công Nghệ &amp; Trí Tuệ Nhân Tạo AI
-              </h2>
-            </div>
-            <Link
-              href="/books?category=cong-nghe-khoa-hoc"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
-            >
-              <span>Xem Thêm</span>
-              <span className="material-symbols-outlined text-sm">
-                chevron_right
-              </span>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-            {techBooks.map((book) => (
-              <BookCard
-                key={book.id}
-                book={book as any}
-                variant="compact"
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* =========================================================================
-          SECTION 9: EBOOK & ĐỌC ONLINE BẢN QUYỀN (100% REAL BOOKS)
-      ========================================================================= */}
-      {ebookShelfBooks.length > 0 && (
-        <section className="flex flex-col gap-2.5">
-          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                tablet_mac
-              </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Ebook &amp; Đọc Online Bản Quyền DRM
-              </h2>
-            </div>
-            <Link
-              href="/books?format=ebook"
-              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
-            >
-              <span>Xem Thêm Ebook</span>
-              <span className="material-symbols-outlined text-sm">
-                chevron_right
-              </span>
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
-            {ebookShelfBooks.map((book) => (
+          {/* Grid Sách */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5 pt-1">
+            {currentCategoryBooks.map((book) => (
               <BookCard
                 key={book.id}
                 book={book as any}
