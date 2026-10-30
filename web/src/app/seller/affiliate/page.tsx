@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi } from '@/ui/api/businessApi';
@@ -733,7 +734,7 @@ export default function SellerAffiliatePage() {
           <span className="material-symbols-outlined text-rose-600 text-xl">warning</span>
           <div>
             <span className="font-bold">Chưa tìm thấy gian hàng: </span>
-            <span>Tài khoản của bạn chưa có gian hàng nào được kích hoạt. Vui lòng thiết lập hoặc kích hoạt gian hàng tại mục <a href="/seller/stores" className="underline font-bold text-rose-800">Quản lý gian hàng</a> trước khi cấu hình tiếp thị liên kết.</span>
+            <span>Tài khoản của bạn chưa có gian hàng nào được kích hoạt. Vui lòng thiết lập hoặc kích hoạt gian hàng tại mục <Link href="/seller/stores" className="underline font-bold text-rose-800">Quản lý gian hàng</Link> trước khi cấu hình tiếp thị liên kết.</span>
           </div>
         </div>
       )}
