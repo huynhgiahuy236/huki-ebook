@@ -38,6 +38,7 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -755,7 +756,294 @@ export function SellerVouchersView() {
     return filteredVouchers.slice(start, start + pageSize);
   }, [filteredVouchers, validPage, pageSize]);
 
-  return (
+
+  const voucherColumns: Column<Voucher>[] = useMemo(
+    () => [
+      {
+        key: 'code',
+        title: 'Mã & Chiến Dịch',
+        width: 210,
+        render: (_val, voucher) => (
+          <div className="py-1">
+            <span className="font-mono font-bold text-[#00875A] text-xs px-2 py-0.5 rounded-lg bg-emerald-50 border border-emerald-200 inline-block">
+              {voucher.code}
+            </span>
+            <span
+              className="font-semibold text-slate-900 block break-words line-clamp-2 leading-snug text-xs mt-1"
+              title={voucher.name}
+            >
+              {voucher.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'discount',
+        title: 'Mức Giảm & Điều Kiện',
+        width: 190,
+        render: (_val, voucher) => (
+          <div className="py-1 text-xs">
+            <span className="font-bold text-emerald-800 text-xs block">
+              {formatDiscountValue(voucher.type, voucher.value)}
+            </span>
+            <span className="text-[11px] text-slate-500 block mt-0.5">
+              Đơn tối thiểu: {formatVND(voucher.minOrderAmount)}
+            </span>
+            {voucher.type === 'PERCENTAGE' && voucher.maxDiscountAmount ? (
+              <span className="text-[10.5px] text-slate-400 block">
+                Trần giảm: {formatVND(voucher.maxDiscountAmount)}
+              </span>
+            ) : null}
+          </div>
+        ),
+      },
+      {
+        key: 'usage',
+        title: 'Hạn Dùng & Tiến Độ',
+        width: 190,
+        render: (_val, voucher) => {
+          const now = new Date();
+          const isExpired = new Date(voucher.expiresAt) < now;
+          const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
+          const usagePercent = voucher.totalUsage > 0 ? Math.min(100, Math.round(((voucher.currentUsage || 0) / voucher.totalUsage) * 100)) : 0;
+          return (
+            <div className="py-1 text-xs flex flex-col gap-1 max-w-[150px]">
+              <span className="font-mono text-[11px] font-bold text-slate-800">
+                {voucher.currentUsage} / {voucher.totalUsage > 0 ? `${voucher.totalUsage} lượt` : '∞'}
+              </span>
+              {voucher.totalUsage > 0 && (
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${isUsedUp ? 'bg-amber-500' : 'bg-[#00875A]'}`}
+                    style={{ width: `${usagePercent}%` }}
+                  />
+                </div>
+              )}
+              <span className="text-slate-400 font-mono text-[10.5px] mt-0.5">
+                {isExpired ? (
+                  <span className="text-rose-600 font-bold">Hết hạn: {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}</span>
+                ) : (
+                  <span>Hạn: {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}</span>
+                )}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 130,
+        align: 'center',
+        render: (_val, voucher) => {
+          const now = new Date();
+          const isExpired = new Date(voucher.expiresAt) < now;
+          const isUpcoming = new Date(voucher.startsAt) > now;
+          const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
+
+          let statusBadgeVariant: any = 'success';
+          let statusLabel = 'Đang Bán';
+
+          if (isExpired || voucher.status === 'EXPIRED') {
+            statusBadgeVariant = 'danger';
+            statusLabel = 'Hết Hạn';
+          } else if (isUsedUp || voucher.status === 'USED_UP') {
+            statusBadgeVariant = 'warning';
+            statusLabel = 'Hết Lượt';
+          } else if (voucher.status === 'INACTIVE') {
+            statusBadgeVariant = 'neutral';
+            statusLabel = 'Tạm Tắt';
+          } else if (isUpcoming) {
+            statusBadgeVariant = 'info';
+            statusLabel = 'Sắp Diễn Ra';
+          } else {
+            statusBadgeVariant = 'success';
+            statusLabel = 'Đang Diễn Ra';
+          }
+
+          return <SellerStatusBadge variant={statusBadgeVariant} label={statusLabel} />;
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 140,
+        align: 'right',
+        render: (_val, voucher) => {
+          const now = new Date();
+          const isExpired = new Date(voucher.expiresAt) < now;
+          const isActionLoading = actionLoadingId === voucher.id;
+
+          return (
+            <div className="flex items-center justify-end gap-1">
+              {!isExpired && (
+                <SellerActionButton
+                  size="sm"
+                  variant={voucher.status === 'ACTIVE' ? 'warning' : 'success'}
+                  icon={voucher.status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
+                  title={voucher.status === 'ACTIVE' ? 'Tạm tắt voucher' : 'Kích hoạt voucher'}
+                  loading={isActionLoading}
+                  onClick={() => handleToggleStatus(voucher)}
+                />
+              )}
+              <SellerActionButton
+                size="sm"
+                variant="info"
+                icon="analytics"
+                title="Xem thống kê sử dụng"
+                onClick={() => handleOpenStats(voucher)}
+              />
+              <SellerActionButton
+                size="sm"
+                variant="edit"
+                icon="edit"
+                title="Chỉnh sửa voucher"
+                onClick={() => handleOpenEdit(voucher)}
+              />
+              {voucher.currentUsage === 0 && (
+                <SellerActionButton
+                  size="sm"
+                  variant="danger"
+                  icon="delete"
+                  title="Xóa voucher"
+                  loading={isActionLoading}
+                  onClick={() => handleDeleteVoucher(voucher)}
+                />
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [actionLoadingId, handleToggleStatus, handleOpenStats, handleOpenEdit, handleDeleteVoucher]
+  );
+
+  const renderExpandedVoucherDetail = (voucher: Voucher) => {
+    const usagePercent = voucher.totalUsage > 0 ? Math.min(100, Math.round(((voucher.currentUsage || 0) / voucher.totalUsage) * 100)) : 0;
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Chi Tiết Mức Giảm */}
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">sell</span>
+              <span>Quy Định Chiết Khấu</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã Voucher:</span>
+                <span className="font-mono font-bold text-[#00875A]">{voucher.code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Loại Giảm Giá:</span>
+                <span className="font-semibold text-slate-900">{formatVoucherType(voucher.type)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mức Giảm:</span>
+                <span className="font-bold text-emerald-800">{formatDiscountValue(voucher.type, voucher.value)}</span>
+              </div>
+              {voucher.type === 'PERCENTAGE' && voucher.maxDiscountAmount && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Trần Giảm Tối Đa:</span>
+                  <span className="font-mono text-slate-800">{formatVND(voucher.maxDiscountAmount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-slate-500">Đơn Tối Thiểu:</span>
+                <span className="font-mono text-slate-800">{formatVND(voucher.minOrderAmount)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Phân Khúc & Giới Hạn */}
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-pink-600">group</span>
+              <span>Phân Khúc &amp; Giới Hạn</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Đối Tượng Áp Dụng:</span>
+                <span className="font-bold text-slate-900">{formatTargetAudience(voucher.targetAudience).label}</span>
+              </div>
+              {voucher.targetAudience === 'FOLLOWERS_ONLY' && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Mốc Follow:</span>
+                  <span className="font-bold text-pink-700">{formatFollowerRequirement(voucher.minFollowDays).label}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tổng Lượt Phát Hành:</span>
+                <span className="font-mono font-semibold text-slate-800">{voucher.totalUsage > 0 ? `${voucher.totalUsage} lượt` : 'Không giới hạn'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Đã Sử Dụng:</span>
+                <span className="font-mono font-bold text-emerald-700">{voucher.currentUsage || 0} lượt ({usagePercent}%)</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tối Đa / Khách:</span>
+                <span className="font-mono text-slate-800">{voucher.maxUsagePerUser || 1} lần / độc giả</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Hiệu Lực & Gian Hàng */}
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-blue-600">schedule</span>
+              <span>Thời Gian &amp; Gian Hàng</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Bắt Đầu:</span>
+                <span className="font-mono text-slate-800">{new Date(voucher.startsAt).toLocaleString('vi-VN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Kết Thúc:</span>
+                <span className="font-mono text-slate-800">{new Date(voucher.expiresAt).toLocaleString('vi-VN')}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Gian Hàng:</span>
+                <span className="font-medium text-slate-800">{stores.find((s) => s.id === voucher.storeId)?.name || 'Tất cả Shop'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Nguồn Kinh Phí:</span>
+                <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">Gian hàng chi trả 100%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Toolbar */}
+        <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <span className="text-[11px] text-slate-500">
+            {voucher.description ? `Mô tả: "${voucher.description}"` : 'Mã giảm giá do gian hàng tự phát hành'}
+          </span>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleOpenStats(voucher)}
+              className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">analytics</span>
+              <span>Xem Báo Cáo Hiệu Quả</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handleOpenEdit(voucher)}
+              className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">edit</span>
+              <span>Chỉnh Sửa</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
       {/* 1. Header & Quick Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -1540,384 +1828,34 @@ export function SellerVouchersView() {
         itemName="voucher"
       />
 
-      {/* 5. Vouchers Table */}
-      <SellerTableContainer>
-        {loading ? (
-          <div className="py-16 text-center text-slate-500">
-            <div className="w-9 h-9 border-3 border-[#00875A] border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="font-medium text-xs mt-2.5">Đang tải danh sách voucher...</p>
-          </div>
-        ) : filteredVouchers.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-xs">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <span className="material-symbols-outlined text-3xl text-slate-300">
-                confirmation_number
-              </span>
-              <p className="font-semibold text-slate-700">Chưa có voucher nào</p>
-              <p className="text-[11.5px] text-slate-400">
-                {vouchers.length === 0
-                  ? 'Gian hàng chưa tạo mã giảm giá nào. Hãy bấm "Tạo Voucher Mới" để bắt đầu!'
-                  : 'Không tìm thấy voucher nào phù hợp với bộ lọc.'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
-                <th className="py-3.5 pl-4 pr-1 w-8">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === filteredVouchers.length && filteredVouchers.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                  />
-                </th>
-                <th className="py-3 px-2 w-10 text-center"></th>
-                <th className="py-3 px-2 w-12 text-center">STT</th>
-                <th className="py-3 px-3.5">Mã &amp; Chiến Dịch</th>
-                <th className="py-3 px-3.5">Mức Giảm &amp; Điều Kiện</th>
-                <th className="py-3 px-3.5">Phân Khúc &amp; Hạn Dùng</th>
-                <th className="py-3 px-3.5">Tiến Độ Lượt Dùng</th>
-                <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {paginatedVouchers.map((voucher, idx) => {
-                const now = new Date();
-                const isExpired = new Date(voucher.expiresAt) < now;
-                const isUpcoming = new Date(voucher.startsAt) > now;
-                const isUsedUp = voucher.totalUsage > 0 && voucher.currentUsage >= voucher.totalUsage;
-                const isActionLoading = actionLoadingId === voucher.id;
-
-                let statusBadgeVariant: any = 'success';
-                let statusLabel = 'Đang Bán';
-
-                if (isExpired || voucher.status === 'EXPIRED') {
-                  statusBadgeVariant = 'danger';
-                  statusLabel = 'Hết Hạn';
-                } else if (isUsedUp || voucher.status === 'USED_UP') {
-                  statusBadgeVariant = 'warning';
-                  statusLabel = 'Hết Lượt';
-                } else if (voucher.status === 'INACTIVE') {
-                  statusBadgeVariant = 'neutral';
-                  statusLabel = 'Tạm Tắt';
-                } else if (isUpcoming) {
-                  statusBadgeVariant = 'info';
-                  statusLabel = 'Sắp Diễn Ra';
-                } else {
-                  statusBadgeVariant = 'success';
-                  statusLabel = 'Đang Diễn Ra';
-                }
-
-                const isExpanded = expandedVoucherIds.has(voucher.id);
-                const usagePercent = voucher.totalUsage > 0 ? Math.min(100, Math.round(((voucher.currentUsage || 0) / voucher.totalUsage) * 100)) : 0;
-
-                return (
-                  <React.Fragment key={voucher.id}>
-                    <tr className={`transition-colors group ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-emerald-50/40`}>
-                      {/* Checkbox */}
-                      <td className="py-3 pl-4 pr-1 w-8">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(voucher.id)}
-                          onChange={() => toggleSelect(voucher.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                        />
-                      </td>
-
-                      {/* Expand Arrow */}
-                      <td className="py-3 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpandVoucher(voucher.id)}
-                          className="w-7 h-7 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-700 flex items-center justify-center transition-colors cursor-pointer"
-                          aria-label={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
-                        >
-                          <span className={`material-symbols-outlined text-[18px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-600 font-bold' : ''}`}>
-                            chevron_right
-                          </span>
-                        </button>
-                      </td>
-
-                      {/* STT */}
-                      <td className="py-3 px-2 text-center font-mono text-[11px] text-slate-400">
-                        {(currentPage - 1) * pageSize + idx + 1}
-                      </td>
-
-                      {/* Mã & Chiến Dịch */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="font-mono font-extrabold text-[#00875A] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-xs w-fit">
-                            {voucher.code}
-                          </span>
-                          <span className="font-bold text-slate-900 text-xs truncate max-w-[220px]" title={voucher.name}>
-                            {voucher.name}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Mức Giảm & Điều Kiện */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex flex-col gap-1">
-                          <span className="font-bold text-[#00875A] text-xs">
-                            {formatDiscountValue(voucher.type, voucher.value)}
-                          </span>
-                          <span className="text-[11px] text-slate-500 font-mono">
-                            Đơn từ {formatVND(voucher.minOrderAmount)}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 text-[9.5px] px-1.5 py-0.2 rounded font-bold border w-fit ${formatApplicableFormat(voucher.applicableFormat).borderClass} ${formatApplicableFormat(voucher.applicableFormat).bgClass}`}>
-                            <span className="material-symbols-outlined text-[11px]">{formatApplicableFormat(voucher.applicableFormat).icon}</span>
-                            <span>{formatApplicableFormat(voucher.applicableFormat).badge}</span>
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Phân Khúc & Hạn Dùng */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex flex-col gap-1">
-                          {voucher.targetAudience === 'FOLLOWERS_ONLY' ? (
-                            <Link
-                              href="/seller/followers"
-                              className="inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full bg-pink-50 text-pink-700 font-bold border border-pink-200 hover:bg-pink-100 transition-colors w-fit"
-                              title={`Voucher độc quyền cho ${formatFollowerRequirement(voucher.minFollowDays).label}`}
-                            >
-                              <span className="material-symbols-outlined text-[12px] text-pink-600">
-                                {voucher.minFollowDays && voucher.minFollowDays >= 365
-                                  ? 'diamond'
-                                  : voucher.minFollowDays && voucher.minFollowDays >= 90
-                                  ? 'workspace_premium'
-                                  : voucher.minFollowDays && voucher.minFollowDays >= 30
-                                  ? 'military_tech'
-                                  : 'favorite'}
-                              </span>
-                              <span>{formatFollowerRequirement(voucher.minFollowDays).badge}</span>
-                            </Link>
-                          ) : voucher.targetAudience === 'NEW_CUSTOMERS_ONLY' ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.2 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200 w-fit">
-                              <span className="material-symbols-outlined text-[12px] text-amber-600">person_add</span>
-                              <span>Khách mới</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-normal border border-slate-200/60 w-fit">
-                              <span className="material-symbols-outlined text-[11px] text-slate-400">public</span>
-                              <span>Tất cả độc giả</span>
-                            </span>
-                          )}
-                          <span className="text-slate-400 font-mono text-[10.5px]">
-                            {isExpired ? (
-                              <span className="text-rose-600 font-bold">Hết hạn: {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}</span>
-                            ) : (
-                              <span>Hạn: {new Date(voucher.expiresAt).toLocaleDateString('vi-VN')}</span>
-                            )}
-                          </span>
-                        </div>
-                      </td>
-
-                      {/* Tiến Độ Lượt Dùng */}
-                      <td className="py-3 px-3.5">
-                        <div className="flex flex-col gap-1 max-w-[130px]">
-                          <span className="font-mono text-[11px] font-bold text-slate-800">
-                            {voucher.currentUsage} / {voucher.totalUsage || '∞'}
-                          </span>
-                          {voucher.totalUsage > 0 && (
-                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all ${isUsedUp ? 'bg-amber-500' : 'bg-[#00875A]'}`}
-                                style={{ width: `${usagePercent}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Trạng Thái & Thao Tác */}
-                      <td className="py-3 px-3.5 text-right">
-                        <div className="flex flex-col items-end gap-1.5">
-                          <SellerStatusBadge variant={statusBadgeVariant} label={statusLabel} />
-                          <div className="flex items-center gap-1">
-                            {!isExpired && (
-                              <SellerActionButton
-                                size="sm"
-                                variant={voucher.status === 'ACTIVE' ? 'warning' : 'success'}
-                                icon={voucher.status === 'ACTIVE' ? 'pause_circle' : 'play_circle'}
-                                title={voucher.status === 'ACTIVE' ? 'Tạm tắt voucher' : 'Kích hoạt voucher'}
-                                loading={isActionLoading}
-                                onClick={() => handleToggleStatus(voucher)}
-                              />
-                            )}
-                            <SellerActionButton
-                              size="sm"
-                              variant="info"
-                              icon="analytics"
-                              title="Xem thống kê sử dụng"
-                              onClick={() => handleOpenStats(voucher)}
-                            />
-                            <SellerActionButton
-                              size="sm"
-                              variant="edit"
-                              icon="edit"
-                              title="Chỉnh sửa voucher"
-                              onClick={() => handleOpenEdit(voucher)}
-                            />
-                            {voucher.currentUsage === 0 && (
-                              <SellerActionButton
-                                size="sm"
-                                variant="danger"
-                                icon="delete"
-                                title="Xóa voucher"
-                                loading={isActionLoading}
-                                onClick={() => handleDeleteVoucher(voucher)}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Expandable Master-Detail Subcard */}
-                    {isExpanded && (
-                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={8} className="p-4 sm:p-5">
-                          <div className="rounded-2xl border border-emerald-200/80 bg-white p-4 shadow-2xs flex flex-col gap-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-                              {/* Card 1: Chi Tiết Mức Giảm */}
-                              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-                                  <span className="material-symbols-outlined text-[15px] text-[#00875A]">sell</span>
-                                  <span>Quy Định Chiết Khấu</span>
-                                </div>
-                                <div className="space-y-1.5 text-[11.5px]">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã Voucher:</span>
-                                    <span className="font-mono font-bold text-[#00875A]">{voucher.code}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Loại Giảm Giá:</span>
-                                    <span className="font-semibold text-slate-900">{formatVoucherType(voucher.type)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mức Giảm:</span>
-                                    <span className="font-bold text-emerald-800">{formatDiscountValue(voucher.type, voucher.value)}</span>
-                                  </div>
-                                  {voucher.type === 'PERCENTAGE' && voucher.maxDiscountAmount && (
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-500">Trần Giảm Tối Đa:</span>
-                                      <span className="font-mono text-slate-800">{formatVND(voucher.maxDiscountAmount)}</span>
-                                    </div>
-                                  )}
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Đơn Tối Thiểu:</span>
-                                    <span className="font-mono text-slate-800">{formatVND(voucher.minOrderAmount)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Phân Khúc & Giới Hạn */}
-                              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-                                  <span className="material-symbols-outlined text-[15px] text-pink-600">group</span>
-                                  <span>Phân Khúc &amp; Giới Hạn</span>
-                                </div>
-                                <div className="space-y-1.5 text-[11.5px]">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Đối Tượng Áp Dụng:</span>
-                                    <span className="font-bold text-slate-900">{formatTargetAudience(voucher.targetAudience).label}</span>
-                                  </div>
-                                  {voucher.targetAudience === 'FOLLOWERS_ONLY' && (
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-500">Mốc Follow:</span>
-                                      <span className="font-bold text-pink-700">{formatFollowerRequirement(voucher.minFollowDays).label}</span>
-                                    </div>
-                                  )}
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tổng Lượt Phát Hành:</span>
-                                    <span className="font-mono font-semibold text-slate-800">{voucher.totalUsage > 0 ? `${voucher.totalUsage} lượt` : 'Không giới hạn'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Đã Sử Dụng:</span>
-                                    <span className="font-mono font-bold text-emerald-700">{voucher.currentUsage || 0} lượt ({usagePercent}%)</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tối Đa / Khách:</span>
-                                    <span className="font-mono text-slate-800">{voucher.maxUsagePerUser || 1} lần / độc giả</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Hiệu Lực & Gian Hàng */}
-                              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 flex flex-col gap-2">
-                                <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-                                  <span className="material-symbols-outlined text-[15px] text-blue-600">schedule</span>
-                                  <span>Thời Gian &amp; Gian Hàng</span>
-                                </div>
-                                <div className="space-y-1.5 text-[11.5px]">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Bắt Đầu:</span>
-                                    <span className="font-mono text-slate-800">{new Date(voucher.startsAt).toLocaleString('vi-VN')}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Kết Thúc:</span>
-                                    <span className="font-mono text-slate-800">{new Date(voucher.expiresAt).toLocaleString('vi-VN')}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Gian Hàng:</span>
-                                    <span className="font-medium text-slate-800">{stores.find((s) => s.id === voucher.storeId)?.name || 'Tất cả Shop'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Nguồn Kinh Phí:</span>
-                                    <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded">Gian hàng chi trả 100%</span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Action Toolbar */}
-                            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
-                              <span className="text-[11px] text-slate-500">
-                                {voucher.description ? `Mô tả: "${voucher.description}"` : 'Mã giảm giá do gian hàng tự phát hành'}
-                              </span>
-
-                              <div className="flex items-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenStats(voucher)}
-                                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">analytics</span>
-                                  <span>Xem Báo Cáo Hiệu Quả</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEdit(voucher)}
-                                  className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer flex items-center gap-1"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">edit</span>
-                                  <span>Chỉnh Sửa</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        <SellerPagination
-          currentPage={validPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="voucher"
-        />
-      </SellerTableContainer>
+      {/* 5. Vouchers Grouped Data Table */}
+      <GroupedDataTable<Voucher>
+        columns={voucherColumns}
+        data={paginatedVouchers}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedVoucherDetail}
+        emptyTitle="Chưa có voucher nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy voucher khớp với từ khóa "${searchQuery}"`
+            : 'Gian hàng chưa tạo mã giảm giá nào. Hãy bấm "Tạo Voucher Mới" để bắt đầu!'
+        }
+        emptyIcon="confirmation_number"
+        pagination={{
+          currentPage: validPage,
+          totalPages,
+          totalItems,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'voucher',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

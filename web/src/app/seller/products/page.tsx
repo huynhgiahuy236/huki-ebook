@@ -9,6 +9,7 @@ import { aiAudioService, AiAudioPlan, BookAiSubscription } from '@/ui/services/a
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { can, PERMISSIONS } from '@/ui/utils/permissions';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   SellerTableContainer,
   SellerStatusBadge,
@@ -602,7 +603,276 @@ export default function SellerProductsPage() {
     { key: 'LOW_STOCK', label: 'Sắp Hết Kho', count: metrics.lowStock + metrics.outOfStock },
   ];
 
-  return (
+
+  const productColumns: Column<SellerBookItem>[] = useMemo(
+    () => [
+      {
+        key: 'book',
+        title: 'Sản Phẩm & Bìa Sách',
+        minWidth: 260,
+        render: (_val, book) => {
+          const cover = book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+          return (
+            <div className="flex items-center gap-3 py-1">
+              <img
+                src={cover}
+                alt={book.title}
+                className="w-9 h-12 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
+                }}
+              />
+              <div className="min-w-0">
+                <span
+                  title={book.title}
+                  className="font-bold text-slate-900 hover:text-[#00875A] block break-words line-clamp-2 leading-snug transition-colors text-xs"
+                >
+                  {book.title}
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-slate-400 font-mono">
+                  <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
+                    #{book.id.substring(0, 6).toUpperCase()}
+                  </span>
+                  {book.category?.name && (
+                    <span className="text-slate-500 font-sans">
+                      · {book.category.name}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'author',
+        title: 'Tác Giả & NXB',
+        width: 180,
+        render: (_val, book) => {
+          const authorName = typeof book.author === 'string' ? book.author : book.author?.name || 'Chưa cập nhật';
+          const publisherName = typeof book.publisher === 'string' ? book.publisher : book.publisher?.name || 'Tự xuất bản';
+          return (
+            <div className="py-1 text-xs">
+              <span className="font-semibold text-slate-800 block break-words line-clamp-1">{authorName}</span>
+              <span className="text-[10.5px] text-slate-400 mt-0.5 block break-words line-clamp-1">{publisherName}</span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'format',
+        title: 'Định Dạng & Tồn Kho',
+        width: 190,
+        render: (_val, book) => {
+          const stock = book.physicalDetails?.stock ?? 0;
+          const isLowStock = book.format !== 'DIGITAL' && stock > 0 && stock < 10;
+          const isOutOfStock = book.format !== 'DIGITAL' && stock === 0;
+
+          return (
+            <div className="py-1 flex flex-col gap-1 text-xs">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {book.format === 'PHYSICAL' && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
+                    <span className="material-symbols-outlined text-xs">menu_book</span>
+                    <span>Sách Giấy</span>
+                  </span>
+                )}
+                {book.format === 'DIGITAL' && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
+                    <span className="material-symbols-outlined text-xs">devices</span>
+                    <span>Ebook DRM</span>
+                  </span>
+                )}
+                {book.format === 'BOTH' && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                    <span className="material-symbols-outlined text-xs">auto_stories</span>
+                    <span>Combo</span>
+                  </span>
+                )}
+
+                {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80">
+                    <span className="material-symbols-outlined text-[12px] text-amber-600">campaign</span>
+                    <span>Affiliate</span>
+                  </span>
+                )}
+              </div>
+              <div className="text-[11px]">
+                {book.format === 'DIGITAL' ? (
+                  <span className="text-purple-600 font-semibold text-[10.5px]">DRM Vô hạn</span>
+                ) : isOutOfStock ? (
+                  <span className="text-rose-600 font-bold text-[10.5px]">Hết hàng (0)</span>
+                ) : isLowStock ? (
+                  <span className="text-amber-700 font-bold text-[10.5px]">Còn {stock} cuốn</span>
+                ) : (
+                  <span className="text-slate-600 font-medium text-[10.5px]">{stock.toLocaleString('vi-VN')} cuốn</span>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'price',
+        title: 'Giá Bán',
+        width: 150,
+        render: (_val, book) => (
+          <div className="py-1">
+            <span className="font-bold text-slate-900 block text-xs">
+              {Number(book.price ?? 0).toLocaleString('vi-VN')} ₫
+            </span>
+            {Boolean(book.originalPrice && book.originalPrice > (book.price ?? 0)) && (
+              <span className="text-[10.5px] text-slate-400 line-through block mt-0.5">
+                {Number(book.originalPrice).toLocaleString('vi-VN')} ₫
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Trạng Thái & Thao Tác',
+        width: 250,
+        align: 'right',
+        render: (_val, book) => {
+          const isBusy = actionLoadingId === book.id;
+          return (
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <SellerStatusBadge status={book.status || 'DRAFT'} />
+
+              {canUpdateProduct && (
+                <>
+                  <Link href={`/seller/product/${book.id}/edit`}>
+                    <SellerActionButton
+                      variant="primary"
+                      size="sm"
+                      label="Sửa"
+                      icon="edit"
+                      disabled={isBusy}
+                    />
+                  </Link>
+
+                  <SellerActionButton
+                    variant="neutral"
+                    size="sm"
+                    label="Nhanh"
+                    icon="tune"
+                    disabled={isBusy}
+                    onClick={() => openEditForm(book)}
+                  />
+
+                  {(book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
+                    <button
+                      type="button"
+                      onClick={() => handleVisibility(book)}
+                      disabled={isBusy}
+                      className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                      title={book.status === 'PUBLISHED' ? 'Tạm ẩn sách' : 'Mở bán sách'}
+                    >
+                      <span className="material-symbols-outlined text-[13px]">
+                        {book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}
+                      </span>
+                      <span>{book.status === 'PUBLISHED' ? 'Ẩn' : 'Hiện'}</span>
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [canUpdateProduct, actionLoadingId]
+  );
+
+  const renderExpandedBookDetail = (book: SellerBookItem) => {
+    const isPhysical = book.format === 'PHYSICAL' || book.format === 'BOTH';
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Kho & Kích thước */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">inventory_2</span>
+              <span>Kho Hàng & Quy Cách</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tồn kho khả dụng:</span>
+                <span className="font-bold text-slate-900">{isPhysical ? `${book.physicalDetails?.stock ?? 0} cuốn` : 'Không giới hạn (Ebook)'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Trọng lượng bưu kiện:</span>
+                <span className="font-mono text-slate-800">{book.physicalDetails?.weight ? `${book.physicalDetails.weight}g` : 'Tiêu chuẩn (300g)'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Kích thước đóng gói:</span>
+                <span className="font-mono text-slate-800">
+                  {book.physicalDetails?.length && book.physicalDetails?.width ? `${book.physicalDetails.length}x${book.physicalDetails.width}x${book.physicalDetails.height || 2} cm` : '14x20x2 cm'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Giá & Tiếp thị Affiliate */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">campaign</span>
+              <span>Giá Bán & Tiếp Thị Affiliate</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giá bán thực tế:</span>
+                <span className="font-bold text-[#00875A] font-mono">{Number(book.price ?? 0).toLocaleString('vi-VN')} ₫</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giá bìa niêm yết:</span>
+                <span className="font-mono text-slate-600">{Number(book.originalPrice ?? book.price ?? 0).toLocaleString('vi-VN')} ₫</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Chương trình Affiliate:</span>
+                <span className="font-semibold text-amber-800">
+                  {book.isAffiliateEligible || book.affiliateSetting?.isEligible ? `Bật ${book.affiliateSetting?.customRate ? `(${book.affiliateSetting.customRate}%)` : ''}` : 'Chưa bật'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Thao tác & Điều hướng */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-indigo-600">tune</span>
+                <span>Thao Tác Quản Lý</span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 mt-2 leading-relaxed">
+                Chỉnh sửa toàn bộ thông tin mô tả, ảnh bìa, mục lục hoặc xem giao diện trang sách trên sàn.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60 flex-wrap">
+              <Link
+                href={`/seller/product/${book.id}/edit`}
+                className="px-3 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">edit</span>
+                <span>Sửa Đầy Đủ</span>
+              </Link>
+              <Link
+                href={`/books/${book.id}`}
+                target="_blank"
+                className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                <span>Xem Trang Sách</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="w-full max-w-[1600px] mx-auto space-y-5">
       
       {/* 1. TOP HEADER & PRIMARY ACTIONS */}
@@ -1060,345 +1330,36 @@ export default function SellerProductsPage() {
         itemName="đầu sách"
       />
 
-      {/* 5. PRODUCTS TABLE LIST */}
-      <SellerTableContainer>
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80">
-              <th className="py-3.5 pl-4 pr-1 w-8">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
-                  onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                />
-              </th>
-              <th className="py-3.5 px-2 w-8 text-center"></th>
-              <th className="py-3.5 px-2 w-10 text-center">STT</th>
-              <th className="py-3.5 px-4">Sản Phẩm &amp; Bìa</th>
-              <th className="py-3.5 px-3">Tác Giả &amp; NXB</th>
-              <th className="py-3.5 px-3">Định Dạng &amp; Tồn Kho</th>
-              <th className="py-3.5 px-3">Giá Bán</th>
-              <th className="py-3.5 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="py-16 text-center text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
-                    <span className="text-xs">Đang tải danh mục sách...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : filteredBooks.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                    <span className="material-symbols-outlined text-4xl text-slate-300">auto_stories</span>
-                    <p className="font-medium text-slate-600">Chưa có sản phẩm nào phù hợp.</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedBooks.map((book, idx) => {
-                const cover = book.coverUrl || book.coverImage || book.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
-                const isPublished = book.status === 'PUBLISHED';
-                const isDraft = book.status === 'DRAFT' || !book.status;
-                const stock = book.physicalDetails?.stock ?? 0;
-                const isLowStock = book.format !== 'DIGITAL' && stock > 0 && stock < 10;
-                const isOutOfStock = book.format !== 'DIGITAL' && stock === 0;
-                const isExpanded = expandedProductIds.has(book.id);
-                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                const authorName = typeof book.author === 'string' ? book.author : book.author?.name || 'Chưa cập nhật';
-                const publisherName = typeof book.publisher === 'string' ? book.publisher : book.publisher?.name || 'Tự xuất bản';
-
-                return (
-                  <React.Fragment key={book.id}>
-                    <tr
-                      className={`hover:bg-slate-50/60 transition-colors group ${
-                        isExpanded ? 'bg-emerald-50/30' : selectedIds.includes(book.id) ? 'bg-emerald-50/20' : idx % 2 === 0 ? 'bg-white' : 'bg-[#F9FAFB]'
-                      }`}
-                    >
-                      {/* Checkbox column */}
-                      <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(book.id)}
-                          onChange={() => toggleSelect(book.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                        />
-                      </td>
-
-                      {/* Chevron toggle */}
-                      <td className="py-3 px-2 text-center align-middle">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpandProduct(book.id)}
-                          className="w-6 h-6 rounded-md hover:bg-emerald-100 text-slate-500 hover:text-emerald-800 flex items-center justify-center transition-all cursor-pointer"
-                          title={isExpanded ? 'Thu gọn chi tiết' : 'Mở rộng chi tiết'}
-                        >
-                          <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isExpanded ? 'rotate-90 text-emerald-700' : ''}`}>
-                            chevron_right
-                          </span>
-                        </button>
-                      </td>
-
-                      {/* STT */}
-                      <td className="py-3 px-2 text-center text-[11px] font-mono text-slate-400 align-middle">
-                        {itemIndex}
-                      </td>
-
-                      {/* Product & Cover */}
-                      <td className="py-3 px-4 align-middle">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={cover}
-                            alt={book.title}
-                            className="w-9 h-12 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=200&auto=format&fit=crop&q=80';
-                            }}
-                          />
-                          <div className="min-w-0 max-w-[260px]">
-                            <span
-                              onClick={() => toggleExpandProduct(book.id)}
-                              title={book.title}
-                              className="font-bold text-slate-900 hover:text-[#00875A] block truncate transition-colors leading-snug cursor-pointer text-xs"
-                            >
-                              {book.title}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 text-[10.5px] text-slate-400 font-mono">
-                              <span className="bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-medium">
-                                #{book.id.substring(0, 6).toUpperCase()}
-                              </span>
-                              {book.category?.name && (
-                                <span className="truncate text-slate-500 font-sans">
-                                  · {book.category.name}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Author & Publisher */}
-                      <td className="py-3 px-3 align-middle">
-                        <div className="font-semibold text-slate-800 text-xs truncate max-w-[160px]">{authorName}</div>
-                        <div className="text-[10.5px] text-slate-400 mt-0.5 truncate max-w-[160px]">{publisherName}</div>
-                      </td>
-
-                      {/* Format & Stock */}
-                      <td className="py-3 px-3 align-middle">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {book.format === 'PHYSICAL' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200/60">
-                              <span className="material-symbols-outlined text-xs">menu_book</span>
-                              <span>Sách Giấy</span>
-                            </span>
-                          )}
-                          {book.format === 'DIGITAL' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-purple-50 text-purple-700 border border-purple-200/60">
-                              <span className="material-symbols-outlined text-xs">devices</span>
-                              <span>Ebook DRM</span>
-                            </span>
-                          )}
-                          {book.format === 'BOTH' && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                              <span className="material-symbols-outlined text-xs">auto_stories</span>
-                              <span>Combo</span>
-                            </span>
-                          )}
-
-
-
-                          {/* Hiển thị trạng thái Tiếp thị liên kết (Affiliate) */}
-                          {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) ? (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs"
-                              title={book.affiliateSetting?.customRate ? `Affiliate: Đang áp dụng hoa hồng riêng ${book.affiliateSetting.customRate}%` : 'Affiliate: Bật theo tỷ lệ gian hàng'}
-                            >
-                              <span className="material-symbols-outlined text-[13px] text-amber-600">campaign</span>
-                              <span>Affiliate: Bật{book.affiliateSetting?.customRate ? ` (${book.affiliateSetting.customRate}%)` : ''}</span>
-                            </span>
-                          ) : (
-                            <span
-                              className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200"
-                              title="Chưa bật tiếp thị liên kết cho cuốn sách này"
-                            >
-                              <span className="material-symbols-outlined text-[13px] text-slate-400">campaign</span>
-                              <span>Affiliate: Tắt</span>
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1 text-[11px]">
-                          {book.format === 'DIGITAL' ? (
-                            <span className="text-purple-600 font-semibold text-[10.5px]">DRM Vô hạn</span>
-                          ) : isOutOfStock ? (
-                            <span className="text-rose-600 font-bold text-[10.5px]">Hết hàng (0)</span>
-                          ) : isLowStock ? (
-                            <span className="text-amber-700 font-bold text-[10.5px]">Còn {stock} cuốn</span>
-                          ) : (
-                            <span className="text-slate-600 font-medium text-[10.5px]">{stock.toLocaleString('vi-VN')} cuốn</span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Price */}
-                      <td className="py-3 px-3 align-middle">
-                        <span className="font-bold text-slate-900 block text-xs">
-                          {book.price != null && !isNaN(Number(book.price))
-                            ? Number(book.price).toLocaleString('vi-VN') + ' ₫'
-                            : '0 ₫'}
-                        </span>
-                        {book.originalPrice && book.originalPrice > (book.price || 0) && (
-                          <span className="text-[10px] text-slate-400 line-through block mt-0.5">
-                            {Number(book.originalPrice).toLocaleString('vi-VN')} ₫
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Status & Actions */}
-                      <td className="py-3 px-4 text-right align-middle">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {isPublished ? (
-                            <SellerStatusBadge variant="success" dot text="Đang Bán" />
-                          ) : isDraft ? (
-                            <SellerStatusBadge variant="warning" dot text="Bản Nháp" />
-                          ) : (
-                            <SellerStatusBadge variant="neutral" text={book.status || 'Ẩn'} />
-                          )}
-
-                          {canUpdateProduct && (
-                            <Link
-                              href={`/seller/products/${book.id}/edit`}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors shadow-2xs cursor-pointer"
-                              title="Chỉnh sửa chi tiết đầy đủ (Trang riêng)"
-                            >
-                              <span className="material-symbols-outlined text-sm">edit</span>
-                              <span>Sửa</span>
-                            </Link>
-                          )}
-
-                          {isDraft && (
-                            <SellerActionButton
-                              type="button"
-                              variant="primary"
-                              size="sm"
-                              icon="publish"
-                              loading={actionLoadingId === book.id}
-                              onClick={() => handlePublish(book.id, book.title)}
-                            >
-                              Xuất Bản
-                            </SellerActionButton>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Master-Detail Expandable Subcard (4 cards bao gồm Giọng Đọc AI) */}
-                    {isExpanded && (
-                      <tr className="bg-emerald-50/20 border-b border-emerald-100">
-                        <td colSpan={8} className="p-4 sm:p-5">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
-                            {/* Cột 1: Thông số kho & kích thước */}
-                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[14px]">inventory_2</span>
-                                <span>Thông Số Kho &amp; Trọng Lượng</span>
-                              </div>
-                              <div className="space-y-1.5 pt-1 text-[11px]">
-                                <div><span className="text-slate-400">Tồn kho thực tế: </span><span className="font-bold text-slate-800">{stock} cuốn</span></div>
-                                <div><span className="text-slate-400">Trọng lượng: </span><span className="font-semibold text-slate-700">{book.physicalDetails?.weight ? `${book.physicalDetails.weight}g` : '350g (Chuẩn)'}</span></div>
-                                <div><span className="text-slate-400">Kích thước: </span><span className="text-slate-700">{book.physicalDetails?.length ? `${book.physicalDetails.length} x ${book.physicalDetails.width} x ${book.physicalDetails.height} cm` : '14.5 x 20.5 x 2 cm'}</span></div>
-                                <div><span className="text-slate-400">Ngày tạo: </span><span className="text-slate-600">{book.createdAt ? new Date(book.createdAt).toLocaleDateString('vi-VN') : 'Mới tạo'}</span></div>
-                              </div>
-                            </div>
-
-                            {/* Cột 2: Bảng giá & chiết khấu */}
-                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[14px]">sell</span>
-                                <span>Thông Tin Giá &amp; Chiết Khấu</span>
-                              </div>
-                              <div className="space-y-1.5 pt-1 text-[11px]">
-                                <div><span className="text-slate-400">Giá bán trên sàn: </span><span className="font-bold text-[#00875A] text-xs">{Number(book.price || 0).toLocaleString('vi-VN')} ₫</span></div>
-                                <div><span className="text-slate-400">Giá bìa niêm yết: </span><span className="text-slate-600">{book.originalPrice ? `${Number(book.originalPrice).toLocaleString('vi-VN')} ₫` : 'Bằng giá bán'}</span></div>
-                                <div><span className="text-slate-400">Danh mục phân loại: </span><span className="font-semibold text-slate-800">{book.category?.name || 'Sách tổng hợp'}</span></div>
-                                <div>
-                                  <span className="text-slate-400">Tiếp thị liên kết (Affiliate): </span>
-                                  {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) ? (
-                                    <span className="font-bold text-amber-700">
-                                      Đang Bật {book.affiliateSetting?.customRate ? `(Hoa hồng riêng: ${book.affiliateSetting.customRate}%)` : '(Theo tỷ lệ gian hàng)'}
-                                    </span>
-                                  ) : (
-                                    <span className="font-semibold text-slate-500">Chưa Bật</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Cột 4: Thao tác gian hàng */}
-                            <div className="space-y-2 text-xs flex flex-col justify-between">
-                              <div>
-                                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[14px]">tune</span>
-                                  <span>Thao Tác Gian Hàng</span>
-                                </div>
-                                <p className="text-[11px] text-slate-500 mt-1">
-                                  Cập nhật thông tin nhanh hoặc quản lý trạng thái hiển thị của tác phẩm.
-                                </p>
-                              </div>
-                              <div className="flex flex-wrap gap-2 pt-2">
-                                <button
-                                  onClick={() => openEditForm(book)}
-                                  className="px-3 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281D] text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">edit</span>
-                                  <span>Chỉnh Sửa Nhanh</span>
-                                </button>
-                                {canUpdateProduct && (book.status === 'PUBLISHED' || book.status === 'HIDDEN') && (
-                                  <button
-                                    onClick={() => handleVisibility(book)}
-                                    className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">{book.status === 'PUBLISHED' ? 'visibility_off' : 'visibility'}</span>
-                                    <span>{book.status === 'PUBLISHED' ? 'Ẩn Tạm Thời' : 'Mở Bán Lại'}</span>
-                                  </button>
-                                )}
-                                <Link
-                                  href={`/books/${book.id}`}
-                                  target="_blank"
-                                  className="px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors"
-                                >
-                                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                                  <span>Xem Trang Sách</span>
-                                </Link>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </SellerTableContainer>
-
-
-
-      {/* Pagination */}
-      {!loading && filteredBooks.length > 0 && (
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      {/* 5. PRODUCTS TABLE LIST CHUẨN HÓA GROUPED DATA TABLE */}
+      <GroupedDataTable<SellerBookItem>
+        columns={productColumns}
+        data={paginatedBooks}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowKeys={Array.from(expandedProductIds)}
+        onExpandedRowsChange={(keys) => setExpandedProductIds(new Set(keys as string[]))}
+        expandedRowRender={renderExpandedBookDetail}
+        emptyTitle="Chưa có sản phẩm nào phù hợp"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy đầu sách nào trùng khớp với từ khóa "${searchQuery}"`
+            : 'Hiện chưa có đầu sách nào trong danh mục hoặc bộ lọc này.'
+        }
+        emptyIcon="auto_stories"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredBooks.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'đầu sách',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { walletApi, type SellerEscrowItem } from '@/ui/api/walletApi';
 import EscrowTableBadge from '@/ui/components/seller/EscrowTableBadge';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import { useToast } from '@/ui/context/ToastContext';
 
@@ -345,7 +346,202 @@ export default function SellerEscrowPage() {
     document.body.removeChild(link);
   };
 
-  return (
+
+  const escrowColumns: Column<SellerEscrowItem>[] = useMemo(
+    () => [
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn & Thời Gian',
+        width: 175,
+        render: (_val, it) => (
+          <div className="py-1">
+            <span className="font-mono font-bold text-slate-900 block text-xs">
+              #{it.orderCode || it.orderId}
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+              {formatVietnamDateTime(it.orderCreatedAt)}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'product',
+        title: 'Sách & Phân Loại',
+        minWidth: 240,
+        render: (_val, it) => {
+          const isDigital = it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook');
+          return (
+            <div className="flex items-center gap-2.5 py-1">
+              {it.coverUrl ? (
+                <img
+                  src={it.coverUrl}
+                  alt={it.bookTitle}
+                  className="w-8 h-11 object-cover rounded bg-slate-100 shrink-0 border border-slate-200"
+                />
+              ) : (
+                <div className="w-8 h-11 rounded bg-slate-100 flex items-center justify-center text-slate-400 shrink-0 border border-slate-200">
+                  <span className="material-symbols-outlined text-[16px]">menu_book</span>
+                </div>
+              )}
+              <div className="min-w-0">
+                <span
+                  title={it.bookTitle}
+                  className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs hover:text-[#00875A] transition-colors"
+                >
+                  {it.bookTitle}
+                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${
+                    isDigital
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {isDigital ? 'Ebook' : 'Sách In'}
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono">
+                    SL: {it.quantity || 1}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'financials',
+        title: 'Doanh Thu & Thực Nhận',
+        width: 200,
+        render: (_val, it) => (
+          <div className="py-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-slate-500 text-[11px]">Tiền hàng:</span>
+              <span className="font-mono text-slate-800 font-semibold">{formatVND(it.subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-[10.5px]">
+              <span className="text-slate-400">Phí sàn (5%):</span>
+              <span className="font-mono text-rose-600">-{formatVND(it.platformFee)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-0.5 border-t border-slate-100 mt-0.5">
+              <span className="text-emerald-800 font-semibold text-[11px]">Thực nhận:</span>
+              <span className="font-mono text-[#00875A] font-bold text-xs">+{formatVND(it.sellerNet)}</span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái Ký Quỹ',
+        width: 170,
+        align: 'center',
+        render: (_val, it) => <EscrowTableBadge item={it} />,
+      },
+      {
+        key: 'actions',
+        title: 'Chi Tiết',
+        width: 110,
+        align: 'right',
+        render: (_val, it) => (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedItem(it)}
+              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#00875A] border border-emerald-200 font-bold text-xs transition-colors cursor-pointer"
+            >
+              Xem sao kê
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedEscrowDetail = (it: SellerEscrowItem) => {
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Dòng tiền minh bạch */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">payments</span>
+              <span>Dòng Tiền Quyết Toán</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Doanh thu tạm tính:</span>
+                <span className="font-mono font-bold text-slate-900">{formatVND(it.subtotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phí sàn dịch vụ (5%):</span>
+                <span className="font-mono text-rose-600 font-medium">-{formatVND(it.platformFee)}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-emerald-800 font-bold">Số dư thực nhận shop:</span>
+                <span className="font-mono text-[#00875A] font-bold text-sm">+{formatVND(it.sellerNet)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Khách hàng & Vận chuyển */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">person</span>
+              <span>Khách Hàng & Nơi Nhận</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Người mua:</span>
+                <span className="font-semibold text-slate-900">{it.customerName || 'Khách hàng HuKi'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phương thức thanh toán:</span>
+                <span className="font-semibold text-slate-800">
+                  {it.paymentMethod === 'COD' ? 'Tiền mặt (COD)' : 'PayOS (VietQR)'}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5">Địa chỉ giao:</span>
+                <p className="bg-white p-2 rounded-lg text-slate-700 text-[11.5px] border border-slate-200 break-words leading-relaxed" title={it.shippingAddress}>
+                  {it.shippingAddress || 'Nhận sách điện tử / Giao tận nơi'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Tiến trình ký quỹ */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">hourglass_top</span>
+                <span>Tiến Trình Bảo Hộ</span>
+              </div>
+              <p className="text-[11.5px] text-slate-600 mt-2 leading-relaxed">
+                {it.escrowStatus === 'RELEASED'
+                  ? 'Đã hoàn tất đối soát & giải ngân vào số dư khả dụng của gian hàng.'
+                  : it.escrowStatus === 'HOLDING'
+                  ? 'Đang trong thời hạn bảo chứng test đổi trả 2 phút.'
+                  : it.escrowStatus === 'PENDING_PAYMENT'
+                  ? 'Kiện hàng đang vận chuyển, chờ bưu tá thu tiền COD.'
+                  : 'Đang tạm khóa do có khiếu nại phát sinh.'}
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedItem(it)}
+                className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-[15px]">receipt_long</span>
+                <span>Mở Bảng Kê Đối Soát Toàn Diện</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -541,313 +737,34 @@ export default function SellerEscrowPage() {
         itemName="món ký quỹ"
       />
 
-      {/* 4. MAIN RICH DATA TABLE */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-xs overflow-hidden">
-        <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-          <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
-            Danh Sách Món Hàng Ký Quỹ ({filteredItems.length} kết quả)
-          </div>
-          <div className="text-xs text-gray-500">
-            Hiển thị {paginatedItems.length} / {filteredItems.length} dòng
-          </div>
-        </div>
-
-        <div className="w-full overflow-hidden">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3.5 pl-4 pr-1 w-8">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === filteredItems.length && filteredItems.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                  />
-                </th>
-                <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn &amp; Thời Gian</th>
-                <th className="py-3.5 px-3 w-[28%]">Sách &amp; Phân Loại</th>
-                <th className="py-3.5 px-3 w-[22%]">Doanh Thu &amp; Thực Nhận</th>
-                <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái Ký Quỹ</th>
-                <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Chi Tiết</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-500">
-                    <div className="flex items-center justify-center gap-2">
-                      <span className="w-5 h-5 rounded-full border-2 border-[#00875A] border-t-transparent animate-spin"></span>
-                      <span>Đang tải bảng đối soát ký quỹ từ cơ sở dữ liệu...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : paginatedItems.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-400">
-                    Không tìm thấy món hàng ký quỹ nào phù hợp với bộ lọc.
-                  </td>
-                </tr>
-              ) : (
-                paginatedItems.map((it) => {
-                  const isExpanded = !!expandedEscrowIds[it.id];
-                  const orderCode = it.orderCode || it.orderId;
-                  const isDigital = it.format === 'DIGITAL' || it.bookTitle?.toLowerCase().includes('ebook');
-
-                  return (
-                    <React.Fragment key={it.id}>
-                      <tr
-                        onClick={() => toggleExpand(it.id)}
-                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(it.id)}
-                            onChange={() => toggleSelectRow(it.id)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                          />
-                        </td>
-
-                        {/* 1. Mã đơn & Thời gian */}
-                        <td className="py-3 pl-4 pr-2 align-middle">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand(it.id);
-                              }}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                            >
-                              <span
-                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
-                                }`}
-                              >
-                                chevron_right
-                              </span>
-                            </button>
-                            <div className="min-w-0">
-                              <span className="font-mono font-bold text-slate-900 block truncate">
-                                #{orderCode}
-                              </span>
-                              <span className="text-[11px] text-slate-400 block truncate mt-0.5">
-                                {formatVietnamDateTime(it.orderCreatedAt)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Sách & Phân loại */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex items-center gap-2.5">
-                            {it.coverUrl ? (
-                              <img
-                                src={it.coverUrl}
-                                alt={it.bookTitle}
-                                className="w-9 h-12 object-cover rounded-md border border-slate-200 shrink-0 shadow-2xs"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLElement).style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <div className="w-9 h-12 bg-slate-100 rounded-md border border-slate-200 flex items-center justify-center shrink-0 text-slate-400">
-                                <span className="material-symbols-outlined text-base">menu_book</span>
-                              </div>
-                            )}
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                              <span className="font-medium text-slate-900 text-xs line-clamp-1" title={it.bookTitle}>
-                                {it.bookTitle}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span
-                                  className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                                    isDigital
-                                      ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                  }`}
-                                >
-                                  {isDigital ? 'Ebook' : 'Sách Giấy'}
-                                </span>
-                                <span className="text-[11px] text-slate-400">
-                                  SL: {it.quantity} × {formatVND(it.unitPrice)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 3. Doanh thu & Thực nhận */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="text-slate-400">Thu:</span>
-                              <span className="font-bold text-slate-800">{formatVND(it.subtotal)}</span>
-                              <span className="text-[10px] text-amber-700">(-5%)</span>
-                            </div>
-                            <div className="flex items-center gap-1 text-xs">
-                              <span className="text-slate-400">Nhận:</span>
-                              <span className="font-bold text-[#00875A]">+{formatVND(it.sellerNet)}</span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          <EscrowTableBadge item={it} onAutoRelease={handleAutoReleaseItem} />
-                        </td>
-
-                        {/* 5. Chi tiết */}
-                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedItem(it)}
-                              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                            >
-                              Chi Tiết
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expandable Subcards Detail Panel */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-                              {/* Card 1: Doanh thu & Phân bổ */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">payments</span>
-                                  <span>Phân Bổ Tài Chính (100% / 5% / 95%)</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Doanh thu niêm yết:</span>
-                                    <span className="font-bold text-slate-900">{formatVND(it.subtotal)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Phí sàn HuKi (5%):</span>
-                                    <span className="font-semibold text-amber-700">-{formatVND(it.platformFee)}</span>
-                                  </div>
-                                  <div className="flex justify-between pt-1 border-t border-slate-100">
-                                    <span className="text-slate-600 font-bold">Thực nhận về ví (95%):</span>
-                                    <span className="font-black text-[#00875A]">+{formatVND(it.sellerNet)}</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Khách hàng & Vận chuyển */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-600">person</span>
-                                  <span>Khách Hàng &amp; Địa Chỉ Nhận</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Người mua:</span>
-                                    <span className="font-semibold text-slate-900">{it.customerName || 'Khách hàng HuKi'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Phương thức TT:</span>
-                                    <span className="font-semibold text-slate-800">
-                                      {it.paymentMethod === 'COD' ? 'Tiền mặt COD' : 'PayOS / QR'}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-500 block mb-0.5">Địa chỉ giao:</span>
-                                    <p className="bg-slate-50 p-1.5 rounded-lg text-slate-700 text-[11px] border border-slate-100 truncate" title={it.shippingAddress}>
-                                      {it.shippingAddress || 'Nhận sách điện tử / Giao tận nơi'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Tiến trình ký quỹ & Giải ngân */}
-                              <div className="space-y-2 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">hourglass_top</span>
-                                    <span>Tiến Trình Ký Quỹ</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-600 mt-2">
-                                    {it.escrowStatus === 'RELEASED'
-                                      ? 'Đã hoàn tất đối soát & giải ngân vào số dư khả dụng.'
-                                      : it.escrowStatus === 'HOLDING'
-                                      ? '⏳ Đang trong thời hạn bảo chứng test đổi trả 2 phút.'
-                                      : it.escrowStatus === 'PENDING_PAYMENT'
-                                      ? 'Kiện hàng đang vận chuyển, chờ thu tiền COD.'
-                                      : 'Đang tạm khóa do có khiếu nại phát sinh.'}
-                                  </p>
-                                </div>
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedItem(it);
-                                    }}
-                                    className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                                  >
-                                    <span className="material-symbols-outlined text-[15px]">receipt_long</span>
-                                    <span>Mở Bảng Kê Đối Soát</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 5. PAGINATION TOOLBAR */}
-        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 text-xs text-gray-600">
-          <div className="flex items-center gap-2">
-            <span>Hiển thị mỗi trang:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-hidden cursor-pointer"
-            >
-              <option value={10}>10 dòng</option>
-              <option value={25}>25 dòng</option>
-              <option value={50}>50 dòng</option>
-            </select>
-            <span>Tổng cộng {filteredItems.length} dòng</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-            >
-              ← Trước
-            </button>
-            <span className="px-3 py-1 font-bold text-gray-800">
-              Trang {currentPage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-            >
-              Sau →
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* 4. MAIN ESCROW DATA TABLE CHUẨN HÓA GROUPED DATA TABLE */}
+      <GroupedDataTable<SellerEscrowItem>
+        columns={escrowColumns}
+        data={paginatedItems}
+        keyField="id"
+        loading={isLoading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedEscrowDetail}
+        emptyTitle="Không tìm thấy món hàng ký quỹ nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy kết quả khớp với từ khóa "${searchQuery}"`
+            : 'Hiện chưa có món hàng nào trong danh mục ký quỹ này.'
+        }
+        emptyIcon="hourglass_bottom"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredItems.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'món hàng ký quỹ',
+        }}
+        className="w-full"
+      />
 
       {/* 6. ESCROW ITEM DETAIL MODAL */}
       {selectedItem && (

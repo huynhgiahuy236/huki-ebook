@@ -21,6 +21,7 @@ import {
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
 import { VerifiedPurchaseBadge } from '@/ui/components/review/VerifiedPurchaseBadge';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -401,7 +402,246 @@ export function SellerReviewsView() {
     return filteredReviews.slice(start, start + pageSize);
   }, [filteredReviews, currentPage, pageSize]);
 
-  return (
+
+  const reviewColumns: Column<ReviewRowItem>[] = useMemo(
+    () => [
+      {
+        key: 'product',
+        title: 'Sản Phẩm & Phân Loại',
+        minWidth: 240,
+        render: (_val, rev) => (
+          <div className="flex items-start gap-2.5 py-1">
+            {rev.bookCover ? (
+              <div className="w-9 h-12 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-2xs">
+                <img src={rev.bookCover} alt={rev.bookTitle || 'Book'} className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="w-9 h-12 rounded-lg bg-emerald-50 text-[#00875A] border border-emerald-100 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-lg">storefront</span>
+              </div>
+            )}
+            <div className="min-w-0">
+              <span
+                className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs hover:text-[#00875A] transition-colors"
+                title={rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
+              >
+                {rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
+              </span>
+              {rev.bookAuthor && (
+                <span className="text-[11px] text-slate-400 block truncate mt-0.5" title={rev.bookAuthor}>
+                  {rev.bookAuthor}
+                </span>
+              )}
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                {rev.format === 'DIGITAL' ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
+                    <span className="material-symbols-outlined text-[11px]">bolt</span>
+                    Ebook
+                  </span>
+                ) : rev.format === 'PHYSICAL' ? (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200/60 text-[10px] font-bold">
+                    <span className="material-symbols-outlined text-[11px]">menu_book</span>
+                    Sách In
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'author',
+        title: 'Khách Hàng & Đánh Giá',
+        width: 190,
+        render: (_val, rev) => (
+          <div className="py-1 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs">
+                {rev.author?.avatar ? (
+                  <img src={rev.author.avatar} alt={rev.author.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{rev.author?.fullName?.charAt(0)?.toUpperCase() || 'U'}</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <span className="font-bold text-slate-900 block truncate text-xs" title={rev.author?.fullName}>
+                  {rev.author?.fullName || 'Khách hàng ẩn danh'}
+                </span>
+                {rev.verifiedPurchase && (
+                  <div className="mt-0.5">
+                    <VerifiedPurchaseBadge variant="compact" />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 mt-1 text-[#fea619]">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <span
+                  key={i}
+                  className={`material-symbols-outlined text-[13px] ${
+                    i <= (rev.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
+                  }`}
+                  style={{ fontVariationSettings: "'FILL' 1" }}
+                >
+                  star
+                </span>
+              ))}
+              <span className="font-bold text-slate-800 text-[11px] ml-1">{rev.rating} sao</span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'content',
+        title: 'Nội Dung Nhận Xét',
+        minWidth: 260,
+        render: (_val, rev) => (
+          <div className="py-1 text-xs space-y-1">
+            {rev.title && (
+              <span className="font-bold text-slate-900 block break-words line-clamp-1 text-xs">
+                {rev.title}
+              </span>
+            )}
+            <p className="text-slate-600 break-words line-clamp-2 leading-snug font-normal text-xs">
+              {rev.content || 'Độc giả không để lại nhận xét chi tiết.'}
+            </p>
+            {rev.images && rev.images.length > 0 && (
+              <div className="flex items-center gap-1 pt-0.5">
+                {rev.images.slice(0, 3).map((img: any, idx: number) => (
+                  <div
+                    key={idx}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setPreviewImage(img.url);
+                    }}
+                    className="w-7 h-7 rounded border border-slate-200 overflow-hidden shrink-0 cursor-pointer hover:opacity-80"
+                  >
+                    <img src={img.url} alt="Review attachment" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+                {rev.images.length > 3 && (
+                  <span className="text-[10px] text-slate-400 font-bold">+{rev.images.length - 3}</span>
+                )}
+              </div>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'reply',
+        title: 'Phản Hồi Shop',
+        width: 140,
+        align: 'center',
+        render: (_val, rev) => {
+          const hasReplies = rev.replies && rev.replies.length > 0;
+          return hasReplies ? (
+            <SellerStatusBadge variant="success" icon="check_circle">
+              Đã phản hồi
+            </SellerStatusBadge>
+          ) : (
+            <SellerStatusBadge variant="warning" icon="hourglass_empty">
+              Chưa phản hồi
+            </SellerStatusBadge>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 130,
+        align: 'right',
+        render: (_val, rev) => (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedReview(rev)}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[14px]">rate_review</span>
+              <span>Chi Tiết</span>
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedReviewDetail = (rev: ReviewRowItem) => {
+    const hasReplies = rev.replies && rev.replies.length > 0;
+    const latestReply = hasReplies ? rev.replies[rev.replies.length - 1] : null;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+        {/* Card 1: Khách hàng & Đơn mua */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-amber-600">person</span>
+            <span>Khách Hàng &amp; Đơn Hàng</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Khách hàng:</span>
+              <span className="font-semibold text-slate-900">{rev.author?.fullName || 'Khách hàng ẩn danh'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Đã mua hàng:</span>
+              <span className="font-semibold text-emerald-700">
+                {rev.verifiedPurchase ? 'Đã xác thực trên sàn' : 'Chưa xác thực'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Ngày gửi:</span>
+              <span className="font-mono text-slate-800">
+                {new Date(rev.createdAt).toLocaleDateString('vi-VN')}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Nội dung nhận xét đầy đủ */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-emerald-600">rate_review</span>
+            <span>Nhận Xét Chi Tiết</span>
+          </div>
+          <div className="space-y-1 text-xs">
+            {rev.title && <div className="font-bold text-slate-900">{rev.title}</div>}
+            <p className="text-slate-700 break-words leading-relaxed bg-slate-50 p-2 rounded-lg border border-slate-100">
+              {rev.content || 'Độc giả không để lại nhận xét chi tiết.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Card 3: Phản hồi & Thao tác */}
+        <div className="space-y-2 flex flex-col justify-between text-xs">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+              <span className="material-symbols-outlined text-[16px] text-blue-600">chat</span>
+              <span>Phản Hồi Gian Hàng</span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-2">
+              {hasReplies
+                ? `Đã trả lời: "${latestReply?.content}"`
+                : 'Gian hàng chưa phản hồi nhận xét này. Phản hồi nhanh sẽ gia tăng độ uy tín của shop!'}
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setSelectedReview(rev)}
+              className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">rate_review</span>
+              <span>{hasReplies ? 'Chỉnh Sửa Phản Hồi' : 'Phản Hồi Độc Giả Ngay'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="space-y-6 max-w-[1400px] mx-auto pb-16 font-sans">
       {/* 1. Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200/80 shadow-2xs">
@@ -561,309 +801,34 @@ export function SellerReviewsView() {
         itemName="đánh giá"
       />
 
-      {/* 4. Grouped Data Table */}
-      <SellerTableContainer minWidth="min-w-[1100px]">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider select-none">
-              <th className="py-3.5 pl-4 pr-1 w-8">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length === filteredReviews.length && filteredReviews.length > 0}
-                  onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                />
-              </th>
-              <th className="py-3.5 px-4 w-[280px]">Sản Phẩm / Sách</th>
-              <th className="py-3.5 px-4 w-[200px]">Khách Hàng</th>
-              <th className="py-3.5 px-4">Đánh Giá &amp; Nội Dung</th>
-              <th className="py-3.5 px-4 w-[160px] text-center">Phản Hồi Gian Hàng</th>
-              <th className="py-3.5 px-4 w-[140px]">Ngày Đánh Giá</th>
-              <th className="py-3.5 px-4 w-[110px] text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 font-medium">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2.5">
-                    <span className="material-symbols-outlined text-3xl animate-spin text-[#00875A]">
-                      progress_activity
-                    </span>
-                    <span className="text-xs font-semibold text-slate-600">
-                      Đang tải danh sách đánh giá từ hệ thống...
-                    </span>
-                  </div>
-                </td>
-              </tr>
-            ) : paginatedReviews.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-3 max-w-sm mx-auto">
-                    <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
-                      <span className="material-symbols-outlined text-3xl">rate_review</span>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-slate-700 mb-1">
-                        Chưa có đánh giá nào
-                      </h4>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        {searchQuery || filterTab !== 'ALL' || formatFilter !== 'ALL'
-                          ? 'Không tìm thấy đánh giá phù hợp với bộ lọc hiện tại.'
-                          : 'Gian hàng hiện chưa có đánh giá nào từ độc giả. Khi khách hàng mua sách và gửi nhận xét, dữ liệu sẽ hiển thị tại đây.'}
-                      </p>
-                    </div>
-                    {(searchQuery || filterTab !== 'ALL' || formatFilter !== 'ALL') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery('');
-                          setFilterTab('ALL');
-                          setFormatFilter('ALL');
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer transition-colors"
-                      >
-                        Đặt lại bộ lọc
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedReviews.map((rev) => {
-                const hasReplies = rev.replies && rev.replies.length > 0;
-                const latestReply = hasReplies ? rev.replies[rev.replies.length - 1] : null;
-
-                return (
-                  <tr
-                    key={rev.id}
-                    className="hover:bg-slate-50/70 transition-colors group cursor-pointer"
-                    onClick={() => {
-                      if (rev.targetId) {
-                        router.push(`/book/${rev.targetId}#reviews`);
-                      } else {
-                        setSelectedReview(rev);
-                      }
-                    }}
-                  >
-                    {/* Checkbox */}
-                    <td className="py-3.5 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.includes(rev.id)}
-                        onChange={() => toggleSelectRow(rev.id)}
-                        className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                      />
-                    </td>
-                    {/* 1. Sách / Sản phẩm */}
-                    <td className="py-3.5 px-4 align-top">
-                      <div className="flex items-start gap-3">
-                        {rev.bookCover ? (
-                          <div className="w-10 h-14 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-2xs">
-                            <img
-                              src={rev.bookCover}
-                              alt={rev.bookTitle || 'Book cover'}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-10 h-14 rounded-lg bg-emerald-50 text-[#00875A] border border-emerald-100 flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-lg">storefront</span>
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          {rev.targetId ? (
-                            <Link
-                              href={`/book/${rev.targetId}#reviews`}
-                              onClick={(e) => e.stopPropagation()}
-                              className="font-bold text-slate-900 block truncate hover:text-[#00875A] text-xs leading-snug"
-                            >
-                              {rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
-                            </Link>
-                          ) : (
-                            <span className="font-bold text-slate-900 block truncate hover:text-[#00875A] text-xs leading-snug">
-                              {rev.bookTitle || rev.storeName || 'Đánh giá gian hàng'}
-                            </span>
-                          )}
-                          {rev.bookAuthor && (
-                            <span className="text-[11px] text-slate-500 block truncate mt-0.5">
-                              {rev.bookAuthor}
-                            </span>
-                          )}
-                          <div className="mt-1 flex items-center gap-1.5 flex-wrap">
-                            {rev.format === 'DIGITAL' ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 text-[10px] font-bold">
-                                <span className="material-symbols-outlined text-[11px]">bolt</span>
-                                Ebook
-                              </span>
-                            ) : rev.format === 'PHYSICAL' ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200/60 text-[10px] font-bold">
-                                <span className="material-symbols-outlined text-[11px]">menu_book</span>
-                                Sách In
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* 2. Khách hàng */}
-                    <td className="py-3.5 px-4 align-top">
-                      <div className="flex items-start gap-2.5">
-                        <div className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0 flex items-center justify-center font-bold text-slate-600 text-xs">
-                          {rev.author?.avatar ? (
-                            <img
-                              src={rev.author.avatar}
-                              alt={rev.author.fullName}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <span>{rev.author?.fullName?.charAt(0)?.toUpperCase() || 'U'}</span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-bold text-slate-900 block truncate text-xs">
-                            {rev.author?.fullName || 'Khách hàng ẩn danh'}
-                          </span>
-                          {rev.verifiedPurchase && (
-                            <div className="mt-1">
-                              <VerifiedPurchaseBadge variant="compact" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* 3. Đánh giá & Nội dung */}
-                    <td className="py-3.5 px-4 align-top">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <div className="flex text-[#fea619]">
-                            {[1, 2, 3, 4, 5].map((i) => (
-                              <span
-                                key={i}
-                                className={`material-symbols-outlined text-[14px] ${
-                                  i <= (rev.rating || 5) ? 'text-[#fea619]' : 'text-slate-200'
-                                }`}
-                                style={{ fontVariationSettings: "'FILL' 1" }}
-                              >
-                                star
-                              </span>
-                            ))}
-                          </div>
-                          <span className="font-bold text-slate-800 text-xs">
-                            {rev.rating} sao
-                          </span>
-                          {rev.title && (
-                            <>
-                              <span className="text-slate-300">•</span>
-                              <span className="font-bold text-slate-900 truncate max-w-[280px]">
-                                {rev.title}
-                              </span>
-                            </>
-                          )}
-                        </div>
-
-                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed font-normal">
-                          {rev.content || 'Độc giả không để lại nhận xét chi tiết.'}
-                        </p>
-
-                        {rev.images && rev.images.length > 0 && (
-                          <div className="flex items-center gap-1.5 pt-1">
-                            {rev.images.slice(0, 3).map((img, idx) => (
-                              <div
-                                key={idx}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPreviewImage(img.url);
-                                }}
-                                className="w-8 h-8 rounded-md overflow-hidden border border-slate-200 bg-slate-100 shrink-0 hover:opacity-80 transition-opacity"
-                              >
-                                <img
-                                  src={img.url}
-                                  alt="Review attachment"
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            ))}
-                            {rev.images.length > 3 && (
-                              <span className="text-[10px] text-slate-400 font-bold">
-                                +{rev.images.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* 4. Phản hồi gian hàng */}
-                    <td className="py-3.5 px-4 align-top text-center">
-                      {hasReplies ? (
-                        <div className="inline-flex flex-col items-center gap-1">
-                          <SellerStatusBadge variant="success" icon="check_circle">
-                            Đã phản hồi
-                          </SellerStatusBadge>
-                          <span className="text-[10px] text-slate-400 block truncate max-w-[130px]">
-                            {latestReply?.business?.name || 'Shop'}
-                          </span>
-                        </div>
-                      ) : (
-                        <SellerStatusBadge variant="warning" icon="hourglass_empty">
-                          Chưa phản hồi
-                        </SellerStatusBadge>
-                      )}
-                    </td>
-
-                    {/* 5. Ngày đánh giá */}
-                    <td className="py-3.5 px-4 align-top text-slate-500 text-[11px] whitespace-nowrap">
-                      {new Date(rev.createdAt).toLocaleDateString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-
-                    {/* 6. Thao tác */}
-                    <td className="py-3.5 px-4 align-top text-right" onClick={(e) => e.stopPropagation()}>
-                      {rev.targetId ? (
-                        <Link
-                          href={`/book/${rev.targetId}#reviews`}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-emerald-600/30 bg-emerald-50 hover:bg-emerald-100 text-[#00875A] text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                          title="Xem chi tiết và phản hồi trên trang sách"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                          <span>Xem chi tiết</span>
-                        </Link>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setSelectedReview(rev)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
-                        >
-                          <span className="material-symbols-outlined text-[14px]">visibility</span>
-                          <span>Xem chi tiết</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-
-        {/* 5. Pagination */}
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          totalItems={filteredReviews.length}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="đánh giá"
-        />
-      </SellerTableContainer>
+      {/* 4. Grouped Data Table Standardized */}
+      <GroupedDataTable<ReviewRowItem>
+        columns={reviewColumns}
+        data={paginatedReviews}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedReviewDetail}
+        emptyTitle="Chưa có đánh giá nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy đánh giá khớp với từ khóa "${searchQuery}"`
+            : 'Gian hàng hiện chưa có đánh giá nào từ độc giả.'
+        }
+        emptyIcon="rate_review"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredReviews.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'đánh giá',
+        }}
+        className="w-full"
+      />
 
       {/* 6. Review Detail & Reply Modal */}
       {selectedReview && (

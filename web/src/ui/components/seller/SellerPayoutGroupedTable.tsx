@@ -52,6 +52,8 @@ export function SellerPayoutGroupedTable({
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedKeys, setExpandedKeys] = useState<(string | number)[]>([]);
+  const [internalPage, setInternalPage] = useState(1);
+  const [selectedKeys, setSelectedKeys] = useState<(string | number)[]>([]);
 
   // Filter Items
   const filteredItems = useMemo(() => {
@@ -120,57 +122,47 @@ export function SellerPayoutGroupedTable({
     () => [
       {
         key: 'id',
-        title: 'Mã Lệnh Rút',
-        width: 140,
+        title: 'Mã Lệnh & Thời Gian',
+        width: 180,
         render: (_val, req) => (
           <div className="py-1">
             <span className="font-mono font-bold text-slate-900 dark:text-white text-xs block">
-              #{req.id.slice(0, 10)}
+              #{req.id.slice(0, 8).toUpperCase()}
             </span>
-            <span className="text-[10px] text-slate-400 font-mono block">
-              {req.id.length > 10 ? `...${req.id.slice(-6)}` : ''}
+            <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+              {formatVietnamDateTime(req.requestedAt || req.createdAt)}
             </span>
           </div>
-        ),
-      },
-      {
-        key: 'requestedAt',
-        title: 'Thời Gian Tạo Lệnh',
-        width: 160,
-        render: (_val, req) => (
-          <span className="text-slate-600 dark:text-slate-300 font-mono text-xs">
-            {formatVietnamDateTime(req.requestedAt || req.createdAt)}
-          </span>
         ),
       },
       {
         key: 'amount',
         title: 'Số Tiền Rút',
-        width: 150,
+        width: 160,
         align: 'right',
         render: (_val, req) => (
-          <div className="text-right">
-            <span className="font-mono font-black text-emerald-700 dark:text-emerald-400 text-sm">
+          <div className="text-right py-1">
+            <span className="font-mono font-black text-emerald-700 dark:text-emerald-400 text-sm block">
               {formatVND(req.amount)}
             </span>
-            <span className="text-[10px] text-slate-400 block">Miễn phí rút tiền</span>
+            <span className="text-[10px] text-slate-400 block mt-0.5">Miễn phí giao dịch</span>
           </div>
         ),
       },
       {
         key: 'bank',
-        title: 'Ngân Hàng & STK Nhận',
-        minWidth: 200,
+        title: 'Ngân Hàng & Thụ Hưởng',
+        minWidth: 220,
         render: (_val, req) => (
           <div className="py-1 text-xs">
-            <span className="font-bold text-slate-800 dark:text-slate-200 block truncate">
+            <span className="font-bold text-slate-800 dark:text-slate-200 block break-words line-clamp-1">
               {req.bankSnapshot?.bankName || defaultBankName}
             </span>
-            <span className="font-mono text-slate-500 block text-[11px] mt-0.5">
+            <span className="font-mono text-slate-600 block text-[11px] mt-0.5">
               STK: {req.bankSnapshot?.accountNumber || defaultAccountNumber}
             </span>
             {req.bankSnapshot?.accountHolder && (
-              <span className="text-[10px] text-slate-400 uppercase font-medium block">
+              <span className="text-[10.5px] text-slate-500 uppercase font-medium block mt-0.5 break-words line-clamp-1">
                 {req.bankSnapshot.accountHolder}
               </span>
             )}
@@ -179,9 +171,8 @@ export function SellerPayoutGroupedTable({
       },
       {
         key: 'status',
-        title: 'Trạng Thái Duyệt',
-        width: 170,
-        align: 'center',
+        title: 'Trạng Thái & Giải Ngân',
+        width: 190,
         render: (_val, req) => {
           const status = req.status;
           let badge: { label: string; bg: string } = { label: status, bg: 'bg-slate-100 text-slate-700 border-slate-200' };
@@ -198,20 +189,28 @@ export function SellerPayoutGroupedTable({
           }
 
           return (
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${badge.bg}`}>
-              {badge.label}
-            </span>
+            <div className="py-1 flex flex-col gap-1 text-xs">
+              <div>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border ${badge.bg}`}>
+                  {badge.label}
+                </span>
+              </div>
+              <span className="text-slate-400 font-mono text-[10.5px]">
+                {req.disbursedAt || req.reviewedAt ? formatVietnamDateTime(req.disbursedAt || req.reviewedAt) : 'Đang đối soát'}
+              </span>
+            </div>
           );
         },
       },
       {
-        key: 'disbursedAt',
-        title: 'Thời Gian Giải Ngân',
-        width: 160,
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 120,
+        align: 'right',
         render: (_val, req) => (
-          <span className="text-slate-500 font-mono text-xs">
-            {req.disbursedAt || req.reviewedAt ? formatVietnamDateTime(req.disbursedAt || req.reviewedAt) : 'Đang xử lý'}
-          </span>
+          <div className="flex items-center justify-end">
+            <span className="text-xs text-slate-400 font-mono">#{req.id.slice(-6)}</span>
+          </div>
         ),
       },
     ],
@@ -297,9 +296,12 @@ export function SellerPayoutGroupedTable({
       <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-2xs">
         <GroupedDataTable<PayoutRequestItem>
           columns={columns}
-          data={filteredItems}
+          data={onPageChange ? filteredItems : filteredItems.slice((internalPage - 1) * 10, internalPage * 10)}
           keyField="id"
           loading={loading}
+          selectable={true}
+          selectedRowKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
           expandable
           expandedRowKeys={expandedKeys}
           onExpandedRowsChange={setExpandedKeys}
@@ -322,18 +324,13 @@ export function SellerPayoutGroupedTable({
               </td>
             </tr>
           }
-          pagination={
-            onPageChange
-              ? {
-                  currentPage,
-                  totalItems: totalItems || filteredItems.length,
-                  pageSize: 10,
-                  onPageChange,
-                  itemLabel: 'lệnh rút',
-                }
-              : undefined
-          }
-        />
+          pagination={{
+            currentPage: onPageChange ? currentPage : internalPage,
+            totalItems: totalItems || filteredItems.length,
+            pageSize: 10,
+            onPageChange: onPageChange ? onPageChange : setInternalPage,
+            itemLabel: 'lệnh rút',
+          }}/>
       </div>
     </div>
   );

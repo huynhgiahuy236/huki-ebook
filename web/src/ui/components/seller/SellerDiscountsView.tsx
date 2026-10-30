@@ -17,6 +17,7 @@ import {
   SellerFilterTabs,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -404,7 +405,250 @@ export function SellerDiscountsView() {
     { key: 'NOT_DISCOUNTED', label: 'Chưa giảm giá', count: Math.max(0, books.length - Object.keys(discountsMap).length) },
   ];
 
-  return (
+
+  const discountColumns: Column<BookItem>[] = useMemo(
+    () => [
+      {
+        key: 'book',
+        title: 'Sách & Tác Giả',
+        minWidth: 260,
+        render: (_val, book) => {
+          const author = getAuthorName(book);
+          return (
+            <div className="flex items-center gap-2.5 py-1">
+              <div className="w-8 h-11 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
+                {book.coverUrl ? (
+                  <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="material-symbols-outlined text-slate-400 text-sm flex items-center justify-center h-full">auto_stories</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <span
+                  title={book.title}
+                  className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs hover:text-[#00875A] transition-colors"
+                >
+                  {book.title}
+                </span>
+                <span className="text-[11px] text-slate-400 block mt-0.5 truncate" title={author}>
+                  {author}
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'pricing',
+        title: 'Giá Bán & Giảm Giá',
+        width: 190,
+        render: (_val, book) => {
+          const discount = discountsMap[book.id];
+          const hasDiscount = Boolean(discount);
+          const basePrice = Number(book.price) || 0;
+          const discountedPrice = hasDiscount
+            ? discount.type === 'PERCENTAGE'
+              ? Math.max(0, basePrice * (1 - discount.value / 100))
+              : Math.max(0, basePrice - discount.value)
+            : basePrice;
+
+          return (
+            <div className="py-1 text-xs">
+              {hasDiscount ? (
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-bold text-[#00875A] font-mono">{formatVND(discountedPrice)}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                      {discount.type === 'PERCENTAGE' ? `-${discount.value}%` : `-${formatVND(discount.value)}`}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 line-through font-mono">
+                    {formatVND(basePrice)}
+                  </span>
+                </div>
+              ) : (
+                <span className="font-bold text-slate-900 font-mono">{formatVND(basePrice)}</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'duration',
+        title: 'Thời Hạn Áp Dụng',
+        width: 180,
+        render: (_val, book) => {
+          const discount = discountsMap[book.id];
+          const hasDiscount = Boolean(discount);
+          if (!hasDiscount) {
+            return <span className="text-slate-400 text-xs italic">Chưa áp dụng</span>;
+          }
+          return (
+            <div className="py-1 text-[11px] text-slate-600 font-mono flex flex-col gap-0.5">
+              <span>Từ: {new Date(discount.startsAt).toLocaleDateString('vi-VN')}</span>
+              <span>Đến: {new Date(discount.expiresAt).toLocaleDateString('vi-VN')}</span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 130,
+        align: 'center',
+        render: (_val, book) => {
+          const hasDiscount = Boolean(discountsMap[book.id]);
+          return hasDiscount ? (
+            <SellerStatusBadge variant="success" dot text="Đang giảm giá" />
+          ) : (
+            <SellerStatusBadge variant="neutral" text="Chưa áp dụng" />
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 130,
+        align: 'right',
+        render: (_val, book) => {
+          const discount = discountsMap[book.id];
+          const hasDiscount = Boolean(discount);
+          return (
+            <div className="flex items-center justify-end gap-1">
+              {hasDiscount ? (
+                <>
+                  <SellerActionButton
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    icon="edit"
+                    onClick={() => handleOpenForm(book)}
+                  >
+                    Sửa
+                  </SellerActionButton>
+                  <SellerActionButton
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    icon="delete"
+                    loading={cancellingId === discount.id}
+                    onClick={() => handleCancelDiscount(book.id)}
+                  >
+                    Hủy
+                  </SellerActionButton>
+                </>
+              ) : (
+                <SellerActionButton
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  icon="add_circle"
+                  onClick={() => handleOpenForm(book)}
+                >
+                  Thiết Lập
+                </SellerActionButton>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [discountsMap, cancellingId, handleOpenForm, handleCancelDiscount]
+  );
+
+  const renderExpandedDiscountDetail = (book: BookItem) => {
+    const discount = discountsMap[book.id];
+    const hasDiscount = Boolean(discount);
+    const basePrice = Number(book.price) || 0;
+    const discountedPrice = hasDiscount
+      ? discount.type === 'PERCENTAGE'
+        ? Math.max(0, basePrice * (1 - discount.value / 100))
+        : Math.max(0, basePrice - discount.value)
+      : basePrice;
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+        {/* Card 1: Thông tin giá & Mức chiết khấu */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-[#00875A]">price_change</span>
+            <span>Giá Bán &amp; Mức Giảm</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Giá gốc niêm yết:</span>
+              <span className="font-bold text-slate-800">{formatVND(basePrice)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Giá sau giảm:</span>
+              <span className="font-bold text-[#00875A]">{formatVND(discountedPrice)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Tiết kiệm cho khách:</span>
+              <span className="font-bold text-rose-600">
+                {hasDiscount ? formatVND(basePrice - discountedPrice) : '0đ'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Thời hạn chương trình */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-amber-600">date_range</span>
+            <span>Thời Gian Khuyến Mãi</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Bắt đầu từ:</span>
+              <span className="font-semibold text-slate-800">
+                {hasDiscount ? new Date(discount.startsAt).toLocaleString('vi-VN') : 'Chưa thiết lập'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Hết hạn vào:</span>
+              <span className="font-semibold text-slate-800">
+                {hasDiscount ? new Date(discount.expiresAt).toLocaleString('vi-VN') : 'Chưa thiết lập'}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Hình thức giảm:</span>
+              <span className="font-medium text-slate-700">
+                {hasDiscount ? (discount.type === 'PERCENTAGE' ? 'Theo tỷ lệ %' : 'Trừ tiền mặt trực tiếp') : '—'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Thao tác nhanh */}
+        <div className="space-y-2 flex flex-col justify-between text-xs">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+              <span className="material-symbols-outlined text-[16px] text-emerald-600">sell</span>
+              <span>Hành Động Khuyến Mãi</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              {hasDiscount
+                ? 'Ấn phẩm đang được giảm giá. Bạn có thể điều chỉnh mức giảm hoặc hủy ngay.'
+                : 'Cài đặt giảm giá tức thì để tăng tỷ lệ chốt đơn cho ấn phẩm này.'}
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => handleOpenForm(book)}
+              className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">edit_note</span>
+              <span>{hasDiscount ? 'Chỉnh Sửa Giảm Giá' : 'Thiết Lập Giảm Giá Ngay'}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -623,298 +867,34 @@ export function SellerDiscountsView() {
         itemName="đầu sách"
       />
 
-      {/* Discounts Table */}
-      <SellerTableContainer>
-        {loading ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined animate-spin text-xl text-[#00875A]">progress_activity</span>
-              <span className="text-xs">Đang tải danh sách sách...</span>
-            </div>
-          </div>
-        ) : filteredBooks.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-              <span className="material-symbols-outlined text-4xl text-slate-300">sell</span>
-              <p className="font-medium text-slate-600">Không tìm thấy sách nào phù hợp.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                    />
-                  </th>
-                  <th className="py-3.5 pl-2 pr-2 w-[34%]">Sách &amp; Tác Giả</th>
-                  <th className="py-3.5 px-3 w-[22%]">Giá Bán &amp; Giảm Giá</th>
-                  <th className="py-3.5 px-3 w-[18%]">Thời Hạn Áp Dụng</th>
-                  <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái</th>
-                  <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {paginatedBooks.map((book) => {
-                  const isExpanded = !!expandedDiscountIds[book.id];
-                  const discount = discountsMap[book.id];
-                  const hasDiscount = Boolean(discount);
-                  const basePrice = Number(book.price) || 0;
-                  const author = getAuthorName(book);
-                  const discountedPrice = hasDiscount
-                    ? discount.type === 'PERCENTAGE'
-                      ? Math.max(0, basePrice * (1 - discount.value / 100))
-                      : Math.max(0, basePrice - discount.value)
-                    : basePrice;
-
-                  return (
-                    <React.Fragment key={book.id}>
-                      <tr
-                        onClick={() => toggleExpand(book.id)}
-                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : 'bg-white'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 pl-4 pr-1 w-8 align-middle" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(book.id)}
-                            onChange={() => toggleSelectRow(book.id)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                          />
-                        </td>
-
-                        {/* 1. Sách & Tác Giả */}
-                        <td className="py-3 pl-4 pr-2 align-middle">
-                          <div className="flex items-center gap-2.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand(book.id);
-                              }}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                            >
-                              <span
-                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
-                                }`}
-                              >
-                                chevron_right
-                              </span>
-                            </button>
-                            <div className="w-8 h-11 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200 shadow-2xs">
-                              {book.coverUrl ? (
-                                <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
-                              ) : (
-                                <span className="material-symbols-outlined text-slate-400 text-sm flex items-center justify-center h-full">auto_stories</span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <span className="font-bold text-slate-900 block truncate" title={book.title}>
-                                {book.title}
-                              </span>
-                              <span className="text-[10.5px] text-slate-400 block truncate font-mono">
-                                #{book.id.slice(0, 8).toUpperCase()} • {author}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Giá Bán & Mức Giảm */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="font-bold text-slate-900">{formatVND(discountedPrice)}</span>
-                              {hasDiscount && (
-                                <span className="line-through text-slate-400 text-[11px] font-mono">
-                                  {formatVND(basePrice)}
-                                </span>
-                              )}
-                            </div>
-                            {hasDiscount ? (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 w-fit">
-                                {discount.type === 'PERCENTAGE' ? `-${discount.value}%` : `-${formatVND(discount.value)}`}
-                              </span>
-                            ) : (
-                              <span className="text-[10.5px] text-slate-400">Giá niêm yết</span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 3. Thời Hạn */}
-                        <td className="py-3 px-3 align-middle text-slate-600 text-xs">
-                          {hasDiscount ? (
-                            <div className="flex flex-col text-[11px]">
-                              <span>Đến: <b>{new Date(discount.expiresAt).toLocaleDateString('vi-VN')}</b></span>
-                              <span className="text-slate-400 text-[10px]">Từ: {new Date(discount.startsAt).toLocaleDateString('vi-VN')}</span>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 italic text-[11px]">—</span>
-                          )}
-                        </td>
-
-                        {/* 4. Trạng Thái */}
-                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          {hasDiscount ? (
-                            <SellerStatusBadge variant="success" dot text="Đang giảm giá" />
-                          ) : (
-                            <SellerStatusBadge variant="neutral" text="Chưa áp dụng" />
-                          )}
-                        </td>
-
-                        {/* 5. Thao Tác */}
-                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                            {hasDiscount ? (
-                              <>
-                                <SellerActionButton
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  icon="edit"
-                                  onClick={() => handleOpenForm(book)}
-                                >
-                                  Sửa
-                                </SellerActionButton>
-
-                                <SellerActionButton
-                                  type="button"
-                                  variant="danger"
-                                  size="sm"
-                                  icon="delete"
-                                  loading={cancellingId === discount.id}
-                                  onClick={() => handleCancelDiscount(book.id)}
-                                >
-                                  Hủy
-                                </SellerActionButton>
-                              </>
-                            ) : (
-                              <SellerActionButton
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                icon="add_circle"
-                                onClick={() => handleOpenForm(book)}
-                              >
-                                Thiết Lập
-                              </SellerActionButton>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expandable Subcards Detail Panel */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-                              {/* Card 1: Thông tin giá & Mức chiết khấu */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">price_change</span>
-                                  <span>Giá Bán &amp; Mức Giảm</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Giá gốc niêm yết:</span>
-                                    <span className="font-bold text-slate-800">{formatVND(basePrice)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Giá sau giảm:</span>
-                                    <span className="font-bold text-[#00875A]">{formatVND(discountedPrice)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tiết kiệm cho khách:</span>
-                                    <span className="font-bold text-rose-600">
-                                      {hasDiscount ? formatVND(basePrice - discountedPrice) : '0đ'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Thời hạn chương trình */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-600">date_range</span>
-                                  <span>Thời Gian Khuyến Mãi</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Bắt đầu từ:</span>
-                                    <span className="font-semibold text-slate-800">
-                                      {hasDiscount ? new Date(discount.startsAt).toLocaleString('vi-VN') : 'Chưa thiết lập'}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Hết hạn vào:</span>
-                                    <span className="font-semibold text-slate-800">
-                                      {hasDiscount ? new Date(discount.expiresAt).toLocaleString('vi-VN') : 'Chưa thiết lập'}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Hình thức giảm:</span>
-                                    <span className="font-medium text-slate-700">
-                                      {hasDiscount ? (discount.type === 'PERCENTAGE' ? 'Theo tỷ lệ %' : 'Trừ tiền mặt trực tiếp') : '—'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Thao tác nhanh */}
-                              <div className="space-y-2 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">sell</span>
-                                    <span>Hành Động Khuyến Mãi</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 mt-2">
-                                    {hasDiscount
-                                      ? 'Ấn phẩm đang được giảm giá. Bạn có thể điều chỉnh mức giảm hoặc hủy ngay.'
-                                      : 'Cài đặt giảm giá tức thì để tăng tỷ lệ chốt đơn cho ấn phẩm này.'}
-                                  </p>
-                                </div>
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenForm(book);
-                                    }}
-                                    className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                                  >
-                                    <span className="material-symbols-outlined text-[15px]">edit_note</span>
-                                    <span>{hasDiscount ? 'Chỉnh Sửa Giảm Giá' : 'Thiết Lập Giảm Giá Ngay'}</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SellerTableContainer>
-
-      {/* Pagination */}
-      {!loading && filteredBooks.length > 0 && (
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      {/* Discounts Grouped Data Table */}
+      <GroupedDataTable<BookItem>
+        columns={discountColumns}
+        data={paginatedBooks}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedDiscountDetail}
+        emptyTitle="Không tìm thấy sách nào phù hợp"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy sách khớp với từ khóa "${searchQuery}"`
+            : 'Hiện tại gian hàng chưa có ấn phẩm nào trong danh sách này.'
+        }
+        emptyIcon="sell"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredBooks.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'đầu sách',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import {
   SellerActionButton,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -746,7 +747,242 @@ export function SellerStaffView() {
     return filteredMembers.slice(start, start + pageSize);
   }, [filteredMembers, currentPage, pageSize]);
 
-  return (
+
+  const staffColumns: Column<BusinessMemberItem>[] = useMemo(
+    () => [
+      {
+        key: 'user',
+        title: 'Nhân Viên & Liên Hệ',
+        minWidth: 260,
+        render: (_val, member) => {
+          const isOwner = member.role === 'OWNER';
+          return (
+            <div className="flex items-center gap-2.5 py-1">
+              <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs uppercase border border-slate-200 shrink-0">
+                {(member.user?.fullName || member.user?.email || 'U').charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-900 block break-words line-clamp-1 text-xs" title={member.user?.fullName}>
+                    {member.user?.fullName || 'Chưa cập nhật'}
+                  </span>
+                  {isOwner && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-800 border border-amber-200 uppercase tracking-wider">
+                      Chủ gian hàng
+                    </span>
+                  )}
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono mt-0.5 truncate" title={member.user?.email}>
+                  {member.user?.email} {member.user?.phone ? `• ${member.user.phone}` : ''}
+                </div>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'role',
+        title: 'Vai Trò',
+        width: 140,
+        render: (_val, member) => (
+          <div className="py-1">
+            <span className="px-2.5 py-0.5 rounded-full text-[10.5px] bg-slate-100 border border-slate-200 font-bold text-slate-700">
+              {member.role}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'permissions',
+        title: 'Phân Quyền',
+        width: 180,
+        render: (_val, member) => {
+          const isOwner = member.role === 'OWNER';
+          if (isOwner) {
+            return (
+              <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
+                <span className="material-symbols-outlined text-sm">all_inclusive</span>
+                <span>Toàn quyền Master</span>
+              </span>
+            );
+          }
+          return (
+            <button
+              type="button"
+              onClick={() => handleOpenEdit(member)}
+              className="text-slate-800 hover:text-emerald-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+            >
+              <span>{member.permissions?.length || 0} quyền hạn</span>
+              <span className="material-symbols-outlined text-xs">edit</span>
+            </button>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 130,
+        align: 'center',
+        render: (_val, member) => (
+          <SellerStatusBadge
+            variant={member.status === 'ACTIVE' ? 'success' : 'danger'}
+            dot
+            text={member.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm khóa'}
+          />
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 140,
+        align: 'right',
+        render: (_val, member) => {
+          const isOwner = member.role === 'OWNER';
+          if (isOwner) {
+            return <span className="text-slate-400 text-xs italic">Không áp dụng</span>;
+          }
+          const isResettingPassThis = resetPasswordMemberId === member.id;
+          return (
+            <div className="flex items-center justify-end gap-1">
+              <SellerActionButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="key"
+                title="Đặt lại mật khẩu"
+                onClick={() => setResetPasswordMemberId(isResettingPassThis ? null : member.id)}
+              />
+              <SellerActionButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon={member.status === 'ACTIVE' ? 'block' : 'lock_open'}
+                title={member.status === 'ACTIVE' ? 'Tạm khóa' : 'Mở khóa'}
+                loading={togglingStatusId === member.id}
+                onClick={() => handleToggleStatus(member)}
+              />
+              <SellerActionButton
+                type="button"
+                variant="danger"
+                size="sm"
+                icon="delete"
+                title="Xóa nhân viên"
+                loading={deletingMemberId === member.id}
+                onClick={() => handleRemoveMember(member)}
+              />
+            </div>
+          );
+        },
+      },
+    ],
+    [resetPasswordMemberId, togglingStatusId, deletingMemberId, handleOpenEdit, handleToggleStatus, handleRemoveMember]
+  );
+
+  const renderExpandedMemberDetail = (member: BusinessMemberItem) => {
+    const isOwner = member.role === 'OWNER';
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+        {/* Card 1: Thông tin nhân sự */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-[#00875A]">badge</span>
+            <span>Hồ Sơ Nhân Sự</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Họ và tên:</span>
+              <span className="font-semibold text-slate-900">{member.user?.fullName || 'Chưa cập nhật'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Email:</span>
+              <span className="font-mono text-slate-800">{member.user?.email}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Số điện thoại:</span>
+              <span className="font-mono text-slate-800">{member.user?.phone || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Vai trò:</span>
+              <span className="font-bold text-slate-900">{member.role}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Phân quyền module */}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+            <span className="material-symbols-outlined text-[16px] text-amber-600">lock_person</span>
+            <span>Phân Quyền Module</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Tổng quyền được cấp:</span>
+              <span className="font-bold text-slate-900">
+                {isOwner ? 'Toàn quyền Master (100%)' : `${member.permissions?.length || 0} chức năng`}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Trạng thái tài khoản:</span>
+              <span className={`font-bold ${member.status === 'ACTIVE' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {member.status === 'ACTIVE' ? 'Đang hoạt động' : 'Tạm khóa truy cập'}
+              </span>
+            </div>
+            {!isOwner && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleOpenEdit(member)}
+                  className="text-xs font-bold text-[#00875A] hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[14px]">tune</span>
+                  <span>Chỉnh sửa bảng phân quyền</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card 3: Thao tác bảo mật */}
+        <div className="space-y-2 flex flex-col justify-between text-xs">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+              <span className="material-symbols-outlined text-[16px] text-blue-600">security</span>
+              <span>Bảo Mật Tài Khoản</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              {isOwner
+                ? 'Tài khoản chủ gian hàng có toàn quyền tối cao trên sàn.'
+                : 'Bạn có thể đặt lại mật khẩu hoặc khóa tức thì tài khoản nhân sự này khi cần.'}
+            </p>
+          </div>
+          {!isOwner && (
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setResetPasswordMemberId(member.id)}
+                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">key</span>
+                <span>Đổi Mật Khẩu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleStatus(member)}
+                className="flex-1 py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">
+                  {member.status === 'ACTIVE' ? 'block' : 'lock_open'}
+                </span>
+                <span>{member.status === 'ACTIVE' ? 'Tạm Khóa' : 'Mở Khóa'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -1121,315 +1357,35 @@ export function SellerStaffView() {
         </div>
       )}
 
-      {/* Staff Table */}
-      <SellerTableContainer minWidth="min-w-[1280px]">
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80 whitespace-nowrap">
-              <th className="py-3.5 pl-4 pr-1 w-8">
-                <input
-                  type="checkbox"
-                  checked={selectedIds.length === filteredMembers.length && filteredMembers.length > 0}
-                  onChange={toggleSelectAll}
-                  className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                />
-              </th>
-              <th className="py-3.5 px-4">Nhân Viên</th>
-              <th className="py-3.5 px-3">Email & SĐT</th>
-              <th className="py-3.5 px-3 text-center">Vai Trò</th>
-              <th className="py-3.5 px-3">Phân Quyền</th>
-              <th className="py-3.5 px-3 text-center">Trạng Thái</th>
-              <th className="py-3.5 px-4 text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
-                    <span className="text-xs">Đang tải danh sách nhân sự...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : filteredMembers.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                    <span className="material-symbols-outlined text-4xl text-slate-300">group</span>
-                    <p className="font-medium text-slate-600">Không tìm thấy nhân viên phù hợp.</p>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedMembers.map((member) => {
-                const isOwner = member.role === 'OWNER';
-                const isEditingThis = editingMemberId === member.id;
-                const isResettingPassThis = resetPasswordMemberId === member.id;
-
-                return (
-                  <React.Fragment key={member.id}>
-                    <tr className="hover:bg-slate-50/60 transition-colors whitespace-nowrap group">
-                      <td className="py-3.5 pl-4 pr-1 w-8 align-middle">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(member.id)}
-                          onChange={() => toggleSelectRow(member.id)}
-                          disabled={isOwner}
-                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A] disabled:opacity-30 disabled:cursor-not-allowed"
-                        />
-                      </td>
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 text-slate-800 flex items-center justify-center font-bold text-xs uppercase border border-slate-200">
-                            {(member.user?.fullName || member.user?.email || 'U').charAt(0)}
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-900 block">{member.user?.fullName || 'Chưa cập nhật'}</span>
-                            {isOwner && (
-                              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Chủ gian hàng</span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="py-3.5 px-3 font-mono">
-                        <span className="block text-slate-800 font-medium">{member.user?.email}</span>
-                        <span className="text-[11px] text-slate-400">{member.user?.phone || '—'}</span>
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-slate-100 border border-slate-200 font-bold text-slate-700">
-                          {member.role}
-                        </span>
-                      </td>
-
-                      <td className="py-3.5 px-3">
-                        {isOwner ? (
-                          <span className="text-emerald-700 font-bold text-xs flex items-center gap-1">
-                            <span className="material-symbols-outlined text-sm">all_inclusive</span>
-                            <span>Toàn quyền Master</span>
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(member)}
-                            className="text-slate-800 hover:text-blue-600 font-bold flex items-center gap-1 cursor-pointer"
-                          >
-                            <span>{member.permissions?.length || 0} quyền</span>
-                            <span className="material-symbols-outlined text-xs">edit</span>
-                          </button>
-                        )}
-                      </td>
-
-                      <td className="py-3.5 px-3 text-center">
-                        <SellerStatusBadge
-                          variant={member.status === 'ACTIVE' ? 'success' : 'danger'}
-                          dot
-                          text={member.status === 'ACTIVE' ? 'Hoạt động' : 'Tạm khóa'}
-                        />
-                      </td>
-
-                      <td className="py-3.5 px-4 text-right">
-                        {!isOwner && (
-                          <div className="flex items-center justify-end gap-1">
-                            <SellerActionButton
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              icon="key"
-                              title="Đặt lại mật khẩu"
-                              onClick={() => setResetPasswordMemberId(isResettingPassThis ? null : member.id)}
-                            />
-
-                            <SellerActionButton
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              icon={member.status === 'ACTIVE' ? 'block' : 'lock_open'}
-                              title={member.status === 'ACTIVE' ? 'Tạm khóa' : 'Mở khóa'}
-                              loading={togglingStatusId === member.id}
-                              onClick={() => handleToggleStatus(member)}
-                            />
-
-                            <SellerActionButton
-                              type="button"
-                              variant="danger"
-                              size="sm"
-                              icon="delete"
-                              title="Xóa nhân viên"
-                              loading={deletingMemberId === member.id}
-                              onClick={() => handleRemoveMember(member)}
-                            />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-
-                    {/* In-Page Expandable Edit Permissions Drawer */}
-                    {isEditingThis && (
-                      <tr className="bg-slate-50/70 border-y border-slate-200">
-                        <td colSpan={7} className="p-4 sm:p-5">
-                          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 space-y-4 shadow-xs">
-                            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                              <h4 className="font-bold text-xs uppercase tracking-wider text-slate-800">
-                                Chỉnh sửa phân quyền: <u>{member.user?.fullName}</u> ({editPermissions.length} quyền)
-                              </h4>
-                              <button
-                                type="button"
-                                onClick={() => setEditingMemberId(null)}
-                                className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                              >
-                                <span className="material-symbols-outlined text-base">close</span>
-                              </button>
-                            </div>
-
-                            {/* Presets */}
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                              {ROLE_PRESETS.map((p) => (
-                                <button
-                                  key={p.id}
-                                  type="button"
-                                  onClick={() => handleSelectEditPreset(p.id)}
-                                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-                                    editPreset === p.id
-                                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  {p.name}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Groups */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                              {PERMISSION_GROUPS.map((group) => {
-                                const groupKeys = group.permissions.map((p) => p.key);
-                                const isAllSelected = groupKeys.every((k) => editPermissions.includes(k));
-
-                                return (
-                                  <div key={group.name} className="p-3 rounded-xl bg-slate-50 border border-slate-100 space-y-1.5">
-                                    <div className="flex items-center justify-between pb-1 border-b border-slate-200/60">
-                                      <span className="font-bold text-[11px] text-slate-800 flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-xs text-slate-500">{group.icon}</span>
-                                        <span>{group.name}</span>
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleToggleEditGroup(group)}
-                                        className="text-[10px] font-bold text-slate-500 hover:underline cursor-pointer"
-                                      >
-                                        {isAllSelected ? 'Bỏ hết' : 'Chọn hết'}
-                                      </button>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                      {group.permissions.map((perm) => (
-                                        <label key={perm.key} className="flex items-center gap-2 text-xs text-slate-700 cursor-pointer select-none">
-                                          <input
-                                            type="checkbox"
-                                            checked={editPermissions.includes(perm.key)}
-                                            onChange={() => handleToggleEditPermission(perm.key)}
-                                            className="rounded text-slate-900 focus:ring-slate-900 accent-slate-900 cursor-pointer"
-                                          />
-                                          <span className="leading-tight text-[11px] font-medium">{perm.label}</span>
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                              <SellerActionButton
-                                type="button"
-                                variant="neutral"
-                                size="sm"
-                                onClick={() => setEditingMemberId(null)}
-                              >
-                                Đóng
-                              </SellerActionButton>
-                              <SellerActionButton
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                loading={savingEdit}
-                                icon="check"
-                                onClick={() => handleSavePermissions(member.id)}
-                              >
-                                Lưu Quyền
-                              </SellerActionButton>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-
-                    {/* In-Page Reset Password Row */}
-                    {isResettingPassThis && (
-                      <tr className="bg-amber-50/40 border-y border-amber-200">
-                        <td colSpan={6} className="p-4">
-                          <div className="bg-white rounded-2xl p-4 border border-amber-200/80 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-amber-600">key</span>
-                              <div>
-                                <p className="font-bold text-xs text-slate-900">
-                                  Đặt Lại Mật Khẩu Khởi Tạo Cho: {member.user?.fullName} ({member.user?.email})
-                                </p>
-                                <p className="text-[11px] text-slate-400">
-                                  Mật khẩu mới sẽ có hiệu lực ngay lập tức
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="text"
-                                value={newPasswordValue}
-                                onChange={(e) => setNewPasswordValue(e.target.value)}
-                                className="px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white font-mono font-bold focus:outline-none focus:border-amber-500 w-48 sm:w-60"
-                              />
-                              <SellerActionButton
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                loading={resettingPassword}
-                                icon="check"
-                                onClick={() => handleResetPassword(member.id)}
-                              >
-                                Xác Nhận Đổi
-                              </SellerActionButton>
-                              <SellerActionButton
-                                type="button"
-                                variant="neutral"
-                                size="sm"
-                                onClick={() => setResetPasswordMemberId(null)}
-                              >
-                                Hủy
-                              </SellerActionButton>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </SellerTableContainer>
-
-      {/* Pagination */}
-      {!loading && filteredMembers.length > 0 && (
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      {/* Staff Grouped Data Table Standardized */}
+      <GroupedDataTable<BusinessMemberItem>
+        columns={staffColumns}
+        data={paginatedMembers}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        getCheckboxProps={(m) => ({ disabled: m.role === 'OWNER' })}
+        expandable={true}
+        expandedRowRender={renderExpandedMemberDetail}
+        emptyTitle="Không tìm thấy nhân viên phù hợp"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy nhân sự khớp với từ khóa "${searchQuery}"`
+            : 'Hiện chưa có nhân sự nào trong danh sách.'
+        }
+        emptyIcon="group"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredMembers.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'nhân sự',
+        }}
+        className="w-full"
+      />
         </>
       )}
       {/* Security PIN Confirmation Modal */}

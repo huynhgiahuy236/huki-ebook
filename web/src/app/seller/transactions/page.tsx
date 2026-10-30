@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { walletApi, type WalletTransactionItem } from '@/ui/api/walletApi';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -305,7 +306,192 @@ export default function SellerTransactionsPage() {
     document.body.removeChild(link);
   };
 
-  return (
+
+  const transactionColumns: Column<WalletTransactionItem>[] = useMemo(
+    () => [
+      {
+        key: 'createdAt',
+        title: 'Thời Gian & Mã Ref',
+        width: 180,
+        render: (_val, item) => (
+          <div className="py-1">
+            <span className="font-mono text-slate-800 text-xs font-semibold block">
+              {formatVietnamDateTime(item.createdAt)}
+            </span>
+            {item.referenceId ? (
+              <span className="text-[11px] text-slate-400 font-mono block mt-0.5" title={item.referenceId}>
+                Ref: {item.referenceId}
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                ID: {item.id.slice(0, 8)}...
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'description',
+        title: 'Loại Giao Dịch & Nội Dung',
+        minWidth: 260,
+        render: (_val, item) => {
+          const typeMeta = getTransactionTypeDetails(item.type);
+          return (
+            <div className="flex items-center gap-2.5 py-1">
+              <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500 border border-slate-200">
+                <span className="material-symbols-outlined text-base">{typeMeta.icon}</span>
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit ${typeMeta.badgeClass}`}
+                >
+                  <span className="material-symbols-outlined text-[12px]">{typeMeta.icon}</span>
+                  <span>{typeMeta.label}</span>
+                </span>
+                <span
+                  className="font-medium text-slate-900 text-xs line-clamp-2 leading-snug break-words"
+                  title={item.description || 'Giao dịch ví'}
+                >
+                  {item.description || 'Giao dịch số dư ví'}
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'amount',
+        title: 'Biến Động',
+        width: 160,
+        align: 'right',
+        render: (_val, item) => {
+          const typeMeta = getTransactionTypeDetails(item.type);
+          return (
+            <div className="py-1">
+              <span
+                className={`font-mono font-bold text-xs ${
+                  typeMeta.isPositive ? 'text-[#00875A]' : 'text-slate-700'
+                }`}
+              >
+                {typeMeta.isPositive ? `+${formatVND(item.amount)}` : `-${formatVND(item.amount)}`}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'availableAfter',
+        title: 'Số Dư Sau Giao Dịch',
+        width: 170,
+        align: 'right',
+        render: (_val, item) => (
+          <div className="py-1">
+            <span className="font-mono font-bold text-slate-900 text-xs">
+              {formatVND(item.availableAfter)}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Chi Tiết',
+        width: 110,
+        align: 'right',
+        render: (_val, item) => (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setSelectedTx(item)}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
+            >
+              Chi Tiết
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedTransactionDetail = (item: WalletTransactionItem) => {
+    const typeMeta = getTransactionTypeDetails(item.type);
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Thông tin giao dịch */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">receipt_long</span>
+              <span>Thông Tin Giao Dịch</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã giao dịch:</span>
+                <span className="font-mono text-slate-700 text-[11px]">{item.id}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Thời gian tạo:</span>
+                <span className="font-medium text-slate-900">{formatVietnamDateTime(item.createdAt)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã tham chiếu:</span>
+                <span className="font-mono font-semibold text-slate-800">{item.referenceId || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Biến động tài chính */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">account_balance_wallet</span>
+              <span>Biến Động Số Dư</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Số tiền biến động:</span>
+                <span className={`font-bold font-mono ${typeMeta.isPositive ? 'text-[#00875A]' : 'text-slate-700'}`}>
+                  {typeMeta.isPositive ? `+${formatVND(item.amount)}` : `-${formatVND(item.amount)}`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Số dư khả dụng sau GD:</span>
+                <span className="font-bold text-slate-900">{formatVND(item.availableAfter)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Phân loại:</span>
+                <span className="font-semibold text-slate-800">{typeMeta.label}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Diễn giải & Thao tác */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">info</span>
+                <span>Diễn Giải Nội Dung</span>
+              </div>
+              <p className="text-[11.5px] text-slate-700 mt-2 bg-white p-2 rounded-lg border border-slate-200 break-words leading-relaxed">
+                {item.description || 'Không có mô tả bổ sung.'}
+              </p>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setSelectedTx(item)}
+                className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+                <span>Xem Chi Tiết Đầy Đủ</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* 1. HEADER */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -419,284 +605,33 @@ export default function SellerTransactionsPage() {
           itemName="giao dịch"
         />
 
-        {isLoading ? (
-          <div className="space-y-3 py-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-12 bg-gray-100 animate-pulse rounded-xl"></div>
-            ))}
-          </div>
-        ) : filteredTransactions.length === 0 ? (
-          <div className="py-12 flex flex-col items-center justify-center text-center gap-2 text-gray-400">
-            <span className="material-symbols-outlined text-4xl">receipt_long</span>
-            <p className="text-sm font-bold text-gray-700">Chưa có bản ghi biến động số dư</p>
-            <p className="text-xs text-gray-500">
-              Giao dịch sẽ tự động ghi nhận khi đơn hàng giao thành công hoặc khi bạn thực hiện rút tiền.
-            </p>
-          </div>
-        ) : (
-        <div className="w-full overflow-hidden">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                <th className="py-3.5 pl-4 pr-1 w-8">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.length === filteredTransactions.length && filteredTransactions.length > 0}
-                    onChange={toggleSelectAll}
-                    className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                  />
-                </th>
-                <th className="py-3.5 pl-2 pr-2 w-[24%]">Thời Gian &amp; Mã Ref</th>
-                <th className="py-3.5 px-3 w-[32%]">Loại Giao Dịch &amp; Nội Dung</th>
-                <th className="py-3.5 px-3 w-[18%] text-right">Biến Động</th>
-                <th className="py-3.5 px-3 w-[16%] text-right">Số Dư Sau Giao Dịch</th>
-                <th className="py-3.5 pl-2 pr-4 w-[10%] text-right">Chi Tiết</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {paginatedTransactions.map((item) => {
-                const isExpanded = !!expandedTxIds[item.id];
-                const typeMeta = getTransactionTypeDetails(item.type);
-
-                return (
-                  <React.Fragment key={item.id}>
-                    <tr
-                      onClick={() => toggleExpand(item.id)}
-                      className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                        isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
-                      }`}
-                    >
-                      {/* Checkbox */}
-                      <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.includes(item.id)}
-                          onChange={() => toggleSelect(item.id)}
-                          className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                        />
-                      </td>
-
-                      {/* 1. Thời gian & Mã Ref */}
-                      <td className="py-3 pl-2 pr-2 align-middle">
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleExpand(item.id);
-                            }}
-                            className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                          >
-                            <span
-                              className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                isExpanded ? 'rotate-90 text-emerald-700' : ''
-                              }`}
-                            >
-                              chevron_right
-                            </span>
-                          </button>
-                          <div className="min-w-0">
-                            <span className="font-mono text-slate-700 text-xs block truncate">
-                              {formatVietnamDateTime(item.createdAt)}
-                            </span>
-                            {item.referenceId ? (
-                              <span className="text-[10px] text-slate-400 font-mono block truncate">
-                                Ref: {item.referenceId}
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 font-mono block truncate">
-                                ID: {item.id.slice(0, 8)}...
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 2. Loại giao dịch & Mô tả */}
-                      <td className="py-3 px-3 align-middle">
-                        <div className="flex items-center gap-2.5">
-                          {(item.metadata as any)?.coverUrl ? (
-                            <img
-                              src={(item.metadata as any).coverUrl}
-                              alt="Book"
-                              className="w-8 h-11 object-cover rounded border border-slate-200 shrink-0 shadow-2xs"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLElement).style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
-                              <span className="material-symbols-outlined text-base">{typeMeta.icon}</span>
-                            </div>
-                          )}
-                          <div className="flex flex-col gap-0.5 min-w-0">
-                            <span
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border w-fit ${typeMeta.badgeClass}`}
-                            >
-                              <span className="material-symbols-outlined text-[12px]">{typeMeta.icon}</span>
-                              <span>{typeMeta.label}</span>
-                            </span>
-                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={item.description || 'Giao dịch ví'}>
-                              {item.description || 'Giao dịch số dư ví'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* 3. Biến động */}
-                      <td
-                        className={`py-3 px-3 font-mono font-bold text-right align-middle whitespace-nowrap text-xs ${
-                          typeMeta.isPositive ? 'text-[#00875A]' : 'text-slate-700'
-                        }`}
-                      >
-                        {typeMeta.isPositive ? `+${formatVND(item.amount)}` : `-${formatVND(item.amount)}`}
-                      </td>
-
-                      {/* 4. Số dư sau biến động */}
-                      <td className="py-3 px-3 font-mono font-bold text-right align-middle text-slate-900 whitespace-nowrap text-xs">
-                        {formatVND(item.availableAfter)}
-                      </td>
-
-                      {/* 5. Chi tiết */}
-                      <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedTx(item)}
-                            className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition-colors cursor-pointer"
-                          >
-                            Chi Tiết
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-
-                    {/* Expandable Subcards Detail Panel */}
-                    {isExpanded && (
-                      <tr className="bg-slate-50/60">
-                        <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-                            {/* Card 1: Thông tin giao dịch */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                <span className="material-symbols-outlined text-[16px] text-[#00875A]">receipt_long</span>
-                                <span>Thông Tin Giao Dịch</span>
-                              </div>
-                              <div className="space-y-1.5 text-xs">
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Mã giao dịch:</span>
-                                  <span className="font-mono text-slate-700 text-[11px]">{item.id}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Thời gian tạo:</span>
-                                  <span className="font-medium text-slate-900">{formatVietnamDateTime(item.createdAt)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Mã tham chiếu:</span>
-                                  <span className="font-mono font-semibold text-slate-800">{item.referenceId || 'N/A'}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Card 2: Biến động tài chính */}
-                            <div className="space-y-2">
-                              <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                <span className="material-symbols-outlined text-[16px] text-amber-600">account_balance_wallet</span>
-                                <span>Biến Động Số Dư</span>
-                              </div>
-                              <div className="space-y-1.5 text-xs">
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Số tiền biến động:</span>
-                                  <span className={`font-bold font-mono ${typeMeta.isPositive ? 'text-[#00875A]' : 'text-slate-700'}`}>
-                                    {typeMeta.isPositive ? `+${formatVND(item.amount)}` : `-${formatVND(item.amount)}`}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Số dư khả dụng sau GD:</span>
-                                  <span className="font-bold text-slate-900">{formatVND(item.availableAfter)}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span className="text-slate-500">Phân loại:</span>
-                                  <span className="font-semibold text-slate-800">{typeMeta.label}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Card 3: Diễn giải & Thao tác */}
-                            <div className="space-y-2 flex flex-col justify-between">
-                              <div>
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-emerald-600">info</span>
-                                  <span>Diễn Giải Nội Dung</span>
-                                </div>
-                                <p className="text-[11.5px] text-slate-700 mt-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                                  {item.description || 'Không có mô tả bổ sung.'}
-                                </p>
-                              </div>
-                              <div className="pt-2">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTx(item);
-                                  }}
-                                  className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                                >
-                                  <span className="material-symbols-outlined text-[15px]">open_in_new</span>
-                                  <span>Xem Chi Tiết Đầy Đủ</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        )}
-
-        {/* Pagination Toolbar */}
-        <div className="p-4 border-t border-gray-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-50/50 text-xs text-gray-600 mt-4 rounded-xl">
-          <div className="flex items-center gap-2">
-            <span>Hiển thị mỗi trang:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-hidden cursor-pointer"
-            >
-              <option value={10}>10 dòng</option>
-              <option value={25}>25 dòng</option>
-              <option value={50}>50 dòng</option>
-            </select>
-            <span>Tổng {filteredTransactions.length} giao dịch</span>
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-            >
-              ← Trước
-            </button>
-            <span className="px-3 py-1 font-bold text-gray-800">
-              Trang {currentPage} / {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-semibold cursor-pointer"
-            >
-              Sau →
-            </button>
-          </div>
-        </div>
+        <GroupedDataTable<WalletTransactionItem>
+        columns={transactionColumns}
+        data={paginatedTransactions}
+        keyField="id"
+        loading={isLoading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedTransactionDetail}
+        emptyTitle="Chưa có bản ghi biến động số dư"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy kết quả khớp với từ khóa "${searchQuery}"`
+            : 'Giao dịch sẽ tự động ghi nhận khi đơn hàng giao thành công hoặc khi bạn thực hiện rút tiền.'
+        }
+        emptyIcon="history"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredTransactions.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'giao dịch',
+        }}
+        className="w-full"
+      />
       </div>
 
       {/* 4. DETAIL MODAL */}

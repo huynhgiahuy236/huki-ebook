@@ -11,6 +11,7 @@ import {
   SellerStatusBadge,
   SellerPagination,
 } from '@/ui/components/seller/SellerUI';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 
 export interface DraftBookItem {
   id: string;
@@ -39,6 +40,7 @@ export default function SellerCorrectionView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFormat, setSelectedFormat] = useState<string>('ALL');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Phân trang
   const [currentPage, setCurrentPage] = useState(1);
@@ -189,7 +191,218 @@ export default function SellerCorrectionView() {
     showToast?.(`Đã xóa bản nháp "${title}".`, 'info');
   };
 
-  return (
+
+  const correctionColumns: Column<DraftBookItem>[] = useMemo(
+    () => [
+      {
+        key: 'book',
+        title: 'Sản Phẩm & Ảnh Bìa',
+        minWidth: 260,
+        render: (_val, book) => (
+          <div className="flex items-center gap-3 py-1">
+            <img
+              src={book.coverUrl}
+              alt={book.title}
+              className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
+            />
+            <div className="min-w-0">
+              <span className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs" title={book.title}>
+                {book.title}
+              </span>
+              <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2 font-mono">
+                <span>ISBN: {book.isbn || 'N/A'}</span>
+                <span>•</span>
+                <span>{book.updatedAt}</span>
+              </div>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'author',
+        title: 'Tác Giả & NXB',
+        width: 180,
+        render: (_val, book) => (
+          <div className="py-1 text-xs">
+            <span className="font-semibold text-slate-800 block break-words line-clamp-1">{book.author}</span>
+            <span className="text-[11px] text-slate-400 mt-0.5 block break-words line-clamp-1">{book.publisher || 'Tự xuất bản'}</span>
+          </div>
+        ),
+      },
+      {
+        key: 'format',
+        title: 'Định Dạng & Tồn Kho',
+        width: 170,
+        render: (_val, book) => {
+          const formatBadge = book.format === 'DIGITAL' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="material-symbols-outlined text-xs">devices</span>
+              <span>Ebook DRM</span>
+            </span>
+          ) : book.format === 'BOTH' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="material-symbols-outlined text-xs">auto_awesome</span>
+              <span>Combo</span>
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="material-symbols-outlined text-xs">menu_book</span>
+              <span>Sách Giấy</span>
+            </span>
+          );
+
+          return (
+            <div className="py-1 flex flex-col gap-1 text-xs">
+              <div>{formatBadge}</div>
+              {book.format !== 'DIGITAL' && (
+                <span className="text-[11px] text-slate-500 font-mono">
+                  Tồn kho: <strong className="text-slate-800">{book.stock || 0}</strong>
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'price',
+        title: 'Giá Dự Kiến',
+        width: 150,
+        align: 'right',
+        render: (_val, book) => (
+          <div className="py-1 text-right">
+            <span className="font-bold text-slate-900 font-mono text-xs block">
+              {book.price ? `${Math.round(book.price).toLocaleString('vi-VN')}đ` : '0đ'}
+            </span>
+            {book.originalPrice && book.originalPrice > (book.price || 0) && (
+              <span className="text-[10px] text-slate-400 line-through font-mono block mt-0.5">
+                {Math.round(book.originalPrice).toLocaleString('vi-VN')}đ
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 220,
+        align: 'right',
+        render: (_val, book) => {
+          const isBusy = actionLoadingId === book.id;
+          return (
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => handlePublishNow(book)}
+                disabled={isBusy}
+                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                title="Mở bán công khai trực tiếp lên sàn"
+              >
+                <span className="material-symbols-outlined text-xs">store</span>
+                <span>Xuất Bản</span>
+              </button>
+
+              <Link
+                href={`/seller/product/create-hybrid?editId=${book.id}`}
+                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs flex items-center gap-1 transition-all cursor-pointer"
+                title="Chỉnh sửa nội dung sách"
+              >
+                <span className="material-symbols-outlined text-xs">edit</span>
+                <span>Sửa</span>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => handleDeleteDraft(book.id, book.title)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                title="Xóa bản nháp"
+              >
+                <span className="material-symbols-outlined text-sm">delete</span>
+              </button>
+            </div>
+          );
+        },
+      },
+    ],
+    [actionLoadingId]
+  );
+
+  const renderExpandedDraftDetail = (book: DraftBookItem) => {
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Thông tin bản nháp */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">draft</span>
+              <span>Thông Tin Soạn Thảo</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div>
+                <span className="text-slate-500">Mã ISBN: </span>
+                <span className="font-mono font-semibold text-slate-900">{book.isbn || 'Chưa cấp'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Thể loại: </span>
+                <span className="font-semibold text-slate-800">{book.categoryName || 'Chưa phân mục'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Cập nhật lần cuối: </span>
+                <span className="font-mono text-slate-600">{book.updatedAt}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Giá & Kho */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">payments</span>
+              <span>Giá Bán & Tồn Kho</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giá mở bán dự kiến:</span>
+                <span className="font-bold text-[#00875A] font-mono">{book.price ? `${Math.round(book.price).toLocaleString('vi-VN')}đ` : '0đ'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giá bìa niêm yết:</span>
+                <span className="font-mono text-slate-600">{book.originalPrice ? `${Math.round(book.originalPrice).toLocaleString('vi-VN')}đ` : '0đ'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tồn kho ban đầu:</span>
+                <span className="font-semibold text-slate-800 font-mono">{book.stock || 0} cuốn</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Thao tác xuất bản */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">rocket_launch</span>
+                <span>Xuất Bản & Lên Sàn</span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 mt-2 leading-relaxed">
+                Khi xuất bản, ấn phẩm sẽ được mở bán ngay trên sàn cho khách hàng mà không cần chờ duyệt.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => handlePublishNow(book)}
+                disabled={actionLoadingId === book.id}
+                className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50"
+              >
+                <span className="material-symbols-outlined text-[15px]">store</span>
+                <span>Xuất Bản Lên Sàn Ngay</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="w-full max-w-[1600px] mx-auto space-y-5 antialiased font-sans text-slate-800">
       {/* 1. TOP HEADER & PRIMARY ACTIONS */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -349,191 +562,34 @@ export default function SellerCorrectionView() {
         </div>
       </div>
 
-      {/* 4. GROUPED DATA TABLE */}
-      <SellerTableContainer>
-        <table className="w-full text-left border-collapse text-xs">
-          <thead>
-            <tr className="bg-slate-50/80 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200/80">
-              <th className="py-3.5 px-3 w-12 text-center">STT</th>
-              <th className="py-3.5 px-4">Sản Phẩm &amp; Ảnh Bìa</th>
-              <th className="py-3.5 px-3">Tác Giả &amp; NXB</th>
-              <th className="py-3.5 px-3">Định Dạng</th>
-              <th className="py-3.5 px-3 text-right">Giá Dự Kiến</th>
-              <th className="py-3.5 px-3 text-center">Trạng Thái</th>
-              <th className="py-3.5 px-4 text-right">Thao Tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex items-center justify-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-xl text-slate-400">progress_activity</span>
-                    <span className="text-xs">Đang tải danh sách bản nháp...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : filteredBooks.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-16 text-center text-slate-400">
-                  <div className="flex flex-col items-center justify-center gap-2.5 max-w-sm mx-auto">
-                    <span className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
-                      <span className="material-symbols-outlined text-2xl">draft</span>
-                    </span>
-                    <div>
-                      <p className="font-bold text-slate-700 text-sm">Chưa có sách nháp nào</p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        {searchQuery ? 'Không tìm thấy kết quả phù hợp với từ khóa.' : 'Tất cả sách của bạn đã được xuất bản hoặc chưa tạo bản nháp.'}
-                      </p>
-                    </div>
-                    <Link
-                      href="/seller/product/create-hybrid"
-                      className="mt-1 px-4 py-2 rounded-xl bg-[#00875A] text-white text-xs font-bold hover:bg-[#00704A] transition-colors"
-                    >
-                      + Đăng Sách Mới Ngay
-                    </Link>
-                  </div>
-                </td>
-              </tr>
-            ) : (
-              paginatedBooks.map((book, idx) => {
-                const itemIndex = (currentPage - 1) * pageSize + idx + 1;
-                const isActionLoading = actionLoadingId === book.id;
-
-                const formatBadge = book.format === 'DIGITAL' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                    <span className="material-symbols-outlined text-xs">devices</span>
-                    <span>Ebook DRM</span>
-                  </span>
-                ) : book.format === 'BOTH' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="material-symbols-outlined text-xs">auto_awesome</span>
-                    <span>Sách + Ebook</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    <span className="material-symbols-outlined text-xs">menu_book</span>
-                    <span>Sách Giấy</span>
-                  </span>
-                );
-
-                return (
-                  <tr key={book.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* STT */}
-                    <td className="py-3.5 px-3 text-center text-slate-400 font-mono text-xs">
-                      {itemIndex}
-                    </td>
-
-                    {/* Sản phẩm & Bìa */}
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={book.coverUrl}
-                          alt={book.title}
-                          className="w-10 h-14 object-cover rounded-lg border border-slate-200 shadow-2xs shrink-0 bg-slate-100"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-bold text-slate-900 text-xs leading-snug line-clamp-2">
-                            {book.title}
-                          </div>
-                          <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
-                            <span>ISBN: {book.isbn || 'N/A'}</span>
-                            <span>•</span>
-                            <span>{book.updatedAt}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Tác giả & NXB */}
-                    <td className="py-3.5 px-3">
-                      <div className="text-slate-800 font-medium text-xs">{book.author}</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">{book.publisher || 'Tự xuất bản'}</div>
-                    </td>
-
-                    {/* Định dạng */}
-                    <td className="py-3.5 px-3">
-                      {formatBadge}
-                      {book.format !== 'DIGITAL' && (
-                        <div className="text-[11px] text-slate-400 mt-1">
-                          Tồn kho: <strong className="text-slate-700">{book.stock || 0}</strong>
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Giá bán */}
-                    <td className="py-3.5 px-3 text-right">
-                      <div className="font-bold text-slate-900 font-mono text-xs">
-                        {book.price ? `${Math.round(book.price).toLocaleString('vi-VN')}đ` : '0đ'}
-                      </div>
-                      {book.originalPrice && book.originalPrice > (book.price || 0) && (
-                        <div className="text-[10px] text-slate-400 line-through font-mono mt-0.5">
-                          {Math.round(book.originalPrice).toLocaleString('vi-VN')}đ
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Trạng thái */}
-                    <td className="py-3.5 px-3 text-center">
-                      <SellerStatusBadge
-                        variant="warning"
-                        label={book.status === 'HIDDEN' ? 'Tạm Ẩn' : 'Bản Nháp'}
-                        dot={true}
-                      />
-                    </td>
-
-                    {/* Thao tác */}
-                    <td className="py-3.5 px-4 text-right">
-                      <div className="inline-flex items-center gap-1.5 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => handlePublishNow(book)}
-                          disabled={isActionLoading}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center gap-1 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                          title="Mở bán công khai trực tiếp lên sàn"
-                        >
-                          <span className="material-symbols-outlined text-xs">store</span>
-                          <span>Xuất Bản</span>
-                        </button>
-
-                        <Link
-                          href={`/seller/product/create-hybrid?editId=${book.id}`}
-                          className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] flex items-center gap-1 transition-all cursor-pointer"
-                          title="Chỉnh sửa nội dung sách"
-                        >
-                          <span className="material-symbols-outlined text-xs">edit</span>
-                          <span>Sửa</span>
-                        </Link>
-
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteDraft(book.id, book.title)}
-                          className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          title="Xóa bản nháp"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-
-        {/* 5. PHÂN TRANG */}
-        {!loading && filteredBooks.length > 0 && (
-          <SellerPagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={filteredBooks.length}
-            pageSize={pageSize}
-            onPageChange={(page) => setCurrentPage(page)}
-            itemLabel="sách nháp"
-          />
-        )}
-      </SellerTableContainer>
+      {/* 4. GROUPED DATA TABLE CHUẨN HÓA GROUPED DATA TABLE */}
+      <GroupedDataTable<DraftBookItem>
+        columns={correctionColumns}
+        data={paginatedBooks}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedDraftDetail}
+        emptyTitle="Chưa có sách nháp nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy kết quả phù hợp với từ khóa "${searchQuery}"`
+            : 'Tất cả sách của bạn đã được xuất bản hoặc chưa tạo bản nháp.'
+        }
+        emptyIcon="draft"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredBooks.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'sách nháp',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

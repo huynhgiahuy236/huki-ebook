@@ -85,7 +85,7 @@ export function SellerFlashSaleView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<string>('ALL');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 10;
 
   // In-Page Multi-Book Registration Studio State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -246,6 +246,8 @@ export function SellerFlashSaleView() {
 
   // Inline Editing State (100% In-Page, Zero Modal)
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [expandedItemIds, setExpandedItemIds] = useState<Record<string, boolean>>({});
+  const toggleExpandItem = (id: string) => setExpandedItemIds(prev => ({ ...prev, [id]: !prev[id] }));
   const [editingRowData, setEditingRowData] = useState<{
     salePrice: number;
     stock: number;
@@ -2605,33 +2607,29 @@ export function SellerFlashSaleView() {
                   </div>
                 </div>
 
-                {/* Session Table Container with High-Detail Horizontal Scroll */}
-                <div className="w-full overflow-x-auto pb-3 scrollbar-thin [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-orange-300 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-orange-400">
-                  <table className="w-full text-left text-xs min-w-[1450px]">
-                    <thead className="bg-gray-50/95 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200 sticky top-0">
+                {/* Session Table Container - 5 Gold Columns Chuẩn Hóa Không Cuộn Ngang */}
+                <div className="w-full overflow-hidden rounded-xl border border-gray-200">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50/95 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
                       <tr>
-                        <th className="py-3 px-4 min-w-[320px] whitespace-nowrap">Sản Phẩm & Phân Loại</th>
-                        <th className="py-3 px-4 min-w-[130px] whitespace-nowrap">Giá Niêm Yết</th>
-                        <th className="py-3 px-4 min-w-[180px] whitespace-nowrap">Giá Flash Sale (-%)</th>
-                        <th className="py-3 px-4 min-w-[130px] whitespace-nowrap">Kho Khả Dụng</th>
-                        <th className="py-3 px-4 min-w-[130px] whitespace-nowrap">Quota Phiên</th>
-                        <th className="py-3 px-4 min-w-[190px] whitespace-nowrap">Tiến Độ Bán Hàng</th>
-                        <th className="py-3 px-4 min-w-[140px] whitespace-nowrap">Doanh Thu</th>
-                        <th className="py-3 px-4 min-w-[130px] whitespace-nowrap">Max / Khách</th>
-                        <th className="py-3 px-4 min-w-[150px] whitespace-nowrap">Trạng Thái</th>
-                        <th className="py-3 px-4 min-w-[140px] text-right whitespace-nowrap">Thao Tác</th>
+                        <th className="py-3 px-3 w-8"></th>
+                        <th className="py-3 px-3 min-w-[240px]">Sản Phẩm & Phân Loại</th>
+                        <th className="py-3 px-3 w-[180px]">Giá Flash Sale (-%)</th>
+                        <th className="py-3 px-3 w-[180px]">Tiến Độ Bán Hàng</th>
+                        <th className="py-3 px-3 w-[130px] text-center">Trạng Thái</th>
+                        <th className="py-3 px-4 w-[140px] text-right">Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 text-gray-700">
                       {items.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-gray-400 bg-gray-50/30 whitespace-nowrap">
+                          <td colSpan={6} className="py-8 text-center text-gray-400 bg-gray-50/30">
                             Chưa có cuốn sách nào của shop đăng ký trong khung giờ này.{' '}
                             {!isEnded && (
                               <button
                                 type="button"
                                 onClick={() => handleOpenRegisterForSlot(slot.id)}
-                                className="text-orange-600 font-bold hover:underline ml-1 cursor-pointer whitespace-nowrap"
+                                className="text-orange-600 font-bold hover:underline ml-1 cursor-pointer"
                               >
                                 Bấm vào đây để thêm ngay
                               </button>
@@ -2653,296 +2651,289 @@ export function SellerFlashSaleView() {
                           const isEditing = editingRowId === item.id;
                           const isCancellingThis = cancelCountdownState?.itemId === item.id;
                           const isCountdownActive = isCancellingThis && (cancelCountdownState?.secondsLeft ?? 0) > 0;
+                          const isItemExpanded = !!expandedItemIds[item.id];
 
                           return (
-                            <tr
-                              key={item.id}
-                              className={`transition-colors ${
-                                isEditing ? 'bg-amber-50/60 ring-2 ring-amber-400/40' : 'hover:bg-orange-50/30'
-                              }`}
-                            >
-                              {/* 1. Sản Phẩm */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="flex items-center gap-3">
-                                  <img
-                                    src={item.book?.coverImage || item.book?.coverUrl || (item.book as any)?.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
-                                    alt={item.book?.title || 'Book'}
-                                    className="w-10 h-14 object-cover rounded-lg border border-gray-200 shadow-2xs shrink-0"
-                                  />
-                                  <div className="min-w-0 max-w-[240px]">
-                                    <div className="font-bold text-gray-900 truncate" title={item.book?.title || item.bookTitle}>
-                                      {item.book?.title || item.bookTitle || 'Sách tham gia Flash Sale'}
-                                    </div>
-                                    <div className="text-[11px] text-gray-400 mt-0.5 truncate">
-                                      Tác giả: {item.book?.author || 'Tác giả'}
-                                    </div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* 2. Giá Niêm Yết */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="text-gray-400 line-through font-semibold text-xs">
-                                  {orig.toLocaleString('vi-VN')} đ
-                                </div>
-                              </td>
-
-                              {/* 3. Giá Flash Sale */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                {isEditing ? (
-                                  <div className="space-y-1">
-                                    <div className="relative">
-                                      <input
-                                        type="number"
-                                        min={1000}
-                                        max={orig - 1}
-                                        value={editingRowData?.salePrice || ''}
-                                        onChange={(e) =>
-                                          setEditingRowData((prev) =>
-                                            prev ? { ...prev, salePrice: Number(e.target.value) } : null
-                                          )
-                                        }
-                                        className="w-28 pl-2 pr-6 py-1 bg-white border-2 border-orange-500 rounded-lg text-xs font-black text-orange-600 outline-none shadow-2xs"
-                                      />
-                                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">đ</span>
-                                    </div>
-                                    <div className="text-[10px] font-bold text-orange-600">
-                                      -{orig > 0 && editingRowData ? Math.round(((orig - editingRowData.salePrice) / orig) * 100) : 0}% (tiết kiệm {Math.max(0, orig - (editingRowData?.salePrice || 0)).toLocaleString('vi-VN')} đ)
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <div className="flex items-center gap-2">
-                                      <span className="font-black text-orange-600 text-sm">
-                                        {sale.toLocaleString('vi-VN')} đ
-                                      </span>
-                                      <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-orange-100 text-orange-700 whitespace-nowrap shrink-0">
-                                        -{disc}%
-                                      </span>
-                                    </div>
-                                    <div className="text-[10px] text-emerald-700 font-semibold mt-0.5">
-                                      Tiết kiệm {savings.toLocaleString('vi-VN')} đ
-                                    </div>
-                                  </div>
-                                )}
-                              </td>
-
-                              {/* 4. Kho Khả Dụng */}
-                              <td className="py-3.5 px-4 font-semibold text-gray-700 whitespace-nowrap">
-                                {item.book?.available ?? 20} cuốn
-                              </td>
-
-                              {/* 5. Quota Phiên */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                {isEditing ? (
-                                  <div className="space-y-0.5">
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      max={editingRowData?.availableStock || 999}
-                                      value={editingRowData?.stock || ''}
-                                      onChange={(e) =>
-                                        setEditingRowData((prev) =>
-                                          prev ? { ...prev, stock: Number(e.target.value) } : null
-                                        )
-                                      }
-                                      className="w-20 px-2 py-1 bg-white border-2 border-orange-500 rounded-lg text-xs font-bold text-gray-900 outline-none shadow-2xs"
-                                    />
-                                    <div className="text-[9px] text-gray-400">Max: {editingRowData?.availableStock || 20}</div>
-                                  </div>
-                                ) : (
-                                  <span className="font-bold text-gray-900 bg-gray-100 px-2.5 py-1 rounded-lg">
-                                    {quota} cuốn
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* 6. Tiến Độ Bán Hàng */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="w-40 space-y-1">
-                                  <div className="flex justify-between text-[10px] font-bold">
-                                    <span className={sold > 0 ? 'text-orange-600' : 'text-gray-500'}>
-                                      Đã bán {sold}
-                                    </span>
-                                    <span className="text-gray-400">{percent}%</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                                    <div
-                                      className={`h-2 rounded-full transition-all ${
-                                        percent >= 80
-                                          ? 'bg-gradient-to-r from-orange-500 to-red-600 animate-pulse'
-                                          : 'bg-gradient-to-r from-amber-400 to-orange-500'
-                                      }`}
-                                      style={{ width: `${Math.min(100, Math.max(percent, 0))}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* 7. Doanh Thu */}
-                              <td className="py-3.5 px-4 font-black text-blue-700 text-xs whitespace-nowrap">
-                                {revenue.toLocaleString('vi-VN')} đ
-                              </td>
-
-                              {/* 8. Max / Khách */}
-                              <td className="py-3.5 px-4 text-gray-600 font-medium whitespace-nowrap">
-                                {isEditing ? (
-                                  <select
-                                    value={editingRowData?.maxPerUser || 1}
-                                    onChange={(e) =>
-                                      setEditingRowData((prev) =>
-                                        prev ? { ...prev, maxPerUser: Number(e.target.value) } : null
-                                      )
-                                    }
-                                    className="px-2 py-1 bg-white border border-orange-400 rounded-lg text-xs font-semibold text-gray-900 outline-none shadow-2xs"
+                            <React.Fragment key={item.id}>
+                              <tr
+                                onClick={() => !isEditing && toggleExpandItem(item.id)}
+                                className={`transition-colors cursor-pointer ${
+                                  isEditing
+                                    ? 'bg-amber-50/60 ring-2 ring-amber-400/40'
+                                    : isItemExpanded
+                                    ? 'bg-orange-50/40'
+                                    : 'hover:bg-orange-50/20'
+                                }`}
+                              >
+                                {/* 0. Expand Arrow */}
+                                <td className="py-3 px-2 text-center align-middle" onClick={(e) => { e.stopPropagation(); toggleExpandItem(item.id); }}>
+                                  <button
+                                    type="button"
+                                    className="w-5 h-5 rounded text-gray-400 hover:text-orange-600 flex items-center justify-center transition-transform"
                                   >
-                                    <option value="1">1 cuốn</option>
-                                    <option value="2">2 cuốn</option>
-                                    <option value="5">5 cuốn</option>
-                                    <option value="10">10 cuốn</option>
-                                  </select>
-                                ) : (
-                                  <span>Tối đa {item.maxPerUser || 1} cuốn</span>
-                                )}
-                              </td>
+                                    <span className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${isItemExpanded ? 'rotate-90 text-orange-600' : ''}`}>
+                                      chevron_right
+                                    </span>
+                                  </button>
+                                </td>
 
-                              {/* 9. Trạng Thái Sản Phẩm */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                {isSoldOut ? (
-                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-red-100 text-red-700 uppercase whitespace-nowrap inline-flex items-center gap-1 shrink-0">
-                                    CHÁY HÀNG
-                                  </span>
-                                ) : isActive ? (
-                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-orange-100 text-orange-700 uppercase whitespace-nowrap inline-flex items-center gap-1 shrink-0">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-ping shrink-0"></span>
-                                    ĐANG MỞ BÁN
-                                  </span>
-                                ) : isScheduled ? (
-                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 uppercase whitespace-nowrap inline-flex items-center gap-1 shrink-0">
-                                    <span className="material-symbols-outlined text-[12px] shrink-0">schedule</span>
-                                    <span>ĐÃ LÊN LỊCH</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 uppercase whitespace-nowrap inline-flex items-center gap-1 shrink-0">
-                                    ĐÃ KẾT THÚC
-                                  </span>
-                                )}
-                              </td>
-
-                              {/* 10. Thao Tác (100% Inline - Không Popup) */}
-                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                {isEditing ? (
-                                  <div className="inline-flex items-center gap-1.5 justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveInlineEdit(item.id)}
-                                      disabled={savingRowId === item.id}
-                                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1"
-                                    >
-                                      <span className="material-symbols-outlined text-sm">
-                                        {savingRowId === item.id ? 'progress_activity' : 'check'}
-                                      </span>
-                                      <span>{savingRowId === item.id ? 'Đang lưu...' : 'Lưu'}</span>
-                                    </button>
-
-                                    <button
-                                      type="button"
-                                      onClick={handleCancelInlineEdit}
-                                      disabled={savingRowId === item.id}
-                                      className="px-2.5 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
-                                    >
-                                      Hủy
-                                    </button>
+                                {/* 1. Sản Phẩm */}
+                                <td className="py-3 px-3 align-middle">
+                                  <div className="flex items-center gap-2.5">
+                                    <img
+                                      src={item.book?.coverImage || item.book?.coverUrl || (item.book as any)?.cover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'}
+                                      alt={item.book?.title || 'Book'}
+                                      className="w-9 h-12 object-cover rounded-lg border border-gray-200 shadow-2xs shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <div
+                                        className="font-bold text-gray-900 break-words line-clamp-2 leading-snug text-xs hover:text-orange-600 transition-colors"
+                                        title={item.book?.title || item.bookTitle}
+                                      >
+                                        {item.book?.title || item.bookTitle || 'Sách tham gia Flash Sale'}
+                                      </div>
+                                      <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                                        Tác giả: {item.book?.author || 'Tác giả'}
+                                      </div>
+                                    </div>
                                   </div>
-                                ) : isScheduled ? (
-                                  <div className="inline-flex items-center gap-1.5 justify-end">
-                                    {isCancellingThis ? (
-                                      isCountdownActive ? (
-                                        <div className="inline-flex items-center gap-1">
-                                          <button
-                                            type="button"
-                                            disabled
-                                            className="px-3 py-1.5 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs cursor-wait inline-flex items-center gap-1 animate-pulse whitespace-nowrap shadow-2xs"
-                                          >
-                                            <span className="material-symbols-outlined text-sm text-amber-700 animate-spin">
-                                              timer
-                                            </span>
-                                            <span>Chờ ({cancelCountdownState?.secondsLeft ?? 5}s)...</span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleAbortCancel}
-                                            className="w-7 h-7 rounded-xl hover:bg-gray-200 text-gray-500 font-bold text-xs flex items-center justify-center cursor-pointer transition-colors"
-                                            title="Hủy bỏ, giữ lại sách"
-                                          >
-                                            ✕
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="inline-flex items-center gap-1 animate-in zoom-in-90 duration-150">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleExecuteCancel(item.id)}
-                                            disabled={cancellingId === item.id}
-                                            className="px-3 py-1.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs cursor-pointer shadow-md shadow-red-500/30 inline-flex items-center gap-1 animate-pulse whitespace-nowrap hover:scale-105 transition-all"
-                                            title="Bấm lần nữa để xác nhận hủy ngay lập tức"
-                                          >
-                                            <span className="material-symbols-outlined text-sm">
-                                              {cancellingId === item.id ? 'progress_activity' : 'delete_forever'}
-                                            </span>
-                                            <span>
-                                              {cancellingId === item.id ? 'Đang hủy...' : 'Xác nhận hủy'}
-                                            </span>
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={handleAbortCancel}
-                                            className="w-7 h-7 rounded-xl hover:bg-gray-200 text-gray-500 font-bold text-xs flex items-center justify-center cursor-pointer transition-colors"
-                                            title="Giữ lại sách"
-                                          >
-                                            ✕
-                                          </button>
-                                        </div>
-                                      )
-                                    ) : (
-                                      <>
+                                </td>
+
+                                {/* 2. Giá Flash Sale */}
+                                <td className="py-3 px-3 align-middle">
+                                  {isEditing ? (
+                                    <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+                                      <div className="relative">
+                                        <input
+                                          type="number"
+                                          min={1000}
+                                          max={orig - 1}
+                                          value={editingRowData?.salePrice || ''}
+                                          onChange={(e) =>
+                                            setEditingRowData((prev) =>
+                                              prev ? { ...prev, salePrice: Number(e.target.value) } : null
+                                            )
+                                          }
+                                          className="w-28 pl-2 pr-6 py-1 bg-white border-2 border-orange-500 rounded-lg text-xs font-black text-orange-600 outline-none shadow-2xs"
+                                        />
+                                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-400">đ</span>
+                                      </div>
+                                      <div className="text-[10px] font-bold text-orange-600">
+                                        -{orig > 0 && editingRowData ? Math.round(((orig - editingRowData.salePrice) / orig) * 100) : 0}%
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex flex-col gap-0.5">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-black text-orange-600 text-xs">
+                                          {sale.toLocaleString('vi-VN')} đ
+                                        </span>
+                                        <span className="text-[10px] font-black px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 shrink-0">
+                                          -{disc}%
+                                        </span>
+                                      </div>
+                                      <div className="text-[10.5px] text-gray-400 line-through">
+                                        {orig.toLocaleString('vi-VN')} đ
+                                      </div>
+                                    </div>
+                                  )}
+                                </td>
+
+                                {/* 3. Tiến Độ Bán Hàng */}
+                                <td className="py-3 px-3 align-middle">
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-[10px] font-bold">
+                                      <span className={sold > 0 ? 'text-orange-600' : 'text-gray-500'}>
+                                        Đã bán {sold} / {totalAlloc}
+                                      </span>
+                                      <span className="text-gray-400">{percent}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className={`h-1.5 rounded-full transition-all ${
+                                          percent >= 80
+                                            ? 'bg-gradient-to-r from-orange-500 to-red-600 animate-pulse'
+                                            : 'bg-gradient-to-r from-amber-400 to-orange-500'
+                                        }`}
+                                        style={{ width: `${Math.min(100, Math.max(percent, 0))}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+
+                                {/* 4. Trạng Thái */}
+                                <td className="py-3 px-3 align-middle text-center">
+                                  {isSoldOut ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 uppercase">
+                                      CHÁY HÀNG
+                                    </span>
+                                  ) : isActive ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 uppercase inline-flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-orange-600 animate-ping"></span>
+                                      ĐANG BÁN
+                                    </span>
+                                  ) : isScheduled ? (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 uppercase">
+                                      ĐÃ LÊN LỊCH
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 uppercase">
+                                      ĐÃ KẾT THÚC
+                                    </span>
+                                  )}
+                                </td>
+
+                                {/* 5. Thao Tác */}
+                                <td className="py-3 px-4 align-middle text-right" onClick={(e) => e.stopPropagation()}>
+                                  {isEditing ? (
+                                    <div className="inline-flex items-center gap-1.5 justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSaveInlineEdit(item.id)}
+                                        disabled={savingRowId === item.id}
+                                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1"
+                                      >
+                                        <span className="material-symbols-outlined text-sm">
+                                          {savingRowId === item.id ? 'progress_activity' : 'check'}
+                                        </span>
+                                        <span>Lưu</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={handleCancelInlineEdit}
+                                        className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
+                                      >
+                                        Hủy
+                                      </button>
+                                    </div>
+                                  ) : isCountdownActive ? (
+                                    <div className="inline-flex items-center gap-1 justify-end animate-pulse">
+                                      <span className="text-[10px] font-bold text-red-600">
+                                        Hủy sau {cancelCountdownState?.secondsLeft ?? 0}s
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={handleAbortCancel}
+                                        className="px-2 py-0.5 rounded bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-colors cursor-pointer"
+                                      >
+                                        Hoàn tác
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-1 justify-end">
+                                      {!isEnded && (
                                         <button
                                           type="button"
                                           onClick={() => handleStartInlineEdit(item)}
-                                          className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1 border border-amber-200 shadow-2xs whitespace-nowrap"
-                                          title="Chỉnh sửa giá và số lượng Flash Sale trực tiếp trên dòng"
+                                          className="p-1 rounded-lg hover:bg-orange-100 text-gray-600 hover:text-orange-700 transition-colors cursor-pointer"
+                                          title="Sửa nhanh giá & quota"
                                         >
-                                          <span className="material-symbols-outlined text-sm">edit</span>
-                                          <span>Sửa</span>
+                                          <span className="material-symbols-outlined text-[16px]">edit</span>
                                         </button>
+                                      )}
+                                      <button
+                                        type="button"
+                                        disabled={deletingSlotId === item.id}
+                                        onClick={() => handleInitiateCancel(item.id)}
+                                        className="p-1 rounded-lg hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors cursor-pointer"
+                                        title="Hủy khỏi Flash Sale"
+                                      >
+                                        <span className="material-symbols-outlined text-[16px]">delete</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </td>
+                              </tr>
 
-                                        <button
-                                          type="button"
-                                          onClick={() => handleInitiateCancel(item.id)}
-                                          className="px-2.5 py-1.5 rounded-xl hover:bg-red-50 text-red-600 font-bold text-xs transition-colors cursor-pointer inline-flex items-center gap-1 border border-red-200 shadow-2xs whitespace-nowrap"
-                                          title="Hủy đăng ký sản phẩm (Chờ 5s rồi bấm xác nhận)"
-                                        >
-                                          <span className="material-symbols-outlined text-sm">delete</span>
-                                          <span>Hủy</span>
-                                        </button>
-                                      </>
-                                    )}
-                                  </div>
-                                ) : isActive ? (
-                                  <span className="text-[11px] font-semibold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg whitespace-nowrap inline-block" title="Sách đang trong khung giờ mở bán trực tiếp">
-                                    Đang phát sóng
-                                  </span>
-                                ) : (
-                                  <span className="text-[11px] text-gray-400 italic whitespace-nowrap">Đã đóng</span>
-                                )}
-                              </td>
-                            </tr>
+                              {/* Master-Detail Expandable Drawer */}
+                              {isItemExpanded && (
+                                <tr className="bg-orange-50/20">
+                                  <td colSpan={6} className="p-4 border-t border-b border-orange-200/70">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white rounded-xl p-4 border border-orange-200/80 shadow-2xs">
+                                      {/* Card 1: Quota & Giới Hạn Mua */}
+                                      <div className="space-y-2 text-xs">
+                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+                                          <span className="material-symbols-outlined text-[15px] text-orange-600">inventory_2</span>
+                                          <span>Quota & Giới Hạn</span>
+                                        </div>
+                                        <div className="space-y-1 text-xs">
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Kho khả dụng:</span>
+                                            <span className="font-semibold text-slate-900">{item.book?.available ?? 20} cuốn</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Quota mở bán:</span>
+                                            <span className="font-bold text-orange-600">{quota} cuốn</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Giới hạn / khách:</span>
+                                            <span className="font-medium text-slate-800">Tối đa {item.maxPerUser || 1} cuốn</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Card 2: Doanh Thu & Hiệu Quả */}
+                                      <div className="space-y-2 text-xs">
+                                        <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+                                          <span className="material-symbols-outlined text-[15px] text-emerald-600">payments</span>
+                                          <span>Doanh Thu & Hiệu Suất</span>
+                                        </div>
+                                        <div className="space-y-1 text-xs">
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Doanh thu thu về:</span>
+                                            <span className="font-mono font-bold text-emerald-700">{revenue.toLocaleString('vi-VN')} đ</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Tiết kiệm cho khách:</span>
+                                            <span className="font-mono font-semibold text-rose-600">{(savings * sold).toLocaleString('vi-VN')} đ</span>
+                                          </div>
+                                          <div className="flex justify-between">
+                                            <span className="text-slate-500">Tỷ lệ chốt đơn:</span>
+                                            <span className="font-bold text-slate-900">{percent}%</span>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Card 3: Thao Tác & Trạng Thái */}
+                                      <div className="space-y-2 flex flex-col justify-between text-xs">
+                                        <div>
+                                          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+                                            <span className="material-symbols-outlined text-[15px] text-blue-600">info</span>
+                                            <span>Trạng Thái Phiên</span>
+                                          </div>
+                                          <p className="text-[11px] text-slate-500 mt-2">
+                                            {isSoldOut
+                                              ? 'Ấn phẩm đã bán hết toàn bộ Quota phân bổ.'
+                                              : isActive
+                                              ? 'Đang trong khung giờ vàng diễn ra sự kiện.'
+                                              : isScheduled
+                                              ? 'Đã chuẩn bị sẵn sàng mở bán khi đến giờ.'
+                                              : 'Khung giờ Flash Sale đã kết thúc.'}
+                                          </p>
+                                        </div>
+                                        <div className="pt-2">
+                                          {!isEnded && (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleStartInlineEdit(item)}
+                                              className="w-full py-2 px-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                                            >
+                                              <span className="material-symbols-outlined text-[15px]">edit</span>
+                                              <span>Chỉnh Sửa Giá & Quota</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })
                       )}
                     </tbody>
-                  </table>
-                </div>
+                  </table>                </div>
               </div>
             );
           })

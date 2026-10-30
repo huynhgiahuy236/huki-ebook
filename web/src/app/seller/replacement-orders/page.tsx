@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { orderApi, ReturnRequestData } from '@/ui/api/orderApi';
 import { useToast } from '@/ui/context/ToastContext';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   SellerTableContainer,
   SellerStatusBadge,
@@ -208,7 +209,213 @@ export default function SellerReplacementOrdersPage() {
   };
 
 
-  return (
+
+  const replacementColumns: Column<ReturnRequestData>[] = useMemo(
+    () => [
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn & Ngày Tạo',
+        width: 175,
+        render: (_val, item) => (
+          <div className="py-1">
+            <Link
+              href={`/seller/orders/${item.orderId}`}
+              className="font-mono text-xs font-bold text-slate-900 hover:text-[#00875A] transition-colors block"
+            >
+              #{item.order?.code || item.orderId}
+            </Link>
+            <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+              {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'product',
+        title: 'Sản Phẩm Đổi',
+        minWidth: 220,
+        render: (_val, item) => {
+          const bookTitle = item.orderItem?.title || 'Sách đổi bù';
+          return (
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
+              <span className="font-medium text-slate-900 block break-words line-clamp-2 leading-snug" title={bookTitle}>
+                {bookTitle}
+              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                  <span className="material-symbols-outlined text-[11px]">sync_alt</span>
+                  <span>Hàng Đổi 0đ</span>
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'customer',
+        title: 'Khách Hàng & Vận Đơn',
+        minWidth: 200,
+        render: (_val, item) => {
+          const userName = item.user?.fullName || item.user?.name || item.userId;
+          return (
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
+              <span className="font-semibold text-slate-800 block break-words line-clamp-1">
+                {userName}
+              </span>
+              {item.replacementTrackingCode ? (
+                <div className="flex items-center gap-1 font-mono text-[11px] text-slate-600">
+                  <span className="text-slate-400">{item.replacementCarrier}:</span>
+                  <b className="text-emerald-700 font-bold">{item.replacementTrackingCode}</b>
+                </div>
+              ) : (
+                <span className="text-amber-600 font-medium text-[11px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[13px]">pending</span>
+                  <span>Chưa gửi mã vận đơn</span>
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 160,
+        align: 'center',
+        render: (_val, item) =>
+          item.replacementTrackingCode ? (
+            <SellerStatusBadge variant="info" dot text="Đang giao hàng đổi" />
+          ) : (
+            <SellerStatusBadge variant="warning" dot text="Chờ gửi hàng" />
+          ),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 170,
+        align: 'right',
+        render: (_val, item) => (
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <SellerActionButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon="local_shipping"
+              onClick={() => handleOpenShipForm(item)}
+            >
+              {item.replacementTrackingCode ? 'Sửa Vận Đơn' : 'Giao Hàng'}
+            </SellerActionButton>
+
+            <Link href={`/seller/returns/${item.id}`}>
+              <SellerActionButton
+                type="button"
+                variant="ghost"
+                size="sm"
+                icon="visibility"
+              >
+                Chi Tiết
+              </SellerActionButton>
+            </Link>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedReplacementDetail = (item: ReturnRequestData) => {
+    const orderCode = item.order?.code || item.orderId;
+    const bookTitle = item.orderItem?.title || 'Sách đổi';
+    const userName = item.user?.fullName || item.user?.name || item.userId;
+
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Thông tin đơn hàng & sản phẩm */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+              <span className="material-symbols-outlined text-[16px] text-[#00875A]">sync_alt</span>
+              <span>Đơn Hàng Gốc & Sản Phẩm</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã đơn gốc:</span>
+                <Link href={`/seller/orders/${item.orderId}`} className="font-mono font-bold text-emerald-700 hover:underline">
+                  #{orderCode}
+                </Link>
+              </div>
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-slate-500 shrink-0">Tên ấn phẩm:</span>
+                <span className="font-medium text-slate-900 text-right break-words line-clamp-2 leading-snug">{bookTitle}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Giá trị đơn đổi:</span>
+                <span className="font-bold text-emerald-600">0đ (Thỏa thuận đổi trả)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Thông tin vận chuyển kiện đổi */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+              <span className="material-symbols-outlined text-[16px] text-[#00875A]">local_shipping</span>
+              <span>Vận Chuyển Kiện Hàng Đổi</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Đơn vị vận chuyển:</span>
+                <span className="font-semibold text-slate-800">{item.replacementCarrier || 'Chưa cập nhật'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã vận đơn:</span>
+                <span className="font-mono font-bold text-slate-900">
+                  {item.replacementTrackingCode || 'Chưa có mã'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Trạng thái phát:</span>
+                <span className="font-medium text-slate-700">
+                  {item.replacementTrackingCode ? 'Đang trên đường gửi tới khách' : 'Chờ nhà bán đóng gói & gửi'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Khách hàng & Thao tác nhanh */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
+                <span className="material-symbols-outlined text-[16px] text-emerald-600">person</span>
+                <span>Khách Hàng & Người Nhận</span>
+              </div>
+              <div className="space-y-1.5 text-[11.5px] mt-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Người nhận:</span>
+                  <span className="font-bold text-slate-900">{userName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Thời gian tạo:</span>
+                  <span className="font-mono text-slate-600">{item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => handleOpenShipForm(item)}
+                className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-[15px]">local_shipping</span>
+                <span>{item.replacementTrackingCode ? 'Chỉnh Sửa Vận Đơn' : 'Gửi Mã Vận Đơn Ngay'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -347,270 +554,34 @@ export default function SellerReplacementOrdersPage() {
         itemName="kiện đổi mới"
       />
 
-      {/* Table Container */}
-      <SellerTableContainer>
-        {loading ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined animate-spin text-xl text-[#00875A]">progress_activity</span>
-              <span className="text-xs">Đang tải danh sách đơn hàng đổi mới...</span>
-            </div>
-          </div>
-        ) : filteredItems.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <span className="material-symbols-outlined text-4xl text-slate-300">sync_alt</span>
-              <p className="font-medium text-slate-600">Chưa có đơn hàng đổi mới nào.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredItems.length && filteredItems.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                    />
-                  </th>
-                  <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
-                  <th className="py-3.5 px-3 w-[28%]">Sản Phẩm Đổi</th>
-                  <th className="py-3.5 px-3 w-[24%]">Khách Hàng &amp; Vận Đơn</th>
-                  <th className="py-3.5 px-3 w-[12%] text-center">Trạng Thái</th>
-                  <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Thao Tác</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {paginatedItems.map((item) => {
-                  const isExpanded = !!expandedIds[item.id];
-                  const orderCode = item.order?.code || item.orderId;
-                  const bookTitle = item.orderItem?.title || 'Sách đổi';
-                  const userName = item.user?.fullName || item.user?.name || item.userId;
-
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr
-                        onClick={() => toggleExpand(item.id)}
-                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(item.id)}
-                            onChange={() => toggleSelect(item.id)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                          />
-                        </td>
-
-                        {/* 1. Mã đơn / Yêu cầu */}
-                        <td className="py-3 pl-2 pr-2 align-middle">
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand(item.id);
-                              }}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                            >
-                              <span
-                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
-                                }`}
-                              >
-                                chevron_right
-                              </span>
-                            </button>
-                            <div className="min-w-0">
-                              <span className="font-mono font-bold text-slate-900 block truncate">
-                                #{orderCode}
-                              </span>
-                              <span className="font-mono text-[10.5px] text-slate-400 block truncate">
-                                Req: {item.id.slice(0, 10)}...
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Tên sách đổi */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={bookTitle}>
-                              {bookTitle}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                                <span className="material-symbols-outlined text-[11px]">sync_alt</span>
-                                <span>Hàng Đổi 0đ</span>
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 3. Khách hàng & Vận đơn */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold text-slate-800 text-xs truncate">
-                              {userName}
-                            </span>
-                            {item.replacementTrackingCode ? (
-                              <div className="flex items-center gap-1 font-mono text-[11px] text-slate-600">
-                                <span className="text-slate-400">{item.replacementCarrier}:</span>
-                                <b className="text-emerald-700 font-bold">{item.replacementTrackingCode}</b>
-                              </div>
-                            ) : (
-                              <span className="text-amber-600 font-medium text-[11px] flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[13px]">pending</span>
-                                <span>Chưa gửi mã vận đơn</span>
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 4. Trạng thái */}
-                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          {item.replacementTrackingCode ? (
-                            <SellerStatusBadge variant="info" dot text="Đang giao hàng đổi" />
-                          ) : (
-                            <SellerStatusBadge variant="warning" dot text="Chờ gửi hàng" />
-                          )}
-                        </td>
-
-                        {/* 5. Thao tác */}
-                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <SellerActionButton
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              icon="local_shipping"
-                              onClick={() => handleOpenShipForm(item)}
-                            >
-                              {item.replacementTrackingCode ? 'Sửa Vận Đơn' : 'Giao Hàng'}
-                            </SellerActionButton>
-
-                            <Link href={`/seller/returns/${item.id}`}>
-                              <SellerActionButton
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                icon="visibility"
-                              >
-                                Chi Tiết
-                              </SellerActionButton>
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expandable Subcards Detail Panel */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-                              {/* Card 1: Thông tin đơn hàng & sản phẩm */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">sync_alt</span>
-                                  <span>Đơn Hàng Gốc &amp; Sản Phẩm</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã đơn gốc:</span>
-                                    <Link href={`/seller/orders/${item.orderId}`} className="font-mono font-bold text-emerald-700 hover:underline">
-                                      #{orderCode}
-                                    </Link>
-                                  </div>
-                                  <div className="flex justify-between items-start gap-2">
-                                    <span className="text-slate-500 shrink-0">Tên ấn phẩm:</span>
-                                    <span className="font-medium text-slate-900 text-right text-[11.5px]">{bookTitle}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Giá trị đơn đổi:</span>
-                                    <span className="font-bold text-emerald-600">0đ (Thỏa thuận đổi trả)</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Thông tin vận chuyển kiện đổi */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">local_shipping</span>
-                                  <span>Vận Chuyển Kiện Hàng Đổi</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Đơn vị vận chuyển:</span>
-                                    <span className="font-semibold text-slate-800">{item.replacementCarrier || 'Chưa cập nhật'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã vận đơn:</span>
-                                    <span className="font-mono font-bold text-slate-900">
-                                      {item.replacementTrackingCode || 'Chưa có mã'}
-                                    </span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Trạng thái phát:</span>
-                                    <span className="font-medium text-slate-700">
-                                      {item.replacementTrackingCode ? 'Đang trên đường gửi tới khách' : 'Chờ nhà bán đóng gói & gửi'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Khách hàng & Thao tác nhanh */}
-                              <div className="space-y-2 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">person</span>
-                                    <span>Khách Hàng &amp; Xử Lý</span>
-                                  </div>
-                                  <div className="space-y-1.5 text-xs mt-2">
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-500">Người nhận:</span>
-                                      <span className="font-bold text-slate-900">{userName}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span className="text-slate-500">Yêu cầu ID:</span>
-                                      <span className="font-mono text-slate-500 text-[11px]">{item.id.slice(0, 12)}...</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenShipForm(item);
-                                    }}
-                                    className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                                  >
-                                    <span className="material-symbols-outlined text-[15px]">local_shipping</span>
-                                    <span>{item.replacementTrackingCode ? 'Chỉnh Sửa Vận Đơn' : 'Gửi Mã Vận Đơn Ngay'}</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SellerTableContainer>
+      {/* Bảng Dữ Liệu Chuẩn Hóa GroupedDataTable */}
+      <GroupedDataTable<ReturnRequestData>
+        columns={replacementColumns}
+        data={paginatedItems}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedReplacementDetail}
+        emptyTitle="Chưa có đơn hàng đổi mới nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy đơn đổi nào trùng khớp với từ khóa "${searchQuery}"`
+            : 'Hiện không có yêu cầu đổi hàng bù nào đang xử lý.'
+        }
+        emptyIcon="sync_alt"
+        pagination={{
+          currentPage,
+          totalPages: Math.max(1, Math.ceil(filteredItems.length / pageSize)),
+          totalItems: filteredItems.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'kiện đổi mới',
+        }}
+        className="w-full"
+      />
 
       {/* Pagination */}
       {!loading && filteredItems.length > 0 && (

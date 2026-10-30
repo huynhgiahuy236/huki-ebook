@@ -14,6 +14,7 @@ import {
 } from '@/ui/components/seller/SellerUI';
 import { useRealtimeInventory } from '@/ui/hooks/useRealtimeInventory';
 import { realtimeSyncBus, InventoryUpdatePayload } from '@/ui/services/realtimeSyncBus';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -542,7 +543,245 @@ export default function SellerInventoryPage() {
     }));
   };
 
-  return (
+
+  const inventoryColumns: Column<InventoryBook>[] = useMemo(
+    () => [
+      {
+        key: 'book',
+        title: 'Sách & Phân Loại',
+        minWidth: 260,
+        render: (_val, book) => {
+          const authorName = typeof book.author === 'object' ? book.author?.name : book.author || 'N/A';
+          const highlightInfo = highlightedBooks[book.id];
+          return (
+            <div className="flex items-center gap-2.5 py-1">
+              <div className="w-8 h-11 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
+                <img
+                  src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
+                  alt={book.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-slate-900 block break-words line-clamp-2 leading-snug text-xs" title={book.title}>
+                    {book.title}
+                  </span>
+                  {highlightInfo && (
+                    <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                      highlightInfo.action === 'RESERVED'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                    }`}>
+                      <span className="material-symbols-outlined text-[11px]">bolt</span>
+                      <span>{highlightInfo.action === 'RESERVED' ? 'Giữ chỗ' : 'Vừa cập nhật'}</span>
+                    </span>
+                  )}
+                </div>
+                <span className="text-[11px] text-slate-400 block break-words line-clamp-1 mt-0.5">
+                  ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {authorName}
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'stock',
+        title: 'Tồn Thực & Tạm Giữ',
+        width: 180,
+        render: (_val, book) => {
+          const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+          const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+          return (
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-500">Tồn thực:</span>
+                <span className="font-bold text-slate-900 font-mono">{stock}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-slate-400">Tạm giữ:</span>
+                <span className={`font-semibold font-mono ${reserved > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                  {reserved}
+                </span>
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'available',
+        title: 'Khả Dụng Bán',
+        width: 140,
+        align: 'center',
+        render: (_val, book) => {
+          const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+          const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+          const available = Math.max(0, stock - reserved);
+          return (
+            <div className="py-1">
+              <span
+                className={`font-bold text-sm font-mono ${
+                  available === 0
+                    ? 'text-rose-600'
+                    : available <= 5
+                    ? 'text-amber-600'
+                    : 'text-[#00875A]'
+                }`}
+              >
+                {available}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 150,
+        align: 'center',
+        render: (_val, book) => {
+          const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+          const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+          const available = Math.max(0, stock - reserved);
+          return available === 0 ? (
+            <SellerStatusBadge variant="danger" dot text="Hết hàng (0)" />
+          ) : available <= 5 ? (
+            <SellerStatusBadge variant="warning" dot text={`Sắp hết (${available})`} />
+          ) : (
+            <SellerStatusBadge variant="success" dot text="Còn hàng" />
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 220,
+        align: 'right',
+        render: (_val, book) => (
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <SellerActionButton
+              type="button"
+              variant="primary"
+              size="sm"
+              icon="add_box"
+              label="Nhập"
+              onClick={() => handleOpenAdjust(book, 'ADD')}
+            />
+            <SellerActionButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              icon="remove_circle_outline"
+              label="Xuất"
+              onClick={() => handleOpenAdjust(book, 'SUBTRACT')}
+            />
+            <SellerActionButton
+              type="button"
+              variant="ghost"
+              size="sm"
+              icon="history"
+              label="Lịch sử"
+              onClick={() => fetchLogs(book, 1)}
+            />
+          </div>
+        ),
+      },
+    ],
+    [highlightedBooks]
+  );
+
+  const renderExpandedInventoryDetail = (book: InventoryBook) => {
+    const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
+    const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
+    const available = Math.max(0, stock - reserved);
+    const authorName = typeof book.author === 'object' ? book.author?.name : book.author || 'N/A';
+
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Số liệu chi tiết kho */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">inventory_2</span>
+              <span>Chi Tiết Kho Vật Lý</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tồn thực tế trong kho:</span>
+                <span className="font-bold text-slate-900 font-mono">{stock} cuốn</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tạm giữ chờ thanh toán:</span>
+                <span className="font-bold text-amber-600 font-mono">{reserved} cuốn</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Khả dụng giao dịch:</span>
+                <span className="font-bold text-[#00875A] font-mono">{available} cuốn</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Thông tin ấn bản & ISBN */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">book</span>
+              <span>Thông Tin Ấn Bản</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã ISBN:</span>
+                <span className="font-mono font-semibold text-slate-800">{book.isbn || 'Chưa cập nhật'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tác giả:</span>
+                <span className="font-medium text-slate-800">{authorName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Cảnh báo tồn:</span>
+                <span className="font-semibold text-slate-800">
+                  {available === 0 ? 'Hết sạch hàng' : available <= 5 ? 'Cần bổ sung gấp' : 'Ổn định'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Thao tác kho nhanh */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">tune</span>
+                <span>Hành Động Nhanh</span>
+              </div>
+              <p className="text-[11.5px] text-slate-500 mt-2 leading-relaxed">
+                Thực hiện nhập thêm số lượng tồn hoặc mở bảng kiểm kê để cập nhật số thực tế.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => handleOpenAdjust(book, 'ADD')}
+                className="py-1.5 px-2 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <span className="material-symbols-outlined text-[14px]">add_box</span>
+                <span>Nhập Thêm</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleOpenAdjust(book, 'SET')}
+                className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">tune</span>
+                <span>Kiểm Kê</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -1025,313 +1264,34 @@ export default function SellerInventoryPage() {
         itemName="sản phẩm kho"
       />
 
-      {/* Inventory Table Container */}
-      <SellerTableContainer>
-        {loading ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex items-center justify-center gap-2">
-              <span className="material-symbols-outlined animate-spin text-xl text-[#00875A]">progress_activity</span>
-              <span className="text-xs">Đang tải dữ liệu kho...</span>
-            </div>
-          </div>
-        ) : filteredBooks.length === 0 ? (
-          <div className="py-16 text-center text-slate-400">
-            <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-              <span className="material-symbols-outlined text-4xl text-slate-300">inventory_2</span>
-              <p className="font-medium text-slate-600">Không tìm thấy sách nào phù hợp.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredBooks.length && filteredBooks.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                    />
-                  </th>
-                  <th className="py-3.5 pl-2 pr-2 w-[34%]">Sách &amp; Phân Loại</th>
-                  <th className="py-3.5 px-3 w-[22%]">Tồn Thực &amp; Tạm Giữ</th>
-                  <th className="py-3.5 px-3 w-[16%] text-center">Khả Dụng</th>
-                  <th className="py-3.5 px-3 w-[14%] text-center">Trạng Thái</th>
-                  <th className="py-3.5 pl-2 pr-4 w-[14%] text-right">Thao Tác</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {paginatedBooks.map((book) => {
-                  const isExpanded = !!expandedBookIds[book.id];
-                  const stock = Number(book.stock ?? book.physicalDetails?.stock ?? 0);
-                  const reserved = Number(book.reserved ?? book.physicalDetails?.reserved ?? 0);
-                  const available = Math.max(0, stock - reserved);
-                  const authorName = typeof book.author === 'object' ? book.author?.name : book.author || 'N/A';
-                  const highlightInfo = highlightedBooks[book.id];
-
-                  return (
-                    <React.Fragment key={book.id}>
-                      <tr
-                        onClick={() => toggleExpand(book.id)}
-                        className={`transition-all duration-300 cursor-pointer ${
-                          highlightInfo
-                            ? highlightInfo.action === 'RESERVED'
-                              ? 'bg-amber-50 border-l-4 border-amber-500 animate-pulse'
-                              : 'bg-emerald-50 border-l-4 border-emerald-500 animate-pulse'
-                            : isExpanded
-                            ? 'bg-emerald-50/40 hover:bg-emerald-50/50'
-                            : selectedIds.includes(book.id)
-                            ? 'bg-emerald-50/20'
-                            : 'hover:bg-emerald-50/30 bg-white'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(book.id)}
-                            onChange={() => toggleSelect(book.id)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                          />
-                        </td>
-
-                        {/* 1. Sách & Phân loại */}
-                        <td className="py-3 pl-2 pr-2 align-middle">
-
-                          <div className="flex items-center gap-2.5">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand(book.id);
-                              }}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                            >
-                              <span
-                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
-                                }`}
-                              >
-                                chevron_right
-                              </span>
-                            </button>
-                            <div className="w-8 h-11 rounded bg-slate-100 overflow-hidden shrink-0 border border-slate-200">
-                              <img
-                                src={book.coverUrl || book.coverImage || book.cover || '/banners/hero-library.jpg'}
-                                alt={book.title}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-bold text-slate-900 block truncate" title={book.title}>
-                                  {book.title}
-                                </span>
-                                {highlightInfo && (
-                                  <span className={`inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                    highlightInfo.action === 'RESERVED'
-                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                      : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  }`}>
-                                    <span className="material-symbols-outlined text-[11px]">bolt</span>
-                                    <span>{highlightInfo.action === 'RESERVED' ? 'Giữ chỗ' : 'Vừa cập nhật'}</span>
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[11px] text-slate-400 block truncate">
-                                ISBN: {book.isbn || 'Chưa cập nhật'} • Tác giả: {authorName}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Tồn thực & Tạm giữ */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-xs">
-                              <span className="text-slate-500">Tồn thực:</span>
-                              <span className="font-bold text-slate-900">{stock}</span>
-                            </div>
-                            <div className="flex items-center gap-1.5 text-[11px]">
-                              <span className="text-slate-400">Tạm giữ:</span>
-                              <span className={`font-semibold ${reserved > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
-                                {reserved}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 3. Khả dụng */}
-                        <td className="py-3 px-3 align-middle text-center">
-                          <span
-                            className={`font-bold text-sm ${
-                              available === 0
-                                ? 'text-rose-600'
-                                : available <= 5
-                                ? 'text-amber-600'
-                                : 'text-[#00875A]'
-                            }`}
-                          >
-                            {available}
-                          </span>
-                        </td>
-
-                        {/* 4. Trạng thái */}
-                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          {available === 0 ? (
-                            <SellerStatusBadge variant="danger" dot text="Hết hàng (0)" />
-                          ) : available <= 5 ? (
-                            <SellerStatusBadge variant="warning" dot text={`Sắp hết (${available})`} />
-                          ) : (
-                            <SellerStatusBadge variant="success" dot text="Còn hàng" />
-                          )}
-                        </td>
-
-                        {/* 5. Thao tác */}
-                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <SellerActionButton
-                              type="button"
-                              variant="primary"
-                              size="sm"
-                              icon="add_box"
-                              onClick={() => handleOpenAdjust(book, 'ADD')}
-                            >
-                              Nhập
-                            </SellerActionButton>
-
-                            <SellerActionButton
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              icon="tune"
-                              onClick={() => handleOpenAdjust(book, 'SET')}
-                            >
-                              Kiểm Kê
-                            </SellerActionButton>
-
-                            <SellerActionButton
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              icon="history"
-                              onClick={() => fetchLogs(book, 1)}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expandable Subcards Detail Panel */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-
-                              {/* Card 1: Số liệu chi tiết kho */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">inventory_2</span>
-                                  <span>Chi Tiết Kho Vật Lý</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tồn thực tế trong kho:</span>
-                                    <span className="font-bold text-slate-900">{stock} cuốn</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tạm giữ chờ thanh toán:</span>
-                                    <span className="font-bold text-amber-600">{reserved} cuốn</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Khả dụng giao dịch:</span>
-                                    <span className="font-bold text-[#00875A]">{available} cuốn</span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Thông tin ấn bản & ISBN */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-600">book</span>
-                                  <span>Thông Tin Ấn Bản</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã ISBN:</span>
-                                    <span className="font-mono font-semibold text-slate-800">{book.isbn || 'Chưa cập nhật'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Tác giả:</span>
-                                    <span className="font-medium text-slate-800">{authorName}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Cảnh báo tồn:</span>
-                                    <span className="font-semibold text-slate-800">
-                                      {available === 0 ? 'Hết sạch hàng' : available <= 5 ? 'Cần bổ sung gấp' : 'Ổn định'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Thao tác kho nhanh */}
-                              <div className="space-y-2 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">tune</span>
-                                    <span>Hành Động Nhanh</span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-500 mt-2">
-                                    Thực hiện nhập thêm số lượng tồn hoặc mở bảng kiểm kê để cập nhật số thực tế.
-                                  </p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 pt-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenAdjust(book, 'ADD');
-                                    }}
-                                    className="py-1.5 px-2 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">add_box</span>
-                                    <span>Nhập Thêm</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpenAdjust(book, 'SET');
-                                    }}
-                                    className="py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
-                                  >
-                                    <span className="material-symbols-outlined text-[14px]">tune</span>
-                                    <span>Kiểm Kê</span>
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SellerTableContainer>
-
-      {/* Pagination */}
-      {!loading && filteredBooks.length > 0 && (
-        <SellerPagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-        />
-      )}
+      {/* Inventory Table Container Chuẩn Hóa GroupedDataTable */}
+      <GroupedDataTable<InventoryBook>
+        columns={inventoryColumns}
+        data={paginatedBooks}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedInventoryDetail}
+        emptyTitle="Không tìm thấy sách nào phù hợp"
+        emptyMessage={
+          search
+            ? `Không tìm thấy sách nào khớp với từ khóa "${search}"`
+            : 'Hiện tại gian hàng chưa có dữ liệu tồn kho trong bộ lọc này.'
+        }
+        emptyIcon="inventory_2"
+        pagination={{
+          currentPage,
+          totalPages,
+          totalItems: filteredBooks.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'sản phẩm kho',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

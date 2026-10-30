@@ -167,7 +167,7 @@ export function SellerGroupedOrderTable({
                     : 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
                 }`}
               >
-                {isCOD ? '💵 Tiền mặt COD' : '💳 PayOS VietQR'}
+                {isCOD ? 'Tiền mặt (COD)' : 'PayOS (VietQR)'}
               </span>
             </div>
           );

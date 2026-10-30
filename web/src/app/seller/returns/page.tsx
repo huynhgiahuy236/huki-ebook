@@ -6,6 +6,7 @@ import { orderApi, ReturnRequestData } from '@/ui/api/orderApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import { playSellerOrderChimeSound } from '@/ui/utils/chatSound';
 import {
   SellerStatusBadge,
@@ -262,7 +263,192 @@ export default function SellerReturnsPage() {
     }
   };
 
-  return (
+
+  const returnColumns: Column<ReturnRequestData>[] = useMemo(
+    () => [
+      {
+        key: 'orderCode',
+        title: 'Mã Đơn & Ngày Nộp',
+        width: 175,
+        render: (_val, item) => (
+          <div className="py-1">
+            <span className="font-mono font-bold text-slate-900 block text-xs">
+              #{item.order?.code || item.orderId}
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+              {item.createdAt ? new Date(item.createdAt).toLocaleDateString('vi-VN') : '—'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'product',
+        title: 'Sản Phẩm & Phân Loại',
+        minWidth: 220,
+        render: (_val, item) => {
+          const bookTitle = item.orderItem?.title || 'Sản phẩm';
+          return (
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
+              <span className="font-medium text-slate-900 block break-words line-clamp-2 leading-snug" title={bookTitle}>
+                {bookTitle}
+              </span>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {item.type === 'REFUND' ? (
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <span className="material-symbols-outlined text-[11px]">payments</span>
+                    <span>Hoàn tiền</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-800 border border-sky-200">
+                    <span className="material-symbols-outlined text-[11px]">sync_alt</span>
+                    <span>Đổi hàng</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'customer',
+        title: 'Khách Hàng & Lý Do',
+        minWidth: 200,
+        render: (_val, item) => {
+          const userName = item.user?.fullName || item.user?.name || item.userId;
+          const reasonLabel = getReasonLabel(item.reason);
+          return (
+            <div className="py-1 flex flex-col gap-0.5 text-xs">
+              <span className="font-semibold text-slate-800 block break-words line-clamp-1">
+                {userName}
+              </span>
+              <span className="text-[11px] text-slate-500 block break-words line-clamp-2 leading-snug" title={item.reasonDetail || reasonLabel}>
+                {reasonLabel}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 140,
+        align: 'center',
+        render: (_val, item) => <SellerStatusBadge status={item.status} />,
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 120,
+        align: 'right',
+        render: (_val, item) => (
+          <div className="flex items-center justify-end gap-1.5">
+            <Link href={`/seller/returns/${item.id}`}>
+              <SellerActionButton
+                variant="view"
+                label="Chi tiết"
+                icon="visibility"
+                size="sm"
+              />
+            </Link>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedReturnDetail = (item: ReturnRequestData) => {
+    const orderCode = item.order?.code || item.orderId;
+    const bookTitle = item.orderItem?.title || 'Sản phẩm';
+    const userName = item.user?.fullName || item.user?.name || item.userId;
+    const reasonLabel = getReasonLabel(item.reason);
+
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Thông Tin Đơn & Sản Phẩm */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">inventory_2</span>
+              <span>Thông Tin Đơn & Sản Phẩm</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Mã đơn hàng:</span>
+                <span className="font-mono font-semibold text-slate-900">#{orderCode}</span>
+              </div>
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-slate-500 shrink-0">Sản phẩm:</span>
+                <span className="font-medium text-slate-900 text-right break-words line-clamp-2 leading-snug">{bookTitle}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Hình thức yêu cầu:</span>
+                <span className="font-semibold text-slate-800">
+                  {item.type === 'REFUND' ? 'Hoàn tiền lại' : 'Đổi sản phẩm mới'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Khách Hàng & Lý Do Chi Tiết */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">contact_support</span>
+              <span>Khách Hàng & Lý Do</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Người mua:</span>
+                <span className="font-semibold text-slate-900">{userName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Lý do chính:</span>
+                <span className="font-medium text-slate-800">{reasonLabel}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5">Mô tả từ khách hàng:</span>
+                <p className="bg-white p-2 rounded-lg text-slate-700 text-[11.5px] border border-slate-200 leading-relaxed">
+                  {item.reasonDetail || 'Không có mô tả chi tiết thêm.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Trạng Thái & Xử Lý */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-emerald-600">gavel</span>
+                <span>Trạng Thái & Xử Lý</span>
+              </div>
+              <div className="space-y-1.5 text-[11.5px] mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500">Trạng thái:</span>
+                  <SellerStatusBadge status={item.status} />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+                  Mở trang chi tiết để xem toàn bộ ảnh bằng chứng và đối thoại trực tiếp với khách hàng hoặc trọng tài.
+                </p>
+              </div>
+            </div>
+            <div className="pt-2">
+              <Link href={`/seller/returns/${item.id}`} className="w-full block">
+                <button
+                  type="button"
+                  className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#00704A] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
+                  <span>Mở Trang Xử Lý Yêu Cầu</span>
+                </button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
@@ -312,266 +498,34 @@ export default function SellerReturnsPage() {
         itemName="yêu cầu đổi trả"
       />
 
-      {/* 3. Table */}
-      <SellerTableContainer>
-        {loading ? (
-          <div className="py-16 text-center text-slate-500">
-            <div className="w-9 h-9 border-3 border-[#00875A] border-t-transparent rounded-full animate-spin mx-auto"></div>
-            <p className="font-medium text-xs mt-2.5">Đang tải danh sách yêu cầu đổi trả...</p>
-          </div>
-        ) : filteredReturns.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-xs">
-            <div className="flex flex-col items-center justify-center gap-2">
-              <span className="material-symbols-outlined text-3xl text-slate-300">
-                inbox
-              </span>
-              <p className="font-semibold text-slate-700">Không có yêu cầu đổi trả nào</p>
-              <p className="text-[11.5px] text-slate-400">Tất cả đơn hàng của bạn đang vận hành ổn định.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full overflow-hidden">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50/90 text-slate-500 font-semibold uppercase tracking-wider text-[11px] border-b border-slate-200">
-                  <th className="py-3.5 pl-4 pr-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredReturns.length && filteredReturns.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                    />
-                  </th>
-                  <th className="py-3.5 pl-2 pr-2 w-[24%]">Mã Đơn / Yêu Cầu</th>
-                  <th className="py-3.5 px-3 w-[30%]">Sản Phẩm &amp; Phân Loại</th>
-                  <th className="py-3.5 px-3 w-[22%]">Khách Hàng &amp; Lý Do</th>
-                  <th className="py-3.5 px-3 w-[12%] text-center">Trạng Thái</th>
-                  <th className="py-3.5 pl-2 pr-4 w-[12%] text-right">Thao Tác</th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100">
-                {paginatedReturns.map((item) => {
-                  const isExpanded = !!expandedReturnIds[item.id];
-                  const orderCode = item.order?.code || item.orderId;
-                  const bookTitle = item.orderItem?.title || 'Sản phẩm';
-                  const userName = item.user?.fullName || item.user?.name || item.userId;
-                  const reasonLabel = getReasonLabel(item.reason);
-
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr
-                        onClick={() => toggleExpand(item.id)}
-                        className={`hover:bg-emerald-50/30 transition-colors cursor-pointer ${
-                          isExpanded ? 'bg-emerald-50/40' : selectedIds.includes(item.id) ? 'bg-emerald-50/20' : 'bg-white'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <td className="py-3 pl-4 pr-1 align-middle" onClick={(e) => e.stopPropagation()}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(item.id)}
-                            onChange={() => toggleSelect(item.id)}
-                            className="w-4 h-4 rounded border-slate-300 text-[#00875A] focus:ring-[#00875A]"
-                          />
-                        </td>
-
-                        {/* 1. Mã đơn / Yêu cầu */}
-                        <td className="py-3 pl-2 pr-2 align-middle">
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleExpand(item.id);
-                              }}
-                              className="w-5 h-5 flex items-center justify-center rounded text-slate-400 hover:text-emerald-700 hover:bg-emerald-100/50 transition-colors shrink-0"
-                            >
-                              <span
-                                className={`material-symbols-outlined text-[16px] transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-90 text-emerald-700' : ''
-                                }`}
-                              >
-                                chevron_right
-                              </span>
-                            </button>
-                            <div className="min-w-0">
-                              <span className="font-mono font-bold text-slate-900 block truncate">
-                                #{orderCode}
-                              </span>
-                              <span className="font-mono text-[10.5px] text-slate-400 block truncate">
-                                Req: {item.id.slice(0, 10)}...
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 2. Sản phẩm & Phân loại */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-medium text-slate-900 text-xs line-clamp-1" title={bookTitle}>
-                              {bookTitle}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {item.type === 'REFUND' ? (
-                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <span className="material-symbols-outlined text-[11px]">payments</span>
-                                  <span>Hoàn tiền</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-50 text-sky-800 border border-sky-200">
-                                  <span className="material-symbols-outlined text-[11px]">sync_alt</span>
-                                  <span>Đổi hàng</span>
-                                </span>
-                              )}
-                              <span className="font-mono text-[10px] text-slate-400">
-                                Item: {item.orderItemId.slice(0, 8)}
-                              </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* 3. Khách hàng & Lý do */}
-                        <td className="py-3 px-3 align-middle">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="font-semibold text-slate-800 text-xs truncate">
-                              {userName}
-                            </span>
-                            <span className="text-[11px] text-slate-500 line-clamp-1" title={item.reasonDetail || reasonLabel}>
-                              {reasonLabel}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* 4. Trạng thái */}
-                        <td className="py-3 px-3 align-middle text-center whitespace-nowrap">
-                          <SellerStatusBadge status={item.status} />
-                        </td>
-
-                        {/* 5. Thao tác */}
-                        <td className="py-3 pl-2 pr-4 align-middle text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <Link href={`/seller/returns/${item.id}`}>
-                              <SellerActionButton
-                                variant="view"
-                                label="Chi tiết"
-                                icon="visibility"
-                                size="sm"
-                              />
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-
-                      {/* Expandable Subcards Detail Panel */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/60">
-                          <td colSpan={6} className="p-4 border-t border-b border-emerald-100/70">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs animate-in fade-in slide-in-from-top-1 duration-200">
-
-                              {/* Card 1: Thông tin yêu cầu & đơn hàng */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-[#00875A]">inventory_2</span>
-                                  <span>Thông Tin Đơn &amp; Sản Phẩm</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã đơn hàng:</span>
-                                    <span className="font-mono font-semibold text-slate-900">#{orderCode}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Mã yêu cầu:</span>
-                                    <span className="font-mono text-slate-700 text-[11px]">{item.id}</span>
-                                  </div>
-                                  <div className="flex justify-between items-start gap-2">
-                                    <span className="text-slate-500 shrink-0">Sản phẩm:</span>
-                                    <span className="font-medium text-slate-900 text-right text-[11.5px]">{bookTitle}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Hình thức:</span>
-                                    <span className="font-semibold text-slate-800">
-                                      {item.type === 'REFUND' ? 'Hoàn tiền lại' : 'Đổi sản phẩm mới'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 2: Khách hàng & Lý do chi tiết */}
-                              <div className="space-y-2">
-                                <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-600">contact_support</span>
-                                  <span>Khách Hàng &amp; Lý Do</span>
-                                </div>
-                                <div className="space-y-1.5 text-xs">
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Người mua:</span>
-                                    <span className="font-semibold text-slate-900">{userName}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-slate-500">Lý do chính:</span>
-                                    <span className="font-medium text-slate-800">{reasonLabel}</span>
-                                  </div>
-                                  <div>
-                                    <span className="text-slate-500 block mb-0.5">Mô tả từ khách hàng:</span>
-                                    <p className="bg-slate-50 p-2 rounded-lg text-slate-700 text-[11.5px] border border-slate-100">
-                                      {item.reasonDetail || 'Không có mô tả chi tiết thêm.'}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Card 3: Trạng thái & Hành động xử lý */}
-                              <div className="space-y-2 flex flex-col justify-between">
-                                <div>
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#003B2B] pb-1.5 border-b border-slate-100">
-                                    <span className="material-symbols-outlined text-[16px] text-emerald-600">gavel</span>
-                                    <span>Trạng Thái &amp; Xử Lý</span>
-                                  </div>
-                                  <div className="space-y-1.5 text-xs mt-2">
-                                    <div className="flex justify-between items-center">
-                                      <span className="text-slate-500">Trạng thái hiện tại:</span>
-                                      <SellerStatusBadge status={item.status} />
-                                    </div>
-                                    <p className="text-[11px] text-slate-500 mt-2">
-                                      Xem trang chi tiết để phản hồi đồng ý hoặc khiếu nại yêu cầu này của khách hàng.
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="pt-2">
-                                  <Link href={`/seller/returns/${item.id}`} className="w-full block">
-                                    <button
-                                      type="button"
-                                      className="w-full py-2 px-3 bg-[#00875A] hover:bg-[#003B2B] text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-                                    >
-                                      <span className="material-symbols-outlined text-[15px]">arrow_forward</span>
-                                      <span>Mở Trang Xử Lý Yêu Cầu</span>
-                                    </button>
-                                  </Link>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <SellerPagination
-          currentPage={validPage}
-          totalPages={totalPages}
-          totalItems={totalItems}
-          pageSize={pageSize}
-          onPageChange={setCurrentPage}
-          itemLabel="yêu cầu đổi trả"
-        />
-      </SellerTableContainer>
+      {/* 3. Bảng Dữ Liệu Chuẩn Hóa GroupedDataTable */}
+      <GroupedDataTable<ReturnRequestData>
+        columns={returnColumns}
+        data={paginatedReturns}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedReturnDetail}
+        emptyTitle="Không có yêu cầu đổi trả nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy yêu cầu nào trùng khớp với từ khóa "${searchQuery}"`
+            : 'Tất cả đơn hàng của bạn đang vận hành ổn định.'
+        }
+        emptyIcon="inbox"
+        pagination={{
+          currentPage,
+          totalPages: Math.max(1, Math.ceil(filteredReturns.length / pageSize)),
+          totalItems: filteredReturns.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'yêu cầu đổi trả',
+        }}
+        className="w-full"
+      />
     </div>
   );
 }

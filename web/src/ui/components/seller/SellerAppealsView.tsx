@@ -13,6 +13,7 @@ import {
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { SellerPagination } from './SellerUI';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -391,7 +392,209 @@ export function SellerAppealsView() {
     }
   };
 
-  return (
+
+  const sanctionColumns: Column<Sanction>[] = useMemo(
+    () => [
+      {
+        key: 'level',
+        title: 'Mức Độ & Ngày Ban Hành',
+        width: 190,
+        render: (_val, s) => (
+          <div className="py-1">
+            <div className="flex items-center gap-1.5">
+              {renderLevelBadge(s.level)}
+            </div>
+            <span className="text-[11px] text-slate-400 font-mono block mt-1">
+              {new Date(s.issuedAt).toLocaleString('vi-VN')}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'reason',
+        title: 'Lý Do Vi Phạm',
+        minWidth: 240,
+        render: (_val, s) => (
+          <div className="py-1 flex flex-col gap-0.5 text-xs">
+            <span className="font-semibold text-slate-900 dark:text-zinc-100 block break-words line-clamp-2 leading-snug">
+              {s.reason}
+            </span>
+            {s.violationCode && (
+              <span className="font-mono text-[11px] text-slate-400 block mt-0.5">
+                Mã: {s.violationCode}
+              </span>
+            )}
+            {s.liftReason && (
+              <span className="text-[11px] text-emerald-600 font-medium block">
+                Lý do gỡ: {s.liftReason}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Thời Hạn & Trạng Thái',
+        width: 180,
+        render: (_val, s) => (
+          <div className="py-1 flex flex-col gap-1">
+            <div>{renderStatusBadge(s)}</div>
+            <span className="text-[11px] text-slate-500 font-mono block">
+              {s.expiresAt ? `Hết hạn: ${new Date(s.expiresAt).toLocaleDateString('vi-VN')}` : 'Hiệu lực: Vĩnh viễn'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'appeal',
+        title: 'Hồ Sơ Kháng Nghị',
+        width: 170,
+        render: (_val, s) => {
+          if (!s.appeal) {
+            return <span className="text-slate-400 italic text-xs">Chưa nộp khiếu nại</span>;
+          }
+          const isApproved = s.appeal.decision === 'APPROVED';
+          const isRejected = s.appeal.decision === 'REJECTED';
+          return (
+            <div className="py-1 text-xs">
+              <span
+                className={`font-semibold block ${
+                  isApproved ? 'text-emerald-600' : isRejected ? 'text-rose-600' : 'text-amber-600'
+                }`}
+              >
+                {isApproved ? 'Đã chấp thuận' : isRejected ? 'Bị bác bỏ' : 'Đang xét duyệt'}
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono block mt-0.5">
+                {new Date(s.appeal.submittedAt).toLocaleDateString('vi-VN')}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 130,
+        align: 'right',
+        render: (_val, s) => {
+          const eligibility = checkAppealEligibility(s);
+          return (
+            <div className="flex items-center justify-end gap-1.5">
+              {eligibility.eligible ? (
+                <button
+                  type="button"
+                  onClick={() => handleOpenAppealModal(s)}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs border border-indigo-200 transition-colors cursor-pointer"
+                >
+                  Kháng nghị
+                </button>
+              ) : s.appeal ? (
+                <span className="text-slate-400 text-xs font-medium">Đã gửi</span>
+              ) : (
+                <span className="text-slate-400 text-xs">—</span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    []
+  );
+
+  const renderExpandedSanctionDetail = (s: Sanction) => {
+    return (
+      <div className="flex flex-col gap-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Card 1: Quyết định vi phạm */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-rose-600">gavel</span>
+              <span>Chi Tiết Quyết Định Xử Phạt</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div>
+                <span className="text-slate-500">Mã vi phạm: </span>
+                <span className="font-mono font-semibold text-slate-900">{s.violationCode || s.id}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Mức chế tài: </span>
+                <span className="font-bold text-rose-700">{s.level}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Lý do xử phạt: </span>
+                <span className="text-slate-800 break-words leading-relaxed">{s.reason}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2: Hiệu lực thời gian */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-amber-600">schedule</span>
+              <span>Thời Gian & Hiệu Lực</span>
+            </div>
+            <div className="space-y-1.5 text-[11.5px]">
+              <div>
+                <span className="text-slate-500">Ngày ban hành: </span>
+                <span className="font-mono text-slate-800">{new Date(s.issuedAt).toLocaleString('vi-VN')}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Hạn áp dụng: </span>
+                <span className="font-mono text-slate-800">{s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('vi-VN') : 'Vĩnh viễn'}</span>
+              </div>
+              <div>
+                <span className="text-slate-500">Trạng thái: </span>
+                <span className="font-semibold text-slate-800">{s.status}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3: Kháng nghị & Hành động */}
+          <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
+                <span className="material-symbols-outlined text-[15px] text-indigo-600">balance</span>
+                <span>Hồ Sơ Khiếu Nại Sàn</span>
+              </div>
+              <div className="space-y-1.5 text-[11.5px] mt-1.5">
+                {s.appeal ? (
+                  <>
+                    <div>
+                      <span className="text-slate-500">Lý do shop gửi: </span>
+                      <p className="bg-white p-2 rounded border border-slate-200 text-slate-700 mt-1">{s.appeal.reason}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Kết quả xét duyệt: </span>
+                      <span className="font-bold text-indigo-700">{s.appeal.decision || 'Đang thẩm định'}</span>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-slate-500 text-[11.5px] leading-relaxed">
+                    Cửa hàng có quyền gửi hồ sơ giải trình kèm bằng chứng chứng minh tuân thủ trong vòng 7 ngày kể từ ngày quyết định có hiệu lực.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {checkAppealEligibility(s).eligible && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenAppealModal(s)}
+                  className="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                >
+                  <span className="material-symbols-outlined text-[15px]">send</span>
+                  <span>Gửi Đơn Khiếu Nại Ngay</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="space-y-6 w-full max-w-[1600px] mx-auto p-4 sm:p-6 lg:p-8 animate-in fade-in duration-200">
       {/* Header & Store Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
@@ -532,142 +735,34 @@ export function SellerAppealsView() {
         itemName="quyết định xử phạt"
       />
 
-      {/* Sanctions History Table */}
-      <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
-        <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-          <h2 className="font-bold text-zinc-900 dark:text-zinc-100 text-base">
-            Lịch Sử Xử Phạt Của Cửa Hàng
-          </h2>
-          <span className="text-xs text-zinc-500">
-            Tổng cộng: {filteredSanctions.length} quyết định
-          </span>
-        </div>
-
-        {loadingSanctions ? (
-          <div className="p-8 text-center text-zinc-500 text-sm">Đang tải lịch sử xử phạt...</div>
-        ) : filteredSanctions.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center mb-3">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-base">Cửa hàng hoàn toàn tuân thủ</h3>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Không có quyết định xử phạt hay vi phạm nào được ghi nhận cho cửa hàng này.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-[10.5px] uppercase text-zinc-500 font-bold tracking-wider border-b border-zinc-200 dark:border-zinc-800">
-                <tr>
-                  <th className="py-3 pl-4 pr-1 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.length === filteredSanctions.length && filteredSanctions.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                  </th>
-                  <th className="px-5 py-3">Mức độ</th>
-                  <th className="px-5 py-3">Lý do &amp; Mã vi phạm</th>
-                  <th className="px-5 py-3">Thời gian ban hành</th>
-                  <th className="px-5 py-3">Thời hạn</th>
-                  <th className="px-5 py-3">Trạng thái</th>
-                  <th className="px-5 py-3">Kháng nghị</th>
-                  <th className="px-5 py-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                {paginatedSanctions.map((s) => {
-                  const eligibility = checkAppealEligibility(s);
-                  const isSelected = selectedIds.includes(s.id);
-                  return (
-                    <tr key={s.id} className={`hover:bg-zinc-50/60 dark:hover:bg-zinc-800/30 transition-colors ${isSelected ? 'bg-indigo-50/20 dark:bg-indigo-950/20' : ''}`}>
-                      <td className="py-4 pl-4 pr-1">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelect(s.id)}
-                          className="w-4 h-4 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
-                        />
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">{renderLevelBadge(s.level)}</td>
-
-                      <td className="px-5 py-4 max-w-xs">
-                        <div className="font-medium text-zinc-900 dark:text-zinc-100">{s.reason}</div>
-                        {s.violationCode && (
-                          <div className="text-xs text-zinc-500 mt-0.5">Mã: {s.violationCode}</div>
-                        )}
-                        {s.liftReason && (
-                          <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
-                            Lý do gỡ: {s.liftReason}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400 text-xs">
-                        {new Date(s.issuedAt).toLocaleString('vi-VN')}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-zinc-600 dark:text-zinc-400 text-xs">
-                        {s.expiresAt ? new Date(s.expiresAt).toLocaleDateString('vi-VN') : 'Vĩnh viễn'}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap">{renderStatusBadge(s)}</td>
-                      <td className="px-5 py-4 whitespace-nowrap text-xs">
-                        {s.appeal ? (
-                          <div>
-                            <span className={`font-semibold ${
-                              s.appeal.decision === 'APPROVED' ? 'text-emerald-600' :
-                              s.appeal.decision === 'REJECTED' ? 'text-rose-600' : 'text-amber-600'
-                            }`}>
-                              {s.appeal.decision === 'APPROVED' ? 'Đã chấp thuận' :
-                               s.appeal.decision === 'REJECTED' ? 'Bác bỏ' : 'Chờ duyệt'}
-                            </span>
-                            <div className="text-[11px] text-zinc-400">
-                              {new Date(s.appeal.submittedAt).toLocaleDateString('vi-VN')}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-zinc-400 italic">Chưa kháng nghị</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-right text-xs">
-                        {eligibility.eligible ? (
-                          <button
-                            onClick={() => handleOpenAppealModal(s)}
-                            className="font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400"
-                          >
-                            Kháng nghị
-                          </button>
-                        ) : s.appeal ? (
-                          <span className="text-zinc-400">Đã nộp</span>
-                        ) : (
-                          <span className="text-zinc-400">—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Pagination Toolbar */}
-        {filteredSanctions.length > pageSize && (
-          <div className="p-3 border-t border-zinc-200 dark:border-zinc-800">
-            <SellerPagination
-              currentPage={currentPage}
-              totalPages={Math.ceil(filteredSanctions.length / pageSize) || 1}
-              totalItems={filteredSanctions.length}
-              pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              itemLabel="quyết định xử phạt"
-            />
-          </div>
-        )}
-      </div>
-
+      {/* Sanctions History Table Chuẩn Hóa GroupedDataTable */}
+      <GroupedDataTable<Sanction>
+        columns={sanctionColumns}
+        data={paginatedSanctions}
+        keyField="id"
+        loading={loadingSanctions}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedSanctionDetail}
+        emptyTitle="Cửa hàng hoàn toàn tuân thủ"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy quyết định nào trùng khớp với từ khóa "${searchQuery}"`
+            : 'Không có quyết định xử phạt hay vi phạm nào được ghi nhận cho cửa hàng này.'
+        }
+        emptyIcon="verified_user"
+        pagination={{
+          currentPage,
+          totalPages: Math.max(1, Math.ceil(filteredSanctions.length / pageSize)),
+          totalItems: filteredSanctions.length,
+          pageSize: 10,
+          onPageChange: setCurrentPage,
+          itemLabel: 'quyết định xử phạt',
+        }}
+        className="w-full"
+      />
 
       {/* Appeal Submission Modal */}
       {activeSanctionForAppeal && (
