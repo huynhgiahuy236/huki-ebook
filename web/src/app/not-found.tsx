@@ -241,11 +241,11 @@ export default function NotFound() {
               </Link>
 
               <Link
-                href="/audiobooks"
+                href="/library"
                 className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-400 text-slate-700 dark:text-slate-300 text-xs font-semibold shadow-2xs transition-all"
               >
-                <span>🎧</span>
-                <span>Sách Nói</span>
+                <span>📚</span>
+                <span>Tủ Sách</span>
               </Link>
             </div>
           </div>

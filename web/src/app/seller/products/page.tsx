@@ -1211,28 +1211,7 @@ export default function SellerProductsPage() {
                             </span>
                           )}
 
-                          {/* Hiển thị rõ ràng sách có Giọng đọc AI hay không */}
-                          {(book.format === 'DIGITAL' || book.format === 'BOTH') && (() => {
-                            const aiSub = aiSubscriptionsMap[book.id];
-                            const hasAi = !!aiSub && aiSub.status === 'ACTIVE' && new Date(aiSub.expiresAt) > new Date();
-                            return hasAi ? (
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs"
-                                title={`Đã kích hoạt giọng đọc AI: ${aiSub?.planName || 'Gói AI Voice'} (Hết hạn: ${new Date(aiSub.expiresAt).toLocaleDateString('vi-VN')})`}
-                              >
-                                <span className="material-symbols-outlined text-[13px] text-emerald-600">record_voice_over</span>
-                                <span>Có đọc AI</span>
-                              </span>
-                            ) : (
-                              <span
-                                className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200"
-                                title="Chưa kích hoạt tính năng giọng đọc AI cho tác phẩm này"
-                              >
-                                <span className="material-symbols-outlined text-[13px] text-slate-400">voice_over_off</span>
-                                <span>Chưa có AI</span>
-                              </span>
-                            );
-                          })()}
+
 
                           {/* Hiển thị trạng thái Tiếp thị liên kết (Affiliate) */}
                           {Boolean(book.isAffiliateEligible || book.affiliateSetting?.isEligible) ? (
@@ -1322,7 +1301,7 @@ export default function SellerProductsPage() {
                     {isExpanded && (
                       <tr className="bg-emerald-50/20 border-b border-emerald-100">
                         <td colSpan={8} className="p-4 sm:p-5">
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white rounded-xl p-4 border border-emerald-200/70 shadow-xs">
                             {/* Cột 1: Thông số kho & kích thước */}
                             <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
                               <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
@@ -1358,83 +1337,6 @@ export default function SellerProductsPage() {
                                   )}
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Cột 3: Tính năng Giọng đọc AI */}
-                            <div className="space-y-2 text-xs border-r border-slate-100 pr-3">
-                              <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-[14px]">record_voice_over</span>
-                                <span>Giọng Đọc AI (Sách Nói)</span>
-                              </div>
-                              {(() => {
-                                const isDigital = book.format === 'DIGITAL' || book.format === 'BOTH';
-                                const aiSub = aiSubscriptionsMap[book.id];
-                                const hasAi = !!aiSub && aiSub.status === 'ACTIVE' && new Date(aiSub.expiresAt) > new Date();
-
-                                if (!isDigital) {
-                                  return (
-                                    <div className="pt-1 text-[11px] text-slate-400 space-y-1">
-                                      <div className="italic text-slate-500">Không áp dụng</div>
-                                      <p className="text-[10px] text-slate-400 leading-normal">
-                                        Tính năng Giọng đọc AI chỉ áp dụng cho tác phẩm định dạng Ebook DRM.
-                                      </p>
-                                    </div>
-                                  );
-                                }
-
-                                if (hasAi) {
-                                  return (
-                                    <div className="space-y-1.5 pt-1 text-[11px]">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-slate-400">Trạng thái:</span>
-                                        <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px] border border-emerald-200">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                          Đang Hoạt Động
-                                        </span>
-                                      </div>
-                                      <div>
-                                        <span className="text-slate-400">Gói cước: </span>
-                                        <span className="font-bold text-slate-800">{aiSub.planName || 'Gói AI Voice'}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-slate-400">Thời hạn: </span>
-                                        <span className="text-slate-700 font-medium">Hết hạn {new Date(aiSub.expiresAt).toLocaleDateString('vi-VN')}</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-slate-400">Tổng lượt nghe: </span>
-                                        <span className="font-bold text-emerald-800">{aiSub.totalListens || 0} lượt</span>
-                                      </div>
-                                    </div>
-                                  );
-                                }
-
-                                return (
-                                  <div className="space-y-2 pt-1 text-[11px]">
-                                    <div className="flex items-center gap-1.5">
-                                      <span className="text-slate-400">Trạng thái:</span>
-                                      <span className="inline-flex items-center gap-1 font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
-                                        Chưa Kích Hoạt
-                                      </span>
-                                    </div>
-                                    <p className="text-[10.5px] text-slate-500 leading-relaxed">
-                                      Kích hoạt gói cước AI Voice để độc giả có thể bấm nghe đọc sách trên Web Reader.
-                                    </p>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSubscribingBook(book);
-                                        if (aiPlans.length > 0 && !selectedPlanId) {
-                                          setSelectedPlanId(aiPlans[0].id);
-                                        }
-                                      }}
-                                      className="w-full px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs transition-colors cursor-pointer"
-                                    >
-                                      <span className="material-symbols-outlined text-[13px]">add_circle</span>
-                                      <span>Đăng Ký Giọng Đọc AI (100K)</span>
-                                    </button>
-                                  </div>
-                                );
-                              })()}
                             </div>
 
                             {/* Cột 4: Thao tác gian hàng */}
@@ -1487,130 +1389,7 @@ export default function SellerProductsPage() {
         </table>
       </SellerTableContainer>
 
-      {/* Modal Đăng Ký Nhanh Gói Giọng Đọc AI */}
-      {subscribingBook && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-xl">record_voice_over</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 text-sm">Đăng Ký Giọng Đọc AI Cho Ebook</h3>
-                  <p className="text-xs text-slate-500 truncate max-w-[320px]">{subscribingBook.title}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSubscribingBook(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <span className="material-symbols-outlined text-lg">close</span>
-              </button>
-            </div>
 
-            <div className="space-y-3">
-              <label className="block text-xs font-bold text-slate-700">Chọn gói cước phát thanh:</label>
-              <div className="space-y-2">
-                {aiPlans.map((plan) => (
-                  <label
-                    key={plan.id}
-                    className={`flex items-start justify-between p-3 rounded-xl border cursor-pointer transition-all ${
-                      selectedPlanId === plan.id
-                        ? 'border-emerald-500 bg-emerald-50/40 ring-1 ring-emerald-500'
-                        : 'border-slate-200 hover:border-slate-300 bg-white'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <input
-                        type="radio"
-                        name="ai-plan-quick"
-                        checked={selectedPlanId === plan.id}
-                        onChange={() => setSelectedPlanId(plan.id)}
-                        className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div>
-                        <div className="font-bold text-xs text-slate-900 flex items-center gap-1.5">
-                          {plan.name}
-                          {plan.isPopular && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800">
-                              Phổ biến
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{plan.voiceType} · {plan.durationDays} ngày</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="font-bold text-emerald-700 text-xs">
-                        {Number(plan.price).toLocaleString('vi-VN')} ₫
-                      </span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-
-              <div className="pt-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">Phương thức thanh toán cước phí:</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'WALLET', name: 'Số Dư Ví', icon: 'account_balance_wallet' },
-                    { id: 'PAYOS', name: 'Cổng PayOS', icon: 'credit_card' },
-                    { id: 'QR_TRANSFER', name: 'Mã QR Bank', icon: 'qr_code_scanner' },
-                  ].map((method) => (
-                    <button
-                      key={method.id}
-                      type="button"
-                      onClick={() => setAiPaymentMethod(method.id as any)}
-                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                        aiPaymentMethod === method.id
-                          ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-bold'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50 text-xs'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-base block mx-auto mb-0.5">{method.icon}</span>
-                      <span className="text-[11px] block">{method.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-[11px] text-amber-800 flex items-start gap-1.5">
-                <span className="material-symbols-outlined text-base shrink-0 text-amber-600">info</span>
-                <span>100% cước phí phát thanh AI được quyết toán và chuyển về Admin Sàn HUKI để chi trả hạ tầng server AI Voice.</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSubscribingBook(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                Hủy Bỏ
-              </button>
-              <button
-                type="button"
-                disabled={isSubscribingAi}
-                onClick={handleRegisterAiVoice}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow-xs transition-colors disabled:opacity-60 cursor-pointer"
-              >
-                {isSubscribingAi ? (
-                  <>
-                    <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>
-                    <span>Đang xử lý...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-sm">check_circle</span>
-                    <span>Xác Nhận &amp; Kích Hoạt</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Pagination */}
       {!loading && filteredBooks.length > 0 && (

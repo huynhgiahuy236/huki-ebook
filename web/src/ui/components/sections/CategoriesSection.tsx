@@ -43,7 +43,7 @@ export default function CategoriesSection() {
     { id: '4', name: 'Thiếu nhi', slug: 'thieu-nhi', icon: 'child_care' },
     { id: '5', name: 'Công nghệ', slug: 'cong-nghe', icon: 'smart_toy' },
     { id: '6', name: 'Ngoại ngữ', slug: 'ngoai-ngu', icon: 'translate' },
-    { id: '7', name: 'Sách nói', slug: 'sach-noi', icon: 'headphones' },
+    { id: '7', name: 'Lịch sử', slug: 'lich-su', icon: 'history_edu' },
     { id: '8', name: 'Ebook DRM', slug: 'ebook', icon: 'devices' },
   ];
 

@@ -212,11 +212,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           badgeColor: 'bg-slate-200 text-slate-700 font-semibold',
         },
         {
-          label: 'Sách Nói AI & Gói Cước',
-          to: '/admin/ai-audiobooks',
-          icon: 'record_voice_over',
-        },
-        {
           label: 'Kiểm Duyệt Sách',
           to: '/admin/book-moderation',
           icon: 'fact_check',

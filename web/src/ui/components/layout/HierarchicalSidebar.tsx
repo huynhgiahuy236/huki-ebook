@@ -93,12 +93,6 @@ export default function HierarchicalSidebar({
           to: '/following',
           icon: 'favorite_border',
         },
-        {
-          id: 'audiobooks',
-          title: 'Sách Nói',
-          to: '/audiobooks',
-          icon: 'headphones',
-        },
       ],
     },
     {
