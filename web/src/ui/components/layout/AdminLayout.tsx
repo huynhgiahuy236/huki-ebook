@@ -106,7 +106,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const routeMap: Record<string, { parent: string; title: string }> = {
     '/admin': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/dashboard': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
-    '/admin/businesses': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
+    '/admin/businesses': { parent: 'Đối Tác & Pháp Lý', title: 'Thẩm Định Pháp Lý & MST' },
     '/admin/business-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
     '/admin/business-update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
     '/admin/businesses/update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
@@ -115,7 +115,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/publisher-leads': { parent: 'Xét Duyệt Đối Tác', title: 'Khách Hàng Tiềm Năng NXB' },
     '/admin/publishers': { parent: 'Xét Duyệt Đối Tác', title: 'Nhà Xuất Bản' },
     '/admin/companies': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
-    '/admin/stores': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Cửa Hàng' },
+    '/admin/stores': { parent: 'Đối Tác & Pháp Lý', title: 'Danh Sách Gian Hàng Đang Bán' },
     '/admin/seller-features': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý Tính Năng Seller' },
     '/admin/books': { parent: 'Quản Trị Catalog', title: 'Quản Lý Sách Toàn Sàn' },
     '/admin/ai-audiobooks': { parent: 'Quản Trị Catalog', title: 'Quản Trị Sách Nói AI & Gói Cước' },
@@ -178,7 +178,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
         { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
         {
-          label: 'Duyệt Doanh Nghiệp',
+          label: 'Thẩm Định Pháp Lý & MST',
           to: '/admin/businesses',
           icon: 'domain',
           count: stats.pendingBusinesses > 0 ? String(stats.pendingBusinesses) : undefined,
@@ -192,7 +192,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           badgeColor: 'bg-rose-500 text-white font-bold animate-pulse',
         },
         {
-          label: 'Cửa Hàng Gian Hàng',
+          label: 'Gian Hàng Đang Bán',
           to: '/admin/stores',
           icon: 'storefront',
           count: stats.pendingStores > 0 ? String(stats.pendingStores) : undefined,

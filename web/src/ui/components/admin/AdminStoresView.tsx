@@ -404,9 +404,9 @@ export function AdminStoresView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
-            Quản Lý &amp; Xét Duyệt Cửa Hàng
+            Danh Sách Gian Hàng Đang Bán
           </h1>
-          <p className="text-xs text-gray-500 mt-0.5">Danh sách toàn bộ các gian hàng phân phối trực thuộc doanh nghiệp và NXB</p>
+          <p className="text-xs text-gray-500 mt-0.5">Theo dõi tình trạng hoạt động, số đầu sách, link shop và quản lý mở/đóng bán gian hàng mặt tiền</p>
         </div>
 
         <button

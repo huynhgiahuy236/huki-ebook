@@ -1665,8 +1665,9 @@ export function AdminBusinessesView() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
-            Quản Lý &amp; Xét Duyệt Doanh Nghiệp
+            Thẩm Định Pháp Lý &amp; Mã Số Thuế Doanh Nghiệp
           </h1>
+          <p className="text-xs text-gray-500 mt-1">Thẩm định hồ sơ đối tác pháp nhân, đối chiếu CSDL Tổng cục Thuế và phê duyệt mở bán theo 4 cụm tiêu chuẩn</p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">

@@ -299,7 +299,7 @@ export function AdminDashboardView() {
                 className="p-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 flex flex-col items-center text-center gap-1.5 transition-colors"
               >
                 <span className="material-symbols-outlined text-[22px] text-amber-700">domain</span>
-                <span className="text-xs font-semibold text-gray-800">Duyệt Doanh Nghiệp</span>
+                <span className="text-xs font-semibold text-gray-800">Thẩm Định Pháp Lý</span>
               </Link>
 
               <Link
