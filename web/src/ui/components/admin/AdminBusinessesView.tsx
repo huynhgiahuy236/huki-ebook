@@ -1581,7 +1581,7 @@ export function AdminBusinessesView() {
       {/* 3. BUSINESSES TABLE / LIST */}
       <GroupedDataTable
         columns={businessColumns}
-        data={filteredBusinesses}
+        data={paginatedBusinesses}
         keyField="id"
         loading={loading}
         selectable={true}

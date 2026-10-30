@@ -501,7 +501,7 @@ export default function AdminReturnRequestsView() {
       {/* Main Table Container with GroupedDataTable & Master-Detail Expansion */}
       <GroupedDataTable
         columns={returnColumns}
-        data={filteredItems}
+        data={paginatedItems}
         keyField="id"
         loading={loading}
         selectable={true}

@@ -163,6 +163,16 @@ export default function AdminShippersView() {
     });
   }, [shippers, statusFilter, dateFilterFleet, searchQuery]);
 
+  const paginatedShippers = useMemo(() => {
+    const start = (currentPageFleet - 1) * pageSize;
+    return filteredShippers.slice(start, start + pageSize);
+  }, [filteredShippers, currentPageFleet, pageSize]);
+
+  const paginatedRemittances = useMemo(() => {
+    const start = (currentPageRemittance - 1) * pageSize;
+    return remittances.slice(start, start + pageSize);
+  }, [remittances, currentPageRemittance, pageSize]);
+
   // Aggregate stats
   const totalShippers = shippers.length;
   const activeShippers = shippers.filter((s) => s.status === 'ACTIVE').length;
@@ -509,7 +519,7 @@ export default function AdminShippersView() {
           {/* GroupedDataTable for Fleet */}
           <GroupedDataTable<ShipperRecord>
             columns={shipperColumns}
-            data={filteredShippers}
+            data={paginatedShippers}
             keyField="id"
             loading={isLoading}
             selectable={true}
@@ -584,7 +594,7 @@ export default function AdminShippersView() {
         <div className="space-y-4">
           <GroupedDataTable<RemittanceRecord>
             columns={remittanceColumns}
-            data={remittances}
+            data={paginatedRemittances}
             keyField="id"
             loading={isLoading}
             emptyTitle="Chưa Có Nhật Ký Đối Soát Nào"

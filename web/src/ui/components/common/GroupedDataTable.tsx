@@ -327,14 +327,24 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
   const isPaginationEnabled = pagination !== false;
 
   const displayData = useMemo(() => {
-    if (!isPaginationEnabled || isServerPagination) {
+    if (!isPaginationEnabled) {
+      return sortedData;
+    }
+    if (isServerPagination) {
+      const activePage = pagination.currentPage || 1;
+      const size = pagination.pageSize || 10;
+      // If caller passed full dataset (data length > size), slice it automatically to guarantee max 10 items/page!
+      if (sortedData.length > size) {
+        const startIndex = (activePage - 1) * size;
+        return sortedData.slice(startIndex, startIndex + size);
+      }
       return sortedData;
     }
     // Client-side pagination locked to 10 items/page
     const pageSize = 10;
     const startIndex = (clientPage - 1) * pageSize;
     return sortedData.slice(startIndex, startIndex + pageSize);
-  }, [sortedData, isPaginationEnabled, isServerPagination, clientPage]);
+  }, [sortedData, isPaginationEnabled, isServerPagination, pagination, clientPage]);
 
   // Selection handlers
   const handleSelectAll = useCallback(

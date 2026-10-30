@@ -570,7 +570,7 @@ export function AdminPublishersView() {
       {/* 4. PUBLISHER LIST TABLE WITH GROUPED DATA TABLE */}
       <GroupedDataTable
         columns={publisherColumns}
-        data={filteredPublishers}
+        data={paginatedPublishers}
         keyField="id"
         loading={isLoading}
         selectable={true}
