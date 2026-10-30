@@ -681,54 +681,72 @@ export function SellerRegisterView() {
                   </button>
                 </div>
 
-                {/* Quick sample chips */}
-                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                  <span className="text-slate-500 font-medium">MST mẫu thử nhanh:</span>
-                  {isHousehold ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleChange('tax_code', '0319888999');
-                        handleLookupTaxCode('0319888999');
-                      }}
-                      className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 font-medium rounded-lg border border-emerald-200 transition-colors cursor-pointer"
-                    >
-                      0319888999 (Hộ KD Nhà Sách Tri Thức Trẻ)
-                    </button>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleChange('tax_code', '0318926410');
-                          handleLookupTaxCode('0318926410');
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
-                      >
-                        0318926410 (Trí Tuệ Việt)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleChange('tax_code', '0101234567');
-                          handleLookupTaxCode('0101234567');
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
-                      >
-                        0101234567 (NXB Kim Đồng)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleChange('tax_code', '0302482782');
-                          handleLookupTaxCode('0302482782');
-                        }}
-                        className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-800 font-medium rounded-lg border border-blue-200 transition-colors cursor-pointer"
-                      >
-                        0302482782 (Nhã Nam)
-                      </button>
-                    </>
-                  )}
+                {/* Quick sample chips for testing */}
+                <div className="space-y-2 pt-1 text-xs">
+                  {/* Hộ kinh doanh cá thể */}
+                  <div>
+                    <div className="flex items-center gap-1.5 text-slate-500 font-semibold mb-1 text-[11px]">
+                      <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
+                      <span>Mẫu Hộ Kinh Doanh Cá Thể (Bấm tự điền):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { code: '0319888999', name: 'Tri Thức Trẻ (HCM)' },
+                        { code: '0109988221', name: 'Sách Phố Cổ (Hà Nội)' },
+                        { code: '0317654321', name: 'Sách Cũ Sài Gòn' },
+                        { code: '0402123456', name: 'Hiệu Sách Đà Nẵng' },
+                        { code: '2901988776', name: 'Manga Xứ Nghệ' },
+                      ].map((item) => (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => {
+                            handleChange('businessType', 'INDIVIDUAL');
+                            handleChange('tax_code', item.code);
+                            handleLookupTaxCode(item.code);
+                          }}
+                          className="px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-900 font-medium rounded-lg border border-emerald-200/80 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
+                          title={`Điền tự động ${item.name} (${item.code})`}
+                        >
+                          <strong>{item.code}</strong> ({item.name})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Doanh nghiệp & NXB */}
+                  <div>
+                    <div className="flex items-center gap-1.5 text-slate-500 font-semibold mb-1 text-[11px]">
+                      <span className="material-symbols-outlined text-[14px] text-blue-600">corporate_fare</span>
+                      <span>Mẫu Doanh Nghiệp &amp; NXB (Bấm tự điền):</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { code: '0318926410', name: 'Trí Tuệ Việt (LLC)' },
+                        { code: '0101234567', name: 'NXB Kim Đồng' },
+                        { code: '0302482782', name: 'Nhã Nam Books' },
+                        { code: '0101736294', name: 'Thái Hà Books' },
+                        { code: '0102103867', name: 'Alpha Books' },
+                        { code: '0300528676', name: 'NXB Trẻ' },
+                        { code: '0304322471', name: 'Phương Nam Books' },
+                        { code: '0301452937', name: 'Fahasa' },
+                      ].map((item) => (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={() => {
+                            handleChange('businessType', item.name.includes('LLC') ? 'LLC' : 'CORPORATION');
+                            handleChange('tax_code', item.code);
+                            handleLookupTaxCode(item.code);
+                          }}
+                          className="px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 text-blue-900 font-medium rounded-lg border border-blue-200/80 hover:border-blue-300 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
+                          title={`Điền tự động ${item.name} (${item.code})`}
+                        >
+                          <strong>{item.code}</strong> ({item.name})
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 {isTaxVerified && (

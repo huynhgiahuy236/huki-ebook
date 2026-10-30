@@ -51,16 +51,7 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme] = useState<string>('huki-original');
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('huki_color_theme', 'huki-original');
-      localStorage.removeItem('huki_dark_mode');
-    } catch {
-      // ignore
-    }
-  }, []);
+  const isDarkMode = false;
 
   const currentPalette = COLOR_PALETTES[0];
 
@@ -72,8 +63,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     // Dark mode is permanently disabled
   };
 
-  // Synchronize CSS variables with documentElement (Light mode only)
+  // Synchronize CSS variables and lock HUKI Original Green brand theme
   useEffect(() => {
+    try {
+      localStorage.setItem('huki_color_theme', 'huki-original');
+      localStorage.removeItem('huki_dark_mode');
+    } catch {
+      // ignore
+    }
+
     const root = document.documentElement;
     root.setAttribute('data-theme', 'huki-original');
     root.classList.remove('dark');
