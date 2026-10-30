@@ -499,45 +499,36 @@ export default function BookCard({
         </div>
       </div>
 
-      {/* Card Body - Tight and Compact padding like Shopee */}
-      <div className="p-2 sm:p-2.5 flex flex-col flex-1 justify-between gap-1">
+      {/* Card Body - Ultra Compact Shopee Style */}
+      <div className="p-1.5 sm:p-2 flex flex-col flex-1 justify-between gap-1">
         <div>
-          {/* Authentic Book Title (2 lines max, compact line height) */}
+          {/* Authentic Book Title (2 lines max, 12px, tight line height) */}
           <h3
-            className="text-xs sm:text-[13px] font-medium text-slate-800 line-clamp-2 leading-[1.35] group-hover:text-[#00875A] transition-colors min-h-[32px]"
+            className="text-[11.5px] sm:text-[12px] font-medium text-slate-800 line-clamp-2 leading-[1.3] group-hover:text-[#00875A] transition-colors min-h-[29px]"
             title={book.title}
           >
             {book.title}
           </h3>
 
-          {/* Author Name */}
-          {authorName && authorName !== 'Tác giả' && (
-            <p className="text-[10.5px] text-slate-400 truncate mt-0.5">{authorName}</p>
-          )}
-
-          {/* Rating & Sales in compact 1-line row */}
-          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500">
-            {displayRating ? (
-              <div className="flex items-center gap-0.5 text-amber-500 font-bold">
-                <span className="material-symbols-outlined text-[12px] fill-current">star</span>
-                <span>{displayRating}</span>
-              </div>
-            ) : (
-              <span className="text-slate-400">Chưa có đánh giá</span>
-            )}
-            <span className="text-slate-300">•</span>
-            <span>Đã bán {displaySales}</span>
+          {/* Author & Sales in ONE single compact row */}
+          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 min-w-0">
+            <span className="truncate max-w-[65%]">
+              {authorName && authorName !== 'Tác giả' ? authorName : publisher}
+            </span>
+            <span className="shrink-0 text-slate-500 font-medium">
+              Đã bán {displaySales}
+            </span>
           </div>
         </div>
 
         {/* Pricing Row + Compact Add to Cart (Same row to save vertical height) */}
-        <div className="flex items-center justify-between gap-1.5 pt-1.5 mt-auto border-t border-slate-100">
+        <div className="flex items-center justify-between gap-1 pt-1 mt-auto border-t border-slate-100/80">
           <div className="flex flex-col min-w-0">
-            <span className="text-xs sm:text-sm font-bold text-[#00875A] font-mono leading-tight">
+            <span className="text-xs sm:text-[13.5px] font-bold text-[#00875A] font-mono leading-none">
               {price.toLocaleString('vi-VN')}₫
             </span>
             {originalPrice && originalPrice > price && (
-              <span className="text-[10px] text-slate-400 line-through font-mono leading-none">
+              <span className="text-[9.5px] text-slate-400 line-through font-mono leading-none mt-0.5">
                 {originalPrice.toLocaleString('vi-VN')}₫
               </span>
             )}
@@ -547,9 +538,9 @@ export default function BookCard({
             type="button"
             onClick={handleAddToCart}
             title="Thêm vào giỏ"
-            className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/60 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            className="w-6 h-6 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/50 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+            <span className="material-symbols-outlined text-[13px]">add_shopping_cart</span>
           </button>
         </div>
       </div>

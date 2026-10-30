@@ -1159,7 +1159,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="w-full max-w-[1560px] mx-auto px-3 sm:px-5 lg:px-8 py-5 flex flex-col gap-7 sm:gap-9">
+    <div className="w-full max-w-[1240px] mx-auto px-2.5 sm:px-4 py-3 sm:py-4 flex flex-col gap-4 sm:gap-5">
       
       {/* =========================================================================
           SECTION 1: HERO 3 KHỐI CHUẨN TMĐT (MENU DỌC + HERO SLIDER + 2 BANNER PHỤ)
@@ -1266,38 +1266,38 @@ export default function HomePage() {
               backgroundSize: "cover",
               backgroundPosition: "center right",
             }}
-            className="col-span-12 lg:col-span-6 rounded-2xl p-6 sm:p-8 text-white relative overflow-hidden flex flex-col justify-between shadow-md border border-white/10 min-h-[340px] transition-all duration-700"
+            className="col-span-12 lg:col-span-6 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden flex flex-col justify-between shadow-md border border-white/10 min-h-[250px] sm:min-h-[270px] transition-all duration-700"
           >
             <div className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none"></div>
             <div className="absolute -left-10 bottom-0 w-64 h-64 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none"></div>
 
             <div className="relative z-10 flex flex-col justify-between h-full">
               <div className="max-w-md">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-emerald-100 text-[11px] font-semibold mb-3 shadow-xs">
-                  <span className="material-symbols-outlined text-[14px] text-emerald-300">
+                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-emerald-100 text-[10px] font-semibold mb-2 shadow-xs">
+                  <span className="material-symbols-outlined text-[13px] text-emerald-300">
                     {heroSlides[activeHeroSlide].icon}
                   </span>
                   <span>{heroSlides[activeHeroSlide].badge}</span>
                 </div>
-                <h1 className="text-2xl sm:text-[28px] font-bold tracking-tight text-white leading-tight font-editorial whitespace-pre-line drop-shadow-md">
+                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white leading-tight font-editorial whitespace-pre-line drop-shadow-md">
                   {heroSlides[activeHeroSlide].title}
                 </h1>
-                <p className="text-xs sm:text-[13px] text-white/90 mt-2.5 leading-relaxed max-w-sm drop-shadow-sm font-medium">
+                <p className="text-[11px] sm:text-xs text-white/90 mt-1.5 leading-snug max-w-sm drop-shadow-sm font-medium line-clamp-2">
                   {heroSlides[activeHeroSlide].desc}
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5 mt-6">
+              <div className="flex flex-wrap items-center gap-2 mt-3">
                 <Link
                   href={heroSlides[activeHeroSlide].primaryBtn.to}
                   onClick={() => {
                     const curId = heroSlides[activeHeroSlide]?.id;
                     if (curId) recordBannerClick(curId);
                   }}
-                  className="px-4 py-2 rounded-xl bg-[#003b2b] hover:bg-[#00241a] text-white text-xs font-bold shadow-md transition-all inline-flex items-center gap-1.5 transform hover:-translate-y-0.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-[#003b2b] hover:bg-[#00241a] text-white text-[11px] font-bold shadow-md transition-all inline-flex items-center gap-1 transform hover:-translate-y-0.5 cursor-pointer"
                 >
                   <span>{heroSlides[activeHeroSlide].primaryBtn.text}</span>
-                  <span className="material-symbols-outlined text-sm">
+                  <span className="material-symbols-outlined text-[13px]">
                     arrow_forward
                   </span>
                 </Link>
@@ -1307,7 +1307,7 @@ export default function HomePage() {
                     const curId = heroSlides[activeHeroSlide]?.id;
                     if (curId) recordBannerClick(curId);
                   }}
-                  className="px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-semibold backdrop-blur-md border border-white/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold backdrop-blur-md border border-white/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
                 >
                   {heroSlides[activeHeroSlide].secondaryBtn.text}
                 </Link>
@@ -1315,7 +1315,7 @@ export default function HomePage() {
             </div>
 
             {/* Slider Controls & Pagination Dots */}
-            <div className="relative z-10 pt-4 flex items-center justify-between">
+            <div className="relative z-10 pt-2 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 {heroSlides.map((slide, idx) => (
                   <button
@@ -1323,8 +1323,8 @@ export default function HomePage() {
                     onClick={() => setActiveHeroSlide(idx)}
                     className={`transition-all rounded-full cursor-pointer ${
                       activeHeroSlide === idx
-                        ? "w-6 h-1.5 bg-white shadow-xs"
-                        : "w-1.5 h-1.5 bg-white/40 hover:bg-white/80"
+                        ? "w-5 h-1 bg-white shadow-xs"
+                        : "w-1 h-1 bg-white/40 hover:bg-white/80"
                     }`}
                     aria-label={`Slide ${idx + 1}`}
                   />
@@ -1339,10 +1339,10 @@ export default function HomePage() {
                         (prev - 1 + heroSlides.length) % heroSlides.length,
                     )
                   }
-                  className="w-6 h-6 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
+                  className="w-5 h-5 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
                   aria-label="Previous slide"
                 >
-                  <span className="material-symbols-outlined text-[14px]">
+                  <span className="material-symbols-outlined text-[12px]">
                     chevron_left
                   </span>
                 </button>
@@ -1350,10 +1350,10 @@ export default function HomePage() {
                   onClick={() =>
                     setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length)
                   }
-                  className="w-6 h-6 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
+                  className="w-5 h-5 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
                   aria-label="Next slide"
                 >
-                  <span className="material-symbols-outlined text-[14px]">
+                  <span className="material-symbols-outlined text-[12px]">
                     chevron_right
                   </span>
                 </button>
@@ -1362,7 +1362,7 @@ export default function HomePage() {
           </div>
 
           {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ */}
-          <div className="col-span-12 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3.5">
+          <div className="col-span-12 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
             <Link
               href="/books?filter=best-sellers"
               style={{
@@ -1370,23 +1370,23 @@ export default function HomePage() {
                 backgroundSize: "cover",
                 backgroundPosition: "center right",
               }}
-              className="flex-1 rounded-2xl p-4.5 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[160px]"
+              className="flex-1 rounded-xl p-3 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[120px]"
             >
               <div className="relative z-10 max-w-[210px]">
-                <span className="bg-[#003b2b] text-white text-[9.5px] uppercase font-bold px-2 py-0.5 rounded-md shadow-xs">
+                <span className="bg-[#003b2b] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
                   TOP 1 BÁN CHẠY
                 </span>
-                <h3 className="text-[15px] font-bold mt-1.5 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
+                <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
                   Đọc Sách Mỗi Ngày
                 </h3>
-                <p className="text-[11px] text-[#5A6065] mt-0.5 line-clamp-2 font-medium">
+                <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
                   Tuyển chọn sách kỹ năng &amp; tư duy ưu đãi 25%.
                 </p>
               </div>
 
-              <div className="relative z-10 mt-2 flex items-center gap-1 text-[12px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
+              <div className="relative z-10 mt-1 flex items-center gap-1 text-[11px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
                 <span>Xem ngay</span>
-                <span className="material-symbols-outlined text-[15px]">
+                <span className="material-symbols-outlined text-[13px]">
                   arrow_forward
                 </span>
               </div>
@@ -1399,23 +1399,23 @@ export default function HomePage() {
                 backgroundSize: "cover",
                 backgroundPosition: "center right",
               }}
-              className="flex-1 rounded-2xl p-4.5 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[160px]"
+              className="flex-1 rounded-xl p-3 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[120px]"
             >
               <div className="relative z-10 max-w-[210px]">
-                <span className="bg-[#003B2B] text-white text-[9.5px] uppercase font-bold px-2 py-0.5 rounded-md shadow-xs">
+                <span className="bg-[#003B2B] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
                   COMBO HYBRID
                 </span>
-                <h3 className="text-[15px] font-bold mt-1.5 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
+                <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
                   Sách In Tặng Ebook
                 </h3>
-                <p className="text-[11px] text-[#5A6065] mt-0.5 line-clamp-2 font-medium">
-                  Tiết kiệm đến 35% khi mua trọn bộ ấn phẩm độc quyền.
+                <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
+                  Tiết kiệm đến 35% trọn bộ ấn phẩm độc quyền.
                 </p>
               </div>
 
-              <div className="relative z-10 mt-2 flex items-center gap-1 text-[12px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
+              <div className="relative z-10 mt-1 flex items-center gap-1 text-[11px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
                 <span>Xem ngay</span>
-                <span className="material-symbols-outlined text-[15px]">
+                <span className="material-symbols-outlined text-[13px]">
                   arrow_forward
                 </span>
               </div>
@@ -1424,52 +1424,52 @@ export default function HomePage() {
         </div>
 
         {/* 4 CAM KẾT VÀNG */}
-        <div className="w-full bg-white rounded-2xl p-4 border border-[#E8E5DF] grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs shadow-2xs">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-100">
-              <span className="material-symbols-outlined text-[20px]">
+        <div className="w-full bg-white rounded-xl p-2.5 sm:p-3 border border-[#E8E5DF] grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs shadow-2xs">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-100">
+              <span className="material-symbols-outlined text-[15px]">
                 verified_user
               </span>
             </div>
             <div>
-              <div className="font-bold text-[#17201F]">Sản phẩm chính hãng</div>
-              <div className="text-[11px] text-[#6B7280]">Cam kết chất lượng 100%</div>
+              <div className="font-bold text-[11px] text-[#17201F]">Sản phẩm chính hãng</div>
+              <div className="text-[9.5px] text-[#6B7280]">Cam kết chất lượng 100%</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-800 flex items-center justify-center shrink-0 border border-blue-100">
-              <span className="material-symbols-outlined text-[20px]">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-800 flex items-center justify-center shrink-0 border border-blue-100">
+              <span className="material-symbols-outlined text-[15px]">
                 local_shipping
               </span>
             </div>
             <div>
-              <div className="font-bold text-[#17201F]">Giao nhanh 2 giờ</div>
-              <div className="text-[11px] text-[#6B7280]">Nội thành HN &amp; TP.HCM</div>
+              <div className="font-bold text-[11px] text-[#17201F]">Giao nhanh 2 giờ</div>
+              <div className="text-[9.5px] text-[#6B7280]">Nội thành HN &amp; TP.HCM</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-100">
-              <span className="material-symbols-outlined text-[20px]">cached</span>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-100">
+              <span className="material-symbols-outlined text-[15px]">cached</span>
             </div>
             <div>
-              <div className="font-bold text-[#17201F]">Đổi trả dễ dàng</div>
-              <div className="text-[11px] text-[#6B7280]">Trong vòng 7 ngày</div>
+              <div className="font-bold text-[11px] text-[#17201F]">Đổi trả dễ dàng</div>
+              <div className="text-[9.5px] text-[#6B7280]">Trong vòng 7 ngày</div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-50 text-rose-800 flex items-center justify-center shrink-0 border border-rose-100">
-              <span className="material-symbols-outlined text-[20px]">favorite</span>
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-full bg-rose-50 text-rose-800 flex items-center justify-center shrink-0 border border-rose-100">
+              <span className="material-symbols-outlined text-[15px]">favorite</span>
             </div>
             <div>
-              <div className="font-bold text-[#17201F]">Tư vấn tận tâm</div>
-              <div className="text-[11px] text-[#6B7280]">Hỗ trợ độc giả 24/7</div>
+              <div className="font-bold text-[11px] text-[#17201F]">Tư vấn tận tâm</div>
+              <div className="text-[9.5px] text-[#6B7280]">Hỗ trợ độc giả 24/7</div>
             </div>
           </div>
         </div>
 
         {/* 8 BUBBLE DANH MỤC TRÒN */}
-        <div className="w-full bg-white rounded-2xl p-4 sm:p-5 border border-[#E8E5DF] shadow-2xs">
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-3 sm:gap-4">
+        <div className="w-full bg-white rounded-xl p-2.5 sm:p-3 border border-[#E8E5DF] shadow-2xs">
+          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
             {[
               {
                 name: "Văn học",
@@ -1517,7 +1517,7 @@ export default function HomePage() {
                 href={bubble.link}
                 className="flex flex-col items-center text-center group cursor-pointer"
               >
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-emerald-100/80 p-0.5 shadow-xs group-hover:scale-110 group-hover:border-emerald-600 group-hover:shadow-md transition-all mb-2 bg-[#FAF8F5]">
+                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-emerald-100/80 p-0.5 shadow-xs group-hover:scale-105 group-hover:border-emerald-600 transition-all mb-1 bg-[#FAF8F5]">
                   <img
                     src={bubble.image}
                     alt={bubble.name}
@@ -1525,7 +1525,7 @@ export default function HomePage() {
                     loading="lazy"
                   />
                 </div>
-                <span className="text-[11.5px] sm:text-xs font-semibold text-gray-800 group-hover:text-[#003B2B] transition-colors leading-tight">
+                <span className="text-[10.5px] font-semibold text-gray-800 group-hover:text-[#003B2B] transition-colors leading-tight">
                   {bubble.name}
                 </span>
               </Link>
@@ -1537,84 +1537,60 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 2: DẢI GOM MÃ GIẢM GIÁ 1-CHẠM (VOUCHER STRIP)
       ========================================================================= */}
-      <section className="bg-emerald-900/5 rounded-2xl p-3.5 sm:p-4 border border-emerald-900/10">
+      <section className="bg-emerald-900/5 rounded-xl p-2.5 sm:p-3 border border-emerald-900/10">
         {/* Flash Sale Banner Card inside Voucher Section when LIVE */}
         {isPlatformLive && activeFlashSale && (
           <Link
             href="/flash-sale"
-            className="mb-3.5 bg-gradient-to-r from-[#003b2b] via-[#004d38] to-[#006953] rounded-2xl p-3.5 sm:p-4 text-white shadow-md hover:shadow-xl hover:scale-[1.006] transition-all flex flex-col md:flex-row md:items-center justify-between gap-3.5 border border-emerald-400/30 relative overflow-hidden group cursor-pointer"
+            className="mb-2.5 bg-gradient-to-r from-[#003b2b] via-[#004d38] to-[#006953] rounded-xl p-2.5 sm:p-3 text-white shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-2 border border-emerald-400/30 relative overflow-hidden group cursor-pointer"
           >
-            <div className="absolute -right-8 -bottom-8 w-44 h-44 rounded-full bg-emerald-400/20 blur-2xl pointer-events-none group-hover:scale-125 transition-transform"></div>
-            
-            <div className="flex items-center gap-3.5 relative z-10">
-              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 text-white shadow-inner">
-                <span className="material-symbols-outlined text-2xl sm:text-3xl animate-bounce">bolt</span>
+            <div className="flex items-center gap-2.5 relative z-10">
+              <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 text-white">
+                <span className="material-symbols-outlined text-lg">bolt</span>
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="bg-white text-[#003b2b] text-[10px] font-black uppercase px-2 py-0.5 rounded-full shadow-xs tracking-wider">
-                    ⚡ FLASH SALE SÀN HUKI
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="bg-white text-[#003b2b] text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full tracking-wider">
+                    ⚡ FLASH SALE
                   </span>
-                  <span className="text-emerald-200 text-xs font-bold font-mono">
-                    Trợ giá độc quyền tới {activeFlashSale.discountPercent || 30}%
+                  <span className="text-emerald-200 text-[11px] font-bold font-mono">
+                    Tới {activeFlashSale.discountPercent || 30}%
                   </span>
                 </div>
-                <h3 className="text-sm sm:text-base font-black mt-1 font-editorial tracking-tight text-white line-clamp-1">
+                <h3 className="text-xs sm:text-sm font-bold mt-0.5 tracking-tight text-white line-clamp-1">
                   {activeFlashSale.name}
                 </h3>
-                <p className="text-[11.5px] text-emerald-100 line-clamp-1 mt-0.5 font-medium">
-                  {activeFlashSale.description || "Hàng trăm đầu sách tuyển chọn đang được trợ giá trực tiếp từ Sàn HUKI. Số lượng có hạn!"}
-                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 sm:gap-4 shrink-0 relative z-10 self-start md:self-auto">
-              <div className="flex items-center gap-1.5 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20">
-                <span className="text-[11px] text-emerald-100 font-semibold mr-1 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm text-emerald-300">timer</span>
-                  <span>Kết thúc sau:</span>
-                </span>
-                <div className="flex items-center gap-1 font-mono font-black text-xs sm:text-sm">
-                  <span className="bg-white text-[#003b2b] px-1.5 py-0.5 rounded shadow-xs">
-                    {flashCountdown.hours}
-                  </span>
-                  <span className="text-white">:</span>
-                  <span className="bg-white text-[#003b2b] px-1.5 py-0.5 rounded shadow-xs">
-                    {flashCountdown.minutes}
-                  </span>
-                  <span className="text-white">:</span>
-                  <span className="bg-white text-[#003b2b] px-1.5 py-0.5 rounded shadow-xs">
-                    {flashCountdown.seconds}
-                  </span>
-                </div>
+            <div className="flex items-center gap-2 shrink-0 relative z-10">
+              <div className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded-lg border border-white/20 text-[10px] font-mono font-bold">
+                <span className="text-emerald-200">Kết thúc:</span>
+                <span>{flashCountdown.hours}:{flashCountdown.minutes}:{flashCountdown.seconds}</span>
               </div>
-
-              <div className="bg-white text-[#003b2b] group-hover:bg-emerald-100 px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1 shadow-md transition-all">
-                <span>Săn Deal Ngay</span>
-                <span className="material-symbols-outlined text-sm font-bold group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+              <div className="bg-white text-[#003b2b] px-2.5 py-1 rounded-lg font-bold text-[10.5px] flex items-center gap-0.5 shadow-xs">
+                <span>Săn Deal</span>
+                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
               </div>
             </div>
           </Link>
         )}
 
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#003b2b] text-[20px]">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[#003b2b] text-[16px]">
               confirmation_number
             </span>
-            <h2 className="text-[14px] sm:text-[15px] font-bold text-gray-900">
-              Mã Giảm Giá &amp; Ưu Đãi Hôm Nay
+            <h2 className="text-xs sm:text-[13px] font-bold text-gray-900 uppercase">
+              Mã Giảm Giá Hôm Nay
             </h2>
-            <span className="text-[11px] text-gray-500 hidden sm:inline">
-              • Thu thập mã trước khi mua sắm
-            </span>
           </div>
-          <span className="text-[12px] text-[#003B2B] font-semibold">
+          <span className="text-[10.5px] text-[#003B2B] font-semibold">
             Tự động áp dụng khi thanh toán
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
           {voucherList.map((v) => {
             const isSaved = savedVouchers.includes(v.code);
             const isMock = v.isMock;
@@ -1622,38 +1598,27 @@ export default function HomePage() {
             return (
               <div
                 key={v.code}
-                className={`rounded-xl p-2.5 border flex items-center justify-between gap-2 shadow-2xs transition-all ${
+                className={`rounded-lg p-2 border flex items-center justify-between gap-1.5 shadow-2xs transition-all ${
                   isMock
                     ? "bg-gray-100/60 border-dashed border-gray-300 opacity-65"
                     : "bg-white border-dashed border-emerald-700/20 hover:border-[#003b2b]/60 shadow-2xs"
                 }`}
               >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${isMock ? 'bg-gray-200 text-gray-500' : 'bg-emerald-50 text-[#003b2b]'}`}>
-                    <span className="material-symbols-outlined text-[18px]">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isMock ? 'bg-gray-200 text-gray-500' : 'bg-emerald-50 text-[#003b2b]'}`}>
+                    <span className="material-symbols-outlined text-[15px]">
                       {v.icon}
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[12px] font-bold ${isMock ? 'text-gray-600' : 'text-[#003b2b]'}`}>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-[11px] font-bold ${isMock ? 'text-gray-600' : 'text-[#003b2b]'}`}>
                         {v.badge}
                       </span>
-                      <span className="text-[10px] text-gray-500 font-mono bg-gray-100 px-1 py-0.2 rounded border border-gray-200/60">
-                        {v.code}
-                      </span>
-                      {isMock && (
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-gray-200 text-gray-500 font-bold uppercase">
-                          Sắp mở
-                        </span>
-                      )}
                     </div>
-                    <p className="text-[11px] text-gray-800 font-medium truncate mt-0.5">
+                    <p className="text-[10px] text-gray-800 font-medium truncate">
                       {v.title}
                     </p>
-                    <span className="text-[9.5px] text-gray-400 block truncate">
-                      {v.condition}
-                    </span>
                   </div>
                 </div>
 
@@ -1661,7 +1626,7 @@ export default function HomePage() {
                   type="button"
                   disabled={isMock}
                   onClick={() => !isMock && handleSaveVoucher(v.code)}
-                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold shrink-0 transition-all ${
+                  className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-all ${
                     isMock
                       ? "bg-gray-200 text-gray-400 cursor-not-allowed select-none"
                       : isSaved
@@ -1680,27 +1645,27 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 3: HUKI DEAL HÔM NAY (FLASH SALE)
       ========================================================================= */}
-      <section className="bg-[#FAF3EE] rounded-3xl p-4 sm:p-6 border border-[#EADBCE] shadow-2xs flex flex-col gap-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E8D6C4]">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-[#003b2b] text-white px-3.5 py-1.5 rounded-xl font-editorial font-bold text-sm sm:text-base tracking-wide flex items-center gap-1.5 shadow-xs">
-              <span className="material-symbols-outlined text-[18px]">
+      <section className="bg-[#FAF3EE] rounded-2xl p-2.5 sm:p-3.5 border border-[#EADBCE] shadow-2xs flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-2 border-b border-[#E8D6C4]">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide flex items-center gap-1 shadow-xs uppercase">
+              <span className="material-symbols-outlined text-[16px] text-amber-300">
                 local_fire_department
               </span>
               <span>HUKI DEAL HÔM NAY</span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-xs text-[#59413C] font-semibold">
-              <span>Kết thúc sau:</span>
-              <span className="bg-[#17201F] text-white px-2 py-1 rounded-lg text-xs font-mono font-bold">
+            <div className="flex items-center gap-1 text-[11px] text-[#59413C] font-semibold">
+              <span>Kết thúc:</span>
+              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
                 {flashCountdown.hours}
               </span>
               <span>:</span>
-              <span className="bg-[#17201F] text-white px-2 py-1 rounded-lg text-xs font-mono font-bold">
+              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
                 {flashCountdown.minutes}
               </span>
               <span>:</span>
-              <span className="bg-[#17201F] text-white px-2 py-1 rounded-lg text-xs font-mono font-bold">
+              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
                 {flashCountdown.seconds}
               </span>
             </div>
@@ -1708,17 +1673,17 @@ export default function HomePage() {
 
           <Link
             href="/books?filter=flash-sale"
-            className="text-xs text-[#003b2b] hover:underline font-bold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003b2b] hover:underline font-bold flex items-center gap-0.5"
           >
-            <span>Xem tất cả ưu đãi</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span>Xem tất cả</span>
+            <span className="material-symbols-outlined text-[15px]">
               arrow_forward
             </span>
           </Link>
         </div>
 
         {/* 6 Compact Flash Sale Items */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {allFlashSale.slice(0, 6).map((book) => (
             <BookCard
               key={book.id}
@@ -1737,30 +1702,28 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS)
       ========================================================================= */}
-      <section className="flex flex-col gap-3.5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-amber-500 text-[24px]">
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-amber-500 text-[18px]">
               emoji_events
             </span>
-            <div>
-              <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#17201F]">
-                Bảng Xếp Hạng Sách Bán Chạy
-              </h2>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Bảng Xếp Hạng Sách Bán Chạy
+            </h2>
           </div>
 
           {/* Pill Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0">
             {[
               { id: "all", label: "Tất cả" },
               { id: "paper", label: "Sách Giấy" },
-              { id: "ebook", label: "Ebook Bản Quyền" },
+              { id: "ebook", label: "Ebook DRM" },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setBestsellerTab(tab.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   bestsellerTab === tab.id
                     ? "bg-[#003B2B] text-white shadow-xs"
                     : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
@@ -1773,7 +1736,7 @@ export default function HomePage() {
         </div>
 
         {/* 6 Compact Bestseller Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {filteredBestsellers.slice(0, 6).map((book) => (
             <BookCard
               key={book.id}
@@ -1791,28 +1754,23 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 5: GIAN HÀNG NXB & ĐỐI TÁC CHÍNH HÃNG
       ========================================================================= */}
-      <section className="bg-gray-50/70 rounded-2xl p-4 sm:p-5 border border-gray-200/80 flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#003B2B] text-[22px]">
+      <section className="bg-gray-50/70 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
               storefront
             </span>
-            <div>
-              <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Gian Hàng NXB &amp; Đối Tác Chính Hãng
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                100% sách thật bản quyền, phân phối trực tiếp từ nhà xuất bản
-              </p>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Gian Hàng NXB &amp; Đối Tác Chính Hãng
+            </h2>
           </div>
 
           <Link
             href="/stores?tab=publishers"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
           >
             <span>Xem tất cả cửa hàng</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span className="material-symbols-outlined text-[15px]">
               chevron_right
             </span>
           </Link>
@@ -1878,34 +1836,29 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 6: VĂN HỌC & TIỂU THUYẾT NỔI BẬT (6 SÁCH)
       ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-1 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-rose-600 text-[22px]">
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-rose-600 text-[18px]">
               auto_stories
             </span>
-            <div>
-              <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Văn Học &amp; Tiểu Thuyết Hay
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                Những áng văn kinh điển và tác phẩm văn học đương đại sâu sắc
-              </p>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Văn Học &amp; Tiểu Thuyết Hay
+            </h2>
           </div>
 
           <Link
             href="/books?category=van-hoc"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
           >
             <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span className="material-symbols-outlined text-[15px]">
               chevron_right
             </span>
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {literatureBooks.map((book) => (
             <BookCard key={book.id} book={book} variant="compact" />
           ))}
@@ -1915,34 +1868,29 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 7: KINH DOANH, ĐẦU TƯ & TÀI CHÍNH (6 SÁCH)
       ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-1 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-blue-600 text-[22px]">
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-blue-600 text-[18px]">
               trending_up
             </span>
-            <div>
-              <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Kinh Tế &amp; Đầu Tư Tài Chính
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                Kiến thức quản trị, đầu tư bền vững và tư duy làm giàu thực chiến
-              </p>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Kinh Tế &amp; Đầu Tư Tài Chính
+            </h2>
           </div>
 
           <Link
             href="/books?category=kinh-te"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
           >
             <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span className="material-symbols-outlined text-[15px]">
               chevron_right
             </span>
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {businessBooks.map((book) => (
             <BookCard key={book.id} book={book} variant="compact" />
           ))}
@@ -1952,34 +1900,29 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 8: CÔNG NGHỆ & TRÍ TUỆ NHÂN TẠO AI 2026 (6 SÁCH)
       ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-1 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-purple-600 text-[22px]">
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-purple-600 text-[18px]">
               smart_toy
             </span>
-            <div>
-              <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Công Nghệ &amp; Trí Tuệ Nhân Tạo AI 2026
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                Đón đầu xu hướng chuyển đổi số, dữ liệu và công nghệ tương lai
-              </p>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Công Nghệ &amp; Trí Tuệ Nhân Tạo AI 2026
+            </h2>
           </div>
 
           <Link
             href="/books?category=cong-nghe"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
           >
             <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span className="material-symbols-outlined text-[15px]">
               chevron_right
             </span>
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {techBooks.map((book) => (
             <BookCard key={book.id} book={book} variant="compact" />
           ))}
@@ -1989,34 +1932,29 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 9: EBOOK & ĐỌC ONLINE BẢN QUYỀN (6 SÁCH)
       ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-1 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-teal-600 text-[22px]">
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-teal-600 text-[18px]">
               devices
             </span>
-            <div>
-              <h2 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Tủ Sách Ebook DRM Độc Quyền
-              </h2>
-              <p className="text-[11px] text-gray-500">
-                Đọc tức thì trong 10 giây trên trình đọc WebReader độc quyền
-              </p>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Tủ Sách Ebook DRM Độc Quyền
+            </h2>
           </div>
 
           <Link
             href="/books?format=ebook"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
           >
             <span>Xem tất cả Ebook</span>
-            <span className="material-symbols-outlined text-[16px]">
+            <span className="material-symbols-outlined text-[15px]">
               chevron_right
             </span>
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {ebookShelfBooks.map((ebook) => (
             <BookCard
               key={ebook.id}
@@ -2034,45 +1972,40 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 10: COMBO SÁCH HYBRID & HỘP QUÀ TRI THỨC (TIẾT KIỆM 30%)
       ========================================================================= */}
-      <section className="bg-gray-50/60 rounded-2xl p-4 sm:p-5 border border-gray-200/80 flex flex-col gap-3.5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#003B2B] text-[22px]">
+      <section className="bg-gray-50/60 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
+        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
               collections_bookmark
             </span>
-            <div>
-              <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-                Combo Sách Hybrid – Tiết Kiệm Đến 35%
-              </h3>
-              <p className="text-[11px] text-gray-500">
-                Mua theo bộ ấn phẩm tinh hoa, đóng gói hộp quà sang trọng kèm mã đọc Ebook tức thì
-              </p>
-            </div>
+            <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Combo Sách Hybrid – Tiết Kiệm Đến 35%
+            </h3>
           </div>
-          <span className="bg-[#003B2B] text-white text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase hidden sm:inline">
+          <span className="bg-[#003B2B] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase hidden sm:inline">
             HỘP QUÀ TRI THỨC
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
           {/* Combo 1 */}
-          <div className="bg-white rounded-xl p-4 border border-gray-200/80 flex flex-col sm:flex-row gap-4 items-center hover:border-[#003B2B]/40 transition-all">
-            <div className="w-[160px] h-[130px] relative shrink-0 flex items-center justify-center">
-              <div className="w-[75px] h-[110px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all">
+            <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
+              <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Tư Duy Đột Phá"
                   src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=300&q=80"
                 />
               </div>
-              <div className="w-[80px] h-[115px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
+              <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Tư Duy Phản Biện"
                   src="https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=300&q=80"
                 />
               </div>
-              <div className="w-[75px] h-[110px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
+              <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Trực Giác"
@@ -2081,25 +2014,25 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-2">
+            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
               <div>
-                <span className="bg-emerald-50 text-[#003B2B] text-[10px] font-bold px-2 py-0.5 rounded inline-block border border-emerald-200">
+                <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
                   Combo 3 cuốn - Tiết kiệm 135.000₫
                 </span>
-                <h4 className="text-[13.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
+                <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
                   Bộ Sách Rèn Luyện Tư Duy Sắc Bén &amp; Quyết Định Đúng Đắn
                 </h4>
-                <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
                   Gồm: Tư Duy Nhanh &amp; Chậm + Nghệ Thuật Rành Mạch + Rèn Luyện Trí Não
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+              <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
                 <div>
-                  <span className="text-[15px] font-bold text-[#003b2b]">
+                  <span className="text-[14px] font-bold text-[#003b2b]">
                     315.000₫
                   </span>
-                  <span className="text-[11px] text-gray-400 line-through ml-1.5">
+                  <span className="text-[10px] text-gray-400 line-through ml-1.5">
                     450.000₫
                   </span>
                 </div>
@@ -2117,7 +2050,7 @@ export default function HomePage() {
                     );
                     showToast("Đã thêm Combo Tư Duy vào giỏ hàng!", "success");
                   }}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] text-white text-[11.5px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
+                  className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
                 >
                   Mua Combo Ngay
                 </button>
@@ -2126,23 +2059,23 @@ export default function HomePage() {
           </div>
 
           {/* Combo 2 */}
-          <div className="bg-white rounded-xl p-4 border border-gray-200/80 flex flex-col sm:flex-row gap-4 items-center hover:border-[#003B2B]/40 transition-all">
-            <div className="w-[160px] h-[130px] relative shrink-0 flex items-center justify-center">
-              <div className="w-[75px] h-[110px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all">
+            <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
+              <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Nhà Đầu Tư"
                   src="https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=300&q=80"
                 />
               </div>
-              <div className="w-[80px] h-[115px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
+              <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Tâm Lý Học Về Tiền"
                   src="https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=300&q=80"
                 />
               </div>
-              <div className="w-[75px] h-[110px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
+              <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
                 <img
                   className="w-full h-full object-cover"
                   alt="Bước Đi Ngẫu Nhiên"
@@ -2151,25 +2084,25 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-2">
+            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
               <div>
-                <span className="bg-emerald-50 text-[#003B2B] text-[10px] font-bold px-2 py-0.5 rounded inline-block border border-emerald-200">
+                <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
                   Combo 3 cuốn - Tiết kiệm 168.000₫
                 </span>
-                <h4 className="text-[13.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
+                <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
                   Bộ Cẩm Nang Tự Do Tài Chính &amp; Đầu Tư Bền Vững
                 </h4>
-                <p className="text-[11px] text-gray-500 mt-0.5 line-clamp-2">
+                <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
                   Gồm: Tâm Lý Học Về Tiền + Nhà Đầu Tư Thông Minh + Bước Đi Ngẫu Nhiên
                 </p>
               </div>
 
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+              <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
                 <div>
-                  <span className="text-[15px] font-bold text-[#003b2b]">
+                  <span className="text-[14px] font-bold text-[#003b2b]">
                     392.000₫
                   </span>
-                  <span className="text-[11px] text-gray-400 line-through ml-1.5">
+                  <span className="text-[10px] text-gray-400 line-through ml-1.5">
                     560.000₫
                   </span>
                 </div>
@@ -2187,7 +2120,7 @@ export default function HomePage() {
                     );
                     showToast("Đã thêm Combo Tài Chính vào giỏ hàng!", "success");
                   }}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] text-white text-[11.5px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
+                  className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
                 >
                   Mua Combo Ngay
                 </button>
@@ -2200,24 +2133,24 @@ export default function HomePage() {
       {/* =========================================================================
           SECTION 11: GỢI Ý HÔM NAY (CHUẨN SHOPEE - 24 CUỐN SÁCH COMPACT + XEM THÊM)
       ========================================================================= */}
-      <section className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-200/90 shadow-xs flex flex-col gap-4">
+      <section className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200/90 shadow-xs flex flex-col gap-3">
         {/* Shopee-style Header Tab */}
-        <div className="border-b-2 border-[#003b2b] pb-2.5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#003b2b] text-xl">
+        <div className="border-b-2 border-[#003b2b] pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[#003b2b] text-[18px]">
               recommend
             </span>
-            <h2 className="text-sm sm:text-base font-bold text-[#003b2b] uppercase tracking-wider">
+            <h2 className="text-xs sm:text-[14px] font-bold text-[#003b2b] uppercase tracking-wide">
               GỢI Ý HÔM NAY
             </h2>
           </div>
-          <span className="text-xs text-gray-500 font-medium hidden sm:inline">
+          <span className="text-[11px] text-gray-500 font-medium hidden sm:inline">
             Khám phá tuyển tập sách hay dành riêng cho bạn
           </span>
         </div>
 
         {/* 24 Items Grid (4 rows x 6 cols) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
           {suggestedBooks.map((book) => (
             <BookCard
               key={book.id}
