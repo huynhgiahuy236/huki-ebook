@@ -562,7 +562,7 @@ export default function VouchersPage() {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                🚚 Freeship Sàn ({walletPlatformFreeship.length})
+                Freeship Sàn ({walletPlatformFreeship.length})
               </button>
               <button
                 onClick={() => setWalletSubTab("DISCOUNT")}
@@ -572,7 +572,7 @@ export default function VouchersPage() {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                🏷️ Giảm Giá Sàn ({walletPlatformDiscount.length})
+                Giảm Giá Sàn ({walletPlatformDiscount.length})
               </button>
               <button
                 onClick={() => setWalletSubTab("SHOP")}
@@ -582,7 +582,7 @@ export default function VouchersPage() {
                     : "text-gray-600 hover:bg-gray-100"
                 }`}
               >
-                🏪 Voucher Shop ({walletStores.reduce((sum, s) => sum + s.vouchers.length, 0)})
+                Voucher Shop ({walletStores.reduce((sum, s) => sum + s.vouchers.length, 0)})
               </button>
             </div>
 

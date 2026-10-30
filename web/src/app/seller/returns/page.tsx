@@ -75,14 +75,14 @@ export default function SellerReturnsPage() {
       if (msg.type === 'RETURN_REQUESTED' || msg.type === 'RETURN_FORWARDED') {
         fetchReturns();
         playSellerOrderChimeSound();
-        showToast('⚠️ Có yêu cầu đổi trả / hoàn tiền mới từ khách hàng!', 'warning');
+        showToast('Có yêu cầu đổi trả / hoàn tiền mới từ khách hàng!', 'warning');
       } else if (msg.type === 'DISPUTE_ARBITRATED') {
         fetchReturns();
         const payload: any = msg.payload || {};
         const isSellerWin = payload.ruling === 'SELLER_WINS';
         playSellerOrderChimeSound();
         showToast(
-          `⚖️ Phán quyết trọng tài sàn HUKI: ${isSellerWin ? 'Người bán thắng kiện' : 'Người mua thắng kiện'}`,
+          `Phán quyết trọng tài sàn HUKI: ${isSellerWin ? 'Người bán thắng kiện' : 'Người mua thắng kiện'}`,
           isSellerWin ? 'success' : 'error'
         );
       } else if (

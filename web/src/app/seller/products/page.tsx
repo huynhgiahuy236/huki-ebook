@@ -1031,7 +1031,7 @@ export default function SellerProductsPage() {
               className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
             >
               <option value="ALL">Tất Cả Affiliate</option>
-              <option value="AFFILIATE_ON">⚡ Đã bật Affiliate</option>
+              <option value="AFFILIATE_ON">Đã bật Affiliate</option>
               <option value="AFFILIATE_OFF">Chưa bật Affiliate</option>
             </select>
 

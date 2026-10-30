@@ -1550,8 +1550,8 @@ export default function HomePage() {
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="bg-white text-[#003b2b] text-[9px] font-black uppercase px-1.5 py-0.2 rounded-full tracking-wider">
-                    ⚡ FLASH SALE
+                  <span className="bg-white text-[#003b2b] text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider">
+                    FLASH SALE
                   </span>
                   <span className="text-emerald-200 text-[11px] font-bold font-mono">
                     Tới {activeFlashSale.discountPercent || 30}%
@@ -1650,7 +1650,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
             <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide flex items-center gap-1 shadow-xs uppercase">
               <span className="material-symbols-outlined text-[16px] text-amber-300">
-                local_fire_department
+                bolt
               </span>
               <span>HUKI DEAL HÔM NAY</span>
             </div>

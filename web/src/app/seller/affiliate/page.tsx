@@ -582,21 +582,21 @@ export default function SellerAffiliatePage() {
         if (rank === 1) {
           return (
             <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
-              🥇
+              Top 1
             </span>
           );
         }
         if (rank === 2) {
           return (
             <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-800 border border-slate-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
-              🥈
+              Top 2
             </span>
           );
         }
         if (rank === 3) {
           return (
             <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-900 border border-orange-300 font-black text-xs inline-flex items-center justify-center shadow-xs">
-              🥉
+              Top 3
             </span>
           );
         }

@@ -363,10 +363,10 @@ export default function StoreHeader({
           <span className="opacity-40">|</span>
           <Link
             href="/flash-sale"
-            className="hover:text-amber-300 transition-colors flex items-center gap-1 font-extrabold text-amber-300 animate-pulse"
+            className="hover:text-amber-300 transition-colors flex items-center gap-1 font-semibold text-amber-300"
           >
             <span className="material-symbols-outlined text-[13px]">bolt</span>
-            <span>⚡ Flash Sale</span>
+            <span>Flash Sale</span>
           </Link>
           {isAdmin ? (
             <Link
@@ -713,7 +713,7 @@ export default function StoreHeader({
 
                   {/* Super Admin Top Showcase Card */}
                   {isAdmin && (
-                    <div className="p-2.5 mx-1 mt-1.5 mb-1.5 rounded-xl bg-gradient-to-br from-[#003B2B] to-[#06291f] border border-emerald-500/30 text-white shadow-sm">
+                    <div className="p-2.5 mx-1 mt-1.5 mb-1.5 rounded-xl bg-slate-900 border border-slate-800 text-white shadow-xs">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-[10px] font-black uppercase tracking-wider text-emerald-300 flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-amber-300">admin_panel_settings</span>

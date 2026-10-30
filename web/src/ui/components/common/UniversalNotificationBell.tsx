@@ -177,45 +177,56 @@ export default function UniversalNotificationBell({
     return `${Math.floor(diff / 86400)} ngày trước`;
   };
 
-  // Badge người gửi
-  const getSenderBadge = (senderType: string, senderName?: string) => {
+  // Làm sạch tiêu đề & nội dung: xóa bỏ emoji rác và mã hash kỹ thuật dài
+  const cleanNotificationText = (text?: string): string => {
+    if (!text) return '';
+    return text
+      .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+      .replace(/#\d{8,}/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  // Icon tối giản, màu sắc trung tính nhẹ nhàng theo phân loại thông báo
+  const getNotificationCategoryIcon = (n: RealtimeNotification) => {
+    const type = n.type || '';
+    if (type.includes('ORDER')) {
+      return { icon: 'shopping_bag', style: 'bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-400' };
+    }
+    if (type.includes('SHIP') || type.includes('DELIVERY')) {
+      return { icon: 'local_shipping', style: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' };
+    }
+    if (type.includes('VOUCHER') || type.includes('PROMOTION') || type.includes('DISCOUNT')) {
+      return { icon: 'confirmation_number', style: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400' };
+    }
+    if (type.includes('PAYMENT') || type.includes('WALLET') || type.includes('ESCROW')) {
+      return { icon: 'account_balance_wallet', style: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-400' };
+    }
+    if (type.includes('SECURITY') || type.includes('SANCTION') || n.priority === 'CRITICAL') {
+      return { icon: 'error_outline', style: 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400' };
+    }
+    return { icon: 'notifications', style: 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-slate-300' };
+  };
+
+  // Tên người gửi thanh lịch, không dùng icon/emoji
+  const getSenderName = (senderType: string, senderName?: string) => {
     switch (senderType) {
       case 'ADMIN':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 flex items-center gap-1">
-            <span>🛡️</span>
-            <span>Quản trị viên</span>
-          </span>
-        );
+        return 'Ban Quản Trị';
       case 'SELLER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 flex items-center gap-1">
-            <span>🏪</span>
-            <span className="truncate max-w-[120px]">{senderName || 'Người bán'}</span>
-          </span>
-        );
+        return senderName || 'Người bán';
       case 'SHIPPER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 flex items-center gap-1">
-            <span>🛵</span>
-            <span className="truncate max-w-[120px]">{senderName || 'Bưu tá Express'}</span>
-          </span>
-        );
+        return senderName || 'Đơn vị vận chuyển';
       case 'USER':
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300 flex items-center gap-1">
-            <span>👤</span>
-            <span className="truncate max-w-[120px]">{senderName || 'Khách hàng'}</span>
-          </span>
-        );
+        return senderName || 'Khách hàng';
       default:
-        return (
-          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 flex items-center gap-1">
-            <span>⚙️</span>
-            <span>Hệ thống</span>
-          </span>
-        );
+        return 'Hệ thống';
     }
+  };
+
+  // Giữ lại getSenderBadge tương thích ngược
+  const getSenderBadge = (senderType: string, senderName?: string) => {
+    return <span className="font-medium text-slate-500 dark:text-slate-400">{getSenderName(senderType, senderName)}</span>;
   };
 
   // Button styles theo từng phân hệ
@@ -277,44 +288,40 @@ export default function UniversalNotificationBell({
             <div className="w-screen max-w-[420px] sm:max-w-[460px] bg-white dark:bg-zinc-900 shadow-2xl flex flex-col border-l border-slate-200 dark:border-zinc-800 animate-in slide-in-from-right duration-300">
               
               {/* --- DRAWER HEADER --- */}
-              <div className="p-4 sm:px-5 sm:py-3.5 bg-slate-50/90 dark:bg-zinc-850 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
+              <div className="p-4 sm:px-5 sm:py-3.5 bg-slate-50/80 dark:bg-zinc-850 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-[#003B2B] dark:text-emerald-400 flex items-center justify-center font-bold">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-[#003B2B] dark:text-emerald-400 flex items-center justify-center font-bold">
                     <span className="material-symbols-outlined text-[19px]">notifications</span>
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <h3 className="font-semibold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                       <span>{portalTitle}</span>
                       {unreadCount > 0 && (
-                        <span className="px-1.5 py-0.2 rounded-full bg-rose-600 text-white text-[9px] font-extrabold">
+                        <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300 text-[10px] font-medium border border-rose-200/60 dark:border-rose-900/40">
                           {unreadCount > 99 ? '99+' : unreadCount} mới
                         </span>
                       )}
                     </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      {unreadCount > 0 ? `${unreadCount} thông báo chưa đọc` : 'Bạn đã đọc hết thông báo'}
-                    </p>
                   </div>
                 </div>
 
                 {/* Actions: Đọc tất cả & Nút Đóng */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {unreadCount > 0 && (
                     <button
                       type="button"
                       onClick={markAllAsRead}
-                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors cursor-pointer flex items-center gap-1"
+                      className="text-xs text-slate-500 hover:text-emerald-700 dark:text-slate-400 dark:hover:text-emerald-400 font-medium cursor-pointer transition-colors"
                       title="Đánh dấu tất cả thông báo là đã đọc"
                     >
-                      <span className="material-symbols-outlined text-sm">done_all</span>
-                      <span>Đọc tất cả</span>
+                      Đánh dấu đã đọc
                     </button>
                   )}
 
                   <button
                     type="button"
                     onClick={() => setIsDrawerOpen(false)}
-                    className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
+                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-zinc-800 flex items-center justify-center transition-colors cursor-pointer"
                     title="Đóng"
                   >
                     <span className="material-symbols-outlined text-lg">close</span>
@@ -389,91 +396,68 @@ export default function UniversalNotificationBell({
                     {displayedNotifications.map((n) => {
                       const isUnread = !n.isRead;
                       const isCritical = n.priority === 'CRITICAL';
-                      const isHigh = n.priority === 'HIGH';
+                      const cat = getNotificationCategoryIcon(n);
+                      const cleanTitle = cleanNotificationText(n.title);
+                      const cleanMsg = cleanNotificationText(n.message);
 
                       return (
                         <div
                           key={n.id}
                           onClick={(e) => handleOpenDetail(n, e)}
-                          className={`p-3.5 rounded-2xl transition-all cursor-pointer flex items-start gap-3 relative border ${
+                          className={`p-3.5 rounded-xl transition-all cursor-pointer flex items-start gap-3 relative border-b border-slate-100 dark:border-zinc-800/60 last:border-0 ${
                             isUnread
-                              ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/40 hover:bg-emerald-50/70'
-                              : 'bg-white dark:bg-zinc-900 border-slate-200/70 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-850 opacity-90'
+                              ? 'bg-emerald-50/40 dark:bg-emerald-950/20 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/30'
+                              : 'bg-transparent hover:bg-slate-50 dark:hover:bg-zinc-850/60'
                           }`}
                         >
-                          {/* Unread indicator dot */}
-                          {isUnread && (
-                            <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-900" />
-                          )}
-
-                          {/* Icon category */}
-                          <div className="shrink-0 mt-0.5">
-                            <div
-                              className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm ${
-                                isCritical
-                                  ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/60 dark:text-rose-300'
-                                  : isHigh
-                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/60 dark:text-amber-300'
-                                  : isUnread
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300'
-                                  : 'bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-slate-300'
-                              }`}
-                            >
-                              <span className="material-symbols-outlined text-[19px]">
-                                {isCritical
-                                  ? 'warning'
-                                  : isHigh
-                                  ? 'report_problem'
-                                  : n.type?.includes('ORDER')
-                                  ? 'receipt_long'
-                                  : n.type?.includes('SHIPPING')
-                                  ? 'local_shipping'
-                                  : n.category === 'MANUAL_DIRECT'
-                                  ? 'chat'
-                                  : 'notifications'}
-                              </span>
-                            </div>
+                          {/* Category circular icon */}
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${cat.style}`}>
+                            <span className="material-symbols-outlined text-[19px]">
+                              {cat.icon}
+                            </span>
                           </div>
 
                           {/* Nội dung thông báo */}
-                          <div className="flex-1 min-w-0 pr-4">
-                            <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                              {getSenderBadge(n.senderType, n.senderName)}
+                          <div className="flex-1 min-w-0">
+                            {/* Meta row: Nguồn · Thời gian */}
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500 mb-0.5 flex-wrap">
+                              <span className="font-medium text-slate-600 dark:text-slate-400">
+                                {getSenderName(n.senderType, n.senderName)}
+                              </span>
+                              <span>·</span>
+                              <span>{formatRelativeTime(n.createdAt)}</span>
                               {isCritical && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white">
+                                <span className="ml-1 px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400">
                                   Khẩn cấp
                                 </span>
                               )}
-                              {isHigh && (
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-amber-500 text-white">
-                                  Ưu tiên
-                                </span>
-                              )}
                             </div>
 
+                            {/* Tiêu đề ngắn gọn */}
                             <h4
-                              className={`text-xs leading-snug line-clamp-2 ${
+                              className={`text-[13px] leading-snug line-clamp-2 ${
                                 isUnread
-                                  ? 'font-bold text-slate-900 dark:text-white'
-                                  : 'font-medium text-slate-700 dark:text-slate-300'
+                                  ? 'font-semibold text-slate-900 dark:text-white'
+                                  : 'font-normal text-slate-700 dark:text-slate-300'
                               }`}
                             >
-                              {n.title}
+                              {cleanTitle}
                             </h4>
 
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
-                              {n.message}
-                            </p>
-
-                            <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400 dark:text-slate-500 pt-1.5 border-t border-slate-100 dark:border-zinc-800/60">
-                              <span>{formatRelativeTime(n.createdAt)}</span>
-
-                              <span className="text-[#00875A] font-bold hover:underline flex items-center gap-0.5 text-[11px]">
-                                <span>Chi tiết</span>
-                                <span className="material-symbols-outlined text-[12px]">arrow_forward</span>
-                              </span>
-                            </div>
+                            {/* Nội dung tin nhắn */}
+                            {cleanMsg && (
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                                {cleanMsg}
+                              </p>
+                            )}
                           </div>
+
+                          {/* Unread dot */}
+                          {isUnread && (
+                            <div className="shrink-0 mt-2">
+                              <span className="block w-2 h-2 rounded-full bg-emerald-600" />
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -508,18 +492,18 @@ export default function UniversalNotificationBell({
               </div>
 
               {/* --- DRAWER FOOTER: LINK VÀO TRUNG TÂM THÔNG BÁO --- */}
-              <div className="p-3.5 bg-slate-50/90 dark:bg-zinc-850 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>Realtime đồng bộ</span>
+              <div className="p-3 bg-slate-50/80 dark:bg-zinc-850 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between shrink-0 text-xs">
+                <div className="flex items-center gap-1.5 text-slate-400 dark:text-slate-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Tự động đồng bộ</span>
                 </div>
 
                 <Link
                   href={defaultFullPage}
                   onClick={() => setIsDrawerOpen(false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#003B2B] hover:bg-[#00271E] text-white text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-800 dark:text-emerald-400 hover:text-emerald-950 dark:hover:text-emerald-300 transition-colors"
                 >
-                  <span>Trung Tâm Thông Báo</span>
+                  <span>Xem tất cả thông báo</span>
                   <span className="material-symbols-outlined text-sm">arrow_forward</span>
                 </Link>
               </div>
@@ -647,11 +631,11 @@ export default function UniversalNotificationBell({
 
                       {/* Tiêu đề & Nội dung */}
                       <div>
-                        <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-snug">
-                          {n.title}
+                        <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white leading-snug">
+                          {cleanNotificationText(n.title)}
                         </h3>
                         <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 leading-relaxed whitespace-pre-wrap">
-                          {n.message}
+                          {cleanNotificationText(n.message)}
                         </p>
                       </div>
 

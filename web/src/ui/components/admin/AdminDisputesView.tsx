@@ -127,7 +127,7 @@ export function AdminDisputesView() {
         fetchDisputes();
         if (msg.type === 'RETURN_SELLER_DISPUTED') {
           playAdminAlertSound();
-          showToast('⚖️ Hồ sơ tranh chấp mới được chuyển lên Ban Trọng Tài Sàn!', 'info');
+          showToast('Hồ sơ tranh chấp mới được chuyển lên Ban Trọng Tài Sàn!', 'info');
         }
       }
     }, { role: 'ADMIN' });
@@ -322,7 +322,7 @@ export function AdminDisputesView() {
               <span className="text-[10px] font-mono text-gray-400">ID: {item.id}</span>
             </div>
             <span className="text-gray-600 text-[11.5px] break-words" title={item.bookTitle}>
-              {item.bookTitle ? `📚 ${item.bookTitle}` : '—'}
+              {item.bookTitle ? `${item.bookTitle}` : '—'}
             </span>
           </div>
         ),

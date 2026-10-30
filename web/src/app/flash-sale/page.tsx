@@ -277,7 +277,7 @@ export default function FlashSalePage() {
         1,
       );
       showToast(
-        `🛒 Đã thêm "${item.title}" vào giỏ hàng thành công!`,
+        `Đã thêm "${item.title}" vào giỏ hàng thành công!`,
         "success",
       );
     } catch {
@@ -378,7 +378,7 @@ export default function FlashSalePage() {
               <span>ĐẶC QUYỀN HỘI VIÊN HUKI EBOOK</span>
             </div>
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white drop-shadow-md">
-              ⚡ FLASH SALE GIỜ VÀNG
+              FLASH SALE GIỜ VÀNG
             </h1>
             <p className="text-sm sm:text-base text-red-100 max-w-2xl leading-relaxed">
               Khám phá các đợt Flash Sale trợ giá từ <span className="font-extrabold text-yellow-300">Sàn HUKI</span> và các chương trình giờ vàng độc quyền từ các <span className="font-extrabold text-amber-200">Cửa hàng đối tác</span>!
@@ -766,7 +766,7 @@ export default function FlashSalePage() {
                                     : item.soldPercent >= 90
                                       ? `Sắp hết hàng - Còn ${item.stock} cuốn`
                                       : item.soldPercent >= 50
-                                        ? `Đang bán rất chạy 🔥 (${item.soldPercent}%)`
+                                        ? `Đang bán rất chạy (${item.soldPercent}%)`
                                         : `Đã bán ${item.sold} cuốn`}
                                 </span>
                               </span>

@@ -388,13 +388,13 @@ export default function BookDetailPage() {
           }
 
           if (payload.action === 'RESERVED') {
-            showToast('⚡ Cuốn sách này vừa có khách đặt đơn giữ chỗ!', 'warning');
+            showToast('Cuốn sách này vừa có khách đặt đơn giữ chỗ.', 'warning');
           } else if (payload.action === 'RELEASED') {
-            showToast('⚡ Tồn kho khả dụng vừa được cộng lại (đơn hủy hoặc hết hạn)!', 'info');
+            showToast('Tồn kho khả dụng vừa được cập nhật lại.', 'info');
           } else if (payload.action === 'MANUAL_ADJUST') {
-            showToast('⚡ Người bán vừa cập nhật lại số lượng tồn kho sách!', 'info');
+            showToast('Người bán vừa cập nhật lại số lượng tồn kho sách.', 'info');
           } else if (payload.action === 'COMMITTED') {
-            showToast('⚡ Đã có giao dịch thanh toán thành công cho cuốn sách này!', 'info');
+            showToast('Đã có giao dịch thanh toán thành công cho cuốn sách này.', 'info');
           }
         }
       } else if (msg.type === 'ORDER_CANCELLED' || msg.type === 'ORDER_PAYMENT_SUCCEEDED') {
@@ -1051,7 +1051,7 @@ export default function BookDetailPage() {
               <div className="space-y-3">
                 {flashSaleInfo && (
                   <div className="p-2.5 bg-gradient-to-r from-rose-50 to-red-50 border border-rose-200 rounded-xl space-y-0.5">
-                    <div className="flex items-center gap-1 text-rose-600 font-extrabold text-[11px]"><span className="material-symbols-outlined text-xs animate-pulse">bolt</span><span>FLASH SALE -{flashSaleInfo.discountPercent}%</span></div>
+                    <div className="flex items-center gap-1 text-rose-600 font-extrabold text-[11px]"><span className="material-symbols-outlined text-xs">bolt</span><span>FLASH SALE -{flashSaleInfo.discountPercent}%</span></div>
                     <div className="text-[10.5px] text-rose-700 font-medium">Giá: <strong className="text-xs font-black text-rose-600">{Number(flashSaleInfo.salePrice).toLocaleString('vi-VN')}₫</strong></div>
                     <div className="flex items-center gap-1 text-[10.5px] font-bold text-rose-700"><span className="material-symbols-outlined text-xs">timer</span>Hết sau {flashSaleCountdown}</div>
                   </div>
@@ -1125,7 +1125,7 @@ export default function BookDetailPage() {
                       disabled={isOutOfStock}
                       title="Thêm Vào Giỏ Hàng"
                       aria-label="Thêm Vào Giỏ Hàng"
-                      className={`w-11 h-10 shrink-0 border-2 rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
+                      className={`w-11 h-10 shrink-0 border rounded-xl transition-colors flex items-center justify-center cursor-pointer ${
                         isOutOfStock
                           ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
                           : 'border-[#006953] text-[#006953] hover:bg-[#006953]/10'
@@ -1639,6 +1639,33 @@ export default function BookDetailPage() {
       {realBook?.id && (
         <SimilarBooksSection bookId={realBook.id} limit={6} />
       )}
+      {/* 4. MOBILE STICKY ACTION BAR (Chuẩn TMĐT Shopee/Tiki cho điện thoại) */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border-t border-slate-200 dark:border-zinc-800 px-3 py-2 flex items-center gap-2 shadow-lg">
+        <Link
+          href="/cart"
+          className="w-10 h-10 rounded-lg border border-slate-200 dark:border-zinc-700 flex items-center justify-center text-slate-700 dark:text-slate-200 relative shrink-0"
+          title="Giỏ hàng"
+        >
+          <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+        </Link>
+        <button
+          type="button"
+          onClick={handleAddToCart}
+          disabled={isOutOfStock || isOwnerOfBook}
+          className="flex-1 h-10 rounded-lg border border-[#006953] text-[#006953] hover:bg-[#006953]/10 text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          <span className="material-symbols-outlined text-[17px]">add_shopping_cart</span>
+          <span>Thêm giỏ</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleBuyNow}
+          disabled={isOutOfStock || isOwnerOfBook}
+          className="flex-1 h-10 rounded-lg bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs transition-colors cursor-pointer"
+        >
+          <span>Mua ngay</span>
+        </button>
+      </div>
     </div>
   );
 }

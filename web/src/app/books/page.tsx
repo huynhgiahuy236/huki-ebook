@@ -277,8 +277,8 @@ function CatalogPageContent() {
       {/* 1. TOP CAMPAIGN BANNER (HUKI Green Signature Tone) */}
       <div className="w-full bg-gradient-to-r from-[#003b2b] via-[#005a42] to-[#01261c] rounded-lg p-3 sm:p-4 mb-4 text-white shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3 relative overflow-hidden">
         <div className="z-10 flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-white/10 backdrop-blur-xs flex items-center justify-center font-black text-lg border border-white/20 shadow-xs shrink-0 text-[#94f5d6]">
-            ⚡
+          <div className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-xs flex items-center justify-center border border-white/20 shadow-xs shrink-0 text-[#94f5d6]">
+            <span className="material-symbols-outlined text-[20px]">auto_stories</span>
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -297,7 +297,7 @@ function CatalogPageContent() {
             href="/flash-sale"
             className="px-3.5 py-1.5 rounded-full bg-white text-[#003b2b] hover:bg-[#e6f4f0] font-bold text-xs shadow-md transition-all flex items-center gap-1 cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[15px] text-[#006953]">local_fire_department</span>
+            <span className="material-symbols-outlined text-[15px] text-[#006953]">sell</span>
             <span>Săn Ngay</span>
           </Link>
         </div>
@@ -376,9 +376,9 @@ function CatalogPageContent() {
             <div className="space-y-1.5 text-xs">
               {[
                 { id: 'all', label: 'Tất cả định dạng' },
-                { id: 'ebook', label: '⚡ Ebook Bản Quyền DRM' },
-                { id: 'physical', label: '📖 Sách Giấy In' },
-                { id: 'hybrid', label: '📚 Combo Giấy + Ebook' },
+                { id: 'ebook', label: 'Ebook Bản Quyền DRM' },
+                { id: 'physical', label: 'Sách Giấy In' },
+                { id: 'hybrid', label: 'Combo Giấy + Ebook' },
               ].map((fmt) => (
                 <label
                   key={fmt.id}
@@ -667,7 +667,7 @@ function CatalogPageContent() {
               />
               <div className="mt-4">
                 <PersonalizedForYouSection
-                  title="💡 Gợi ý tương tự cho bạn"
+                  title="Gợi ý tương tự cho bạn"
                   subtitle="Dựa trên thể loại yêu thích và các từ khóa tìm kiếm gần đây của bạn"
                   currentSearchQuery={searchTerm}
                   limit={10}

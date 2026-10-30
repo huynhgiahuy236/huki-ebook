@@ -209,7 +209,7 @@ export default function CartPage() {
               <div>
                 <span className="font-bold text-xs text-[var(--theme-text,#1c1b1f)] block">Đặc quyền Ebook & Miễn phí vận chuyển HUKI</span>
                 <span className="text-[11.5px] text-[var(--theme-text-muted,#49454f)]">
-                  {hasEbookItems && hasPhysicalItems ? '⚡ Ebook số kích hoạt tức thì + Miễn phí vận chuyển cho đơn sách giấy từ 250.000đ.' : hasEbookItems ? '⚡ Đơn hàng Ebook bản quyền DRM được miễn phí 100% chi phí vận chuyển.' : '📦 Miễn phí vận chuyển toàn quốc cho đơn sách giấy từ 250.000đ.'}
+                  {hasEbookItems && hasPhysicalItems ? 'Ebook số kích hoạt tức thì + Miễn phí vận chuyển cho đơn sách giấy từ 250.000đ.' : hasEbookItems ? 'Đơn hàng Ebook bản quyền DRM được miễn phí 100% chi phí vận chuyển.' : 'Miễn phí vận chuyển toàn quốc cho đơn sách giấy từ 250.000đ.'}
                 </span>
               </div>
             </div>
@@ -465,7 +465,7 @@ export default function CartPage() {
                   <span className="text-[10px] text-[var(--theme-text-muted,#49454f)] block text-right">Voucher & phí ship được tính tại Checkout</span>
                 </div>
 
-                <button onClick={handleCheckout} disabled={checkedItemsCount === 0} className={`w-full h-10 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer ${checkedItemsCount === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[var(--theme-primary,#003B2B)] to-[var(--theme-primary-hover,#002a1e)] hover:opacity-95 text-white'}`}>
+                <button onClick={handleCheckout} disabled={checkedItemsCount === 0} className={`w-full h-10 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer ${checkedItemsCount === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-[#003B2B] hover:bg-[#00271e] text-white'}`}>
                   <span className="material-symbols-outlined text-[16px]">shopping_bag</span>
                   <span>Thanh Toán ({checkedItemsCount})</span>
                 </button>

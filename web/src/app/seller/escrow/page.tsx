@@ -670,7 +670,7 @@ export default function SellerEscrowPage() {
                                       : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                   }`}
                                 >
-                                  {isDigital ? '📱 Ebook' : '📦 Sách Giấy'}
+                                  {isDigital ? 'Ebook' : 'Sách Giấy'}
                                 </span>
                                 <span className="text-[11px] text-slate-400">
                                   SL: {it.quantity} × {formatVND(it.unitPrice)}
@@ -754,7 +754,7 @@ export default function SellerEscrowPage() {
                                   <div className="flex justify-between">
                                     <span className="text-slate-500">Phương thức TT:</span>
                                     <span className="font-semibold text-slate-800">
-                                      {it.paymentMethod === 'COD' ? '💵 Tiền mặt COD' : '💳 PayOS / QR'}
+                                      {it.paymentMethod === 'COD' ? 'Tiền mặt COD' : 'PayOS / QR'}
                                     </span>
                                   </div>
                                   <div>
@@ -775,12 +775,12 @@ export default function SellerEscrowPage() {
                                   </div>
                                   <p className="text-[11px] text-slate-600 mt-2">
                                     {it.escrowStatus === 'RELEASED'
-                                      ? '✓ Đã hoàn tất đối soát & giải ngân vào số dư khả dụng.'
+                                      ? 'Đã hoàn tất đối soát & giải ngân vào số dư khả dụng.'
                                       : it.escrowStatus === 'HOLDING'
                                       ? '⏳ Đang trong thời hạn bảo chứng test đổi trả 2 phút.'
                                       : it.escrowStatus === 'PENDING_PAYMENT'
-                                      ? '🚚 Kiện hàng đang vận chuyển, chờ thu tiền COD.'
-                                      : '⚠️ Đang tạm khóa do có khiếu nại phát sinh.'}
+                                      ? 'Kiện hàng đang vận chuyển, chờ thu tiền COD.'
+                                      : 'Đang tạm khóa do có khiếu nại phát sinh.'}
                                   </p>
                                 </div>
                                 <div className="pt-2">
@@ -970,12 +970,12 @@ export default function SellerEscrowPage() {
                 <div className="font-bold">Trạng Thái Dòng Tiền:</div>
                 <div className="mt-1">
                   {selectedItem.escrowStatus === 'RELEASED'
-                    ? '✓ Đã hết hạn đổi trả 2 phút, tiền 95% đã cộng vào Số Dư Khả Dụng trong Ví của Shop.'
+                    ? 'Đã hết hạn đổi trả, tiền đã cộng vào Số Dư Khả Dụng trong Ví của Shop.'
                     : selectedItem.escrowStatus === 'HOLDING'
                     ? '⏳ Đang trong thời gian 2 phút test đổi trả. Sàn HuKi đang giữ tiền bảo chứng an toàn.'
                     : selectedItem.escrowStatus === 'PENDING_PAYMENT'
-                    ? '🚚 Đơn hàng đang được Shipper giao tận nơi, chờ thu tiền mặt COD.'
-                    : '⚠️ Món hàng đang bị đóng băng do có khiếu nại đổi trả đang xử lý.'}
+                    ? 'Đơn hàng đang được Shipper giao tận nơi, chờ thu tiền mặt COD.'
+                    : 'Món hàng đang bị đóng băng do có khiếu nại đổi trả đang xử lý.'}
                 </div>
               </div>
             </div>

@@ -170,7 +170,7 @@ export default function OrdersPage() {
         } else if (msg.type === 'DISPUTE_ARBITRATED') {
           const payload: any = msg.payload || {};
           if (payload.ruling === 'BUYER_WINS') {
-            showToast('🎉 Bạn đã thắng kiện trọng tài! Tiền đang được hoàn trả về ví.', 'success');
+            showToast('Bạn đã thắng kiện trọng tài! Tiền đang được hoàn trả về ví.', 'success');
           } else {
             showToast('Sàn đã ban hành phán quyết trọng tài.', 'warning');
           }

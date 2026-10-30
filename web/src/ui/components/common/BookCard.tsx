@@ -342,7 +342,7 @@ export default function BookCard({
     return (
       <article
         onClick={handleCardClick}
-        className={`bg-white border border-gray-200/80 rounded-xl p-3 flex flex-row items-center justify-between gap-3 hover:shadow-sm hover:border-[#ee4d2d]/40 transition-all group relative cursor-pointer ${className}`}
+        className={`bg-white border border-gray-200/80 rounded-xl p-3 flex flex-row items-center justify-between gap-3 hover:shadow-sm hover:border-[#00875A] transition-all group relative cursor-pointer ${className}`}
       >
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <div className="relative aspect-[3/4] w-20 rounded-lg overflow-hidden bg-gray-50 shadow-2xs shrink-0 group/cover">
@@ -368,8 +368,8 @@ export default function BookCard({
               </span>
             </button>
             {isFlashSale && (
-              <span className="absolute top-1 left-1 bg-gradient-to-r from-amber-500 to-rose-600 text-white font-black text-[8px] px-1 py-0.2 rounded shadow-xs flex items-center gap-0.5">
-                ⚡ SALE
+              <span className="absolute top-1 left-1 bg-rose-600 text-white font-bold text-[8.5px] px-1.5 py-0.5 rounded shadow-2xs">
+                Flash Sale
               </span>
             )}
           </div>
@@ -482,8 +482,8 @@ export default function BookCard({
         {/* Genuine Format / Flash Sale Badges in Top-Left */}
         <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1 pointer-events-none">
           {isFlashSale && (
-            <span className="bg-rose-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
-              ⚡ Flash Sale
+            <span className="bg-rose-600 text-white text-[8.5px] font-bold px-1.5 py-0.5 rounded-sm shadow-2xs">
+              Flash Sale
             </span>
           )}
           {formatType === 'ebook' && (

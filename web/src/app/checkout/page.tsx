@@ -1908,7 +1908,7 @@ export default function CheckoutPage() {
                                 </span>
                                 {serverUnitPrices.get(item.bookId)?.isFlashSale && (
                                   <span className="ml-1 text-[9px] font-bold text-rose-600">
-                                    ⚡ Flash Sale
+                                    Flash Sale
                                   </span>
                                 )}
                               </div>
@@ -2043,12 +2043,12 @@ export default function CheckoutPage() {
                                         </span>
                                         {v.applicableFormat === "DIGITAL" && (
                                           <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                            ⚡ Chỉ Ebook
+                                            Chỉ Ebook
                                           </span>
                                         )}
                                         {v.applicableFormat === "PHYSICAL" && (
                                           <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                            📦 Chỉ Sách Giấy
+                                            Chỉ Sách Giấy
                                           </span>
                                         )}
                                       </div>
@@ -2211,16 +2211,16 @@ export default function CheckoutPage() {
                                       let audienceIcon = "public";
                                       if (sv.targetAudience === "FOLLOWERS_ONLY") {
                                         if (sv.minFollowDays >= 365) {
-                                          audienceLabel = "💎 Tri Ân Kim Cương (Theo dõi ≥ 1 năm)";
+                                          audienceLabel = "Tri Ân Kim Cương (Theo dõi ≥ 1 năm)";
                                           audienceIcon = "diamond";
                                         } else if (sv.minFollowDays >= 90) {
-                                          audienceLabel = "🥇 Fan Vàng (Theo dõi ≥ 90 ngày)";
+                                          audienceLabel = "Fan Vàng (Theo dõi ≥ 90 ngày)";
                                           audienceIcon = "workspace_premium";
                                         } else if (sv.minFollowDays >= 30) {
-                                          audienceLabel = "🥈 Fan Bạc (Theo dõi ≥ 30 ngày)";
+                                          audienceLabel = "Fan Bạc (Theo dõi ≥ 30 ngày)";
                                           audienceIcon = "military_tech";
                                         } else {
-                                          audienceLabel = "💖 Người theo dõi gian hàng";
+                                          audienceLabel = "Người theo dõi gian hàng";
                                           audienceIcon = "favorite";
                                         }
                                       } else if (sv.targetAudience === "NEW_CUSTOMERS_ONLY") {
@@ -2250,12 +2250,12 @@ export default function CheckoutPage() {
                                                 </span>
                                                 {sv.applicableFormat === "DIGITAL" && (
                                                   <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                                    ⚡ Chỉ Ebook
+                                                    Chỉ Ebook
                                                   </span>
                                                 )}
                                                 {sv.applicableFormat === "PHYSICAL" && (
                                                   <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                                    📦 Chỉ Sách Giấy
+                                                    Chỉ Sách Giấy
                                                   </span>
                                                 )}
                                               </div>

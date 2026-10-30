@@ -338,11 +338,11 @@ export default function SellerDashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           
           {/* Card 1: Doanh Thu Tích Lũy */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:shadow-sm transition-shadow min-w-0">
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-semibold text-gray-500">Doanh Thu Tích Lũy</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-[#00875A] mt-1">
+                <div className="text-xl sm:text-2xl font-bold text-[#00875A] mt-1">
                   {loadingStats ? '…' : `${fmt(stats.totalRevenue)}đ`}
                 </div>
               </div>
@@ -360,12 +360,12 @@ export default function SellerDashboardPage() {
           {/* Card 2: Đơn Hàng Mới Chờ Xử Lý */}
           <Link
             href="/seller/orders"
-            className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-amber-400 hover:shadow-sm transition-all min-w-0 group"
+            className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-amber-400 hover:shadow-sm transition-all min-w-0 group"
           >
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-semibold text-gray-500">Đơn Hàng Cần Xử Lý</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-amber-600 mt-1">
+                <div className="text-xl sm:text-2xl font-bold text-amber-600 mt-1">
                   {loadingStats ? '…' : fmt(stats.pendingOrders)}
                 </div>
               </div>
@@ -385,12 +385,12 @@ export default function SellerDashboardPage() {
           {/* Card 3: Sản Phẩm Trên Sàn */}
           <Link
             href="/seller/products"
-            className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-blue-400 hover:shadow-sm transition-all min-w-0 group"
+            className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-blue-400 hover:shadow-sm transition-all min-w-0 group"
           >
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-semibold text-gray-500">Sản Phẩm Đang Bán</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">
                   {loadingStats ? '…' : fmt(stats.publishedBooks)}
                 </div>
               </div>
@@ -411,12 +411,12 @@ export default function SellerDashboardPage() {
           {/* Card 4: Tồn Kho Sách Giấy */}
           <Link
             href="/seller/inventory"
-            className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-sm transition-all min-w-0 group"
+            className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between hover:border-emerald-400 hover:shadow-sm transition-all min-w-0 group"
           >
             <div className="flex items-start justify-between">
               <div>
                 <span className="text-xs font-semibold text-gray-500">Tổng Tồn Kho Sách Giấy</span>
-                <div className="text-2xl sm:text-[28px] font-extrabold text-gray-900 mt-1">
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">
                   {loadingStats ? '…' : fmt(stats.totalStock)}
                 </div>
               </div>
@@ -437,7 +437,7 @@ export default function SellerDashboardPage() {
 
         {/* RECENT ORDERS TABLE */}
         {stats.recentOrders && stats.recentOrders.length > 0 && (
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs space-y-4">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#00875A] text-xl">receipt_long</span>
@@ -515,7 +515,7 @@ export default function SellerDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
           {/* 3.1 SALES PIPELINE (TIẾN TRÌNH PHÁT HÀNH TỪ DB) */}
-          <div className="lg:col-span-7 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="lg:col-span-7 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Tiến Trình Phát Hành &amp; Định Dạng (Từ DB)</h2>
@@ -555,7 +555,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* 3.2 DEAL STAGES / PHÂN BỐ ĐỊNH DẠNG SÁCH (TỪ DB) */}
-          <div className="lg:col-span-5 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="lg:col-span-5 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bố Định Dạng Sách</h2>
@@ -622,7 +622,7 @@ export default function SellerDashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
           
           {/* 4.1 PHÂN BỔ SẢN PHẨM (FUNNEL TỪ DB) */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Phân Bổ Sản Phẩm (Funnel)</h2>
@@ -669,7 +669,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* 4.2 TĂNG TRƯỞNG ĐỘC GIẢ (THEO ĐƠN HÀNG THỰC TẾ) */}
-          <div className="lg:col-span-6 bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="lg:col-span-6 bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-sm sm:text-base font-bold text-gray-900">Tăng Trưởng Độc Giả Mới (Khách Hàng)</h2>
@@ -741,7 +741,7 @@ export default function SellerDashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           
           {/* Widget 1: CHƯƠNG TRÌNH FLASH SALE & KHUYẾN MÃI (Từ DB - Không Mock Ảo) */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-amber-500 text-[18px]">bolt</span>
@@ -802,7 +802,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* Widget 2: TIN NHẮN KHÁCH ĐỌC (KHÔNG MOCK ẢO) */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[#00875A] text-[18px]">chat_bubble_outline</span>
@@ -836,7 +836,7 @@ export default function SellerDashboardPage() {
           </div>
 
           {/* Widget 3: HOẠT ĐỘNG GIAN HÀNG (NHẬT KÝ THAO TÁC THỰC TẾ) */}
-          <div className="bg-white rounded-2xl p-5 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
+          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0] shadow-2xs flex flex-col justify-between">
             <div className="flex items-center justify-between mb-3.5 pb-2 border-b border-gray-100">
               <h2 className="text-sm font-bold text-gray-900 flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[#00875A] text-[18px]">history</span>

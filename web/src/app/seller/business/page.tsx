@@ -271,7 +271,7 @@ export default function SellerBusinessProfilePage() {
       if ((msg.type === 'BUSINESS_STATUS_UPDATED' || msg.type === 'BUSINESS_APPROVED') && isTarget) {
         loadData(false);
         if (payload?.status === 'APPROVED') {
-          showToast?.('🎉 Yêu cầu cập nhật hồ sơ doanh nghiệp của bạn vừa được Admin phê duyệt thành công!', 'success');
+          showToast?.('Yêu cầu cập nhật hồ sơ doanh nghiệp của bạn vừa được Admin phê duyệt thành công!', 'success');
         } else if (payload?.status === 'REJECTED') {
           showToast?.(`Yêu cầu cập nhật hồ sơ bị từ chối: ${payload?.reason || 'Chưa đạt yêu cầu'}.`, 'error');
         }
@@ -619,7 +619,7 @@ export default function SellerBusinessProfilePage() {
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
                     : 'bg-blue-50 text-blue-800 border-blue-200'
                 }`}>
-                  {isHousehold ? '🏪 Hộ kinh doanh cá thể' : `🏢 ${formData.businessType === 'CORPORATION' ? 'Công ty Cổ phần' : formData.businessType === 'PARTNERSHIP' ? 'Công ty Hợp danh' : 'Công ty TNHH'}`}
+                  {isHousehold ? 'Hộ kinh doanh cá thể' : `${formData.businessType === 'CORPORATION' ? 'Công ty Cổ phần' : formData.businessType === 'PARTNERSHIP' ? 'Công ty Hợp danh' : 'Công ty TNHH'}`}
                 </span>
               </div>
 
