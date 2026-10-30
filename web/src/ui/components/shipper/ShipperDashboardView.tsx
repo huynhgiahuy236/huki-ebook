@@ -205,7 +205,7 @@ export default function ShipperDashboardView() {
                           <span className="material-symbols-outlined text-[14px]">storefront</span>
                           <span>Điểm lấy hàng: {delivery.shopName}</span>
                         </div>
-                        <div className="text-gray-600 mt-0.5 truncate">{delivery.shopAddress}</div>
+                        <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.shopAddress}</div>
                         <div className="text-gray-400 text-[11px]">SĐT Shop: {delivery.shopPhone}</div>
                       </div>
                       <div>
@@ -213,7 +213,7 @@ export default function ShipperDashboardView() {
                           <span className="material-symbols-outlined text-[14px]">person_pin_circle</span>
                           <span>Điểm giao: {delivery.customerName}</span>
                         </div>
-                        <div className="text-gray-600 mt-0.5 truncate">{delivery.deliveryAddress}</div>
+                        <div className="text-gray-600 mt-0.5 break-words line-clamp-2 leading-snug">{delivery.deliveryAddress}</div>
                         <div className="text-gray-400 text-[11px]">
                           Thu COD:{' '}
                           <strong className="text-gray-800">
@@ -286,8 +286,8 @@ export default function ShipperDashboardView() {
                           </span>
                         </td>
                         <td className="p-3 max-w-[240px]">
-                          <div className="font-semibold text-gray-800 truncate">{order.shopName}</div>
-                          <div className="text-gray-400 text-[10px] truncate">➔ {order.deliveryAddress}</div>
+                          <div className="font-semibold text-gray-800 break-words line-clamp-2 leading-snug">{order.shopName}</div>
+                          <div className="text-gray-400 text-[10px] break-words line-clamp-2 leading-snug">➔ {order.deliveryAddress}</div>
                         </td>
                         <td className="p-3">
                           {order.codAmount > 0 ? (

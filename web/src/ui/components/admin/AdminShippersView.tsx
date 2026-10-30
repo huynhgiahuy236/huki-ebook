@@ -191,7 +191,7 @@ export default function AdminShippersView() {
               <span className="material-symbols-outlined text-[18px]">person</span>
             </div>
             <div className="min-w-0">
-              <span className="font-bold text-gray-900 block truncate text-xs">
+              <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug text-xs">
                 {shipper.name}
               </span>
               <span className="font-mono text-[11px] text-[#00875A] font-bold block">
@@ -225,7 +225,7 @@ export default function AdminShippersView() {
         render: (_val, shipper) => (
           <div className="flex flex-col gap-0.5 max-w-[180px]">
             <div className="flex items-center gap-1">
-              <span className="font-semibold text-gray-900 text-xs truncate" title={shipper.zone}>{shipper.zone}</span>
+              <span className="font-semibold text-gray-900 text-xs break-words line-clamp-2 leading-snug" title={shipper.zone}>{shipper.zone}</span>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-gray-500">
               <span className="text-amber-600 font-bold flex items-center gap-0.5">

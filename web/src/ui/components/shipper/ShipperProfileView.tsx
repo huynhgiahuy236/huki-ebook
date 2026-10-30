@@ -74,7 +74,7 @@ export default function ShipperProfileView() {
               isOnline ? 'bg-emerald-400 text-emerald-950' : 'bg-neutral-600 text-white'
             }`}
           >
-            <span>{isOnline ? '🟢 Sẵn Sàng Nhận Đơn' : '⚪ Đang Offline'}</span>
+            <span className="flex items-center gap-1.5"><span className={"w-2 h-2 rounded-full " + (isOnline ? "bg-emerald-950 animate-pulse" : "bg-white/60")} /><span>{isOnline ? "Trực tuyến nhận đơn" : "Tạm nghỉ nhận đơn"}</span></span>
           </button>
         </div>
       </div>

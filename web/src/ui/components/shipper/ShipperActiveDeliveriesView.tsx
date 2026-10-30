@@ -28,6 +28,8 @@ export default function ShipperActiveDeliveriesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState<DateFilterValue>({ mode: 'ALL_TIME' });
   const [groupBy, setGroupBy] = useState<GroupByMode>('SHOP');
+  
+  // Double-Lock: strictly 10 items / page
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
@@ -58,14 +60,10 @@ export default function ShipperActiveDeliveriesView() {
   // Lọc danh sách đơn
   const filteredOrders = useMemo(() => {
     return forwardDeliveries.filter((order) => {
-      // Tab filter
       if (activeTab === 'PICKING_UP' && order.status !== 'PICKING_UP') return false;
       if (activeTab === 'IN_TRANSIT' && order.status !== 'IN_TRANSIT') return false;
-
-      // Date filter
       if (!matchesDateFilter(order.createdAt, dateFilter)) return false;
 
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchCode = order.code.toLowerCase().includes(q);
@@ -128,7 +126,6 @@ export default function ShipperActiveDeliveriesView() {
       const groupEarning = grp.orders.reduce((sum, o) => sum + o.shippingFee, 0);
       const groupCod = grp.orders.reduce((sum, o) => sum + o.codAmount, 0);
 
-      // Parent row đại diện nhóm
       result.push({
         id: `group-${grp.key}`,
         isGroupHeader: true,
@@ -146,7 +143,7 @@ export default function ShipperActiveDeliveriesView() {
     return result;
   }, [filteredOrders, groupBy]);
 
-  // Phân trang dữ liệu
+  // Phân trang Double-Lock
   const pagedData = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return (groupBy === 'NONE' ? filteredOrders : groupedRows).slice(start, start + pageSize);
@@ -205,18 +202,18 @@ export default function ShipperActiveDeliveriesView() {
     }
   };
 
-  // Định nghĩa các cột cho GroupedDataTable
+  // 5 CỘT VÀNG CHUẨN MỰC
   const columns: Column<any>[] = [
     {
       key: 'code',
       title: 'Mã Đơn & Hàng Hóa',
-      width: '26%',
+      width: '24%',
       render: (_, row) => {
         if (row.isGroupHeader) {
           return (
-            <div className="flex items-center gap-2 py-1">
-              <span className="w-7 h-7 rounded-lg bg-[#003B2B]/10 text-[#003B2B] flex items-center justify-center font-bold">
-                <span className="material-symbols-outlined text-[17px]">{row.icon}</span>
+            <div className="flex items-center gap-2.5 py-1">
+              <span className="w-8 h-8 rounded-xl bg-[#003B2B]/10 text-[#003B2B] flex items-center justify-center font-bold">
+                <span className="material-symbols-outlined text-[18px]">{row.icon}</span>
               </span>
               <div>
                 <strong className="text-sm font-black text-[#003B2B] block">{row.title}</strong>
@@ -226,20 +223,31 @@ export default function ShipperActiveDeliveriesView() {
           );
         }
 
+        const isPickingUp = row.status === 'PICKING_UP';
         return (
           <div className="space-y-1 py-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <strong className="text-xs font-bold text-slate-900">{row.code}</strong>
-              <span className="px-2 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
-                Giao Sách
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <strong className="font-mono text-xs font-bold text-slate-900">{row.code}</strong>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                  isPickingUp
+                    ? 'bg-amber-100 text-amber-900'
+                    : 'bg-blue-100 text-blue-900'
+                }`}
+              >
+                {isPickingUp ? 'Chờ lấy tại Shop' : 'Đang đi giao'}
               </span>
             </div>
-            <div className="text-[11.5px] text-slate-600 line-clamp-1">
-              {row.items?.map((it: any) => `${it.quantity}x ${it.title}`).join(', ')}
+            <div className="text-[11.5px] text-slate-600 break-words line-clamp-2 leading-snug">
+              {row.items?.map((it: any) => `${it.quantity}x ${it.title}`).join(', ') || '1 kiện sách'}
             </div>
-            <span className="text-[10px] text-slate-400">
-              Nhận ca: {row.acceptedAt || 'Vừa xong'} &bull; {row.distanceKm || 3}km &bull; {(row.totalWeight || 500) / 1000}kg
-            </span>
+            <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
+              <span>Nhận ca: {row.acceptedAt || 'Vừa xong'}</span>
+              <span>&bull;</span>
+              <span>{row.distanceKm || 3} km</span>
+              <span>&bull;</span>
+              <span>{(row.totalWeight || 500) / 1000} kg</span>
+            </div>
           </div>
         );
       },
@@ -253,10 +261,10 @@ export default function ShipperActiveDeliveriesView() {
         const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
         return (
           <div className="text-xs space-y-1 py-1">
-            <div className="font-bold text-slate-800 truncate" title={row.shopName}>
+            <div className="font-bold text-slate-800 break-words line-clamp-2 leading-snug" title={row.shopName}>
               {row.shopName}
             </div>
-            <div className="text-slate-500 text-[11px] line-clamp-1" title={row.shopAddress}>
+            <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug" title={row.shopAddress}>
               {row.shopAddress}
             </div>
             <div className="flex items-center gap-2 pt-0.5">
@@ -287,15 +295,14 @@ export default function ShipperActiveDeliveriesView() {
       width: '24%',
       render: (_, row) => {
         if (row.isGroupHeader) return null;
-        const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-          `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`
-        )}`;
+        const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
+        const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
         return (
           <div className="text-xs space-y-1 py-1">
-            <div className="font-bold text-slate-800 truncate" title={row.customerName}>
+            <div className="font-bold text-slate-800 break-words line-clamp-2 leading-snug" title={row.customerName}>
               {row.customerName}
             </div>
-            <div className="text-slate-500 text-[11px] line-clamp-1" title={row.deliveryAddress}>
+            <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug" title={fullAddr}>
               {row.deliveryAddress}, {row.deliveryWard}
             </div>
             <div className="flex items-center gap-2 pt-0.5">
@@ -323,7 +330,7 @@ export default function ShipperActiveDeliveriesView() {
     {
       key: 'finance',
       title: 'Cước & Thu Hộ',
-      width: '13%',
+      width: '14%',
       render: (_, row) => {
         if (row.isGroupHeader) {
           return (
@@ -354,7 +361,7 @@ export default function ShipperActiveDeliveriesView() {
     {
       key: 'status',
       title: 'Trạng Thái & Thao Tác',
-      width: '13%',
+      width: '14%',
       align: 'right',
       render: (_, row) => {
         if (row.isGroupHeader) {
@@ -641,26 +648,156 @@ export default function ShipperActiveDeliveriesView() {
           expandable
           expandedRowRender={(row) => {
             if (row.isGroupHeader) return null;
+            const fullAddr = `${row.deliveryAddress}, ${row.deliveryWard || ''}, ${row.deliveryDistrict || ''}, ${row.deliveryProvince || ''}`;
+            const customerMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`;
+            const shopMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(row.shopAddress)}`;
+            const isCod = row.paymentMethod === 'COD';
+            const isPickingUp = row.status === 'PICKING_UP';
+            const isInTransit = row.status === 'IN_TRANSIT';
+
             return (
-              <div className="p-4 bg-slate-50 dark:bg-neutral-800/40 rounded-xl space-y-3 text-xs">
-                <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[15px] text-[#00875A]">menu_book</span>
-                  <span>Kiện hàng gồm {row.items?.length || 0} sản phẩm:</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {row.items?.map((it: any, idx: number) => (
-                    <div key={idx} className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-slate-200 dark:border-neutral-700 flex items-center gap-2">
-                      <span className="w-6 h-6 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0">
-                        {it.quantity}x
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-900 dark:text-white truncate" title={it.title}>
-                          {it.title}
+              <div className="p-4 bg-slate-50 dark:bg-neutral-800/40 rounded-xl space-y-4 text-xs">
+                {/* 3-CARD MASTER-DETAIL CONTAINER */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5">
+                  {/* Card 1: Tuyến Đường & Chỉ Đường */}
+                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 space-y-2.5">
+                    <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-neutral-800">
+                      <span className="material-symbols-outlined text-[15px] text-[#00875A]">route</span>
+                      <span>Lộ Trình Vận Chuyển ({row.distanceKm || 3} km)</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-amber-700 uppercase block">1. Điểm lấy sách (Shop):</span>
+                        <div className="font-bold text-slate-800">{row.shopName}</div>
+                        <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug">{row.shopAddress}</div>
+                        <div className="flex items-center gap-3 pt-1">
+                          <a href={`tel:${row.shopPhone}`} className="text-[#00875A] font-semibold text-[11px] hover:underline flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px]">call</span>
+                            <span>{row.shopPhone}</span>
+                          </a>
+                          <a href={shopMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-800 font-semibold text-[11px] flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px]">navigation</span>
+                            <span>Chỉ đường tới Shop</span>
+                          </a>
                         </div>
-                        <div className="text-[10px] text-slate-400">Định dạng: {it.format}</div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-neutral-800">
+                        <span className="text-[10px] font-bold text-emerald-700 uppercase block">2. Điểm giao sách (Khách):</span>
+                        <div className="font-bold text-slate-800">{row.customerName}</div>
+                        <div className="text-slate-500 text-[11px] break-words line-clamp-2 leading-snug">{fullAddr}</div>
+                        <div className="flex items-center gap-3 pt-1">
+                          <a href={`tel:${row.customerPhone}`} className="text-[#00875A] font-semibold text-[11px] hover:underline flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px]">call</span>
+                            <span>{row.customerPhone}</span>
+                          </a>
+                          <a href={customerMapUrl} target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-slate-800 font-semibold text-[11px] flex items-center gap-0.5">
+                            <span className="material-symbols-outlined text-[13px]">navigation</span>
+                            <span>Chỉ đường tới Khách</span>
+                          </a>
+                        </div>
                       </div>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Card 2: Danh Mục Kiện Sách */}
+                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 space-y-2.5">
+                    <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center justify-between pb-1.5 border-b border-slate-100 dark:border-neutral-800">
+                      <div className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-[15px] text-[#00875A]">menu_book</span>
+                        <span>Kiện Hàng ({row.items?.length || 0} tựa sách)</span>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-semibold">{(row.totalWeight || 500) / 1000} kg</span>
+                    </div>
+
+                    <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                      {row.items?.map((it: any, idx: number) => (
+                        <div key={idx} className="p-2 rounded-lg bg-slate-50 dark:bg-neutral-800/60 border border-slate-100 dark:border-neutral-700 flex items-center gap-2">
+                          <span className="w-6 h-6 rounded bg-emerald-50 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {it.quantity}x
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-slate-900 dark:text-white break-words line-clamp-2 leading-snug">
+                              {it.title}
+                            </div>
+                            <div className="text-[10px] text-slate-400">Định dạng: {it.format || 'Bìa mềm'}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Card 3: Chi Tiết Dòng Tiền & Tác Vụ */}
+                  <div className="p-3.5 bg-white dark:bg-neutral-900 rounded-xl border border-slate-200 dark:border-neutral-700 flex flex-col justify-between space-y-2.5">
+                    <div>
+                      <div className="font-bold text-slate-800 dark:text-white uppercase tracking-wider text-[11px] flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-neutral-800">
+                        <span className="material-symbols-outlined text-[15px] text-amber-600">payments</span>
+                        <span>Chi Tiết Tài Chính &amp; COD</span>
+                      </div>
+
+                      <div className="space-y-2 pt-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Tiền công bưu tá:</span>
+                          <strong className="text-[#00875A] font-bold text-sm">
+                            +{row.shippingFee?.toLocaleString('vi-VN')}đ
+                          </strong>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Hình thức thanh toán:</span>
+                          <span className="font-semibold text-slate-800">
+                            {isCod ? 'Thu hộ tiền mặt (COD)' : 'Đã trả trước Online'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-slate-500">Tiền thu khách:</span>
+                          <strong className="text-amber-700 font-bold">
+                            {isCod ? `${row.codAmount?.toLocaleString('vi-VN')}đ` : '0đ'}
+                          </strong>
+                        </div>
+                        {isCod && (
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                            <span className="text-slate-500 text-[11px]">Nộp sàn (đã trừ ship):</span>
+                            <strong className="text-slate-800 font-bold">
+                              {row.netCodDebt?.toLocaleString('vi-VN')}đ
+                            </strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons inside drawer */}
+                    <div className="pt-2 flex items-center gap-2">
+                      {isPickingUp ? (
+                        <button
+                          type="button"
+                          onClick={() => confirmPickup(row.id)}
+                          className="flex-1 py-2 bg-[#00875A] hover:bg-[#003B2B] text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">done</span>
+                          <span>Đã Lấy Hàng Từ Shop</span>
+                        </button>
+                      ) : isInTransit ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => completeDelivery(row.id)}
+                            className="flex-1 py-2 bg-[#003B2B] hover:bg-emerald-950 text-white text-xs font-bold rounded-lg shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">task_alt</span>
+                            <span>Giao Hàng Thành Công</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderToFail(row.id)}
+                            className="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            Báo Thất Bại
+                          </button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
                 </div>
               </div>
             );
@@ -679,7 +816,7 @@ export default function ShipperActiveDeliveriesView() {
           emptyMessage="Hãy vào Sàn Đơn Chờ Nhận để lấy thêm đơn sách gia tăng thu nhập."
         />
 
-        {/* 6. Standard Pagination Bar matching Screenshot 2 */}
+        {/* 6. Standard Pagination Bar (Double-Lock: 10 items/page) */}
         <StandardPaginationBar
           currentPage={currentPage}
           totalItems={groupBy === 'NONE' ? filteredOrders.length : groupedRows.length}
@@ -734,7 +871,7 @@ export default function ShipperActiveDeliveriesView() {
               <button
                 type="button"
                 onClick={() => setSelectedOrderToFail(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
               >
                 Hủy bỏ
               </button>
