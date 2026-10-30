@@ -19,6 +19,7 @@ export default function SellerSetupStorePage() {
   const [currentStore, setCurrentStore] = useState<StoreData | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingStep, setSavingStep] = useState(false);
+  const isRedirectingRef = React.useRef(false);
 
   // Stepper state (1: Gian hàng, 2: Ngân hàng, 3: Mã PIN, 4: Hoàn tất)
   const [currentStep, setCurrentStep] = useState(1);
@@ -73,10 +74,18 @@ export default function SellerSetupStorePage() {
         const b = (bizRes.data as any)?.data || bizRes.data;
         setBusiness(b);
 
-        // Nếu chưa được duyệt → redirect về pending
+        // Nếu chưa được duyệt → redirect về pending (chặn loop)
         if (b.status !== 'APPROVED') {
-          router.replace('/seller/pending');
+          if (!isRedirectingRef.current) {
+            isRedirectingRef.current = true;
+            router.replace('/seller/pending');
+          }
           return;
+        }
+
+        // Đồng bộ AuthContext nếu chưa cập nhật lên APPROVED
+        if (user?.business?.status !== 'APPROVED') {
+          await refreshBusiness?.();
         }
 
         // Kiểm tra nếu đã hoàn tất setup Onboarding trước đó -> chuyển thẳng vào Dashboard (chỉ hiển thị 1 lần)

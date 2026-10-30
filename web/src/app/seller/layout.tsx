@@ -53,17 +53,17 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // 3. User đang chờ duyệt: Chỉ được ở /seller/pending (hoặc /seller giới thiệu)
+    // 3. User đang chờ duyệt: Cho phép ở các trang portal (pending, stores/setup, register, intro), không vào các trang quản trị
     if (bizStatus === 'PENDING_APPROVAL') {
-      if (!pathname.startsWith('/seller/pending') && pathname !== '/seller') {
+      if (!isPortalRoute) {
         router.replace('/seller/pending');
         return;
       }
     }
 
-    // 4. User chưa đăng ký kinh doanh: Cố vào dashboard / pending / setup -> sang register
+    // 4. User chưa đăng ký kinh doanh: Cố vào dashboard quản trị -> sang register
     if (!isApprovedSeller && !user?.business && user?.role !== 'PLATFORM_ADMIN') {
-      if (!pathname.startsWith('/seller/register') && pathname !== '/seller') {
+      if (!isPortalRoute) {
         router.replace('/seller/register');
         return;
       }
