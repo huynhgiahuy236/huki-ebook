@@ -92,7 +92,7 @@ export default function UpdatePinModal({
 
       if (res.success || (res as any)?.data?.message) {
         setIsSuccess(true);
-        showToast?.('🎉 Đổi mã PIN bảo mật thành công! Mã PIN mới đã được cập nhật an toàn trên hệ thống.', 'success');
+        showToast?.(' Đổi mã PIN bảo mật thành công! Mã PIN mới đã được cập nhật an toàn trên hệ thống.', 'success');
 
         if (onSuccess) {
           await onSuccess();

@@ -88,7 +88,7 @@ export const OnboardingSidebar: React.FC<OnboardingSidebarProps> = ({
       {/* Bottom Perk Note */}
       <div className="pt-6 border-t border-[#e5e2db] text-xs text-[#525252] space-y-1">
         <div className="font-semibold text-[#006953] flex items-center gap-1">
-          <span>🎁 Quà chào mừng:</span>
+          <span>Quà chào mừng:</span>
         </div>
         <div>Voucher <strong>50.000đ</strong> + <strong>100 Xu</strong> khi hoàn tất.</div>
       </div>

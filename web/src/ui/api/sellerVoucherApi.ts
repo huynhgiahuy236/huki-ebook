@@ -313,7 +313,7 @@ export function getFollowerBadge(daysOrDate: number | string | Date): {
     return {
       tier: 'DIAMOND',
       label: 'Fan Kim Cương (Tri Ân 1 Năm+)',
-      badge: '💎 Kim Cương (1 Năm+)',
+      badge: 'Kim Cương (1 Năm+)',
       icon: 'diamond',
       colorClass: 'text-cyan-700',
       bgClass: 'bg-gradient-to-r from-cyan-50 to-blue-50',
@@ -325,7 +325,7 @@ export function getFollowerBadge(daysOrDate: number | string | Date): {
     return {
       tier: 'GOLD',
       label: 'Fan Vàng (Thân Thiết 3 Tháng+)',
-      badge: '🥇 Fan Vàng (3 Tháng+)',
+      badge: 'Fan Vàng (3 Tháng+)',
       icon: 'workspace_premium',
       colorClass: 'text-amber-700',
       bgClass: 'bg-gradient-to-r from-amber-50 to-yellow-50',
@@ -337,7 +337,7 @@ export function getFollowerBadge(daysOrDate: number | string | Date): {
     return {
       tier: 'SILVER',
       label: 'Fan Bạc (Gắn Bó 1 Tháng+)',
-      badge: '🥈 Fan Bạc (1 Tháng+)',
+      badge: 'Fan Bạc (1 Tháng+)',
       icon: 'military_tech',
       colorClass: 'text-slate-700',
       bgClass: 'bg-gradient-to-r from-slate-100 to-gray-100',
@@ -348,7 +348,7 @@ export function getFollowerBadge(daysOrDate: number | string | Date): {
   return {
     tier: 'BRONZE',
     label: 'Fan Đồng (Mới Theo Dõi)',
-    badge: '🥉 Fan Đồng (< 1 Tháng)',
+    badge: 'Fan Đồng (< 1 Tháng)',
     icon: 'star',
     colorClass: 'text-orange-700',
     bgClass: 'bg-orange-50',
@@ -369,28 +369,28 @@ export function formatFollowerRequirement(minFollowDays?: number): {
   if (days >= 365) {
     return {
       label: `Tri ân Fan Kim Cương (Theo dõi ≥ ${days} ngày / 1 năm)`,
-      badge: '💎 Fan Kim Cương (1 Năm+)',
+      badge: 'Fan Kim Cương (1 Năm+)',
       icon: 'diamond',
     };
   }
   if (days >= 90) {
     return {
       label: `Dành cho Fan Vàng (Theo dõi ≥ ${days} ngày / 3 tháng)`,
-      badge: '🥇 Fan Vàng (90 Ngày+)',
+      badge: 'Fan Vàng (90 Ngày+)',
       icon: 'workspace_premium',
     };
   }
   if (days >= 30) {
     return {
       label: `Dành cho Fan Bạc (Theo dõi ≥ ${days} ngày / 1 tháng)`,
-      badge: '🥈 Fan Bạc (30 Ngày+)',
+      badge: 'Fan Bạc (30 Ngày+)',
       icon: 'military_tech',
     };
   }
   if (days > 0) {
     return {
       label: `Người theo dõi gắn bó ≥ ${days} ngày`,
-      badge: `⭐ Theo dõi ≥ ${days} ngày`,
+      badge: `★ Theo dõi ≥ ${days} ngày`,
       icon: 'verified',
     };
   }
@@ -416,7 +416,7 @@ export function formatApplicableFormat(format?: VoucherApplicableFormat | string
   if (f === 'DIGITAL') {
     return {
       label: 'Chỉ áp dụng cho Ebook bản quyền DRM',
-      badge: '⚡ Chỉ Ebook DRM',
+      badge: ' Chỉ Ebook DRM',
       icon: 'bolt',
       colorClass: 'text-emerald-700 dark:text-emerald-300',
       bgClass: 'bg-emerald-50 dark:bg-emerald-950/40',
@@ -426,7 +426,7 @@ export function formatApplicableFormat(format?: VoucherApplicableFormat | string
   if (f === 'PHYSICAL') {
     return {
       label: 'Chỉ áp dụng cho Sách giấy vật lý',
-      badge: '📦 Chỉ Sách Giấy',
+      badge: 'Chỉ Sách Giấy',
       icon: 'inventory_2',
       colorClass: 'text-amber-700 dark:text-amber-300',
       bgClass: 'bg-amber-50 dark:bg-amber-950/40',
@@ -435,7 +435,7 @@ export function formatApplicableFormat(format?: VoucherApplicableFormat | string
   }
   return {
     label: 'Áp dụng cho mọi định dạng (Ebook & Sách giấy)',
-    badge: '📚 Cả Ebook & Sách Giấy',
+    badge: 'Cả Ebook & Sách Giấy',
     icon: 'auto_stories',
     colorClass: 'text-teal-700 dark:text-teal-300',
     bgClass: 'bg-teal-50 dark:bg-teal-950/40',

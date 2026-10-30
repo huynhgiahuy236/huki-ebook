@@ -60,7 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           isSidebarCollapsed={isSidebarCollapsed}
         />
 
-        <div className="flex-1 flex flex-row relative min-h-[calc(100vh-80px)]">
+        <div className="flex-1 flex flex-row relative min-h-[calc(100vh-52px)] lg:min-h-[calc(100vh-80px)]">
           {/* Hierarchical Multi-Level Sidebar */}
           <HierarchicalSidebar
             isCollapsed={isSidebarCollapsed}

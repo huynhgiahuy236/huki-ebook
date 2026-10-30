@@ -223,7 +223,7 @@ class MaintenanceService {
 
     // Notify all channels
     adminNotificationService.createNotification({
-      title: '🚨 THÔNG BÁO BẢO TRÌ KHẨN CẤP TOÀN HỆ THỐNG',
+      title: 'THÔNG BÁO BẢO TRÌ KHẨN CẤP TOÀN HỆ THỐNG',
       summary: 'Hệ thống HuKi đang bước vào chế độ bảo trì khẩn cấp. Mọi giao dịch sẽ tạm dừng.',
       content: `Hệ thống HuKi đang bước vào chế độ bảo trì khẩn cấp. Mọi giao dịch sẽ tạm dừng. Lý do: ${updated.reason}`,
       category: 'MAINTENANCE',
@@ -265,7 +265,7 @@ class MaintenanceService {
 
     // Notify all roles to wrap up in-flight work
     adminNotificationService.createNotification({
-      title: `⚠️ HỆ THỐNG SẼ BẢO TRÌ SAU ${minutes} PHÚT`,
+      title: `HỆ THỐNG SẼ BẢO TRÌ SAU ${minutes} PHÚT`,
       summary: `Hệ thống HuKi sẽ tiến hành bảo trì sau ${minutes} phút.`,
       content: `Hệ thống HuKi sẽ tiến hành bảo trì sau ${minutes} phút. Quý khách và đối tác vui lòng lưu đơn hàng, hoàn tất thanh toán hoặc nộp COD trước khi hệ thống ngắt kết nối.`,
       category: 'MAINTENANCE',

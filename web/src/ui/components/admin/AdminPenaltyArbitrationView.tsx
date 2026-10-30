@@ -292,7 +292,7 @@ export function AdminPenaltyArbitrationView() {
                   <th className="py-3 px-4 text-center">Hạng Chế Tài</th>
                   <th className="py-3 px-4 text-center">Tỷ Lệ Hủy (NFR)</th>
                   <th className="py-3 px-4 text-center">Tỷ Lệ Trễ (LSR)</th>
-                  <th className="py-3 px-4 text-center">Đánh Giá ⭐</th>
+                  <th className="py-3 px-4 text-center">Đánh Giá ★</th>
                   <th className="py-3 px-4 text-center">Quyền Flash Sale Sàn</th>
                   <th className="py-3 px-4 text-right">Thao Tác</th>
                 </tr>
@@ -350,7 +350,7 @@ export function AdminPenaltyArbitrationView() {
 
                       {/* Rating */}
                       <td className="py-3.5 px-4 text-center font-mono font-bold text-amber-600">
-                        ⭐ {p.metrics.rating.toFixed(1)}
+                        ★ {p.metrics.rating.toFixed(1)}
                       </td>
 
                       {/* Quyền Flash Sale Sàn */}

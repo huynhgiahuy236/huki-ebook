@@ -78,7 +78,7 @@ export const SELLER_PRESETS: VoucherPreset[] = [
   },
   {
     id: 'BIG_ORDER_15P',
-    icon: '🔥',
+    icon: '',
     title: 'Giảm 15% đơn từ 1Tr',
     badge: 'Đơn lớn',
     name: 'Ưu đãi 15% cho đơn sách từ 1.000.000đ',
@@ -91,7 +91,7 @@ export const SELLER_PRESETS: VoucherPreset[] = [
   },
   {
     id: 'STANDARD_10P',
-    icon: '⭐',
+    icon: '★',
     title: 'Giảm 10% đơn từ 300k',
     badge: 'Tiêu chuẩn',
     name: 'Giảm 10% đơn từ 300.000đ',
@@ -131,7 +131,7 @@ export const SELLER_PRESETS: VoucherPreset[] = [
   },
   {
     id: 'NEW_CUSTOMER_20K',
-    icon: '🎁',
+    icon: '',
     title: 'Khách mới: Giảm 20k',
     badge: 'Khách mới',
     name: 'Chào mừng độc giả mới ghé thăm gian hàng',
@@ -1278,7 +1278,7 @@ export function SellerVouchersView() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                          <span>🌟</span>
+                          <span></span>
                           <span>Mọi Follower</span>
                         </span>
                         {minFollowDays === 0 && <span className="w-2 h-2 rounded-full bg-pink-500"></span>}
@@ -1298,7 +1298,7 @@ export function SellerVouchersView() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-slate-800 flex items-center gap-1">
-                          <span>🥈</span>
+                          <span></span>
                           <span>Fan Bạc (30N+)</span>
                         </span>
                         {minFollowDays === 30 && <span className="w-2 h-2 rounded-full bg-slate-600"></span>}
@@ -1318,7 +1318,7 @@ export function SellerVouchersView() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
-                          <span>🥇</span>
+                          <span></span>
                           <span>Fan Vàng (90N+)</span>
                         </span>
                         {minFollowDays === 90 && <span className="w-2 h-2 rounded-full bg-amber-500"></span>}
@@ -1338,7 +1338,7 @@ export function SellerVouchersView() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-bold text-cyan-900 flex items-center gap-1">
-                          <span>💎</span>
+                          <span></span>
                           <span>Kim Cương (1 Năm+)</span>
                         </span>
                         {minFollowDays === 365 && <span className="w-2 h-2 rounded-full bg-cyan-600"></span>}

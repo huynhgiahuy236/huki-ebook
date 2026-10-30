@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
@@ -54,6 +54,13 @@ export default function HierarchicalSidebar({
     user?.business ||
     (Array.isArray(user?.memberships) && user.memberships.length > 0)
   );
+
+  // Close mobile drawer automatically on route change
+  useEffect(() => {
+    if (isMobileOpen && setIsMobileOpen) {
+      setIsMobileOpen(false);
+    }
+  }, [pathname]);
 
   // Clean, focused, single-level Navigation Schema
   const allNavGroups: NavGroup[] = [
@@ -191,13 +198,17 @@ export default function HierarchicalSidebar({
     if (setIsMobileOpen) setIsMobileOpen(false);
   };
 
+  // Crucial: On mobile drawer, ALWAYS show expanded items (with icons AND text)!
+  // Only collapse when on desktop and isCollapsed is true.
+  const showCollapsed = isCollapsed && !isMobileOpen;
+
   return (
     <>
       {/* Mobile Backdrop Overlay */}
       {isMobileOpen && (
         <div
           onClick={closeMobile}
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs transition-opacity lg:hidden"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs transition-opacity lg:hidden"
           aria-hidden="true"
         />
       )}
@@ -205,20 +216,47 @@ export default function HierarchicalSidebar({
       {/* Main Clean Sidebar Shell */}
       <aside
         className={`
-          fixed top-[80px] bottom-0 left-0 z-30
-          bg-[var(--theme-header-top,#003b2b)] border-r-2 border-white/25
+          fixed bottom-0 left-0
+          bg-[var(--theme-header-top,#003b2b)] border-r border-white/15
           flex flex-col text-white
-          transition-all duration-300 ease-in-out shadow-md
-          ${isCollapsed ? 'w-[60px]' : 'w-[220px]'}
-          ${isMobileOpen ? 'translate-x-0 !w-[220px] z-50' : '-translate-x-full lg:translate-x-0'}
+          transition-all duration-300 ease-in-out shadow-2xl
+          ${
+            isMobileOpen
+              ? 'top-0 z-50 w-[270px] sm:w-[280px] translate-x-0'
+              : '-translate-x-full lg:translate-x-0 lg:top-[78px] lg:z-30 ' +
+                (isCollapsed ? 'lg:w-[60px]' : 'lg:w-[220px]')
+          }
         `}
       >
+        {/* Mobile-Only Drawer Header with Brand & Close Button */}
+        {isMobileOpen && (
+          <div className="lg:hidden p-3.5 border-b border-white/15 flex items-center justify-between bg-black/20 shrink-0">
+            <div className="flex flex-col select-none">
+              <span className="font-editorial text-base font-black tracking-tight text-white leading-none">
+                HUKI EBOOK
+              </span>
+              <span className="text-[7.5px] uppercase tracking-widest text-[#94f5d6] font-bold mt-0.5">
+                Sách Số &amp; Sách In
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={closeMobile}
+              className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10 cursor-pointer transition-colors"
+              title="Đóng menu"
+              aria-label="Đóng menu điều hướng"
+            >
+              <span className="material-symbols-outlined text-[19px]">close</span>
+            </button>
+          </div>
+        )}
+
         {/* Scrollable Nav Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 space-y-3 select-none scrollbar-thin">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-2 space-y-3 select-none scrollbar-thin">
           {navGroups.map((group) => (
             <div key={group.id} className="space-y-1">
-              {/* Group Header */}
-              {!isCollapsed && (
+              {/* Group Header - Always show when not collapsed (including on mobile!) */}
+              {!showCollapsed && (
                 <div className="px-2.5 py-0.5 text-[9.5px] font-extrabold text-white/50 uppercase tracking-wider">
                   {group.title}
                 </div>
@@ -232,8 +270,8 @@ export default function HierarchicalSidebar({
 
                   return (
                     <div key={item.id} className="relative group">
-                      {isCollapsed ? (
-                        /* Collapsed Icon-Only View - Centered perfectly in w-[60px] with zero jitter */
+                      {showCollapsed ? (
+                        /* Collapsed Icon-Only View (Desktop only) */
                         <div className="flex items-center justify-center py-0.5">
                           <Link
                             href={item.to}
@@ -258,7 +296,7 @@ export default function HierarchicalSidebar({
                           </div>
                         </div>
                       ) : (
-                        /* Expanded Clean Item View with fixed h-9 and zero jitter */
+                        /* Expanded Clean Item View (Both on expanded desktop AND full mobile drawer!) */
                         <Link
                           href={item.to}
                           target={item.targetBlank || item.id === 'web-reader' ? '_blank' : undefined}
@@ -271,7 +309,7 @@ export default function HierarchicalSidebar({
                           }`}
                           title={item.title}
                         >
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span
                               className={`material-symbols-outlined text-[18px] shrink-0 transition-colors ${
                                 isActive
@@ -305,7 +343,51 @@ export default function HierarchicalSidebar({
           ))}
         </div>
 
-        {/* Bottom Expand / Collapse Handle */}
+        {/* Mobile-Only Drawer Bottom User Card */}
+        {isMobileOpen && (
+          <div className="lg:hidden p-3 border-t border-white/15 bg-black/20 shrink-0">
+            {isLoggedIn ? (
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-white/20 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                    {user?.fullName?.charAt(0) || user?.email?.charAt(0) || 'U'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-white truncate">{user?.fullName || user?.email}</p>
+                    <p className="text-[10px] text-emerald-200/80 truncate">{user?.role || 'Hội viên'}</p>
+                  </div>
+                </div>
+                <Link
+                  href="/profile"
+                  onClick={closeMobile}
+                  className="p-1.5 rounded-lg text-white/70 hover:text-white hover:bg-white/10"
+                  title="Tài khoản cá nhân"
+                >
+                  <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
+                </Link>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/auth/login"
+                  onClick={closeMobile}
+                  className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg bg-white text-[#003b2b] hover:bg-emerald-50 transition-colors shadow-xs"
+                >
+                  Đăng Nhập
+                </Link>
+                <Link
+                  href="/auth/register"
+                  onClick={closeMobile}
+                  className="flex-1 py-1.5 text-center text-xs font-bold rounded-lg border border-white/30 text-white hover:bg-white/10 transition-colors"
+                >
+                  Đăng Ký
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Bottom Expand / Collapse Handle (Desktop only) */}
         <div className="p-1 border-t border-white/15 bg-black/10 shrink-0 hidden lg:block">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}

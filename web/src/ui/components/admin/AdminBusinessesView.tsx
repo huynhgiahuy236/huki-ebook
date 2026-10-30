@@ -365,7 +365,7 @@ export function AdminBusinessesView() {
               <span className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-bold border w-fit ${
                 isPublisher ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}>
-                {isPublisher ? '🏛️ Nhà Xuất Bản' : '🏢 Nhà Phát Hành / DN'}
+                {isPublisher ? 'Nhà Xuất Bản' : 'Nhà Phát Hành / DN'}
               </span>
               <span className="text-gray-400 font-mono text-[10.5px] flex items-center gap-1">
                 <span className="material-symbols-outlined text-[12px]">calendar_today</span>

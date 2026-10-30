@@ -532,7 +532,7 @@ export default function AffiliateMarketplacePage() {
                   </div>
                 )}
                 <div className="border-t border-emerald-100 pt-1.5 text-[11px] text-emerald-800 leading-relaxed">
-                  💡 <strong>Cách hoạt động:</strong> Khi độc giả click link hoặc quét mã QR này, hệ thống sẽ tự động chuyển hướng độc giả sang trang sách đích trên HuKi và ghi nhận hoa hồng cho bạn trong 30 ngày!
+                  <strong>Cách hoạt động:</strong> Khi độc giả click link hoặc quét mã QR này, hệ thống sẽ tự động chuyển hướng độc giả sang trang sách đích trên HuKi và ghi nhận hoa hồng cho bạn trong 30 ngày!
                 </div>
               </div>
 

@@ -26,9 +26,9 @@ export interface AIMessage {
 }
 
 const QUICK_PROMPTS = [
-  '🔥 Sách nào đang bán chạy nhất?',
-  '📖 Sách Ebook DRM đọc như thế nào?',
-  '🚚 Thời gian và phí giao hàng?',
+  ' Sách nào đang bán chạy nhất?',
+  'Sách Ebook DRM đọc như thế nào?',
+  ' Thời gian và phí giao hàng?',
   '💳 Chính sách đổi trả & hoàn tiền?',
 ];
 
@@ -297,7 +297,7 @@ export default function FloatingAIChatbox() {
             className="mb-1.5 cursor-pointer bg-white text-slate-800 text-[11px] font-bold px-3 py-1.5 rounded-full shadow-lg border border-emerald-500/20 flex items-center gap-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300 hover:scale-105 active:scale-95 transition-all hover:border-emerald-500/50"
           >
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="tracking-tight text-[#003B2B]">Hỏi Bé Cáo AI nè! ✨</span>
+            <span className="tracking-tight text-[#003B2B]">Hỏi Bé Cáo AI nè! </span>
           </div>
 
           {/* Mascot Floating 3D Character Container */}

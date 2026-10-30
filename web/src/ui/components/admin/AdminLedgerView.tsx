@@ -851,11 +851,11 @@ export function AdminLedgerView() {
               </div>
               {item.frozenReason ? (
                 <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 font-medium text-[11px] leading-relaxed">
-                  ⚠️ Lý do đóng băng: {item.frozenReason}
+                  Lý do đóng băng: {item.frozenReason}
                 </div>
               ) : (
                 <div className="p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium text-[11px]">
-                  🛡️ Không phát sinh khiếu nại. Sẵn sàng giải ngân sau thời hạn 7 ngày bảo lưu.
+                  Không phát sinh khiếu nại. Sẵn sàng giải ngân sau thời hạn 7 ngày bảo lưu.
                 </div>
               )}
             </div>
@@ -1103,7 +1103,7 @@ export function AdminLedgerView() {
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               {lastLiveEvent ? (
-                <span className="text-amber-300 font-medium">⚡ Sự kiện mới: {lastLiveEvent}</span>
+                <span className="text-amber-300 font-medium"> Sự kiện mới: {lastLiveEvent}</span>
               ) : (
                 'Giám sát quỹ bảo lưu Escrow 7 ngày, giải phóng ký quỹ sang ví người bán và đối soát kế toán kép cân bằng.'
               )}

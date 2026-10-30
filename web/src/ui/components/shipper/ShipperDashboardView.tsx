@@ -332,7 +332,7 @@ export default function ShipperDashboardView() {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="text-sm font-bold text-gray-800">{profile.name}</h3>
-                  <span className="text-[11px] text-amber-600 font-bold">⭐{profile.rating}</span>
+                  <span className="text-[11px] text-amber-600 font-bold">★{profile.rating}</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
                   Xe: <strong className="text-gray-700">{profile.licensePlate}</strong>

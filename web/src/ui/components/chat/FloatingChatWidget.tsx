@@ -481,7 +481,7 @@ export default function FloatingChatWidget({ initialStoreId, initialStoreName }:
               <span className="material-symbols-outlined text-[14px] text-[#00875A]">verified</span>
               <span>Shop phản hồi nhanh trong 1-2 phút</span>
             </span>
-            <span className="text-[10px] text-emerald-700 font-bold">Live Socket ⚡</span>
+            <span className="text-[10px] text-emerald-700 font-bold">Live Socket </span>
           </div>
 
           {/* Message Stream */}

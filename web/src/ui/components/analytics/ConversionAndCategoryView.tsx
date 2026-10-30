@@ -314,7 +314,7 @@ export function ConversionAndCategoryView() {
                   <span className="truncate">{row.name}</span>
                   {row.totalRevenue > 1000000 && (
                     <span className="px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 shrink-0">
-                      Bán Chạy 🔥
+                      Bán Chạy 
                     </span>
                   )}
                 </div>

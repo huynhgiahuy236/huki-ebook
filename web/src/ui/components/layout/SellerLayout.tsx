@@ -242,7 +242,7 @@ export default function SellerLayout({ children }: SellerLayoutProps = {}) {
               aria-hidden="true"
             />
             {/* Drawer Content */}
-            <div className="relative z-10 w-72 bg-white shadow-2xl h-full flex flex-col">
+            <div className="relative z-10 w-[300px] sm:w-[320px] max-w-[88vw] bg-white shadow-2xl h-full flex flex-col">
               <SellerSidebar 
                 isCollapsed={false} 
                 toggleSidebar={closeMobileSidebar}

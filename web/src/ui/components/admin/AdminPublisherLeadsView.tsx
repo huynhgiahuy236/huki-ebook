@@ -508,7 +508,7 @@ export function AdminPublisherLeadsView() {
                 />
                 {rejectReasonError && (
                   <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
-                    <span>⚠️</span> {rejectReasonError}
+                    <span></span> {rejectReasonError}
                   </p>
                 )}
                 <div className="flex items-center justify-end gap-2 pt-2">

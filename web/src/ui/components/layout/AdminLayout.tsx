@@ -593,7 +593,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
               className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
               onClick={() => setIsMobileMenuOpen(false)}
             />
-            <div className="relative w-72 max-w-[85vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
+            <div className="relative w-[300px] sm:w-[320px] max-w-[88vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
               <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/10">
                 <div className="flex flex-col select-none">
                   <div className="flex items-center gap-1.5">
@@ -616,7 +616,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-3 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-3 pb-10 flex flex-col gap-3 custom-scrollbar">
                 {menuSections.map((sec, sIdx) => {
                   const isSectionOpen = openSections[sec.group] ?? true;
                   const hasActiveChild = sec.items.some((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));

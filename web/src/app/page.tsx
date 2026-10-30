@@ -227,7 +227,7 @@ export default function HomePage() {
       firstSlide = {
         id: "slide-flash-sale",
         badge: isPlatformLive
-          ? "🔥 FLASH SALE GIỜ VÀNG TOÀN SÀN ĐANG DIỄN RA"
+          ? "FLASH SALE GIỜ VÀNG TOÀN SÀN ĐANG DIỄN RA"
           : "⏰ SẮP DIỄN RA FLASH SALE TOÀN SÀN HUKI",
         icon: "bolt",
         title: activeFlashSale.name,

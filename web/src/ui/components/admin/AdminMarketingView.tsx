@@ -324,7 +324,7 @@ export function AdminMarketingView() {
             : b,
         ),
       );
-      showToast?.("🎉 Cập nhật thông tin banner thành công!", "success");
+      showToast?.(" Cập nhật thông tin banner thành công!", "success");
       setIsAddFormOpen(false);
       setEditingBannerId(null);
     } else {
@@ -343,7 +343,7 @@ export function AdminMarketingView() {
 
       setBanners([newBanner, ...banners]);
       setIsAddFormOpen(false);
-      showToast?.("⚡ Đã xuất bản banner mới lên trang chủ thành công!", "success");
+      showToast?.(" Đã xuất bản banner mới lên trang chủ thành công!", "success");
     }
   };
 
@@ -537,7 +537,7 @@ export function AdminMarketingView() {
                       </optgroup>
                     ))}
                     <option value="CUSTOM" className="font-bold text-emerald-800 bg-emerald-50">
-                      🔗 Tùy chỉnh URL khác (Nhập đường dẫn tự do)...
+                      Tùy chỉnh URL khác (Nhập đường dẫn tự do)...
                     </option>
                   </select>
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 flex items-center">

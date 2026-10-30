@@ -677,28 +677,28 @@ export const taxRegistryService = {
 
     // 30. GPKD Scan
     if (profile.document_business_license) {
-      addField('document_business_license', 'Bản scan Giấy phép ĐKKD', 'Đã đính kèm tệp', null, 'VALID', 'Tài liệu đã tải lên thành công. Admin tự đối chiếu con dấu đỏ.', '👁️ Admin xem con dấu');
+      addField('document_business_license', 'Bản scan Giấy phép ĐKKD', 'Đã đính kèm tệp', null, 'VALID', 'Tài liệu đã tải lên thành công. Admin tự đối chiếu con dấu đỏ.', 'Admin xem con dấu');
     } else {
       addField('document_business_license', 'Bản scan Giấy phép ĐKKD', 'Chưa có', null, 'INVALID', 'Thiếu bản scan Giấy phép ĐKKD', '✕ Thiếu chứng từ');
     }
 
     // 31. CCCD Mặt trước
     if (profile.document_id_front) {
-      addField('document_id_front', 'Ảnh CCCD mặt trước', 'Đã đính kèm tệp', null, 'VALID', 'Ảnh CCCD mặt trước đã tải lên. Admin đối chiếu mặt và số CCCD.', '👁️ Admin xem ảnh chân dung');
+      addField('document_id_front', 'Ảnh CCCD mặt trước', 'Đã đính kèm tệp', null, 'VALID', 'Ảnh CCCD mặt trước đã tải lên. Admin đối chiếu mặt và số CCCD.', 'Admin xem ảnh chân dung');
     } else {
       addField('document_id_front', 'Ảnh CCCD mặt trước', 'Chưa có', null, 'INVALID', 'Thiếu ảnh CCCD mặt trước', '✕ Thiếu chứng từ');
     }
 
     // 32. CCCD Mặt sau
     if (profile.document_id_back) {
-      addField('document_id_back', 'Ảnh CCCD mặt sau', 'Đã đính kèm tệp', null, 'VALID', 'Ảnh CCCD mặt sau đã tải lên. Admin đối chiếu ngày cấp và vân tay.', '👁️ Admin xem ngày cấp/vân tay');
+      addField('document_id_back', 'Ảnh CCCD mặt sau', 'Đã đính kèm tệp', null, 'VALID', 'Ảnh CCCD mặt sau đã tải lên. Admin đối chiếu ngày cấp và vân tay.', 'Admin xem ngày cấp/vân tay');
     } else {
       addField('document_id_back', 'Ảnh CCCD mặt sau', 'Chưa có', null, 'INVALID', 'Thiếu ảnh CCCD mặt sau', '✕ Thiếu chứng từ');
     }
 
     // 33. Giấy phép xuất bản Scan
     if (profile.document_publishing_permit) {
-      addField('document_publishing_permit', 'Scan GP Xuất bản / Ủy quyền', 'Đã đính kèm tệp', null, 'VALID', 'Giấy phép xuất bản đã tải lên. Admin kiểm tra thẩm quyền ký duyệt.', '👁️ Admin xem giấy phép');
+      addField('document_publishing_permit', 'Scan GP Xuất bản / Ủy quyền', 'Đã đính kèm tệp', null, 'VALID', 'Giấy phép xuất bản đã tải lên. Admin kiểm tra thẩm quyền ký duyệt.', 'Admin xem giấy phép');
     } else {
       addField('document_publishing_permit', 'Scan GP Xuất bản / Ủy quyền', 'Chưa có', null, 'INVALID', 'Thiếu scan Giấy phép xuất bản/Ủy quyền', '✕ Thiếu chứng từ');
     }

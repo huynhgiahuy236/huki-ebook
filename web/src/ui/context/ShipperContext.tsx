@@ -426,7 +426,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
           playShipperChime();
           showToast(
             {
-              title: '🛵 Đơn sách mới cần giao!',
+              title: ' Đơn sách mới cần giao!',
               message: payload?.orderCode
                 ? `Đơn #${payload.orderCode} vừa được shop xác nhận chuẩn bị. Vào sàn nhận đơn ngay!`
                 : 'Có đơn hàng sách mới cần bưu tá tiếp nhận trong khu vực!',
@@ -441,7 +441,7 @@ export const ShipperProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const retCode = payload?.returnTrackingCode || (payload?.returnRequestId ? `HUKI-RET-${String(payload.returnRequestId).slice(0, 8).toUpperCase()}` : 'mới');
           showToast(
             {
-              title: '📦 Nhiệm vụ lấy hàng hoàn mới!',
+              title: ' Nhiệm vụ lấy hàng hoàn mới!',
               message: `Đơn hoàn #${retCode} vừa được gán trực tiếp cho bạn (Sticky Shipper). Vui lòng đến nhà khách để thu hồi sách hoàn về kho Shop!`,
             },
             'warning'

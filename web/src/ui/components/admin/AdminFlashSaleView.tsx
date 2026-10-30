@@ -186,7 +186,7 @@ export function AdminFlashSaleView() {
     if (live.length > 0 || activeTab === 'ACTIVE') {
       result.push({
         groupKey: 'ACTIVE',
-        title: '🔥 Phiên Flash Sale Đang Diễn Ra (Live)',
+        title: ' Phiên Flash Sale Đang Diễn Ra (Live)',
         badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
         icon: 'local_fire_department',
         sessions: live,
@@ -204,7 +204,7 @@ export function AdminFlashSaleView() {
     if (cancelled.length > 0 || activeTab === 'CANCELLED') {
       result.push({
         groupKey: 'CANCELLED',
-        title: '🚫 Phiên Flash Sale Đã Hủy (Không Đủ Shop Tham Gia)',
+        title: 'Phiên Flash Sale Đã Hủy (Không Đủ Shop Tham Gia)',
         badgeColor: 'bg-red-50 text-red-700 border-red-200',
         icon: 'cancel',
         sessions: cancelled,
@@ -307,7 +307,7 @@ export function AdminFlashSaleView() {
       });
       return next;
     });
-    showToast?.(`⚡ Đã áp dụng ưu đãi hàng loạt cho ${selectedBooksCount} cuốn sách đã chọn!`, "success");
+    showToast?.(` Đã áp dụng ưu đãi hàng loạt cho ${selectedBooksCount} cuốn sách đã chọn!`, "success");
   };
 
   // Toggle Selection
@@ -361,7 +361,7 @@ export function AdminFlashSaleView() {
         if (res.success) successCount++;
       }
 
-      showToast?.(`🎉 Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
+      showToast?.(` Đã gán thành công ${successCount}/${selectedConfigs.length} sách vào khung giờ Flash Sale!`, "success");
       setStudioSlotId(null);
       fetchFlashSales();
     } catch {
@@ -494,7 +494,7 @@ export function AdminFlashSaleView() {
       });
 
       if (res.success) {
-        showToast?.(`⚡ Đã tạo thành công khung giờ "${createForm.name}"!`, "success");
+        showToast?.(` Đã tạo thành công khung giờ "${createForm.name}"!`, "success");
         setIsCreateFormOpen(false);
         setCreateErrors({});
         setCreateForm({
@@ -605,7 +605,7 @@ export function AdminFlashSaleView() {
           </button>
           {activePlatformSlot && (
             <p className="text-[11px] text-red-500 font-semibold text-right max-w-md">
-              ⚠️ Sàn hiện đang có 1 chương trình Flash Sale chưa kết thúc ("{activePlatformSlot.name}"). Không thể tạo thêm chương trình mới.
+              Sàn hiện đang có 1 chương trình Flash Sale chưa kết thúc ("{activePlatformSlot.name}"). Không thể tạo thêm chương trình mới.
             </p>
           )}
         </div>
@@ -918,7 +918,7 @@ export function AdminFlashSaleView() {
                   <span>Thiết Lập Bộ 4 Mốc Thời Gian Chuẩn Cho Sàn</span>
                 </span>
                 <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200/60 font-medium">
-                  ⚡ 2 phút đệm công bố teaser cho khách hàng giữa Đóng ĐK & Mở Bán
+                   2 phút đệm công bố teaser cho khách hàng giữa Đóng ĐK & Mở Bán
                 </span>
               </div>
 

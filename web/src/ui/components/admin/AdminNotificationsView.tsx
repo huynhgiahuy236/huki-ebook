@@ -991,7 +991,7 @@ export default function AdminNotificationsView() {
 
             <div className="space-y-3 text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-64 overflow-y-auto">
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/60 font-semibold text-slate-800">
-                📌 {detailNotif.summary}
+                {detailNotif.summary}
               </div>
               <p>{detailNotif.content}</p>
             </div>
@@ -1002,7 +1002,7 @@ export default function AdminNotificationsView() {
               </div>
               {detailNotif.isPinnedTop && (
                 <span className="text-[10.5px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                  📌 Đang ghim Top Notice
+                  Đang ghim Top Notice
                 </span>
               )}
             </div>

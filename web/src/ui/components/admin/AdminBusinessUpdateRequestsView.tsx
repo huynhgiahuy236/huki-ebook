@@ -755,8 +755,8 @@ export function AdminBusinessUpdateRequestsView() {
                     <span className="text-gray-500 font-medium">Loại hình mới:</span>
                     <p className="font-semibold text-gray-900 mt-0.5">
                       {selectedRequest.requestedData?.businessType === 'INDIVIDUAL' 
-                        ? '🏪 Hộ Kinh Doanh Cá Thể' 
-                        : `🏢 Doanh Nghiệp (${selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType})`}
+                        ? 'Hộ Kinh Doanh Cá Thể' 
+                        : `Doanh Nghiệp (${selectedRequest.requestedData?.businessType || selectedRequest.business?.businessType})`}
                     </p>
                   </div>
 

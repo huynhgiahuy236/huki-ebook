@@ -273,7 +273,7 @@ export function AdminVouchersView() {
         expiresAt: new Date(voucherForm.expiresAt).toISOString(),
       });
       if (res.success) {
-        showToast?.(`⚡ Đã tạo voucher sàn ${voucherForm.code.toUpperCase()} thành công!`, "success");
+        showToast?.(` Đã tạo voucher sàn ${voucherForm.code.toUpperCase()} thành công!`, "success");
         setIsFormOpen(false);
         setVoucherErrors({});
         setVoucherForm({
@@ -587,9 +587,9 @@ export function AdminVouchersView() {
                               {/* Nút bấm chọn nhanh mức Freeship */}
                               <div className="flex flex-wrap items-center gap-2">
                                 {[
-                                  { label: '🌟 Miễn Phí 100% (Tối đa 100k)', val: 100000 },
-                                  { label: '🚚 Chuẩn Sàn HUKI (30.000₫)', val: 30000 },
-                                  { label: '⚡ Hỗ trợ 15.000₫', val: 15000 },
+                                  { label: 'Miễn Phí 100% (Tối đa 100k)', val: 100000 },
+                                  { label: ' Chuẩn Sàn HUKI (30.000₫)', val: 30000 },
+                                  { label: ' Hỗ trợ 15.000₫', val: 15000 },
                                 ].map((preset) => (
                                   <button
                                     type="button"
@@ -833,8 +833,8 @@ export function AdminVouchersView() {
                             className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-300 font-bold text-xs text-emerald-900 focus:border-[#00875A] focus:outline-none"
                           >
                             <option value="ALL">📚 Tất cả định dạng</option>
-                            <option value="DIGITAL">⚡ Chỉ Ebook DRM</option>
-                            <option value="PHYSICAL">📦 Chỉ Sách Giấy</option>
+                            <option value="DIGITAL"> Chỉ Ebook DRM</option>
+                            <option value="PHYSICAL">Chỉ Sách Giấy</option>
                           </select>
                         </div>
 

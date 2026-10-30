@@ -239,7 +239,7 @@ export function useRealtimeNotifications(options: UseRealtimeNotificationsOption
           : 'info';
 
       showToast({
-        title: `${newNoti.priority === 'CRITICAL' ? '🚨 ' : newNoti.priority === 'HIGH' ? '⚠️ ' : '🔔 '}${newNoti.title}`,
+        title: `${newNoti.priority === 'CRITICAL' ? '' : newNoti.priority === 'HIGH' ? '' : ''}${newNoti.title}`,
         message: newNoti.message,
         type: toastType,
         actionUrl: newNoti.actionUrl,

@@ -32,7 +32,7 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   if (sender === 'SELLER' && target === 'SHIPPER') {
     return [
       {
-        title: `📦 Lưu ý kiện hàng ${code}: Sách quý / Bìa cứng`,
+        title: ` Lưu ý kiện hàng ${code}: Sách quý / Bìa cứng`,
         message: `Đơn ${code} có chứa sách bìa cứng/sách quý dễ cấn móp góc. Nhờ bưu tá xếp cẩn thận và che chắn mưa nắng giúp gian hàng nhé!`,
         priority: 'HIGH',
       },
@@ -52,12 +52,12 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   if (sender === 'SELLER' && target === 'USER') {
     return [
       {
-        title: `✨ Đơn hàng ${code} đã được shop kiểm tra & đóng gói kỹ`,
+        title: ` Đơn hàng ${code} đã được shop kiểm tra & đóng gói kỹ`,
         message: `Sách của bạn đã được bọc xốp bóng khí 2 lớp kèm thẻ đánh dấu trang (bookmark) độc quyền từ shop. Sắp tới tay bạn nhé!`,
         priority: 'NORMAL',
       },
       {
-        title: `🚚 Bàn giao đơn ${code} cho đơn vị vận chuyển`,
+        title: ` Bàn giao đơn ${code} cho đơn vị vận chuyển`,
         message: `Đơn hàng ${code} vừa được trao cho bưu tá giao vận. Bạn có thể theo dõi hành trình di chuyển trực tiếp trên ứng dụng.`,
         priority: 'NORMAL',
       },
@@ -72,7 +72,7 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   if (sender === 'SHIPPER' && target === 'USER') {
     return [
       {
-        title: `🛵 Shipper đang trên đường tới giao đơn ${code}`,
+        title: ` Shipper đang trên đường tới giao đơn ${code}`,
         message: `Bưu tá đang di chuyển tới địa chỉ nhận của bạn và sẽ có mặt sau khoảng 10 - 15 phút nữa. Quý khách chú ý chuông điện thoại nhé!`,
         priority: 'HIGH',
       },
@@ -82,7 +82,7 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
         priority: 'HIGH',
       },
       {
-        title: `📦 Đã gửi bưu phẩm ${code} tại quầy Lễ tân / Bảo vệ`,
+        title: ` Đã gửi bưu phẩm ${code} tại quầy Lễ tân / Bảo vệ`,
         message: `Bưu tá đã gửi kiện hàng tại khu vực lễ tân/bảo vệ tòa nhà theo trao đổi với bạn. Quý khách nhớ ghé lấy nhé!`,
         priority: 'NORMAL',
       },
@@ -112,17 +112,17 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   if (sender === 'USER' && target === 'SELLER') {
     return [
       {
-        title: `🎁 Dặn dò đóng gói đơn ${code}: Sách làm quà tặng`,
+        title: `Dặn dò đóng gói đơn ${code}: Sách làm quà tặng`,
         message: `Shop đóng gói cẩn thận chống gãy mép bìa giúp mình nhé, mình mua làm quà tặng sinh nhật bạn!`,
         priority: 'NORMAL',
       },
       {
-        title: `⚡ Cần sách sớm trước cuối tuần cho đơn ${code}`,
+        title: ` Cần sách sớm trước cuối tuần cho đơn ${code}`,
         message: `Mình đang cần đọc sách này gấp cho bài luận cuối kỳ, mong Shop xác nhận và xuất kho sớm giúp mình nhé! Cảm ơn Shop.`,
         priority: 'HIGH',
       },
       {
-        title: `📝 Xuất hóa đơn / Thiệp chúc cho đơn ${code}`,
+        title: `Xuất hóa đơn / Thiệp chúc cho đơn ${code}`,
         message: `Shop gửi kèm phiếu giao hàng có kê chi tiết tên sách hoặc thiệp chúc nhỏ giúp mình nhé. Cảm ơn Shop nhiều!`,
         priority: 'NORMAL',
       },
@@ -132,7 +132,7 @@ function getPresetTemplates(sender: DispatchSenderRole, target: DispatchTargetRo
   // Default fallback
   return [
     {
-      title: `💬 Tin nhắn nhanh liên quan đơn ${code}`,
+      title: `Tin nhắn nhanh liên quan đơn ${code}`,
       message: `Xin chào, mình gửi thông báo liên quan đến đơn hàng ${code}. Vui lòng kiểm tra và hỗ trợ nhé!`,
       priority: 'NORMAL',
     },
@@ -310,7 +310,7 @@ export default function QuickDispatchNotificationModal({
           {/* Quick Presets */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-2">
-              ⚡ Gợi ý mẫu dặn dò nhanh (1 chạm):
+               Gợi ý mẫu dặn dò nhanh (1 chạm):
             </label>
             <div className="flex flex-col gap-1.5">
               {presets.map((p, idx) => (

@@ -1423,7 +1423,7 @@ function MessengerContent() {
 
                 <button
                   type="button"
-                  onClick={() => setMessageInput(prev => prev + ' 😊')}
+                  onClick={() => setMessageInput(prev => prev + ' ')}
                   className="p-2 text-gray-400 hover:text-[#006953] hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
                   title="Biểu tượng cảm xúc"
                 >

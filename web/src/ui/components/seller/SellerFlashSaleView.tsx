@@ -305,7 +305,7 @@ export function SellerFlashSaleView() {
   const handleSimulateResetQuarter = () => {
     const updated = sellerPenaltyService.resetQuarterly(currentStoreId);
     setPenaltyProfile(updated);
-    showToast('Đã làm mới điểm Sao Quả Tạ về 0 theo chu kỳ Quý! 🎉', 'success');
+    showToast('Đã làm mới điểm Sao Quả Tạ về 0 theo chu kỳ Quý! ', 'success');
   };
 
   const handleSubmitAppeal = (e: React.FormEvent) => {
@@ -677,7 +677,7 @@ export function SellerFlashSaleView() {
       return updated;
     });
 
-    showToast(`Đã áp dụng giảm ${percent}% cho các sản phẩm phù hợp! ⚡`, 'success');
+    showToast(`Đã áp dụng giảm ${percent}% cho các sản phẩm phù hợp! `, 'success');
   };
 
   // Bulk Apply Stock Quota
@@ -700,7 +700,7 @@ export function SellerFlashSaleView() {
       return updated;
     });
 
-    showToast(`Đã áp dụng số lượng ${numStock} cuốn cho tất cả sách đã chọn! 📦`, 'success');
+    showToast(`Đã áp dụng số lượng ${numStock} cuốn cho tất cả sách đã chọn! `, 'success');
   };
 
   // Bulk Apply Max Per User
@@ -906,7 +906,7 @@ export function SellerFlashSaleView() {
           const firstErr = errorsList[0]?.error || errorsList[0]?.message || 'một số sách bị từ chối';
           showToast(`Đã đăng ký thành công ${registeredCount}/${selectedBooksList.length} sách (${firstErr})`, 'warning');
         } else {
-          showToast(`Đăng ký thành công ${registeredCount} cuốn sách vào Flash Sale! 🎉`, 'success');
+          showToast(`Đăng ký thành công ${registeredCount} cuốn sách vào Flash Sale! `, 'success');
         }
         setIsFormOpen(false);
         setBookConfigMap((prev) => {
@@ -984,7 +984,7 @@ export function SellerFlashSaleView() {
       setDeletingSlotId(slotId);
       const res = await flashSaleApi.sellerDeleteSlot(slotId);
       if (res.success) {
-        showToast('Đã xóa đợt Flash Sale thành công! 🎉', 'success');
+        showToast('Đã xóa đợt Flash Sale thành công! ', 'success');
         await loadData();
       } else {
         showToast((res as any)?.message || 'Không thể xóa đợt Flash Sale', 'error');
@@ -1040,7 +1040,7 @@ export function SellerFlashSaleView() {
       });
 
       if (res.success) {
-        showToast('Đã cập nhật Flash Sale thành công! 🎉', 'success');
+        showToast('Đã cập nhật Flash Sale thành công! ', 'success');
         setEditingRowId(null);
         setEditingRowData(null);
         await loadData();
@@ -1239,7 +1239,7 @@ export function SellerFlashSaleView() {
                   Sao Quả Tạ
                 </div>
                 <div className="text-xs font-black">
-                  {penaltyProfile.penaltyPoints} / 3 ⭐{' '}
+                  {penaltyProfile.penaltyPoints} / 3 ★{' '}
                   <span className="font-semibold text-[10.5px] opacity-80">
                     ({penaltyProfile.tier === 'TIER_0_GOOD' ? 'Tốt' : penaltyProfile.tier === 'TIER_1_WARNING' ? 'Cảnh Báo' : 'Khóa FS Sàn'})
                   </span>
@@ -1294,7 +1294,7 @@ export function SellerFlashSaleView() {
               <span className="material-symbols-outlined text-lg">
                 {isFormOpen ? 'close' : existingShopSlot ? 'lock' : 'bolt'}
               </span>
-              <span>{isFormOpen ? 'Đóng Công Cụ' : '⚡ Tạo Flash Sale & Đăng Ký Sách'}</span>
+              <span>{isFormOpen ? 'Đóng Công Cụ' : ' Tạo Flash Sale & Đăng Ký Sách'}</span>
             </button>
           </div>
           {existingShopSlot && !isFormOpen && (
@@ -1427,7 +1427,7 @@ export function SellerFlashSaleView() {
                       : 'bg-rose-100 text-rose-800'
                   }`}
                 >
-                  Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ⭐ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
+                  Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ★ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
                 </span>
               </div>
               <p className="text-[11px] text-gray-600 mt-0.5">
@@ -1506,7 +1506,7 @@ export function SellerFlashSaleView() {
                     {isSaleLive && (
                       <span className="px-2.5 py-0.5 rounded-full bg-rose-600 text-white text-[10.5px] font-bold flex items-center gap-1 shadow-xs animate-pulse">
                         <span className="material-symbols-outlined text-xs">local_fire_department</span>
-                        ĐANG MỞ BÁN ⚡
+                        ĐANG MỞ BÁN 
                       </span>
                     )}
                     {isRegUpcoming && (
@@ -1543,7 +1543,7 @@ export function SellerFlashSaleView() {
                           className="px-4 py-2.5 rounded-xl font-bold text-xs bg-gray-100 text-gray-500 border border-gray-200 cursor-not-allowed shadow-none flex items-center justify-center gap-1.5"
                         >
                           <span className="material-symbols-outlined text-sm">lock</span>
-                          <span>🔒 Đã Đăng Ký Tham Gia</span>
+                          <span> Đã Đăng Ký Tham Gia</span>
                         </button>
 
                         <button
@@ -1581,14 +1581,14 @@ export function SellerFlashSaleView() {
                         </span>
                         <span>
                           {!platformEligibility.eligible
-                            ? '🔒 Tạm Khóa (Sao Quả Tạ >= 3)'
+                            ? ' Tạm Khóa (Sao Quả Tạ >= 3)'
                             : isStoreFull
                             ? `Đã Đủ Số Lượng Shop (${maxStores}/${maxStores})`
                             : isTeaser
                             ? 'Đã Đóng Cổng Đăng Ký'
                             : isSaleLive
                             ? 'Đã Hết Hạn Đăng Ký'
-                            : '⚡ Đăng Ký Tham Gia Sàn Ngay'}
+                            : ' Đăng Ký Tham Gia Sàn Ngay'}
                         </span>
                       </button>
                     )}
@@ -1618,7 +1618,7 @@ export function SellerFlashSaleView() {
                     ></div>
                   </div>
                   <div className="flex items-center justify-between text-[10.5px] text-gray-500">
-                    <span>{isStoreFull ? '⚠️ Đã đạt giới hạn tối đa' : `Còn lại ${Math.max(0, maxStores - participatingCount)} suất đăng ký`}</span>
+                    <span>{isStoreFull ? 'Đã đạt giới hạn tối đa' : `Còn lại ${Math.max(0, maxStores - participatingCount)} suất đăng ký`}</span>
                     <span>{progressPct}% Quota</span>
                   </div>
                 </div>
@@ -1648,7 +1648,7 @@ export function SellerFlashSaleView() {
               Hiện tại chưa có đợt Flash Sale toàn sàn nào mở đăng ký
             </h4>
             <p className="text-[11px] text-gray-500 max-w-lg mx-auto">
-              Ban Quản Trị Sàn sẽ thông báo khi có đợt khuyến mãi giờ vàng mới. Bạn có thể tự tạo đợt Flash Sale riêng của Shop bằng nút "⚡ Tạo Flash Sale & Đăng Ký Sách" ở phía trên.
+              Ban Quản Trị Sàn sẽ thông báo khi có đợt khuyến mãi giờ vàng mới. Bạn có thể tự tạo đợt Flash Sale riêng của Shop bằng nút " Tạo Flash Sale & Đăng Ký Sách" ở phía trên.
             </p>
           </div>
         )}
@@ -1877,7 +1877,7 @@ export function SellerFlashSaleView() {
                       </span>
                       <div className="text-xs space-y-1">
                         <div className="font-extrabold text-rose-800">
-                          Khóa Quyền Đăng Ký Flash Sale Toàn Sàn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ⭐)
+                          Khóa Quyền Đăng Ký Flash Sale Toàn Sàn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}/3 ★)
                         </div>
                         <p className="text-rose-700 leading-relaxed">
                           {platformEligibility.reason}. Bạn có thể chuyển sang tab <strong>"Tự Tạo Giờ Riêng"</strong> của Shop để chủ động tạo Flash Sale, hoặc gửi đơn khiếu nại để được Ban Quản Trị xem xét.
@@ -1899,7 +1899,7 @@ export function SellerFlashSaleView() {
                 {isPlatformScope && (
                   <span className="text-[11px] font-bold text-amber-900 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-sm text-amber-700">lock</span>
-                    <span>Đợt Flash Sale Sàn: Trợ giá -{platformDiscountPercent}%, Hạn mức: {selectedBooksList.length}/{penaltyProfile.maxBooksPerPlatformSlot} cuốn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}⭐)</span>
+                    <span>Đợt Flash Sale Sàn: Trợ giá -{platformDiscountPercent}%, Hạn mức: {selectedBooksList.length}/{penaltyProfile.maxBooksPerPlatformSlot} cuốn (Sao Quả Tạ: {penaltyProfile.penaltyPoints}★)</span>
                   </span>
                 )}
               </div>
@@ -1987,7 +1987,7 @@ export function SellerFlashSaleView() {
                     </button>
                   </div>
                   <p className="text-[10px] text-gray-500">
-                    {isPlatformScope ? '🔒 Đã khóa theo chính sách trợ giá toàn sàn' : 'Tự động chọn và tính giá theo mức % cho thể loại này'}
+                    {isPlatformScope ? ' Đã khóa theo chính sách trợ giá toàn sàn' : 'Tự động chọn và tính giá theo mức % cho thể loại này'}
                   </p>
                 </div>
 
@@ -2015,7 +2015,7 @@ export function SellerFlashSaleView() {
                     <div className="flex gap-1 ml-auto">
                       {isPlatformScope ? (
                         <span className="text-[10px] px-2 py-1 rounded-md font-bold bg-blue-100 text-blue-800 border border-blue-200">
-                          🔒 Max {platformMaxPerUser}
+                           Max {platformMaxPerUser}
                         </span>
                       ) : (
                         <>
@@ -2277,7 +2277,7 @@ export function SellerFlashSaleView() {
                             <td className="py-2.5 px-3">
                               {isPlatformScope ? (
                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200 whitespace-nowrap">
-                                  🔒 -{platformDiscountPercent}%
+                                   -{platformDiscountPercent}%
                                 </span>
                               ) : (
                                 <span
@@ -2313,7 +2313,7 @@ export function SellerFlashSaleView() {
                             <td className="py-2.5 px-3">
                               {isPlatformScope ? (
                                 <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200 whitespace-nowrap">
-                                  🔒 {platformMaxPerUser} cuốn
+                                   {platformMaxPerUser} cuốn
                                 </span>
                               ) : (
                                 <select
@@ -2422,7 +2422,7 @@ export function SellerFlashSaleView() {
         <SellerFilterTabs
           tabs={[
             { key: 'ALL', label: 'Tất Cả Khung Giờ' },
-            { key: 'ACTIVE', label: 'Đang Mở Bán ⚡' },
+            { key: 'ACTIVE', label: 'Đang Mở Bán ' },
             { key: 'ENDED', label: 'Đã Kết Thúc 🏁' },
           ]}
           activeTab={activeTab}
@@ -3203,7 +3203,7 @@ export function SellerFlashSaleView() {
                           : 'bg-rose-100 text-rose-800 border border-rose-300'
                       }`}
                     >
-                      Hiện tại: {penaltyProfile.penaltyPoints}/3 ⭐ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
+                      Hiện tại: {penaltyProfile.penaltyPoints}/3 ★ ({PENALTY_TIER_CONFIG[penaltyProfile.tier].name})
                     </span>
                   </div>
                   <p className="text-xs text-gray-600 mt-1">
@@ -3392,7 +3392,7 @@ export function SellerFlashSaleView() {
                             key: 'TIER_2_BLOCKED_FLASH_SALE',
                             tier: 'Cấp 2 (Khóa Flash Sale)',
                             points: '3 - 5 điểm',
-                            flashSale: '🚫 Tạm khóa tham gia Flash Sale Sàn trong 28 ngày',
+                            flashSale: 'Tạm khóa tham gia Flash Sale Sàn trong 28 ngày',
                             search: 'Bình thường',
                             wallet: 'Bình thường',
                             bg: 'bg-rose-50/40',
@@ -3401,7 +3401,7 @@ export function SellerFlashSaleView() {
                             key: 'TIER_3_SEARCH_DEBOOST',
                             tier: 'Cấp 3 (Giảm Hiển Thị)',
                             points: '6 - 8 điểm',
-                            flashSale: '🚫 Khóa tham gia tất cả chiến dịch khuyến mãi Sàn',
+                            flashSale: 'Khóa tham gia tất cả chiến dịch khuyến mãi Sàn',
                             search: 'Giảm 50% thứ hạng tìm kiếm và danh mục',
                             wallet: 'Bình thường',
                             bg: 'bg-purple-50/40',
@@ -3410,7 +3410,7 @@ export function SellerFlashSaleView() {
                             key: 'TIER_4_FROZEN',
                             tier: 'Cấp 4 (Đóng Băng)',
                             points: '>= 9 điểm',
-                            flashSale: '🚫 Khóa toàn bộ tính năng khuyến mãi',
+                            flashSale: 'Khóa toàn bộ tính năng khuyến mãi',
                             search: 'Ẩn toàn bộ sản phẩm khỏi kết quả tìm kiếm',
                             wallet: 'Tạm dừng thanh toán & yêu cầu xác minh bảo mật',
                             bg: 'bg-red-100/50',
@@ -3436,7 +3436,7 @@ export function SellerFlashSaleView() {
                               <td className="py-3 px-4">{row.wallet}</td>
                               <td className="py-3 px-4 text-center">
                                 {isCurrent ? (
-                                  <span className="text-xs text-orange-600 font-black">⭐ Đang Áp Dụng</span>
+                                  <span className="text-xs text-orange-600 font-black">★ Đang Áp Dụng</span>
                                 ) : (
                                   <span className="text-xs text-gray-400">-</span>
                                 )}
@@ -3564,7 +3564,7 @@ export function SellerFlashSaleView() {
                                         className="text-[10px] px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
                                         title="Mô phỏng thao tác Admin HuKi chấp thuận khiếu nại"
                                       >
-                                        ⚡ Demo Admin Duyệt
+                                         Demo Admin Duyệt
                                       </button>
                                       <button
                                         type="button"
@@ -3572,7 +3572,7 @@ export function SellerFlashSaleView() {
                                         className="text-[10px] px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold cursor-pointer transition-colors"
                                         title="Mô phỏng thao tác Admin HuKi từ chối khiếu nại"
                                       >
-                                        ⚡ Demo Admin Từ Chối
+                                         Demo Admin Từ Chối
                                       </button>
                                     </div>
                                   )}
@@ -3740,8 +3740,7 @@ export function SellerFlashSaleView() {
                           +3 Điểm: Vi Phạm Bản Quyền Sách
                         </span>
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800">
-                          +3 Điểm 🚫
-                        </span>
+                          +3 Điểm </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-1">
                         Kích hoạt ngay Cấp 2: <strong>Khóa tham gia Flash Sale Sàn trong 28 ngày!</strong>
@@ -3765,7 +3764,7 @@ export function SellerFlashSaleView() {
                           +6 Điểm: Gian Lận Giá Ảo
                         </span>
                         <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-800">
-                          +6 Điểm ⚡
+                          +6 Điểm 
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-500 mt-1">

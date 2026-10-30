@@ -18,7 +18,7 @@ interface DailyRecommendationsSectionProps {
 
 export function DailyRecommendationsSection({
   limit = 12,
-  title = '🎯 Gợi ý hôm nay cho bạn',
+  title = 'Gợi ý hôm nay cho bạn',
   subtitle = 'Cập nhật mỗi ngày dựa trên sở thích & hoạt động của bạn',
 }: DailyRecommendationsSectionProps) {
   const { books, loading, error } = useForYouBooks({ limit, enabled: true });

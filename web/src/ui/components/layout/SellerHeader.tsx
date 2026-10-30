@@ -68,7 +68,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           : (msg?.messageType === 'IMAGE' ? '[Đã gửi một hình ảnh]' : 'Bạn có một tin nhắn mới');
 
         showToast({
-          title: `💬 Tin nhắn từ ${senderName}`,
+          title: `Tin nhắn từ ${senderName}`,
           message: snippet,
           type: 'info',
           actionUrl: '/seller/chat',

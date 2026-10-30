@@ -219,7 +219,7 @@ export default function AdminShippersView() {
             </div>
             <div className="flex items-center gap-2 text-[11px] text-gray-500">
               <span className="text-amber-600 font-bold flex items-center gap-0.5">
-                ⭐ {shipper.rating}
+                ★ {shipper.rating}
               </span>
               <span>•</span>
               <span>{shipper.totalDeliveries} đơn</span>

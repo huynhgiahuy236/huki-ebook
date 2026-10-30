@@ -145,7 +145,7 @@ export default function FeaturedStoresSection() {
             </Link>
             <div className="mt-2 flex items-center justify-between">
               <span className="text-[10px] text-gray-400">
-                ⭐ {store.rating} ({store.reviewCount.toLocaleString()})
+                ★ {store.rating} ({store.reviewCount.toLocaleString()})
               </span>
               <button className="text-[10px] font-bold text-[#003B2B] hover:underline">
                 Theo dõi

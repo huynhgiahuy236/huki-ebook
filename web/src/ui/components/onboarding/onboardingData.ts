@@ -46,7 +46,7 @@ export const ONBOARDING_CATEGORIES = [
 
 export const ONBOARDING_GENRES: GenreItem[] = [
   // Văn học
-  { id: 'lit_classic', name: 'Văn học kinh điển', icon: '🏛️', category: 'Văn học' },
+  { id: 'lit_classic', name: 'Văn học kinh điển', icon: '', category: 'Văn học' },
   { id: 'lit_vietnam', name: 'Văn học Việt Nam', icon: '🇻🇳', category: 'Văn học' },
   { id: 'lit_romance', name: 'Ngôn tình & Lãng mạn', icon: '💖', category: 'Văn học' },
   { id: 'lit_thriller', name: 'Trinh thám & Bí ẩn', icon: '🕵️', category: 'Văn học' },
@@ -60,15 +60,15 @@ export const ONBOARDING_GENRES: GenreItem[] = [
   { id: 'psychology', name: 'Tâm lý học ứng dụng', icon: '🧠', category: 'Tâm lý & Kỹ năng' },
   { id: 'mindfulness', name: 'Chữa lành & Thiền định', icon: '🧘', category: 'Tâm lý & Kỹ năng' },
   { id: 'communication', name: 'Giao tiếp & Đàm phán', icon: '🗣️', category: 'Tâm lý & Kỹ năng' },
-  { id: 'productivity', name: 'Quản lý thời gian', icon: '⚡', category: 'Tâm lý & Kỹ năng' },
+  { id: 'productivity', name: 'Quản lý thời gian', icon: '', category: 'Tâm lý & Kỹ năng' },
   { id: 'parenting', name: 'Nuôi dạy con cái', icon: '👶', category: 'Tâm lý & Kỹ năng' },
 
   // Kinh doanh & Tech
-  { id: 'biz_startup', name: 'Khởi nghiệp & Đổi mới', icon: '💡', category: 'Kinh doanh & Tech' },
-  { id: 'biz_invest', name: 'Đầu tư & Chứng khoán', icon: '📈', category: 'Kinh doanh & Tech' },
-  { id: 'biz_finance', name: 'Tài chính cá nhân', icon: '💰', category: 'Kinh doanh & Tech' },
-  { id: 'biz_marketing', name: 'Marketing & Bán hàng', icon: '🎯', category: 'Kinh doanh & Tech' },
-  { id: 'tech_ai', name: 'Trí tuệ nhân tạo (AI)', icon: '🤖', category: 'Kinh doanh & Tech' },
+  { id: 'biz_startup', name: 'Khởi nghiệp & Đổi mới', icon: '', category: 'Kinh doanh & Tech' },
+  { id: 'biz_invest', name: 'Đầu tư & Chứng khoán', icon: '', category: 'Kinh doanh & Tech' },
+  { id: 'biz_finance', name: 'Tài chính cá nhân', icon: '', category: 'Kinh doanh & Tech' },
+  { id: 'biz_marketing', name: 'Marketing & Bán hàng', icon: '', category: 'Kinh doanh & Tech' },
+  { id: 'tech_ai', name: 'Trí tuệ nhân tạo (AI)', icon: '', category: 'Kinh doanh & Tech' },
   { id: 'tech_coding', name: 'Lập trình & Kỹ thuật', icon: '💻', category: 'Kinh doanh & Tech' },
 
   // Tri thức

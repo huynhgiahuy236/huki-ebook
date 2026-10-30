@@ -445,10 +445,10 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
   return (
     <aside 
       className={`bg-white text-slate-800 border-r border-[#00875A]/20 flex flex-col justify-between shrink-0 h-[calc(100vh-54px)] sticky top-[54px] overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out select-none shadow-2xs z-20 custom-scrollbar ${
-        isCollapsed ? 'w-[64px] p-2' : 'w-[250px] p-3'
+        isMobile ? 'w-full h-full p-3.5 static shadow-none border-none' : isCollapsed ? 'w-[64px] p-2' : 'w-[250px] p-3'
       }`}
     >
-      <div className="space-y-3">
+      <div className="space-y-3 pb-8">
         {/* Mobile Header with Close button */}
         {isMobile && (
           <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 -m-3 mb-3">

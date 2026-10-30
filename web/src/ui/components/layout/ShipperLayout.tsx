@@ -297,7 +297,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                 {profile.name}
               </span>
               <span className="text-[9px] text-emerald-700 font-semibold leading-tight">
-                ⭐ {profile.rating} • {profile.licensePlate}
+                ★ {profile.rating} • {profile.licensePlate}
               </span>
             </div>
 
@@ -433,6 +433,121 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </aside>
+
+        {/* MOBILE DRAWER SIDEBAR FOR SHIPPER */}
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 lg:hidden flex">
+            <div
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            <div className="relative w-[300px] sm:w-[320px] max-w-[88vw] bg-[#003B2B] text-white h-full flex flex-col shadow-2xl z-10">
+              <div className="p-3.5 border-b border-white/10 flex items-center justify-between bg-black/10 shrink-0">
+                <div className="flex flex-col select-none">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-editorial text-base font-black tracking-tight text-white leading-none">
+                      HUKI EBOOK
+                    </span>
+                    <span className="bg-white/20 text-white text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded">
+                      EXPRESS
+                    </span>
+                  </div>
+                  <span className="text-[7.5px] uppercase tracking-widest text-emerald-300 font-bold mt-0.5">
+                    Cổng Bưu Tá Giao Sách
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1 rounded-lg text-white/70 hover:text-white hover:bg-white/10 cursor-pointer"
+                  title="Đóng menu"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              {/* Status and Wallet Banner in mobile drawer */}
+              <div className="p-3 bg-black/20 border-b border-white/10 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}`} />
+                  <span className="text-xs font-bold text-white">
+                    {isOnline ? 'Đang trực tuyến' : 'Tạm nghỉ nhận đơn'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOnline(!isOnline)}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                    isOnline ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' : 'bg-white/10 text-white/80 border-white/20'
+                  }`}
+                >
+                  {isOnline ? 'Nghỉ' : 'Bật'}
+                </button>
+              </div>
+
+              {/* Navigation Items */}
+              <div className="flex-1 overflow-y-auto p-3 pb-10 flex flex-col gap-3 custom-scrollbar">
+                {menuSections.map((sec, sIdx) => (
+                  <div key={sIdx} className="flex flex-col gap-1">
+                    <div className="px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-widest text-white/50">
+                      {sec.group}
+                    </div>
+                    <div className="flex flex-col gap-1 pl-1">
+                      {sec.items.map((item, iIdx) => {
+                        const isActive = pathname === item.to || (item.to !== '/shipper' && pathname.startsWith(item.to));
+                        return (
+                          <Link
+                            key={iIdx}
+                            href={item.to}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center justify-between px-2.5 h-9 rounded-xl text-xs font-semibold transition-all ${
+                              isActive
+                                ? 'bg-white text-[#003B2B] shadow-xs font-bold'
+                                : 'text-white/80 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className={`material-symbols-outlined text-[17px] ${isActive ? 'text-[#003B2B]' : 'text-white/70'}`}>
+                                {item.icon}
+                              </span>
+                              <span className="truncate">{item.label}</span>
+                            </div>
+                            {item.count && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded-full font-black bg-rose-500 text-white">
+                                {item.count}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Bottom Profile info */}
+              <div className="p-3 border-t border-white/10 bg-black/15 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-8 h-8 rounded-xl bg-white/20 text-white font-bold flex items-center justify-center text-xs shrink-0">
+                    {profile.name ? profile.name.charAt(0) : 'H'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-white truncate">{profile.name}</p>
+                    <p className="text-[10px] text-emerald-300 truncate">★ {profile.rating} • {profile.licensePlate}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="p-1.5 rounded-lg text-white/70 hover:text-rose-400 hover:bg-white/10"
+                  title="Đăng xuất"
+                >
+                  <span className="material-symbols-outlined text-[18px]">logout</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 3. MAIN CANVAS */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#F8FAFC]">

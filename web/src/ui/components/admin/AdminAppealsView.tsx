@@ -577,7 +577,7 @@ export function AdminAppealsView() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs text-[#00875A] hover:underline font-medium shadow-2xs"
                       >
-                        <span>📄 {att.filename}</span>
+                        <span>{att.filename}</span>
                         <span className="text-[10px] text-gray-400">({Math.round((att.size || 0) / 1024)}KB)</span>
                       </a>
                     ))}
@@ -598,7 +598,7 @@ export function AdminAppealsView() {
                           rel="noopener noreferrer"
                           className="text-[#00875A] hover:underline font-mono text-[11px] truncate block max-w-full"
                         >
-                          🔗 {url}
+                          {url}
                         </a>
                       </li>
                     ))}
@@ -673,7 +673,7 @@ export function AdminAppealsView() {
                   />
                   {reviewNoteError && (
                     <p className="text-xs text-rose-500 mt-1 flex items-center gap-1 font-medium animate-in fade-in">
-                      <span>⚠️</span> {reviewNoteError}
+                      <span></span> {reviewNoteError}
                     </p>
                   )}
                 </div>

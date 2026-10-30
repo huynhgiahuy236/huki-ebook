@@ -845,7 +845,7 @@ export default function SellerInventoryPage() {
                   </span>
                   <div className="flex items-center gap-3">
                     <span className="text-slate-600">
-                      Tồn thực: <strong className="text-slate-900">{curStock}</strong> -> <strong className="text-indigo-700">{projectedStock}</strong>
+                      Tồn thực: <strong className="text-slate-900">{curStock}</strong> &rarr; <strong className="text-indigo-700">{projectedStock}</strong>
                     </span>
                     <span className="text-slate-400">·</span>
                     <span className="text-amber-700">
@@ -853,7 +853,7 @@ export default function SellerInventoryPage() {
                     </span>
                     <span className="text-slate-400">·</span>
                     <span className="text-emerald-700">
-                      Khả dụng: <strong className="text-slate-900">{curAvailable}</strong> -> <strong className="text-emerald-700">{projectedAvailable}</strong>
+                      Khả dụng: <strong className="text-slate-900">{curAvailable}</strong> &rarr; <strong className="text-emerald-700">{projectedAvailable}</strong>
                     </span>
                   </div>
                 </div>

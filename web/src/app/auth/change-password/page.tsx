@@ -281,7 +281,7 @@ export default function ChangePasswordPage() {
                     onClick={() => setOtpCode('123456')}
                     className="text-[11px] text-emerald-700 hover:underline font-bold cursor-pointer"
                   >
-                    💡 Nhập mã thử nghiệm nhanh (123456)
+                    Nhập mã thử nghiệm nhanh (123456)
                   </button>
 
                   <div className="text-[11px] text-slate-500">

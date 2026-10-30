@@ -320,7 +320,7 @@ function CatalogPageContent() {
               <h3 className="font-bold text-xs sm:text-sm text-gray-900 truncate">HUKI Official Books Store</h3>
             </div>
             <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
-              <span>⭐ <strong className="text-gray-800">5.0</strong></span>
+              <span>★ <strong className="text-gray-800">5.0</strong></span>
               <span>•</span>
               <span>58.6k Người theo dõi</span>
             </p>
@@ -728,7 +728,7 @@ function CatalogPageContent() {
               {/* Personalized recommendations row */}
               <div className="mt-8 pt-4 border-t border-gray-100">
                 <PersonalizedForYouSection
-                  title={searchTerm ? `💡 Gợi ý tương tự cho "${searchTerm}"` : `✨ Gợi ý cho bạn`}
+                  title={searchTerm ? `Gợi ý tương tự cho "${searchTerm}"` : `Gợi ý cho bạn`}
                   subtitle="Được cá nhân hóa thông minh dựa trên lịch sử tìm kiếm và sở thích đọc sách của bạn"
                   currentSearchQuery={searchTerm}
                   excludeBookIds={new Set(paginatedBooks.map((b) => b.id))}

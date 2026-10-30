@@ -160,7 +160,7 @@ export default function UpdateBankModal({
         ...payload,
       });
 
-      showToast?.('🎉 Đã cập nhật tài khoản ngân hàng thụ hưởng thành công!', 'success');
+      showToast?.(' Đã cập nhật tài khoản ngân hàng thụ hưởng thành công!', 'success');
 
       if (onSuccess) {
         await onSuccess();

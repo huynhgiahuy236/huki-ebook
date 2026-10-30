@@ -489,7 +489,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       setPublisherMode('SELF');
       setErrors({});
 
-      showToast?.(`⚡ Trích xuất thành công: "${foundData.title}" (${foundData.source || 'Metadata'})! Đã điền tự động toàn bộ thông tin & ảnh bìa.`, 'success');
+      showToast?.(` Trích xuất thành công: "${foundData.title}" (${foundData.source || 'Metadata'})! Đã điền tự động toàn bộ thông tin & ảnh bìa.`, 'success');
     } catch (err: any) {
       showToast?.('Có lỗi khi trích xuất dữ liệu: ' + (err?.message || 'Vui lòng kiểm tra lại link'), 'error');
     } finally {
@@ -1369,7 +1369,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   }}
                   className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-stone-200 text-[10px] font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <span className="text-emerald-400">🔗</span> Tiki: Đắc Nhân Tâm
+                  <span className="text-emerald-400"></span> Tiki: Đắc Nhân Tâm
                 </button>
                 <button
                   type="button"
@@ -1380,7 +1380,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   }}
                   className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-stone-200 text-[10px] font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <span className="text-emerald-400">🔗</span> Fahasa: Nhà Giả Kim
+                  <span className="text-emerald-400"></span> Fahasa: Nhà Giả Kim
                 </button>
                 <button
                   type="button"
@@ -1391,7 +1391,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   }}
                   className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-stone-200 text-[10px] font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <span className="text-emerald-400">📖</span> ISBN: Atomic Habits
+                  <span className="text-emerald-400"></span> ISBN: Atomic Habits
                 </button>
                 <button
                   type="button"
@@ -1402,7 +1402,7 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
                   }}
                   className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-stone-200 text-[10px] font-medium border border-white/10 transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <span className="text-emerald-400">🔗</span> Shopee: Cây Cam Ngọt
+                  <span className="text-emerald-400"></span> Shopee: Cây Cam Ngọt
                 </button>
               </div>
             </div>

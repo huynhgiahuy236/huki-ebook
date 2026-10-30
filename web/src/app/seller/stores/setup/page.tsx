@@ -670,7 +670,7 @@ export default function SellerSetupStorePage() {
                     <p className="mt-1 text-xs text-red-500 font-medium">{bankErrors.account_holder_name}</p>
                   ) : (
                     <p className="mt-1 text-[11px] text-slate-500">
-                      🔒 Tên chủ tài khoản phải trùng khớp với tên pháp nhân hoặc chủ thể đại diện đăng ký kinh doanh.
+                      Tên chủ tài khoản phải trùng khớp với tên pháp nhân hoặc chủ thể đại diện đăng ký kinh doanh.
                     </p>
                   )}
                 </div>

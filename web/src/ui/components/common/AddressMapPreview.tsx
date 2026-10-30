@@ -612,7 +612,7 @@ export default function AddressMapPreview({
           <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%); pointer-events: none;">
             <div style="position: absolute; bottom: 0; width: 42px; height: 42px; border-radius: 50%; background: rgba(0, 59, 43, 0.25); animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
             <div style="padding: 4px 10px; background: #003B2B; color: #ffffff; font-size: 11px; font-weight: 700; border-radius: 2px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); display: flex; align-items: center; gap: 4px; white-space: nowrap; margin-bottom: 2px; border: 1px solid rgba(255,255,255,0.3);">
-              <span>📦 Điểm nhận sách HUKI</span>
+              <span> Điểm nhận sách HUKI</span>
             </div>
             <svg width="34" height="34" viewBox="0 0 24 24" fill="#003B2B" style="filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>

@@ -338,21 +338,20 @@ export default function StoreHeader({
 
   return (
     <header className="sticky top-0 z-40 bg-[var(--theme-surface,#ffffff)] border-b border-[var(--theme-border,#e8e5df)] shadow-2xs shrink-0 transition-colors duration-200">
-      {/* Top Utility Bar (h-[28px]) */}
-      <div className="h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 md:px-6 flex items-center justify-between font-medium shrink-0 transition-colors duration-200">
+      {/* Top Utility Bar (h-[28px]) - Ẩn trên mobile để chống vỡ/tràn 2 dòng */}
+      <div className="hidden md:flex h-[28px] bg-[var(--theme-header-top,#003b2b)] text-[var(--theme-header-top-text,#ffffff)] text-[10.5px] px-4 md:px-6 items-center justify-between font-medium shrink-0 whitespace-nowrap transition-colors duration-200">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">verified_user</span>
-            <span className="hidden sm:inline">Hệ sinh thái đọc Sách Thật &amp; Bản quyền số HUKI</span>
-            <span className="sm:hidden font-semibold">HUKI EBOOK</span>
+            <span>Hệ sinh thái đọc Sách Thật &amp; Bản quyền số HUKI</span>
           </span>
-          <span className="hidden sm:inline-block opacity-40">|</span>
-          <span className="hidden md:flex items-center gap-1">
+          <span className="opacity-40">|</span>
+          <span className="flex items-center gap-1">
             <span className="material-symbols-outlined text-[13px] text-[var(--theme-header-top-accent,#94f5d6)]">support_agent</span>
             Hotline: 1900 8866 (8:00 - 21:00)
           </span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 whitespace-nowrap">
           <Link
             href="/vouchers"
             className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold text-emerald-200"
@@ -387,44 +386,37 @@ export default function StoreHeader({
             </Link>
           )}
           <span className="opacity-40">|</span>
-          <div className="opacity-40 cursor-not-allowed pointer-events-none select-none hidden sm:flex items-center gap-1">
-            <span className="material-symbols-outlined text-[13px]">download</span>
-            <span>Tải App (Sắp ra mắt)</span>
-          </div>
-          <span className="opacity-40 hidden sm:inline">|</span>
           <span className="text-[var(--theme-header-top-accent,#94f5d6)] font-semibold">VN</span>
         </div>
       </div>
 
-      {/* Main Header Bar (h-[52px]) */}
-      <div className="h-[52px] w-full flex items-center justify-between pr-3 md:pr-6 pl-0 shrink-0">
+      {/* Main Header Bar (h-[50px] sm:h-[52px]) */}
+      <div className="h-[50px] sm:h-[52px] w-full flex items-center justify-between px-2 sm:px-4 md:px-6 shrink-0">
         {/* Left: Sidebar Toggle & Brand Typography */}
-        <div className="flex items-center">
-          {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align with sidebar column */}
-          <div className="w-[60px] flex items-center justify-center shrink-0">
-            <button
-              onClick={() => {
-                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                  if (onToggleMobileSidebar) onToggleMobileSidebar();
-                } else {
-                  if (onToggleSidebar) onToggleSidebar();
-                }
-              }}
-              className="w-9 h-9 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer shadow-2xs"
-              title="Menu điều hướng"
-              aria-label="Toggle Sidebar Navigation"
-            >
-              <span className="material-symbols-outlined text-[20px] text-[var(--theme-primary,#003b2b)]">
-                menu
-              </span>
-            </button>
-          </div>
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Hamburger / Sidebar Toggle */}
+          <button
+            onClick={() => {
+              if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                if (onToggleMobileSidebar) onToggleMobileSidebar();
+              } else {
+                if (onToggleSidebar) onToggleSidebar();
+              }
+            }}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-on-surface hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] active:scale-95 transition-all cursor-pointer shadow-2xs shrink-0"
+            title="Menu điều hướng"
+            aria-label="Toggle Sidebar Navigation"
+          >
+            <span className="material-symbols-outlined text-[19px] sm:text-[20px] text-[var(--theme-primary,#003b2b)]">
+              menu
+            </span>
+          </button>
 
-          <Link href="/" className="flex flex-col group pl-1.5 pr-2 select-none">
-            <span className="font-editorial text-lg md:text-xl font-black tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
+          <Link href="/" className="flex flex-col group select-none shrink-0 pl-1">
+            <span className="font-editorial text-sm sm:text-base md:text-xl font-black tracking-tight text-[var(--theme-primary,#003b2b)] leading-none">
               HUKI EBOOK
             </span>
-            <span className="text-[7.5px] md:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
+            <span className="text-[7px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
               Sách Số &amp; Sách In
             </span>
           </Link>
@@ -639,16 +631,16 @@ export default function StoreHeader({
         </div>
 
         {/* Right Action Icons & User Account */}
-        <div className="flex items-center gap-1.5 sm:gap-2.5">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Cart Icon */}
           <Link
             href="/cart"
-            className="w-9 h-9 rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] flex items-center justify-center text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all relative shrink-0"
             title="Giỏ hàng HUKI"
           >
-            <span className="material-symbols-outlined text-[20px]">shopping_cart</span>
+            <span className="material-symbols-outlined text-[18px] sm:text-[20px]">shopping_cart</span>
             {totalItemsCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-[#003b2b] text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+              <span className="absolute -top-1.5 -right-1.5 bg-[#003b2b] text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                 {totalItemsCount > 99 ? '99+' : totalItemsCount}
               </span>
             )}
@@ -665,18 +657,18 @@ export default function StoreHeader({
               href={chatUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] bg-white dark:bg-zinc-900 text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
+              className="relative flex items-center justify-center sm:gap-1.5 w-8 h-8 sm:w-auto sm:px-3 sm:py-1.5 rounded-lg sm:rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] bg-white dark:bg-zinc-900 text-[var(--theme-text,#17201f)] hover:text-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
               title={isSeller ? "Hộp thư Chat Kênh Người Bán (Mở tab mới)" : "Tin nhắn của bạn (Mở tab mới)"}
               aria-label="Tin nhắn"
             >
-              <span className="material-symbols-outlined text-[19px] text-[var(--theme-primary,#003b2b)]">
+              <span className="material-symbols-outlined text-[18px] sm:text-[19px] text-[var(--theme-primary,#003b2b)]">
                 chat
               </span>
               <span className="hidden sm:inline-block text-xs font-semibold whitespace-nowrap text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
                 Tin nhắn
               </span>
               {unreadChatCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[10px] font-bold min-w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs">
+                <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[9px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center shadow-xs">
                   {unreadChatCount > 99 ? '99+' : unreadChatCount}
                 </span>
               )}
@@ -685,17 +677,17 @@ export default function StoreHeader({
 
           {/* User Account / Auth Buttons */}
           {isLoggedIn ? (
-            <div ref={userMenuRef} className="relative">
+            <div ref={userMenuRef} className="relative shrink-0">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 p-1.5 pl-1.5 pr-2.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group"
+                className="flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 sm:pl-1.5 sm:pr-2.5 rounded-full border border-[var(--theme-border,#e8e5df)] hover:border-[var(--theme-primary,#003b2b)] hover:bg-[var(--theme-secondary-subtle,#f2fbf9)] transition-all cursor-pointer shadow-2xs group shrink-0"
                 title="Tài khoản cá nhân"
               >
                 <UserAvatar user={user} size="sm" />
-                <span className="hidden sm:inline-block text-xs font-bold text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] max-w-[130px] truncate transition-colors">
+                <span className="hidden sm:inline-block text-xs font-bold text-[var(--theme-text,#17201f)] group-hover:text-[var(--theme-primary,#003b2b)] max-w-[100px] md:max-w-[130px] truncate transition-colors">
                   {userDisplayName}
                 </span>
-                <span className="material-symbols-outlined text-base text-[var(--theme-text-muted,#6b7280)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors">
+                <span className="material-symbols-outlined text-sm sm:text-base text-[var(--theme-text-muted,#6b7280)] group-hover:text-[var(--theme-primary,#003b2b)] transition-colors hidden sm:inline-block">
                   arrow_drop_down
                 </span>
               </button>

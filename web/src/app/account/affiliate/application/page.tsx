@@ -1144,7 +1144,7 @@ export default function AffiliateApplicationStatusPage() {
                   </div>
                 )}
                 <div className="border-t border-emerald-100 pt-1.5 text-[11px] text-emerald-800 leading-relaxed">
-                  💡 <strong>Tại sao link có dạng này?</strong> Tiền tố <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-950">{profileData?.profile?.affiliateCode?.toLowerCase()}</code> chính là <strong>Mã CTV chính thức</strong> của bạn, kèm đuôi 6 ký tự ngẫu nhiên để phân biệt từng link sách. Khi độc giả click hoặc quét mã QR này, hệ thống sẽ tự động chuyển hướng độc giả sang trang sách gốc và ghi nhận hoa hồng cho bạn trong 30 ngày!
+                  <strong>Tại sao link có dạng này?</strong> Tiền tố <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono font-bold text-emerald-950">{profileData?.profile?.affiliateCode?.toLowerCase()}</code> chính là <strong>Mã CTV chính thức</strong> của bạn, kèm đuôi 6 ký tự ngẫu nhiên để phân biệt từng link sách. Khi độc giả click hoặc quét mã QR này, hệ thống sẽ tự động chuyển hướng độc giả sang trang sách gốc và ghi nhận hoa hồng cho bạn trong 30 ngày!
                 </div>
               </div>
 

@@ -26,7 +26,7 @@ interface PersonalizedForYouSectionProps {
 
 export function PersonalizedForYouSection({
   limit = 10,
-  title = '✨ Gợi ý cho bạn',
+  title = 'Gợi ý cho bạn',
   subtitle,
   showSeeAll = true,
   onSeeAllClick,

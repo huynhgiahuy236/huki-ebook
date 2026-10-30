@@ -643,7 +643,7 @@ export default function AdminUsersView() {
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               {lastLiveEvent ? (
-                <span className="text-amber-300 font-medium">⚡ Sự kiện mới: {lastLiveEvent}</span>
+                <span className="text-amber-300 font-medium"> Sự kiện mới: {lastLiveEvent}</span>
               ) : (
                 `Hệ thống đồng bộ trực tiếp từ Database huki_identity (${users.length} tài khoản thực tế). Mọi thao tác khóa/mở khóa cập nhật tức thì.`
               )}
