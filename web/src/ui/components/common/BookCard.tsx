@@ -456,18 +456,18 @@ export default function BookCard({
           className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
         />
 
-        {/* Nút Yêu Thích (Wishlist Heart Button) - Bottom right of cover image */}
+        {/* Nút Yêu Thích (Wishlist Heart Button) */}
         <button
           type="button"
           onClick={handleToggleWishlist}
-          className={`absolute bottom-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+          className={`absolute bottom-2 right-2 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all shadow-xs cursor-pointer ${
             isWishlisted
               ? 'bg-rose-500 text-white shadow-rose-500/30 scale-105'
-              : 'bg-white/80 hover:bg-white text-slate-600 hover:text-rose-500 shadow-2xs'
+              : 'bg-white/90 hover:bg-white text-slate-600 hover:text-rose-500 backdrop-blur-xs'
           }`}
           title={isWishlisted ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào yêu thích'}
         >
-          <span className={`material-symbols-outlined text-[14px] ${isWishlisted ? 'fill-current text-white' : ''}`}>
+          <span className={`material-symbols-outlined text-[15px] ${isWishlisted ? 'fill-current text-white' : ''}`}>
             {isWishlisted ? 'favorite' : 'favorite_border'}
           </span>
         </button>
@@ -499,18 +499,18 @@ export default function BookCard({
         </div>
       </div>
 
-      {/* Card Body - Ultra Compact Shopee Style */}
-      <div className="p-1.5 sm:p-2 flex flex-col flex-1 justify-between gap-1">
+      {/* Card Body - Balanced E-commerce Padding */}
+      <div className="p-2.5 sm:p-3 flex flex-col flex-1 justify-between gap-1.5">
         <div>
-          {/* Authentic Book Title (2 lines max, 12px, tight line height) */}
+          {/* Authentic Book Title */}
           <h3
-            className="text-[11.5px] sm:text-[12px] font-medium text-slate-800 line-clamp-2 leading-[1.3] group-hover:text-[#00875A] transition-colors min-h-[29px]"
+            className="text-[12px] sm:text-[12.5px] font-semibold text-slate-800 line-clamp-2 leading-[1.35] group-hover:text-[#00875A] transition-colors min-h-[32px]"
             title={book.title}
           >
             {book.title}
           </h3>
 
-          {/* Author & Sales in ONE single compact row */}
+          {/* Author & Sales */}
           <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 min-w-0">
             <span className="truncate max-w-[65%]">
               {authorName && authorName !== 'Tác giả' ? authorName : publisher}
@@ -521,14 +521,14 @@ export default function BookCard({
           </div>
         </div>
 
-        {/* Pricing Row + Compact Add to Cart (Same row to save vertical height) */}
-        <div className="flex items-center justify-between gap-1 pt-1 mt-auto border-t border-slate-100/80">
+        {/* Pricing Row + Well-padded Add to Cart Button */}
+        <div className="flex items-center justify-between gap-2 pt-2 mt-auto border-t border-slate-100">
           <div className="flex flex-col min-w-0">
-            <span className="text-xs sm:text-[13.5px] font-bold text-[#00875A] font-mono leading-none">
+            <span className="text-[13px] sm:text-[14px] font-bold text-[#00875A] font-mono leading-none">
               {price.toLocaleString('vi-VN')}₫
             </span>
             {originalPrice && originalPrice > price && (
-              <span className="text-[9.5px] text-slate-400 line-through font-mono leading-none mt-0.5">
+              <span className="text-[10px] text-slate-400 line-through font-mono leading-none mt-1">
                 {originalPrice.toLocaleString('vi-VN')}₫
               </span>
             )}
@@ -537,10 +537,10 @@ export default function BookCard({
           <button
             type="button"
             onClick={handleAddToCart}
-            title="Thêm vào giỏ"
-            className="w-6 h-6 rounded-md bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/50 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            title="Thêm vào giỏ hàng"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/80 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 shrink-0"
           >
-            <span className="material-symbols-outlined text-[13px]">add_shopping_cart</span>
+            <span className="material-symbols-outlined text-[15px] sm:text-[16px]">add_shopping_cart</span>
           </button>
         </div>
       </div>

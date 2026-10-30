@@ -242,7 +242,7 @@ export default function AffiliateApplicationStatusPage() {
     <AccountLayout>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header Breadcrumb */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200 pb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-200 py-5">
           <div>
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
               <Link href="/affiliate" className="hover:text-emerald-700">
@@ -334,7 +334,7 @@ export default function AffiliateApplicationStatusPage() {
 
         {/* Case 1: No Profile Registered */}
         {!loading && !isUnauthorized && !errorMsg && (!profileData?.hasProfile || !profileData.profile) && (
-          <div className="p-8 rounded-2xl bg-white border border-gray-200 shadow-2xs text-center max-w-xl mx-auto space-y-4">
+          <div className="p-8  rounded-2xl bg-white border border-gray-200 shadow-2xs text-center max-w-xl mx-auto space-y-4">
             <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
               <span className="material-symbols-outlined text-[32px]">assignment_ind</span>
             </div>
@@ -593,11 +593,10 @@ export default function AffiliateApplicationStatusPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      kycData?.isVerified || kycData?.bankSnapshot
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${kycData?.isVerified || kycData?.bankSnapshot
+                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}
                   >
                     <span className="material-symbols-outlined text-[22px]">
                       account_balance_wallet
@@ -625,11 +624,10 @@ export default function AffiliateApplicationStatusPage() {
                 <button
                   type="button"
                   onClick={() => setIsKycModalOpen(true)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto ${
-                    kycData?.isVerified || kycData?.bankSnapshot
-                      ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
-                      : 'bg-emerald-700 hover:bg-emerald-800 text-white'
-                  }`}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer self-start sm:self-auto ${kycData?.isVerified || kycData?.bankSnapshot
+                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-800'
+                    : 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                    }`}
                 >
                   <span className="material-symbols-outlined text-[16px]">
                     {kycData?.isVerified || kycData?.bankSnapshot ? 'edit' : 'add'}

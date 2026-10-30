@@ -14,6 +14,36 @@ import BookCard from "@/ui/components/common/BookCard";
 import { personalizationService } from "@/ui/services/personalizationService";
 import { recordBannerClick } from "@/ui/components/admin/AdminMarketingView";
 
+const ADMIN_DEFAULT_BANNERS = [
+  {
+    id: "BAN-01",
+    title: "Tuần Lễ Văn Học Kinh Điển & Tinh Hoa Tri Thức 2026",
+    subtitle: "Giảm đến 40% cho tất cả tuyệt tác văn chương thế giới",
+    link: "/books?category=van-hoc",
+    badge: "ĐẠI HỘI SÁCH",
+    bgImage: "/banners/hero-library.jpg",
+    status: "active",
+  },
+  {
+    id: "BAN-02",
+    title: "Hội Sách Bản Quyền Alpha Books x HUKI",
+    subtitle: "Tặng ngay Ebook DRM độc quyền khi đặt trước sách in",
+    link: "/shop/pub-4",
+    badge: "ƯU ĐÃI ĐỘC QUYỀN",
+    bgImage: "/banners/hero-podium.jpg",
+    status: "active",
+  },
+  {
+    id: "BAN-03",
+    title: "Kỷ Nguyên Sách Hybrid: Đọc Ngay Khi Chờ Giao",
+    subtitle: "Trải nghiệm sách giấy liền tay, đọc số tức thì",
+    link: "/books?format=hybrid",
+    badge: "TÍNH NĂNG MỚI",
+    bgImage: "/banners/sub-hybrid.jpg",
+    status: "active",
+  },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const { addToCart } = useCart();
@@ -40,6 +70,14 @@ export default function HomePage() {
   const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
   const [bestsellerTab, setBestsellerTab] = useState("all");
   const [selectedCategoryTab, setSelectedCategoryTab] = useState("all");
+  const tabsContainerRef = React.useRef<HTMLDivElement>(null);
+
+  const handleScrollTabs = (direction: 'left' | 'right') => {
+    if (tabsContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -240 : 240;
+      tabsContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
   const [followedShops, setFollowedShops] = useState<string[]>([]);
   const [followedAuthors, setFollowedAuthors] = useState<string[]>([]);
   const [authorIndex, setAuthorIndex] = useState(0);
@@ -170,20 +208,32 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load Custom Banners from Marketing View
+  // Load Custom Banners from Admin Marketing Hub (LocalStorage or Default Campaigns)
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("huki_admin_marketing_banners");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const activeOnly = parsed.filter((b: any) => b.status === "active");
-          if (activeOnly.length > 0) {
-            setCustomBanners(activeOnly);
+    const loadAdminBanners = () => {
+      try {
+        const saved = localStorage.getItem("huki_admin_marketing_banners");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const activeOnly = parsed.filter((b: any) => b.status === "active");
+            if (activeOnly.length > 0) {
+              setCustomBanners(activeOnly);
+              return;
+            }
           }
         }
-      }
-    } catch {}
+      } catch {}
+      setCustomBanners(ADMIN_DEFAULT_BANNERS);
+    };
+
+    loadAdminBanners();
+    window.addEventListener("storage", loadAdminBanners);
+    window.addEventListener("huki_admin_marketing_updated", loadAdminBanners);
+    return () => {
+      window.removeEventListener("storage", loadAdminBanners);
+      window.removeEventListener("huki_admin_marketing_updated", loadAdminBanners);
+    };
   }, []);
 
   // Fetch Real Reviews for top books
@@ -292,50 +342,22 @@ export default function HomePage() {
     }));
   }, [realCategories, realBooks]);
 
-  // 2. Hero Slides (From Admin custom banners or derived from top real books)
+  // 2. Hero Slides: 100% Gắn Với Banner Bên Admin (Không lấy ngẫu nhiên sách test)
   const heroSlides = useMemo(() => {
-    if (customBanners.length > 0) {
-      return customBanners.map((cb, idx) => ({
-        id: cb.id,
-        badge: cb.badge || "HỘI SÁCH TRI THỨC HUKI",
-        icon: idx === 0 ? "auto_awesome" : idx === 1 ? "tablet_mac" : "workspace_premium",
-        title: cb.title,
-        desc: cb.subtitle || "Khám phá hàng chục ngàn tựa sách hay cùng HUKI.",
-        bgImage: cb.imageUrl || "/banners/hero-library.jpg",
-        overlay: "linear-gradient(to right, rgba(0, 59, 43, 0.94) 0%, rgba(0, 59, 43, 0.8) 50%, rgba(0, 59, 43, 0.2) 100%)",
-        primaryBtn: { text: "Khám Phá Ngay", to: cb.targetUrl || "/books" },
-        secondaryBtn: { text: "Xem Thêm", to: "/books" },
-      }));
-    }
+    const bannerSource = customBanners.length > 0 ? customBanners : ADMIN_DEFAULT_BANNERS;
 
-    const topBook = realBooks[0];
-    const secondBook = realBooks[1];
-
-    return [
-      {
-        id: "hero-1",
-        badge: "KHO SÁCH CHÍNH HÃNG HUKI",
-        icon: "auto_awesome",
-        title: topBook ? `Tuyển Tập: ${topBook.title}` : "Hội Sách Tri Thức Bản Quyền",
-        desc: "Hơn 10.000+ tựa sách chọn lọc từ các Nhà xuất bản hàng đầu với ưu đãi hấp dẫn.",
-        bgImage: topBook?.coverUrl || "/banners/hero-library.jpg",
-        overlay: "linear-gradient(to right, rgba(0, 59, 43, 0.94) 0%, rgba(0, 59, 43, 0.82) 50%, rgba(0, 59, 43, 0.25) 100%)",
-        primaryBtn: { text: "Khám Phá Ngay", to: "/books" },
-        secondaryBtn: { text: "Sách Bán Chạy", to: "/books?filter=best-sellers" },
-      },
-      {
-        id: "hero-2",
-        badge: "HUKI READER & DRM",
-        icon: "tablet_mac",
-        title: secondBook ? `Đọc Số Ebook: ${secondBook.title}` : "Đọc Sách DRM Không Giới Hạn",
-        desc: "Bản quyền số hóa chất lượng cao, highlight ghi chú thông minh trên mọi thiết bị.",
-        bgImage: secondBook?.coverUrl || "/banners/hero-library.jpg",
-        overlay: "linear-gradient(to right, rgba(15, 23, 42, 0.94) 0%, rgba(15, 23, 42, 0.82) 50%, rgba(15, 23, 42, 0.25) 100%)",
-        primaryBtn: { text: "Đọc Ebook", to: "/books?format=ebook" },
-        secondaryBtn: { text: "Tìm Hiểu DRM", to: "/about" },
-      },
-    ];
-  }, [customBanners, realBooks]);
+    return bannerSource.map((cb: any, idx: number) => ({
+      id: cb.id || `hero-${idx}`,
+      badge: cb.badge || "CHIẾN DỊCH HUKI",
+      title: cb.title || "Tuần Lễ Sách Tri Thức Bản Quyền",
+      desc: cb.subtitle || cb.desc || "Khám phá hàng chục ngàn tựa sách chọn lọc từ các Nhà xuất bản hàng đầu.",
+      bgImage: cb.bgImage || cb.imageUrl || "/banners/hero-library.jpg",
+      // Gradient điện ảnh trong trẻo, không có lớp mờ đục xám xịt
+      overlay: "linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.55) 55%, rgba(0, 36, 26, 0.12) 100%)",
+      primaryBtn: { text: "Khám Phá Ngay", to: cb.link || cb.targetUrl || "/books" },
+      secondaryBtn: { text: "Sách Bán Chạy", to: "/books?sort=bestseller" },
+    }));
+  }, [customBanners]);
 
   // Auto rotate Hero Slider
   useEffect(() => {
@@ -541,54 +563,47 @@ export default function HomePage() {
     });
   }, [realPublishers, realBooks]);
 
-  // 7. Interactive Category Tabs & Filtered Books (Zero Mocks)
+  // 7. Interactive Category Tabs & Filtered Books (Zero Mocks - Clean Typography)
   const categoryTabOptions = useMemo(() => [
     {
       id: "all",
-      label: "Tất Cả Thể Loại",
-      icon: "auto_awesome",
+      label: "Tất Cả",
       url: "/books",
       description: "Tuyển tập sách hay chọn lọc từ mọi thể loại trên sàn HUKI",
     },
     {
       id: "van-hoc",
       label: "Văn Học & Tiểu Thuyết",
-      icon: "auto_stories",
       url: "/books?category=van-hoc",
       description: "Tác phẩm văn học kinh điển, tiểu thuyết đương đại & tản văn",
     },
     {
       id: "kinh-doanh",
       label: "Kinh Doanh & Đầu Tư",
-      icon: "trending_up",
       url: "/books?category=kinh-doanh-tech",
       description: "Quản trị doanh nghiệp, tài chính, đầu tư & khởi nghiệp",
     },
     {
       id: "cong-nghe",
       label: "Công Nghệ & AI",
-      icon: "smart_toy",
       url: "/books?category=cong-nghe-khoa-hoc",
-      description: "Lập trình, trí tuệ nhân tạo AI, dữ liệu & công nghệ tương lai",
+      description: "Lập trình, trí tuệ nhân tạo AI, dữ liệu & khoa học tương lai",
     },
     {
       id: "ebook",
-      label: "Ebook Bản Quyền DRM",
-      icon: "tablet_mac",
+      label: "Ebook Bản Quyền",
       url: "/books?format=ebook",
       description: "Sách điện tử số hóa DRM chính chủ, đọc ngay trên mọi thiết bị",
     },
     {
       id: "tam-ly",
       label: "Tâm Lý & Kỹ Năng",
-      icon: "psychology",
       url: "/books?category=tam-ly-ky-nang",
       description: "Phát triển bản thân, kỹ năng tư duy & thấu hiểu cảm xúc",
     },
     {
       id: "manga",
       label: "Manga & Thiếu Nhi",
-      icon: "child_care",
       url: "/books?category=manga-comic-khac",
       description: "Manga, comic, light novel giải trí và truyện thiếu nhi",
     },
@@ -854,11 +869,8 @@ export default function HomePage() {
           {/* 1.1 CỘT TRÁI: MENU DANH MỤC DỌC (Hiện trên Desktop lg+) */}
           <div className="hidden lg:flex lg:col-span-3 flex-col bg-white rounded-2xl border border-[#E8E5DF] p-3 shadow-2xs justify-between">
             <div className="space-y-0.5">
-              <div className="px-3 py-2 text-[11px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5 border-b border-gray-100 mb-1">
-                <span className="material-symbols-outlined text-[16px] text-[#003B2B]">
-                  menu_book
-                </span>
-                <span>Danh Mục Sách</span>
+              <div className="px-3 py-2 text-[11px] font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100 mb-1">
+                Danh Mục Sách
               </div>
               {categoriesMenu.map((cat, idx) => (
                 <Link
@@ -866,12 +878,7 @@ export default function HomePage() {
                   href={cat.to}
                   className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold text-gray-700 hover:text-[#003B2B] hover:bg-[#003B2B]/5 transition-all group"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-[18px] text-gray-400 group-hover:text-[#003B2B] transition-colors">
-                      {cat.icon}
-                    </span>
-                    <span className="line-clamp-1">{cat.name}</span>
-                  </div>
+                  <span className="line-clamp-1">{cat.name}</span>
                   <span className="material-symbols-outlined text-[14px] text-gray-300 group-hover:text-[#003B2B] group-hover:translate-x-0.5 transition-all">
                     chevron_right
                   </span>
@@ -882,12 +889,9 @@ export default function HomePage() {
             <div className="pt-2 border-t border-gray-100 mt-2">
               <Link
                 href="/books"
-                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gray-50 hover:bg-[#003B2B]/10 text-[#003B2B] text-xs font-bold transition-all text-center"
+                className="flex items-center justify-center py-2 px-3 rounded-xl bg-gray-50 hover:bg-[#003B2B]/10 text-[#003B2B] text-xs font-bold transition-all text-center"
               >
-                <span>Xem Tất Cả Sách</span>
-                <span className="material-symbols-outlined text-[14px]">
-                  arrow_forward
-                </span>
+                <span>Xem Tất Cả Sách →</span>
               </Link>
             </div>
           </div>
@@ -905,11 +909,8 @@ export default function HomePage() {
           >
             {/* Content Container */}
             <div className="relative z-10 max-w-[460px] text-white">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider mb-2 border border-white/20">
-                <span className="material-symbols-outlined text-[13px] text-amber-300">
-                  {heroSlides[activeHeroSlide]?.icon}
-                </span>
-                <span>{heroSlides[activeHeroSlide]?.badge}</span>
+              <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider mb-2 border border-white/20">
+                {heroSlides[activeHeroSlide]?.badge}
               </span>
 
               <h2 className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white mb-2 drop-shadow-sm font-editorial line-clamp-2">
@@ -927,12 +928,9 @@ export default function HomePage() {
                     const curId = heroSlides[activeHeroSlide]?.id;
                     if (curId) recordBannerClick(curId);
                   }}
-                  className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white text-[#003B2B] hover:bg-emerald-50 text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white text-[#003B2B] hover:bg-emerald-50 text-xs sm:text-sm font-bold shadow-sm transition-all cursor-pointer"
                 >
-                  <span>{heroSlides[activeHeroSlide]?.primaryBtn?.text}</span>
-                  <span className="material-symbols-outlined text-[15px]">
-                    arrow_forward
-                  </span>
+                  {heroSlides[activeHeroSlide]?.primaryBtn?.text} →
                 </Link>
 
                 <Link
@@ -967,63 +965,57 @@ export default function HomePage() {
             )}
           </div>
 
-          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ */}
+          {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ (ẢNH SẮC NÉT, KHÔNG LỚP TRẮNG MỜ ĐỤC) */}
           <div className="col-span-12 lg:col-span-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-2.5">
             <Link
-              href="/books?filter=best-sellers"
+              href="/books?sort=bestseller"
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/hero-library.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(0, 36, 26, 0.88) 0%, rgba(0, 36, 26, 0.5) 65%, rgba(0, 36, 26, 0.1) 100%), url('/banners/hero-podium.jpg')`,
                 backgroundSize: "cover",
-                backgroundPosition: "center right",
+                backgroundPosition: "center",
               }}
-              className="flex-1 rounded-xl p-3 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[120px]"
+              className="flex-1 rounded-xl p-3.5 text-white relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-emerald-900/20"
             >
               <div className="relative z-10 max-w-[210px]">
-                <span className="bg-[#003b2b] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
+                <span className="bg-amber-400 text-[#003B2B] text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
                   SÁCH BÁN CHẠY
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
+                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs">
                   Tuyển Tập Được Đọc Nhiều Nhất
                 </h3>
-                <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
+                <p className="text-[10.5px] text-emerald-100 mt-1 line-clamp-2 font-normal">
                   Khám phá các ấn phẩm bán chạy hàng đầu tuần này.
                 </p>
               </div>
 
-              <div className="relative z-10 mt-1 flex items-center gap-1 text-[11px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
-                <span>Xem ngay</span>
-                <span className="material-symbols-outlined text-[13px]">
-                  arrow_forward
-                </span>
+              <div className="relative z-10 mt-1.5 flex items-center text-[11px] font-bold text-amber-300 group-hover:translate-x-1 transition-transform">
+                <span>Xem ngay →</span>
               </div>
             </Link>
 
             <Link
               href="/books?format=ebook"
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/hero-library.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(15, 23, 42, 0.9) 0%, rgba(15, 23, 42, 0.52) 65%, rgba(15, 23, 42, 0.1) 100%), url('/banners/sub-hybrid.jpg')`,
                 backgroundSize: "cover",
-                backgroundPosition: "center right",
+                backgroundPosition: "center",
               }}
-              className="flex-1 rounded-xl p-3 border border-[#C5E4DB] text-[#17201F] relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[120px]"
+              className="flex-1 rounded-xl p-3.5 text-white relative overflow-hidden flex flex-col justify-between shadow-2xs group cursor-pointer hover:shadow-md transition-all min-h-[135px] border border-slate-800"
             >
               <div className="relative z-10 max-w-[210px]">
-                <span className="bg-[#003B2B] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
+                <span className="bg-emerald-400 text-slate-900 text-[8.5px] uppercase font-black px-2 py-0.5 rounded shadow-xs">
                   EBOOK BẢN QUYỀN
                 </span>
-                <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
+                <h3 className="text-xs sm:text-sm font-bold mt-1.5 leading-snug text-white font-editorial drop-shadow-xs">
                   Đọc Mọi Lúc Mọi Nơi
                 </h3>
-                <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
-                  Sách điện tử DRM bản quyền đọc tiện lợi trên di động.
+                <p className="text-[10.5px] text-slate-200 mt-1 line-clamp-2 font-normal">
+                  Sách điện tử DRM bản quyền đọc tiện lợi trên mọi thiết bị.
                 </p>
               </div>
 
-              <div className="relative z-10 mt-1 flex items-center gap-1 text-[11px] font-bold text-[#003B2B] group-hover:translate-x-1 transition-transform">
-                <span>Xem ngay</span>
-                <span className="material-symbols-outlined text-[13px]">
-                  arrow_forward
-                </span>
+              <div className="relative z-10 mt-1.5 flex items-center text-[11px] font-bold text-emerald-300 group-hover:translate-x-1 transition-transform">
+                <span>Xem ngay →</span>
               </div>
             </Link>
           </div>
@@ -1032,7 +1024,7 @@ export default function HomePage() {
         {/* 4 CAM KẾT VÀNG */}
         <div className="w-full bg-white rounded-xl p-2.5 sm:p-3 border border-[#E8E5DF] grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs shadow-2xs">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-100">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
               <span className="material-symbols-outlined text-[15px]">
                 verified
               </span>
@@ -1048,7 +1040,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-800 flex items-center justify-center shrink-0 border border-blue-100">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
               <span className="material-symbols-outlined text-[15px]">
                 local_shipping
               </span>
@@ -1064,7 +1056,7 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-100">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
               <span className="material-symbols-outlined text-[15px]">
                 cached
               </span>
@@ -1080,9 +1072,9 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-full bg-rose-50 text-rose-800 flex items-center justify-center shrink-0 border border-rose-100">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
               <span className="material-symbols-outlined text-[15px]">
-                favorite
+                headset_mic
               </span>
             </div>
             <div>
@@ -1109,29 +1101,23 @@ export default function HomePage() {
               className="mb-2.5 bg-gradient-to-r from-[#003b2b] via-[#004d38] to-[#006953] rounded-xl p-2.5 sm:p-3 text-white shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-2 border border-emerald-400/30 relative overflow-hidden group cursor-pointer"
             >
               <div className="flex items-center gap-2.5 z-10">
-                <div className="w-8 h-8 rounded-lg bg-amber-400 text-[#003b2b] flex items-center justify-center shrink-0 shadow-sm animate-pulse">
-                  <span className="material-symbols-outlined text-lg">bolt</span>
-                </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="bg-white text-[#003b2b] text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider">
+                    <span className="bg-amber-400 text-[#003b2b] text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider">
                       ĐANG DIỄN RA
                     </span>
                     <span className="text-emerald-200 text-[11px] font-bold font-mono">
                       KẾT THÚC TRONG: {flashCountdown.h}:{flashCountdown.m}:{flashCountdown.s}
                     </span>
                   </div>
-                  <h3 className="text-xs sm:text-sm font-bold mt-0.5 tracking-tight text-white line-clamp-1">
+                  <h3 className="text-xs sm:text-sm font-bold mt-1 tracking-tight text-white line-clamp-1">
                     {activeFlashSale.name || "Đợt Flash Sale Sách Toàn Sàn HUKI"}
                   </h3>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 self-end md:self-center z-10 group-hover:translate-x-1 transition-transform">
-                <span>Xem Ngay</span>
-                <span className="material-symbols-outlined text-[16px]">
-                  arrow_forward
-                </span>
+              <div className="text-xs font-bold text-amber-300 self-end md:self-center z-10 group-hover:translate-x-1 transition-transform">
+                <span>Xem Ngay →</span>
               </div>
             </Link>
           )}
@@ -1144,27 +1130,20 @@ export default function HomePage() {
                 return (
                   <div
                     key={idx}
-                    className="bg-white rounded-lg p-2 sm:p-2.5 border border-emerald-900/15 flex items-center justify-between gap-2 shadow-2xs hover:border-[#003b2b]/40 transition-all"
+                    className="bg-white rounded-lg p-2.5 border border-emerald-900/15 flex items-center justify-between gap-2 shadow-2xs hover:border-[#003b2b]/40 transition-all"
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-emerald-50 text-[#003b2b]">
-                        <span className="material-symbols-outlined text-[16px]">
-                          {v.icon}
-                        </span>
-                      </div>
-                      <div className="min-w-0">
-                        <span className="text-[11px] font-bold text-[#003b2b] block truncate">
-                          {v.badge}
-                        </span>
-                        <span className="text-[9.5px] text-gray-500 block truncate">
-                          {v.condition}
-                        </span>
-                      </div>
+                    <div className="min-w-0">
+                      <span className="text-[11.5px] font-bold text-[#003b2b] block truncate">
+                        {v.badge}
+                      </span>
+                      <span className="text-[10px] text-gray-500 block truncate mt-0.5">
+                        {v.condition}
+                      </span>
                     </div>
 
                     <button
                       onClick={() => handleSaveVoucher(v.code)}
-                      className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${
                         isSaved
                           ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                           : "bg-[#003b2b] text-white hover:bg-[#00241a]"
@@ -1187,10 +1166,7 @@ export default function HomePage() {
         <section className="bg-[#FAF3EE] rounded-2xl p-2.5 sm:p-3.5 border border-[#EADBCE] shadow-2xs flex flex-col gap-2.5">
           <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-[#EADBCE]/80">
             <div className="flex items-center gap-2">
-              <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide flex items-center gap-1 shadow-xs uppercase">
-                <span className="material-symbols-outlined text-sm text-amber-300">
-                  bolt
-                </span>
+              <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide shadow-xs uppercase">
                 <span>{activeFlashSale ? "FLASH SALE ĐANG LIVE" : "ƯU ĐÃI ĐẶC BIỆT"}</span>
               </div>
 
@@ -1241,14 +1217,9 @@ export default function HomePage() {
       {allBestsellers.length > 0 && (
         <section className="flex flex-col gap-2.5">
           <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                local_fire_department
-              </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Sản Phẩm Bán Chạy
-              </h2>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Sản Phẩm Bán Chạy
+            </h2>
 
             {/* Pill Tabs */}
             <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold">
@@ -1290,14 +1261,9 @@ export default function HomePage() {
       {officialStores.length > 0 && (
         <section className="bg-gray-50/70 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
           <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                verified
-              </span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Gian Hàng NXB &amp; Đối Tác Chính Hãng
-              </h2>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Gian Hàng NXB &amp; Đối Tác Chính Hãng
+            </h2>
             <Link
               href="/stores"
               className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
@@ -1336,16 +1302,13 @@ export default function HomePage() {
 
                   <button
                     onClick={() => handleToggleShopFollow(store.name)}
-                    className={`w-full py-1 rounded-md text-[10px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-0.5 ${
+                    className={`w-full py-1.5 rounded-lg text-[10.5px] font-bold transition-colors cursor-pointer ${
                       isFollowed
                         ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
                         : "bg-emerald-50 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[12px]">
-                      {isFollowed ? "check" : "add"}
-                    </span>
-                    <span>{isFollowed ? "Đang theo dõi" : "Theo dõi"}</span>
+                    {isFollowed ? "Đang theo dõi" : "Theo dõi"}
                   </button>
                 </div>
               );
@@ -1361,25 +1324,18 @@ export default function HomePage() {
         <section className="bg-white rounded-2xl p-3.5 sm:p-4 border border-gray-200/90 shadow-2xs flex flex-col gap-3">
           {/* Header Section */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-200/80">
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-xl bg-emerald-50 text-[#003B2B] flex items-center justify-center shrink-0 border border-emerald-100">
-                <span className="material-symbols-outlined text-[20px]">
-                  {currentCategoryTabInfo.icon}
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                  {currentCategoryTabInfo.label}
+                </h2>
+                <span className="bg-emerald-50 text-[#003B2B] text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200/60">
+                  {currentCategoryBooks.length} Tựa Sách
                 </span>
-              </span>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                    {currentCategoryTabInfo.label}
-                  </h2>
-                  <span className="bg-emerald-100 text-[#003B2B] text-[10px] font-bold px-1.5 py-0.2 rounded-full">
-                    {currentCategoryBooks.length} Tựa Sách
-                  </span>
-                </div>
-                <p className="text-[11px] text-gray-500 hidden sm:block mt-0.5">
-                  {currentCategoryTabInfo.description}
-                </p>
               </div>
+              <p className="text-[11px] text-gray-500 hidden sm:block mt-0.5">
+                {currentCategoryTabInfo.description}
+              </p>
             </div>
 
             <Link
@@ -1393,27 +1349,47 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* Dải Nút Option Ngang (Interactive Category Pills) */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
-            {categoryTabOptions.map((tab) => {
-              const isActive = selectedCategoryTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setSelectedCategoryTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 sm:py-2 rounded-xl text-[11.5px] sm:text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
-                    isActive
-                      ? "bg-[#003B2B] text-white border-[#003B2B] shadow-xs scale-[1.01]"
-                      : "bg-gray-50/80 text-gray-700 border-gray-200 hover:bg-emerald-50/70 hover:text-[#003B2B] hover:border-emerald-300"
-                  }`}
-                >
-                  <span className={`material-symbols-outlined text-[15px] sm:text-[16px] ${isActive ? "text-emerald-300" : "text-gray-500"}`}>
-                    {tab.icon}
-                  </span>
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
+          {/* Dải Nút Option Ngang (Interactive Category Pills with Scroll Controls) */}
+          <div className="relative flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleScrollTabs('left')}
+              aria-label="Cuộn sang trái"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-200 bg-white hover:bg-emerald-50 text-gray-600 hover:text-[#003B2B] hover:border-emerald-200 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+            </button>
+
+            <div
+              ref={tabsContainerRef}
+              className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto py-1 no-scrollbar scroll-smooth flex-1 select-none"
+            >
+              {categoryTabOptions.map((tab) => {
+                const isActive = selectedCategoryTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedCategoryTab(tab.id)}
+                    className={`px-3 py-1.5 sm:py-2 rounded-xl text-[11.5px] sm:text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 border ${
+                      isActive
+                        ? "bg-[#003B2B] text-white border-[#003B2B] shadow-xs"
+                        : "bg-gray-50/80 text-gray-700 border-gray-200 hover:bg-emerald-50/70 hover:text-[#003B2B] hover:border-emerald-300"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleScrollTabs('right')}
+              aria-label="Cuộn sang phải"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg border border-gray-200 bg-white hover:bg-emerald-50 text-gray-600 hover:text-[#003B2B] hover:border-emerald-200 flex items-center justify-center shrink-0 cursor-pointer shadow-2xs transition-all"
+            >
+              <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+            </button>
           </div>
 
           {/* Grid Sách */}
@@ -1435,14 +1411,9 @@ export default function HomePage() {
       {realCombos.length > 0 && (
         <section className="bg-gray-50/60 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
           <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-                collections_bookmark
-              </span>
-              <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-                Combo Sách Tuyển Chọn – Tiết Kiệm Đến 15%
-              </h3>
-            </div>
+            <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+              Combo Sách Tuyển Chọn – Tiết Kiệm Đến 15%
+            </h3>
             <span className="bg-[#003B2B] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase hidden sm:inline">
               HỘP QUÀ TRI THỨC
             </span>
@@ -1529,12 +1500,9 @@ export default function HomePage() {
       {suggestedBooks.length > 0 && (
         <section className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200/90 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between border-b-2 border-[#003b2b] pb-2">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#003b2b] animate-pulse"></span>
-              <h2 className="text-xs sm:text-[14px] font-bold text-[#003b2b] uppercase tracking-wide">
-                Gợi Ý Hôm Nay Cho Bạn
-              </h2>
-            </div>
+            <h2 className="text-xs sm:text-[14px] font-bold text-[#003b2b] uppercase tracking-wide">
+              Gợi Ý Hôm Nay Cho Bạn
+            </h2>
             <span className="text-[11px] text-gray-500 font-medium">
               Cá nhân hóa bởi Bé Cáo AI
             </span>
@@ -1553,12 +1521,9 @@ export default function HomePage() {
           <div className="pt-2 flex justify-center">
             <Link
               href="/books"
-              className="px-12 py-2.5 rounded-xl border-2 border-[#003B2B] text-[#003B2B] hover:bg-[#003B2B] hover:text-white transition-all text-xs sm:text-sm font-bold shadow-2xs flex items-center gap-2 cursor-pointer group"
+              className="px-12 py-2.5 rounded-xl border-2 border-[#003B2B] text-[#003B2B] hover:bg-[#003B2B] hover:text-white transition-all text-xs sm:text-sm font-bold shadow-2xs cursor-pointer"
             >
-              <span>Xem Thêm Sách Khác</span>
-              <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">
-                arrow_forward
-              </span>
+              Xem Thêm Sách Khác →
             </Link>
           </div>
         </section>
@@ -1571,10 +1536,7 @@ export default function HomePage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between pb-2 border-b border-gray-200">
             <div>
-              <div className="flex items-center gap-1.5 text-[#003B2B] text-[11px] uppercase font-bold">
-                <span className="material-symbols-outlined text-[16px]">
-                  draw
-                </span>{" "}
+              <div className="text-[#003B2B] text-[11px] uppercase font-bold">
                 Tác Giả &amp; Cây Bút Tri Thức
               </div>
               <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 mt-0.5">
@@ -1649,16 +1611,13 @@ export default function HomePage() {
 
                     <button
                       onClick={() => handleToggleAuthorFollow(author.name)}
-                      className={`w-full py-1.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      className={`w-full py-1.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${
                         isFollowed
                           ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
                           : "bg-emerald-50 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
                       }`}
                     >
-                      <span className="material-symbols-outlined text-[13px]">
-                        {isFollowed ? "check" : "add"}
-                      </span>
-                      <span>{isFollowed ? "Đang theo dõi" : "Theo dõi"}</span>
+                      {isFollowed ? "Đang theo dõi" : "Theo dõi"}
                     </button>
                   </div>
                 );
@@ -1675,10 +1634,7 @@ export default function HomePage() {
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between pb-2 border-b border-gray-200">
             <div>
-              <div className="flex items-center gap-1.5 text-[#003B2B] text-[11px] uppercase font-bold">
-                <span className="material-symbols-outlined text-[16px]">
-                  verified
-                </span>{" "}
+              <div className="text-[#003B2B] text-[11px] uppercase font-bold">
                 Đánh Giá Thực Tế Từ Người Mua
               </div>
               <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 mt-0.5">
