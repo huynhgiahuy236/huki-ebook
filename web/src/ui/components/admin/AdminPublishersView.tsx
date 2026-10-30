@@ -323,17 +323,17 @@ export function AdminPublishersView() {
     () => [
       {
         key: 'publisherInfo',
-        title: 'Nhà Xuất Bản & Mã Số Thuế',
+        title: 'Nhà xuất bản',
         sortable: true,
         render: (_val, p) => (
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-[#00875A] font-bold text-xs flex items-center justify-center shrink-0 border border-emerald-200/60">
+            <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-800 font-bold text-xs flex items-center justify-center shrink-0 border border-slate-200 select-none">
               {p.code}
             </div>
             <div className="min-w-0 max-w-[240px]">
               <div
                 onClick={() => setSelectedPublisher(p)}
-                className="font-bold text-gray-900 hover:text-[#00875A] transition-colors leading-snug truncate cursor-pointer text-xs"
+                className="font-bold text-gray-900 hover:text-[#00875A] transition-colors leading-snug break-words line-clamp-2 cursor-pointer text-xs"
                 title={p.name}
               >
                 {p.name}
@@ -347,23 +347,23 @@ export function AdminPublishersView() {
       },
       {
         key: 'contactAddress',
-        title: 'Liên Hệ & Trụ Sở',
+        title: 'Trụ sở & Email',
         render: (_val, p) => (
           <div className="flex flex-col gap-0.5 max-w-[220px]">
             <div className="flex items-center gap-1.5 text-gray-800 text-[11.5px]">
               <span className="material-symbols-outlined text-[13px] text-gray-400">mail</span>
-              <span className="truncate">{p.email || 'Chưa có'}</span>
+              <span className="break-words line-clamp-1">{p.email || 'Chưa có'}</span>
             </div>
             <div className="flex items-center gap-1.5 text-gray-500 text-[11px]">
               <span className="material-symbols-outlined text-[13px] text-gray-400">location_on</span>
-              <span className="truncate" title={p.address}>{p.address || 'Chưa cập nhật'}</span>
+              <span className="break-words line-clamp-1" title={p.address}>{p.address || 'Chưa cập nhật'}</span>
             </div>
           </div>
         ),
       },
       {
         key: 'scaleDate',
-        title: 'Quy Mô & Ngày Tham Gia',
+        title: 'Đầu sách',
         render: (_val, p) => (
           <div className="flex flex-col gap-0.5">
             <span className="font-semibold text-gray-900 text-xs">

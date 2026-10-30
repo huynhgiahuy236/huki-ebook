@@ -425,10 +425,10 @@ export function AdminBusinessUpdateRequestsView() {
                 </th>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>
-                <th className="py-3 px-3.5">Doanh Nghiệp &amp; Mã Số Thuế</th>
-                <th className="py-3 px-3.5">Nội Dung Đề Xuất Thay Đổi</th>
-                <th className="py-3 px-3.5">Thời Gian Gửi</th>
-                <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
+                <th className="py-3 px-3.5">Doanh nghiệp & MST</th>
+                <th className="py-3 px-3.5">Đề xuất thay đổi</th>
+                <th className="py-3 px-3.5">Ngày gửi</th>
+                <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -480,7 +480,7 @@ export function AdminBusinessUpdateRequestsView() {
                         <div className="flex items-center gap-2">
                           <span
                             onClick={() => toggleExpandReq(req.id, req)}
-                            className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors cursor-pointer block truncate max-w-[240px]"
+                            className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors cursor-pointer block break-words line-clamp-2 leading-snug"
                           >
                             {req.business?.name || 'Chưa đặt tên'}
                           </span>
@@ -497,7 +497,7 @@ export function AdminBusinessUpdateRequestsView() {
 
                       {/* Thay đổi đề xuất */}
                       <td className="py-3 px-3.5">
-                        <div className="text-gray-800 font-medium text-xs truncate max-w-[280px]">
+                        <div className="text-gray-800 font-medium text-xs break-words line-clamp-2 leading-snug">
                           {data.name && data.name !== req.business?.name ? (
                             <span className="text-[#00875A] font-bold">Đổi tên: {data.name}</span>
                           ) : data.address ? (

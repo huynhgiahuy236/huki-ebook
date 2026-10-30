@@ -242,11 +242,11 @@ export function AdminPublisherLeadsView() {
               <tr>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>
-                <th className="py-3 px-3.5">Đơn Vị / NXB Đăng Ký</th>
-                <th className="py-3 px-3.5">Mã Số Thuế &amp; Đại Diện</th>
-                <th className="py-3 px-3.5">Email &amp; Trụ Sở</th>
-                <th className="py-3 px-3.5">Ngày Nộp</th>
-                <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
+                <th className="py-3 px-3.5">Đơn vị / NXB</th>
+                <th className="py-3 px-3.5">Mã số thuế</th>
+                <th className="py-3 px-3.5">Liên hệ & Trụ sở</th>
+                <th className="py-3 px-3.5">Ngày nộp</th>
+                <th className="py-3 px-3.5 text-right">Trạng thái & Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
@@ -290,14 +290,12 @@ export function AdminPublisherLeadsView() {
                           <div className="min-w-0 max-w-[240px]">
                             <div
                               onClick={() => toggleExpandLead(lead.id)}
-                              className="font-bold text-gray-900 leading-snug truncate hover:text-[#00875A] cursor-pointer"
+                              className="font-bold text-gray-900 leading-snug break-words line-clamp-2 hover:text-[#00875A] cursor-pointer"
                               title={lead.name}
                             >
                               {lead.name}
                             </div>
-                            <div className="text-[10px] text-gray-400 font-mono truncate">
-                              ID: {lead.id?.substring(0, 10)}...
-                            </div>
+                            
                           </div>
                         </div>
                       </td>

@@ -283,16 +283,16 @@ export function AdminStoresView() {
     () => [
       {
         key: 'storeName',
-        title: 'Cửa Hàng & Đường Dẫn (Slug)',
+        title: 'Cửa hàng & Slug',
         sortable: true,
         render: (_val, st) => (
           <div className="flex items-center gap-2.5 py-1">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-800 font-extrabold text-xs shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs shrink-0 select-none">
               {st.name ? st.name.charAt(0).toUpperCase() : 'S'}
             </div>
             <div className="min-w-0 flex-1">
               <span
-                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words"
+                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words line-clamp-2 leading-snug"
                 onClick={() => setSelectedStore(st)}
                 title={st.name}
               >
@@ -302,9 +302,7 @@ export function AdminStoresView() {
                 <span className="text-[10.5px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/60">
                   /{st.slug || 'chua-co-slug'}
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  ID: {st.id}
-                </span>
+                
               </div>
             </div>
           </div>
@@ -312,22 +310,20 @@ export function AdminStoresView() {
       },
       {
         key: 'business',
-        title: 'Doanh Nghiệp Sở Hữu',
+        title: 'Doanh nghiệp chủ quản',
         render: (_val, st) => (
           <div className="flex flex-col gap-0.5 py-1">
             <span className="font-semibold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1 break-words">
               <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0">apartment</span>
               <span>{st.business?.name || st.businessName || 'Doanh nghiệp liên kết'}</span>
             </span>
-            <span className="font-mono text-[10.5px] text-gray-400">
-              ID DN: {st.businessId || st.business?.id || '—'}
-            </span>
+            
           </div>
         ),
       },
       {
         key: 'contact',
-        title: 'Liên Hệ & Ngày Tạo',
+        title: 'Liên hệ',
         render: (_val, st) => (
           <div className="flex flex-col gap-0.5 py-1">
             <span className="text-xs font-medium text-gray-800 break-words" title={st.email || ''}>
@@ -348,13 +344,13 @@ export function AdminStoresView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         align: 'center',
         render: (_val, st) => <AdminStatusBadge status={st.status} />,
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
+        title: 'Thao tác',
         align: 'right',
         render: (_val, st) => {
           const isPending = st.status === 'PENDING_APPROVAL';

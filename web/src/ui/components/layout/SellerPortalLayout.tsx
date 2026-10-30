@@ -54,8 +54,9 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
             <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-slate-600">
               <Link
                 href="/seller"
-                className={`transition-colors hover:text-[#003B2B] ${!isRegisterPage && !isPendingPage && !isSetupPage ? 'text-[#003B2B] font-semibold' : ''
-                  }`}
+                className={`transition-colors hover:text-[#003B2B] ${
+                  !isRegisterPage && !isPendingPage && !isSetupPage ? 'text-[#003B2B] font-semibold' : ''
+                }`}
               >
                 Giới thiệu kênh
               </Link>
@@ -64,16 +65,18 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
               {!isLoggedIn || (!user?.business && !isApprovedSeller) ? (
                 <Link
                   href="/seller/register"
-                  className={`transition-colors hover:text-[#003B2B] ${isRegisterPage ? 'text-[#003B2B] font-semibold' : ''
-                    }`}
+                  className={`transition-colors hover:text-[#003B2B] ${
+                    isRegisterPage ? 'text-[#003B2B] font-semibold' : ''
+                  }`}
                 >
                   Đăng ký mở gian hàng
                 </Link>
               ) : bizStatus === 'PENDING_APPROVAL' || isPendingPage ? (
                 <Link
                   href="/seller/pending"
-                  className={`transition-colors flex items-center gap-1.5 ${isPendingPage ? 'text-amber-900 font-semibold' : 'hover:text-[#003B2B]'
-                    }`}
+                  className={`transition-colors flex items-center gap-1.5 ${
+                    isPendingPage ? 'text-amber-900 font-semibold' : 'hover:text-[#003B2B]'
+                  }`}
                 >
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
@@ -83,8 +86,9 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
               ) : (isApprovedSeller && !isSetupCompleted) || isSetupPage ? (
                 <Link
                   href="/seller/stores/setup"
-                  className={`transition-colors flex items-center gap-1.5 ${isSetupPage ? 'text-emerald-900 font-semibold' : 'hover:text-[#003B2B]'
-                    }`}
+                  className={`transition-colors flex items-center gap-1.5 ${
+                    isSetupPage ? 'text-emerald-900 font-semibold' : 'hover:text-[#003B2B]'
+                  }`}
                 >
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />

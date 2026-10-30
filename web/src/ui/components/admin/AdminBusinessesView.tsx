@@ -310,7 +310,7 @@ export function AdminBusinessesView() {
       },
       {
         key: 'name',
-        title: 'Doanh Nghiệp & Pháp Lý',
+        title: 'Doanh nghiệp & MST',
         sortable: true,
         render: (_val, biz) => (
           <div className="flex items-center gap-2.5 py-1">
@@ -319,7 +319,7 @@ export function AdminBusinessesView() {
             </div>
             <div className="min-w-0 flex-1">
               <span
-                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words"
+                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words line-clamp-2 leading-snug"
                 onClick={() => {
                   setSelectedBiz(biz);
                   setDetailTab('profile');
@@ -332,9 +332,7 @@ export function AdminBusinessesView() {
                 <span className="text-[10.5px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
                   MST: {biz.taxCode || 'Chưa cấp'}
                 </span>
-                <span className="text-[10px] text-gray-400 font-mono">
-                  ID: {biz.id}
-                </span>
+                
               </div>
             </div>
           </div>
@@ -342,7 +340,7 @@ export function AdminBusinessesView() {
       },
       {
         key: 'contact',
-        title: 'Đại Diện & Liên Hệ',
+        title: 'Người đại diện',
         render: (_val, biz) => (
           <div className="flex flex-col gap-0.5 py-1">
             <span className="text-xs font-medium text-gray-800 break-words" title={biz.email || ''}>
@@ -357,7 +355,7 @@ export function AdminBusinessesView() {
       },
       {
         key: 'partnerType',
-        title: 'Loại Hình & Ngày Nộp',
+        title: 'Loại hình',
         render: (_val, biz) => {
           const isPublisher = biz.name?.toUpperCase().includes('NXB') || biz.name?.toUpperCase().includes('XUẤT BẢN');
           return (
@@ -377,7 +375,7 @@ export function AdminBusinessesView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         width: 140,
         align: 'center',
         render: (val) => {
@@ -401,7 +399,7 @@ export function AdminBusinessesView() {
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
+        title: 'Thao tác',
         width: 260,
         align: 'right',
         render: (_val, biz) => {
