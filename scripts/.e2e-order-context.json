@@ -1,0 +1,64 @@
+{
+  "orderId": "66d1ac24-476d-461a-8316-b7374b5b7d48",
+  "orderCode": "ORD-MVUSUYFC-DAF9A120",
+  "buyerUserId": "04609db5-d34d-4f54-a640-c6e7d820777b",
+  "buyerEmail": "buyer_test@gmail.com",
+  "subOrders": [
+    {
+      "sellerOrderId": "19fb9d11-7be8-4513-9da9-7fe52c07c0db",
+      "storeId": "0ce0014b-12fb-4bf0-b638-e87bb32f8cb6",
+      "ownerUserId": "26d57ce2-31ec-4548-8e00-03b9fecc5169",
+      "status": "PENDING_CONFIRMATION",
+      "grandTotal": 209100,
+      "requiresShipping": true,
+      "items": [
+        {
+          "id": "d9e28b83-1ab2-4772-bb98-ddf94392bd68",
+          "bookId": "a1849bba-f111-42aa-ac08-2783465646d0",
+          "bookTitle": "Tuyệt Tác Sách Số & Sách Giấy E2E 2856",
+          "bookCoverUrl": "https://placehold.co/600x900/png?text=E2E+Phase+9",
+          "bookIsbn": null,
+          "format": "PHYSICAL",
+          "quantity": 1,
+          "unitPrice": 199000,
+          "subtotal": 199000
+        }
+      ]
+    },
+    {
+      "sellerOrderId": "91e54136-2698-4c00-b2f2-49609e906978",
+      "storeId": "1079fc76-a467-48a9-8034-b072aaa5afea",
+      "ownerUserId": "8d501a4d-d846-45bd-8f15-fda4e30cf826",
+      "status": "PENDING_CONFIRMATION",
+      "grandTotal": 87300,
+      "requiresShipping": false,
+      "items": [
+        {
+          "id": "3623d35c-720c-4b29-87ce-18766a14bcfa",
+          "bookId": "20e8b837-830f-4c19-95db-016ba34972c5",
+          "bookTitle": "Phase 7 Hybrid E2E 1792582905866",
+          "bookCoverUrl": "https://placehold.co/600x900/png?text=Phase+7+E2E",
+          "bookIsbn": null,
+          "format": "DIGITAL",
+          "quantity": 1,
+          "unitPrice": 97000,
+          "subtotal": 97000
+        }
+      ]
+    }
+  ],
+  "createdAt": "2026-10-30T09:58:41.444Z",
+  "physicalSubOrder": {
+    "sellerOrderId": "19fb9d11-7be8-4513-9da9-7fe52c07c0db",
+    "storeId": "0ce0014b-12fb-4bf0-b638-e87bb32f8cb6",
+    "status": "SHIPPED",
+    "carrier": "HUKI_EXPRESS",
+    "trackingCode": "VN8899123456",
+    "grandTotal": 209100
+  },
+  "digitalSubOrder": {
+    "sellerOrderId": "91e54136-2698-4c00-b2f2-49609e906978",
+    "storeId": "1079fc76-a467-48a9-8034-b072aaa5afea",
+    "status": "COMPLETED"
+  }
+}

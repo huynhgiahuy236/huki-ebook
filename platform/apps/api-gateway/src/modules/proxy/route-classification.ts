@@ -86,6 +86,14 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
     return 'SELLER';
   }
 
+  // Mutations to book reviews require standard customer authentication (not SELLER)
+  if (
+    normPath.includes('/reviews') &&
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(upperMethod)
+  ) {
+    return 'AUTHENTICATED';
+  }
+
   // Mutations to books catalog require SELLER role
   if (
     (normPath === '/books' || normPath.startsWith('/books/')) &&
