@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/ui/context/CartContext";
 import { useToast } from "@/ui/context/ToastContext";
 import { useAuth } from "@/ui/context/AuthContext";
-import { catalogApi, type BookData } from "@/ui/api/catalogApi";
+import { catalogApi, type BookData, type CatalogEntity, type CategoryData } from "@/ui/api/catalogApi";
 import { flashSaleApi, type FlashSaleSlot, type FlashSaleItem } from "@/ui/api/flashSaleApi";
 import { voucherApi } from "@/ui/api/voucherApi";
+import { reviewApi } from "@/ui/api/reviewApi";
 import BookCard from "@/ui/components/common/BookCard";
 import { personalizationService } from "@/ui/services/personalizationService";
 import { recordBannerClick } from "@/ui/components/admin/AdminMarketingView";
@@ -19,13 +20,33 @@ export default function HomePage() {
   const { showToast } = useToast();
   const { user } = useAuth();
 
-  // Real Books from Backend Commerce Database
+  // 1. REAL COMMERCE DATA FROM BACKEND DATABASE
   const [realBooks, setRealBooks] = useState<BookData[]>([]);
+  const [realCategories, setRealCategories] = useState<CategoryData[]>([]);
+  const [realPublishers, setRealPublishers] = useState<CatalogEntity[]>([]);
+  const [realAuthors, setRealAuthors] = useState<CatalogEntity[]>([]);
   const [realVouchers, setRealVouchers] = useState<any[]>([]);
+  const [realReviews, setRealReviews] = useState<any[]>([]);
   const [activeFlashSale, setActiveFlashSale] = useState<FlashSaleSlot | null>(null);
   const [platformSalePhase, setPlatformSalePhase] = useState<'LIVE' | 'TEASER' | 'NONE'>('NONE');
   const [flashSeconds, setFlashSeconds] = useState(0);
 
+  // Hero Slider State
+  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
+  const [isHeroHovered, setIsHeroHovered] = useState(false);
+  const [customBanners, setCustomBanners] = useState<any[]>([]);
+
+  // Local Interactivity States
+  const [savedVouchers, setSavedVouchers] = useState<string[]>([]);
+  const [bestsellerTab, setBestsellerTab] = useState("all");
+  const [followedShops, setFollowedShops] = useState<string[]>([]);
+  const [followedAuthors, setFollowedAuthors] = useState<string[]>([]);
+  const [authorIndex, setAuthorIndex] = useState(0);
+  const [isAuthorHovered, setIsAuthorHovered] = useState(false);
+  const [itemsPerPage, setItemsPerPage] = useState(5);
+  const [personalizationTick, setPersonalizationTick] = useState(0);
+
+  // Fetch Real Books
   useEffect(() => {
     catalogApi
       .getPublicBooks({ limit: 100 })
@@ -36,6 +57,37 @@ export default function HomePage() {
       })
       .catch((err) => console.warn("Could not fetch real books:", err));
 
+    // Fetch Real Categories
+    catalogApi
+      .getCategories()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setRealCategories(res.data);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch Real Publishers
+    catalogApi
+      .getPublishers()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setRealPublishers(res.data);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch Real Authors
+    catalogApi
+      .getAuthors()
+      .then((res) => {
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          setRealAuthors(res.data);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch Real Vouchers
     voucherApi
       .getAvailableVouchers()
       .then((res) => {
@@ -52,6 +104,7 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
+  // Fetch Real Flash Sale
   useEffect(() => {
     let mounted = true;
     const loadFlashSale = async () => {
@@ -64,60 +117,50 @@ export default function HomePage() {
             (s) => (s.scope === "PLATFORM" || !s.storeId) && s.status !== "CANCELLED" && s.status !== "ENDED"
           );
 
-          // 1. Check for LIVE Platform Flash Sale
           const liveSale = platformSales.find((s) => {
-            const sTime = new Date(s.startsAt).getTime();
-            const eTime = new Date(s.endsAt).getTime();
-            return s.status === "ACTIVE" && now >= sTime && now < eTime;
+            const start = new Date(s.startsAt).getTime();
+            const end = new Date(s.endsAt).getTime();
+            return s.status === "ACTIVE" || (now >= start && now <= end);
           });
 
           if (liveSale) {
             setActiveFlashSale(liveSale);
-            setPlatformSalePhase("LIVE");
-            const rem = Math.max(0, Math.floor((new Date(liveSale.endsAt).getTime() - now) / 1000));
-            setFlashSeconds(rem);
+            setPlatformSalePhase('LIVE');
+            const end = new Date(liveSale.endsAt).getTime();
+            const remaining = Math.max(0, Math.floor((end - now) / 1000));
+            setFlashSeconds(remaining > 0 ? remaining : 7200);
             return;
           }
 
-          // 2. Check for TEASER / Announcement Platform Flash Sale
-          const teaserSale = platformSales.find((s) => {
-            const sTime = new Date(s.startsAt).getTime();
-            const eTime = new Date(s.endsAt).getTime();
-            return s.status !== "ENDED" && now < sTime && eTime > now;
-          });
+          const teaserSale = platformSales
+            .filter((s) => new Date(s.startsAt).getTime() > now)
+            .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime())[0];
 
           if (teaserSale) {
             setActiveFlashSale(teaserSale);
-            setPlatformSalePhase("TEASER");
-            const rem = Math.max(0, Math.floor((new Date(teaserSale.startsAt).getTime() - now) / 1000));
-            setFlashSeconds(rem);
+            setPlatformSalePhase('TEASER');
+            const start = new Date(teaserSale.startsAt).getTime();
+            const remaining = Math.max(0, Math.floor((start - now) / 1000));
+            setFlashSeconds(remaining > 0 ? remaining : 3600);
             return;
           }
-
-          setActiveFlashSale(null);
-          setPlatformSalePhase("NONE");
-          setFlashSeconds(0);
-        } else {
-          setActiveFlashSale(null);
-          setPlatformSalePhase("NONE");
-          setFlashSeconds(0);
         }
-      } catch {
-        if (mounted) {
-          setActiveFlashSale(null);
-          setPlatformSalePhase("NONE");
-          setFlashSeconds(0);
-        }
+        setActiveFlashSale(null);
+        setPlatformSalePhase('NONE');
+      } catch (err) {
+        console.warn("Could not load platform flash sale:", err);
       }
     };
+
     loadFlashSale();
-    const poller = setInterval(loadFlashSale, 5_000);
+    const interval = setInterval(loadFlashSale, 30000);
     return () => {
       mounted = false;
-      clearInterval(poller);
+      clearInterval(interval);
     };
   }, []);
 
+  // Flash Sale Timer countdown
   useEffect(() => {
     const timer = setInterval(
       () => setFlashSeconds((seconds) => Math.max(0, seconds - 1)),
@@ -126,17 +169,7 @@ export default function HomePage() {
     return () => clearInterval(timer);
   }, []);
 
-
-
-  // Hero Slider State & Autoplay
-  const [activeHeroSlide, setActiveHeroSlide] = useState(0);
-  const [isHeroHovered, setIsHeroHovered] = useState(false);
-
-  const isPlatformLive = platformSalePhase === "LIVE";
-  const isPlatformTeaser = platformSalePhase === "TEASER";
-
-  // Load custom banners configured by Admin in Marketing Media Hub
-  const [customBanners, setCustomBanners] = useState<any[]>([]);
+  // Load Custom Banners from Marketing View
   useEffect(() => {
     try {
       const saved = localStorage.getItem("huki_admin_marketing_banners");
@@ -149,871 +182,39 @@ export default function HomePage() {
           }
         }
       }
-    } catch {
-      // Fallback
-    }
+    } catch {}
   }, []);
 
-  // Hero Slides with Real Photography Backgrounds
-  const heroSlides = useMemo(() => {
-    let baseSlides: any[] = [];
-
-    if (customBanners.length > 0) {
-      baseSlides = customBanners.map((cb, idx) => ({
-        id: cb.id,
-        badge: cb.badge || "HỘI SÁCH TRI THỨC HUKI",
-        icon: idx === 0 ? "auto_awesome" : idx === 1 ? "tablet_mac" : "workspace_premium",
-        title: cb.title,
-        desc: cb.subtitle || "Khám phá hàng chục ngàn tựa sách hay cùng HUKI.",
-        bgImage: cb.bgImage || "/banners/hero-library.jpg",
-        overlay:
-          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.2) 100%)",
-        primaryBtn: { text: "Khám phá ngay", to: cb.link || "/books" },
-        secondaryBtn: { text: "Đọc Thử Ebook", to: "/books?format=ebook" },
-        accent: "#006953",
-      }));
-    } else {
-      baseSlides = [
-        {
-          id: "slide-1",
-          badge: "Hội Sách Tri Thức Mùa Xuất Bản 2026",
-          icon: "auto_awesome",
-          title: "Chăm sóc tâm hồn –\nTỏa sáng cùng tri thức",
-          desc: "Hơn 50.000 đầu sách tuyển chọn & Ebook bản quyền từ các NXB uy tín. Giao nhanh 2H nội thành.",
-          bgImage: "/banners/hero-library.jpg",
-          overlay:
-            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
-          primaryBtn: { text: "Khám phá ngay", to: "/books" },
-          secondaryBtn: { text: "Đọc thử Ebook", to: "/books?format=ebook" },
-          accent: "#006953",
-        },
-        {
-          id: "slide-2",
-          badge: "Không Gian Đọc Ebook DRM & Audio",
-          icon: "tablet_mac",
-          title: "Đọc mọi lúc mọi nơi –\nĐồng bộ đa thiết bị",
-          desc: "Kho Ebook bản quyền chuẩn DRM, highlight và ghi chú thông minh, đọc mượt mà trên App & Web.",
-          bgImage: "/banners/sub-hybrid.jpg",
-          overlay:
-            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.2) 100%)",
-          primaryBtn: { text: "Trải nghiệm Ebook", to: "/books?format=ebook" },
-          secondaryBtn: {
-            text: "Mua Combo Tiết Kiệm",
-            to: "/books?format=hybrid",
-          },
-          accent: "#006953",
-        },
-        {
-          id: "slide-3",
-          badge: "Ấn Bản Sách Đẹp & Sưu Tầm Cao Cấp",
-          icon: "workspace_premium",
-          title: "Bìa cứng mạ vàng –\nQuà tặng tri thức sang trọng",
-          desc: "Tuyển tập kiệt tác văn học, sách giới hạn kèm chữ ký tác giả và bookmark cao cấp.",
-          bgImage: "/banners/hero-podium.jpg",
-          overlay:
-            "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 48%, rgba(0, 42, 32, 0.2) 100%)",
-          primaryBtn: { text: "Xem bộ sưu tập", to: "/books?filter=special" },
-          secondaryBtn: {
-            text: "Săn Deal Bán Chạy",
-            to: "/books?filter=flash-sale",
-          },
-          accent: "#006953",
-        },
-      ];
-    }
-
-    let firstSlide = baseSlides[0];
-    if ((isPlatformLive || isPlatformTeaser) && activeFlashSale) {
-      firstSlide = {
-        id: "slide-flash-sale",
-        badge: isPlatformLive
-          ? "FLASH SALE GIỜ VÀNG TOÀN SÀN ĐANG DIỄN RA"
-          : "⏰ SẮP DIỄN RA FLASH SALE TOÀN SÀN HUKI",
-        icon: "bolt",
-        title: activeFlashSale.name,
-        desc:
-          activeFlashSale.description ||
-          (isPlatformLive
-            ? `Giảm sốc tới ${activeFlashSale.discountPercent || 30}% toàn bộ sách được trợ giá bởi HUKI Sàn. Số lượng có hạn!`
-            : `Đợt Flash Sale trợ giá tới ${activeFlashSale.discountPercent || 30}% toàn sàn chuẩn bị diễn ra. Sẵn sàng săn deal ngay!`),
-        bgImage: activeFlashSale.bannerUrl || "/banners/hero-library.jpg",
-        overlay:
-          "linear-gradient(to right, rgba(0, 42, 32, 0.94) 0%, rgba(0, 42, 32, 0.82) 50%, rgba(0, 42, 32, 0.25) 100%)",
-        primaryBtn: {
-          text: isPlatformLive ? "Săn Flash Sale Ngay" : "Xem Chi Tiết Khung Giờ",
-          to: "/flash-sale",
-        },
-        secondaryBtn: { text: "Khám Phá Sách", to: "/books" },
-        accent: "#006953",
-      };
-    }
-
-    return [firstSlide, ...baseSlides.slice(1)];
-  }, [isPlatformLive, isPlatformTeaser, activeFlashSale, customBanners]);
-
-  // Autoplay Hero Slider
+  // Fetch Real Reviews for top books
   useEffect(() => {
-    if (isHeroHovered) return;
-    const timer = setInterval(() => {
-      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [isHeroHovered, heroSlides.length]);
-
-  // Voucher Saved State
-  const [savedVouchers, setSavedVouchers] = useState(["HUKIFREESHIP"]);
-
-  // Bestseller Filter Tab
-  const [bestsellerTab, setBestsellerTab] = useState("all");
-
-  // Followed Shops & Authors State
-  const [followedShops, setFollowedShops] = useState([
-    "Nhã Nam",
-    "Alpha Books",
-  ]);
-  const [followedAuthors, setFollowedAuthors] = useState(["James Clear"]);
-
-  // Author Slider State & Autoplay
-  const [authorIndex, setAuthorIndex] = useState(0);
-  const [isAuthorHovered, setIsAuthorHovered] = useState(false);
-  const [itemsPerPage, setItemsPerPage] = useState(5);
-
-  // 1. VOUCHER LIST (Real from Backend Promotion Service + Demo items)
-  const voucherList = useMemo(() => {
-    const list: Array<{
-      code: string;
-      badge: string;
-      title: string;
-      condition: string;
-      exp: string;
-      icon: string;
-      isMock: boolean;
-    }> = [];
-
-    // Real active vouchers
-    if (realVouchers && realVouchers.length > 0) {
-      realVouchers.slice(0, 4).forEach((v) => {
-        let badge = v.type === 'PERCENTAGE' ? `GIẢM ${v.value}%` : v.type === 'FREE_SHIPPING' ? 'FREESHIP' : `GIẢM ${Number(v.value).toLocaleString('vi-VN')}Đ`;
-        let icon = v.type === 'FREE_SHIPPING' ? 'local_shipping' : v.type === 'PERCENTAGE' ? 'percent' : 'redeem';
-        let condition = v.minOrderAmount ? `Đơn từ ${Number(v.minOrderAmount).toLocaleString('vi-VN')}₫` : 'Mọi đơn hàng';
-        if (v.targetAudience === 'FOLLOWERS_ONLY') {
-          condition += ' • Dành cho Người theo dõi';
-          icon = 'favorite';
-        } else if (v.targetAudience === 'NEW_CUSTOMERS_ONLY') {
-          condition += ' • Khách mới';
+    if (!realBooks || realBooks.length === 0) return;
+    const topBooks = realBooks.slice(0, 10);
+    const promises = topBooks.map((b) => reviewApi.getBookReviews(b.id, { limit: 3 }));
+    Promise.allSettled(promises).then((results) => {
+      const collected: any[] = [];
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled' && r.value.success && r.value.data) {
+          const list = Array.isArray(r.value.data)
+            ? r.value.data
+            : (r.value.data as any).data || [];
+          const curBook = topBooks[idx];
+          list.forEach((item: any) => {
+            collected.push({
+              ...item,
+              bookTitle: curBook?.title,
+              bookId: curBook?.id,
+              bookCover: curBook?.coverUrl,
+            });
+          });
         }
-
-        list.push({
-          code: v.code,
-          badge,
-          title: v.name || `Voucher ${v.code}`,
-          condition,
-          exp: v.expiresAt ? `HSD: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}` : 'HSD: Dài hạn',
-          icon,
-          isMock: false,
-        });
       });
-    }
-
-    // Fallback demo/mock items to ensure rich banner layout
-    const fallbackMocks = [
-      {
-        code: "HUKIFREESHIP",
-        badge: "FREESHIP",
-        title: "Miễn phí vận chuyển 100%",
-        condition: "Đơn từ 150.000₫ • Toàn quốc",
-        exp: "Sắp mở lượt mới",
-        icon: "local_shipping",
-        isMock: true,
-      },
-      {
-        code: "HUKINEW25",
-        badge: "GIẢM 25K",
-        title: "Giảm 25.000₫ đơn đầu tiên",
-        condition: "Đơn từ 120.000₫ • Khách mới",
-        exp: "Demo",
-        icon: "redeem",
-        isMock: true,
-      },
-      {
-        code: "HUKICOMBO60",
-        badge: "GIẢM 60K",
-        title: "Giảm 60.000₫ khi mua Combo",
-        condition: "Áp dụng cho Combo từ 300k",
-        exp: "Demo",
-        icon: "auto_awesome",
-        isMock: true,
-      },
-      {
-        code: "EBOOK50",
-        badge: "EBOOK 50%",
-        title: "Giảm 50% mọi Ebook bản quyền",
-        condition: "Tối đa 40.000₫ • Mọi đơn Ebook",
-        exp: "Demo",
-        icon: "menu_book",
-        isMock: true,
-      },
-    ];
-
-    for (const mock of fallbackMocks) {
-      if (list.length < 4 && !list.some((it) => it.code === mock.code)) {
-        list.push(mock);
+      if (collected.length > 0) {
+        setRealReviews(collected);
       }
-    }
-
-    return list;
-  }, [realVouchers]);
-
-  // 2. FLASH SALE (With real items or mock fallback with isMock: true)
-  const allFlashSale = useMemo(() => {
-    if (activeFlashSale?.items && activeFlashSale.items.length > 0) {
-      return activeFlashSale.items.map((item: FlashSaleItem) => {
-        const book = realBooks.find((entry) => entry.id === item.bookId);
-        return {
-          id: item.bookId,
-          bookId: item.bookId,
-          storeId: book?.storeId || (book as any)?.store_id || book?.businessId || (book as any)?.business_id,
-          businessId: book?.businessId || (book as any)?.business_id || book?.storeId || (book as any)?.store_id,
-          book: book,
-          title: book?.title || `Tác phẩm Flash Sale #${item.bookId.slice(0, 6)}`,
-          author: book?.author?.name || "Tác giả HUKI",
-          publisher: book?.publisher?.name || "Gian hàng HUKI",
-          cover: book?.coverUrl || book?.coverImage || "/banners/hero-library.jpg",
-          price: item.salePrice,
-          originalPrice: item.originalPrice,
-          discount: `-${item.discountPercent}%`,
-          discountPercent: item.discountPercent,
-          rating: 5,
-          sales: item.sold,
-          soldText: item.isSoldOut ? "Đã bán hết 100%" : `Đã bán ${item.sold} cuốn`,
-          format: "Sách giấy",
-          formatType: "physical",
-          isMock: false,
-        };
-      });
-    }
-    // Mock items when no active flash sale campaign
-    return [
-      {
-        id: "mock-flash-1",
-        title: "Atomic Habits – Thay Đổi Tí Hon",
-        author: "James Clear",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 119000,
-        originalPrice: 189000,
-        discount: "-37%",
-        discountPercent: 37,
-        rating: 5.0,
-        sales: "1.4k",
-        soldText: "Đã bán 89 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-flash-2",
-        title: "Tâm Lý Học Về Tiền",
-        author: "Morgan Housel",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 99000,
-        originalPrice: 189000,
-        discount: "-48%",
-        discountPercent: 48,
-        rating: 4.9,
-        sales: "2.1k",
-        soldText: "Đã bán 142 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-flash-3",
-        title: "Nhà Giả Kim (The Alchemist)",
-        author: "Paulo Coelho",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 52000,
-        originalPrice: 80000,
-        discount: "-35%",
-        discountPercent: 35,
-        rating: 5.0,
-        sales: "5.8k",
-        soldText: "Đã bán 210 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-flash-4",
-        title: "Cây Cam Ngọt Của Tôi",
-        author: "José Mauro de Vasconcelos",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 68000,
-        originalPrice: 108000,
-        discount: "-37%",
-        discountPercent: 37,
-        rating: 5.0,
-        sales: "3.2k",
-        soldText: "Đã bán 95 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-flash-5",
-        title: "Hiểu Về Trái Tim",
-        author: "Thích Minh Niệm",
-        publisher: "First News",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 85000,
-        originalPrice: 145000,
-        discount: "-41%",
-        discountPercent: 41,
-        rating: 5.0,
-        sales: "1.9k",
-        soldText: "Đã bán 60 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-flash-6",
-        title: "Sapiens: Lược Sử Loài Người",
-        author: "Yuval Noah Harari",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 135000,
-        originalPrice: 220000,
-        discount: "-38%",
-        discountPercent: 38,
-        rating: 4.9,
-        sales: "2.4k",
-        soldText: "Đã bán 110 cuốn",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-    ];
-  }, [activeFlashSale, realBooks]);
-
-  const flashCountdown = {
-    hours: String(Math.floor(flashSeconds / 3600)).padStart(2, "0"),
-    minutes: String(Math.floor((flashSeconds % 3600) / 60)).padStart(2, "0"),
-    seconds: String(flashSeconds % 60).padStart(2, "0"),
-  };
-
-  // 3. BESTSELLERS (Real mapped items strictly from DB - NO mock data, NO fake sales/ratings)
-  const allBestsellers = useMemo(() => {
-    if (!realBooks || realBooks.length === 0) return [];
-
-    // Sắp xếp theo lượt bán thật (soldCount) từ DB giảm dần
-    const sortedBySales = [...realBooks].sort((a, b) => {
-      const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
-      const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
-      return salesB - salesA;
-    });
-
-    return sortedBySales.slice(0, 18).map((b, idx) => {
-      const salePrice = b.price || 0;
-      const origPrice = b.originalPrice && b.originalPrice > salePrice ? b.originalPrice : undefined;
-      const discountPct = origPrice
-        ? Math.round(((origPrice - salePrice) / origPrice) * 100)
-        : (b.discountPercent || undefined);
-      const realSales = Number(b.soldCount ?? (b as any).sales ?? 0);
-      const realRating = Number(b.rating ?? (b as any).averageRating ?? 0);
-
-      return {
-        id: b.id,
-        bookId: b.id,
-        storeId: b.storeId || (b as any)?.store_id || b.businessId || (b as any)?.business_id,
-        businessId: b.businessId || (b as any)?.business_id || b.storeId || (b as any)?.store_id,
-        book: b,
-        rank: idx + 1,
-        title: b.title,
-        author: b.author?.name || (typeof b.author === "string" ? b.author : "Tác giả HUKI"),
-        publisher: b.publisher?.name || (typeof b.publisher === "string" ? b.publisher : "HUKI Publisher"),
-        cover: b.coverUrl || b.coverImage || "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: salePrice,
-        originalPrice: origPrice,
-        discount: discountPct ? `-${discountPct}%` : undefined,
-        discountPercent: discountPct,
-        rating: realRating,
-        sales: realSales,
-        soldCount: realSales,
-        category: b.format === "DIGITAL" ? "ebook" : "paper",
-        format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
-        formatType: b.format === "DIGITAL" ? "ebook" : "physical",
-        isMock: false,
-      };
     });
   }, [realBooks]);
 
-  const filteredBestsellers = useMemo(() => {
-    if (bestsellerTab === "paper") return allBestsellers.filter((b) => b.category === "paper");
-    if (bestsellerTab === "ebook") return allBestsellers.filter((b) => b.category === "ebook");
-    return allBestsellers;
-  }, [bestsellerTab, allBestsellers]);
-
-
-
-  // 4. OFFICIAL STORES
-  const officialStores = useMemo(
-    () => [
-      {
-        id: "store-tre",
-        name: "NXB Trẻ",
-        code: "TRẺ",
-        color: "bg-[#003b2b] text-white",
-        followers: "42.5k người theo dõi",
-        verified: true,
-      },
-      {
-        id: "store-nhanam",
-        name: "Nhã Nam",
-        code: "NN",
-        color: "bg-[#006953] text-white",
-        followers: "68.2k người theo dõi",
-        verified: true,
-      },
-      {
-        id: "store-kimdong",
-        name: "NXB Kim Đồng",
-        code: "KĐ",
-        color: "bg-[#004d38] text-white",
-        followers: "51.9k người theo dõi",
-        verified: true,
-      },
-      {
-        id: "store-alphabooks",
-        name: "Alpha Books Official",
-        code: "αB",
-        color: "bg-[#003b2b] text-white",
-        followers: "39.1k người theo dõi",
-        verified: true,
-      },
-      {
-        id: "store-firstnews",
-        name: "First News Trí Việt",
-        code: "FN",
-        color: "bg-[#006953] text-white",
-        followers: "45.8k người theo dõi",
-        verified: true,
-      },
-    ],
-    [],
-  );
-
-  // 5. GENRE CATEGORIES SLICES (6 books each with fallback isMock)
-  const literatureBooks = useMemo(() => {
-    const list = realBooks.filter((b) => {
-      const slug = b.category?.slug?.toLowerCase() || '';
-      const name = b.category?.name?.toLowerCase() || '';
-      return slug.includes('van-hoc') || name.includes('văn học') || name.includes('tiểu thuyết');
-    });
-    if (list.length >= 6) return list.slice(0, 6).map((b) => ({ ...b, isMock: false }));
-    return [
-      ...list.map((b) => ({ ...b, isMock: false })),
-      {
-        id: "mock-lit-1",
-        title: "Cây Cam Ngọt Của Tôi",
-        author: "José Mauro",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 86000,
-        originalPrice: 108000,
-        discount: "-20%",
-        rating: 5.0,
-        sales: "12.4k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-lit-2",
-        title: "Chiến Binh Cầu Vồng",
-        author: "Andrea Hirata",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 94000,
-        originalPrice: 119000,
-        discount: "-21%",
-        rating: 4.9,
-        sales: "8.1k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-lit-3",
-        title: "Rừng Na Uy (Norwegian Wood)",
-        author: "Haruki Murakami",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 112000,
-        originalPrice: 140000,
-        discount: "-20%",
-        rating: 4.8,
-        sales: "15.3k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-lit-4",
-        title: "Hoàng Tử Bé (Le Petit Prince)",
-        author: "Antoine de Saint-Exupéry",
-        publisher: "Kim Đồng",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 45000,
-        originalPrice: 60000,
-        discount: "-25%",
-        rating: 5.0,
-        sales: "24.9k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-lit-5",
-        title: "Những Người Khốn Khổ",
-        author: "Victor Hugo",
-        publisher: "NXB Văn Học",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 175000,
-        originalPrice: 230000,
-        discount: "-24%",
-        rating: 4.9,
-        sales: "6.7k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-lit-6",
-        title: "Trăm Năm Cô Đơn",
-        author: "Gabriel García Márquez",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 139000,
-        originalPrice: 175000,
-        discount: "-20%",
-        rating: 4.8,
-        sales: "9.2k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-    ].slice(0, 6);
-  }, [realBooks]);
-
-  const businessBooks = useMemo(() => {
-    const list = realBooks.filter((b) => {
-      const slug = b.category?.slug?.toLowerCase() || '';
-      const name = b.category?.name?.toLowerCase() || '';
-      return slug.includes('kinh-te') || name.includes('kinh tế') || name.includes('đầu tư') || name.includes('kinh doanh');
-    });
-    if (list.length >= 6) return list.slice(0, 6).map((b) => ({ ...b, isMock: false }));
-    return [
-      ...list.map((b) => ({ ...b, isMock: false })),
-      {
-        id: "mock-biz-1",
-        title: "Từ Tốt Đến Vĩ Đại (Good to Great)",
-        author: "Jim Collins",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 148000,
-        originalPrice: 185000,
-        discount: "-20%",
-        rating: 4.9,
-        sales: "11.2k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-biz-2",
-        title: "Khởi Nghiệp Tinh Gọn (Lean Startup)",
-        author: "Eric Ries",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 136000,
-        originalPrice: 170000,
-        discount: "-20%",
-        rating: 4.8,
-        sales: "8.7k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-biz-3",
-        title: "Principles: Nguyên Tắc Trong Cuộc Sống",
-        author: "Ray Dalio",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 225000,
-        originalPrice: 290000,
-        discount: "-22%",
-        rating: 4.9,
-        sales: "14.1k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-biz-4",
-        title: "Nhà Đầu Tư Thông Minh",
-        author: "Benjamin Graham",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 189000,
-        originalPrice: 245000,
-        discount: "-23%",
-        rating: 5.0,
-        sales: "20.5k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-biz-5",
-        title: "Tư Duy Nhanh Và Chậm",
-        author: "Daniel Kahneman",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 195000,
-        originalPrice: 260000,
-        discount: "-25%",
-        rating: 4.8,
-        sales: "16.8k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-biz-6",
-        title: "Bước Đi Ngẫu Nhiên Trên Phố Wall",
-        author: "Burton G. Malkiel",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 165000,
-        originalPrice: 215000,
-        discount: "-23%",
-        rating: 4.8,
-        sales: "7.4k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-    ].slice(0, 6);
-  }, [realBooks]);
-
-  const techBooks = useMemo(() => {
-    const list = realBooks.filter((b) => {
-      const slug = b.category?.slug?.toLowerCase() || '';
-      const name = b.category?.name?.toLowerCase() || '';
-      return slug.includes('cong-nghe') || name.includes('công nghệ') || name.includes('ai');
-    });
-    if (list.length >= 6) return list.slice(0, 6).map((b) => ({ ...b, isMock: false }));
-    return [
-      ...list.map((b) => ({ ...b, isMock: false })),
-      {
-        id: "mock-tech-1",
-        title: "AI 2041: 10 Viễn Cảnh Tương Lai",
-        author: "Kai-Fu Lee",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 172000,
-        originalPrice: 215000,
-        discount: "-20%",
-        rating: 4.9,
-        sales: "5.3k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-tech-2",
-        title: "Chip War: Cuộc Chiến Vi Mạch Toàn Cầu",
-        author: "Chris Miller",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 195000,
-        originalPrice: 245000,
-        discount: "-20%",
-        rating: 5.0,
-        sales: "7.8k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-tech-3",
-        title: "Kỷ Nguyên AI & Tương Lai Nhân Loại",
-        author: "Henry Kissinger",
-        publisher: "NXB Trẻ",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 145000,
-        originalPrice: 180000,
-        discount: "-19%",
-        rating: 4.8,
-        sales: "4.6k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-tech-4",
-        title: "Clean Code: Mã Sạch Thực Chiến",
-        author: "Robert C. Martin",
-        publisher: "NXB Thông Tin",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 210000,
-        originalPrice: 260000,
-        discount: "-19%",
-        rating: 5.0,
-        sales: "12.3k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-tech-5",
-        title: "Lập Trình Hướng Đối Tượng & Design Patterns",
-        author: "Erich Gamma",
-        publisher: "NXB Bách Khoa",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 185000,
-        originalPrice: 230000,
-        discount: "-20%",
-        rating: 4.9,
-        sales: "6.9k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-      {
-        id: "mock-tech-6",
-        title: "Học Máy Thực Hành (Hands-On Machine Learning)",
-        author: "Aurélien Géron",
-        publisher: "NXB Đại Học Quốc Gia",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 260000,
-        originalPrice: 320000,
-        discount: "-19%",
-        rating: 5.0,
-        sales: "8.4k",
-        format: "Sách giấy",
-        formatType: "physical",
-        isMock: true,
-      },
-    ].slice(0, 6);
-  }, [realBooks]);
-
-  const ebookShelfBooks = useMemo(() => {
-    const list = realBooks.filter((b) => b.format === 'DIGITAL' || b.digitalDetails?.digitalEnabled);
-    if (list.length >= 6) return list.slice(0, 6).map((b) => ({ ...b, isMock: false }));
-    return [
-      ...list.map((b) => ({ ...b, isMock: false })),
-      {
-        id: "mock-eb-1",
-        title: "Dế Mèn Phiêu Lưu Ký (Ebook DRM)",
-        author: "Tô Hoài",
-        publisher: "Kim Đồng",
-        cover: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=400&q=80",
-        price: 0,
-        originalPrice: 35000,
-        discount: "Miễn phí",
-        rating: 5.0,
-        sales: "45.1k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-eb-2",
-        title: "Tư Duy Tích Cực Tạo Thành Công",
-        author: "Norman Vincent Peale",
-        publisher: "First News",
-        cover: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=400&q=80",
-        price: 35000,
-        originalPrice: 59000,
-        discount: "-41%",
-        rating: 4.8,
-        sales: "8.3k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-eb-3",
-        title: "Nhà Giả Kim (Ebook DRM Bản Quyền)",
-        author: "Paulo Coelho",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=400&q=80",
-        price: 39000,
-        originalPrice: 65000,
-        discount: "-40%",
-        rating: 5.0,
-        sales: "28.4k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-eb-4",
-        title: "Sapiens: Lược Sử Loài Người (Ebook)",
-        author: "Yuval Noah Harari",
-        publisher: "Nhã Nam",
-        cover: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=400&q=80",
-        price: 75000,
-        originalPrice: 120000,
-        discount: "-38%",
-        rating: 4.9,
-        sales: "14.2k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-eb-5",
-        title: "Hiểu Về Trái Tim (Ebook DRM)",
-        author: "Thích Minh Niệm",
-        publisher: "First News",
-        cover: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=400&q=80",
-        price: 49000,
-        originalPrice: 80000,
-        discount: "-39%",
-        rating: 5.0,
-        sales: "19.5k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-      {
-        id: "mock-eb-6",
-        title: "Con Đường Phía Trước (The Road Ahead)",
-        author: "Bill Gates",
-        publisher: "Alpha Books Official",
-        cover: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=400&q=80",
-        price: 89000,
-        originalPrice: 159000,
-        discount: "-44%",
-        rating: 5.0,
-        sales: "11.8k",
-        format: "Ebook DRM",
-        formatType: "ebook",
-        isMock: true,
-      },
-    ].slice(0, 6);
-  }, [realBooks]);
-
-  // 6. GỢI Ý HÔM NAY (Section 11) - 100% Real Books from DB, Personalized Shopee-style, Zero Mock!
-  const [personalizationTick, setPersonalizationTick] = useState(0);
-
+  // Personalization events listener
   useEffect(() => {
     const handleUpdate = () => {
       setPersonalizationTick((prev) => prev + 1);
@@ -1028,69 +229,7 @@ export default function HomePage() {
     };
   }, []);
 
-  const suggestedBooks = useMemo(() => {
-    if (!realBooks || realBooks.length === 0) return [];
-
-    // Tự động phân tích & chấm điểm theo Bé Cáo AI, Lịch sử Search, Onboarding và tương tác xem sách
-    const personalized = personalizationService.getPersonalizedRecommendations(realBooks as any, {
-      limit: 24,
-    });
-
-    return personalized.map((b) => ({
-      ...b,
-      format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
-      formatType: b.format === "DIGITAL" ? "ebook" : "physical",
-      rating: Number(b.rating ?? (b as any).averageRating ?? 0),
-      sales: Number(b.soldCount ?? (b as any).sales ?? 0),
-      soldCount: Number(b.soldCount ?? (b as any).sales ?? 0),
-      isMock: false,
-    }));
-  }, [realBooks, personalizationTick]);
-
-  // 7. AUTHORS LIST
-  const authorsList = useMemo(
-    () => [
-      {
-        name: "Haruki Murakami",
-        books: "18 đầu sách",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuCR-OPOd7e4KsfO0t-0xMw2DyZP6jFtwwwqK09pUgJkDjYa5toolI1E43E6nK-pjKQ6oIWrou0_f2agMmZEgZ5RS2CAqewxN9TTMHgCwG3kskJbOd9X7kp7O9OAoalbSgCbAKmG8cO9bWGgyhXmV7IYpaXvZo22hV3-AQrsi84-ZhwNMBtpp6uHr5U4YKB0kas_ERbqkslBd2P7hY2oeGjp4StJDzkov6Y8h3uarnyuNI2MzhOB6sP7Vw",
-      },
-      {
-        name: "James Clear",
-        books: "4 ấn phẩm",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuAnw9yJWOrKGesjDyl1-X_0R2W4HNILmzCsBYgbF0XKynDiK7fNvri-xM3jY3V_3z15MmE0g3IJX0qsypYqufMmBW5544ziG8nhUbsSR9WJhuCOKCBJisehB_5esWgbY7RkVY2LHadzTRsRvBp8TVGnTCHFoDrWjwhXvNwjNCCisa-LJUAhhMYg7n_eLSRD2IdW0XHKQl2V1i3tKp6YJXGPZUt1ZTo4IpAKkERRMoCTmqrThvqL1YOmFA",
-      },
-      {
-        name: "Morgan Housel",
-        books: "3 tác phẩm",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuAtrE0r2gXqHTig1zo3glXgfCTbKIG1iJv0jftMG7jgJJAy4XBzXb_a0OQpbRa8X1mTIRnjs54Zb5EsOBo9IE1RxUfVgYt5ysUjQ46kpM6ikrx4t_t56RpqAQbYuqKfhaO1h18LuSzCUNduXsNOWS2wX0xolsVziTAj70AnD6YrUKPB5Oyg0jtxgqFbF0yN0X6x3vCXuSCMXzIhQxcEBAP86uH8f2lmCgbn6JCxhlEqNeYzY_-Zpiv-tQ",
-      },
-      {
-        name: "Yuval Noah Harari",
-        books: "5 bộ lược sử",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBTraLVsMiNUVda0rejvWN-zCy-uTUY55qgl17upiljc0TV6u1kOJnsntndANnLcPEmEgEEdIwvKaT_yEjZTbUveJXG5yZUXE77KuhWBL4eSEm_dlUCQuFaEisFn6uqlFfcY-RTB2cMXk3FuQCIdIfRpqkHpiSqE3hsDJW1RFT1dQTBClR3wqcCD6Y-Jt6X1SsOlJCvS-pcnFeB47QmLs4X8uc9_tU14Sv2hqeEB1ry4JzHN-_w8ji9Fw",
-      },
-      {
-        name: "Nguyễn Nhật Ánh",
-        books: "32 truyện dài",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuBmk40IHL8nN8QgKmmU5Htwlb2gfZo134PTe-LmHn1e02Dy8D3eLCGlU_U27hCuP3t0jn7R4F3zjTTBBAowvf6PDX6-RbVei2RSTp33PDhYHzIFrWCpK9wHIInJJ5w0ByCX87r2K5VshsFg3ne7rf6i-N_G-_nzhcvWnfSkv7aJHW-9Bx3QzTpbw_67wwMZsthqpn3yoWWuD8LZQ9LpRP-5UTOg8eIetCyfz3Txa9jlqbr0mHuqw_4EHQ",
-      },
-      {
-        name: "Thích Nhất Hạnh",
-        books: "14 tác phẩm",
-        avatar:
-          "https://lh3.googleusercontent.com/aida-public/AB6AXuAIVd9e_xnuEa_DW6YY3L3loH6GzqT5fbdDVDUXUGPYTiwNwtsNRPsq0IDnExW68G2riBcucukM_GYSYHVIumaHSrkG6PaiousV-H7pu3UnxOPIuJWrGBo7V9SPhF9SSq4DcP2sCNM2f5IquMZ9GAjqxLJg1dxRIjLO863oh6Z8IkjciAsYS6H2z39GOVXtRqI6lEmbMpcauoOMktSp2zLuGCZFwKvcUV_nka0vi9jIw5VpguiyBRdUVg",
-      },
-    ],
-    [],
-  );
-
-  // Responsive itemsPerPage calculation for authors slider
+  // Authors carousel resize listener
   useEffect(() => {
     const updateCols = () => {
       if (window.innerWidth < 640) setItemsPerPage(2);
@@ -1102,42 +241,493 @@ export default function HomePage() {
     return () => window.removeEventListener("resize", updateCols);
   }, []);
 
+  // =========================================================================
+  // DERIVED DATA STRUCTURES (100% REAL - ZERO MOCKS)
+  // =========================================================================
+
+  // 1. Categories Menu for Hero Left Sidebar
+  const categoriesMenu = useMemo(() => {
+    if (realCategories.length > 0) {
+      const iconMap: Record<string, string> = {
+        'kinh-doanh': 'trending_up',
+        'van-hoc': 'auto_stories',
+        'tam-ly': 'psychology',
+        'cong-nghe': 'smart_toy',
+        'khoa-hoc': 'biotech',
+        'manga': 'menu_book',
+        'thieu-nhi': 'child_care',
+        'tri-thuc': 'school',
+        'lich-su': 'history_edu',
+        'phat-trien': 'self_improvement',
+      };
+      return realCategories.slice(0, 9).map((c) => {
+        let icon = 'menu_book';
+        const s = (c.slug || '').toLowerCase();
+        for (const [key, val] of Object.entries(iconMap)) {
+          if (s.includes(key)) {
+            icon = val;
+            break;
+          }
+        }
+        return {
+          name: c.name,
+          to: `/books?category=${encodeURIComponent(c.slug || '')}`,
+          icon,
+        };
+      });
+    }
+
+    const catMap = new Map<string, string>();
+    realBooks.forEach((b) => {
+      if (b.category?.name && b.category?.slug) {
+        catMap.set(b.category.name, b.category.slug);
+      }
+    });
+
+    return Array.from(catMap.entries()).slice(0, 9).map(([name, slug]) => ({
+      name,
+      to: `/books?category=${encodeURIComponent(slug)}`,
+      icon: 'menu_book',
+    }));
+  }, [realCategories, realBooks]);
+
+  // 2. Hero Slides (From Admin custom banners or derived from top real books)
+  const heroSlides = useMemo(() => {
+    if (customBanners.length > 0) {
+      return customBanners.map((cb, idx) => ({
+        id: cb.id,
+        badge: cb.badge || "HỘI SÁCH TRI THỨC HUKI",
+        icon: idx === 0 ? "auto_awesome" : idx === 1 ? "tablet_mac" : "workspace_premium",
+        title: cb.title,
+        desc: cb.subtitle || "Khám phá hàng chục ngàn tựa sách hay cùng HUKI.",
+        bgImage: cb.imageUrl || "/banners/hero-library.jpg",
+        overlay: "linear-gradient(to right, rgba(0, 59, 43, 0.94) 0%, rgba(0, 59, 43, 0.8) 50%, rgba(0, 59, 43, 0.2) 100%)",
+        primaryBtn: { text: "Khám Phá Ngay", to: cb.targetUrl || "/books" },
+        secondaryBtn: { text: "Xem Thêm", to: "/books" },
+      }));
+    }
+
+    const topBook = realBooks[0];
+    const secondBook = realBooks[1];
+
+    return [
+      {
+        id: "hero-1",
+        badge: "KHO SÁCH CHÍNH HÃNG HUKI",
+        icon: "auto_awesome",
+        title: topBook ? `Tuyển Tập: ${topBook.title}` : "Hội Sách Tri Thức Bản Quyền",
+        desc: "Hơn 10.000+ tựa sách chọn lọc từ các Nhà xuất bản hàng đầu với ưu đãi hấp dẫn.",
+        bgImage: topBook?.coverUrl || "/banners/hero-library.jpg",
+        overlay: "linear-gradient(to right, rgba(0, 59, 43, 0.94) 0%, rgba(0, 59, 43, 0.82) 50%, rgba(0, 59, 43, 0.25) 100%)",
+        primaryBtn: { text: "Khám Phá Ngay", to: "/books" },
+        secondaryBtn: { text: "Sách Bán Chạy", to: "/books?filter=best-sellers" },
+      },
+      {
+        id: "hero-2",
+        badge: "HUKI READER & DRM",
+        icon: "tablet_mac",
+        title: secondBook ? `Đọc Số Ebook: ${secondBook.title}` : "Đọc Sách DRM Không Giới Hạn",
+        desc: "Bản quyền số hóa chất lượng cao, highlight ghi chú thông minh trên mọi thiết bị.",
+        bgImage: secondBook?.coverUrl || "/banners/hero-library.jpg",
+        overlay: "linear-gradient(to right, rgba(15, 23, 42, 0.94) 0%, rgba(15, 23, 42, 0.82) 50%, rgba(15, 23, 42, 0.25) 100%)",
+        primaryBtn: { text: "Đọc Ebook", to: "/books?format=ebook" },
+        secondaryBtn: { text: "Tìm Hiểu DRM", to: "/about" },
+      },
+    ];
+  }, [customBanners, realBooks]);
+
+  // Auto rotate Hero Slider
+  useEffect(() => {
+    if (isHeroHovered || heroSlides.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [isHeroHovered, heroSlides.length]);
+
+  // 3. Real Vouchers List (Zero mock!)
+  const voucherList = useMemo(() => {
+    if (!realVouchers || realVouchers.length === 0) return [];
+
+    return realVouchers.map((v) => {
+      let badge =
+        v.type === 'PERCENTAGE'
+          ? `GIẢM ${v.value}%`
+          : v.type === 'FREE_SHIPPING'
+          ? 'FREESHIP'
+          : `GIẢM ${Number(v.value).toLocaleString('vi-VN')}Đ`;
+      let icon =
+        v.type === 'FREE_SHIPPING'
+          ? 'local_shipping'
+          : v.type === 'PERCENTAGE'
+          ? 'percent'
+          : 'redeem';
+      let condition = v.minOrderAmount
+        ? `Đơn từ ${Number(v.minOrderAmount).toLocaleString('vi-VN')}₫`
+        : 'Mọi đơn hàng';
+      if (v.targetAudience === 'FOLLOWERS_ONLY') {
+        condition += ' • Dành cho Người theo dõi';
+        icon = 'favorite';
+      } else if (v.targetAudience === 'NEW_CUSTOMERS_ONLY') {
+        condition += ' • Khách mới';
+      }
+
+      return {
+        code: v.code,
+        badge,
+        title: v.name || `Voucher ${v.code}`,
+        condition,
+        exp: v.expiresAt
+          ? `HSD: ${new Date(v.expiresAt).toLocaleDateString('vi-VN')}`
+          : 'HSD: Dài hạn',
+        icon,
+      };
+    });
+  }, [realVouchers]);
+
+  // 4. Flash Sale Items (Real campaign items OR real discounted books from DB)
+  const allFlashSale = useMemo(() => {
+    if (activeFlashSale?.items && activeFlashSale.items.length > 0) {
+      return activeFlashSale.items.map((item: FlashSaleItem) => {
+        const book = realBooks.find((entry) => entry.id === item.bookId);
+        return {
+          id: item.bookId,
+          bookId: item.bookId,
+          storeId: book?.storeId || (book as any)?.store_id || book?.businessId,
+          businessId: book?.businessId || book?.storeId,
+          book: book,
+          title: book?.title || `Tác phẩm Flash Sale #${item.bookId.slice(0, 6)}`,
+          author: book?.author?.name || "Tác giả HUKI",
+          publisher: book?.publisher?.name || "Gian hàng HUKI",
+          cover: book?.coverUrl || "/banners/hero-library.jpg",
+          price: item.salePrice,
+          originalPrice: item.originalPrice,
+          discount: `-${item.discountPercent}%`,
+          discountPercent: item.discountPercent,
+          rating: 5,
+          sales: item.sold,
+          soldText: item.isSoldOut ? "Đã bán hết 100%" : `Đã bán ${item.sold} cuốn`,
+          format: "Sách giấy",
+          formatType: "physical",
+        };
+      });
+    }
+
+    const discounted = realBooks.filter((b) => {
+      const p = Number(b.price || 0);
+      const op = Number(b.originalPrice || 0);
+      return (b.discountPercent && b.discountPercent > 0) || (op > p);
+    });
+
+    if (discounted.length > 0) {
+      return discounted.slice(0, 6).map((b) => {
+        const p = Number(b.price || 0);
+        const op = Number(b.originalPrice || 0);
+        const orig = op > p ? op : Math.round(p * 1.25);
+        const pct = b.discountPercent || Math.round(((orig - p) / orig) * 100);
+        return {
+          id: b.id,
+          bookId: b.id,
+          storeId: b.storeId,
+          businessId: b.businessId,
+          book: b,
+          title: b.title,
+          author: b.author?.name || "Tác giả HUKI",
+          publisher: b.publisher?.name || "Gian hàng HUKI",
+          cover: b.coverUrl || "/banners/hero-library.jpg",
+          price: p,
+          originalPrice: orig,
+          discount: `-${pct}%`,
+          discountPercent: pct,
+          rating: Number(b.rating || 5),
+          sales: Number(b.soldCount || 0),
+          soldText: b.soldCount ? `Đã bán ${b.soldCount} cuốn` : "Ưu đãi hot",
+          format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
+          formatType: b.format === "DIGITAL" ? "ebook" : "physical",
+        };
+      });
+    }
+
+    return [];
+  }, [activeFlashSale, realBooks]);
+
+  const flashCountdown = useMemo(() => {
+    const hours = Math.floor(flashSeconds / 3600);
+    const minutes = Math.floor((flashSeconds % 3600) / 60);
+    const seconds = flashSeconds % 60;
+    return {
+      h: String(hours).padStart(2, "0"),
+      m: String(minutes).padStart(2, "0"),
+      s: String(seconds).padStart(2, "0"),
+    };
+  }, [flashSeconds]);
+
+  // 5. Bestsellers (100% Real from realBooks sorted by sales count)
+  const allBestsellers = useMemo(() => {
+    if (!realBooks || realBooks.length === 0) return [];
+
+    const sortedBySales = [...realBooks].sort((a, b) => {
+      const salesA = Number(a.soldCount ?? (a as any).sales ?? 0);
+      const salesB = Number(b.soldCount ?? (b as any).sales ?? 0);
+      return salesB - salesA;
+    });
+
+    return sortedBySales.slice(0, 18).map((b) => {
+      const salePrice = b.price || 0;
+      const origPrice =
+        b.originalPrice && b.originalPrice > salePrice
+          ? b.originalPrice
+          : undefined;
+      const discountPct = origPrice
+        ? Math.round(((origPrice - salePrice) / origPrice) * 100)
+        : b.discountPercent || undefined;
+      const realSales = Number(b.soldCount ?? (b as any).sales ?? 0);
+      const realRating = Number(b.rating ?? (b as any).averageRating ?? 5);
+
+      return {
+        id: b.id,
+        bookId: b.id,
+        storeId: b.storeId,
+        businessId: b.businessId,
+        book: b,
+        title: b.title,
+        author: b.author?.name || "Tác giả HUKI",
+        publisher: b.publisher?.name || "Gian hàng HUKI",
+        cover: b.coverUrl || "/banners/hero-library.jpg",
+        price: salePrice,
+        originalPrice: origPrice,
+        discount: discountPct ? `-${discountPct}%` : undefined,
+        discountPercent: discountPct,
+        rating: realRating,
+        sales: realSales,
+        soldCount: realSales,
+        category: b.format === "DIGITAL" ? "ebook" : "paper",
+        format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
+        formatType: b.format === "DIGITAL" ? "ebook" : "physical",
+      };
+    });
+  }, [realBooks]);
+
+  const filteredBestsellers = useMemo(() => {
+    if (bestsellerTab === "paper") return allBestsellers.filter((b) => b.category === "paper");
+    if (bestsellerTab === "ebook") return allBestsellers.filter((b) => b.category === "ebook");
+    return allBestsellers;
+  }, [bestsellerTab, allBestsellers]);
+
+  // 6. Official Stores & Publishers (From Real Publishers API)
+  const officialStores = useMemo(() => {
+    if (!realPublishers || realPublishers.length === 0) return [];
+    const colors = [
+      "bg-[#003b2b] text-white",
+      "bg-[#006953] text-white",
+      "bg-[#004d38] text-white",
+      "bg-[#0f4c3a] text-white",
+      "bg-[#1c3f35] text-white",
+    ];
+    return realPublishers.map((pub, idx) => {
+      const bookCount = realBooks.filter(
+        (b) => b.publisher?.name === pub.name || b.publisher?.id === pub.id
+      ).length;
+      return {
+        id: pub.id,
+        name: pub.name,
+        code: pub.name.split(' ').map((w: string) => w[0]).join('').slice(0, 3).toUpperCase(),
+        color: colors[idx % colors.length],
+        followers: bookCount > 0 ? `${bookCount} đầu sách chính hãng` : 'Đối tác chính hãng',
+        verified: true,
+        slug: pub.slug,
+      };
+    });
+  }, [realPublishers, realBooks]);
+
+  // 7. Genre Category Slices (100% Real - Zero Mocks)
+  const literatureBooks = useMemo(() => {
+    return realBooks
+      .filter((b) => {
+        const slug = b.category?.slug?.toLowerCase() || '';
+        const name = b.category?.name?.toLowerCase() || '';
+        return (
+          slug.includes('van-hoc') ||
+          name.includes('văn học') ||
+          name.includes('tiểu thuyết')
+        );
+      })
+      .slice(0, 6);
+  }, [realBooks]);
+
+  const businessBooks = useMemo(() => {
+    return realBooks
+      .filter((b) => {
+        const slug = b.category?.slug?.toLowerCase() || '';
+        const name = b.category?.name?.toLowerCase() || '';
+        return (
+          slug.includes('kinh-doanh') ||
+          slug.includes('kinh-te') ||
+          name.includes('kinh tế') ||
+          name.includes('kinh doanh') ||
+          name.includes('đầu tư')
+        );
+      })
+      .slice(0, 6);
+  }, [realBooks]);
+
+  const techBooks = useMemo(() => {
+    return realBooks
+      .filter((b) => {
+        const slug = b.category?.slug?.toLowerCase() || '';
+        const name = b.category?.name?.toLowerCase() || '';
+        return (
+          slug.includes('cong-nghe') ||
+          slug.includes('tri-thuc') ||
+          name.includes('công nghệ') ||
+          name.includes('khoa học') ||
+          name.includes('ai') ||
+          name.includes('tri thức')
+        );
+      })
+      .slice(0, 6);
+  }, [realBooks]);
+
+  const ebookShelfBooks = useMemo(() => {
+    return realBooks
+      .filter(
+        (b) =>
+          b.format === 'DIGITAL' ||
+          b.format === 'BOTH' ||
+          b.digitalDetails?.digitalEnabled
+      )
+      .slice(0, 6);
+  }, [realBooks]);
+
+  // 8. Real Dynamic Combos from Real Books
+  const realCombos = useMemo(() => {
+    if (!realBooks || realBooks.length < 4) return [];
+
+    const litBooks = realBooks
+      .filter((b) => {
+        const name = (b.category?.name || '').toLowerCase();
+        return (
+          name.includes('văn học') ||
+          name.includes('kỹ năng') ||
+          name.includes('tâm lý')
+        );
+      })
+      .slice(0, 3);
+
+    const bizBooks = realBooks
+      .filter((b) => {
+        const name = (b.category?.name || '').toLowerCase();
+        return (
+          name.includes('kinh') ||
+          name.includes('công nghệ') ||
+          name.includes('khoa học') ||
+          name.includes('tech')
+        );
+      })
+      .slice(0, 3);
+
+    const combos = [];
+    if (litBooks.length >= 2) {
+      const origTotal = litBooks.reduce((s, b) => s + Number(b.price || 100000), 0);
+      const discount = Math.round(origTotal * 0.15);
+      const price = origTotal - discount;
+      combos.push({
+        id: `combo-lit-${litBooks[0].id.slice(0, 6)}`,
+        title: `Bộ Sách Văn Học & Tư Duy Chọn Lọc (${litBooks.length} cuốn)`,
+        desc: `Gồm: ${litBooks.map((b) => b.title).join(' + ')}`,
+        books: litBooks,
+        discountLabel: `Combo ${litBooks.length} cuốn - Tiết kiệm ${discount.toLocaleString('vi-VN')}₫ (Giảm 15%)`,
+        origPrice: origTotal,
+        price,
+        covers: litBooks.map((b) => b.coverUrl || '/banners/hero-library.jpg'),
+      });
+    }
+
+    if (bizBooks.length >= 2) {
+      const origTotal = bizBooks.reduce((s, b) => s + Number(b.price || 100000), 0);
+      const discount = Math.round(origTotal * 0.15);
+      const price = origTotal - discount;
+      combos.push({
+        id: `combo-biz-${bizBooks[0].id.slice(0, 6)}`,
+        title: `Tủ Sách Kinh Doanh & Đổi Mới Sáng Tạo (${bizBooks.length} cuốn)`,
+        desc: `Gồm: ${bizBooks.map((b) => b.title).join(' + ')}`,
+        books: bizBooks,
+        discountLabel: `Combo ${bizBooks.length} cuốn - Tiết kiệm ${discount.toLocaleString('vi-VN')}₫ (Giảm 15%)`,
+        origPrice: origTotal,
+        price,
+        covers: bizBooks.map((b) => b.coverUrl || '/banners/hero-library.jpg'),
+      });
+    }
+
+    return combos;
+  }, [realBooks]);
+
+  // 9. Real AI Personalized Recommendations (24 Books)
+  const suggestedBooks = useMemo(() => {
+    if (!realBooks || realBooks.length === 0) return [];
+
+    const personalized = personalizationService.getPersonalizedRecommendations(
+      realBooks as any,
+      { limit: 24 }
+    );
+
+    return personalized.map((b) => ({
+      ...b,
+      format: b.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
+      formatType: b.format === "DIGITAL" ? "ebook" : "physical",
+      rating: Number(b.rating ?? (b as any).averageRating ?? 5),
+      sales: Number(b.soldCount ?? (b as any).sales ?? 0),
+      soldCount: Number(b.soldCount ?? (b as any).sales ?? 0),
+    }));
+  }, [realBooks, personalizationTick]);
+
+  // 10. Real Authors List from Database
+  const authorsList = useMemo(() => {
+    if (!realAuthors || realAuthors.length === 0) return [];
+
+    const authorsWithCount = realAuthors.map((a: any) => {
+      const count = realBooks.filter(
+        (b) => b.author?.name === a.name || b.author?.id === a.id
+      ).length;
+      return {
+        id: a.id,
+        name: a.name,
+        slug: a.slug,
+        books: count > 0 ? `${count} đầu sách` : 'Tác giả HUKI',
+        count,
+        avatar:
+          a.avatar ||
+          a.avatarUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(a.name || 'Author')}&background=003B2B&color=fff&size=128`,
+      };
+    });
+
+    authorsWithCount.sort((a, b) => b.count - a.count);
+    return authorsWithCount.slice(0, 10);
+  }, [realAuthors, realBooks]);
+
+  // Carousel calculations for authors
   const maxAuthorIndex = Math.max(0, authorsList.length - itemsPerPage);
 
-  const handleNextAuthor = () => {
-    setAuthorIndex((prev) => (prev >= maxAuthorIndex ? 0 : prev + 1));
-  };
-
-  const handlePrevAuthor = () => {
-    setAuthorIndex((prev) => (prev <= 0 ? maxAuthorIndex : prev - 1));
-  };
-
   useEffect(() => {
-    if (isAuthorHovered) return;
+    if (isAuthorHovered || authorsList.length <= itemsPerPage) return;
     const timer = setInterval(() => {
       setAuthorIndex((prev) => (prev >= maxAuthorIndex ? 0 : prev + 1));
     }, 3500);
     return () => clearInterval(timer);
-  }, [isAuthorHovered, maxAuthorIndex]);
+  }, [isAuthorHovered, maxAuthorIndex, authorsList.length, itemsPerPage]);
 
-  // Handle Save Voucher
+  // Interactivity Handlers
   const handleSaveVoucher = (code: string) => {
-    if (savedVouchers.includes(code)) {
-      showToast(`Mã ${code} đã có trong ví voucher của bạn.`, "info");
-    } else {
-      setSavedVouchers((prev) => [...prev, code]);
-      showToast(
-        `Đã lưu mã ${code} thành công! Áp dụng ngay khi thanh toán.`,
-        "success",
-      );
-    }
+    if (savedVouchers.includes(code)) return;
+    setSavedVouchers((prev) => [...prev, code]);
+    showToast(`Đã lưu voucher ${code} vào ví thành công!`, "success");
   };
 
-  // Toggle Shop Follow
   const handleToggleShopFollow = (shopName: string) => {
     if (followedShops.includes(shopName)) {
       setFollowedShops((prev) => prev.filter((s) => s !== shopName));
-      showToast(`Đã bỏ theo dõi ${shopName}`, "info");
+      showToast(`Đã hủy theo dõi ${shopName}`, "info");
     } else {
       setFollowedShops((prev) => [...prev, shopName]);
       showToast(
@@ -1147,7 +737,6 @@ export default function HomePage() {
     }
   };
 
-  // Toggle Author Follow
   const handleToggleAuthorFollow = (authorName: string) => {
     if (followedAuthors.includes(authorName)) {
       setFollowedAuthors((prev) => prev.filter((a) => a !== authorName));
@@ -1176,49 +765,7 @@ export default function HomePage() {
                 </span>
                 <span>Danh Mục Sách</span>
               </div>
-              {[
-                {
-                  name: "Văn học & Tiểu thuyết",
-                  to: "/books?category=van-hoc",
-                  icon: "auto_stories",
-                },
-                {
-                  name: "Kinh tế & Đầu tư",
-                  to: "/books?category=kinh-te",
-                  icon: "trending_up",
-                },
-                {
-                  name: "Kỹ năng sống & Tư duy",
-                  to: "/books?category=ky-nang",
-                  icon: "psychology",
-                },
-                {
-                  name: "Công nghệ & AI 2026",
-                  to: "/books?category=cong-nghe",
-                  icon: "smart_toy",
-                },
-                {
-                  name: "Thiếu nhi & Tuổi trẻ",
-                  to: "/books?category=thieu-nhi",
-                  icon: "child_care",
-                },
-                {
-                  name: "Manga & Sách tranh",
-                  to: "/books?category=manga",
-                  icon: "menu_book",
-                },
-                {
-                  name: "Ngoại ngữ & Du học",
-                  to: "/books?category=ngoai-ngu",
-                  icon: "translate",
-                },
-                {
-                  name: "Ebook DRM Bản quyền",
-                  to: "/books?format=ebook",
-                  icon: "tablet_mac",
-                  badge: "Hot",
-                },
-              ].map((cat, idx) => (
+              {categoriesMenu.map((cat, idx) => (
                 <Link
                   key={idx}
                   href={cat.to}
@@ -1228,137 +775,101 @@ export default function HomePage() {
                     <span className="material-symbols-outlined text-[18px] text-gray-400 group-hover:text-[#003B2B] transition-colors">
                       {cat.icon}
                     </span>
-                    <span>{cat.name}</span>
+                    <span className="line-clamp-1">{cat.name}</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    {cat.badge && (
-                      <span className="bg-[#003b2b] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase">
-                        {cat.badge}
-                      </span>
-                    )}
-                    <span className="material-symbols-outlined text-[14px] text-gray-300 group-hover:text-[#003B2B] group-hover:translate-x-0.5 transition-all">
-                      chevron_right
-                    </span>
-                  </div>
+                  <span className="material-symbols-outlined text-[14px] text-gray-300 group-hover:text-[#003B2B] group-hover:translate-x-0.5 transition-all">
+                    chevron_right
+                  </span>
                 </Link>
               ))}
             </div>
 
-            <div className="pt-2 border-t border-gray-100 px-1">
+            <div className="pt-2 border-t border-gray-100 mt-2">
               <Link
                 href="/books"
-                className="text-[11px] font-bold text-[#003B2B] hover:underline flex items-center justify-between"
+                className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gray-50 hover:bg-[#003B2B]/10 text-[#003B2B] text-xs font-bold transition-all text-center"
               >
-                <span>Xem tất cả danh mục</span>
-                <span className="material-symbols-outlined text-sm">
+                <span>Xem Tất Cả Sách</span>
+                <span className="material-symbols-outlined text-[14px]">
                   arrow_forward
                 </span>
               </Link>
             </div>
           </div>
 
-          {/* 1.2 CỘT GIỮA: BANNER HERO LỚN VỚI HÌNH ẢNH NỀN SỐNG ĐỘNG */}
+          {/* 1.2 CỘT GIỮA: BANNER HERO LỚN VỚI HÌNH ẢNH NỀN */}
           <div
+            className="col-span-12 lg:col-span-6 rounded-2xl overflow-hidden relative shadow-xs flex flex-col justify-end p-5 sm:p-7 min-h-[280px] sm:min-h-[320px] transition-all group"
             onMouseEnter={() => setIsHeroHovered(true)}
             onMouseLeave={() => setIsHeroHovered(false)}
             style={{
-              backgroundImage: `${heroSlides[activeHeroSlide].overlay}, url('${heroSlides[activeHeroSlide].bgImage}')`,
+              backgroundImage: `${heroSlides[activeHeroSlide]?.overlay || ''}, url('${heroSlides[activeHeroSlide]?.bgImage || ''}')`,
               backgroundSize: "cover",
-              backgroundPosition: "center right",
+              backgroundPosition: "center",
             }}
-            className="col-span-12 lg:col-span-6 rounded-2xl p-4 sm:p-6 text-white relative overflow-hidden flex flex-col justify-between shadow-md border border-white/10 min-h-[250px] sm:min-h-[270px] transition-all duration-700"
           >
-            <div className="absolute -right-16 -top-16 w-72 h-72 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none"></div>
-            <div className="absolute -left-10 bottom-0 w-64 h-64 rounded-full bg-emerald-400/10 blur-3xl pointer-events-none"></div>
+            {/* Content Container */}
+            <div className="relative z-10 max-w-[460px] text-white">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-bold uppercase tracking-wider mb-2 border border-white/20">
+                <span className="material-symbols-outlined text-[13px] text-amber-300">
+                  {heroSlides[activeHeroSlide]?.icon}
+                </span>
+                <span>{heroSlides[activeHeroSlide]?.badge}</span>
+              </span>
 
-            <div className="relative z-10 flex flex-col justify-between h-full">
-              <div className="max-w-md">
-                <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 text-emerald-100 text-[10px] font-semibold mb-2 shadow-xs">
-                  <span className="material-symbols-outlined text-[13px] text-emerald-300">
-                    {heroSlides[activeHeroSlide].icon}
-                  </span>
-                  <span>{heroSlides[activeHeroSlide].badge}</span>
-                </div>
-                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white leading-tight font-editorial whitespace-pre-line drop-shadow-md">
-                  {heroSlides[activeHeroSlide].title}
-                </h1>
-                <p className="text-[11px] sm:text-xs text-white/90 mt-1.5 leading-snug max-w-sm drop-shadow-sm font-medium line-clamp-2">
-                  {heroSlides[activeHeroSlide].desc}
-                </p>
-              </div>
+              <h2 className="text-xl sm:text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white mb-2 drop-shadow-sm font-editorial line-clamp-2">
+                {heroSlides[activeHeroSlide]?.title}
+              </h2>
 
-              <div className="flex flex-wrap items-center gap-2 mt-3">
+              <p className="text-xs sm:text-sm text-gray-200 line-clamp-2 mb-4 leading-relaxed font-light">
+                {heroSlides[activeHeroSlide]?.desc}
+              </p>
+
+              <div className="flex items-center gap-2.5">
                 <Link
-                  href={heroSlides[activeHeroSlide].primaryBtn.to}
+                  href={heroSlides[activeHeroSlide]?.primaryBtn?.to || "/books"}
                   onClick={() => {
                     const curId = heroSlides[activeHeroSlide]?.id;
                     if (curId) recordBannerClick(curId);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-[#003b2b] hover:bg-[#00241a] text-white text-[11px] font-bold shadow-md transition-all inline-flex items-center gap-1 transform hover:-translate-y-0.5 cursor-pointer"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white text-[#003B2B] hover:bg-emerald-50 text-xs sm:text-sm font-bold shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{heroSlides[activeHeroSlide].primaryBtn.text}</span>
-                  <span className="material-symbols-outlined text-[13px]">
+                  <span>{heroSlides[activeHeroSlide]?.primaryBtn?.text}</span>
+                  <span className="material-symbols-outlined text-[15px]">
                     arrow_forward
                   </span>
                 </Link>
+
                 <Link
-                  href={heroSlides[activeHeroSlide].secondaryBtn.to}
+                  href={heroSlides[activeHeroSlide]?.secondaryBtn?.to || "/books"}
                   onClick={() => {
                     const curId = heroSlides[activeHeroSlide]?.id;
                     if (curId) recordBannerClick(curId);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-[11px] font-semibold backdrop-blur-md border border-white/25 transition-all transform hover:-translate-y-0.5 cursor-pointer"
+                  className="px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-black/25 hover:bg-black/40 text-white backdrop-blur-xs text-xs sm:text-sm font-semibold transition-all border border-white/20"
                 >
-                  {heroSlides[activeHeroSlide].secondaryBtn.text}
+                  {heroSlides[activeHeroSlide]?.secondaryBtn?.text}
                 </Link>
               </div>
             </div>
 
             {/* Slider Controls & Pagination Dots */}
-            <div className="relative z-10 pt-2 flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                {heroSlides.map((slide, idx) => (
+            {heroSlides.length > 1 && (
+              <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-20 flex items-center gap-1.5">
+                {heroSlides.map((_, idx) => (
                   <button
-                    key={slide.id}
+                    key={idx}
                     onClick={() => setActiveHeroSlide(idx)}
-                    className={`transition-all rounded-full cursor-pointer ${
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
                       activeHeroSlide === idx
-                        ? "w-5 h-1 bg-white shadow-xs"
-                        : "w-1 h-1 bg-white/40 hover:bg-white/80"
+                        ? "w-6 bg-white shadow-xs"
+                        : "w-2 bg-white/40 hover:bg-white/70"
                     }`}
                     aria-label={`Slide ${idx + 1}`}
                   />
                 ))}
               </div>
-
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() =>
-                    setActiveHeroSlide(
-                      (prev) =>
-                        (prev - 1 + heroSlides.length) % heroSlides.length,
-                    )
-                  }
-                  className="w-5 h-5 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
-                  aria-label="Previous slide"
-                >
-                  <span className="material-symbols-outlined text-[12px]">
-                    chevron_left
-                  </span>
-                </button>
-                <button
-                  onClick={() =>
-                    setActiveHeroSlide((prev) => (prev + 1) % heroSlides.length)
-                  }
-                  className="w-5 h-5 rounded-full bg-black/25 hover:bg-black/40 text-white flex items-center justify-center backdrop-blur-xs transition-colors cursor-pointer"
-                  aria-label="Next slide"
-                >
-                  <span className="material-symbols-outlined text-[12px]">
-                    chevron_right
-                  </span>
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* 1.3 CỘT PHẢI: 2 BANNER PHỤ */}
@@ -1366,7 +877,7 @@ export default function HomePage() {
             <Link
               href="/books?filter=best-sellers"
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/sub-atomic.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/hero-library.jpg')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center right",
               }}
@@ -1374,13 +885,13 @@ export default function HomePage() {
             >
               <div className="relative z-10 max-w-[210px]">
                 <span className="bg-[#003b2b] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
-                  TOP 1 BÁN CHẠY
+                  SÁCH BÁN CHẠY
                 </span>
                 <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
-                  Đọc Sách Mỗi Ngày
+                  Tuyển Tập Được Đọc Nhiều Nhất
                 </h3>
                 <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
-                  Tuyển chọn sách kỹ năng &amp; tư duy ưu đãi 25%.
+                  Khám phá các ấn phẩm bán chạy hàng đầu tuần này.
                 </p>
               </div>
 
@@ -1393,9 +904,9 @@ export default function HomePage() {
             </Link>
 
             <Link
-              href="/books?format=hybrid"
+              href="/books?format=ebook"
               style={{
-                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/sub-hybrid.jpg')`,
+                backgroundImage: `linear-gradient(to right, rgba(235, 248, 244, 0.96) 0%, rgba(235, 248, 244, 0.88) 55%, rgba(235, 248, 244, 0.25) 100%), url('/banners/hero-library.jpg')`,
                 backgroundSize: "cover",
                 backgroundPosition: "center right",
               }}
@@ -1403,13 +914,13 @@ export default function HomePage() {
             >
               <div className="relative z-10 max-w-[210px]">
                 <span className="bg-[#003B2B] text-white text-[8.5px] uppercase font-bold px-1.5 py-0.2 rounded shadow-xs">
-                  COMBO HYBRID
+                  EBOOK BẢN QUYỀN
                 </span>
                 <h3 className="text-xs sm:text-sm font-bold mt-1 leading-snug group-hover:text-[#003B2B] transition-colors font-editorial">
-                  Sách In Tặng Ebook
+                  Đọc Mọi Lúc Mọi Nơi
                 </h3>
                 <p className="text-[10px] text-[#5A6065] mt-0.5 line-clamp-1 font-medium">
-                  Tiết kiệm đến 35% trọn bộ ấn phẩm độc quyền.
+                  Sách điện tử DRM bản quyền đọc tiện lợi trên di động.
                 </p>
               </div>
 
@@ -1428,14 +939,19 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-emerald-50 text-emerald-800 flex items-center justify-center shrink-0 border border-emerald-100">
               <span className="material-symbols-outlined text-[15px]">
-                verified_user
+                verified
               </span>
             </div>
             <div>
-              <div className="font-bold text-[11px] text-[#17201F]">Sản phẩm chính hãng</div>
-              <div className="text-[9.5px] text-[#6B7280]">Cam kết chất lượng 100%</div>
+              <div className="font-bold text-[11px] text-[#17201F]">
+                Sản phẩm chính hãng
+              </div>
+              <div className="text-[9.5px] text-[#6B7280]">
+                Cam kết chất lượng 100%
+              </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-blue-50 text-blue-800 flex items-center justify-center shrink-0 border border-blue-100">
               <span className="material-symbols-outlined text-[15px]">
@@ -1443,687 +959,43 @@ export default function HomePage() {
               </span>
             </div>
             <div>
-              <div className="font-bold text-[11px] text-[#17201F]">Giao nhanh 2 giờ</div>
-              <div className="text-[9.5px] text-[#6B7280]">Nội thành HN &amp; TP.HCM</div>
+              <div className="font-bold text-[11px] text-[#17201F]">
+                Giao nhanh 2 giờ
+              </div>
+              <div className="text-[9.5px] text-[#6B7280]">
+                Nội thành HN &amp; TP.HCM
+              </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-amber-50 text-amber-800 flex items-center justify-center shrink-0 border border-amber-100">
-              <span className="material-symbols-outlined text-[15px]">cached</span>
+              <span className="material-symbols-outlined text-[15px]">
+                cached
+              </span>
             </div>
             <div>
-              <div className="font-bold text-[11px] text-[#17201F]">Đổi trả dễ dàng</div>
-              <div className="text-[9.5px] text-[#6B7280]">Trong vòng 7 ngày</div>
+              <div className="font-bold text-[11px] text-[#17201F]">
+                Đổi trả dễ dàng
+              </div>
+              <div className="text-[9.5px] text-[#6B7280]">
+                Trong vòng 7 ngày
+              </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-rose-50 text-rose-800 flex items-center justify-center shrink-0 border border-rose-100">
-              <span className="material-symbols-outlined text-[15px]">favorite</span>
+              <span className="material-symbols-outlined text-[15px]">
+                favorite
+              </span>
             </div>
             <div>
-              <div className="font-bold text-[11px] text-[#17201F]">Tư vấn tận tâm</div>
-              <div className="text-[9.5px] text-[#6B7280]">Hỗ trợ độc giả 24/7</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 8 BUBBLE DANH MỤC TRÒN */}
-        <div className="w-full bg-white rounded-xl p-2.5 sm:p-3 border border-[#E8E5DF] shadow-2xs">
-          <div className="grid grid-cols-4 sm:grid-cols-8 gap-2">
-            {[
-              {
-                name: "Văn học",
-                image: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=van-hoc",
-              },
-              {
-                name: "Kinh tế",
-                image: "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=kinh-te",
-              },
-              {
-                name: "Kỹ năng sống",
-                image: "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=ky-nang",
-              },
-              {
-                name: "Ebook DRM",
-                image: "https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=300&q=80",
-                link: "/books?format=ebook",
-              },
-              {
-                name: "Combo Hybrid",
-                image: "/banners/sub-hybrid.jpg",
-                link: "/books?format=hybrid",
-              },
-              {
-                name: "Thiếu nhi",
-                image: "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=thieu-nhi",
-              },
-              {
-                name: "Công nghệ & AI",
-                image: "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=cong-nghe",
-              },
-              {
-                name: "Manga - Comic",
-                image: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=300&q=80",
-                link: "/books?category=manga",
-              },
-            ].map((bubble, i) => (
-              <Link
-                key={i}
-                href={bubble.link}
-                className="flex flex-col items-center text-center group cursor-pointer"
-              >
-                <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border border-emerald-100/80 p-0.5 shadow-xs group-hover:scale-105 group-hover:border-emerald-600 transition-all mb-1 bg-[#FAF8F5]">
-                  <img
-                    src={bubble.image}
-                    alt={bubble.name}
-                    className="w-full h-full object-cover rounded-full"
-                    loading="lazy"
-                  />
-                </div>
-                <span className="text-[10.5px] font-semibold text-gray-800 group-hover:text-[#003B2B] transition-colors leading-tight">
-                  {bubble.name}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 2: DẢI GOM MÃ GIẢM GIÁ 1-CHẠM (VOUCHER STRIP)
-      ========================================================================= */}
-      <section className="bg-emerald-900/5 rounded-xl p-2.5 sm:p-3 border border-emerald-900/10">
-        {/* Flash Sale Banner Card inside Voucher Section when LIVE */}
-        {isPlatformLive && activeFlashSale && (
-          <Link
-            href="/flash-sale"
-            className="mb-2.5 bg-gradient-to-r from-[#003b2b] via-[#004d38] to-[#006953] rounded-xl p-2.5 sm:p-3 text-white shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-2 border border-emerald-400/30 relative overflow-hidden group cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5 relative z-10">
-              <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 text-white">
-                <span className="material-symbols-outlined text-lg">bolt</span>
+              <div className="font-bold text-[11px] text-[#17201F]">
+                Tư vấn tận tâm
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="bg-white text-[#003b2b] text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider">
-                    FLASH SALE
-                  </span>
-                  <span className="text-emerald-200 text-[11px] font-bold font-mono">
-                    Tới {activeFlashSale.discountPercent || 30}%
-                  </span>
-                </div>
-                <h3 className="text-xs sm:text-sm font-bold mt-0.5 tracking-tight text-white line-clamp-1">
-                  {activeFlashSale.name}
-                </h3>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0 relative z-10">
-              <div className="flex items-center gap-1 bg-black/30 px-2 py-1 rounded-lg border border-white/20 text-[10px] font-mono font-bold">
-                <span className="text-emerald-200">Kết thúc:</span>
-                <span>{flashCountdown.hours}:{flashCountdown.minutes}:{flashCountdown.seconds}</span>
-              </div>
-              <div className="bg-white text-[#003b2b] px-2.5 py-1 rounded-lg font-bold text-[10.5px] flex items-center gap-0.5 shadow-xs">
-                <span>Săn Deal</span>
-                <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-              </div>
-            </div>
-          </Link>
-        )}
-
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[#003b2b] text-[16px]">
-              confirmation_number
-            </span>
-            <h2 className="text-xs sm:text-[13px] font-bold text-gray-900 uppercase">
-              Mã Giảm Giá Hôm Nay
-            </h2>
-          </div>
-          <span className="text-[10.5px] text-[#003B2B] font-semibold">
-            Tự động áp dụng khi thanh toán
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-          {voucherList.map((v) => {
-            const isSaved = savedVouchers.includes(v.code);
-            const isMock = v.isMock;
-
-            return (
-              <div
-                key={v.code}
-                className={`rounded-lg p-2 border flex items-center justify-between gap-1.5 shadow-2xs transition-all ${
-                  isMock
-                    ? "bg-gray-100/60 border-dashed border-gray-300 opacity-65"
-                    : "bg-white border-dashed border-emerald-700/20 hover:border-[#003b2b]/60 shadow-2xs"
-                }`}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 ${isMock ? 'bg-gray-200 text-gray-500' : 'bg-emerald-50 text-[#003b2b]'}`}>
-                    <span className="material-symbols-outlined text-[15px]">
-                      {v.icon}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <span className={`text-[11px] font-bold ${isMock ? 'text-gray-600' : 'text-[#003b2b]'}`}>
-                        {v.badge}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-gray-800 font-medium truncate">
-                      {v.title}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  disabled={isMock}
-                  onClick={() => !isMock && handleSaveVoucher(v.code)}
-                  className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-all ${
-                    isMock
-                      ? "bg-gray-200 text-gray-400 cursor-not-allowed select-none"
-                      : isSaved
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
-                        : "bg-[#003b2b] text-white hover:bg-[#00241a] shadow-2xs cursor-pointer"
-                  }`}
-                >
-                  {isMock ? "Chưa mở" : isSaved ? "Đã lưu" : "Lưu mã"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 3: HUKI DEAL HÔM NAY (FLASH SALE)
-      ========================================================================= */}
-      <section className="bg-[#FAF3EE] rounded-2xl p-2.5 sm:p-3.5 border border-[#EADBCE] shadow-2xs flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-2 border-b border-[#E8D6C4]">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-            <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide flex items-center gap-1 shadow-xs uppercase">
-              <span className="material-symbols-outlined text-[16px] text-amber-300">
-                bolt
-              </span>
-              <span>HUKI DEAL HÔM NAY</span>
-            </div>
-
-            <div className="flex items-center gap-1 text-[11px] text-[#59413C] font-semibold">
-              <span>Kết thúc:</span>
-              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
-                {flashCountdown.hours}
-              </span>
-              <span>:</span>
-              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
-                {flashCountdown.minutes}
-              </span>
-              <span>:</span>
-              <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
-                {flashCountdown.seconds}
-              </span>
-            </div>
-          </div>
-
-          <Link
-            href="/books?filter=flash-sale"
-            className="text-[11.5px] text-[#003b2b] hover:underline font-bold flex items-center gap-0.5"
-          >
-            <span>Xem tất cả</span>
-            <span className="material-symbols-outlined text-[15px]">
-              arrow_forward
-            </span>
-          </Link>
-        </div>
-
-        {/* 6 Compact Flash Sale Items */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {allFlashSale.slice(0, 6).map((book) => (
-            <BookCard
-              key={book.id}
-              book={{
-                ...book,
-                format: "Sách Giấy",
-                formatType: "physical",
-              }}
-              variant="compact"
-            />
-          ))}
-        </div>
-      </section>
-
-
-      {/* =========================================================================
-          SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS)
-      ========================================================================= */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-amber-500 text-[18px]">
-              emoji_events
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Bảng Xếp Hạng Sách Bán Chạy
-            </h2>
-          </div>
-
-          {/* Pill Tabs */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0">
-            {[
-              { id: "all", label: "Tất cả" },
-              { id: "paper", label: "Sách Giấy" },
-              { id: "ebook", label: "Ebook DRM" },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setBestsellerTab(tab.id)}
-                className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                  bestsellerTab === tab.id
-                    ? "bg-[#003B2B] text-white shadow-xs"
-                    : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 6 Compact Bestseller Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {filteredBestsellers.slice(0, 6).map((book) => (
-            <BookCard
-              key={book.id}
-              book={{
-                ...book,
-                format: book.format,
-                formatType: book.formatType,
-              }}
-              variant="compact"
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 5: GIAN HÀNG NXB & ĐỐI TÁC CHÍNH HÃNG
-      ========================================================================= */}
-      <section className="bg-gray-50/70 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-              storefront
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Gian Hàng NXB &amp; Đối Tác Chính Hãng
-            </h2>
-          </div>
-
-          <Link
-            href="/stores?tab=publishers"
-            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem tất cả cửa hàng</span>
-            <span className="material-symbols-outlined text-[15px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
-          {officialStores.map((store) => {
-            const isFollowed = followedShops.includes(store.name);
-            const storeSlug = store.name.toLowerCase().includes("trẻ")
-              ? "nxb-tre"
-              : store.name.toLowerCase().includes("nam")
-                ? "nha-nam"
-                : store.name.toLowerCase().includes("đồng")
-                  ? "nxb-kim-dong"
-                  : store.name.toLowerCase().includes("alpha")
-                    ? "alpha-books"
-                    : "first-news";
-            return (
-              <div
-                key={store.id}
-                className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col justify-between hover:border-[#003B2B]/50 hover:shadow-sm transition-all group"
-              >
-                <Link
-                  href={`/shop/${storeSlug}`}
-                  className="flex items-center gap-2.5"
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl ${store.color} flex items-center justify-center font-bold text-[13px] shadow-xs shrink-0 group-hover:scale-105 transition-transform`}
-                  >
-                    {store.code}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <h4 className="text-[12.5px] font-bold text-gray-900 truncate group-hover:text-[#003B2B] transition-colors">
-                        {store.name}
-                      </h4>
-                      <span className="material-symbols-outlined text-[14px] text-[#003B2B] shrink-0">
-                        verified
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-gray-500 block">
-                      {store.followers}
-                    </span>
-                  </div>
-                </Link>
-
-                <button
-                  onClick={() => handleToggleShopFollow(store.name)}
-                  className={`mt-3 w-full py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                    isFollowed
-                      ? "bg-[#003B2B] text-white"
-                      : "bg-gray-100 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
-                  }`}
-                >
-                  {isFollowed ? "✓ Đang theo dõi" : "+ Theo dõi"}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 6: VĂN HỌC & TIỂU THUYẾT NỔI BẬT (6 SÁCH)
-      ========================================================================= */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-rose-600 text-[18px]">
-              auto_stories
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Văn Học &amp; Tiểu Thuyết Hay
-            </h2>
-          </div>
-
-          <Link
-            href="/books?category=van-hoc"
-            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[15px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {literatureBooks.map((book) => (
-            <BookCard key={book.id} book={book} variant="compact" />
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 7: KINH DOANH, ĐẦU TƯ & TÀI CHÍNH (6 SÁCH)
-      ========================================================================= */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-blue-600 text-[18px]">
-              trending_up
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Kinh Tế &amp; Đầu Tư Tài Chính
-            </h2>
-          </div>
-
-          <Link
-            href="/books?category=kinh-te"
-            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[15px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {businessBooks.map((book) => (
-            <BookCard key={book.id} book={book} variant="compact" />
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 8: CÔNG NGHỆ & TRÍ TUỆ NHÂN TẠO AI 2026 (6 SÁCH)
-      ========================================================================= */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-purple-600 text-[18px]">
-              smart_toy
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Công Nghệ &amp; Trí Tuệ Nhân Tạo AI 2026
-            </h2>
-          </div>
-
-          <Link
-            href="/books?category=cong-nghe"
-            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem thêm</span>
-            <span className="material-symbols-outlined text-[15px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {techBooks.map((book) => (
-            <BookCard key={book.id} book={book} variant="compact" />
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 9: EBOOK & ĐỌC ONLINE BẢN QUYỀN (6 SÁCH)
-      ========================================================================= */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-teal-600 text-[18px]">
-              devices
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Tủ Sách Ebook DRM Độc Quyền
-            </h2>
-          </div>
-
-          <Link
-            href="/books?format=ebook"
-            className="text-[11.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem tất cả Ebook</span>
-            <span className="material-symbols-outlined text-[15px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {ebookShelfBooks.map((ebook) => (
-            <BookCard
-              key={ebook.id}
-              book={{
-                ...ebook,
-                format: "Ebook DRM",
-                formatType: "ebook",
-              }}
-              variant="compact"
-            />
-          ))}
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 10: COMBO SÁCH HYBRID & HỘP QUÀ TRI THỨC (TIẾT KIỆM 30%)
-      ========================================================================= */}
-      <section className="bg-gray-50/60 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
-              collections_bookmark
-            </span>
-            <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
-              Combo Sách Hybrid – Tiết Kiệm Đến 35%
-            </h3>
-          </div>
-          <span className="bg-[#003B2B] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase hidden sm:inline">
-            HỘP QUÀ TRI THỨC
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
-          {/* Combo 1 */}
-          <div className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all">
-            <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
-              <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Tư Duy Đột Phá"
-                  src="https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-              <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Tư Duy Phản Biện"
-                  src="https://images.unsplash.com/photo-1544717305-2782549b5136?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-              <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Trực Giác"
-                  src="https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
-              <div>
-                <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
-                  Combo 3 cuốn - Tiết kiệm 135.000₫
-                </span>
-                <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
-                  Bộ Sách Rèn Luyện Tư Duy Sắc Bén &amp; Quyết Định Đúng Đắn
-                </h4>
-                <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
-                  Gồm: Tư Duy Nhanh &amp; Chậm + Nghệ Thuật Rành Mạch + Rèn Luyện Trí Não
-                </p>
-              </div>
-
-              <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-[14px] font-bold text-[#003b2b]">
-                    315.000₫
-                  </span>
-                  <span className="text-[10px] text-gray-400 line-through ml-1.5">
-                    450.000₫
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    addToCart(
-                      {
-                        id: "combo-tu-duy",
-                        title: "Bộ Sách Rèn Luyện Tư Duy Sắc Bén (Combo 3 cuốn)",
-                        price: 315000,
-                        originalPricePaper: 450000,
-                      },
-                      "paper",
-                      1,
-                    );
-                    showToast("Đã thêm Combo Tư Duy vào giỏ hàng!", "success");
-                  }}
-                  className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
-                >
-                  Mua Combo Ngay
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Combo 2 */}
-          <div className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all">
-            <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
-              <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Nhà Đầu Tư"
-                  src="https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-              <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Tâm Lý Học Về Tiền"
-                  src="https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-              <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
-                <img
-                  className="w-full h-full object-cover"
-                  alt="Bước Đi Ngẫu Nhiên"
-                  src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=300&q=80"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
-              <div>
-                <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
-                  Combo 3 cuốn - Tiết kiệm 168.000₫
-                </span>
-                <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
-                  Bộ Cẩm Nang Tự Do Tài Chính &amp; Đầu Tư Bền Vững
-                </h4>
-                <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
-                  Gồm: Tâm Lý Học Về Tiền + Nhà Đầu Tư Thông Minh + Bước Đi Ngẫu Nhiên
-                </p>
-              </div>
-
-              <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
-                <div>
-                  <span className="text-[14px] font-bold text-[#003b2b]">
-                    392.000₫
-                  </span>
-                  <span className="text-[10px] text-gray-400 line-through ml-1.5">
-                    560.000₫
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    addToCart(
-                      {
-                        id: "combo-tai-chinh",
-                        title: "Bộ Cẩm Nang Tự Do Tài Chính (Combo 3 cuốn)",
-                        price: 392000,
-                        originalPricePaper: 560000,
-                      },
-                      "paper",
-                      1,
-                    );
-                    showToast("Đã thêm Combo Tài Chính vào giỏ hàng!", "success");
-                  }}
-                  className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
-                >
-                  Mua Combo Ngay
-                </button>
+              <div className="text-[9.5px] text-[#6B7280]">
+                Hỗ trợ độc giả 24/7
               </div>
             </div>
           </div>
@@ -2131,282 +1003,730 @@ export default function HomePage() {
       </section>
 
       {/* =========================================================================
-          SECTION 11: GỢI Ý HÔM NAY (CHUẨN SHOPEE - 24 CUỐN SÁCH COMPACT + XEM THÊM)
+          SECTION 2: DẢI GOM MÃ GIẢM GIÁ (CHỈ HIỂN THỊ VOUCHER THẬT - ZERO MOCK)
       ========================================================================= */}
-      <section className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200/90 shadow-xs flex flex-col gap-3">
-        {/* Shopee-style Header Tab */}
-        <div className="border-b-2 border-[#003b2b] pb-2 flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-[#003b2b] text-[18px]">
-              recommend
-            </span>
-            <h2 className="text-xs sm:text-[14px] font-bold text-[#003b2b] uppercase tracking-wide">
-              GỢI Ý HÔM NAY
-            </h2>
-          </div>
-          <span className="text-[11px] text-gray-500 font-medium hidden sm:inline">
-            Khám phá tuyển tập sách hay dành riêng cho bạn
-          </span>
-        </div>
-
-        {/* 24 Items Grid (4 rows x 6 cols) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-2.5">
-          {suggestedBooks.map((book) => (
-            <BookCard
-              key={book.id}
-              book={{
-                ...book,
-                format: book.format === "DIGITAL" ? "Ebook DRM" : "Sách giấy",
-                formatType: book.format === "DIGITAL" ? "ebook" : "physical",
-              }}
-              variant="compact"
-            />
-          ))}
-        </div>
-
-        {/* Xem Thêm Button (Redirect to /books) */}
-        <div className="pt-4 flex justify-center">
-          <button
-            type="button"
-            onClick={() => router.push('/books')}
-            className="px-12 py-2.5 rounded-xl border-2 border-[#003B2B] text-[#003B2B] hover:bg-[#003B2B] hover:text-white transition-all text-xs sm:text-sm font-bold shadow-2xs flex items-center gap-2 cursor-pointer group"
-          >
-            <span>Xem Thêm Tất Cả Sách</span>
-            <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">
-              arrow_forward
-            </span>
-          </button>
-        </div>
-      </section>
-
-      {/* =========================================================================
-          SECTION 12: TÁC GIẢ ĐƯỢC YÊU THÍCH (AUTHORS SLIDER)
-      ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-          <div>
-            <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900">
-              Tác Giả Được Yêu Thích
-            </h3>
-            <p className="text-[11px] text-gray-500">
-              Theo dõi tác giả để nhận thông báo tác phẩm mới và giao lưu trực tuyến
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
+      {(voucherList.length > 0 || platformSalePhase === 'LIVE') && (
+        <section className="bg-emerald-900/5 rounded-xl p-2.5 sm:p-3 border border-emerald-900/10">
+          {/* Flash Sale Banner Card inside Voucher Section when LIVE */}
+          {platformSalePhase === 'LIVE' && activeFlashSale && (
             <Link
-              href="/stores?tab=authors"
-              className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+              href="/flash-sale"
+              className="mb-2.5 bg-gradient-to-r from-[#003b2b] via-[#004d38] to-[#006953] rounded-xl p-2.5 sm:p-3 text-white shadow-xs hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-2 border border-emerald-400/30 relative overflow-hidden group cursor-pointer"
             >
-              <span>Xem tất cả tác giả</span>
-              <span className="material-symbols-outlined text-[16px]">
+              <div className="flex items-center gap-2.5 z-10">
+                <div className="w-8 h-8 rounded-lg bg-amber-400 text-[#003b2b] flex items-center justify-center shrink-0 shadow-sm animate-pulse">
+                  <span className="material-symbols-outlined text-lg">bolt</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-white text-[#003b2b] text-[9px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider">
+                      ĐANG DIỄN RA
+                    </span>
+                    <span className="text-emerald-200 text-[11px] font-bold font-mono">
+                      KẾT THÚC TRONG: {flashCountdown.h}:{flashCountdown.m}:{flashCountdown.s}
+                    </span>
+                  </div>
+                  <h3 className="text-xs sm:text-sm font-bold mt-0.5 tracking-tight text-white line-clamp-1">
+                    {activeFlashSale.name || "Đợt Flash Sale Sách Toàn Sàn HUKI"}
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-300 self-end md:self-center z-10 group-hover:translate-x-1 transition-transform">
+                <span>Xem Ngay</span>
+                <span className="material-symbols-outlined text-[16px]">
+                  arrow_forward
+                </span>
+              </div>
+            </Link>
+          )}
+
+          {/* Real Vouchers List */}
+          {voucherList.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {voucherList.map((v, idx) => {
+                const isSaved = savedVouchers.includes(v.code);
+                return (
+                  <div
+                    key={idx}
+                    className="bg-white rounded-lg p-2 sm:p-2.5 border border-emerald-900/15 flex items-center justify-between gap-2 shadow-2xs hover:border-[#003b2b]/40 transition-all"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 bg-emerald-50 text-[#003b2b]">
+                        <span className="material-symbols-outlined text-[16px]">
+                          {v.icon}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[11px] font-bold text-[#003b2b] block truncate">
+                          {v.badge}
+                        </span>
+                        <span className="text-[9.5px] text-gray-500 block truncate">
+                          {v.condition}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleSaveVoucher(v.code)}
+                      className={`px-2 py-1 rounded text-[10px] font-bold shrink-0 transition-colors cursor-pointer ${
+                        isSaved
+                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : "bg-[#003b2b] text-white hover:bg-[#00241a]"
+                      }`}
+                    >
+                      {isSaved ? "Đã lưu" : "Lưu mã"}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 3: HUKI DEAL HÔM NAY (FLASH SALE THẬT HOẶC SÁCH GIẢM GIÁ THẬT)
+      ========================================================================= */}
+      {allFlashSale.length > 0 && (
+        <section className="bg-[#FAF3EE] rounded-2xl p-2.5 sm:p-3.5 border border-[#EADBCE] shadow-2xs flex flex-col gap-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-[#EADBCE]/80">
+            <div className="flex items-center gap-2">
+              <div className="bg-[#003b2b] text-white px-2.5 py-1 rounded-lg font-bold text-xs sm:text-sm tracking-wide flex items-center gap-1 shadow-xs uppercase">
+                <span className="material-symbols-outlined text-sm text-amber-300">
+                  bolt
+                </span>
+                <span>{activeFlashSale ? "FLASH SALE ĐANG LIVE" : "ƯU ĐÃI ĐẶC BIỆT"}</span>
+              </div>
+
+              {activeFlashSale && (
+                <div className="flex items-center gap-1 text-xs font-mono font-bold text-[#17201F]">
+                  <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
+                    {flashCountdown.h}
+                  </span>
+                  <span>:</span>
+                  <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
+                    {flashCountdown.m}
+                  </span>
+                  <span>:</span>
+                  <span className="bg-[#17201F] text-white px-1.5 py-0.5 rounded text-[11px] font-mono font-bold">
+                    {flashCountdown.s}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <Link
+              href="/flash-sale"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+            >
+              <span>Xem Tất Cả</span>
+              <span className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
             </Link>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={handlePrevAuthor}
-                className="w-7 h-7 rounded-full border border-gray-300 hover:bg-[#003B2B] hover:text-white flex items-center justify-center transition-colors cursor-pointer text-gray-700"
-                title="Tác giả trước"
-                aria-label="Tác giả trước"
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  chevron_left
-                </span>
-              </button>
-              <button
-                onClick={handleNextAuthor}
-                className="w-7 h-7 rounded-full border border-gray-300 hover:bg-[#003B2B] hover:text-white flex items-center justify-center transition-colors cursor-pointer text-gray-700"
-                title="Tác giả tiếp theo"
-                aria-label="Tác giả tiếp theo"
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  chevron_right
-                </span>
-              </button>
+          </div>
+
+          {/* Compact Flash Sale Items Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {allFlashSale.slice(0, 6).map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 4: SẢN PHẨM BÁN CHẠY (BESTSELLERS - 100% REAL)
+      ========================================================================= */}
+      {allBestsellers.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                local_fire_department
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Sản Phẩm Bán Chạy
+              </h2>
+            </div>
+
+            {/* Pill Tabs */}
+            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg text-[11px] font-semibold">
+              {[
+                { id: "all", label: "Tất cả" },
+                { id: "paper", label: "Sách giấy" },
+                { id: "ebook", label: "Ebook DRM" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setBestsellerTab(tab.id)}
+                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
+                    bestsellerTab === tab.id
+                      ? "bg-white text-[#003B2B] font-bold shadow-2xs"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
-        </div>
 
-        <div
-          className="overflow-hidden w-full py-1"
-          onMouseEnter={() => setIsAuthorHovered(true)}
-          onMouseLeave={() => setIsAuthorHovered(false)}
-        >
-          <div
-            className="flex transition-transform duration-500 ease-in-out gap-3"
-            style={{
-              transform: `translateX(calc(-${authorIndex} * (100% + 0.75rem) / ${itemsPerPage}))`,
-            }}
-          >
-            {authorsList.map((author, idx) => {
-              const isFollowing = followedAuthors.includes(author.name);
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {filteredBestsellers.slice(0, 6).map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 5: GIAN HÀNG NXB & ĐỐI TÁC CHÍNH HÃNG (REAL PUBLISHERS)
+      ========================================================================= */}
+      {officialStores.length > 0 && (
+        <section className="bg-gray-50/70 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                verified
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Gian Hàng NXB &amp; Đối Tác Chính Hãng
+              </h2>
+            </div>
+            <Link
+              href="/stores"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+            >
+              <span>Xem Tất Cả</span>
+              <span className="material-symbols-outlined text-sm">
+                chevron_right
+              </span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            {officialStores.slice(0, 6).map((store) => {
+              const isFollowed = followedShops.includes(store.name);
               return (
                 <div
-                  key={`${author.name}-${idx}`}
-                  className="shrink-0 w-[calc((100%-0.75rem)/2)] sm:w-[calc((100%-2*0.75rem)/3)] lg:w-[calc((100%-4*0.75rem)/5)] bg-white rounded-xl p-3 border border-gray-200 flex flex-col items-center text-center hover:border-[#003B2B]/40 transition-all justify-between"
+                  key={store.id}
+                  className="bg-white rounded-xl p-2.5 border border-gray-200/80 hover:border-[#003B2B]/40 transition-all flex flex-col items-center text-center shadow-2xs group"
                 >
-                  <div className="flex flex-col items-center">
-                    <div className="w-14 h-14 rounded-full overflow-hidden mb-2 ring-2 ring-[#003B2B]/20 shrink-0">
-                      <img
-                        className="w-full h-full object-cover"
-                        alt={author.name}
-                        src={author.avatar}
-                        loading="lazy"
-                      />
-                    </div>
-                    <h4
-                      className="text-[12.5px] font-semibold text-gray-900 line-clamp-1 truncate"
-                      title={author.name}
-                    >
-                      {author.name}
-                    </h4>
-                    <span className="text-[10.5px] text-gray-500 mt-0.5">
-                      {author.books}
-                    </span>
-                  </div>
+                  <Link
+                    href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
+                    className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shadow-xs mb-1.5 group-hover:scale-105 transition-transform overflow-hidden bg-[#003B2B] text-white"
+                  >
+                    <span>{store.code}</span>
+                  </Link>
+
+                  <Link
+                    href={`/books?publisher=${encodeURIComponent(store.slug || store.name || '')}`}
+                    className="font-bold text-[11.5px] text-gray-900 group-hover:text-[#003B2B] transition-colors truncate w-full"
+                  >
+                    {store.name}
+                  </Link>
+                  <span className="text-[9.5px] text-gray-500 mb-2 truncate w-full">
+                    {store.followers}
+                  </span>
+
                   <button
-                    onClick={() => handleToggleAuthorFollow(author.name)}
-                    className={`mt-2.5 px-3 py-1 rounded-full text-[11px] font-semibold transition-colors cursor-pointer w-full ${
-                      isFollowing
-                        ? "bg-[#003B2B] text-white"
-                        : "bg-gray-100 hover:bg-[#003B2B] hover:text-white text-[#003B2B]"
+                    onClick={() => handleToggleShopFollow(store.name)}
+                    className={`w-full py-1 rounded-md text-[10px] font-bold transition-colors cursor-pointer flex items-center justify-center gap-0.5 ${
+                      isFollowed
+                        ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        : "bg-emerald-50 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
                     }`}
                   >
-                    {isFollowing ? "✓ Đang theo dõi" : "+ Theo dõi"}
+                    <span className="material-symbols-outlined text-[12px]">
+                      {isFollowed ? "check" : "add"}
+                    </span>
+                    <span>{isFollowed ? "Đang theo dõi" : "Theo dõi"}</span>
                   </button>
                 </div>
               );
             })}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* =========================================================================
-          SECTION 13: ĐÁNH GIÁ THỰC TẾ TỪ NGƯỜI MUA
+          SECTION 6: VĂN HỌC & TIỂU THUYẾT (100% REAL BOOKS)
       ========================================================================= */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
-          <div>
-            <div className="flex items-center gap-1.5 text-[#003B2B] text-[11px] uppercase font-bold">
-              <span className="material-symbols-outlined text-[16px]">
-                verified
-              </span>{" "}
-              Đánh Giá Thực Tế Từ Người Mua
+      {literatureBooks.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                auto_stories
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Văn Học &amp; Tiểu Thuyết Nổi Bật
+              </h2>
             </div>
-            <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 mt-0.5">
-              Cảm Nhận Từ Độc Giả Đã Mua Sách
-            </h3>
-          </div>
-          <Link
-            href="/books"
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-          >
-            <span>Xem sách đánh giá cao</span>
-            <span className="material-symbols-outlined text-[16px]">
-              chevron_right
-            </span>
-          </Link>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {[
-            {
-              name: "Lê Phương Thảo",
-              activity: "Vừa đọc xong cuốn 'Atomic Habits'",
-              avatar:
-                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80",
-              quote:
-                "Cuốn sách đã thay đổi hoàn toàn cách mình nhìn nhận về mục tiêu. Đừng tập trung vào đích đến, hãy kiến tạo một hệ thống hành vi tí hon mỗi ngày...",
-              likes: 142,
-              comments: 28,
-            },
-            {
-              name: "Trần Hoàng Long",
-              activity: "Review cuốn 'Tâm Lý Học Về Tiền'",
-              avatar:
-                "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80",
-              quote:
-                "Cách tác giả phân tích về lòng tham và sự đủ đầy thực sự là một cú tát thức tỉnh. Đọc chậm từng chương trên HUKI Reader ban đêm rất thấm!",
-              likes: 98,
-              comments: 16,
-            },
-            {
-              name: "Nguyễn Minh Anh",
-              activity: "Khởi động Thử Thách Đọc 2026",
-              avatar:
-                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80",
-              quote:
-                "Mục tiêu 35 cuốn năm nay đã hoàn thành cuốn số 4 rồi cả nhà ơi! Đọc sách trên HUKI DRM rất sắc nét và highlight cực tiện.",
-              likes: 210,
-              comments: 42,
-            },
-          ].map((rev, idx) => (
-            <div
-              key={idx}
-              className="bg-white rounded-xl p-3.5 border border-gray-200/90 flex flex-col justify-between hover:border-[#003B2B]/40 transition-all shadow-2xs"
+            <Link
+              href="/books?category=van-hoc"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
             >
-              <div>
-                <div className="flex items-center gap-2.5 mb-2.5">
-                  <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-100 shrink-0">
-                    <img
-                      className="w-full h-full object-cover"
-                      alt={rev.name}
-                      src={rev.avatar}
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-[12.5px] font-bold text-gray-900 truncate">
-                      {rev.name}
-                    </h4>
-                    <span className="text-[10px] text-gray-500 block truncate">
-                      {rev.activity}
-                    </span>
-                  </div>
-                </div>
+              <span>Xem Thêm</span>
+              <span className="material-symbols-outlined text-sm">
+                chevron_right
+              </span>
+            </Link>
+          </div>
 
-                <div className="flex items-center gap-0.5 text-amber-400 mb-1.5">
-                  <span className="material-symbols-outlined text-[13px]">star</span>
-                  <span className="material-symbols-outlined text-[13px]">star</span>
-                  <span className="material-symbols-outlined text-[13px]">star</span>
-                  <span className="material-symbols-outlined text-[13px]">star</span>
-                  <span className="material-symbols-outlined text-[13px]">star</span>
-                </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {literatureBooks.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
-                <p className="text-[12px] text-gray-700 leading-relaxed italic">
-                  &ldquo;{rev.quote}&rdquo;
-                </p>
-              </div>
-
-              <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-gray-500 text-[11px]">
-                <div className="flex items-center gap-2.5">
-                  <span className="flex items-center gap-1 hover:text-rose-600 cursor-pointer">
-                    <span className="material-symbols-outlined text-[14px]">
-                      favorite
-                    </span>{" "}
-                    {rev.likes}
-                  </span>
-                  <span className="flex items-center gap-1 hover:text-[#003B2B] cursor-pointer">
-                    <span className="material-symbols-outlined text-[14px]">
-                      chat_bubble
-                    </span>{" "}
-                    {rev.comments}
-                  </span>
-                </div>
-                <Link
-                  href="/books"
-                  className="text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
-                >
-                  <span>Khám phá sách</span>
-                  <span className="material-symbols-outlined text-[12px]">
-                    arrow_forward
-                  </span>
-                </Link>
-              </div>
+      {/* =========================================================================
+          SECTION 7: KINH DOANH, ĐẦU TƯ & TÀI CHÍNH (100% REAL BOOKS)
+      ========================================================================= */}
+      {businessBooks.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                trending_up
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Kinh Doanh, Đầu Tư &amp; Tài Chính
+              </h2>
             </div>
-          ))}
-        </div>
-      </section>
+            <Link
+              href="/books?category=kinh-doanh-tech"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+            >
+              <span>Xem Thêm</span>
+              <span className="material-symbols-outlined text-sm">
+                chevron_right
+              </span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {businessBooks.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 8: CÔNG NGHỆ & KHOA HỌC TRI THỨC (100% REAL BOOKS)
+      ========================================================================= */}
+      {techBooks.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                smart_toy
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Công Nghệ &amp; Trí Tuệ Nhân Tạo AI
+              </h2>
+            </div>
+            <Link
+              href="/books?category=cong-nghe-khoa-hoc"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+            >
+              <span>Xem Thêm</span>
+              <span className="material-symbols-outlined text-sm">
+                chevron_right
+              </span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {techBooks.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 9: EBOOK & ĐỌC ONLINE BẢN QUYỀN (100% REAL BOOKS)
+      ========================================================================= */}
+      {ebookShelfBooks.length > 0 && (
+        <section className="flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/90">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                tablet_mac
+              </span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Ebook &amp; Đọc Online Bản Quyền DRM
+              </h2>
+            </div>
+            <Link
+              href="/books?format=ebook"
+              className="text-[#003B2B] hover:underline font-bold text-xs flex items-center gap-0.5"
+            >
+              <span>Xem Thêm Ebook</span>
+              <span className="material-symbols-outlined text-sm">
+                chevron_right
+              </span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {ebookShelfBooks.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 10: COMBO SÁCH ĐỘC QUYỀN (DYNAMIC TỪ SÁCH THẬT - TIẾT KIỆM 15%)
+      ========================================================================= */}
+      {realCombos.length > 0 && (
+        <section className="bg-gray-50/60 rounded-2xl p-3 sm:p-3.5 border border-gray-200/80 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between pb-1.5 border-b border-gray-200/60">
+            <div className="flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[#003B2B] text-[18px]">
+                collections_bookmark
+              </span>
+              <h3 className="text-xs sm:text-[14px] font-bold text-gray-900 uppercase tracking-wide">
+                Combo Sách Tuyển Chọn – Tiết Kiệm Đến 15%
+              </h3>
+            </div>
+            <span className="bg-[#003B2B] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase hidden sm:inline">
+              HỘP QUÀ TRI THỨC
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 sm:gap-3">
+            {realCombos.map((combo) => (
+              <div
+                key={combo.id}
+                className="bg-white rounded-xl p-3 border border-gray-200/80 flex flex-col sm:flex-row gap-3 items-center hover:border-[#003B2B]/40 transition-all"
+              >
+                <div className="w-[140px] h-[115px] relative shrink-0 flex items-center justify-center">
+                  {combo.covers[0] && (
+                    <div className="w-[65px] h-[95px] rounded shadow absolute left-2 transform -rotate-12 border border-gray-200 overflow-hidden">
+                      <img
+                        className="w-full h-full object-cover"
+                        alt="Bìa 1"
+                        src={combo.covers[0]}
+                      />
+                    </div>
+                  )}
+                  {combo.covers[1] && (
+                    <div className="w-[70px] h-[100px] rounded shadow-md relative z-10 border border-gray-200 overflow-hidden">
+                      <img
+                        className="w-full h-full object-cover"
+                        alt="Bìa 2"
+                        src={combo.covers[1]}
+                      />
+                    </div>
+                  )}
+                  {combo.covers[2] && (
+                    <div className="w-[65px] h-[95px] rounded shadow absolute right-2 transform rotate-12 border border-gray-200 overflow-hidden">
+                      <img
+                        className="w-full h-full object-cover"
+                        alt="Bìa 3"
+                        src={combo.covers[2]}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col justify-between flex-1 min-w-0 w-full gap-1.5">
+                  <div>
+                    <span className="bg-emerald-50 text-[#003B2B] text-[9.5px] font-bold px-1.5 py-0.2 rounded inline-block border border-emerald-200">
+                      {combo.discountLabel}
+                    </span>
+                    <h4 className="text-[12.5px] font-bold text-gray-900 mt-1 line-clamp-2 leading-snug">
+                      {combo.title}
+                    </h4>
+                    <p className="text-[10.5px] text-gray-500 mt-0.5 line-clamp-1">
+                      {combo.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-gray-100 flex items-center justify-between gap-2">
+                    <div>
+                      <span className="text-[14px] font-bold text-[#003B2B]">
+                        {combo.price.toLocaleString("vi-VN")}₫
+                      </span>
+                      <span className="text-[10px] text-gray-400 line-through ml-1.5">
+                        {combo.origPrice.toLocaleString("vi-VN")}₫
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        combo.books.forEach((b: any) => addToCart(b, "paper", 1));
+                        showToast(`Đã thêm combo ${combo.books.length} sách vào giỏ hàng!`, "success");
+                      }}
+                      className="px-3 py-1 rounded-lg bg-[#003B2B] text-white text-[11px] font-bold hover:bg-[#00241A] transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Mua Combo Ngay
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 11: GỢI Ý HÔM NAY (100% REAL & CÁ NHÂN HÓA BÉ CÁO AI)
+      ========================================================================= */}
+      {suggestedBooks.length > 0 && (
+        <section className="bg-white rounded-2xl p-3 sm:p-4 border border-gray-200/90 shadow-xs flex flex-col gap-3">
+          <div className="flex items-center justify-between border-b-2 border-[#003b2b] pb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#003b2b] animate-pulse"></span>
+              <h2 className="text-xs sm:text-[14px] font-bold text-[#003b2b] uppercase tracking-wide">
+                Gợi Ý Hôm Nay Cho Bạn
+              </h2>
+            </div>
+            <span className="text-[11px] text-gray-500 font-medium">
+              Cá nhân hóa bởi Bé Cáo AI
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-2.5">
+            {suggestedBooks.map((book) => (
+              <BookCard
+                key={book.id}
+                book={book as any}
+                variant="compact"
+              />
+            ))}
+          </div>
+
+          <div className="pt-2 flex justify-center">
+            <Link
+              href="/books"
+              className="px-12 py-2.5 rounded-xl border-2 border-[#003B2B] text-[#003B2B] hover:bg-[#003B2B] hover:text-white transition-all text-xs sm:text-sm font-bold shadow-2xs flex items-center gap-2 cursor-pointer group"
+            >
+              <span>Xem Thêm Sách Khác</span>
+              <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">
+                arrow_forward
+              </span>
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 12: TÁC GIẢ ĐƯỢC YÊU THÍCH (REAL AUTHORS TỪ CATALOG DATABASE)
+      ========================================================================= */}
+      {authorsList.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+            <div>
+              <div className="flex items-center gap-1.5 text-[#003B2B] text-[11px] uppercase font-bold">
+                <span className="material-symbols-outlined text-[16px]">
+                  draw
+                </span>{" "}
+                Tác Giả &amp; Cây Bút Tri Thức
+              </div>
+              <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 mt-0.5">
+                Tác Giả Nổi Bật Trong Thư Viện
+              </h3>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setAuthorIndex((prev) => Math.max(0, prev - 1))}
+                disabled={authorIndex === 0}
+                className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Tác giả trước"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  chevron_left
+                </span>
+              </button>
+              <button
+                onClick={() =>
+                  setAuthorIndex((prev) => Math.min(maxAuthorIndex, prev + 1))
+                }
+                disabled={authorIndex >= maxAuthorIndex}
+                className="w-7 h-7 rounded-lg border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                title="Tác giả tiếp theo"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  chevron_right
+                </span>
+              </button>
+            </div>
+          </div>
+
+          <div
+            className="overflow-hidden"
+            onMouseEnter={() => setIsAuthorHovered(true)}
+            onMouseLeave={() => setIsAuthorHovered(false)}
+          >
+            <div
+              className="flex transition-transform duration-500 ease-out gap-3"
+              style={{
+                transform: `translateX(-calc(${authorIndex} * (100% / ${itemsPerPage}) + ${authorIndex * 12}px))`,
+              }}
+            >
+              {authorsList.map((author) => {
+                const isFollowed = followedAuthors.includes(author.name);
+                return (
+                  <div
+                    key={author.id}
+                    className="w-[calc(50%-6px)] sm:w-[calc(33.333%-8px)] lg:w-[calc(20%-9.6px)] shrink-0 bg-white rounded-xl p-3 border border-gray-200/90 flex flex-col items-center text-center shadow-2xs hover:shadow-sm hover:border-[#003B2B]/40 transition-all group"
+                  >
+                    <Link
+                      href={`/books?search=${encodeURIComponent(author.name)}`}
+                      className="w-14 h-14 rounded-full overflow-hidden border-2 border-emerald-100 mb-2 p-0.5 group-hover:border-[#003B2B] transition-colors"
+                    >
+                      <img
+                        src={author.avatar}
+                        alt={author.name}
+                        className="w-full h-full object-cover rounded-full group-hover:scale-105 transition-transform"
+                      />
+                    </Link>
+
+                    <Link
+                      href={`/books?search=${encodeURIComponent(author.name)}`}
+                      className="font-bold text-[12.5px] text-gray-900 group-hover:text-[#003B2B] transition-colors line-clamp-1"
+                    >
+                      {author.name}
+                    </Link>
+                    <span className="text-[10px] text-gray-500 mb-2">
+                      {author.books}
+                    </span>
+
+                    <button
+                      onClick={() => handleToggleAuthorFollow(author.name)}
+                      className={`w-full py-1.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        isFollowed
+                          ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          : "bg-emerald-50 text-[#003B2B] hover:bg-[#003B2B] hover:text-white"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[13px]">
+                        {isFollowed ? "check" : "add"}
+                      </span>
+                      <span>{isFollowed ? "Đang theo dõi" : "Theo dõi"}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          SECTION 13: ĐÁNH GIÁ THỰC TẾ TỪ NGƯỜI MUA (CHỈ HIỆN KHI CÓ REVIEW THẬT)
+      ========================================================================= */}
+      {realReviews.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+            <div>
+              <div className="flex items-center gap-1.5 text-[#003B2B] text-[11px] uppercase font-bold">
+                <span className="material-symbols-outlined text-[16px]">
+                  verified
+                </span>{" "}
+                Đánh Giá Thực Tế Từ Người Mua
+              </div>
+              <h3 className="text-[15px] sm:text-[16px] font-bold text-gray-900 mt-0.5">
+                Cảm Nhận Từ Độc Giả Đã Mua Sách
+              </h3>
+            </div>
+            <Link
+              href="/books"
+              className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+            >
+              <span>Xem sách đánh giá cao</span>
+              <span className="material-symbols-outlined text-[16px]">
+                chevron_right
+              </span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            {realReviews.slice(0, 3).map((rev, idx) => (
+              <div
+                key={rev.id || idx}
+                className="bg-white rounded-xl p-3.5 border border-gray-200/90 shadow-2xs hover:shadow-xs hover:border-[#003B2B]/40 transition-all flex flex-col justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-2.5 mb-2.5">
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 text-[#003B2B] flex items-center justify-center font-bold text-xs shrink-0">
+                      {(rev.author?.fullName || rev.author?.name || 'ĐG').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-[12.5px] text-gray-900 truncate">
+                        {rev.author?.fullName || rev.author?.name || 'Độc giả HUKI'}
+                      </h4>
+                      <span className="text-[10px] text-gray-500 block truncate">
+                        {rev.bookTitle ? `Đã mua: ${rev.bookTitle}` : "Đã mua sách trên HUKI"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-0.5 text-amber-400 mb-1.5">
+                    {Array.from({ length: Math.round(rev.rating || 5) }).map((_, sIdx) => (
+                      <span key={sIdx} className="material-symbols-outlined text-[13px]">
+                        star
+                      </span>
+                    ))}
+                  </div>
+
+                  <p className="text-[12px] text-gray-700 leading-relaxed italic line-clamp-3">
+                    &ldquo;{rev.content || rev.title}&rdquo;
+                  </p>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-gray-500 text-[11px]">
+                  <span className="text-[10px] text-gray-400">
+                    {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString('vi-VN') : 'Đánh giá đã xác thực'}
+                  </span>
+                  <Link
+                    href={rev.bookId ? `/books/${rev.bookId}` : "/books"}
+                    className="text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5"
+                  >
+                    <span>Xem sách</span>
+                    <span className="material-symbols-outlined text-[12px]">
+                      arrow_forward
+                    </span>
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
     </div>
   );
