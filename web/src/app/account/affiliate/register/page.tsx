@@ -17,7 +17,7 @@ import {
 
 export default function AffiliateRegisterPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoggedIn, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
 
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4>(1);
@@ -133,12 +133,29 @@ export default function AffiliateRegisterPage() {
     });
   };
 
-  // Kiểm tra hồ sơ hiện tại & tải thông tin chương trình khi tải trang
+  // Auth check & Redirection guard
   useEffect(() => {
+    if (!authLoading && !isLoggedIn) {
+      router.push('/login?redirect=/account/affiliate/register');
+      return;
+    }
+
     let isMounted = true;
     affiliateApi.getMyProfile().then((res) => {
       if (isMounted && res.success && res.data?.hasProfile && res.data.profile) {
-        setExistingProfile(res.data.profile);
+        const prof = res.data.profile;
+        setExistingProfile(prof);
+
+        if (prof.status === 'ACTIVE') {
+          showToast('Bạn đã có tài khoản Đối tác Tiếp thị chính thức.', 'info');
+          router.push('/account/affiliate/dashboard');
+        } else if (prof.status === 'PENDING_REVIEW' && !prof.isCoolingDown) {
+          showToast('Hồ sơ đối tác tiếp thị của bạn đang được xét duyệt.', 'info');
+          router.push('/account/affiliate/application');
+        } else if (prof.status === 'REQUEST_CHANGES') {
+          showToast('Ban Quản Trị yêu cầu bổ sung thông tin hồ sơ của bạn.', 'warning');
+          router.push('/account/affiliate/application');
+        }
       }
     }).catch(() => {
       // ignore
@@ -155,7 +172,7 @@ export default function AffiliateRegisterPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authLoading, isLoggedIn, router, showToast]);
 
   // Kiểm tra tính khả dụng của affiliateCode bất đồng bộ
   useEffect(() => {

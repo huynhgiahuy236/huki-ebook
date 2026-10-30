@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
+import AffiliateKycModal from '@/ui/components/affiliate/AffiliateKycModal';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
@@ -52,6 +54,8 @@ interface CtvStats {
 }
 
 export default function AffiliateDashboardPage() {
+  const { step, hasBank, kycData, refetch: refetchGuard } = useAffiliateGuard({ enforceActive: true });
+  const [isKycModalOpen, setIsKycModalOpen] = useState(false);
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -153,7 +157,7 @@ export default function AffiliateDashboardPage() {
     return (amount || 0).toLocaleString('vi-VN') + ' đ';
   };
 
-  const isLive = Boolean(stats && stats.profile?.status === 'ACTIVE');
+  const isLive = Boolean(step === 'ACTIVE' || step === 'BANK_SETUP' || (stats && stats.profile?.status === 'ACTIVE'));
 
   return (
     <AccountLayout>
@@ -277,6 +281,30 @@ export default function AffiliateDashboardPage() {
               </span>
             </div>
             <span className="font-semibold px-2 py-0.5 rounded bg-rose-100 text-rose-700">Công nợ</span>
+          </div>
+        )}
+
+        {/* Step 3: Bank Setup Alert Banner */}
+        {step === 'BANK_SETUP' && (
+          <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-start gap-3">
+              <span className="material-symbols-outlined text-amber-700 text-2xl shrink-0 mt-0.5">account_balance</span>
+              <div>
+                <h3 className="font-bold text-sm text-amber-950">
+                  Bước 3: Liên kết tài khoản ngân hàng để nhận hoa hồng
+                </h3>
+                <p className="text-xs text-amber-900 mt-0.5 leading-relaxed">
+                  Hồ sơ Đối tác Tiếp thị của bạn đã được phê duyệt thành công! Vui lòng hoàn tất thông tin ngân hàng thụ hưởng để nhận giải ngân hoa hồng định kỳ.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsKycModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors shadow-xs shrink-0 cursor-pointer"
+            >
+              Thiết lập ngân hàng ngay
+            </button>
           </div>
         )}
 
@@ -447,7 +475,7 @@ export default function AffiliateDashboardPage() {
                               : 'bg-amber-100 text-amber-800'
                           }`}
                         >
-                          {comm.status}
+                          {comm.status === 'AVAILABLE' ? 'Khả dụng' : comm.status === 'HOLDING' ? 'Tạm giữ' : comm.status === 'PENDING' ? 'Chờ duyệt' : comm.status === 'CANCELLED' ? 'Đã hủy' : comm.status === 'REVERSED' ? 'Thu hồi' : comm.status}
                         </span>
                       </div>
                     </div>
@@ -479,6 +507,16 @@ export default function AffiliateDashboardPage() {
           </div>
         </div>
       </div>
+      <AffiliateKycModal
+        isOpen={isKycModalOpen}
+        onClose={() => setIsKycModalOpen(false)}
+        defaultHolderName={stats?.profile?.displayName || ''}
+        currentBankSnapshot={kycData?.bankSnapshot || null}
+        onSuccess={() => {
+          refetchGuard();
+          fetchDashboardData(true);
+        }}
+      />
     </AccountLayout>
   );
 }

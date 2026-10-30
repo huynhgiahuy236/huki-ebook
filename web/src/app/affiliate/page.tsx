@@ -2,8 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 
 export default function AffiliateLandingPage() {
+  const { step, isLoggedIn } = useAffiliateGuard() as any;
   const benefits = [
     {
       icon: 'percent',
@@ -67,10 +69,10 @@ export default function AffiliateLandingPage() {
   return (
     <div className="min-h-screen bg-[#fcfbf9] text-gray-900 font-sans pb-16">
       {/* Notice Banner */}
-      <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 text-center text-xs text-amber-900 font-medium flex items-center justify-center gap-1.5">
-        <span className="material-symbols-outlined text-[16px] text-amber-700">info</span>
+      <div className="bg-emerald-500/10 border-b border-emerald-500/20 px-4 py-2.5 text-center text-xs text-emerald-900 font-medium flex items-center justify-center gap-1.5">
+        <span className="material-symbols-outlined text-[16px] text-emerald-700">verified</span>
         <span>
-          <strong>Thông báo chương trình:</strong> Chương trình Đối tác Tiếp thị HuKi đang trong giai đoạn chuẩn bị và chưa mở tiếp nhận chính thức. Mẫu đăng ký bên dưới chỉ phục vụ mục đích xem trước và kiểm tra thông tin.
+          <strong>Cổng Đối Tác Mở Tiếp Nhận:</strong> Đăng ký tham gia mạng lưới Tiếp thị liên kết HuKi Ebook — Nhận hoa hồng đến 20%, đối soát minh bạch, duyệt hồ sơ trong 24h–48h.
         </span>
       </div>
 
@@ -92,15 +94,33 @@ export default function AffiliateLandingPage() {
           </p>
 
           <div className="flex flex-col items-center justify-center gap-2 pt-2">
-            <Link
-              href="/account/affiliate/register"
-              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[18px]">visibility</span>
-              <span>Xem trước mẫu đăng ký</span>
-            </Link>
+            {step === 'ACTIVE' || step === 'BANK_SETUP' ? (
+              <Link
+                href="/account/affiliate/dashboard"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">dashboard</span>
+                <span>Vào Bảng Điều Khiển Affiliate</span>
+              </Link>
+            ) : step === 'PENDING' || step === 'CHANGES_REQUESTED' ? (
+              <Link
+                href="/account/affiliate/application"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">assignment</span>
+                <span>Xem Tiến Độ Hồ Sơ (Đang duyệt)</span>
+              </Link>
+            ) : (
+              <Link
+                href="/account/affiliate/register"
+                className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[18px]">how_to_reg</span>
+                <span>Đăng Ký Tham Gia Ngay</span>
+              </Link>
+            )}
             <span className="text-[11px] text-gray-500">
-              * Cổng tiếp nhận hồ sơ chưa mở chính thức
+              Miễn phí 100% • Không áp doanh số tối thiểu • Rút tiền nhanh chóng
             </span>
           </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useMemo } from 'react';
+import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
@@ -28,6 +29,8 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
       : user?.role === 'BUSINESS'
       ? 'Chủ Doanh Nghiệp'
       : 'Độc Giả Cá Nhân';
+
+  const { step: affiliateStep } = useAffiliateGuard();
 
   const isSeller = Boolean(
     user?.role === 'BUSINESS' ||
@@ -104,33 +107,66 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
       ],
     },
     {
-      title: 'TIẾP THỊ LIÊN KẾT',
-      items: [
-        {
-          label: 'Giới Thiệu Chương Trình',
-          href: '/affiliate',
-          icon: 'campaign',
-          active: pathname === '/affiliate',
-        },
-        {
-          label: 'Quản Lý Liên Kết (Links)',
-          href: '/account/affiliate/links',
-          icon: 'link',
-          active: pathname === '/account/affiliate/links',
-        },
-        {
-          label: 'Tiến Độ Hồ Sơ',
-          href: '/account/affiliate/application',
-          icon: 'assignment',
-          active: pathname === '/account/affiliate/application',
-        },
-        {
-          label: 'Bảng Điều Khiển',
-          href: '/account/affiliate/dashboard',
-          icon: 'dashboard',
-          active: pathname === '/account/affiliate/dashboard',
-        },
-      ],
+      title: 'TIẾP THỊ LIÊN KẾT (AFFILIATE)',
+      items: affiliateStep === 'ACTIVE' || affiliateStep === 'BANK_SETUP'
+        ? [
+            {
+              label: 'Bảng Điều Khiển CTV',
+              href: '/account/affiliate/dashboard',
+              icon: 'dashboard',
+              active: pathname === '/account/affiliate/dashboard',
+            },
+            {
+              label: 'Quản Lý Liên Kết',
+              href: '/account/affiliate/links',
+              icon: 'link',
+              active: pathname === '/account/affiliate/links',
+            },
+            {
+              label: 'Sàn Sách Tiếp Thị',
+              href: '/account/affiliate/marketplace',
+              icon: 'storefront',
+              active: pathname === '/account/affiliate/marketplace',
+            },
+            {
+              label: 'Tiến Độ & Ngân Hàng',
+              href: '/account/affiliate/application',
+              icon: 'account_balance',
+              active: pathname === '/account/affiliate/application',
+              badge: affiliateStep === 'BANK_SETUP' ? 'Cần LK Ngân Hàng' : 'Đã duyệt',
+            },
+          ]
+        : affiliateStep === 'PENDING' || affiliateStep === 'CHANGES_REQUESTED' || affiliateStep === 'REJECTED'
+        ? [
+            {
+              label: 'Giới Thiệu Chương Trình',
+              href: '/affiliate',
+              icon: 'campaign',
+              active: pathname === '/affiliate',
+            },
+            {
+              label: affiliateStep === 'PENDING' ? 'Tiến Độ Hồ Sơ (Đang duyệt)' : 'Tiến Độ Hồ Sơ (Cần cập nhật)',
+              href: '/account/affiliate/application',
+              icon: 'assignment',
+              active: pathname === '/account/affiliate/application',
+              badge: affiliateStep === 'PENDING' ? 'Đang duyệt' : 'Cần sửa',
+            },
+          ]
+        : [
+            {
+              label: 'Giới Thiệu Chương Trình',
+              href: '/affiliate',
+              icon: 'campaign',
+              active: pathname === '/affiliate',
+            },
+            {
+              label: 'Đăng Ký Tham Gia CTV',
+              href: '/account/affiliate/register',
+              icon: 'how_to_reg',
+              active: pathname === '/account/affiliate/register',
+              badge: 'Mới',
+            },
+          ],
     },
   ];
 
@@ -192,9 +228,22 @@ export default function AccountLayout({ children }: AccountLayoutProps) {
                           </span>
                           <span className="truncate">{item.label}</span>
                         </div>
-                        {(item as any).targetBlank && (
-                          <span className="material-symbols-outlined text-[13px] text-gray-400">open_in_new</span>
-                        )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {(item as any).badge && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                              item.active
+                                ? 'bg-emerald-600 text-white'
+                                : (item as any).badge.includes('Cần')
+                                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {(item as any).badge}
+                            </span>
+                          )}
+                          {(item as any).targetBlank && (
+                            <span className="material-symbols-outlined text-[13px] text-gray-400">open_in_new</span>
+                          )}
+                        </div>
                       </Link>
                     ))}
                   </div>

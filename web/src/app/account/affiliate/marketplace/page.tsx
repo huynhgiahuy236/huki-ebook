@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useToast } from '@/ui/context/ToastContext';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
 
 interface AffiliateBookItem {
   bookId: string;
@@ -23,6 +24,7 @@ interface AffiliateBookItem {
 }
 
 export default function AffiliateMarketplacePage() {
+  const { isLoading: guardLoading } = useAffiliateGuard({ enforceActive: true });
   const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
 
@@ -55,7 +57,7 @@ export default function AffiliateMarketplacePage() {
         search: search.trim() || undefined,
         format: format !== 'ALL' ? format : undefined,
         page,
-        limit: 12,
+        limit: 10,
         sortBy,
       });
 

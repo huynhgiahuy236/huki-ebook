@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { AdminStatusBadge } from './AdminUI';
-import { StandardPaginationBar } from '../common/GroupedDataTable';
+import GroupedDataTable, { Column } from '../common/GroupedDataTable';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
@@ -14,6 +14,7 @@ export function AdminAffiliatesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [applications, setApplications] = useState<AffiliateProfile[]>([]);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -178,7 +179,159 @@ export function AdminAffiliatesView() {
     }
   };
 
-  return (
+
+  const affiliateColumns: Column<AffiliateProfile>[] = useMemo(
+    () => [
+      {
+        key: 'partner',
+        title: 'Đối Tác & Mã CTV',
+        width: 220,
+        render: (_val, app) => (
+          <div className="flex items-center gap-2.5 py-1">
+            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs shrink-0 border border-emerald-200">
+              {app.displayName.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold text-gray-900 block break-words line-clamp-1 text-xs" title={app.displayName}>
+                {app.displayName}
+              </span>
+              <span className="font-mono text-[11px] text-emerald-700 font-semibold block mt-0.5">
+                {app.affiliateCode}
+              </span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'type',
+        title: 'Loại Hình & Kênh',
+        width: 180,
+        render: (_val, app) => (
+          <div className="py-1 text-xs space-y-0.5">
+            <span className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-bold border ${
+              app.applicantType === 'BUSINESS'
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : 'bg-slate-100 text-slate-700 border-slate-200'
+            }`}>
+              {app.applicantType === 'BUSINESS' ? 'Doanh Nghiệp' : 'Cá Nhân'}
+            </span>
+            <span className="text-[11px] text-gray-500 block">
+              {app.channels?.length || 0} kênh truyền thông
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'contact',
+        title: 'Đại Diện & Liên Hệ',
+        minWidth: 220,
+        render: (_val, app) => (
+          <div className="py-1 text-xs space-y-0.5">
+            <span className="text-gray-800 font-medium block truncate" title={app.contactEmail}>
+              {app.contactEmail}
+            </span>
+            <span className="text-[11px] text-gray-400 font-mono block">
+              {app.contactPhone || '—'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'status',
+        title: 'Trạng Thái',
+        width: 140,
+        align: 'center',
+        render: (_val, app) => getStatusBadge(app.status),
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 120,
+        align: 'right',
+        render: (_val, app) => (
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => handleOpenDetail(app.id)}
+              className="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Xem xét
+            </button>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedPartnerDetail = (app: AffiliateProfile) => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white rounded-xl p-4 border border-emerald-200/80 shadow-2xs text-xs">
+        {/* Card 1: Kênh phân phối */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+            <span className="material-symbols-outlined text-[15px] text-[#00875A]">share</span>
+            <span>Kênh Phân Phối</span>
+          </div>
+          <div className="space-y-1 text-[11px]">
+            {app.channels && app.channels.length > 0 ? (
+              app.channels.slice(0, 3).map((ch, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-slate-50 p-1.5 rounded border border-slate-100">
+                  <span className="font-bold text-slate-800">{ch.type}</span>
+                  <span className="text-slate-500 font-mono truncate max-w-[150px]">{ch.url}</span>
+                </div>
+              ))
+            ) : (
+              <span className="text-slate-400 italic">Chưa liên kết kênh</span>
+            )}
+          </div>
+        </div>
+
+        {/* Card 2: Lĩnh vực & Nội dung */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+            <span className="material-symbols-outlined text-[15px] text-amber-600">category</span>
+            <span>Lĩnh Vực &amp; Phương Thức</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div>
+              <span className="text-slate-400 block text-[10.5px]">Chủ đề nội dung:</span>
+              <span className="font-semibold text-slate-800">{app.contentCategories?.join(', ') || 'Chưa chọn'}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[10.5px]">Hình thức quảng bá:</span>
+              <span className="font-medium text-slate-700">{app.promotionMethods?.join(', ') || 'Chưa chọn'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Thao tác xét duyệt */}
+        <div className="space-y-2 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-blue-600">verified_user</span>
+              <span>Xét Duyệt Đối Tác</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2">
+              Ngày nộp: <strong>{new Date(app.createdAt).toLocaleDateString('vi-VN')}</strong>. Kiểm tra kênh truyền thông trước khi cấp quyền mở link tiếp thị.
+            </p>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => handleOpenDetail(app.id)}
+              className="w-full py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">fact_check</span>
+              <span>Mở Phiếu Phê Duyệt</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -238,129 +391,34 @@ export function AdminAffiliatesView() {
         </div>
       </div>
 
-      {/* Table Container */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider text-[11px]">
-              <tr>
-                <th className="py-3 px-4">Đối tác & Mã</th>
-                <th className="py-3 px-4">Loại hình</th>
-                <th className="py-3 px-4">Kênh phân phối</th>
-                <th className="py-3 px-4">Liên hệ</th>
-                <th className="py-3 px-4">Trạng thái</th>
-                <th className="py-3 px-4">Ngày nộp</th>
-                <th className="py-3 px-4 text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">
-                    <span className="material-symbols-outlined animate-spin text-[28px] text-emerald-600">
-                      progress_activity
-                    </span>
-                    <p className="mt-2 text-xs font-medium">Đang tải danh sách hồ sơ...</p>
-                  </td>
-                </tr>
-              ) : applications.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center text-gray-400">
-                    <span className="material-symbols-outlined text-[36px] text-gray-300">
-                      inbox
-                    </span>
-                    <p className="mt-1 text-xs font-medium">Không tìm thấy hồ sơ đối tác nào</p>
-                  </td>
-                </tr>
-              ) : (
-                applications.map((app) => (
-                  <tr key={app.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs shrink-0">
-                          {app.displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <div className="font-bold text-gray-900">{app.displayName}</div>
-                          <div className="font-mono text-[11px] text-emerald-700 font-semibold">
-                            {app.affiliateCode}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-gray-600 font-medium">
-                      {app.applicantType === 'BUSINESS' ? 'Doanh nghiệp' : 'Cá nhân'}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="space-y-0.5">
-                        <span className="text-[11px] font-semibold text-gray-800">
-                          {app.channels?.length || 0} kênh
-                        </span>
-                        {app.channels && app.channels[0] && (
-                          <div className="text-[10.5px] text-gray-500 break-words line-clamp-1">
-                            {app.channels[0].type}: {app.channels[0].url}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="text-gray-700 font-medium">{app.contactEmail}</div>
-                      <div className="text-[11px] text-gray-400">{app.contactPhone}</div>
-                    </td>
-                    <td className="py-3 px-4">{getStatusBadge(app.status)}</td>
-                    <td className="py-3 px-4 text-gray-500 text-[11px]">
-                      {new Date(app.createdAt).toLocaleDateString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenDetail(app.id)}
-                        className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-emerald-50 hover:text-emerald-700 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
-                      >
-                        Chi tiết
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 text-xs text-gray-500">
-            <span>
-              Tổng số: <strong>{totalCount}</strong> hồ sơ
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded-md border border-gray-200 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                Trước
-              </button>
-              <span className="px-2 font-semibold text-gray-700">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded-md border border-gray-200 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
-              >
-                Sau
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Standard Grouped Data Table */}
+      <GroupedDataTable<AffiliateProfile>
+        columns={affiliateColumns}
+        data={applications}
+        keyField="id"
+        loading={loading}
+        selectable={true}
+        selectedRowKeys={selectedIds}
+        onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+        expandable={true}
+        expandedRowRender={renderExpandedPartnerDetail}
+        emptyTitle="Không tìm thấy hồ sơ đối tác nào"
+        emptyMessage={
+          searchQuery
+            ? `Không tìm thấy đối tác khớp với từ khóa "${searchQuery}"`
+            : 'Hiện chưa có hồ sơ nào trong danh mục này.'
+        }
+        emptyIcon="handshake"
+        pagination={{
+          currentPage: page,
+          totalPages,
+          totalItems: totalCount,
+          pageSize: 10,
+          onPageChange: setPage,
+          itemLabel: 'hồ sơ đối tác',
+        }}
+        className="w-full"
+      />
 
       {/* Detail & Review Modal */}
       {selectedId && (

@@ -1,11 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
+import { useAffiliateGuard } from '@/lib/affiliate/useAffiliateGuard';
+import GroupedDataTable, { Column } from '@/ui/components/common/GroupedDataTable';
+import { DataTableFilterBar, BulkActionGroup } from '@/ui/components/common';
 
 interface AffiliateLinkItem {
   id: string;
@@ -23,6 +26,7 @@ interface AffiliateLinkItem {
 }
 
 export default function AffiliateLinksPage() {
+  const { isLoading: guardLoading } = useAffiliateGuard({ enforceActive: true });
   const { isLoggedIn, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
 
@@ -33,6 +37,8 @@ export default function AffiliateLinksPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [search, setSearch] = useState<string>('');
   const [targetTypeFilter, setTargetTypeFilter] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   // Modal Create Link State
   const [createModalOpen, setCreateModalOpen] = useState<boolean>(false);
@@ -136,7 +142,272 @@ export default function AffiliateLinksPage() {
     });
   };
 
-  return (
+
+  const linkBulkActionGroups: BulkActionGroup[] = [
+    {
+      groupLabel: 'XUẤT DỮ LIỆU',
+      actions: [
+        { value: 'EXPORT_CSV', label: 'Xuất danh sách liên kết (.csv)' },
+      ],
+    },
+  ];
+
+  const handleExecuteBulkAction = async (actionId: string) => {
+    if (selectedIds.length === 0) return;
+    setBulkLoading(true);
+    try {
+      if (actionId === 'EXPORT_CSV') {
+        const selected = links.filter((l) => selectedIds.includes(l.id));
+        const headers = ['Mã Rút Gọn', 'Link Rút Gọn', 'URL Gốc', 'Loại Trang Đích', 'Chiến Dịch', 'Sub ID', 'Lượt Nhấp', 'Chuyển Đổi', 'Ngày Tạo'];
+        const rows = selected.map((l) => [
+          `"${l.shortCode}"`,
+          `"${l.shortUrl}"`,
+          `"${l.originalUrl.replace(/"/g, '""')}"`,
+          `"${l.targetType}"`,
+          `"${l.campaignName || ''}"`,
+          `"${l.subId || ''}"`,
+          l.clickCount,
+          l.conversionCount,
+          `"${new Date(l.createdAt).toLocaleDateString('vi-VN')}"`,
+        ]);
+        const csvContent = '﻿' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Lien_Ket_Tiep_Thi_HuKi_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast({ title: 'Xuất file thành công', message: `Đã xuất ${selected.length} liên kết tiếp thị.` }, 'success');
+      }
+    } catch {
+      showToast({ title: 'Lỗi', message: 'Không thể xuất file' }, 'error');
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const linkColumns: Column<AffiliateLinkItem>[] = useMemo(
+    () => [
+      {
+        key: 'shortCode',
+        title: 'Mã & Link Tiếp Thị',
+        width: 200,
+        render: (_val, link) => (
+          <div className="py-1 space-y-1">
+            <span className="font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80 inline-block text-xs">
+              /r/{link.shortCode}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-slate-500 font-mono break-all leading-tight">
+                {link.shortUrl}
+              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCopy(link.shortUrl);
+                }}
+                className="text-slate-400 hover:text-emerald-700 p-0.5 transition-colors cursor-pointer shrink-0"
+                title="Sao chép link"
+              >
+                <span className="material-symbols-outlined text-[14px]">content_copy</span>
+              </button>
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'target',
+        title: 'Trang Đích & Phân Loại',
+        minWidth: 240,
+        render: (_val, link) => (
+          <div className="py-1 space-y-1">
+            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 text-slate-700 inline-block border border-slate-200">
+              {link.targetType === 'BOOK'
+                ? 'Sách Chi Tiết'
+                : link.targetType === 'STORE'
+                ? 'Gian Hàng Shop'
+                : link.targetType === 'CATEGORY'
+                ? 'Danh Mục Sách'
+                : 'Trang Chủ Sàn'}
+            </span>
+            <p
+              className="text-slate-800 font-medium text-xs break-words line-clamp-2 leading-snug"
+              title={link.originalUrl}
+            >
+              {link.originalUrl}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'campaign',
+        title: 'Chiến Dịch & Phụ Hiệu',
+        width: 170,
+        render: (_val, link) => (
+          <div className="py-1 text-xs space-y-0.5">
+            <span className="font-semibold text-slate-800 block truncate" title={link.campaignName || '—'}>
+              {link.campaignName || 'Mặc định'}
+            </span>
+            {link.subId && (
+              <span className="text-[10.5px] bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded font-mono inline-block">
+                Sub: {link.subId}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'performance',
+        title: 'Hiệu Suất (Click / Đơn)',
+        width: 170,
+        align: 'center',
+        render: (_val, link) => {
+          const cr = link.clickCount > 0 ? ((link.conversionCount / link.clickCount) * 100).toFixed(1) : '0';
+          return (
+            <div className="py-1 text-xs text-center space-y-0.5">
+              <div className="flex items-center justify-center gap-2">
+                <span className="font-black text-slate-900">{link.clickCount.toLocaleString('vi-VN')} clicks</span>
+                <span className="text-slate-300">•</span>
+                <span className="font-black text-emerald-800">{link.conversionCount.toLocaleString('vi-VN')} đơn</span>
+              </div>
+              <span className="text-[10.5px] text-slate-400 font-semibold block">
+                Tỷ lệ CR: <strong className="text-emerald-700">{cr}%</strong>
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        title: 'Thao Tác',
+        width: 130,
+        align: 'right',
+        render: (_val, link) => (
+          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => handleCopy(link.shortUrl)}
+              title="Sao chép link"
+              className="p-1.5 text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[15px]">content_copy</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQrModalLink(link)}
+              title="Xem mã QR"
+              className="p-1.5 text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+            </button>
+            <a
+              href={link.originalUrl}
+              target="_blank"
+              rel="noreferrer"
+              title="Mở trang đích"
+              className="p-1.5 text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors"
+            >
+              <span className="material-symbols-outlined text-[15px]">open_in_new</span>
+            </a>
+          </div>
+        ),
+      },
+    ],
+    []
+  );
+
+  const renderExpandedLinkDetail = (link: AffiliateLinkItem) => {
+    const cr = link.clickCount > 0 ? ((link.conversionCount / link.clickCount) * 100).toFixed(1) : '0';
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white rounded-xl p-4 border border-emerald-200/80 shadow-2xs text-xs">
+        {/* Card 1: Thông tin URL */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+            <span className="material-symbols-outlined text-[15px] text-[#00875A]">link</span>
+            <span>Chi Tiết Đường Dẫn</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div>
+              <span className="text-slate-400 block text-[10.5px]">Link rút gọn bảo mật:</span>
+              <span className="font-mono font-bold text-emerald-800">{link.shortUrl}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[10.5px]">Trang đích nguyên bản:</span>
+              <p className="font-medium text-slate-800 break-words leading-snug text-[11px] bg-slate-50 p-1.5 rounded border border-slate-100">
+                {link.originalUrl}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 2: Hiệu suất & Phụ hiệu */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+            <span className="material-symbols-outlined text-[15px] text-amber-600">analytics</span>
+            <span>Hiệu Suất Tiếp Thị</span>
+          </div>
+          <div className="space-y-1.5 text-xs">
+            <div className="flex justify-between">
+              <span className="text-slate-500">Chiến dịch:</span>
+              <span className="font-semibold text-slate-900">{link.campaignName || 'Mặc định'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Mã Sub-ID theo dõi:</span>
+              <span className="font-mono text-slate-800">{link.subId || 'Không gắn'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Lượt click hợp lệ:</span>
+              <span className="font-bold text-slate-900">{link.clickCount.toLocaleString('vi-VN')}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500">Đơn hàng thành công:</span>
+              <span className="font-bold text-emerald-800">{link.conversionCount.toLocaleString('vi-VN')}</span>
+            </div>
+            <div className="flex justify-between pt-1 border-t border-slate-100">
+              <span className="text-slate-500 font-bold">Tỷ lệ chuyển đổi:</span>
+              <span className="font-black text-emerald-700">{cr}%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Thao tác & Mã QR */}
+        <div className="space-y-2 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-100 pb-1.5">
+              <span className="material-symbols-outlined text-[15px] text-blue-600">qr_code</span>
+              <span>Chia Sẻ &amp; Lan Tỏa</span>
+            </div>
+            <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+              Tạo mã QR hoặc chia sẻ link lên Facebook, TikTok, Blog hoặc gửi trực tiếp cho độc giả để nhận hoa hồng tự động.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => handleCopy(link.shortUrl)}
+              className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[15px]">content_copy</span>
+              <span>Copy Link</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setQrModalLink(link)}
+              className="flex-1 py-2 px-3 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl font-bold text-xs transition-colors flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+            >
+              <span className="material-symbols-outlined text-[15px]">qr_code_2</span>
+              <span>Mở Mã QR</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+    return (
     <AccountLayout>
       <div className="w-full space-y-6 font-sans p-2 sm:p-4">
         {/* Header */}
@@ -163,23 +434,15 @@ export default function AffiliateLinksPage() {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 shadow-xs">
-          <div className="flex-1 relative">
-            <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
-            <input
-              type="text"
-              placeholder="Tìm theo mã rút gọn, chiến dịch, URL..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="w-full text-xs font-medium pl-9 pr-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-700"
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
+        {/* Standard Multi-Tier Filter & Bulk Actions Bar */}
+        <DataTableFilterBar
+          searchQuery={search}
+          onSearchChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          searchPlaceholder="Tìm theo mã rút gọn, chiến dịch, URL..."
+          extraFilters={
             <select
               aria-label="Lọc loại trang đích"
               value={targetTypeFilter}
@@ -187,162 +450,53 @@ export default function AffiliateLinksPage() {
                 setTargetTypeFilter(e.target.value);
                 setPage(1);
               }}
-              className="text-xs font-semibold px-3 py-2 border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="h-9 px-3 rounded-xl text-xs font-semibold border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:border-neutral-300 focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer"
             >
-              <option value="">Tất cả loại trang đích</option>
-              <option value="BOOK">Sách chi tiết</option>
-              <option value="STORE">Gian hàng (Shop)</option>
-              <option value="CATEGORY">Danh mục sách</option>
-              <option value="HOME">Trang chủ sàn</option>
+              <option value="">Mọi Loại Trang Đích</option>
+              <option value="BOOK">Sách Chi Tiết</option>
+              <option value="STORE">Gian Hàng Shop</option>
+              <option value="CATEGORY">Danh Mục Sách</option>
+              <option value="HOME">Trang Chủ Sàn</option>
             </select>
-          </div>
-        </div>
+          }
+          bulkActionGroups={linkBulkActionGroups}
+          selectedCount={selectedIds.length}
+          totalCount={links.length}
+          onExecuteBulkAction={handleExecuteBulkAction}
+          onClearSelection={() => setSelectedIds([])}
+          bulkLoading={bulkLoading}
+          itemName="liên kết"
+          className="mb-4"
+        />
 
-        {/* Links Table */}
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
-                  <th className="p-3.5">Mã rút gọn &amp; Link</th>
-                  <th className="p-3.5">Trang đích</th>
-                  <th className="p-3.5">Chiến dịch / Sub-ID</th>
-                  <th className="p-3.5 text-center">Lượt nhấp (Clicks)</th>
-                  <th className="p-3.5 text-center">Chuyển đổi (Orders)</th>
-                  <th className="p-3.5">Ngày tạo</th>
-                  <th className="p-3.5 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500">
-                      <div className="flex flex-col items-center gap-2">
-                        <span className="w-6 h-6 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
-                        <span className="font-semibold text-xs">Đang tải danh sách liên kết...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : links.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500">
-                      <div className="max-w-sm mx-auto space-y-2">
-                        <span className="material-symbols-outlined text-4xl text-slate-300">link_off</span>
-                        <p className="text-sm font-bold text-slate-800">Chưa có liên kết nào</p>
-                        <p className="text-xs text-slate-500">
-                          Bắt đầu tạo liên kết tiếp thị đầu tiên để chia sẻ tới độc giả và nhận hoa hồng.
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  links.map((link) => (
-                    <tr key={link.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="p-3.5">
-                        <div className="space-y-0.5">
-                          <span className="font-mono font-bold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 inline-block">
-                            {link.shortCode}
-                          </span>
-                          <p className="text-[11px] text-slate-500 font-mono truncate max-w-[160px]">
-                            {link.shortUrl}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="space-y-1 max-w-xs">
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 inline-block">
-                            {link.targetType === 'BOOK'
-                              ? 'Sách'
-                              : link.targetType === 'STORE'
-                              ? 'Shop'
-                              : link.targetType === 'CATEGORY'
-                              ? 'Danh mục'
-                              : 'Trang chủ'}
-                          </span>
-                          <p className="text-slate-800 font-medium truncate text-xs" title={link.originalUrl}>
-                            {link.originalUrl}
-                          </p>
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-slate-600">
-                        <div className="space-y-0.5">
-                          <span className="font-semibold text-slate-800 block">
-                            {link.campaignName || '—'}
-                          </span>
-                          {link.subId && (
-                            <span className="text-[10px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
-                              Sub: {link.subId}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <span className="font-black text-slate-900 text-sm">
-                          {link.clickCount.toLocaleString('vi-VN')}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-center">
-                        <span className="font-black text-emerald-800 text-sm">
-                          {link.conversionCount.toLocaleString('vi-VN')}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-slate-500 whitespace-nowrap text-[11px]">
-                        {new Date(link.createdAt).toLocaleDateString('vi-VN')}
-                      </td>
-                      <td className="p-3.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleCopy(link.shortUrl)}
-                            title="Sao chép liên kết"
-                            className="p-1.5 text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-base">content_copy</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setQrModalLink(link)}
-                            title="Xem mã QR"
-                            className="p-1.5 text-slate-600 hover:text-emerald-800 bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-base">qr_code</span>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="p-3 border-t border-slate-200 flex justify-between items-center text-xs text-slate-600">
-              <span>
-                Trang {page} / {totalPages} (Tổng số {total} liên kết)
-              </span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg bg-white font-bold disabled:opacity-50"
-                >
-                  Trước
-                </button>
-                <button
-                  type="button"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  className="px-3 py-1.5 border border-slate-200 rounded-lg bg-white font-bold disabled:opacity-50"
-                >
-                  Sau
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Grouped Data Table Standardized */}
+        <GroupedDataTable<AffiliateLinkItem>
+          columns={linkColumns}
+          data={links}
+          keyField="id"
+          loading={loading || guardLoading}
+          selectable={true}
+          selectedRowKeys={selectedIds}
+          onSelectionChange={(keys) => setSelectedIds(keys as string[])}
+          expandable={true}
+          expandedRowRender={renderExpandedLinkDetail}
+          emptyTitle="Chưa có liên kết tiếp thị nào"
+          emptyMessage={
+            search
+              ? `Không tìm thấy liên kết khớp với từ khóa "${search}"`
+              : 'Bắt đầu tạo liên kết tiếp thị đầu tiên để chia sẻ tới độc giả và nhận hoa hồng.'
+          }
+          emptyIcon="link_off"
+          pagination={{
+            currentPage: page,
+            totalPages,
+            totalItems: total,
+            pageSize: 10,
+            onPageChange: setPage,
+            itemLabel: 'liên kết',
+          }}
+          className="w-full"
+        />
 
         {/* MODAL: CREATE LINK */}
         {createModalOpen && (
