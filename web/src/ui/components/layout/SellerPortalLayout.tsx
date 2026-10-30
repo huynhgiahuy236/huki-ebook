@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/ui/context/AuthContext';
@@ -9,14 +9,24 @@ export interface SellerPortalLayoutProps {
 
 export default function SellerPortalLayout({ children }: SellerPortalLayoutProps) {
   const pathname = usePathname() || '';
-  const { user } = useAuth();
+  const { user, isLoggedIn } = useAuth();
 
   const isRegisterPage = pathname.includes('/register');
   const isPendingPage = pathname.includes('/pending');
   const isSetupPage = pathname.includes('/stores/setup');
 
   const bizStatus = user?.business?.status;
-  const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness);
+  const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness) || bizStatus === 'APPROVED';
+
+  const [isSetupCompleted, setIsSetupCompleted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.business?.id) {
+      const completed = localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true';
+      const hasBank = Boolean(user?.business?.bankAccountNumber && user?.business?.bankName);
+      setIsSetupCompleted(completed || hasBank);
+    }
+  }, [user]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8F9FA] text-slate-900 font-sans antialiased">
@@ -44,54 +54,50 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
             <nav className="hidden md:flex items-center gap-5 text-xs font-medium text-slate-600">
               <Link
                 href="/seller"
-                className={`transition-colors hover:text-[#003B2B] ${
-                  !isRegisterPage && !isPendingPage && !isSetupPage ? 'text-[#003B2B] font-semibold' : ''
-                }`}
+                className={`transition-colors hover:text-[#003B2B] ${!isRegisterPage && !isPendingPage && !isSetupPage ? 'text-[#003B2B] font-semibold' : ''
+                  }`}
               >
                 Giới thiệu kênh
               </Link>
 
-              {/* Dynamic Action Nav based on status */}
-              {isApprovedSeller ? (
+              {/* Dynamic Action Nav: 1. Regis -> 2. Pending -> 3. Ngân hàng -> 4. Dashboard */}
+              {!isLoggedIn || (!user?.business && !isApprovedSeller) ? (
                 <Link
-                  href="/seller/dashboard"
-                  className="hover:text-[#003B2B] transition-colors text-[#003B2B] font-semibold flex items-center gap-1"
+                  href="/seller/register"
+                  className={`transition-colors hover:text-[#003B2B] ${isRegisterPage ? 'text-[#003B2B] font-semibold' : ''
+                    }`}
                 >
-                  <span className="material-symbols-outlined text-[15px]">dashboard</span>
-                  <span>Bảng điều khiển</span>
+                  Đăng ký mở gian hàng
                 </Link>
               ) : bizStatus === 'PENDING_APPROVAL' || isPendingPage ? (
                 <Link
                   href="/seller/pending"
-                  className={`transition-colors flex items-center gap-1.5 ${
-                    isPendingPage ? 'text-amber-900 font-semibold' : 'hover:text-[#003B2B]'
-                  }`}
+                  className={`transition-colors flex items-center gap-1.5 ${isPendingPage ? 'text-amber-900 font-semibold' : 'hover:text-[#003B2B]'
+                    }`}
                 >
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                     Hồ sơ đang thẩm định
                   </span>
                 </Link>
-              ) : bizStatus === 'APPROVED' || isSetupPage ? (
+              ) : (isApprovedSeller && !isSetupCompleted) || isSetupPage ? (
                 <Link
                   href="/seller/stores/setup"
-                  className={`transition-colors flex items-center gap-1.5 ${
-                    isSetupPage ? 'text-emerald-900 font-semibold' : 'hover:text-[#003B2B]'
-                  }`}
+                  className={`transition-colors flex items-center gap-1.5 ${isSetupPage ? 'text-emerald-900 font-semibold' : 'hover:text-[#003B2B]'
+                    }`}
                 >
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/80">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                    Thiết lập gian hàng
+                    Thiết lập ngân hàng &amp; gian hàng
                   </span>
                 </Link>
               ) : (
                 <Link
-                  href="/seller/register"
-                  className={`transition-colors hover:text-[#003B2B] ${
-                    isRegisterPage ? 'text-[#003B2B] font-semibold' : ''
-                  }`}
+                  href="/seller/dashboard"
+                  className="hover:text-[#003B2B] transition-colors text-[#003B2B] font-semibold flex items-center gap-1"
                 >
-                  Đăng ký mở gian hàng
+                  <span className="material-symbols-outlined text-[15px]">dashboard</span>
+                  <span>Bảng điều khiển</span>
                 </Link>
               )}
             </nav>
@@ -107,7 +113,31 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
               <span className="hidden sm:inline">Về sàn HUKI</span>
             </Link>
 
-            {!isPendingPage && !isSetupPage ? (
+            {!isLoggedIn || (!user?.business && !isApprovedSeller) ? (
+              <Link
+                href="/seller/register"
+                className="inline-flex items-center gap-1.5 bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-2xs transition-colors"
+              >
+                <span className="material-symbols-outlined text-[15px]">add_business</span>
+                <span>Đăng Ký Bán Hàng</span>
+              </Link>
+            ) : bizStatus === 'PENDING_APPROVAL' ? (
+              <Link
+                href="/seller/pending"
+                className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 text-[11px] font-medium px-2.5 py-1 rounded-md"
+              >
+                <span className="material-symbols-outlined text-[14px] text-amber-700">schedule</span>
+                <span>Chờ thẩm định</span>
+              </Link>
+            ) : isApprovedSeller && !isSetupCompleted ? (
+              <Link
+                href="/seller/stores/setup"
+                className="inline-flex items-center gap-1.5 bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-2xs transition-colors"
+              >
+                <span className="material-symbols-outlined text-[15px]">account_balance</span>
+                <span>Cài Đặt Ngân Hàng</span>
+              </Link>
+            ) : (
               <Link
                 href="/seller/dashboard"
                 className="inline-flex items-center gap-1.5 bg-[#003B2B] hover:bg-[#002b1f] text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-2xs transition-colors"
@@ -115,16 +145,6 @@ export default function SellerPortalLayout({ children }: SellerPortalLayoutProps
                 <span className="material-symbols-outlined text-[15px]">dashboard</span>
                 <span>Kênh Quản Trị</span>
               </Link>
-            ) : isSetupPage ? (
-              <div className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-900 border border-emerald-200/80 text-[11px] font-medium px-2.5 py-1 rounded-md">
-                <span className="material-symbols-outlined text-[14px] text-emerald-700">verified</span>
-                <span>Hồ sơ đã duyệt</span>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-900 border border-amber-200/80 text-[11px] font-medium px-2.5 py-1 rounded-md">
-                <span className="material-symbols-outlined text-[14px] text-amber-700">schedule</span>
-                <span>Chờ thẩm định</span>
-              </div>
             )}
           </div>
         </div>

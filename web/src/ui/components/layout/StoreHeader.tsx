@@ -61,6 +61,25 @@ export default function StoreHeader({
   );
   const chatUrl = isSeller ? '/seller/chat' : '/account/messages';
 
+  const [isSetupCompleted, setIsSetupCompleted] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.business?.id) {
+      const completed = localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true';
+      const hasBank = Boolean(user?.business?.bankAccountNumber && user?.business?.bankName);
+      setIsSetupCompleted(completed || hasBank);
+    }
+  }, [user]);
+
+  const sellerDestinationUrl = !isLoggedIn
+    ? '/seller'
+    : user?.business?.status === 'PENDING_APPROVAL'
+    ? '/seller/pending'
+    : (user?.business?.status === 'APPROVED' || user?.role === 'BUSINESS' || user?.hasApprovedBusiness)
+    ? isSetupCompleted
+      ? '/seller/dashboard'
+      : '/seller/stores/setup'
+    : '/seller/register';
+
   // Lấy tổng số lượng tin nhắn chưa đọc của người dùng
   const fetchUnreadCount = useCallback(async () => {
     if (!isLoggedIn) {
@@ -378,7 +397,7 @@ export default function StoreHeader({
             </Link>
           ) : (
             <Link
-              href={isSeller ? '/seller/dashboard' : '/seller/register'}
+              href={sellerDestinationUrl}
               className="hover:text-[var(--theme-header-top-accent,#94f5d6)] transition-colors flex items-center gap-1 font-semibold"
             >
               <span className="material-symbols-outlined text-[13px]">storefront</span>
@@ -844,21 +863,21 @@ export default function StoreHeader({
                             Chờ duyệt
                           </span>
                         </Link>
-                      ) : user?.business?.status === 'APPROVED' && user?.role !== 'BUSINESS' ? (
+                      ) : (user?.business?.status === 'APPROVED' || user?.role === 'BUSINESS' || user?.hasApprovedBusiness) && !isSetupCompleted ? (
                         <Link
                           href="/seller/stores/setup"
                           onClick={() => setShowUserMenu(false)}
                           className="flex items-center justify-between px-3 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-950 font-bold border border-emerald-200/80 transition-colors"
                         >
                           <div className="flex items-center gap-2.5">
-                            <span className="material-symbols-outlined text-base text-[#003B2B]">storefront</span>
-                            <span>Thiết Lập Gian Hàng</span>
+                            <span className="material-symbols-outlined text-base text-[#003B2B]">account_balance</span>
+                            <span>Thiết Lập Ngân Hàng &amp; Gian Hàng</span>
                           </div>
-                          <span className="text-[10px] font-bold text-emerald-800 bg-emerald-200/70 px-2 py-0.5 rounded-full">
-                            Đã duyệt
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-full">
+                            Cần cài đặt
                           </span>
                         </Link>
-                      ) : user?.role === 'BUSINESS' || user?.hasApprovedBusiness ? (
+                      ) : (user?.role === 'BUSINESS' || user?.hasApprovedBusiness) && isSetupCompleted ? (
                         <Link
                           href="/seller/dashboard"
                           onClick={() => setShowUserMenu(false)}

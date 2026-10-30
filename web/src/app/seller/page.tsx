@@ -1,9 +1,43 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useAuth } from '@/ui/context/AuthContext';
 
 export default function SellerPortalPage() {
+  const { user, isLoggedIn } = useAuth();
+  const bizStatus = user?.business?.status;
+  const isApproved = bizStatus === 'APPROVED' || user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness);
+
+  const [isSetupCompleted, setIsSetupCompleted] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.business?.id) {
+      const completed = localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true';
+      const hasBank = Boolean(user?.business?.bankAccountNumber && user?.business?.bankName);
+      setIsSetupCompleted(completed || hasBank);
+    }
+  }, [user]);
+
+  const targetUrl = !isLoggedIn
+    ? '/seller/register'
+    : bizStatus === 'PENDING_APPROVAL'
+    ? '/seller/pending'
+    : isApproved && !isSetupCompleted
+    ? '/seller/stores/setup'
+    : isApproved && isSetupCompleted
+    ? '/seller/dashboard'
+    : '/seller/register';
+
+  const targetLabel = !isLoggedIn
+    ? 'Đăng Ký Bán Hàng Ngay'
+    : bizStatus === 'PENDING_APPROVAL'
+    ? 'Kiểm Tra Hồ Sơ Thẩm Định'
+    : isApproved && !isSetupCompleted
+    ? 'Thiết Lập Ngân Hàng & Gian Hàng'
+    : isApproved && isSetupCompleted
+    ? 'Vào Kênh Quản Trị Bán Hàng'
+    : 'Đăng Ký Mở Gian Hàng';
   return (
     <div className="w-full bg-[#FAF8F5] text-on-surface antialiased min-h-screen py-6">
       <main className="flex-1 w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -28,14 +62,18 @@ export default function SellerPortalPage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-2">
-              <Link className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-tertiary text-white font-title-md text-[15px] hover:bg-[#005140] transition-all shadow-sm hover:shadow-md" href="/seller/register">
-                <span className="material-symbols-outlined text-[20px] fill-icon">add_business</span>
-                Đăng Ký Bán Hàng Ngay
+              <Link className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-[#003B2B] text-white font-title-md text-[15px] hover:bg-[#002b1f] transition-all shadow-sm hover:shadow-md font-semibold" href={targetUrl}>
+                <span className="material-symbols-outlined text-[20px] fill-icon">
+                  {isApproved && !isSetupCompleted ? 'account_balance' : isApproved ? 'dashboard' : bizStatus === 'PENDING_APPROVAL' ? 'schedule' : 'add_business'}
+                </span>
+                {targetLabel}
                 <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
               </Link>
-              <Link className="font-title-md text-[14px] text-primary hover:underline ml-2 flex items-center gap-1" href="/auth/login?redirect=/seller/dashboard">
-                Đã có tài khoản người bán? Đăng nhập →
-              </Link>
+              {!isLoggedIn && (
+                <Link className="font-title-md text-[14px] text-primary hover:underline ml-2 flex items-center gap-1 font-semibold" href="/auth/login?redirect=/seller">
+                  Đã có tài khoản người bán? Đăng nhập →
+                </Link>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-6 pt-4 border-t border-[#E8E5DF] max-w-[640px]">
@@ -312,9 +350,11 @@ export default function SellerPortalPage() {
                 Mở rộng kênh bán lẻ, nâng tầm ấn phẩm số và gia nhập mạng lưới các nhà xuất bản hàng đầu tại Việt Nam ngay hôm nay.
               </p>
               <div className="flex flex-wrap items-center gap-4">
-                <Link className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-tertiary font-title-md text-[15px] font-bold hover:bg-[#FAF8F5] transition-all shadow-md" href="/seller/register">
-                  <span className="material-symbols-outlined text-[20px] fill-icon">add_business</span>
-                  Đăng Ký Mở Gian Hàng Ngay
+                <Link className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-white text-[#003B2B] font-title-md text-[15px] font-bold hover:bg-slate-100 transition-all shadow-md" href={targetUrl}>
+                  <span className="material-symbols-outlined text-[20px] fill-icon">
+                    {isApproved && !isSetupCompleted ? 'account_balance' : isApproved ? 'dashboard' : bizStatus === 'PENDING_APPROVAL' ? 'schedule' : 'add_business'}
+                  </span>
+                  {targetLabel}
                 </Link>
               </div>
               <div className="mt-8 pt-6 border-t border-white/15 flex flex-wrap items-center gap-4 sm:gap-6 text-[13px] text-[#ECF6F3]">

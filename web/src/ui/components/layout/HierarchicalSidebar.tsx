@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/ui/context/CartContext';
@@ -54,6 +54,27 @@ export default function HierarchicalSidebar({
     user?.business ||
     (Array.isArray(user?.memberships) && user.memberships.length > 0)
   );
+
+  const [isSetupCompleted, setIsSetupCompleted] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined' && user?.business?.id) {
+      const completed = localStorage.getItem(`huki_store_setup_completed_${user.business.id}`) === 'true';
+      const hasBank = Boolean(user?.business?.bankAccountNumber && user?.business?.bankName);
+      setIsSetupCompleted(completed || hasBank);
+    }
+  }, [user]);
+
+  const sellerTargetUrl = user?.business?.status === 'PENDING_APPROVAL'
+    ? '/seller/pending'
+    : !isSetupCompleted
+    ? '/seller/stores/setup'
+    : '/seller/dashboard';
+
+  const sellerTargetTitle = user?.business?.status === 'PENDING_APPROVAL'
+    ? 'Hồ Sơ Chờ Duyệt'
+    : !isSetupCompleted
+    ? 'Cài Đặt Ngân Hàng'
+    : 'Kênh Người Bán';
 
   // Close mobile drawer automatically on route change
   useEffect(() => {
@@ -173,9 +194,9 @@ export default function HierarchicalSidebar({
             items: [
               {
                 id: 'seller-portal',
-                title: 'Kênh Người Bán',
-                to: '/seller/dashboard',
-                icon: 'storefront',
+                title: sellerTargetTitle,
+                to: sellerTargetUrl,
+                icon: !isSetupCompleted ? 'account_balance' : 'storefront',
               },
             ],
           },

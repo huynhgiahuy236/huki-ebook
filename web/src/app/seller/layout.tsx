@@ -43,28 +43,46 @@ function SellerRouteLayoutContent({ children }: { children: React.ReactNode }) {
     }
 
     const bizStatus = user?.business?.status;
-    const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness);
+    const isApprovedSeller = user?.role === 'BUSINESS' || Boolean(user?.hasApprovedBusiness) || bizStatus === 'APPROVED';
 
-    // 2. Seller chính thức: Không được vào register hoặc pending -> về dashboard
-    if (isApprovedSeller) {
-      if (pathname.startsWith('/seller/register') || pathname.startsWith('/seller/pending')) {
-        router.replace('/seller/dashboard');
+    // Kiểm tra seller đã hoàn tất bước ngân hàng & thiết lập gian hàng chưa
+    const isSetupCompleted = Boolean(
+      (typeof window !== 'undefined' && user?.business?.id && localStorage.getItem(`huki_store_setup_completed_`) === 'true') ||
+      (user?.business?.bankAccountNumber && user?.business?.bankName)
+    );
+
+    // THỨ TỰ BẮT BUỘC: 1. Regis -> 2. Pending -> 3. Ngân Hàng (Setup) -> 4. Seller Dashboard
+
+    // 1. CHƯA ĐĂNG KÝ HỒ SƠ:
+    if (!isApprovedSeller && !user?.business && user?.role !== 'PLATFORM_ADMIN') {
+      if (pathname !== '/seller' && !pathname.startsWith('/seller/register')) {
+        router.replace('/seller/register');
         return;
       }
     }
 
-    // 3. User đang chờ duyệt: Cho phép ở các trang portal (pending, stores/setup, register, intro), không vào các trang quản trị
+    // 2. ĐÃ ĐĂNG KÝ, ĐANG CHỜ DUYỆT (PENDING_APPROVAL):
     if (bizStatus === 'PENDING_APPROVAL') {
-      if (!isPortalRoute) {
+      if (pathname !== '/seller' && !pathname.startsWith('/seller/pending')) {
         router.replace('/seller/pending');
         return;
       }
     }
 
-    // 4. User chưa đăng ký kinh doanh: Cố vào dashboard quản trị -> sang register
-    if (!isApprovedSeller && !user?.business && user?.role !== 'PLATFORM_ADMIN') {
-      if (!isPortalRoute) {
-        router.replace('/seller/register');
+    // 3. ĐÃ ĐƯỢC DUYỆT (APPROVED), NHƯNG CHƯA HOÀN TẤT THIẾT LẬP NGÂN HÀNG & GIAN HÀNG:
+    // Bắt buộc phải qua step ngân hàng (/seller/stores/setup), không được nhảy cóc vào dashboard
+    if (isApprovedSeller && !isSetupCompleted) {
+      if (pathname !== '/seller' && !pathname.startsWith('/seller/stores/setup')) {
+        router.replace('/seller/stores/setup');
+        return;
+      }
+    }
+
+    // 4. ĐÃ DUYỆT VÀ ĐÃ HOÀN TẤT NGÂN HÀNG (SELLER CHÍNH THỨC):
+    // Không cho quay lại các step trước (register, pending) -> về dashboard
+    if (isApprovedSeller && isSetupCompleted) {
+      if (pathname.startsWith('/seller/register') || pathname.startsWith('/seller/pending')) {
+        router.replace('/seller/dashboard');
         return;
       }
     }
