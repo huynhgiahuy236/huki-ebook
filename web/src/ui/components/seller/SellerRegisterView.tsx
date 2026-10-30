@@ -21,6 +21,51 @@ export function SellerRegisterView() {
   const [isTaxVerified, setIsTaxVerified] = useState(false);
   const [, setTaxVerifiedSource] = useState('');
   const [quickPolicySlug, setQuickPolicySlug] = useState<string | null>(null);
+  const [showSampleDropdown, setShowSampleDropdown] = useState(false);
+  const [existingTaxCodes, setExistingTaxCodes] = useState<Set<string>>(
+    new Set(['0318926410', '0318926419', '0301452937', '0319888999', '2901988776', 'TAX582197540', 'TAX582264798'])
+  );
+
+  // Danh sách gợi ý mẫu MST
+  const SAMPLE_INDIVIDUAL_TAX_CODES = [
+    { code: '0319888999', name: 'Tri Thức Trẻ (HCM)' },
+    { code: '0109988221', name: 'Sách Phố Cổ (Hà Nội)' },
+    { code: '0317654321', name: 'Sách Cũ Sài Gòn' },
+    { code: '0402123456', name: 'Hiệu Sách Đà Nẵng' },
+    { code: '2901988776', name: 'Manga Xứ Nghệ' },
+  ];
+
+  const SAMPLE_ENTERPRISE_TAX_CODES = [
+    { code: '0318926410', name: 'Trí Tuệ Việt (LLC)' },
+    { code: '0101234567', name: 'NXB Kim Đồng' },
+    { code: '0302482782', name: 'Nhã Nam Books' },
+    { code: '0101736294', name: 'Thái Hà Books' },
+    { code: '0102103867', name: 'Alpha Books' },
+    { code: '0300528676', name: 'NXB Trẻ' },
+    { code: '0304322471', name: 'Phương Nam Books' },
+    { code: '0301452937', name: 'Fahasa' },
+  ];
+
+  // Lấy các mã chưa bị trùng
+  const availableIndividuals = SAMPLE_INDIVIDUAL_TAX_CODES.filter((item) => !existingTaxCodes.has(item.code));
+  const availableEnterprises = SAMPLE_ENTERPRISE_TAX_CODES.filter((item) => !existingTaxCodes.has(item.code));
+
+  // Tự động kiểm tra danh sách doanh nghiệp đã có trên hệ thống để loại trừ các MST đã dùng
+  React.useEffect(() => {
+    businessApi
+      .getPublicBusinesses({ limit: 100 })
+      .then((res) => {
+        if (res.success && Array.isArray(res.data)) {
+          const codes = res.data
+            .map((b) => (b.taxCode || '').replace(/[^0-9a-zA-Z]/g, '').trim())
+            .filter(Boolean);
+          if (codes.length > 0) {
+            setExistingTaxCodes((prev) => new Set([...prev, ...codes]));
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Check if business already exists
   React.useEffect(() => {
@@ -681,72 +726,97 @@ export function SellerRegisterView() {
                   </button>
                 </div>
 
-                {/* Quick sample chips for testing */}
-                <div className="space-y-2 pt-1 text-xs">
-                  {/* Hộ kinh doanh cá thể */}
-                  <div>
-                    <div className="flex items-center gap-1.5 text-slate-500 font-semibold mb-1 text-[11px]">
-                      <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
-                      <span>Mẫu Hộ Kinh Doanh Cá Thể (Bấm tự điền):</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { code: '0319888999', name: 'Tri Thức Trẻ (HCM)' },
-                        { code: '0109988221', name: 'Sách Phố Cổ (Hà Nội)' },
-                        { code: '0317654321', name: 'Sách Cũ Sài Gòn' },
-                        { code: '0402123456', name: 'Hiệu Sách Đà Nẵng' },
-                        { code: '2901988776', name: 'Manga Xứ Nghệ' },
-                      ].map((item) => (
-                        <button
-                          key={item.code}
-                          type="button"
-                          onClick={() => {
-                            handleChange('businessType', 'INDIVIDUAL');
-                            handleChange('tax_code', item.code);
-                            handleLookupTaxCode(item.code);
-                          }}
-                          className="px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 text-emerald-900 font-medium rounded-lg border border-emerald-200/80 hover:border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
-                          title={`Điền tự động ${item.name} (${item.code})`}
-                        >
-                          <strong>{item.code}</strong> ({item.name})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                {/* Accordion gợi ý MST mẫu thử nghiệm (Thu gọn & Tự ẩn các mã đã tồn tại) */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowSampleDropdown((prev) => !prev)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200/90 bg-emerald-50/70 hover:bg-emerald-100/80 text-emerald-900 text-xs font-semibold transition-all shadow-2xs cursor-pointer select-none active:scale-98"
+                  >
+                    <span className="material-symbols-outlined text-[15px] text-emerald-700">auto_fix_high</span>
+                    <span>Gợi ý MST mẫu thử nghiệm ({availableIndividuals.length + availableEnterprises.length} mã khả dụng)</span>
+                    <span
+                      className={`material-symbols-outlined text-[16px] text-emerald-700 transition-transform duration-200 ${
+                        showSampleDropdown ? 'rotate-180' : ''
+                      }`}
+                    >
+                      keyboard_arrow_down
+                    </span>
+                  </button>
 
-                  {/* Doanh nghiệp & NXB */}
-                  <div>
-                    <div className="flex items-center gap-1.5 text-slate-500 font-semibold mb-1 text-[11px]">
-                      <span className="material-symbols-outlined text-[14px] text-blue-600">corporate_fare</span>
-                      <span>Mẫu Doanh Nghiệp &amp; NXB (Bấm tự điền):</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        { code: '0318926410', name: 'Trí Tuệ Việt (LLC)' },
-                        { code: '0101234567', name: 'NXB Kim Đồng' },
-                        { code: '0302482782', name: 'Nhã Nam Books' },
-                        { code: '0101736294', name: 'Thái Hà Books' },
-                        { code: '0102103867', name: 'Alpha Books' },
-                        { code: '0300528676', name: 'NXB Trẻ' },
-                        { code: '0304322471', name: 'Phương Nam Books' },
-                        { code: '0301452937', name: 'Fahasa' },
-                      ].map((item) => (
+                  {showSampleDropdown && (
+                    <div className="mt-2 p-3.5 bg-slate-50 border border-slate-200/90 rounded-xl shadow-2xs space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                      {/* Hộ kinh doanh cá thể */}
+                      {availableIndividuals.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 text-slate-600 font-semibold mb-1.5 text-[11px]">
+                            <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
+                            <span>Mẫu Hộ Kinh Doanh Cá Thể ({availableIndividuals.length} mã chưa dùng):</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {availableIndividuals.map((item) => (
+                              <button
+                                key={item.code}
+                                type="button"
+                                onClick={() => {
+                                  handleChange('businessType', 'INDIVIDUAL');
+                                  handleChange('tax_code', item.code);
+                                  handleLookupTaxCode(item.code);
+                                  setShowSampleDropdown(false);
+                                }}
+                                className="px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-950 font-medium rounded-lg border border-emerald-200 hover:border-emerald-400 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
+                                title={`Điền tự động ${item.name} (${item.code})`}
+                              >
+                                <strong className="font-mono text-emerald-700">{item.code}</strong> ({item.name})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Doanh nghiệp & NXB */}
+                      {availableEnterprises.length > 0 && (
+                        <div>
+                          <div className="flex items-center gap-1.5 text-slate-600 font-semibold mb-1.5 text-[11px]">
+                            <span className="material-symbols-outlined text-[14px] text-blue-600">corporate_fare</span>
+                            <span>Mẫu Doanh Nghiệp &amp; NXB ({availableEnterprises.length} mã chưa dùng):</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {availableEnterprises.map((item) => (
+                              <button
+                                key={item.code}
+                                type="button"
+                                onClick={() => {
+                                  handleChange('businessType', item.name.includes('LLC') ? 'LLC' : 'CORPORATION');
+                                  handleChange('tax_code', item.code);
+                                  handleLookupTaxCode(item.code);
+                                  setShowSampleDropdown(false);
+                                }}
+                                className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-950 font-medium rounded-lg border border-blue-200 hover:border-blue-400 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
+                                title={`Điền tự động ${item.name} (${item.code})`}
+                              >
+                                <strong className="font-mono text-blue-700">{item.code}</strong> ({item.name})
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[10px] text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[13px] text-emerald-600">verified</span>
+                          Đã tự động ẩn các mã đã tồn tại trong CSDL để tránh báo lỗi trùng lặp khi nộp hồ sơ.
+                        </span>
                         <button
-                          key={item.code}
                           type="button"
-                          onClick={() => {
-                            handleChange('businessType', item.name.includes('LLC') ? 'LLC' : 'CORPORATION');
-                            handleChange('tax_code', item.code);
-                            handleLookupTaxCode(item.code);
-                          }}
-                          className="px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 text-blue-900 font-medium rounded-lg border border-blue-200/80 hover:border-blue-300 transition-all cursor-pointer shadow-2xs active:scale-95 text-[11px]"
-                          title={`Điền tự động ${item.name} (${item.code})`}
+                          onClick={() => setShowSampleDropdown(false)}
+                          className="text-slate-500 hover:text-slate-800 font-semibold cursor-pointer underline"
                         >
-                          <strong>{item.code}</strong> ({item.name})
+                          Thu gọn
                         </button>
-                      ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {isTaxVerified && (

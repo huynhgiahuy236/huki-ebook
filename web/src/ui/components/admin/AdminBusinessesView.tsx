@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { taxRegistryService } from '../../services/taxRegistryService';
+import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
 import GroupedDataTable, { Column } from '../common/GroupedDataTable';
@@ -162,6 +163,181 @@ export function AdminBusinessesView() {
   const [isAuditing, setIsAuditing] = useState(false);
   const [bizAuditLogs, setBizAuditLogs] = useState<AuditLogItem[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
+
+  // Cluster Audit Review State (Duyệt theo 4 cụm thẩm định)
+  const [clusterReview, setClusterReview] = useState<{
+    legal: { passed: boolean; note?: string };
+    representative: { passed: boolean; note?: string };
+    copyright: { passed: boolean; note?: string };
+    operation: { passed: boolean; note?: string };
+  }>({
+    legal: { passed: true },
+    representative: { passed: true },
+    copyright: { passed: true },
+    operation: { passed: true },
+  });
+
+  const [editingClusterNote, setEditingClusterNote] = useState<{
+    key: 'legal' | 'representative' | 'copyright' | 'operation';
+    title: string;
+    note: string;
+  } | null>(null);
+
+  const [requestRevisionModalOpen, setRequestRevisionModalOpen] = useState(false);
+
+  // Đồng bộ cluster review từ storage khi chọn doanh nghiệp
+  useEffect(() => {
+    if (!selectedBiz) return;
+    try {
+      const saved = localStorage.getItem(`huki_business_cluster_audit_${selectedBiz.id}`);
+      if (saved) {
+        setClusterReview(JSON.parse(saved));
+        return;
+      }
+    } catch {
+      // fallback
+    }
+    setClusterReview({
+      legal: { passed: true },
+      representative: { passed: true },
+      copyright: { passed: true },
+      operation: { passed: true },
+    });
+  }, [selectedBiz?.id]);
+
+  const updateClusterStatus = (
+    key: 'legal' | 'representative' | 'copyright' | 'operation',
+    passed: boolean,
+    note?: string
+  ) => {
+    setClusterReview((prev) => {
+      const updated = {
+        ...prev,
+        [key]: { passed, note: passed ? undefined : (note !== undefined ? note : prev[key]?.note || '') },
+      };
+      if (selectedBiz?.id) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(updated));
+        if (selectedBiz.taxCode) {
+          localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(updated));
+        }
+        realtimeSyncBus.publish({
+          type: 'BUSINESS_CLUSTER_AUDIT_UPDATED',
+          payload: {
+            businessId: selectedBiz.id,
+            clusters: updated,
+          },
+        });
+      }
+      return updated;
+    });
+  };
+
+  const handleSendRevisionRequest = () => {
+    if (!selectedBiz) return;
+    const flagged = Object.entries(clusterReview).filter(([_, v]) => !v.passed);
+    if (flagged.length === 0) {
+      showToast?.({
+        title: 'Cả 4 cụm đều Đạt',
+        message: 'Không có cụm nào bị đánh dấu lỗi. Bạn có thể bấm Phê duyệt ngay!',
+        type: 'info',
+      });
+      return;
+    }
+
+    if (selectedBiz.id) {
+      localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(clusterReview));
+      if (selectedBiz.taxCode) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(clusterReview));
+      }
+      realtimeSyncBus.publish({
+        type: 'BUSINESS_CLUSTER_AUDIT_UPDATED',
+        payload: {
+          businessId: selectedBiz.id,
+          clusters: clusterReview,
+        },
+      });
+    }
+
+    showToast?.({
+      title: 'Đã gửi yêu cầu bổ sung hồ sơ',
+      message: `Đã phản hồi ${flagged.length} cụm cần chỉnh sửa tới đối tác "${selectedBiz.name}".`,
+      type: 'success',
+    });
+    setRequestRevisionModalOpen(false);
+  };
+
+  const renderClusterControl = (
+    clusterKey: 'legal' | 'representative' | 'copyright' | 'operation',
+    clusterNumber: number,
+    clusterTitle: string,
+    fieldCountText: string
+  ) => {
+    const current = clusterReview[clusterKey];
+    const isPassed = current?.passed !== false;
+
+    return (
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+        <div className="flex items-center gap-2.5">
+          <span
+            className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+              isPassed ? 'bg-emerald-100 text-[#00875A]' : 'bg-amber-100 text-amber-800'
+            }`}
+          >
+            {clusterNumber}
+          </span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-extrabold text-gray-900">{clusterTitle}</h3>
+              <span className="text-[11px] font-medium text-gray-400">• {fieldCountText}</span>
+            </div>
+            {current?.note && !isPassed && (
+              <p className="text-xs text-amber-800 font-medium mt-0.5 flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                <span>Ghi chú lỗi: {current.note}</span>
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => updateClusterStatus(clusterKey, true)}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              isPassed
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+            title="Đánh dấu cụm này Đạt tiêu chuẩn"
+          >
+            <span className="material-symbols-outlined text-[15px]">check_circle</span>
+            <span>✓ Đạt</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              updateClusterStatus(clusterKey, false);
+              setEditingClusterNote({
+                key: clusterKey,
+                title: clusterTitle,
+                note: current?.note || '',
+              });
+            }}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              !isPassed
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-amber-50 hover:text-amber-800'
+            }`}
+            title="Đánh dấu cụm này Chưa đạt / Cần sửa"
+          >
+            <span className="material-symbols-outlined text-[15px]">flag</span>
+            <span>{!isPassed ? '! Đã đánh dấu' : '! Đánh dấu'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   // Modal / Preview State
   const [previewImageUrl, setPreviewImageUrl] = useState<any>(null);
@@ -831,6 +1007,8 @@ export function AdminBusinessesView() {
     const fullProfile = buildFullEnterpriseProfile(selectedBiz);
     const cfg = (STATUS_CONFIG as any)[selectedBiz.status] || STATUS_CONFIG.PENDING_APPROVAL;
     const isPending = selectedBiz.status === 'PENDING_APPROVAL';
+    const passedClusterCount = Object.values(clusterReview).filter((c) => c.passed).length;
+    const allClustersPassed = passedClusterCount === 4;
 
     return (
       <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
@@ -868,26 +1046,43 @@ export function AdminBusinessesView() {
           <div className="flex items-center gap-2 self-end md:self-auto">
             {isPending && (
               <>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
+                  allClustersPassed ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-900 border border-amber-300'
+                }`}>
+                  <span className="material-symbols-outlined text-[15px]">{allClustersPassed ? 'done_all' : 'checklist'}</span>
+                  <span>{passedClusterCount}/4 Cụm Đạt</span>
+                </span>
+
                 <button
                   onClick={() => {
                     setRejectModalBiz(selectedBiz);
                     setRejectReason('');
                   }}
                   disabled={actionLoadingId === selectedBiz.id}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <span className="material-symbols-outlined text-[16px]">close</span>
                   <span>Từ chối hồ sơ</span>
                 </button>
 
-                <button
-                  onClick={() => handleApprove(selectedBiz)}
-                  disabled={actionLoadingId === selectedBiz.id}
-                  className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                  <span>Phê duyệt ngay</span>
-                </button>
+                {allClustersPassed ? (
+                  <button
+                    onClick={() => handleApprove(selectedBiz)}
+                    disabled={actionLoadingId === selectedBiz.id}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <span>Phê duyệt ngay (4/4 Cụm)</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setRequestRevisionModalOpen(true)}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                    <span>Yêu cầu sửa ({4 - passedClusterCount} cụm)</span>
+                  </button>
+                )}
               </>
             )}
 
@@ -1001,22 +1196,7 @@ export function AdminBusinessesView() {
         {/* 3. KHỐI 1: THÔNG TIN DOANH NGHIỆP & PHÁP LÝ (12 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-emerald-100 text-[#00875A] flex items-center justify-center font-bold text-xs">
-                1
-              </span>
-              <div>
-                <h3 className="text-sm font-extrabold text-gray-900">
-                  Form 1: Thông Tin Doanh Nghiệp &amp; Pháp Lý
-                </h3>
-                <p className="text-[11px] text-gray-500">Đối chiếu 12 trường thông tin với CSDL Tổng cục Thuế &amp; Cổng ĐKKD Quốc Gia</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              12 Trường Dữ Liệu
-            </span>
-          </div>
+          {renderClusterControl('legal', 1, 'Cụm 1: Thông Tin Doanh Nghiệp & Pháp Lý', '12 Trường Dữ Liệu')}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {renderFieldAuditCard('tax_code', 'Mã số thuế', fullProfile.tax_code)}
@@ -1040,22 +1220,7 @@ export function AdminBusinessesView() {
         {/* 4. KHỐI 2: NGƯỜI ĐẠI DIỆN PHÁP LUẬT (8 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-emerald-100 text-[#00875A] flex items-center justify-center font-bold text-xs">
-                2
-              </span>
-              <div>
-                <h3 className="text-sm font-extrabold text-gray-900">
-                  Form 2: Người Đại Diện Pháp Luật
-                </h3>
-                <p className="text-[11px] text-gray-500">Đối chiếu 8 trường nhân thân, số CCCD 12 số và quyền đại diện pháp nhân</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              8 Trường Dữ Liệu
-            </span>
-          </div>
+          {renderClusterControl('representative', 2, 'Cụm 2: Người Đại Diện Pháp Luật & CCCD', '8 Trường Dữ Liệu')}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {renderFieldAuditCard('rep_full_name', 'Họ tên người đại diện', fullProfile.rep_full_name)}
@@ -1073,22 +1238,7 @@ export function AdminBusinessesView() {
         {/* 5. KHỐI 3: TÀI KHOẢN NGÂN HÀNG & THANH TOÁN (4 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-emerald-100 text-[#00875A] flex items-center justify-center font-bold text-xs">
-                3
-              </span>
-              <div>
-                <h3 className="text-sm font-extrabold text-gray-900">
-                  Form 3: Thông Tin Tài Khoản Ngân Hàng &amp; Đối Soát Doanh Thu
-                </h3>
-                <p className="text-[11px] text-gray-500">Kiểm tra mạng lưới NAPAS và kiểm tra luật Chống Rửa Tiền (AML Check)</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              4 Trường Dữ Liệu
-            </span>
-          </div>
+          {renderClusterControl('operation', 4, 'Cụm 4: Tài Khoản Ngân Hàng & Tuyến Kho Đối Soát', '4 Trường Dữ Liệu')}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {renderFieldAuditCard('bank_name', 'Ngân hàng thụ hưởng', fullProfile.bank_name)}
@@ -1102,22 +1252,7 @@ export function AdminBusinessesView() {
         {/* 6. KHỐI 4: HỒ SƠ NĂNG LỰC & XUẤT BẢN (5 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-emerald-100 text-[#00875A] flex items-center justify-center font-bold text-xs">
-                4
-              </span>
-              <div>
-                <h3 className="text-sm font-extrabold text-gray-900">
-                  Form 4: Hồ Sơ Năng Lực &amp; Ngành Nghề Xuất Bản
-                </h3>
-                <p className="text-[11px] text-gray-500">Giấy phép phát hành xuất bản phẩm điện tử theo Luật Xuất Bản Việt Nam</p>
-              </div>
-            </div>
-            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
-              5 Trường Dữ Liệu
-            </span>
-          </div>
+          {renderClusterControl('copyright', 3, 'Cụm 3: Hồ Sơ Năng Lực & Tiêu Chuẩn Bản Quyền Sách', '5 Trường Dữ Liệu')}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
             {renderFieldAuditCard('partner_type', 'Phân loại đối tác', fullProfile.partner_type)}
@@ -1300,13 +1435,24 @@ export function AdminBusinessesView() {
                   Từ chối hồ sơ
                 </button>
 
-                <button
-                  onClick={() => handleApprove(selectedBiz)}
-                  disabled={actionLoadingId === selectedBiz.id}
-                  className="px-6 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-md cursor-pointer"
-                >
-                  Phê duyệt hồ sơ này
-                </button>
+                {allClustersPassed ? (
+                  <button
+                    onClick={() => handleApprove(selectedBiz)}
+                    disabled={actionLoadingId === selectedBiz.id}
+                    className="px-6 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <span>Phê duyệt hồ sơ này (4/4 Cụm Đạt)</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setRequestRevisionModalOpen(true)}
+                    className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                    <span>Yêu cầu bổ sung hồ sơ ({4 - passedClusterCount} cụm chưa đạt)</span>
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1835,6 +1981,104 @@ export function AdminBusinessesView() {
                 className="px-4 py-1.5 text-xs font-bold bg-[#003B2B] text-white rounded-xl hover:bg-[#00281D]"
               >
                 Đóng
+              </button>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* MODAL: NHẬP GHI CHÚ YÊU CẦU CHỈNH SỬA CHO CỤM */}
+      {editingClusterNote && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setEditingClusterNote(null)}
+          title={`Ghi Chú Đánh Dấu: ${editingClusterNote.title}`}
+          size="md"
+        >
+          <div className="p-4 flex flex-col gap-3">
+            <p className="text-xs text-slate-600">
+              Nhập chi tiết lỗi hoặc tài liệu cần đối tác chỉnh sửa / bổ sung lại:
+            </p>
+            <textarea
+              rows={3}
+              value={editingClusterNote.note}
+              onChange={(e) => setEditingClusterNote({ ...editingClusterNote, note: e.target.value })}
+              placeholder="VD: Ảnh chụp CCCD mặt sau bị mờ, vui lòng chụp lại rõ số..."
+              className="w-full text-xs p-3 border border-slate-300 rounded-xl focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
+            />
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setEditingClusterNote(null)}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  updateClusterStatus(editingClusterNote.key, false, editingClusterNote.note.trim());
+                  setEditingClusterNote(null);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 cursor-pointer"
+              >
+                Lưu ghi chú
+              </button>
+            </div>
+          </div>
+        </CustomModal>
+      )}
+
+      {/* MODAL: XÁC NHẬN GỬI YÊU CẦU BỔ SUNG HỒ SƠ */}
+      {requestRevisionModalOpen && (
+        <CustomModal
+          isOpen={true}
+          onClose={() => setRequestRevisionModalOpen(false)}
+          title="Xác Nhận Yêu Cầu Bổ Sung Hồ Sơ"
+          size="md"
+        >
+          <div className="p-4 flex flex-col gap-3.5">
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
+              Bạn đang yêu cầu doanh nghiệp <strong>{selectedBiz?.name}</strong> bổ sung hồ sơ theo các cụm được đánh dấu dưới đây:
+            </div>
+
+            <div className="space-y-2">
+              {Object.entries(clusterReview).filter(([_, v]) => !v.passed).map(([k, v]) => {
+                const names: Record<string, string> = {
+                  legal: 'Cụm 1: Pháp Lý & Mã Số Thuế',
+                  representative: 'Cụm 2: Người Đại Diện Pháp Luật & CCCD',
+                  copyright: 'Cụm 3: Tiêu Chuẩn Sách & Bản Quyền',
+                  operation: 'Cụm 4: Kho Hàng & Tài Khoản Ngân Hàng',
+                };
+                return (
+                  <div key={k} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[15px] text-amber-600">flag</span>
+                      <span>{names[k]}</span>
+                    </div>
+                    <div className="text-slate-600 mt-1 text-[11px]">
+                      Ghi chú: {v.note || 'Yêu cầu kiểm tra và chỉnh sửa lại'}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRequestRevisionModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                onClick={handleSendRevisionRequest}
+                className="px-5 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 shadow-2xs cursor-pointer flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">send</span>
+                <span>Gửi Yêu Cầu Chỉnh Sửa</span>
               </button>
             </div>
           </div>

@@ -52,6 +52,7 @@ export default function SellerSetupStorePage() {
   });
   const [pinErrors, setPinErrors] = useState<Record<string, string>>({});
   const [hasPinConfigured, setHasPinConfigured] = useState(false);
+  const [wantsToChangePin, setWantsToChangePin] = useState(false);
 
   // Available banks list for dropdown
   const availableBanks = useMemo(() => getUniqueBanks(), []);
@@ -945,7 +946,7 @@ export default function SellerSetupStorePage() {
                       <span>Đang lưu...</span>
                     </>
                   ) : (
-                    <span>Lưu &amp; Xem lại Tổng quan →</span>
+                    <span>{hasPinConfigured && !wantsToChangePin ? 'Giữ nguyên Mã PIN & Tiếp tục →' : hasPinConfigured ? 'Cập nhật Mã PIN & Tiếp tục →' : 'Lưu & Xem lại Tổng quan →'}</span>
                   )}
                 </button>
               </div>
