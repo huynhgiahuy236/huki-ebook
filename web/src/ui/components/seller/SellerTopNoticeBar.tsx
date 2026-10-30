@@ -82,8 +82,8 @@ export default function SellerTopNoticeBar() {
   const style = getSeverityStyle(currentNotice.severity);
 
   return (
-    <aside aria-label="Thông báo quản trị sàn" className={`w-full border-b backdrop-blur-xs px-3.5 sm:px-6 py-2 transition-all select-none ${style.wrapper}`}>
-      <div className="max-w-7xl mx-auto flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 text-xs">
+    <aside aria-label="Thông báo quản trị sàn" className={`w-full border-b backdrop-blur-xs px-3 sm:px-6 py-2 transition-all select-none ${style.wrapper}`}>
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
         {/* Left: Icon & Title & Summary */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           <span className={`material-symbols-outlined text-[19px] shrink-0 ${style.iconColor}`}>

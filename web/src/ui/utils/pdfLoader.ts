@@ -6,7 +6,7 @@ export async function getPdfLib() {
     pdfjsLib = await import('pdfjs-dist');
     if ('Worker' in window && pdfjsLib?.GlobalWorkerOptions) {
       try {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
       } catch (err) {
         console.warn('PDF.js worker setup error:', err);
       }

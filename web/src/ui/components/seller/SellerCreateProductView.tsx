@@ -2539,36 +2539,36 @@ function SellerCreateProductContent({ initialFormat = 'BOTH' }: SellerCreateProd
       </main>
 
       {/* Sticky Bottom Action Bar */}
-      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border py-3 px-4 sm:px-6 lg:px-8 flex items-center justify-between shadow-lg">
-        <div className="flex items-center gap-2 text-xs text-on-surface-variant font-medium">
+      <footer className="sticky bottom-0 z-30 bg-surface-container-lowest/95 backdrop-blur-md border-t border-theme-border py-2.5 sm:py-3 px-3 sm:px-6 lg:px-8 flex items-center justify-between shadow-lg gap-2">
+        <div className="hidden md:flex items-center gap-2 text-xs text-on-surface-variant font-medium shrink-0">
           <span className="material-symbols-outlined text-primary text-base">cloud_done</span>
           <span>Dữ liệu lưu trực tiếp vào CSDL Sàn HUKI</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <Link href="/seller/products" className="px-3.5 py-2 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer">
+        <div className="flex items-center justify-between sm:justify-end gap-1.5 sm:gap-3 w-full md:w-auto">
+          <Link href="/seller/products" className="px-2 sm:px-3.5 py-2 text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors cursor-pointer shrink-0">
             Hủy / Thoát
           </Link>
           <button 
             type="button"
             disabled={isSubmitting}
             onClick={() => handleSubmit(true)}
-            className="px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer disabled:opacity-60"
+            className="px-2.5 sm:px-4 py-2 rounded-xl border border-theme-border bg-surface-container-lowest text-xs font-semibold text-on-surface hover:bg-surface-container transition-all shadow-xs cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
           >
-            Lưu Bản Nháp
+            Lưu Nháp
           </button>
 
           <button 
             type="button"
             disabled={isSubmitting}
             onClick={() => handleSubmit(false)}
-            className="px-6 py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center gap-2 cursor-pointer disabled:opacity-60"
+            className="px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl bg-primary hover:opacity-90 text-white font-title-md text-xs font-bold tracking-wide transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             {isSubmitting ? (
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
             ) : (
               <>
-                <span>{getSubmitButtonLabel()}</span>
+                <span className="truncate max-w-[140px] sm:max-w-none">{getSubmitButtonLabel()}</span>
                 <span className="material-symbols-outlined text-sm">arrow_forward</span>
               </>
             )}

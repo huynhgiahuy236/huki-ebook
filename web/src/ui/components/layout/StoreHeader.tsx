@@ -894,27 +894,6 @@ export default function StoreHeader({
                     </div>
                   </div>
 
-                  {/* Dark Mode Toggle */}
-                  <div className="border-t border-[var(--theme-border,#e8e5df)] my-1.5 pt-1.5">
-                    <div className="flex items-center justify-between px-2.5 py-1.5 text-[11.5px] font-medium text-[var(--theme-text,#17201f)]">
-                      <div className="flex items-center gap-1.5">
-                        <span className="material-symbols-outlined text-[15px] text-[var(--theme-text-muted,#6b7280)]">
-                          {isDarkMode ? 'dark_mode' : 'light_mode'}
-                        </span>
-                        <span>Chế độ ban đêm</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={toggleDarkMode}
-                        className={`w-8 h-5 rounded-full p-0.5 flex items-center transition-colors cursor-pointer ${
-                          isDarkMode ? 'bg-[#003b2b]' : 'bg-gray-300'
-                        }`}
-                        aria-label="Chuyển đổi Dark mode"
-                      >
-                        <div className={`w-3.5 h-3.5 rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-3.5' : ''}`} />
-                      </button>
-                    </div>
-                  </div>
 
                   <div className="border-t border-[var(--theme-border,#e8e5df)] my-1.5"></div>
 

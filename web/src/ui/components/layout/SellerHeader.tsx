@@ -96,8 +96,8 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
     <header className="sticky top-0 z-40 bg-white border-b border-[#E2E8F0] pl-0 pr-3.5 sm:pr-5 lg:pr-6 flex items-center justify-between shadow-2xs min-h-[54px] h-[54px] gap-2 sm:gap-3">
       {/* Left: Sidebar Toggle & Brand Identity */}
       <div className="flex items-center min-w-0">
-        {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align with collapsed sidebar */}
-        <div className="w-[60px] flex items-center justify-center shrink-0">
+        {/* Hamburger / Sidebar Toggle Container */}
+        <div className="w-10 sm:w-[60px] flex items-center justify-center shrink-0">
           {/* Desktop Sidebar Collapse Toggle Button */}
           <button
             type="button"
@@ -115,25 +115,25 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           <button
             type="button"
             onClick={toggleMobileSidebar}
-            className="lg:hidden w-9 h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
+            className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 border border-[#E2E8F0] cursor-pointer active:scale-95"
             title="Mở menu"
             aria-label="Open Mobile Menu"
           >
-            <span className="material-symbols-outlined text-[20px] text-[#003B2B]">menu</span>
+            <span className="material-symbols-outlined text-[18px] sm:text-[20px] text-[#003B2B]">menu</span>
           </button>
         </div>
 
         {/* Brand - Chuẩn nhận diện Home & Admin (Không icon thừa) */}
-        <Link href="/seller/dashboard" className="flex flex-col group select-none pl-1 pr-3 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="font-editorial text-base sm:text-lg font-black tracking-tight text-[#003B2B] leading-none">
+        <Link href="/seller/dashboard" className="flex flex-col group select-none pl-1 pr-2 sm:pr-3 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            <span className="font-editorial text-sm sm:text-lg font-black tracking-tight text-[#003B2B] leading-none whitespace-nowrap">
               HUKI EBOOK
             </span>
-            <span className="bg-[#003B2B] text-white text-[7.5px] sm:text-[8px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider">
+            <span className="bg-[#003B2B] text-white text-[7px] sm:text-[8px] font-black uppercase px-1 sm:px-1.5 py-0.5 rounded tracking-wider">
               SELLER
             </span>
           </div>
-          <span className="text-[7.5px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5">
+          <span className="text-[7px] sm:text-[8px] uppercase tracking-widest text-[#006953] font-bold mt-0.5 whitespace-nowrap">
             Kênh NXB &amp; Tác Giả
           </span>
         </Link>
@@ -157,18 +157,18 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
       </div>
 
       {/* Right Actions */}
-      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 shrink-0">
         {/* Chuông Thông Báo Realtime Toàn Diện */}
         <UniversalNotificationBell variant="seller" />
 
-        {/* Nút Bật/Tắt Âm Thanh Thông Báo & Nổ Đơn */}
+        {/* Nút Bật/Tắt Âm Thanh Thông Báo & Nổ Đơn (Ẩn trên mobile để thoáng header) */}
         <button
           type="button"
           onClick={() => {
             const newMuted = soundEffects.toggleMute();
             setIsMuted(newMuted);
           }}
-          className="flex items-center justify-center w-8 sm:w-9 h-8 sm:h-9 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-all cursor-pointer shadow-2xs active:scale-95"
+          className="hidden sm:flex items-center justify-center w-8 sm:w-9 h-8 sm:h-9 rounded-xl border border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle transition-all cursor-pointer shadow-2xs active:scale-95"
           title={isMuted ? "Bật âm thanh chuông thông báo & đơn hàng" : "Tắt âm thanh chuông thông báo & đơn hàng"}
           aria-label="Bật/Tắt âm thanh"
         >
@@ -182,7 +182,7 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           href="/seller/chat"
           target={pathname.startsWith('/seller/chat') ? '_self' : '_blank'}
           rel="noopener noreferrer"
-          className={`relative flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full border transition-colors shrink-0 group ${
+          className={`relative flex items-center gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border transition-colors shrink-0 group ${
             pathname.startsWith('/seller/chat')
               ? 'bg-emerald-50 border-emerald-400 text-emerald-900 font-bold'
               : 'border-theme-border text-on-surface hover:text-[#003B2B] hover:bg-theme-secondary-subtle'
@@ -190,10 +190,10 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
           title="Mở cửa sổ Chat & Tin nhắn chăm sóc khách hàng"
           aria-label="Tin nhắn"
         >
-          <span className="material-symbols-outlined text-[17px] text-[#003B2B]">chat</span>
+          <span className="material-symbols-outlined text-[16px] sm:text-[17px] text-[#003B2B]">chat</span>
           <span className="hidden sm:inline text-xs font-semibold whitespace-nowrap group-hover:text-[#003B2B]">Tin nhắn</span>
           {unreadChatCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[10px] font-bold min-w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs">
+            <span className="absolute -top-1.5 -right-1.5 bg-[#dc2626] text-white text-[9px] sm:text-[10px] font-bold min-w-4 sm:min-w-4.5 h-4 sm:h-4.5 px-1 rounded-full flex items-center justify-center shadow-xs">
               {unreadChatCount > 99 ? '99+' : unreadChatCount}
             </span>
           )}
@@ -201,20 +201,20 @@ export default function SellerHeader({ isSidebarCollapsed, toggleSidebar, toggle
 
         <Link
           href="/seller/product/create-hybrid"
-          className="flex items-center gap-1.5 bg-theme-primary text-white px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-sm shrink-0 whitespace-nowrap"
+          className="flex items-center gap-1 bg-theme-primary text-white px-2 sm:px-3 py-1.5 rounded-xl text-xs font-bold hover:opacity-90 transition-all shadow-sm shrink-0 whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[15px]">add_circle</span>
           <span className="hidden sm:inline">Thêm Sản Phẩm</span>
-          <span className="sm:hidden">Thêm</span>
+          <span className="sm:hidden text-[11px]">Thêm</span>
         </Link>
 
-        <div className="h-4 w-px bg-theme-border shrink-0"></div>
+        <div className="hidden sm:block h-4 w-px bg-theme-border shrink-0"></div>
 
         <Link
           href="/"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 text-xs font-semibold text-theme-primary hover:bg-theme-secondary-subtle px-2 sm:px-2.5 py-1.5 rounded-xl border border-theme-border transition-colors shrink-0 whitespace-nowrap"
+          className="hidden sm:flex items-center gap-1 text-xs font-semibold text-theme-primary hover:bg-theme-secondary-subtle px-2 sm:px-2.5 py-1.5 rounded-xl border border-theme-border transition-colors shrink-0 whitespace-nowrap"
         >
           <span className="material-symbols-outlined text-[15px]">open_in_new</span>
           <span className="hidden sm:inline">Về Sàn</span>

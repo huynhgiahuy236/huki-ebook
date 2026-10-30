@@ -55,10 +55,8 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     try {
-      // Force default green theme, clear old custom themes
       localStorage.setItem('huki_color_theme', 'huki-original');
-      const savedDark = localStorage.getItem('huki_dark_mode') === 'true';
-      setIsDarkMode(savedDark);
+      localStorage.removeItem('huki_dark_mode');
     } catch {
       // ignore
     }
@@ -71,21 +69,14 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const toggleDarkMode = () => {
-    setIsDarkMode(prev => {
-      const next = !prev;
-      try {
-        localStorage.setItem('huki_dark_mode', String(next));
-      } catch (e) {
-        console.warn('Could not persist dark mode to localStorage', e);
-      }
-      return next;
-    });
+    // Dark mode is permanently disabled
   };
 
-  // Synchronize CSS variables and dark mode with documentElement
+  // Synchronize CSS variables with documentElement (Light mode only)
   useEffect(() => {
     const root = document.documentElement;
     root.setAttribute('data-theme', 'huki-original');
+    root.classList.remove('dark');
 
     // Bind primary brand green tokens
     root.style.setProperty('--theme-primary', '#003B2B');
@@ -94,13 +85,7 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     root.style.setProperty('--theme-accent', '#AC2C19');
     root.style.setProperty('--theme-header-bg', '#003B2B');
     root.style.setProperty('--theme-header-accent', '#94F5D6');
-
-    if (isDarkMode) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-  }, [isDarkMode]);
+  }, []);
 
   return (
     <ThemeContext.Provider

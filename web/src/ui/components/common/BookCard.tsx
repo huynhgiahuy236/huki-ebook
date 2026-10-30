@@ -441,115 +441,117 @@ export default function BookCard({
     );
   }
 
-  // 2. STANDARD / COMPACT / GRID VARIANT (Clean, Spacious, No Mock Data)
+  // 2. STANDARD / COMPACT / GRID VARIANT (Shopee-style Compact & High-density)
   return (
     <article
       onClick={handleCardClick}
-      className={`group bg-white rounded-xl border border-slate-200/80 hover:border-[#00875A] hover:shadow-md transition-all flex flex-col justify-between p-3 relative cursor-pointer overflow-hidden ${className}`}
+      className={`group bg-white rounded-lg border border-slate-200/80 hover:border-[#00875A] hover:shadow-md transition-all flex flex-col justify-between relative cursor-pointer overflow-hidden ${className}`}
     >
-      <div className="flex flex-col flex-1">
-        {/* Spacious Book Cover Container */}
-        <div className="relative aspect-[3/4] w-full rounded-lg overflow-hidden bg-slate-50 mb-2.5 flex items-center justify-center border border-slate-100 group/cover">
-          <BookCover
-            src={book.cover || book.coverUrl}
-            title={book.title}
-            author={authorName}
-            className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
-          />
-
-          {/* Nút Yêu Thích (Wishlist Heart Button) */}
-          <button
-            type="button"
-            onClick={handleToggleWishlist}
-            className={`absolute top-1.5 right-1.5 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
-              isWishlisted
-                ? 'bg-rose-500 text-white shadow-rose-500/30 scale-105'
-                : 'bg-black/35 hover:bg-black/60 text-white/90 hover:text-white'
-            }`}
-            title={isWishlisted ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào yêu thích'}
-          >
-            <span className={`material-symbols-outlined text-[15px] ${isWishlisted ? 'fill-current' : ''}`}>
-              {isWishlisted ? 'favorite' : 'favorite_border'}
-            </span>
-          </button>
-
-          {/* Genuine Format / Flash Sale Badges (Only shown when real) */}
-          <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1">
-            {isFlashSale && (
-              <span className="bg-rose-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
-                ⚡ Flash Sale
-              </span>
-            )}
-            {formatType === 'ebook' && (
-              <span className="bg-[#00875A] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
-                Ebook
-              </span>
-            )}
-            {formatType === 'hybrid' && (
-              <span className="bg-indigo-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
-                Combo
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Authentic Book Title (No fake prefixes) */}
-        <h3
-          className="text-xs sm:text-[13px] font-bold text-slate-900 line-clamp-2 leading-snug group-hover:text-[#00875A] transition-colors mb-1 min-h-[32px]"
+      {/* 1:1 Aspect Ratio Cover Container (Flush with card edges like Shopee) */}
+      <div className="relative aspect-square w-full overflow-hidden bg-slate-50 flex items-center justify-center group/cover border-b border-slate-100">
+        <BookCover
+          src={book.cover || book.coverUrl}
           title={book.title}
-        >
-          {book.title}
-        </h3>
+          author={authorName}
+          className="group-hover:scale-105 transition-transform duration-300 w-full h-full object-cover"
+        />
 
-        {/* Author Name */}
-        {authorName && authorName !== 'Tác giả' && (
-          <p className="text-[11px] text-slate-500 truncate mb-1">{authorName}</p>
+        {/* Nút Yêu Thích (Wishlist Heart Button) - Bottom right of cover image */}
+        <button
+          type="button"
+          onClick={handleToggleWishlist}
+          className={`absolute bottom-1.5 right-1.5 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all backdrop-blur-md shadow-xs cursor-pointer ${
+            isWishlisted
+              ? 'bg-rose-500 text-white shadow-rose-500/30 scale-105'
+              : 'bg-white/80 hover:bg-white text-slate-600 hover:text-rose-500 shadow-2xs'
+          }`}
+          title={isWishlisted ? 'Bỏ khỏi danh sách yêu thích' : 'Thêm vào yêu thích'}
+        >
+          <span className={`material-symbols-outlined text-[14px] ${isWishlisted ? 'fill-current text-white' : ''}`}>
+            {isWishlisted ? 'favorite' : 'favorite_border'}
+          </span>
+        </button>
+
+        {/* Discount Badge in Top-Right Corner (like Shopee) */}
+        {discountLabel && (
+          <div className="absolute top-0 right-0 z-10 bg-amber-400 text-rose-700 text-[10px] font-black px-1.5 py-0.5 rounded-bl shadow-2xs">
+            {discountLabel}
+          </div>
         )}
 
-        {/* Authentic Rating & Sales (Luôn hiển thị chuẩn chỉnh từ DB & đánh giá) */}
-        <div className="flex items-center gap-1.5 mb-1.5 text-[11px] flex-wrap">
-          {displayRating ? (
-            <div className="flex items-center gap-0.5 text-amber-500 font-bold">
-              <span className="material-symbols-outlined text-[13px] fill-current">star</span>
-              <span>{displayRating}</span>
-            </div>
-          ) : (
-            <span className="text-slate-400 text-[10.5px]">Chưa có đánh giá</span>
-          )}
-          <span className="text-slate-300 text-[10px]">•</span>
-          <span className="text-slate-500 text-[10.5px]">
-            Đã bán {displaySales}
-          </span>
-        </div>
-
-        {/* Pricing Row: Green Price + Original Strikethrough + Discount */}
-        <div className="flex items-baseline gap-1.5 flex-wrap mt-auto pt-1">
-          <span className="text-sm sm:text-[15px] font-extrabold text-[#00875A] font-mono">
-            {price.toLocaleString('vi-VN')}₫
-          </span>
-          {originalPrice && originalPrice > price && (
-            <span className="text-[11px] text-slate-400 line-through font-mono">
-              {originalPrice.toLocaleString('vi-VN')}₫
+        {/* Genuine Format / Flash Sale Badges in Top-Left */}
+        <div className="absolute top-1.5 left-1.5 z-10 flex flex-col gap-1 pointer-events-none">
+          {isFlashSale && (
+            <span className="bg-rose-600 text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow-xs flex items-center gap-0.5">
+              ⚡ Flash Sale
             </span>
           )}
-          {discountLabel && (
-            <span className="text-[9.5px] text-rose-600 bg-rose-50 border border-rose-200/60 px-1.5 py-0.2 rounded font-bold">
-              {discountLabel}
+          {formatType === 'ebook' && (
+            <span className="bg-[#00875A] text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+              Ebook
+            </span>
+          )}
+          {formatType === 'hybrid' && (
+            <span className="bg-indigo-700 text-white text-[8px] font-bold px-1.5 py-0.5 rounded shadow-xs">
+              Combo
             </span>
           )}
         </div>
       </div>
 
-      {/* Quick Add Button */}
-      <div className="mt-2.5 pt-2 border-t border-slate-100">
-        <button
-          type="button"
-          onClick={handleAddToCart}
-          className="w-full py-1.5 rounded-lg border border-[#00875A]/40 text-[#00875A] hover:bg-[#00875A] hover:text-white transition-all text-[11.5px] font-bold text-center flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs active:scale-[0.98]"
-        >
-          <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
-          <span>Thêm giỏ</span>
-        </button>
+      {/* Card Body - Tight and Compact padding like Shopee */}
+      <div className="p-2 sm:p-2.5 flex flex-col flex-1 justify-between gap-1">
+        <div>
+          {/* Authentic Book Title (2 lines max, compact line height) */}
+          <h3
+            className="text-xs sm:text-[13px] font-medium text-slate-800 line-clamp-2 leading-[1.35] group-hover:text-[#00875A] transition-colors min-h-[32px]"
+            title={book.title}
+          >
+            {book.title}
+          </h3>
+
+          {/* Author Name */}
+          {authorName && authorName !== 'Tác giả' && (
+            <p className="text-[10.5px] text-slate-400 truncate mt-0.5">{authorName}</p>
+          )}
+
+          {/* Rating & Sales in compact 1-line row */}
+          <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-500">
+            {displayRating ? (
+              <div className="flex items-center gap-0.5 text-amber-500 font-bold">
+                <span className="material-symbols-outlined text-[12px] fill-current">star</span>
+                <span>{displayRating}</span>
+              </div>
+            ) : (
+              <span className="text-slate-400">Chưa có đánh giá</span>
+            )}
+            <span className="text-slate-300">•</span>
+            <span>Đã bán {displaySales}</span>
+          </div>
+        </div>
+
+        {/* Pricing Row + Compact Add to Cart (Same row to save vertical height) */}
+        <div className="flex items-center justify-between gap-1.5 pt-1.5 mt-auto border-t border-slate-100">
+          <div className="flex flex-col min-w-0">
+            <span className="text-xs sm:text-sm font-bold text-[#00875A] font-mono leading-tight">
+              {price.toLocaleString('vi-VN')}₫
+            </span>
+            {originalPrice && originalPrice > price && (
+              <span className="text-[10px] text-slate-400 line-through font-mono leading-none">
+                {originalPrice.toLocaleString('vi-VN')}₫
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            title="Thêm vào giỏ"
+            className="w-7 h-7 rounded-lg bg-emerald-50 hover:bg-[#00875A] text-[#00875A] hover:text-white border border-emerald-200/60 transition-all flex items-center justify-center cursor-pointer shadow-2xs active:scale-95 shrink-0"
+          >
+            <span className="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+          </button>
+        </div>
       </div>
     </article>
   );
