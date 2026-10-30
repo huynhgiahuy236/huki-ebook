@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useToast } from '@/ui/context/ToastContext';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 
 export default function WalletPage() {
   const { showToast } = useToast();
@@ -14,6 +15,8 @@ export default function WalletPage() {
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [selectedTopupAmount, setSelectedTopupAmount] = useState(300000);
   const [transactions] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const topupPackages = [
     {
@@ -109,6 +112,11 @@ export default function WalletPage() {
     if (activeHistoryTab === 'all') return true;
     return t.type === activeHistoryTab;
   });
+
+  const paginatedTransactions = filteredTransactions.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
 
   return (
     <AccountLayout>
@@ -314,7 +322,7 @@ export default function WalletPage() {
             ].map(tab => (
               <button
                 key={tab.id}
-                onClick={() => setActiveHistoryTab(tab.id)}
+                onClick={() => { setActiveHistoryTab(tab.id); setCurrentPage(1); }}
                 className={`px-3 py-1.5 rounded-xl font-medium transition-all cursor-pointer ${activeHistoryTab === tab.id
                     ? 'bg-theme-surface text-theme-primary font-bold shadow-xs'
                     : 'text-on-surface-variant hover:text-theme-primary'
@@ -326,30 +334,50 @@ export default function WalletPage() {
           </div>
         </div>
 
-        <div className="divide-y divide-theme-border">
-          {filteredTransactions.map(t => (
-            <div key={t.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-2xl bg-theme-bg flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-theme-primary text-lg">
-                    {t.type === 'topup' ? 'account_balance_wallet' : t.type === 'purchase' ? 'shopping_bag' : 'redeem'}
-                  </span>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-xs sm:text-sm text-on-surface">{t.title}</h4>
-                  <p className="text-xs text-on-surface-variant font-mono">{t.id} • {t.date}</p>
-                </div>
-              </div>
+        {filteredTransactions.length === 0 ? (
+          <div className="py-12 text-center text-xs text-on-surface-variant space-y-2">
+            <span className="material-symbols-outlined text-3xl text-theme-border">receipt_long</span>
+            <p className="font-bold text-sm text-on-surface">Chưa có giao dịch biến động nào</p>
+            <p>Mọi giao dịch nạp xu, mua sách và đổi điểm thưởng sẽ được ghi nhận tại đây.</p>
+          </div>
+        ) : (
+          <>
+            <div className="divide-y divide-theme-border">
+              {paginatedTransactions.map((t: any) => (
+                <div key={t.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-2xl bg-theme-bg flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-theme-primary text-lg">
+                        {t.type === 'topup' ? 'account_balance_wallet' : t.type === 'purchase' ? 'shopping_bag' : 'redeem'}
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-xs sm:text-sm text-on-surface break-words line-clamp-2 leading-snug">{t.title}</h4>
+                      <p className="text-xs text-on-surface-variant font-mono">{t.id} • {t.date}</p>
+                    </div>
+                  </div>
 
-              <div className="text-right shrink-0 space-y-1">
-                <span className={`font-bold text-sm sm:text-base ${t.amountColor}`}>{t.amount}</span>
-                <span className={`block text-[10px] font-bold px-2 py-0.5 rounded-full ${t.statusColor}`}>
-                  {t.status}
-                </span>
-              </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    <span className={`font-bold text-sm sm:text-base ${t.amountColor}`}>{t.amount}</span>
+                    <span className={`block text-[10px] font-bold px-2 py-0.5 rounded-full ${t.statusColor}`}>
+                      {t.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+
+            <div className="mt-4 pt-4 border-t border-theme-border">
+              <StandardPaginationBar
+                currentPage={currentPage}
+                totalItems={filteredTransactions.length}
+                pageSize={pageSize}
+                onPageChange={(p) => setCurrentPage(p)}
+                itemLabel="giao dịch"
+              />
+            </div>
+          </>
+        )}
       </section>
 
       {/* Topup Modal Simulation */}

@@ -8,6 +8,7 @@ import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import AccountLayout from '@/ui/components/layout/AccountLayout';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 import {
   DataTableFilterBar,
   DateFilterValue,
@@ -31,6 +32,7 @@ export default function OrdersPage() {
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [currentReturnPage, setCurrentReturnPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [paginationMeta, setPaginationMeta] = useState<any>({
     page: 1,
@@ -377,6 +379,12 @@ export default function OrdersPage() {
     });
   }, [returnRequests, returnsSubTab, searchQuery]);
 
+  // Double-Lock slicing for returns
+  const pagedReturnRequests = useMemo(() => {
+    const start = (currentReturnPage - 1) * pageSize;
+    return filteredReturnRequests.slice(start, start + pageSize);
+  }, [filteredReturnRequests, currentReturnPage, pageSize]);
+
   const buyerBulkActionGroups: BulkActionGroup[] = useMemo(
     () => [
       {
@@ -529,7 +537,7 @@ export default function OrdersPage() {
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredReturnRequests.map((ret: any) => (
+              {pagedReturnRequests.map((ret: any) => (
                 <div key={ret.id} className="bg-white rounded-xl border border-gray-200/90 shadow-2xs overflow-hidden">
                   <div className="px-4 py-2.5 bg-gray-50/70 border-b border-gray-100 flex items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
@@ -631,7 +639,7 @@ export default function OrdersPage() {
                             <span className="material-symbols-outlined text-[17px] text-[#003B2B] shrink-0">
                               storefront
                             </span>
-                            <span className="font-bold text-gray-900 truncate">
+                            <span className="font-bold text-gray-900 break-words line-clamp-2 leading-snug">
                               {storeName}
                             </span>
 
@@ -850,33 +858,16 @@ export default function OrdersPage() {
         )}
 
         {/* ================= 5. PAGINATION ================= */}
-        {activeTab !== 'RETURNS' && paginationMeta.totalPages > 1 && (
-          <div className="pt-4 flex items-center justify-between text-xs text-gray-500">
-            <div>
-              Hiển thị <b>{filteredOrders.length}</b> đơn hàng
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all cursor-pointer"
-              >
-                Trước
-              </button>
-
-              <span className="px-3 py-1.5 rounded-lg bg-[#003B2B] text-white font-bold">
-                {currentPage} / {paginationMeta.totalPages}
-              </span>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.min(paginationMeta.totalPages, p + 1))}
-                disabled={currentPage >= paginationMeta.totalPages}
-                className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-all cursor-pointer"
-              >
-                Sau
-              </button>
-            </div>
+        {activeTab !== 'RETURNS' && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-6 p-2">
+            <StandardPaginationBar
+              currentPage={currentPage}
+              totalItems={paginationMeta.total || filteredOrders.length}
+              totalPages={paginationMeta.totalPages}
+              pageSize={pageSize}
+              onPageChange={(p) => setCurrentPage(p)}
+              itemLabel="đơn hàng"
+            />
           </div>
         )}
 

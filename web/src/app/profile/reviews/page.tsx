@@ -9,6 +9,7 @@ import { orderApi } from '@/ui/api/orderApi';
 import { reviewApi, ReviewItemData } from '@/ui/api/reviewApi';
 import VerifiedPurchaseBadge from '@/ui/components/review/VerifiedPurchaseBadge';
 import ReviewFormModal from '@/ui/components/review/ReviewFormModal';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 
 export default function MyReviewsPage() {
   const { user, isLoggedIn } = useAuth();
@@ -18,6 +19,9 @@ export default function MyReviewsPage() {
   const [starFilter, setStarFilter] = useState<number | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [currentReviewedPage, setCurrentReviewedPage] = useState(1);
+  const [currentPendingPage, setCurrentPendingPage] = useState(1);
+  const pageSize = 10;
 
   const [reviewedList, setReviewedList] = useState<ReviewItemData[]>([]);
   const [pendingOrdersList, setPendingOrdersList] = useState<any[]>([]);
@@ -163,6 +167,16 @@ export default function MyReviewsPage() {
       return true;
     });
   }, [reviewedList, starFilter, searchQuery]);
+
+  const paginatedReviewed = useMemo(() => {
+    const start = (currentReviewedPage - 1) * pageSize;
+    return filteredReviewed.slice(start, start + pageSize);
+  }, [filteredReviewed, currentReviewedPage, pageSize]);
+
+  const paginatedPending = useMemo(() => {
+    const start = (currentPendingPage - 1) * pageSize;
+    return pendingOrdersList.slice(start, start + pageSize);
+  }, [pendingOrdersList, currentPendingPage, pageSize]);
 
   return (
     <AccountLayout>
@@ -408,7 +422,7 @@ export default function MyReviewsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {filteredReviewed.map((rev) => (
+                  {paginatedReviewed.map((rev) => (
                     <div
                       key={rev.id}
                       className="p-4 sm:p-5 rounded-2xl border border-gray-200 bg-white hover:border-gray-300 transition-all space-y-3.5 shadow-2xs"
@@ -631,8 +645,9 @@ export default function MyReviewsPage() {
                   </Link>
                 </div>
               ) : (
+                <>
                 <div className="space-y-3.5">
-                  {pendingOrdersList.map((item, idx) => (
+                  {paginatedPending.map((item, idx) => (
                     <div
                       key={idx}
                       className="p-4 rounded-2xl border border-gray-200 bg-white hover:border-[#006953]/50 transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-2xs"
@@ -654,7 +669,7 @@ export default function MyReviewsPage() {
                               Gian hàng: <strong className="text-gray-800">{item.storeName}</strong>
                             </span>
                           </div>
-                          <h4 className="font-bold text-xs sm:text-sm text-gray-900 truncate">
+                          <h4 className="font-bold text-xs sm:text-sm text-gray-900 break-words line-clamp-2 leading-snug">
                             {item.title}
                           </h4>
                           <span className="text-[11px] text-gray-500 block mt-0.5">
@@ -675,6 +690,19 @@ export default function MyReviewsPage() {
                     </div>
                   ))}
                 </div>
+
+                {pendingOrdersList.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <StandardPaginationBar
+                      currentPage={currentPendingPage}
+                      totalItems={pendingOrdersList.length}
+                      pageSize={pageSize}
+                      onPageChange={(p) => setCurrentPendingPage(p)}
+                      itemLabel="đơn chờ đánh giá"
+                    />
+                  </div>
+                )}
+                </>
               )}
             </div>
           )}

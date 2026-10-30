@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { businessApi, type FollowedBusinessItem } from '@/ui/api/businessApi';
+import { StandardPaginationBar } from '@/ui/components/common/GroupedDataTable';
 
 export default function FollowingPage() {
   const { user, isLoggedIn } = useAuth();
@@ -13,6 +14,8 @@ export default function FollowingPage() {
   const [followedItems, setFollowedItems] = useState<FollowedBusinessItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Dropdown & Modal states
   const [activeDropdownStoreId, setActiveDropdownStoreId] = useState<string | null>(null);
@@ -115,6 +118,11 @@ export default function FollowingPage() {
     });
   }, [followedItems, searchQuery]);
 
+  const paginatedStores = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStores.slice(start, start + pageSize);
+  }, [filteredStores, currentPage, pageSize]);
+
   return (
     <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 font-sans">
       {/* Breadcrumb */}
@@ -161,7 +169,7 @@ export default function FollowingPage() {
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             placeholder="Tìm kiếm gian hàng đã theo dõi..."
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:border-[#006953] focus:ring-1 focus:ring-[#006953] shadow-xs"
           />
@@ -221,9 +229,10 @@ export default function FollowingPage() {
           </Link>
         </div>
       ) : (
-        /* Store Cards Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" ref={dropdownRef}>
-          {filteredStores.map((item) => {
+        <>
+          {/* Store Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" ref={dropdownRef}>
+          {paginatedStores.map((item) => {
             const b = item.business;
             const legacyStore = b.stores?.[0];
             const logoImg = b.logo || legacyStore?.logo;
@@ -275,7 +284,7 @@ export default function FollowingPage() {
                   {/* Title & Description */}
                   <Link
                     href={`/shop/${shopTarget}`}
-                    className="font-bold text-base text-gray-900 hover:text-[#006953] transition-colors truncate block mb-1"
+                    className="font-bold text-base text-gray-900 hover:text-[#006953] transition-colors break-words line-clamp-2 leading-snug block mb-1"
                   >
                     {b.name}
                   </Link>
@@ -343,6 +352,19 @@ export default function FollowingPage() {
             );
           })}
         </div>
+
+        {filteredStores.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-6 p-2">
+            <StandardPaginationBar
+              currentPage={currentPage}
+              totalItems={filteredStores.length}
+              pageSize={pageSize}
+              onPageChange={(p) => setCurrentPage(p)}
+              itemLabel="gian hàng"
+            />
+          </div>
+        )}
+        </>
       )}
 
       {/* Modal Popup Xác Nhận Hủy Theo Dõi (Đếm ngược 5s) */}

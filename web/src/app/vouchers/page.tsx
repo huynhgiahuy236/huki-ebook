@@ -6,6 +6,7 @@ import { useAuth } from "@/ui/context/AuthContext";
 import { useToast } from "@/ui/context/ToastContext";
 import { voucherApi, Voucher, StoreInfo } from "@/ui/api/voucherApi";
 import { formatFollowerRequirement } from "@/ui/api/sellerVoucherApi";
+import { StandardPaginationBar } from "@/ui/components/common/GroupedDataTable";
 
 export default function VouchersPage() {
   const { isLoggedIn } = (useAuth() || {}) as any;
@@ -16,6 +17,10 @@ export default function VouchersPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [pagePlatform, setPagePlatform] = useState<number>(1);
+  const [pageShop, setPageShop] = useState<number>(1);
+  const [pageWallet, setPageWallet] = useState<number>(1);
+  const pageSize = 10;
 
   // Data states
   const [platformVouchers, setPlatformVouchers] = useState<(Voucher & { isSaved?: boolean })[]>([]);
@@ -159,6 +164,21 @@ export default function VouchersPage() {
   const walletPlatformDiscount = walletData.platform?.discount || [];
   const walletStores = walletData.stores || [];
 
+  const pagedPlatformVouchers = useMemo(() => {
+    const start = (pagePlatform - 1) * pageSize;
+    return filteredPlatformVouchers.slice(start, start + pageSize);
+  }, [filteredPlatformVouchers, pagePlatform, pageSize]);
+
+  const pagedShopGroups = useMemo(() => {
+    const start = (pageShop - 1) * pageSize;
+    return filteredShopGroups.slice(start, start + pageSize);
+  }, [filteredShopGroups, pageShop, pageSize]);
+
+  const pagedWalletStores = useMemo(() => {
+    const start = (pageWallet - 1) * pageSize;
+    return walletStores.slice(start, start + pageSize);
+  }, [walletStores, pageWallet, pageSize]);
+
   return (
     <main className="min-h-screen bg-gray-50/50 pb-16">
       {/* Top Banner & Header */}
@@ -210,7 +230,7 @@ export default function VouchersPage() {
         {/* Navigation Tabs */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-1.5 flex items-center gap-1 overflow-x-auto no-scrollbar">
           <button
-            onClick={() => setActiveTab("HUKI")}
+            onClick={() => { setActiveTab("HUKI"); setPagePlatform(1); }}
             className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
               activeTab === "HUKI"
                 ? "bg-[#003B2B] text-white shadow-sm"
@@ -229,7 +249,7 @@ export default function VouchersPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("SHOP")}
+            onClick={() => { setActiveTab("SHOP"); setPageShop(1); }}
             className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
               activeTab === "SHOP"
                 ? "bg-[#003B2B] text-white shadow-sm"
@@ -248,7 +268,7 @@ export default function VouchersPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab("WALLET")}
+            onClick={() => { setActiveTab("WALLET"); setPageWallet(1); }}
             className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
               activeTab === "WALLET"
                 ? "bg-[#003B2B] text-white shadow-sm"
@@ -299,8 +319,9 @@ export default function VouchersPage() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredPlatformVouchers.map((voucher) => {
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pagedPlatformVouchers.map((voucher) => {
                   const isFreeship = voucher.type === "FREE_SHIPPING";
                   return (
                     <div
@@ -336,7 +357,7 @@ export default function VouchersPage() {
                               >
                                 {isFreeship ? "Freeship Sàn" : "Voucher Sàn"}
                               </span>
-                              <h3 className="text-sm font-bold text-gray-900 mt-1 line-clamp-1">
+                              <h3 className="text-sm font-bold text-gray-900 mt-1 break-words line-clamp-2 leading-snug">
                                 {voucher.name}
                               </h3>
                             </div>
@@ -391,6 +412,19 @@ export default function VouchersPage() {
                   );
                 })}
               </div>
+
+              {filteredPlatformVouchers.length > 0 && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
+                  <StandardPaginationBar
+                    currentPage={pagePlatform}
+                    totalItems={filteredPlatformVouchers.length}
+                    pageSize={pageSize}
+                    onPageChange={(p) => setPagePlatform(p)}
+                    itemLabel="voucher sàn"
+                  />
+                </div>
+              )}
+              </div>
             )}
           </div>
         )}
@@ -427,7 +461,7 @@ export default function VouchersPage() {
                 </p>
               </div>
             ) : (
-              filteredShopGroups.map((group) => {
+              pagedShopGroups.map((group) => {
                 const store = group.store;
                 return (
                   <div
@@ -535,6 +569,18 @@ export default function VouchersPage() {
                   </div>
                 );
               })
+            )}
+
+            {filteredShopGroups.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
+                <StandardPaginationBar
+                  currentPage={pageShop}
+                  totalItems={filteredShopGroups.length}
+                  pageSize={pageSize}
+                  onPageChange={(p) => setPageShop(p)}
+                  itemLabel="gian hàng ưu đãi"
+                />
+              </div>
             )}
           </div>
         )}
@@ -729,7 +775,7 @@ export default function VouchersPage() {
                         <h3 className="font-bold text-gray-900 text-base">Voucher Các Gian Hàng</h3>
                       </div>
 
-                      {walletStores.map((group) => (
+                      {pagedWalletStores.map((group) => (
                         <div
                           key={group.store.id}
                           className="bg-white rounded-2xl p-4 border border-gray-200 shadow-sm"
@@ -761,7 +807,7 @@ export default function VouchersPage() {
                                       {voucher.code}
                                     </span>
                                   </div>
-                                  <h5 className="font-bold text-xs text-gray-900 mt-1 line-clamp-1">
+                                  <h5 className="font-bold text-xs text-gray-900 mt-1 break-words line-clamp-2 leading-snug">
                                     {voucher.name}
                                   </h5>
                                   <p className="text-base font-black text-[#003B2B] mt-0.5">
@@ -789,6 +835,18 @@ export default function VouchersPage() {
                           </div>
                         </div>
                       ))}
+
+                      {walletStores.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
+                          <StandardPaginationBar
+                            currentPage={pageWallet}
+                            totalItems={walletStores.length}
+                            pageSize={pageSize}
+                            onPageChange={(p) => setPageWallet(p)}
+                            itemLabel="gian hàng trong ví"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
               </div>
