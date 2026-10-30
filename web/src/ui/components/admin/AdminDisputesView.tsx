@@ -311,7 +311,7 @@ export function AdminDisputesView() {
       },
       {
         key: 'orderInfo',
-        title: 'Đơn Hàng & Tác Phẩm',
+        title: 'Đơn hàng & Tác phẩm',
         minWidth: 260,
         sortable: true,
         render: (_val, item) => (
@@ -319,7 +319,7 @@ export function AdminDisputesView() {
             <div className="flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[#00875A] text-[15px]">shopping_bag</span>
               <span className="font-mono font-bold text-gray-900 text-xs">#{item.orderCode}</span>
-              <span className="text-[10px] font-mono text-gray-400">ID: {item.id}</span>
+              
             </div>
             <span className="text-gray-600 text-[11.5px] break-words" title={item.bookTitle}>
               {item.bookTitle ? `${item.bookTitle}` : '—'}
@@ -329,7 +329,7 @@ export function AdminDisputesView() {
       },
       {
         key: 'parties',
-        title: 'Gian Hàng & Khách Hàng',
+        title: 'Shop / Khách hàng',
         render: (_val, item) => (
           <div className="flex flex-col gap-0.5 py-1">
             <span className="font-semibold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1 break-words" title={item.storeName}>
@@ -345,7 +345,7 @@ export function AdminDisputesView() {
       },
       {
         key: 'amountAndType',
-        title: 'Giá Trị & Phân Loại',
+        title: 'Giá trị & Loại khiếu nại',
         minWidth: 190,
         render: (_val, item) => {
           const typeMeta = DISPUTE_TYPE_LABELS[item.type] || DISPUTE_TYPE_LABELS.OTHER;
@@ -363,7 +363,7 @@ export function AdminDisputesView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái / Phán Quyết',
+        title: 'Phán quyết',
         width: 170,
         align: 'center',
         render: (_val, item) => {
@@ -395,7 +395,7 @@ export function AdminDisputesView() {
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
+        title: 'Thao tác',
         width: 110,
         align: 'right',
         render: (_val, item) => (

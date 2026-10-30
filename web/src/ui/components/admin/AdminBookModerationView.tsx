@@ -416,11 +416,11 @@ export function AdminBookModerationView() {
               </th>
               <th className="py-3 px-2 w-8 text-center"></th>
               <th className="py-3 px-2 w-10 text-center">STT</th>
-              <th className="py-3 px-4">Tác Phẩm &amp; Mã ISBN</th>
-              <th className="py-3 px-3">Tác Giả &amp; NXB</th>
-              <th className="py-3 px-3">Định Dạng &amp; DRM</th>
-              <th className="py-3 px-3">Giá Sách / Ebook</th>
-              <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
+              <th className="py-3 px-4">Tác phẩm</th>
+              <th className="py-3 px-3">Tác giả & NXB</th>
+              <th className="py-3 px-3">Định dạng</th>
+              <th className="py-3 px-3">Giá niêm yết</th>
+              <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -484,7 +484,7 @@ export function AdminBookModerationView() {
                           <div className="min-w-0 max-w-[280px]">
                             <span 
                               onClick={() => toggleExpandRow(item.id)}
-                              className="font-bold text-gray-900 text-xs block truncate hover:text-[#00875A] transition-colors cursor-pointer"
+                              className="font-bold text-gray-900 text-xs block break-words line-clamp-2 leading-snug hover:text-[#00875A] transition-colors cursor-pointer"
                             >
                               {item.title}
                             </span>
@@ -499,8 +499,8 @@ export function AdminBookModerationView() {
 
                       {/* Tác Giả & NXB */}
                       <td className="py-3 px-3">
-                        <div className="font-semibold text-gray-900 text-xs truncate max-w-[180px]">{item.author}</div>
-                        <div className="text-[10.5px] text-gray-500 mt-0.5 truncate max-w-[180px]">{item.publisher}</div>
+                        <div className="font-semibold text-gray-900 text-xs break-words line-clamp-1">{item.author}</div>
+                        <div className="text-[10.5px] text-gray-500 mt-0.5 break-words line-clamp-1">{item.publisher}</div>
                       </td>
 
                       {/* Định Dạng & DRM */}

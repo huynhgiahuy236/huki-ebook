@@ -1141,11 +1141,11 @@ export function AdminVouchersView() {
                       </th>
                       <th className="py-3 px-2 w-10 text-center"></th>
                       <th className="py-3 px-2 w-12 text-center">STT</th>
-                      <th className="py-3 px-3.5">Mã &amp; Chiến Dịch</th>
-                      <th className="py-3 px-3.5">Mức Giảm &amp; Điều Kiện</th>
-                      <th className="py-3 px-3.5">Đối Tượng &amp; Hạn Dùng</th>
-                      <th className="py-3 px-3.5">Tiến Độ Lượt Dùng</th>
-                      <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
+                      <th className="py-3 px-3.5">Mã & Chiến dịch</th>
+                      <th className="py-3 px-3.5">Mức giảm</th>
+                      <th className="py-3 px-3.5">Đối tượng & Hạn dùng</th>
+                      <th className="py-3 px-3.5">Lượt dùng</th>
+                      <th className="py-3 px-3.5 text-right">Trạng thái & Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1216,7 +1216,7 @@ export function AdminVouchersView() {
                                 <span className="font-mono font-extrabold text-[#00875A] bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 text-xs w-fit">
                                   {v.code}
                                 </span>
-                                <span className="font-bold text-gray-900 text-xs truncate max-w-[220px]" title={v.name}>
+                                <span className="font-bold text-gray-900 text-xs break-words line-clamp-2 leading-snug" title={v.name}>
                                   {v.name}
                                 </span>
                               </div>

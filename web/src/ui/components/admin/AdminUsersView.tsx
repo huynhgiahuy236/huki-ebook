@@ -506,7 +506,7 @@ export default function AdminUsersView() {
       },
       {
         key: 'name',
-        title: 'Người Dùng / Độc Giả',
+        title: 'Tài khoản',
         sortable: true,
         className: 'whitespace-nowrap',
         render: (_val, user) => (
@@ -520,28 +520,26 @@ export default function AdminUsersView() {
               <span className="font-bold text-gray-900 group-hover:text-[#00875A] transition-colors">
                 {user.name}
               </span>
-              <span className="text-[10px] text-gray-400 font-mono">
-                ID: {user.id.length > 12 ? `${user.id.substring(0, 10)}...` : user.id}
-              </span>
+              
             </div>
           </div>
         ),
       },
       {
         key: 'email',
-        title: 'Email Liên Hệ',
+        title: 'Email',
         sortable: true,
         className: 'font-mono text-[11px] text-gray-600 whitespace-nowrap',
       },
       {
         key: 'phone',
-        title: 'Số Điện Thoại',
+        title: 'Số điện thoại',
         className: 'font-mono text-[11px] text-gray-700 whitespace-nowrap',
         render: (_val, user) => <span>{user.phone}</span>,
       },
       {
         key: 'role',
-        title: 'Vai Trò Hệ Thống',
+        title: 'Vai trò',
         align: 'center',
         sortable: true,
         className: 'whitespace-nowrap',
@@ -572,14 +570,14 @@ export default function AdminUsersView() {
       },
       {
         key: 'joinedDate',
-        title: 'Ngày Tham Gia',
+        title: 'Ngày tạo',
         align: 'center',
         sortable: true,
         className: 'font-mono text-[11px] text-gray-600 whitespace-nowrap',
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         align: 'center',
         sortable: true,
         className: 'whitespace-nowrap',

@@ -442,11 +442,11 @@ export function AdminBooksView() {
                   </th>
                   <th className="py-3 px-2 w-10 text-center"></th>
                   <th className="py-3 px-2 w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5">Tác Phẩm &amp; Bìa Sách</th>
-                  <th className="py-3 px-3.5">Tác Giả &amp; NXB</th>
-                  <th className="py-3 px-3.5 text-center">Thể Loại &amp; Định Dạng</th>
-                  <th className="py-3 px-3.5">Giá &amp; Tồn Kho</th>
-                  <th className="py-3 px-3.5 text-right">Trạng Thái &amp; Thao Tác</th>
+                  <th className="py-3 px-3.5">Tác phẩm</th>
+                  <th className="py-3 px-3.5">Tác giả & NXB</th>
+                  <th className="py-3 px-3.5 text-center">Thể loại & Định dạng</th>
+                  <th className="py-3 px-3.5">Giá & Tồn kho</th>
+                  <th className="py-3 px-3.5 text-right">Trạng thái & Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -533,14 +533,14 @@ export function AdminBooksView() {
                             </div>
                             <div className="min-w-0 max-w-[260px]">
                               <span
-                                className="font-bold text-gray-900 block truncate hover:text-[#00875A] cursor-pointer"
+                                className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug hover:text-[#00875A] cursor-pointer"
                                 onClick={() => toggleExpandRow(book.id)}
                                 title={book.title}
                               >
                                 {book.title}
                               </span>
                               <span className="text-[10px] text-gray-400 block truncate font-mono mt-0.5">
-                                ID: {book.id} {book.isbn ? `• ISBN: ${book.isbn}` : ''}
+                                {book.isbn ? `ISBN: ${book.isbn}` : `Mã: #${book.id.slice(0, 8)}`}
                               </span>
                             </div>
                           </div>

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/ui/context/ToastContext';
 import { AdminStatusBadge } from './AdminUI';
+import { StandardPaginationBar } from '../common/GroupedDataTable';
 import { affiliateApi } from '@/lib/affiliate/affiliateApi';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 import type { AffiliateProfile, PartnerStatus } from '@/types/affiliate';
@@ -50,7 +51,7 @@ export function AdminAffiliatesView() {
         status: statusParam,
         search: debouncedSearch || undefined,
         page,
-        limit: 15,
+        limit: 10,
       });
 
       if (res.success && res.data) {
@@ -243,13 +244,13 @@ export function AdminAffiliatesView() {
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-50/80 border-b border-gray-200 text-gray-600 font-semibold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="py-3 px-4">Đối Tác &amp; Mã</th>
-                <th className="py-3 px-4">Loại Hình</th>
-                <th className="py-3 px-4">Kênh Phân Phối</th>
-                <th className="py-3 px-4">Liên Hệ</th>
-                <th className="py-3 px-4">Trạng Thái</th>
-                <th className="py-3 px-4">Ngày Nộp</th>
-                <th className="py-3 px-4 text-right">Thao Tác</th>
+                <th className="py-3 px-4">Đối tác & Mã</th>
+                <th className="py-3 px-4">Loại hình</th>
+                <th className="py-3 px-4">Kênh phân phối</th>
+                <th className="py-3 px-4">Liên hệ</th>
+                <th className="py-3 px-4">Trạng thái</th>
+                <th className="py-3 px-4">Ngày nộp</th>
+                <th className="py-3 px-4 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -296,7 +297,7 @@ export function AdminAffiliatesView() {
                           {app.channels?.length || 0} kênh
                         </span>
                         {app.channels && app.channels[0] && (
-                          <div className="text-[10.5px] text-gray-500 truncate max-w-[180px]">
+                          <div className="text-[10.5px] text-gray-500 break-words line-clamp-1">
                             {app.channels[0].type}: {app.channels[0].url}
                           </div>
                         )}

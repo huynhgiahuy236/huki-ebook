@@ -29,7 +29,7 @@ export function AdminFlashSaleView() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'ACTIVE' | 'SCHEDULED' | 'ENDED' | 'CANCELLED'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 10;
 
   // In-Page Expandable Create Slot Form (100% In-Page, Zero Modal)
   const [isCreateFormOpen, setIsCreateFormOpen] = useState(false);
@@ -1299,7 +1299,7 @@ export function AdminFlashSaleView() {
                                   <th className="py-2.5 px-3 text-right">Giá Gốc</th>
                                   <th className="py-2.5 px-3 text-right">Giá Flash Sale</th>
                                   <th className="py-2.5 px-3 text-center">Tồn Kho Phân Bổ</th>
-                                  <th className="py-2.5 px-3 text-center">Hạn Mức/Khách</th>
+                                  <th className="py-2.5 px-3 text-center">Hạn mức</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100">
@@ -1325,7 +1325,7 @@ export function AdminFlashSaleView() {
                                         />
                                       </td>
                                       <td className="py-2.5 px-3">
-                                        <span className="font-bold text-gray-900 block max-w-md truncate">{b.title}</span>
+                                        <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">{b.title}</span>
                                         <span className="text-[10px] text-gray-400">
                                           {(typeof b.author === 'object' ? b.author?.name : b.author) || 'HUKI Author'} • {b.category?.name || 'Văn học'}
                                         </span>
@@ -1432,14 +1432,14 @@ export function AdminFlashSaleView() {
                             <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
                               <tr>
                                 <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                                <th className="py-3 px-3.5 whitespace-nowrap">Tên Tác Phẩm &amp; Mã</th>
+                                <th className="py-3 px-3.5 whitespace-nowrap">Tác phẩm & Mã</th>
                                 <th className="py-3 px-3 whitespace-nowrap text-right">Giá Gốc</th>
                                 <th className="py-3 px-3 whitespace-nowrap text-right">Giá Flash Sale</th>
                                 <th className="py-3 px-3 whitespace-nowrap text-center">Giảm Giá</th>
-                                <th className="py-3 px-3 whitespace-nowrap text-center">Tồn Kho Khuyến Mãi</th>
+                                <th className="py-3 px-3 whitespace-nowrap text-center">Tồn kho KM</th>
                                 <th className="py-3 px-3.5 whitespace-nowrap">Tiến Độ Bán</th>
                                 <th className="py-3 px-4 whitespace-nowrap text-center">Hạn Mức/Khách</th>
-                                <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                                <th className="py-3 px-4 whitespace-nowrap text-right">Thao tác</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -1454,10 +1454,10 @@ export function AdminFlashSaleView() {
                                       {idx + 1}
                                     </td>
                                     <td className="py-3 px-3.5 whitespace-nowrap">
-                                      <span className="font-bold text-gray-900 block max-w-xs truncate">
+                                      <span className="font-bold text-gray-900 block break-words line-clamp-2 leading-snug">
                                         {item.bookTitle || `Sách #${item.bookId.slice(0, 8)}`}
                                       </span>
-                                      <span className="font-mono text-[10px] text-gray-400">ID: {item.bookId}</span>
+                                      <span className="font-mono text-[10px] text-gray-400">Mã: #{item.bookId.slice(0, 8)}</span>
                                     </td>
                                     <td className="py-3 px-3 whitespace-nowrap text-right text-gray-400 line-through font-mono">
                                       {Number(item.originalPrice).toLocaleString("vi-VN")}₫

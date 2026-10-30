@@ -651,7 +651,7 @@ export function AdminAccountsView() {
       },
       {
         key: 'accountInfo',
-        title: 'Tài Khoản & Danh Tính',
+        title: 'Tài khoản',
         sortable: true,
         render: (_val, u) => (
           <div className="flex items-center gap-2.5">
@@ -664,7 +664,7 @@ export function AdminAccountsView() {
             </div>
             <div className="min-w-0">
               <span
-                className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer block truncate text-xs"
+                className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer block break-words line-clamp-1 text-xs"
                 onClick={() => {
                   setInspectingUser(u);
                   setInspectingTab('info');
@@ -673,7 +673,7 @@ export function AdminAccountsView() {
               >
                 {u.fullName}
               </span>
-              <span className="text-[11px] text-gray-500 font-mono block truncate" title={u.email}>
+              <span className="text-[11px] text-gray-500 font-mono block break-words line-clamp-1" title={u.email}>
                 {u.email}
               </span>
             </div>
@@ -682,7 +682,7 @@ export function AdminAccountsView() {
       },
       {
         key: 'contactRole',
-        title: 'Liên Hệ & Phân Quyền',
+        title: 'Phân quyền',
         render: (_val, u) => (
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5">
@@ -697,7 +697,7 @@ export function AdminAccountsView() {
       },
       {
         key: 'statusSecurity',
-        title: 'Trạng Thái & Bảo Mật',
+        title: 'Trạng thái',
         align: 'center',
         render: (_val, u) => (
           <div className="flex flex-col items-center gap-1">
@@ -706,15 +706,13 @@ export function AdminAccountsView() {
             ) : (
               <AdminStatusBadge status="danger" label="Đã khóa" icon="lock" />
             )}
-            <span className="text-[10px] text-gray-400 font-mono">
-              ID: {u.id?.slice(0, 8)}...
-            </span>
+            
           </div>
         ),
       },
       {
         key: 'createdAt',
-        title: 'Ngày Tham Gia',
+        title: 'Ngày tạo',
         sortable: true,
         render: (val) => (
           <div className="flex flex-col">
@@ -729,7 +727,7 @@ export function AdminAccountsView() {
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
+        title: 'Thao tác',
         align: 'right',
         render: (_val, u) => {
           const isPlatformAdmin = u.role === 'PLATFORM_ADMIN';

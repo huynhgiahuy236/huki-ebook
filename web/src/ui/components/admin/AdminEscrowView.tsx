@@ -757,7 +757,7 @@ export function AdminEscrowView() {
     () => [
       {
         key: 'orderCode',
-        title: 'Mã Đơn & Ngày Đặt',
+        title: 'Mã đơn',
         render: (_, row) => (
           <div className="flex flex-col gap-1 py-1">
             <div className="flex items-center gap-1.5">
@@ -780,7 +780,7 @@ export function AdminEscrowView() {
       },
       {
         key: 'storeAndCustomer',
-        title: 'Gian Hàng & Khách Hàng',
+        title: 'Shop / Khách hàng',
         render: (_, row) => {
           const uniqueStores = Array.from(new Set(row.items.map((it) => it.storeName || it.storeId).filter(Boolean)));
           const isMultiStore = uniqueStores.length > 1;
@@ -795,7 +795,7 @@ export function AdminEscrowView() {
               ) : (
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-theme-text">
                   <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
-                  <span className="truncate max-w-[200px]" title={row.storeName}>{row.storeName}</span>
+                  <span className="break-words line-clamp-1" title={row.storeName}>{row.storeName}</span>
                 </div>
               )}
               <div className="flex items-center gap-1.5 text-[11px] text-theme-text-muted">
@@ -810,7 +810,7 @@ export function AdminEscrowView() {
       },
       {
         key: 'paymentAndItems',
-        title: 'Thanh Toán & Số Món',
+        title: 'Thanh toán',
         render: (_, row) => {
           let paymentBadge = null;
           if (row.paymentMethod === 'COD') {
@@ -847,7 +847,7 @@ export function AdminEscrowView() {
                 </span>
               </div>
               {row.remittanceInfo?.shipperName && (
-                <span className="text-[10px] text-slate-500 truncate max-w-[200px]">
+                <span className="text-[10px] text-slate-500 break-words line-clamp-1">
                   Bưu tá: {row.remittanceInfo.shipperName}
                 </span>
               )}

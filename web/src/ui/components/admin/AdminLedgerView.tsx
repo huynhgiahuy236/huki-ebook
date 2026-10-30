@@ -562,7 +562,7 @@ export function AdminLedgerView() {
     () => [
       {
         key: 'orderCode',
-        title: 'Mã Đơn & Ngày',
+        title: 'Mã đơn',
         render: (_, row) => (
           <div className="flex flex-col gap-1 py-1">
             <span className="font-mono font-bold text-gray-900 text-xs">
@@ -577,7 +577,7 @@ export function AdminLedgerView() {
       },
       {
         key: 'bookTitle',
-        title: 'Sách / SKU Ký Quỹ',
+        title: 'Tác phẩm ký quỹ',
         render: (_, row) => (
           <div className="flex items-center gap-2.5 max-w-[260px] py-1">
             <div className="w-9 h-12 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center">
@@ -588,7 +588,7 @@ export function AdminLedgerView() {
               )}
             </div>
             <div className="flex flex-col min-w-0">
-              <span className="text-xs font-bold text-gray-900 truncate" title={row.bookTitle}>
+              <span className="text-xs font-bold text-gray-900 break-words line-clamp-2 leading-snug" title={row.bookTitle}>
                 {row.bookTitle}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -607,11 +607,11 @@ export function AdminLedgerView() {
       },
       {
         key: 'storeName',
-        title: 'Gian Hàng / NXB',
+        title: 'Shop / NXB',
         render: (_, row) => (
           <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-800">
             <span className="material-symbols-outlined text-[14px] text-emerald-600">storefront</span>
-            <span className="truncate max-w-[160px]" title={row.storeName}>
+            <span className="break-words line-clamp-1" title={row.storeName}>
               {row.storeName}
             </span>
           </div>
@@ -619,10 +619,10 @@ export function AdminLedgerView() {
       },
       {
         key: 'customerName',
-        title: 'Người Mua',
+        title: 'Người mua',
         render: (_, row) => (
           <div className="flex flex-col text-xs">
-            <span className="font-bold text-gray-800 truncate max-w-[130px]">{row.customerName}</span>
+            <span className="font-bold text-gray-800 break-words line-clamp-1">{row.customerName}</span>
             <span className="text-[11px] text-gray-400 font-mono">{row.customerPhone}</span>
           </div>
         ),

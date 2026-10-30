@@ -365,16 +365,16 @@ export function AdminAppealsView() {
                     />
                   </th>
                   <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Mã Hồ Sơ</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Store ID</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Mức Độ Phạt</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Lý Do Xử Phạt</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Giải Trình Kháng Nghị</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Bằng Chứng</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap">Thời Gian Nộp</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Mã hồ sơ</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Gian hàng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Mức phạt</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Lý do vi phạm</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Giải trình</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Bằng chứng</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap">Ngày nộp</th>
                   <th className="py-3 px-3.5 whitespace-nowrap text-center">SLA 48h</th>
-                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng Thái</th>
-                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao Tác</th>
+                  <th className="py-3 px-3.5 whitespace-nowrap text-center">Trạng thái</th>
+                  <th className="py-3 px-4 whitespace-nowrap text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -407,7 +407,7 @@ export function AdminAppealsView() {
 
                       {/* 2. Mã Hồ Sơ */}
                       <td className="py-3 px-3.5 whitespace-nowrap font-mono font-bold text-gray-900 text-[11px]">
-                        #{a.id.slice(0, 10)}...
+                        #{a.id.slice(0, 8)}
                       </td>
 
                       {/* 3. Store ID */}

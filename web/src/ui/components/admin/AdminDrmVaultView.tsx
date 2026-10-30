@@ -513,10 +513,10 @@ export function AdminDrmVaultView() {
                 </th>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>
-                <th className="py-3 px-3.5">Tác Phẩm &amp; Mã Giấy Phép</th>
-                <th className="py-3 px-3.5">Thuật Toán &amp; Cụm KMS</th>
-                <th className="py-3 px-3.5">Độc Giả (Đang Đọc / Tổng Cấp)</th>
-                <th className="py-3 px-4 text-right">Trạng Thái &amp; Thao Tác</th>
+                <th className="py-3 px-3.5">Tác phẩm & Bản quyền</th>
+                <th className="py-3 px-3.5">Thuật toán KMS</th>
+                <th className="py-3 px-3.5">Độc giả cấp quyền</th>
+                <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 font-normal">
@@ -605,14 +605,14 @@ export function AdminDrmVaultView() {
                         <td className="py-3 px-3.5">
                           <div
                             onClick={() => toggleExpandDrm(item.id)}
-                            className="font-bold text-gray-900 text-xs hover:text-purple-800 transition-colors cursor-pointer truncate max-w-[280px]"
+                            className="font-bold text-gray-900 text-xs hover:text-purple-800 transition-colors cursor-pointer break-words line-clamp-2 leading-snug"
                           >
                             {item.bookTitle}
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="font-mono text-[10.5px] font-bold text-purple-900">{item.id}</span>
                             <span className="text-gray-300">•</span>
-                            <span className="text-[10.5px] text-gray-500 truncate max-w-[160px]">
+                            <span className="text-[10.5px] text-gray-500 break-words line-clamp-1">
                               {item.publisher}
                             </span>
                           </div>

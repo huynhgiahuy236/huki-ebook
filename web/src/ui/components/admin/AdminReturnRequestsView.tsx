@@ -317,7 +317,7 @@ export default function AdminReturnRequestsView() {
     () => [
       {
         key: 'orderProduct',
-        title: 'Đơn Hàng & Tác Phẩm',
+        title: 'Đơn hàng & Tác phẩm',
         render: (_val, item) => {
           const orderCode = item.order?.code || item.orderId;
           const bookTitle = item.orderItem?.title || 'Sản phẩm';
@@ -343,7 +343,7 @@ export default function AdminReturnRequestsView() {
                     </span>
                   )}
                 </div>
-                <span className="font-semibold text-gray-800 text-xs truncate block max-w-[240px]" title={bookTitle}>
+                <span className="font-semibold text-gray-800 text-xs break-words line-clamp-2 leading-snug block" title={bookTitle}>
                   {bookTitle}
                 </span>
               </div>
@@ -353,7 +353,7 @@ export default function AdminReturnRequestsView() {
       },
       {
         key: 'storeCustomer',
-        title: 'Gian Hàng & Khách Hàng',
+        title: 'Shop / Khách hàng',
         render: (_val, item) => {
           const storeName = item.store?.name || item.storeId;
           const userName = item.user?.fullName || item.user?.name || item.userId;
@@ -375,7 +375,7 @@ export default function AdminReturnRequestsView() {
       },
       {
         key: 'reason',
-        title: 'Lý Do Đổi Trả',
+        title: 'Lý do đổi trả',
         render: (_val, item) => {
           const reasonLabel = getReasonLabel(item.reason);
           return (
@@ -385,7 +385,7 @@ export default function AdminReturnRequestsView() {
                 <span>{reasonLabel}</span>
               </span>
               {item.reasonDetail && (
-                <span className="text-gray-500 text-[10.5px] truncate block" title={item.reasonDetail}>
+                <span className="text-gray-500 text-[10.5px] break-words line-clamp-1 block" title={item.reasonDetail}>
                   {item.reasonDetail}
                 </span>
               )}
@@ -395,7 +395,7 @@ export default function AdminReturnRequestsView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         align: 'center',
         render: (_val, item) => (
           <div className="flex flex-col items-center gap-0.5">
@@ -408,7 +408,7 @@ export default function AdminReturnRequestsView() {
       },
       {
         key: 'actions',
-        title: 'Thao Tác',
+        title: 'Thao tác',
         align: 'right',
         render: (_val, item) => {
           const isWaitingForward = item.status === 'WAITING_FORWARD';

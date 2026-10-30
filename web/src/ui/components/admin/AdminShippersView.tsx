@@ -299,7 +299,7 @@ export default function AdminShippersView() {
     () => [
       {
         key: 'txInfo',
-        title: 'Mã Đối Soát & Thời Gian',
+        title: 'Mã đối soát',
         sortable: true,
         render: (_val, rem) => (
           <div className="flex flex-col gap-0.5 font-mono">
@@ -312,7 +312,7 @@ export default function AdminShippersView() {
       },
       {
         key: 'shipper',
-        title: 'Bưu Tá Nộp Tiền',
+        title: 'Bưu tá',
         render: (_val, rem) => (
           <div className="flex flex-col gap-0.5">
             <span className="font-bold text-gray-900 text-xs">{rem.shipperName || 'Nguyễn Văn Hưng'}</span>
@@ -324,7 +324,7 @@ export default function AdminShippersView() {
       },
       {
         key: 'methodAmount',
-        title: 'Phương Thức & Số Tiền',
+        title: 'Số tiền COD',
         render: (_val, rem) => (
           <div className="flex items-center gap-3">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
@@ -339,7 +339,7 @@ export default function AdminShippersView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         align: 'right',
         render: () => (
           <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 inline-flex items-center gap-1 border border-emerald-300">

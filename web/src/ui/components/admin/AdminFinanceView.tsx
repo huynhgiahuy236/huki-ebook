@@ -558,33 +558,33 @@ export function AdminFinanceView() {
       },
       {
         key: 'id',
-        title: 'Mã Lệnh Rút',
+        title: 'Mã lệnh',
         sortable: true,
         className: 'font-mono text-gray-900 font-bold whitespace-nowrap',
-        render: (id: string) => `${id.slice(0, 10)}...`,
+        render: (id: string) => `#${id.slice(0, 8)}`,
       },
       {
         key: 'createdAt',
-        title: 'Thời Gian Tạo',
+        title: 'Ngày tạo',
         sortable: true,
         className: 'text-[11px] text-gray-500 whitespace-nowrap',
         render: (dateStr: string) => formatDate(dateStr),
       },
       {
         key: 'storeId',
-        title: 'Gian Hàng',
+        title: 'Gian hàng',
         sortable: true,
         className: 'font-mono text-xs font-semibold text-gray-700 whitespace-nowrap',
       },
       {
         key: 'bankName',
-        title: 'Ngân Hàng Thụ Hưởng',
+        title: 'Ngân hàng',
         className: 'font-bold text-gray-800 whitespace-nowrap',
         render: (_val, item) => item.bankSnapshot?.bankName || 'Ngân Hàng',
       },
       {
         key: 'accountNumber',
-        title: 'Số Tài Khoản & Chủ TK',
+        title: 'Tài khoản thụ hưởng',
         className: 'font-mono text-[11px] text-gray-600 whitespace-nowrap',
         render: (_val, item) => {
           const accNum = item.bankSnapshot?.maskedAccountNumber || item.bankSnapshot?.accountNumberMasked || item.bankSnapshot?.accountNumber || '—';
@@ -593,7 +593,7 @@ export function AdminFinanceView() {
       },
       {
         key: 'amount',
-        title: 'Số Tiền Rút',
+        title: 'Số tiền rút',
         sortable: true,
         align: 'right',
         className: 'font-extrabold text-xs text-[#00875A] font-mono whitespace-nowrap',
@@ -601,7 +601,7 @@ export function AdminFinanceView() {
       },
       {
         key: 'status',
-        title: 'Trạng Thái',
+        title: 'Trạng thái',
         sortable: true,
         align: 'center',
         className: 'whitespace-nowrap',
@@ -617,7 +617,7 @@ export function AdminFinanceView() {
       },
       {
         key: 'details',
-        title: 'Chi Tiết / Ghi Chú',
+        title: 'Ghi chú',
         className: 'text-[11px] text-gray-500 whitespace-nowrap',
         render: (_val, req) => {
           if (req.status === 'COMPLETED') {
@@ -637,7 +637,7 @@ export function AdminFinanceView() {
       },
       {
         key: 'actions',
-        title: 'Nhật Ký Giải Ngân (Tự Động Qua PIN)',
+        title: 'Thao tác',
         align: 'right',
         className: 'whitespace-nowrap',
         render: (_val, req) => (
