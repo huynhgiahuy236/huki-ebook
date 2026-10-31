@@ -42,6 +42,7 @@ function CatalogPageContent() {
   const selectedCat = searchParams.get('cat') || searchParams.get('category') || 'all';
   const selectedFormat = searchParams.get('format') || 'all';
   const selectedPublisher = searchParams.get('publisher') || 'all';
+  const selectedAuthor = searchParams.get('author') || 'all';
   const selectedRating = searchParams.get('rating') || 'all';
   const minPriceParam = searchParams.get('minPrice') || '';
   const maxPriceParam = searchParams.get('maxPrice') || '';
