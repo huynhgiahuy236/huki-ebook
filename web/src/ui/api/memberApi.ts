@@ -117,21 +117,49 @@ export const memberApi = {
   },
 
   /**
-   * Lấy nhật ký quản trị phân quyền nhân sự (Staff Governance Audit Logs)
+   * Lấy nhật ký quản trị phân quyền nhân sự & hoạt động gian hàng (Staff Governance & Store Audit Logs)
    */
   getMemberAuditLogs: async (
     businessId: string,
-    params?: { page?: number; limit?: number; action?: string },
+    params?: { page?: number; limit?: number; action?: string; resource?: string },
   ): Promise<ApiResponse<{ items: any[]; total: number; page: number; limit: number }>> => {
     const query = new URLSearchParams();
     if (params?.page) query.append('page', String(params.page));
     if (params?.limit) query.append('limit', String(params.limit));
     if (params?.action) query.append('action', params.action);
+    if (params?.resource) query.append('resource', params.resource);
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return apiClient<{ items: any[]; total: number; page: number; limit: number }>(
       `/members/business/${encodeURIComponent(businessId)}/audit-logs${queryString}`,
       {
         method: 'GET',
+      },
+    );
+  },
+
+  /**
+   * Ghi lại nhật ký tác vụ nhân sự / gian hàng (Record Governance Audit Log)
+   */
+  recordMemberAuditLog: async (
+    businessId: string,
+    payload: {
+      action: string;
+      resource: string;
+      resourceId?: string;
+      actorName?: string;
+      actorEmail?: string;
+      actorRole?: string;
+      beforeState?: any;
+      afterState?: any;
+      changedFields?: string[];
+      metadata?: any;
+    },
+  ): Promise<ApiResponse<any>> => {
+    return apiClient<any>(
+      `/members/business/${encodeURIComponent(businessId)}/audit-logs`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
       },
     );
   },

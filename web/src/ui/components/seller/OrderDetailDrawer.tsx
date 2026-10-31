@@ -162,10 +162,20 @@ export default function OrderDetailDrawer({
                       </p>
                       <time className="text-[11px] text-slate-400 font-mono whitespace-nowrap">{dateTime(event.createdAt)}</time>
                     </div>
-                    {event.actorType && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        Thực hiện bởi: <span className="font-semibold text-slate-600 dark:text-slate-300">{event.actorType === 'SELLER' || event.actorType === 'STORE_OWNER' ? 'Chủ Shop' : event.actorType === 'STAFF' ? 'Nhân viên Shop' : event.actorType === 'PLATFORM_ADMIN' ? 'Admin' : event.actorType}</span>
-                        {event.actorId && <span className="font-mono text-[10px] ml-1 text-slate-400">({event.actorId.slice(0, 8)})</span>}
+                    {(event.actorType || event.metadata?.actorEmail || event.metadata?.actorName) && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex flex-wrap items-center gap-1">
+                        <span>Thực hiện bởi:</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          {event.metadata?.actorName || event.metadata?.staffName || event.metadata?.actorEmail || (event.actorType === 'SELLER' || event.actorType === 'STORE_OWNER' ? 'Chủ Shop' : event.actorType === 'STAFF' ? 'Nhân viên Shop' : event.actorType === 'PLATFORM_ADMIN' ? 'Admin' : event.actorType)}
+                        </span>
+                        {event.metadata?.actorEmail && (event.metadata?.actorName || event.metadata?.staffName) && (
+                          <span className="text-slate-400 font-mono text-[10.5px]">({event.metadata.actorEmail})</span>
+                        )}
+                        {event.metadata?.actorRole && (
+                          <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 text-[10px] font-medium border border-slate-200">
+                            {event.metadata.actorRole}
+                          </span>
+                        )}
                       </p>
                     )}
                     {(event.description || event.note || event.reason) && (

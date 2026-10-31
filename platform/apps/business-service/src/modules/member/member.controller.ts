@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import {
   Controller,
   Get,
@@ -10,6 +11,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { MemberService } from './member.service';
@@ -181,11 +183,13 @@ export class MemberController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('action') action?: string,
+    @Query('resource') resource?: string,
   ) {
     const data = await this.memberService.getMemberAuditLogs(businessId, userId, userRole, {
       page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 20,
+      limit: limit ? parseInt(limit) : 50,
       action,
+      resource,
     });
     return {
       success: true,
@@ -202,15 +206,71 @@ export class MemberController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('action') action?: string,
+    @Query('resource') resource?: string,
   ) {
     const data = await this.memberService.getMemberAuditLogs(businessId, userId, userRole, {
       page: page ? parseInt(page) : 1,
-      limit: limit ? parseInt(limit) : 20,
+      limit: limit ? parseInt(limit) : 50,
       action,
+      resource,
     });
     return {
       success: true,
       data,
+    };
+  }
+
+  @Post('members/business/:businessId/audit-logs')
+  @ApiOperation({ summary: 'Record store/staff governance audit log' })
+  async recordAuditLog(
+    @Param('businessId') businessId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+    @Body() dto: {
+      action: string;
+      resource: string;
+      resourceId?: string;
+      actorName?: string;
+      actorEmail?: string;
+      actorRole?: string;
+      beforeState?: any;
+      afterState?: any;
+      changedFields?: string[];
+      metadata?: any;
+    },
+    @Req() req: Request,
+  ) {
+    const res = await this.memberService.recordAuditLog(businessId, userId, userRole, dto, req);
+    return {
+      success: true,
+      data: res,
+    };
+  }
+
+  @Post('businesses/:businessId/members/audit-logs')
+  @ApiOperation({ summary: 'Record store/staff governance audit log alias' })
+  async recordBusinessAuditLogAlias(
+    @Param('businessId') businessId: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') userRole: string,
+    @Body() dto: {
+      action: string;
+      resource: string;
+      resourceId?: string;
+      actorName?: string;
+      actorEmail?: string;
+      actorRole?: string;
+      beforeState?: any;
+      afterState?: any;
+      changedFields?: string[];
+      metadata?: any;
+    },
+    @Req() req: Request,
+  ) {
+    const res = await this.memberService.recordAuditLog(businessId, userId, userRole, dto, req);
+    return {
+      success: true,
+      data: res,
     };
   }
 }

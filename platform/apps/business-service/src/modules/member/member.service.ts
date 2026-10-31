@@ -743,7 +743,7 @@ export class MemberService {
     businessId: string,
     userId: string,
     userRole: string,
-    query: { page?: number; limit?: number; action?: string },
+    query: { page?: number; limit?: number; action?: string; resource?: string },
   ) {
     if (userRole !== 'PLATFORM_ADMIN') {
       const hasAccess = await this.canManageMembers(businessId, userId);
@@ -757,16 +757,78 @@ export class MemberService {
         items: [],
         total: 0,
         page: query.page || 1,
-        limit: query.limit || 20,
+        limit: query.limit || 50,
       };
     }
 
+    const filterResource = query.resource && query.resource !== 'ALL' ? query.resource : undefined;
+
     return this.auditService.queryAuditLogs({
-      resource: 'Member',
+      resource: filterResource,
       storeId: businessId,
       page: query.page,
       limit: query.limit,
       action: query.action,
     });
+  }
+
+  async recordAuditLog(
+    businessId: string,
+    userId: string,
+    userRole: string,
+    dto: {
+      action: string;
+      resource: string;
+      resourceId?: string;
+      actorName?: string;
+      actorEmail?: string;
+      actorRole?: string;
+      beforeState?: any;
+      afterState?: any;
+      changedFields?: string[];
+      metadata?: any;
+    },
+    req?: any,
+  ) {
+    if (userRole !== 'PLATFORM_ADMIN') {
+      const isOwner = await this.isOwner(businessId, userId);
+      if (!isOwner) {
+        const member = await this.prisma.member.findUnique({
+          where: { businessId_userId: { businessId, userId } },
+        });
+        if (!member || member.status !== MemberStatus.ACTIVE) {
+          throwForbidden(ErrorCode.AUTHZ_ROLE_INSUFFICIENT);
+        }
+      }
+    }
+
+    if (!this.auditService) {
+      return { success: false, message: 'AuditService not available' };
+    }
+
+    const ip = req?.ip || req?.headers?.['x-forwarded-for'] || '127.0.0.1';
+    const userAgent = req?.headers?.['user-agent'] || 'Mozilla/5.0';
+
+    await this.auditService.record({
+      actorId: userId,
+      actorRole: dto.actorRole || userRole,
+      storeId: businessId,
+      resource: dto.resource || 'Order',
+      resourceId: dto.resourceId,
+      action: dto.action,
+      beforeState: dto.beforeState,
+      afterState: dto.afterState,
+      changedFields: dto.changedFields,
+      ipAddress: typeof ip === 'string' ? ip : String(ip),
+      userAgent: typeof userAgent === 'string' ? userAgent : String(userAgent),
+      metadata: {
+        ...(dto.metadata || {}),
+        staffName: dto.actorName,
+        staffEmail: dto.actorEmail,
+        staffRole: dto.actorRole,
+      },
+    });
+
+    return { success: true };
   }
 }

@@ -15,7 +15,7 @@ export interface AuditRecordParams {
   actorId?: string;
   actorRole?: string;
   service?: string;
-  module: string;
+  module?: string;
   action: AuditAction | string;
   resource: string;
   resourceId?: string;
@@ -31,7 +31,7 @@ export interface AuditRecordParams {
 }
 
 export interface AuditQueryParams {
-  resource: string;
+  resource?: string;
   resourceId?: string;
   page?: number;
   limit?: number;
@@ -76,7 +76,7 @@ export class AuditService {
           actorId,
           actorRole,
           service: params.service || 'business-service',
-          module: params.module,
+          module: params.module || 'governance',
           action: params.action,
           resource: params.resource,
           resourceId: params.resourceId,
@@ -103,9 +103,10 @@ export class AuditService {
     const limit = Math.min(100, Math.max(1, Number(params.limit) || 10));
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      resource: params.resource,
-    };
+    const where: any = {};
+    if (params.resource) {
+      where.resource = params.resource;
+    }
 
     if (params.resourceId) {
       where.resourceId = params.resourceId;

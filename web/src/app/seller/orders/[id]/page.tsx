@@ -37,6 +37,9 @@ interface OrderTimelineEvent {
   title?: string;
   description?: string;
   createdAt?: string;
+  actorType?: string;
+  actorId?: string;
+  metadata?: Record<string, any>;
 }
 
 interface SellerOrderDetailData {
@@ -819,9 +822,20 @@ export default function SellerOrderDetailPage() {
                       <span className="absolute left-[7px] top-4 bottom-0 w-px bg-slate-200" />
                     )}
                     <span className="absolute left-0 top-1 w-3.5 h-3.5 rounded-full bg-[#00875A] ring-4 ring-emerald-50" />
-                    <p className="font-bold text-xs sm:text-sm text-slate-900">
-                      {displayTitle}
-                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-xs sm:text-sm text-slate-900">
+                        {displayTitle}
+                      </p>
+                      {(event.actorType || (event as any).metadata?.actorEmail || (event as any).metadata?.actorName) && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          <span className="material-symbols-outlined text-[12px] text-slate-500">person</span>
+                          <span>
+                            {(event as any).metadata?.actorName || (event as any).metadata?.staffName || (event as any).metadata?.actorEmail || (event.actorType === 'SELLER' || event.actorType === 'STORE_OWNER' ? 'Chủ Shop' : event.actorType === 'STAFF' ? 'Nhân viên Shop' : event.actorType === 'PLATFORM_ADMIN' ? 'Admin' : event.actorType)}
+                            {(event as any).metadata?.actorRole ? ` • ${(event as any).metadata.actorRole}` : ''}
+                          </span>
+                        </span>
+                      )}
+                    </div>
                     {displayDesc && (
                       <p className="text-xs text-slate-500 mt-0.5">{displayDesc}</p>
                     )}

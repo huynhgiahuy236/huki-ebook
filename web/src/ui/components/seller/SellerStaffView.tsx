@@ -215,7 +215,7 @@ export function SellerStaffView() {
     try {
       let serverLogs: AuditLogItem[] = [];
       try {
-        const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 50 });
+        const res = await memberApi.getMemberAuditLogs(currentBizId, { limit: 100 });
         if (res.success && res.data?.items) {
           serverLogs = res.data.items.map((log: any) => ({
             id: log.id,
@@ -238,18 +238,96 @@ export function SellerStaffView() {
         console.warn('Server audit log fetch failed', apiErr);
       }
 
-      const allLogs = serverLogs.sort(
-        (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-      ).map((log) => {
-        if (!log.actorName && (log.actorId === user?.id || log.actorRole === 'OWNER')) {
+      // Read persistent local logs from localStorage (including order actions)
+      let localLogs: AuditLogItem[] = [];
+      try {
+        const cacheKey = `huki_seller_audit_logs_${currentBizId}`;
+        const cachedStr = localStorage.getItem(cacheKey) || localStorage.getItem('huki_seller_audit_logs');
+        if (cachedStr) {
+          localLogs = JSON.parse(cachedStr);
+        }
+      } catch {}
+
+      // Combine server & local logs, deduping by id
+      const combined = [...localLogs, ...serverLogs];
+      const seenIds = new Set<string>();
+      const uniqueLogs: AuditLogItem[] = [];
+      for (const item of combined) {
+        if (!item.id || !seenIds.has(item.id)) {
+          if (item.id) seenIds.add(item.id);
+          uniqueLogs.push(item);
+        }
+      }
+
+      const memberMap = new Map<string, any>();
+      members.forEach((m) => {
+        if (m.id) memberMap.set(m.id, m);
+        if (m.userId) memberMap.set(m.userId, m);
+      });
+
+      const allLogs = uniqueLogs
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .map((log) => {
+          const targetMember =
+            (log.resourceId ? memberMap.get(log.resourceId) : null) ||
+            (log.stateAfter?.id ? memberMap.get(log.stateAfter.id) : null) ||
+            (log.stateAfter?.userId ? memberMap.get(log.stateAfter.userId) : null) ||
+            (log.stateBefore?.id ? memberMap.get(log.stateBefore.id) : null) ||
+            (log.stateBefore?.userId ? memberMap.get(log.stateBefore.userId) : null);
+
+          const staffName =
+            log.metadata?.staffName ||
+            log.stateAfter?.fullName ||
+            log.stateBefore?.fullName ||
+            targetMember?.user?.fullName ||
+            targetMember?.user?.name ||
+            '';
+
+          const staffEmail =
+            log.metadata?.staffEmail ||
+            log.stateAfter?.email ||
+            log.stateBefore?.email ||
+            targetMember?.user?.email ||
+            '';
+
+          let stateAfter = log.stateAfter;
+          if (stateAfter && (!stateAfter.fullName || !stateAfter.email)) {
+            stateAfter = {
+              ...stateAfter,
+              fullName: stateAfter.fullName || staffName,
+              email: stateAfter.email || staffEmail,
+            };
+          }
+
+          let actorName = log.actorName || log.metadata?.staffName;
+          let actorEmail = log.actorEmail || log.metadata?.staffEmail;
+          let actorRole = log.actorRole || log.metadata?.staffRole;
+
+          const actorMember = log.actorId ? memberMap.get(log.actorId) : null;
+          if (actorMember) {
+            actorName = actorName || actorMember.user?.fullName || actorMember.user?.name;
+            actorEmail = actorEmail || actorMember.user?.email;
+            actorRole = actorRole || actorMember.role;
+          }
+
+          if (!actorName && (log.actorId === user?.id || log.actorRole === 'OWNER')) {
+            actorName = user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp';
+            actorEmail = user?.email || actorEmail;
+          }
+
           return {
             ...log,
-            actorName: user?.fullName || user?.name || user?.email || 'Chủ doanh nghiệp',
-            actorEmail: user?.email || log.actorEmail,
+            stateAfter,
+            actorName,
+            actorEmail,
+            actorRole: actorRole || log.actorRole,
+            metadata: {
+              ...log.metadata,
+              staffName: staffName || log.metadata?.staffName,
+              staffEmail: staffEmail || log.metadata?.staffEmail,
+            },
           };
-        }
-        return log;
-      });
+        });
 
       setAuditLogs(allLogs);
     } catch (err: any) {
@@ -257,7 +335,7 @@ export function SellerStaffView() {
     } finally {
       setLoadingAuditLogs(false);
     }
-  }, [businessId, setActiveBusinessId, user]);
+  }, [businessId, setActiveBusinessId, user, members]);
 
   useEffect(() => {
     loadMembers();
@@ -1117,6 +1195,12 @@ export function SellerStaffView() {
           title="Lịch Sử Thao Tác Phân Quyền & Quản Trị Nhân Sự"
           description="Theo dõi toàn bộ nhật ký cấp tài khoản, cập nhật vai trò, phân quyền hoặc xóa tài khoản nhân sự trong Doanh nghiệp."
           items={auditLogs}
+          staffList={members.map((m) => ({
+            id: m.id,
+            userId: m.userId,
+            fullName: m.user?.fullName,
+            email: m.user?.email,
+          }))}
           loading={loadingAuditLogs}
           error={auditError}
           onRetry={loadAuditLogs}

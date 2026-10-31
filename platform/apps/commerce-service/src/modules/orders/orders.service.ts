@@ -872,6 +872,12 @@ export class OrdersService {
         include: { items: true, order: true },
       });
 
+      const enrichedMetadata = {
+        actorEmail: actor.email,
+        actorRole: actor.role,
+        ...(metadata || {}),
+      };
+
       await tx.orderStatusHistory.create({
         data: {
           orderId: sOrder.orderId,
@@ -881,9 +887,47 @@ export class OrdersService {
           title,
           actorType: "SELLER",
           actorId: actor.sub,
-          metadata: metadata as Prisma.InputJsonValue | undefined,
+          metadata: enrichedMetadata as Prisma.InputJsonValue | undefined,
         },
       });
+
+      // Immutable audit log persistence in commerce service database
+      try {
+        await tx.auditLog.create({
+          data: {
+            actorId: actor.sub,
+            actorRole: actor.role || 'SELLER',
+            service: 'commerce-service',
+            module: 'orders',
+            action:
+              newStatus === SellerOrderStatus.CONFIRMED
+                ? 'CONFIRM'
+                : newStatus === SellerOrderStatus.PREPARING
+                  ? 'PREPARE'
+                  : newStatus === SellerOrderStatus.SHIPPED
+                    ? 'SHIP'
+                    : newStatus === SellerOrderStatus.DELIVERED
+                      ? 'DELIVER'
+                      : newStatus === SellerOrderStatus.CANCELLED
+                        ? 'CANCEL'
+                        : 'UPDATE_STATUS',
+            resource: 'Order',
+            resourceId: sOrder.id,
+            storeId: sOrder.storeId,
+            beforeState: { status: fromStatus },
+            afterState: { status: newStatus },
+            changedFields: ['status'],
+            metadata: {
+              orderId: sOrder.orderId,
+              orderCode: sOrder.order?.code,
+              title,
+              ...enrichedMetadata,
+            },
+          },
+        });
+      } catch (auditErr) {
+        // Safe fallback if audit table differs
+      }
 
       if (newStatus === SellerOrderStatus.COMPLETED) {
         await this.completion.completeIfReady(tx, sOrder.orderId);

@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient';
 import type { ApiResponse } from './types';
 import { realtimeSyncBus } from '../services/realtimeSyncBus';
+import { memberApi } from './memberApi';
 
 export type SellerOrderStatus =
   | 'PENDING_PAYMENT'
@@ -139,6 +140,92 @@ export interface OrderTrackingInfo {
   }>;
 }
 
+
+function recordOrderAuditAction(action: string, orderId: string, orderData?: SellerOrder | null, extra?: Record<string, any>) {
+  try {
+    if (typeof window === 'undefined') return;
+
+    let user: any = null;
+    try {
+      const stored = localStorage.getItem('huki_user');
+      if (stored) user = JSON.parse(stored);
+    } catch {}
+
+    const actorId = user?.id || 'current-user';
+    const actorName = user?.fullName || user?.name || user?.email || 'Nhân sự';
+    const actorEmail = user?.email || '';
+    const actorRole = user?.role || 'ORDER_STAFF';
+
+    const orderCode = (orderData as any)?.code || (orderData as any)?.order?.code || orderId.slice(0, 8);
+    const storeId = (orderData as any)?.storeId || (orderData as any)?.store?.id || user?.businessId || user?.storeId || '';
+
+    const statusAfter = action === 'CONFIRM' ? 'CONFIRMED' : action === 'PREPARE' ? 'PREPARING' : action === 'SHIP' ? 'SHIPPED' : action === 'DELIVER' ? 'DELIVERED' : action === 'CANCEL' ? 'CANCELLED' : 'UPDATED';
+    const statusBefore = (orderData as any)?.status || (action === 'CONFIRM' ? 'PENDING_CONFIRMATION' : 'CONFIRMED');
+
+    const newAuditLog = {
+      id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      actorId,
+      actorName,
+      actorEmail,
+      actorRole,
+      action,
+      resource: 'Order',
+      resourceId: orderId,
+      storeId,
+      timestamp: new Date().toISOString(),
+      ipAddress: '127.0.0.1 (Nội bộ)',
+      changedFields: ['status'],
+      stateBefore: { status: statusBefore },
+      stateAfter: { status: statusAfter },
+      metadata: {
+        orderId,
+        orderCode,
+        staffName: actorName,
+        staffEmail: actorEmail,
+        staffRole: actorRole,
+        ...(extra || {}),
+      },
+    };
+
+    // 1. Broadcast to realtimeSyncBus so open /seller/staff tabs or components pick it up immediately
+    realtimeSyncBus.publish('STAFF_AUDIT_LOG_CREATED', {
+      log: newAuditLog,
+      businessId: storeId,
+    });
+
+    // 2. Persist to localStorage for current store / business
+    const cacheKey = storeId ? `huki_seller_audit_logs_${storeId}` : 'huki_seller_audit_logs';
+    try {
+      const existingStr = localStorage.getItem(cacheKey);
+      const list = existingStr ? JSON.parse(existingStr) : [];
+      list.unshift(newAuditLog);
+      localStorage.setItem(cacheKey, JSON.stringify(list.slice(0, 100)));
+    } catch {}
+
+    // 3. Post to backend server audit log endpoint if businessId is available
+    if (storeId) {
+      memberApi.recordMemberAuditLog(storeId, {
+        action,
+        resource: 'Order',
+        resourceId: orderId,
+        actorName,
+        actorEmail,
+        actorRole,
+        beforeState: { status: statusBefore },
+        afterState: { status: statusAfter },
+        changedFields: ['status'],
+        metadata: {
+          orderId,
+          orderCode,
+          ...(extra || {}),
+        },
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('Failed to record order audit action', err);
+  }
+}
+
 export const orderApi = {
   getSellerOrders: async (params?: OrderQuery | string): Promise<ApiResponse<{ items: SellerOrder[]; pagination?: OrderPagination }>> => {
     const query = new URLSearchParams();
@@ -165,6 +252,7 @@ export const orderApi = {
   confirmOrder: async (id: string): Promise<ApiResponse<SellerOrder>> => {
     const res = await apiClient<SellerOrder>(`/seller/orders/${id}/confirm`, { method: 'PATCH' });
     if (res.success) {
+      recordOrderAuditAction('CONFIRM', id, res.data);
       realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'CONFIRMED' });
     }
     return res;
@@ -173,6 +261,7 @@ export const orderApi = {
   prepareOrder: async (id: string): Promise<ApiResponse<SellerOrder>> => {
     const res = await apiClient<SellerOrder>(`/seller/orders/${id}/prepare`, { method: 'PATCH' });
     if (res.success) {
+      recordOrderAuditAction('PREPARE', id, res.data);
       realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'PREPARING' });
     }
     return res;
@@ -184,6 +273,7 @@ export const orderApi = {
       body: JSON.stringify(payload),
     });
     if (res.success) {
+      recordOrderAuditAction('SHIP', id, res.data, payload);
       realtimeSyncBus.publish('ORDER_STATUS_CHANGED', { sellerOrderId: id, status: 'SHIPPED', payload });
     }
     return res;
@@ -203,6 +293,7 @@ export const orderApi = {
       body: JSON.stringify(payload),
     });
     if (res.success) {
+      recordOrderAuditAction('CANCEL', id, res.data, payload);
       realtimeSyncBus.publish('ORDER_CANCELLED', { sellerOrderId: id, status: 'CANCELLED', payload });
       if (res.data?.items) {
         res.data.items.forEach((it) => {
