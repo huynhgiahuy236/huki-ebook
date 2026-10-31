@@ -341,11 +341,12 @@ function SellerOrdersContent() {
 
     validOrders.forEach((o) => {
       const s = o.status;
-      if (s === 'PENDING_CONFIRMATION') pending++;
-      else if (s === 'CONFIRMED') confirmed++;
-      else if (s === 'PREPARING') readyForPickup++;
-      else if (s === 'SHIPPED') shipped++;
-      else if (s === 'DELIVERED' || s === 'COMPLETED') completed++;
+      const isPhysical = o.requiresShipping !== false;
+      if (s === 'PENDING_CONFIRMATION' && isPhysical) pending++;
+      else if (s === 'CONFIRMED' && isPhysical) confirmed++;
+      else if (s === 'PREPARING' && isPhysical) readyForPickup++;
+      else if (s === 'SHIPPED' && isPhysical) shipped++;
+      else if (s === 'DELIVERED' || s === 'COMPLETED' || (!isPhysical && s === 'COMPLETED')) completed++;
       else if (s === 'CANCELLED' || s === 'REFUNDED') cancelled++;
     });
 
@@ -358,11 +359,12 @@ function SellerOrdersContent() {
       // Unpaid online orders should never clutter Seller fulfillment workflow
       if (order.status === 'PENDING_PAYMENT') return false;
 
-      // Tab filter
-      if (activeTab === 'PENDING_CONFIRMATION' && order.status !== 'PENDING_CONFIRMATION') return false;
-      if (activeTab === 'CONFIRMED' && order.status !== 'CONFIRMED') return false;
-      if (activeTab === 'PREPARING' && order.status !== 'PREPARING') return false;
-      if (activeTab === 'SHIPPED' && order.status !== 'SHIPPED') return false;
+      // Tab filter (Ebook/digital orders never belong in physical shipping workflow tabs)
+      const isPhysical = order.requiresShipping !== false;
+      if (activeTab === 'PENDING_CONFIRMATION' && (order.status !== 'PENDING_CONFIRMATION' || !isPhysical)) return false;
+      if (activeTab === 'CONFIRMED' && (order.status !== 'CONFIRMED' || !isPhysical)) return false;
+      if (activeTab === 'PREPARING' && (order.status !== 'PREPARING' || !isPhysical)) return false;
+      if (activeTab === 'SHIPPED' && (order.status !== 'SHIPPED' || !isPhysical)) return false;
       if (activeTab === 'COMPLETED' && order.status !== 'COMPLETED' && order.status !== 'DELIVERED') return false;
       if (activeTab === 'CANCELLED' && order.status !== 'CANCELLED' && order.status !== 'REFUNDED') return false;
 
@@ -927,14 +929,18 @@ function SellerOrdersContent() {
     const ebookItems = items.filter((it) => it.format === 'DIGITAL' || it.format === 'EBOOK');
     const hasPhysical = physicalItems.length > 0 || (order.requiresShipping && ebookItems.length === 0);
 
+    const isDigitalOrder = !hasPhysical || order.requiresShipping === false;
+
     return (
       <div className="flex flex-col gap-4 text-xs">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
-          {/* Cột 1: Thông tin người nhận & Địa chỉ */}
+          {/* Cột 1: Thông tin người nhận */}
           <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
             <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-              <span className="material-symbols-outlined text-[15px] text-[#00875A]">local_shipping</span>
-              <span>Địa Chỉ Nhận Hàng & Người Mua</span>
+              <span className="material-symbols-outlined text-[15px] text-[#00875A]">
+                {isDigitalOrder ? 'menu_book' : 'local_shipping'}
+              </span>
+              <span>{isDigitalOrder ? 'Tài Khoản & Người Nhận Ebook' : 'Địa Chỉ Nhận Hàng & Người Mua'}</span>
             </div>
             <div className="space-y-1.5 text-[11.5px]">
               <div>
@@ -945,10 +951,17 @@ function SellerOrdersContent() {
                 <span className="text-slate-400">Số điện thoại: </span>
                 <span className="font-mono font-semibold text-slate-800">{buyerPhone}</span>
               </div>
-              <div>
-                <span className="text-slate-400">Địa chỉ nhận: </span>
-                <span className="text-slate-700 break-words leading-relaxed">{buyerAddress}</span>
-              </div>
+              {isDigitalOrder ? (
+                <div>
+                  <span className="text-slate-400">Kênh đọc sách: </span>
+                  <span className="font-medium text-emerald-700">Tủ Sách Trực Tuyến (HuKi DRM Reader)</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-slate-400">Địa chỉ nhận: </span>
+                  <span className="text-slate-700 break-words leading-relaxed">{buyerAddress}</span>
+                </div>
+              )}
               <div>
                 <span className="text-slate-400">Thời gian đặt: </span>
                 <span className="font-mono text-slate-600">{order.createdAt ? new Date(order.createdAt).toLocaleString('vi-VN') : '—'}</span>
@@ -956,27 +969,38 @@ function SellerOrdersContent() {
             </div>
           </div>
 
-          {/* Cột 2: Chi tiết kiện hàng & Vận chuyển */}
+          {/* Cột 2: Chi tiết vận chuyển hoặc phân phối số */}
           <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col gap-2">
             <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
-              <span className="material-symbols-outlined text-[15px] text-purple-600">inventory</span>
-              <span>Kiện Hàng & Vận Chuyển</span>
+              <span className="material-symbols-outlined text-[15px] text-purple-600">
+                {isDigitalOrder ? 'verified' : 'inventory'}
+              </span>
+              <span>{isDigitalOrder ? 'Hình Thức Cung Cấp Sách Số' : 'Kiện Hàng & Vận Chuyển'}</span>
             </div>
             <div className="space-y-1.5 text-[11.5px]">
               <div>
-                <span className="text-slate-400">Đơn vị giao: </span>
-                <span className="font-semibold text-slate-800">{order.carrier || (hasPhysical ? 'Chờ chọn bưu tá' : 'Ebook DRM Số')}</span>
+                <span className="text-slate-400">{isDigitalOrder ? 'Định dạng: ' : 'Đơn vị giao: '}</span>
+                <span className="font-semibold text-slate-800">
+                  {isDigitalOrder ? 'Sách Điện Tử Bản Quyền (Ebook DRM)' : (order.carrier || 'Chờ chọn bưu tá')}
+                </span>
               </div>
-              {order.trackingCode && (
+              {order.trackingCode && !isDigitalOrder && (
                 <div>
                   <span className="text-slate-400">Mã vận đơn: </span>
                   <span className="font-mono font-bold text-purple-700">{order.trackingCode}</span>
                 </div>
               )}
-              <div>
-                <span className="text-slate-400">Tổng đầu sách: </span>
-                <span className="font-semibold text-slate-800">{items.length} tựa sách ({items.reduce((s, it) => s + (it.quantity || 1), 0)} cuốn)</span>
-              </div>
+              {isDigitalOrder ? (
+                <div>
+                  <span className="text-slate-400">Phương thức: </span>
+                  <span className="text-emerald-700 font-semibold">Tự động kích hoạt bản quyền DRM khi thanh toán</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-slate-400">Tổng đầu sách: </span>
+                  <span className="font-semibold text-slate-800">{items.length} tựa sách ({items.reduce((s, it) => s + (it.quantity || 1), 0)} cuốn)</span>
+                </div>
+              )}
               <div>
                 <span className="text-slate-400">Tổng thanh toán: </span>
                 <span className="font-bold text-[#00875A] font-mono">{order.grandTotal?.toLocaleString('vi-VN')} đ</span>
@@ -984,20 +1008,29 @@ function SellerOrdersContent() {
             </div>
           </div>
 
-          {/* Cột 3: Tất cả sản phẩm & Thao tác nhanh */}
+          {/* Cột 3: Tất cả sản phẩm & Thao tác */}
           <div className="p-3.5 rounded-xl bg-slate-50/80 border border-slate-200/80 flex flex-col justify-between gap-2">
             <div>
               <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase tracking-wider border-b border-slate-200/60 pb-1.5">
                 <span className="material-symbols-outlined text-[15px] text-indigo-600">list_alt</span>
-                <span>Tất Cả Sản Phẩm ({items.length})</span>
+                <span>{isDigitalOrder ? 'Sản Phẩm Ebook' : `Tất Cả Sản Phẩm (${items.length})`}</span>
               </div>
               <div className="space-y-1.5 pt-1.5 max-h-36 overflow-y-auto">
-                {items.map((it, idx) => (
-                  <div key={it.id || idx} className="flex items-center justify-between gap-2 text-[11px] border-b border-slate-100 pb-1">
-                    <span className="text-slate-800 font-medium break-words line-clamp-1">{it.title || it.bookTitle || 'Sách'}</span>
-                    <span className="font-mono text-slate-500 shrink-0">x{it.quantity || 1}</span>
-                  </div>
-                ))}
+                {items.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic">Đang đồng bộ ấn phẩm số...</p>
+                ) : (
+                  items.map((it, idx) => (
+                    <div key={it.id || idx} className="flex items-center justify-between gap-2 text-[11px] border-b border-slate-100 pb-1">
+                      <div className="flex items-center gap-1 min-w-0">
+                        {it.format === 'DIGITAL' && (
+                          <span className="px-1 py-0.2 rounded bg-purple-100 text-purple-700 text-[9.5px] font-bold shrink-0">Ebook</span>
+                        )}
+                        <span className="text-slate-800 font-medium break-words line-clamp-1">{it.title || it.bookTitle || 'Sách'}</span>
+                      </div>
+                      <span className="font-mono text-slate-500 shrink-0">x{it.quantity || 1}</span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -1019,7 +1052,7 @@ function SellerOrdersContent() {
                   <span>Bàn Giao Bưu Tá</span>
                 </button>
               )}
-              {order.status === 'PENDING_CONFIRMATION' && (
+              {order.status === 'PENDING_CONFIRMATION' && hasPhysical && (
                 <button
                   type="button"
                   onClick={() => setActiveActionBox({ type: 'CANCEL', order })}

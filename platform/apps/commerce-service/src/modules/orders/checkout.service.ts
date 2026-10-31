@@ -532,10 +532,15 @@ export class CheckoutService {
             discountTotal: recalculated.discountTotal,
             grandTotal: recalculated.grandTotal,
             vouchers: recalculated.vouchers as any,
-            groups: recalculated.groups.map((g) => ({
-              ...g,
-              items: snapshot.groups.find((sg) => sg.storeId === g.storeId)?.items || [],
-            })) as CheckoutSnapshotGroup[],
+            groups: recalculated.groups.map((g) => {
+              const originalGroup = snapshot.groups.find((sg) => sg.storeId === g.storeId);
+              return {
+                ...g,
+                items: originalGroup?.items && originalGroup.items.length > 0
+                  ? originalGroup.items
+                  : (g.items as any) || [],
+              };
+            }) as CheckoutSnapshotGroup[],
           };
         } else if (dto.addressId) {
           finalSnapshot = {
@@ -550,6 +555,14 @@ export class CheckoutService {
           dto.paymentProvider.toUpperCase() !== "PAYOS"
         ) {
           throwBadRequest(ErrorCode.PAYMENT_PROVIDER_INVALID);
+        }
+
+        const requiresShipping = finalSnapshot.groups.some((g) => g.requiresShipping);
+        if (dto.paymentMethod === PaymentMethod.COD && !requiresShipping) {
+          throwBadRequest(
+            ErrorCode.PAYMENT_PROVIDER_INVALID,
+            'Đơn hàng thuần sách điện tử (Ebook DRM) không hỗ trợ hình thức thanh toán khi nhận hàng (COD). Vui lòng chọn thanh toán trực tuyến PayOS (VietQR).',
+          );
         }
 
         if (this.sanctionsService) {
@@ -629,9 +642,13 @@ export class CheckoutService {
               shippingFee: group.shippingFee,
               grandTotal: group.grandTotal,
               status:
-                dto.paymentMethod === PaymentMethod.COD
-                  ? SellerOrderStatus.PENDING_CONFIRMATION
-                  : SellerOrderStatus.PENDING_PAYMENT,
+                !group.requiresShipping
+                  ? (dto.paymentMethod === PaymentMethod.ONLINE_PAYMENT
+                      ? SellerOrderStatus.PENDING_PAYMENT
+                      : SellerOrderStatus.COMPLETED)
+                  : (dto.paymentMethod === PaymentMethod.COD
+                      ? SellerOrderStatus.PENDING_CONFIRMATION
+                      : SellerOrderStatus.PENDING_PAYMENT),
             },
           });
 
