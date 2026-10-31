@@ -214,6 +214,13 @@ function CatalogPageContent() {
         if (!pubLower.includes(selectedPublisher.toLowerCase())) return false;
       }
 
+      // Author filter
+      if (selectedAuthor !== 'all') {
+        const normAuthor = normalizeVietnameseText(book.author || '');
+        const normSelectedAuthor = normalizeVietnameseText(selectedAuthor);
+        if (!normAuthor.includes(normSelectedAuthor)) return false;
+      }
+
       // Rating filter
       if (selectedRating !== 'all') {
         const minRating = Number(selectedRating);
@@ -258,7 +265,7 @@ function CatalogPageContent() {
       if (selectedSort === 'new') return String(b.id).localeCompare(String(a.id));
       return (b.rating ?? 0) - (a.rating ?? 0);
     });
-  }, [allBooks, selectedCat, selectedFormat, selectedPublisher, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);
+  }, [allBooks, selectedCat, selectedFormat, selectedPublisher, selectedAuthor, selectedRating, minPriceParam, maxPriceParam, selectedSort, searchTerm]);
 
   const totalPages = Math.max(1, Math.ceil(filteredBooks.length / ITEMS_PER_PAGE));
   const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
@@ -267,10 +274,79 @@ function CatalogPageContent() {
     return filteredBooks.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredBooks, validCurrentPage]);
 
-  const hasActiveFilters = selectedCat !== 'all' || selectedFormat !== 'all' || selectedPublisher !== 'all' || selectedRating !== 'all' || Boolean(minPriceParam) || Boolean(maxPriceParam) || Boolean(searchTerm);
+  const hasActiveFilters = selectedCat !== 'all' || selectedFormat !== 'all' || selectedPublisher !== 'all' || selectedAuthor !== 'all' || selectedRating !== 'all' || Boolean(minPriceParam) || Boolean(maxPriceParam) || Boolean(searchTerm);
 
-  // Featured shop showcase books
-  const featuredShopBooks = allBooks.slice(0, 4);
+  // Computed dynamic filters data
+  const counts = useMemo(() => {
+    return {
+      formats: {
+        all: allBooks.length,
+        ebook: allBooks.filter((b) => b.formatType === 'ebook').length,
+        physical: allBooks.filter((b) => b.formatType === 'physical').length,
+        hybrid: allBooks.filter((b) => b.formatType === 'hybrid').length,
+      },
+      categories: {
+        all: allBooks.length,
+        selfhelp: allBooks.filter((b) => b.category === 'selfhelp').length,
+        technology: allBooks.filter((b) => b.category === 'technology').length,
+        business: allBooks.filter((b) => b.category === 'business').length,
+        literature: allBooks.filter((b) => b.category === 'literature').length,
+      },
+    };
+  }, [allBooks]);
+
+  const popularAuthors = useMemo(() => {
+    const authorMap: Record<string, number> = {};
+    allBooks.forEach((b) => {
+      const a = (b.author || '').trim();
+      if (a && a !== 'Tác giả HUKI' && a.length > 2) {
+        authorMap[a] = (authorMap[a] || 0) + 1;
+      }
+    });
+    const sorted = Object.entries(authorMap).sort((a, b) => b[1] - a[1]);
+    const defaultList = ['Dale Carnegie', 'James Clear', 'Yuval Noah Harari', 'Haruki Murakami', 'Rosie Nguyễn'];
+    const extracted = sorted.slice(0, 5).map(([name]) => name);
+    return Array.from(new Set([...extracted, ...defaultList])).slice(0, 5);
+  }, [allBooks]);
+
+  const popularPublishers = useMemo(() => {
+    const pubMap: Record<string, number> = {};
+    allBooks.forEach((b) => {
+      const p = (b.publisher || '').trim();
+      if (p && p !== 'HUKI Publisher' && p.length > 2) {
+        pubMap[p] = (pubMap[p] || 0) + 1;
+      }
+    });
+    const sorted = Object.entries(pubMap).sort((a, b) => b[1] - a[1]);
+    const defaultList = ['Nhã Nam', 'NXB Trẻ', 'Alpha Books', 'First News', 'Kim Đồng'];
+    const extracted = sorted.slice(0, 5).map(([name]) => name);
+    return Array.from(new Set([...extracted, ...defaultList])).slice(0, 5);
+  }, [allBooks]);
+
+  const quickPriceRanges = [
+    { label: 'Tất cả mức giá', min: '', max: '' },
+    { label: 'Dưới 50.000₫', min: '', max: '50000' },
+    { label: '50.000₫ - 100.000₫', min: '50000', max: '100000' },
+    { label: '100.000₫ - 200.000₫', min: '100000', max: '200000' },
+    { label: 'Trên 200.000₫', min: '200000', max: '' },
+  ];
+
+  const handleQuickPrice = (min: string, max: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (min) params.set('minPrice', min);
+    else params.delete('minPrice');
+    if (max) params.set('maxPrice', max);
+    else params.delete('maxPrice');
+    params.delete('page');
+    setMinPriceInput(min);
+    setMaxPriceInput(max);
+    router.push(`/books?${params.toString()}`);
+  };
+
+  const isCurrentPrice = (min: string, max: string) => {
+    if (!min && !max) return !minPriceParam && !maxPriceParam;
+    return minPriceParam === min && maxPriceParam === max;
+  };
 
   return (
     <div className="max-w-[1360px] w-full mx-auto px-3 sm:px-4 py-3 flex-1 flex flex-col font-sans">
@@ -306,171 +382,208 @@ function CatalogPageContent() {
         <div className="absolute right-0 top-0 bottom-0 w-1/3 bg-white/5 skew-x-12 pointer-events-none" />
       </div>
 
-      {/* 2. OFFICIAL STORE SHOWCASE SECTION (HUKI Green Tone) */}
-      <div className="bg-white border border-gray-200/90 rounded-lg p-3 sm:p-3.5 mb-4 shadow-2xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-        {/* Left: Shop Info Card */}
-        <div className="flex items-center gap-3.5 lg:w-[320px] shrink-0 lg:pr-4 lg:border-r border-gray-100">
-          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-[#003b2b] to-[#006953] p-0.5 shadow-xs shrink-0">
-            <div className="w-full h-full rounded-full bg-white flex items-center justify-center font-bold text-[#003b2b] text-lg">
-              <span className="material-symbols-outlined text-2xl">menu_book</span>
-            </div>
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="bg-[#003b2b] text-white text-[9px] font-black px-1.5 py-0.2 rounded">Official</span>
-              <h3 className="font-bold text-xs sm:text-sm text-gray-900 truncate">HUKI Official Books Store</h3>
-            </div>
-            <p className="text-[11px] text-gray-500 mt-0.5 flex items-center gap-2">
-              <span>★ <strong className="text-gray-800">5.0</strong></span>
-              <span>•</span>
-              <span>58.6k Người theo dõi</span>
-            </p>
-            <Link
-              href="/shop/huki-official"
-              className="inline-block mt-1.5 px-3 py-1 rounded border border-[#003b2b] text-[#003b2b] hover:bg-[#003b2b] hover:text-white font-semibold text-[11px] transition-colors"
-            >
-              Xem Shop
-            </Link>
-          </div>
-        </div>
-
-        {/* Right: 4 Mini Featured Books */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1">
-          {featuredShopBooks.map((item) => (
-            <Link
-              key={`showcase-${item.id}`}
-              href={`/book/${item.id}`}
-              className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-[#f2fbf9] border border-transparent hover:border-[#003b2b]/30 transition-all group"
-            >
-              <img
-                src={item.cover}
-                alt={item.title}
-                className="w-11 h-14 object-cover rounded shadow-2xs group-hover:scale-105 transition-transform shrink-0"
-              />
-              <div className="min-w-0 flex-1">
-                <h4 className="text-[11px] font-medium text-gray-800 line-clamp-1 group-hover:text-[#003b2b] leading-tight">
-                  {item.title}
-                </h4>
-                <div className="text-[11.5px] font-bold text-[#003b2b] mt-0.5">
-                  {item.price.toLocaleString('vi-VN')}₫
-                </div>
-                <div className="text-[9.5px] text-gray-400">Đã bán {item.sales || 0}</div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
-
-      {/* 3. MAIN SECTION: SIDEBAR FILTER + PRODUCT GRID */}
+      {/* 2. MAIN SECTION: SIDEBAR FILTER + PRODUCT GRID */}
       <div className="grid grid-cols-12 gap-3.5 lg:gap-4 items-start">
         
         {/* === LEFT SIDEBAR: BỘ LỌC TÌM KIẾM === */}
-        <aside className="col-span-12 lg:col-span-3 xl:col-span-2.5 bg-white border border-gray-200/90 rounded-lg p-3.5 shadow-2xs">
-          <div className="flex items-center gap-1.5 pb-3 border-b border-gray-200 text-xs font-black uppercase tracking-wider text-gray-900">
-            <span className="material-symbols-outlined text-[#003b2b] text-[18px]">filter_list</span>
-            <span>Bộ Lọc Tìm Kiếm</span>
+        <aside className="col-span-12 lg:col-span-3 xl:col-span-2.5 bg-white border border-gray-200 rounded-lg p-3.5 shadow-2xs">
+          
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-gray-200">
+            <span className="text-xs font-bold uppercase tracking-wider text-gray-900">
+              Bộ Lọc Tìm Kiếm
+            </span>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="text-[11px] font-semibold text-red-600 hover:underline cursor-pointer"
+              >
+                Xóa tất cả
+              </button>
+            )}
           </div>
 
-          {/* 1. Định dạng & Bản quyền */}
+          {/* 1. Định dạng sách */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-800 mb-2">Định dạng &amp; Bản quyền</h4>
-            <div className="space-y-1.5 text-xs">
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Định Dạng Sách</h4>
+            <div className="space-y-1.5 text-xs text-gray-700">
               {[
-                { id: 'all', label: 'Tất cả định dạng' },
-                { id: 'ebook', label: 'Ebook Bản Quyền DRM' },
-                { id: 'physical', label: 'Sách Giấy In' },
-                { id: 'hybrid', label: 'Combo Giấy + Ebook' },
+                { id: 'all', label: 'Tất cả định dạng', count: counts.formats.all },
+                { id: 'ebook', label: 'Ebook Bản Quyền DRM', count: counts.formats.ebook },
+                { id: 'physical', label: 'Sách Giấy In', count: counts.formats.physical },
+                { id: 'hybrid', label: 'Combo Giấy + Ebook', count: counts.formats.hybrid },
               ].map((fmt) => (
                 <label
                   key={fmt.id}
                   onClick={() => updateParam('format', fmt.id)}
-                  className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedFormat === fmt.id ? 'text-[#003b2b] font-bold' : 'text-gray-700'
+                  className={`flex items-center justify-between cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                    selectedFormat === fmt.id ? 'text-[#003b2b] font-bold' : ''
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="format_filter"
-                    checked={selectedFormat === fmt.id}
-                    onChange={() => {}}
-                    className="accent-[#003b2b] cursor-pointer"
-                  />
-                  <span>{fmt.label}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="format_filter"
+                      checked={selectedFormat === fmt.id}
+                      onChange={() => {}}
+                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                    />
+                    <span>{fmt.label}</span>
+                  </div>
+                  {fmt.count > 0 && <span className="text-[11px] text-gray-400">({fmt.count})</span>}
                 </label>
               ))}
             </div>
           </div>
 
-          {/* 2. Danh mục / Thể loại */}
+          {/* 2. Thể loại / Chủ đề */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-800 mb-2">Theo Danh Mục</h4>
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Chủ Đề &amp; Thể Loại</h4>
             <div className="space-y-1.5 text-xs text-gray-700">
               {[
-                { id: 'all', label: 'Tất cả chủ đề' },
-                { id: 'selfhelp', label: 'Phát triển bản thân' },
-                { id: 'technology', label: 'Công nghệ & AI' },
-                { id: 'business', label: 'Kinh doanh & Đầu tư' },
-                { id: 'literature', label: 'Văn học & Tiểu thuyết' },
+                { id: 'all', label: 'Tất cả chủ đề', count: counts.categories.all },
+                { id: 'business', label: 'Kinh doanh & Đầu tư', count: counts.categories.business },
+                { id: 'selfhelp', label: 'Phát triển bản thân', count: counts.categories.selfhelp },
+                { id: 'technology', label: 'Công nghệ & AI', count: counts.categories.technology },
+                { id: 'literature', label: 'Văn học & Tiểu thuyết', count: counts.categories.literature },
               ].map((cat) => (
                 <label
                   key={cat.id}
                   onClick={() => updateParam('cat', cat.id)}
-                  className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedCat === cat.id ? 'text-[#003b2b] font-bold' : 'text-gray-700'
+                  className={`flex items-center justify-between cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                    selectedCat === cat.id ? 'text-[#003b2b] font-bold' : ''
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="cat_filter"
-                    checked={selectedCat === cat.id}
-                    onChange={() => {}}
-                    className="accent-[#003b2b] cursor-pointer"
-                  />
-                  <span>{cat.label}</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="cat_filter"
+                      checked={selectedCat === cat.id}
+                      onChange={() => {}}
+                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                    />
+                    <span>{cat.label}</span>
+                  </div>
+                  {cat.count > 0 && <span className="text-[11px] text-gray-400">({cat.count})</span>}
                 </label>
               ))}
             </div>
           </div>
 
-          {/* 3. Nhà xuất bản / Thương hiệu */}
+          {/* 3. Tác Giả */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-800 mb-2">Nhà Xuất Bản</h4>
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Tác Giả</h4>
             <div className="space-y-1.5 text-xs text-gray-700">
-              {[
-                { id: 'all', label: 'Tất cả NXB' },
-                { id: 'Alpha Books', label: 'Alpha Books' },
-                { id: 'Nhã Nam', label: 'Nhã Nam' },
-                { id: 'First News', label: 'First News Trí Việt' },
-                { id: 'NXB Trẻ', label: 'NXB Trẻ' },
-              ].map((pub) => (
+              <label
+                onClick={() => updateParam('author', 'all')}
+                className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                  selectedAuthor === 'all' ? 'text-[#003b2b] font-bold' : ''
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="author_filter"
+                  checked={selectedAuthor === 'all'}
+                  onChange={() => {}}
+                  className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                />
+                <span>Tất cả tác giả</span>
+              </label>
+              {popularAuthors.map((authorName) => (
                 <label
-                  key={pub.id}
-                  onClick={() => updateParam('publisher', pub.id)}
+                  key={authorName}
+                  onClick={() => updateParam('author', authorName)}
                   className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
-                    selectedPublisher === pub.id ? 'text-[#003b2b] font-bold' : 'text-gray-700'
+                    selectedAuthor === authorName ? 'text-[#003b2b] font-bold' : ''
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="author_filter"
+                    checked={selectedAuthor === authorName}
+                    onChange={() => {}}
+                    className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                  />
+                  <span className="truncate">{authorName}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* 4. Nhà Xuất Bản */}
+          <div className="py-3 border-b border-gray-100">
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Nhà Xuất Bản</h4>
+            <div className="space-y-1.5 text-xs text-gray-700">
+              <label
+                onClick={() => updateParam('publisher', 'all')}
+                className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                  selectedPublisher === 'all' ? 'text-[#003b2b] font-bold' : ''
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="publisher_filter"
+                  checked={selectedPublisher === 'all'}
+                  onChange={() => {}}
+                  className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                />
+                <span>Tất cả NXB</span>
+              </label>
+              {popularPublishers.map((pubName) => (
+                <label
+                  key={pubName}
+                  onClick={() => updateParam('publisher', pubName)}
+                  className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                    selectedPublisher === pubName ? 'text-[#003b2b] font-bold' : ''
                   }`}
                 >
                   <input
                     type="radio"
                     name="publisher_filter"
-                    checked={selectedPublisher === pub.id}
+                    checked={selectedPublisher === pubName}
                     onChange={() => {}}
-                    className="accent-[#003b2b] cursor-pointer"
+                    className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
                   />
-                  <span>{pub.label}</span>
+                  <span className="truncate">{pubName}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* 4. Khoảng Giá (Green Apply Button) */}
+          {/* 5. Khoảng Giá */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-800 mb-2">Khoảng Giá</h4>
-            <form onSubmit={handleApplyPriceFilter} className="space-y-2">
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Khoảng Giá</h4>
+            <div className="space-y-1.5 text-xs text-gray-700 mb-2.5">
+              {quickPriceRanges.map((range) => {
+                const active = isCurrentPrice(range.min, range.max);
+                return (
+                  <label
+                    key={range.label}
+                    onClick={() => handleQuickPrice(range.min, range.max)}
+                    className={`flex items-center gap-2 cursor-pointer py-0.5 hover:text-[#003b2b] transition-colors ${
+                      active ? 'text-[#003b2b] font-bold' : ''
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="price_quick_filter"
+                      checked={active}
+                      onChange={() => {}}
+                      className="w-3.5 h-3.5 accent-[#003b2b] cursor-pointer"
+                    />
+                    <span>{range.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {/* Nhập khoảng giá tùy chỉnh */}
+            <form onSubmit={handleApplyPriceFilter} className="space-y-2 pt-1 border-t border-gray-100">
+              <div className="text-[11px] text-gray-500">Hoặc tự nhập khoảng giá:</div>
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
-                  placeholder="₫ TỪ"
+                  placeholder="₫ Từ"
                   value={minPriceInput}
                   onChange={(e) => setMinPriceInput(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 focus:outline-none focus:border-[#003b2b] focus:bg-white"
@@ -478,7 +591,7 @@ function CatalogPageContent() {
                 <span className="text-gray-400 text-xs">-</span>
                 <input
                   type="number"
-                  placeholder="₫ ĐẾN"
+                  placeholder="₫ Đến"
                   value={maxPriceInput}
                   onChange={(e) => setMaxPriceInput(e.target.value)}
                   className="w-full bg-gray-50 border border-gray-300 rounded px-2 py-1 text-xs text-gray-800 focus:outline-none focus:border-[#003b2b] focus:bg-white"
@@ -486,28 +599,28 @@ function CatalogPageContent() {
               </div>
               <button
                 type="submit"
-                className="w-full py-1.5 rounded bg-[#003b2b] hover:bg-[#00281d] text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-2xs cursor-pointer"
+                className="w-full py-1.5 rounded bg-[#003b2b] hover:bg-[#00281d] text-white font-semibold text-xs transition-colors cursor-pointer"
               >
                 Áp Dụng
               </button>
             </form>
           </div>
 
-          {/* 5. Đánh giá */}
+          {/* 6. Đánh giá */}
           <div className="py-3 border-b border-gray-100">
-            <h4 className="font-bold text-xs text-gray-800 mb-2">Đánh Giá</h4>
+            <h4 className="font-bold text-xs text-gray-900 mb-2">Đánh Giá</h4>
             <div className="space-y-1 text-xs">
               {[
                 { rating: '5', stars: '★★★★★', label: '5 sao' },
-                { rating: '4', stars: '★★★★☆', label: 'từ 4 sao' },
-                { rating: '3', stars: '★★★☆☆', label: 'từ 3 sao' },
+                { rating: '4', stars: '★★★★☆', label: 'Từ 4 sao' },
+                { rating: '3', stars: '★★★☆☆', label: 'Từ 3 sao' },
               ].map((r) => (
                 <button
                   key={r.rating}
                   type="button"
                   onClick={() => updateParam('rating', selectedRating === r.rating ? 'all' : r.rating)}
                   className={`w-full flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors text-left ${
-                    selectedRating === r.rating ? 'bg-[#e6f4f0] text-[#003b2b] font-bold border border-[#003b2b]/30' : 'hover:bg-gray-50 text-gray-700'
+                    selectedRating === r.rating ? 'bg-[#e6f4f0] text-[#003b2b] font-semibold border border-[#003b2b]/30' : 'hover:bg-gray-50 text-gray-700'
                   }`}
                 >
                   <span className="text-amber-500 tracking-wider text-xs">{r.stars}</span>
@@ -517,18 +630,18 @@ function CatalogPageContent() {
             </div>
           </div>
 
-          {/* 6. Nút XÓA TẤT CẢ (Green Theme Button) */}
-          <div className="pt-3">
-            <button
-              type="button"
-              onClick={clearAllFilters}
-              disabled={!hasActiveFilters}
-              className="w-full py-2 rounded bg-[#003b2b] hover:bg-[#00281d] disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs uppercase tracking-wider transition-colors shadow-2xs flex items-center justify-center gap-1 cursor-pointer"
-            >
-              <span className="material-symbols-outlined text-[15px]">delete_sweep</span>
-              <span>Xóa Tất Cả</span>
-            </button>
-          </div>
+          {/* 7. Nút đặt lại */}
+          {hasActiveFilters && (
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="w-full py-1.5 rounded border border-gray-300 hover:bg-gray-50 text-gray-700 font-semibold text-xs transition-colors cursor-pointer"
+              >
+                Đặt lại tất cả bộ lọc
+              </button>
+            </div>
+          )}
         </aside>
 
         {/* === RIGHT COLUMN: SORT BAR & 5-COLUMN PRODUCT GRID === */}
@@ -638,6 +751,12 @@ function CatalogPageContent() {
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#e6f4f0] text-[#003b2b] text-[11px] font-medium">
                   NXB: {selectedPublisher}
                   <button onClick={() => updateParam('publisher', 'all')} className="hover:opacity-75 cursor-pointer"><span className="material-symbols-outlined text-[12px]">close</span></button>
+                </span>
+              )}
+              {selectedAuthor !== 'all' && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#e6f4f0] text-[#003b2b] text-[11px] font-medium">
+                  Tác giả: {selectedAuthor}
+                  <button onClick={() => updateParam('author', 'all')} className="hover:opacity-75 cursor-pointer"><span className="material-symbols-outlined text-[12px]">close</span></button>
                 </span>
               )}
               {(minPriceParam || maxPriceParam) && (

@@ -66,38 +66,20 @@ export function DailyRecommendationsSection({
     <section className="flex flex-col gap-3 py-1 sm:py-2">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-gray-200">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="material-symbols-outlined text-amber-500 text-[24px]">
-            auto_awesome
-          </span>
-          <h2 className="font-editorial text-lg sm:text-xl font-bold text-[#17201F]">{title}</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">{title}</h2>
           <span className="text-[11px] text-[#003B2B] font-bold bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
             {todayStr}
           </span>
         </div>
-        <div className="flex items-center gap-1.5 text-[11.5px] text-gray-500">
-          <span className="material-symbols-outlined text-[15px] text-emerald-600">
-            psychology
-          </span>
+        <div className="text-[11.5px] text-gray-500">
           <span>{subtitle}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
         {books.map((book) => {
-          const reason = (book as any).recommendationReason;
           return (
             <div key={book.id} className="flex flex-col">
-              {reason && reason !== 'Gợi ý nổi bật' && (
-                <div
-                  className="mb-1 flex items-center gap-1 text-[9.5px] text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded font-medium truncate shadow-2xs"
-                  title={reason}
-                >
-                  <span className="material-symbols-outlined text-[11px] text-emerald-600 shrink-0">
-                    {reason.includes('🦊') ? 'auto_awesome' : reason.includes('xem') ? 'visibility' : 'search'}
-                  </span>
-                  <span className="truncate">{reason}</span>
-                </div>
-              )}
               <BookCard
                 book={{
                   id: book.id,

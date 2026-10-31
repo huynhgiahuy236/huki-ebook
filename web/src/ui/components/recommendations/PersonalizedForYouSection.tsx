@@ -79,34 +79,24 @@ export function PersonalizedForYouSection({
 
   // Nếu có data → render grid cá nhân hóa
   return (
-    <section className="bg-gradient-to-br from-emerald-50/50 via-white to-amber-50/30 rounded-2xl p-4 sm:p-5 border border-emerald-200/60 shadow-xs flex flex-col gap-3.5 my-2">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-emerald-200/60">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white flex items-center justify-center shadow-md shrink-0">
-            <span className="material-symbols-outlined text-[22px]">auto_awesome</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="font-editorial text-base sm:text-lg font-bold text-[#17201F]">
-                {title}
-              </h2>
-              <span className="bg-emerald-600 text-white text-[9.5px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shadow-2xs">
-                {user ? 'Dành Cho Bạn' : 'Cá Nhân Hóa'}
-              </span>
-            </div>
-            <p className="text-[11.5px] text-gray-600 mt-0.5">
-              {subtitle || 'Tự động phân tích theo lịch sử tìm kiếm & sở thích thể loại Onboarding của bạn'}
-            </p>
-          </div>
+    <section className="bg-white rounded-xl p-4 sm:p-5 border border-gray-200/90 shadow-2xs flex flex-col gap-3 my-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-gray-100">
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-gray-900">
+            {title}
+          </h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {subtitle || 'Gợi ý các tựa sách phù hợp dựa trên chủ đề và thể loại bạn quan tâm'}
+          </p>
         </div>
 
         {showSeeAll && (
           <button
             onClick={onSeeAllClick || (() => router.push('/books'))}
-            className="text-[12.5px] text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5 self-start sm:self-auto cursor-pointer"
+            className="text-xs text-[#003B2B] hover:underline font-semibold flex items-center gap-0.5 self-start sm:self-auto cursor-pointer"
           >
             <span>Khám phá thêm</span>
-            <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+            <span className="material-symbols-outlined text-[15px]">chevron_right</span>
           </button>
         )}
       </div>
@@ -116,7 +106,6 @@ export function PersonalizedForYouSection({
         onMouseLeave={() => setHovered(null)}
       >
         {books.map((book) => {
-          const reason = (book as any).recommendationReason;
           const bookData = (book as any).book || {};
           return (
             <div
@@ -126,12 +115,6 @@ export function PersonalizedForYouSection({
                 hovered === book.id ? '-translate-y-1' : ''
               }`}
             >
-              {reason && (
-                <div className="mb-1.5 flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-100/70 border border-emerald-300/40 px-2 py-0.5 rounded-md font-medium line-clamp-1" title={reason}>
-                  <span className="material-symbols-outlined text-[12px] text-emerald-600">psychology</span>
-                  <span className="truncate">{reason}</span>
-                </div>
-              )}
               <BookCard
                 book={{
                   id: book.id,

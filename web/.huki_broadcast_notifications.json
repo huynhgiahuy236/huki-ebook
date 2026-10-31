@@ -25,7 +25,8 @@
       "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "1079fc76-a467-48a9-8034-b072aaa5afea"
     ]
   },
   {
@@ -54,7 +55,8 @@
     ],
     "dismissedByBusinessIds": [
       "914a406f-9ae5-49a5-a895-7c60b2114d7c",
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "1079fc76-a467-48a9-8034-b072aaa5afea"
     ],
     "actionUrl": "/seller/finance",
     "actionLabel": "Xem Ví Escrow"
@@ -83,7 +85,8 @@
       "914a406f-9ae5-49a5-a895-7c60b2114d7c"
     ],
     "dismissedByBusinessIds": [
-      "d2caa7b1-1b82-49b9-be65-1fc6be42e472"
+      "d2caa7b1-1b82-49b9-be65-1fc6be42e472",
+      "1079fc76-a467-48a9-8034-b072aaa5afea"
     ],
     "actionUrl": "/seller/notifications",
     "actionLabel": "Xem Lịch Bảo Trì"

@@ -203,7 +203,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/dashboard', 
           icon: 'dashboard', 
-          label: 'Bảng Tổng Quan (Dashboard)', 
+          label: 'Bảng Tổng Quan', 
           permission: PERMISSIONS.DASHBOARD_VIEW 
         },
         { 
@@ -290,13 +290,13 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/inventory', 
           icon: 'inventory', 
-          label: 'Quản Lý Tồn Kho (3 Tầng)', 
+          label: 'Quản Lý Tồn Kho', 
           permission: PERMISSIONS.INVENTORY_UPDATE,
         }
       ]
     },
     {
-      title: 'CHĂM SÓC KHÁCH HÀNG (CRM)',
+      title: 'CHĂM SÓC KHÁCH HÀNG',
       icon: 'support_agent',
       items: [
         { 
@@ -344,7 +344,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/promotions/flash-sale', 
           icon: 'bolt', 
-          label: 'Flash Sale (Giờ Vàng)', 
+          label: 'Flash Sale', 
           permission: PERMISSIONS.PRODUCT_UPDATE,
           featureFlag: 'FLASH_SALE',
         },

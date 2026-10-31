@@ -1207,84 +1207,6 @@ export default function BookDetailPage() {
         </div>
       </section>
 
-      <section className="max-w-[1240px] mx-auto px-4 sm:px-6 mb-6">
-        <div className="bg-white rounded-2xl border border-[#e8e5df] p-4 sm:p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
-            <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#006953]/15 to-[#006953]/5 border border-[#006953]/20 flex items-center justify-center shrink-0 overflow-hidden group shadow-sm hover:border-[#006953] transition-colors">
-              {publisherProfile.logo ? <img src={publisherProfile.logo} alt={publisherProfile.name} className="w-full h-full object-cover" /> : <span className="text-[#006953] font-black text-xl sm:text-2xl font-editorial">{publisherProfile.name.charAt(0).toUpperCase()}</span>}
-              <div className="absolute bottom-0 inset-x-0 bg-[#006953] text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">Official</div>
-            </Link>
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="font-bold text-sm sm:text-base text-[#17201f] hover:text-[#006953] transition-colors truncate">{publisherProfile.name}</Link>
-                <span className="inline-flex items-center gap-0.5 bg-[#006953]/10 text-[#006953] text-[10px] font-bold px-2 py-0.5 rounded-full"><span className="material-symbols-outlined text-xs">verified</span>NXB Chính Hãng</span>
-              </div>
-              <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>
-              <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs text-gray-500 flex-wrap">
-                <span className="flex items-center gap-1 text-[#fea619] font-bold"><span className="material-symbols-outlined text-sm fill" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>{publisherProfile.rating} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span></span>
-                <span className="text-gray-300">•</span><span>Phản hồi: <strong className="text-gray-800">{publisherProfile.responseRate}</strong></span>
-                <span className="text-gray-300">•</span><span>Bảo hộ: <strong className="text-[#006953]">HUKI DRM</strong></span>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center w-full md:w-auto">
-            {!isFollowingStore ? (
-              <button
-                onClick={handleFollowStore}
-                className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl border border-[#006953] text-[#006953] hover:bg-[#006953]/5 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <span className="material-symbols-outlined text-sm">person_add</span>
-                <span>Theo dõi gian hàng</span>
-              </button>
-            ) : (
-              <div className="relative flex-1 md:flex-initial" ref={followDropdownRef}>
-                <button
-                  onClick={() => setIsFollowDropdownOpen(!isFollowDropdownOpen)}
-                  className="w-full px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-sm">check</span>
-                  <span>Đang theo dõi</span>
-                  <span className="material-symbols-outlined text-xs">expand_more</span>
-                </button>
-
-                {isFollowDropdownOpen && (
-                  <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
-                    {/* Option 1: Nhắn tin (disabled) */}
-                    <div
-                      className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
-                      title="Chức năng nhắn tin đang được phát triển"
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
-                        <span>Nhắn tin</span>
-                      </div>
-                      <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
-                        Sắp ra mắt
-                      </span>
-                    </div>
-
-                    {/* Option 2: Hủy theo dõi */}
-                    <button
-                      onClick={() => {
-                        setIsFollowDropdownOpen(false);
-                        setIsUnfollowModalOpen(true);
-                      }}
-                      className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
-                    >
-                      <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
-                      <span>Hủy theo dõi</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            <Link href={`/shop/${publisherProfile.slug || publisherProfile.id}`} className="flex-1 md:flex-initial px-4 py-2.5 rounded-xl bg-[#006953] hover:bg-[#00523c] text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm">
-              <span className="material-symbols-outlined text-sm">storefront</span>Xem Gian Hàng
-            </Link>
-          </div>
-        </div>
-      </section>
-
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6">
         <div className="bg-white rounded-2xl border border-[#e8e5df] shadow-sm overflow-hidden mb-6">
           <div className="flex items-center border-b border-gray-200 px-4 sm:px-6 gap-6 sm:gap-8 overflow-x-auto text-xs sm:text-sm font-semibold">
@@ -1360,6 +1282,119 @@ export default function BookDetailPage() {
                       </span>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Thông Tin Gian Hàng & Nhà Phát Hành */}
+              <div className="border-t border-gray-100 pt-6">
+                <h3 className="font-bold text-sm text-[#17201f] mb-4 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#006953] text-base">storefront</span>
+                  Thông Tin Gian Hàng &amp; Đơn Vị Phát Hành
+                </h3>
+
+                <div className="p-4 sm:p-5 rounded-2xl bg-[#f8f6f1]/60 border border-[#e8e5df] flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 min-w-0">
+                    <Link
+                      href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
+                      className="relative w-14 h-14 rounded-2xl bg-white border border-[#006953]/20 flex items-center justify-center shrink-0 overflow-hidden group shadow-2xs hover:border-[#006953] transition-colors"
+                    >
+                      {publisherProfile.logo ? (
+                        <img src={publisherProfile.logo} alt={publisherProfile.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-[#006953] font-bold text-xl font-editorial">{publisherProfile.name.charAt(0).toUpperCase()}</span>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-[#006953] text-white text-[8px] font-bold text-center py-0.5 uppercase tracking-wider">
+                        Official
+                      </div>
+                    </Link>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Link
+                          href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
+                          className="font-bold text-sm sm:text-base text-[#17201f] hover:text-[#006953] transition-colors truncate"
+                        >
+                          {publisherProfile.name}
+                        </Link>
+                        <span className="inline-flex items-center gap-0.5 bg-[#006953]/10 text-[#006953] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          <span className="material-symbols-outlined text-xs">verified</span>NXB Chính Hãng
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{publisherProfile.description}</p>
+                      <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs text-gray-500 flex-wrap">
+                        <span className="flex items-center gap-1 text-[#fea619] font-bold">
+                          <span className="material-symbols-outlined text-sm fill" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                          {publisherProfile.rating} <span className="text-gray-400 font-normal">({publisherProfile.reviewsCount})</span>
+                        </span>
+                        <span className="text-gray-300">•</span>
+                        <span>Phản hồi: <strong className="text-gray-800">{publisherProfile.responseRate}</strong></span>
+                        <span className="text-gray-300">•</span>
+                        <span>Bảo hộ: <strong className="text-[#006953]">HUKI DRM</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions: Nút Xem Gian Hàng viền trắng thanh lịch, không dùng nền xanh đậm để tránh nhầm với nút Mua Ngay */}
+                  <div className="flex items-center gap-2.5 shrink-0 self-end md:self-center w-full md:w-auto">
+                    {!isFollowingStore ? (
+                      <button
+                        onClick={handleFollowStore}
+                        className="flex-1 md:flex-initial px-3.5 py-2 rounded-xl border border-gray-300 hover:border-[#006953] bg-white text-gray-700 hover:text-[#006953] text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <span className="material-symbols-outlined text-sm">person_add</span>
+                        <span>Theo dõi</span>
+                      </button>
+                    ) : (
+                      <div className="relative flex-1 md:flex-initial" ref={followDropdownRef}>
+                        <button
+                          onClick={() => setIsFollowDropdownOpen(!isFollowDropdownOpen)}
+                          className="w-full px-3.5 py-2 rounded-xl bg-gray-200/80 hover:bg-gray-200 text-gray-700 text-xs font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">check</span>
+                          <span>Đang theo dõi</span>
+                          <span className="material-symbols-outlined text-xs">expand_more</span>
+                        </button>
+
+                        {isFollowDropdownOpen && (
+                          <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                            {/* Option 1: Nhắn tin (disabled) */}
+                            <div
+                              className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
+                              title="Chức năng nhắn tin đang được phát triển"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
+                                <span>Nhắn tin</span>
+                              </div>
+                              <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
+                                Sắp ra mắt
+                              </span>
+                            </div>
+
+                            {/* Option 2: Hủy theo dõi */}
+                            <button
+                              onClick={() => {
+                                setIsFollowDropdownOpen(false);
+                                setIsUnfollowModalOpen(true);
+                              }}
+                              className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
+                            >
+                              <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
+                              <span>Hủy theo dõi</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <Link
+                      href={`/shop/${publisherProfile.slug || publisherProfile.id}`}
+                      className="flex-1 md:flex-initial px-4 py-2 rounded-xl border border-[#006953] bg-white hover:bg-[#006953]/5 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                    >
+                      <span className="material-symbols-outlined text-sm">storefront</span>
+                      <span>Xem Gian Hàng</span>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

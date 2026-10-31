@@ -232,16 +232,15 @@ export default function VouchersPage() {
           <button
             onClick={() => { setActiveTab("HUKI"); setPagePlatform(1); }}
             className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === "HUKI"
-                ? "bg-[#003B2B] text-white shadow-sm"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            }`}
+              ? "bg-[#003B2B] text-white shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
           >
             <span className="material-symbols-outlined text-[19px]">verified</span>
             <span>HUKI Vouchers</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === "HUKI" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
-              }`}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${activeTab === "HUKI" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+                }`}
             >
               {platformVouchers.length}
             </span>
@@ -249,18 +248,16 @@ export default function VouchersPage() {
 
           <button
             onClick={() => { setActiveTab("SHOP"); setPageShop(1); }}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
-              activeTab === "SHOP"
-                ? "bg-[#003B2B] text-white shadow-sm"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            }`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === "SHOP"
+              ? "bg-[#003B2B] text-white shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
           >
             <span className="material-symbols-outlined text-[19px]">storefront</span>
             <span>Shop Vouchers</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === "SHOP" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
-              }`}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${activeTab === "SHOP" ? "bg-white/20 text-white" : "bg-gray-100 text-gray-700"
+                }`}
             >
               {shopVouchersGrouped.reduce((sum, g) => sum + g.vouchers.length, 0)}
             </span>
@@ -268,18 +265,16 @@ export default function VouchersPage() {
 
           <button
             onClick={() => { setActiveTab("WALLET"); setPageWallet(1); }}
-            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
-              activeTab === "WALLET"
-                ? "bg-[#003B2B] text-white shadow-sm"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            }`}
+            className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${activeTab === "WALLET"
+              ? "bg-[#003B2B] text-white shadow-sm"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
           >
             <span className="material-symbols-outlined text-[19px]">account_balance_wallet</span>
             <span>Ví Voucher Của Tôi</span>
             <span
-              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
-                activeTab === "WALLET" ? "bg-amber-400 text-[#003B2B]" : "bg-amber-100 text-amber-800"
-              }`}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${activeTab === "WALLET" ? "bg-amber-400 text-[#003B2B]" : "bg-amber-100 text-amber-800"
+                }`}
             >
               {walletData.totalCount || 0}
             </span>
@@ -320,109 +315,105 @@ export default function VouchersPage() {
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {pagedPlatformVouchers.map((voucher) => {
-                  const isFreeship = voucher.type === "FREE_SHIPPING";
-                  return (
-                    <div
-                      key={voucher.id}
-                      className={`relative bg-white rounded-2xl p-4 border transition-all hover:shadow-md flex flex-col justify-between ${
-                        isFreeship
+                  {pagedPlatformVouchers.map((voucher) => {
+                    const isFreeship = voucher.type === "FREE_SHIPPING";
+                    return (
+                      <div
+                        key={voucher.id}
+                        className={`relative bg-white rounded-2xl p-4 border transition-all hover:shadow-md flex flex-col justify-between ${isFreeship
                           ? "border-cyan-200 hover:border-cyan-400 bg-gradient-to-br from-white to-cyan-50/30"
                           : "border-emerald-200 hover:border-emerald-400 bg-gradient-to-br from-white to-emerald-50/30"
-                      }`}
-                    >
-                      {/* Top Row: Icon + Code + Value */}
-                      <div>
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2.5">
-                            <div
-                              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                isFreeship
+                          }`}
+                      >
+                        {/* Top Row: Icon + Code + Value */}
+                        <div>
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2.5">
+                              <div
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isFreeship
                                   ? "bg-cyan-100 text-cyan-700"
                                   : "bg-emerald-100 text-[#003B2B]"
-                              }`}
-                            >
-                              <span className="material-symbols-outlined text-[22px]">
-                                {isFreeship ? "local_shipping" : "percent"}
-                              </span>
-                            </div>
-                            <div>
-                              <span
-                                className={`text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-md ${
-                                  isFreeship
+                                  }`}
+                              >
+                                <span className="material-symbols-outlined text-[22px]">
+                                  {isFreeship ? "local_shipping" : "percent"}
+                                </span>
+                              </div>
+                              <div>
+                                <span
+                                  className={`text-[11px] font-extrabold uppercase px-2 py-0.5 rounded-md ${isFreeship
                                     ? "bg-cyan-100 text-cyan-800"
                                     : "bg-emerald-100 text-emerald-800"
-                                }`}
-                              >
-                                {isFreeship ? "Freeship Sàn" : "Voucher Sàn"}
-                              </span>
-                              <h3 className="text-sm font-bold text-gray-900 mt-1 break-words line-clamp-2 leading-snug">
-                                {voucher.name}
-                              </h3>
+                                    }`}
+                                >
+                                  {isFreeship ? "Freeship Sàn" : "Voucher Sàn"}
+                                </span>
+                                <h3 className="text-sm font-bold text-gray-900 mt-1 break-words line-clamp-2 leading-snug">
+                                  {voucher.name}
+                                </h3>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Discount Highlight */}
-                        <div className="my-2 bg-gray-50 rounded-xl p-2.5 border border-dashed border-gray-200">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-lg font-black text-[#003B2B]">
-                              {formatDiscount(voucher.type, voucher.value)}
-                            </span>
-                            {voucher.maxDiscountAmount && voucher.type === "PERCENTAGE" && (
-                              <span className="text-xs text-gray-500 font-medium">
-                                (Tối đa {voucher.maxDiscountAmount.toLocaleString("vi-VN")}đ)
+                          {/* Discount Highlight */}
+                          <div className="my-2 bg-gray-50 rounded-xl p-2.5 border border-dashed border-gray-200">
+                            <div className="flex items-baseline gap-1.5">
+                              <span className="text-lg font-black text-[#003B2B]">
+                                {formatDiscount(voucher.type, voucher.value)}
                               </span>
-                            )}
+                              {voucher.maxDiscountAmount && voucher.type === "PERCENTAGE" && (
+                                <span className="text-xs text-gray-500 font-medium">
+                                  (Tối đa {voucher.maxDiscountAmount.toLocaleString("vi-VN")}đ)
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-600 font-medium mt-0.5">
+                              {voucher.minOrderAmount && voucher.minOrderAmount > 0
+                                ? `Đơn tối thiểu ${voucher.minOrderAmount.toLocaleString("vi-VN")}đ`
+                                : "Áp dụng cho mọi đơn hàng"}
+                            </p>
                           </div>
-                          <p className="text-[11px] text-gray-600 font-medium mt-0.5">
-                            {voucher.minOrderAmount && voucher.minOrderAmount > 0
-                              ? `Đơn tối thiểu ${voucher.minOrderAmount.toLocaleString("vi-VN")}đ`
-                              : "Áp dụng cho mọi đơn hàng"}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Bottom Row: Expiry + Save Button */}
-                      <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100 mt-2">
-                        <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium">
-                          <span className="material-symbols-outlined text-[15px] text-gray-400">
-                            schedule
-                          </span>
-                          <span>{formatExpiry(voucher.expiresAt)}</span>
                         </div>
 
-                        <button
-                          onClick={() => handleSaveVoucher(voucher)}
-                          disabled={voucher.isSaved || savingId === voucher.id}
-                          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
-                            voucher.isSaved
+                        {/* Bottom Row: Expiry + Save Button */}
+                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100 mt-2">
+                          <div className="flex items-center gap-1 text-[11px] text-gray-500 font-medium">
+                            <span className="material-symbols-outlined text-[15px] text-gray-400">
+                              schedule
+                            </span>
+                            <span>{formatExpiry(voucher.expiresAt)}</span>
+                          </div>
+
+                          <button
+                            onClick={() => handleSaveVoucher(voucher)}
+                            disabled={voucher.isSaved || savingId === voucher.id}
+                            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${voucher.isSaved
                               ? "bg-gray-100 text-gray-500 cursor-not-allowed border border-gray-200"
                               : "bg-[#003B2B] text-white hover:bg-[#002f22]"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[16px]">
-                            {voucher.isSaved ? "check_circle" : "bookmark_add"}
-                          </span>
-                          <span>{voucher.isSaved ? "Đã Trong Ví" : "Lưu Mã"}</span>
-                        </button>
+                              }`}
+                          >
+                            <span className="material-symbols-outlined text-[16px]">
+                              {voucher.isSaved ? "check_circle" : "bookmark_add"}
+                            </span>
+                            <span>{voucher.isSaved ? "Đã Trong Ví" : "Lưu Mã"}</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {filteredPlatformVouchers.length > 0 && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
-                  <StandardPaginationBar
-                    currentPage={pagePlatform}
-                    totalItems={filteredPlatformVouchers.length}
-                    pageSize={pageSize}
-                    onPageChange={(p) => setPagePlatform(p)}
-                    itemLabel="voucher sàn"
-                  />
+                    );
+                  })}
                 </div>
-              )}
+
+                {filteredPlatformVouchers.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-2">
+                    <StandardPaginationBar
+                      currentPage={pagePlatform}
+                      totalItems={filteredPlatformVouchers.length}
+                      pageSize={pageSize}
+                      onPageChange={(p) => setPagePlatform(p)}
+                      itemLabel="voucher sàn"
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -552,11 +543,10 @@ export default function VouchersPage() {
                               <button
                                 onClick={() => handleSaveVoucher(voucher)}
                                 disabled={voucher.isSaved || savingId === voucher.id}
-                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
-                                  voucher.isSaved
-                                    ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
-                                    : "bg-[#003B2B] text-white hover:bg-[#002f22]"
-                                }`}
+                                className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${voucher.isSaved
+                                  ? "bg-gray-100 text-gray-400 cursor-not-allowed border border-gray-200"
+                                  : "bg-[#003B2B] text-white hover:bg-[#002f22]"
+                                  }`}
                               >
                                 <span>{voucher.isSaved ? "Đã Lưu" : "Lưu Mã"}</span>
                               </button>
@@ -591,41 +581,37 @@ export default function VouchersPage() {
             <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setWalletSubTab("ALL")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  walletSubTab === "ALL"
-                    ? "bg-[#003B2B] text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${walletSubTab === "ALL"
+                  ? "bg-[#003B2B] text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 Tất cả ({walletData.totalCount})
               </button>
               <button
                 onClick={() => setWalletSubTab("FREESHIP")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  walletSubTab === "FREESHIP"
-                    ? "bg-[#003B2B] text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${walletSubTab === "FREESHIP"
+                  ? "bg-[#003B2B] text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 Freeship Sàn ({walletPlatformFreeship.length})
               </button>
               <button
                 onClick={() => setWalletSubTab("DISCOUNT")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  walletSubTab === "DISCOUNT"
-                    ? "bg-[#003B2B] text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${walletSubTab === "DISCOUNT"
+                  ? "bg-[#003B2B] text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 Giảm Giá Sàn ({walletPlatformDiscount.length})
               </button>
               <button
                 onClick={() => setWalletSubTab("SHOP")}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  walletSubTab === "SHOP"
-                    ? "bg-[#003B2B] text-white"
-                    : "text-gray-600 hover:bg-gray-100"
-                }`}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${walletSubTab === "SHOP"
+                  ? "bg-[#003B2B] text-white"
+                  : "text-gray-600 hover:bg-gray-100"
+                  }`}
               >
                 Voucher Shop ({walletStores.reduce((sum, s) => sum + s.vouchers.length, 0)})
               </button>
