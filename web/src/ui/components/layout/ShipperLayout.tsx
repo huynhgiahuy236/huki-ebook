@@ -200,7 +200,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Left: Sidebar Toggle & Brand Identity */}
         <div className="flex items-center">
           {/* Hamburger / Sidebar Toggle Container */}
-          <div className="w-[60px] flex items-center justify-center shrink-0">
+          <div className="w-[64px] flex items-center justify-center shrink-0">
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="hidden lg:flex w-9 h-9 items-center justify-center rounded-xl text-gray-500 hover:text-[#003B2B] hover:bg-gray-100 transition-all cursor-pointer border border-[#E2E8F0] hover:border-[#003B2B]/30 shadow-2xs active:scale-95"
@@ -321,14 +321,14 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
             hidden lg:flex flex-col
             bg-[#003B2B] text-white border-r border-[#00281D]
             shrink-0 transition-all duration-300 select-none shadow-md
-            ${isSidebarCollapsed ? 'w-[60px]' : 'w-[235px]'}
+            ${isSidebarCollapsed ? 'w-[64px]' : 'w-[255px]'}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 flex flex-col gap-3.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             {menuSections.map((sec, sIdx) => (
               <div key={sIdx} className="flex flex-col gap-1">
                 {!isSidebarCollapsed && (
-                  <div className="px-2.5 py-0.5 text-[9.5px] font-extrabold uppercase tracking-widest text-white/50">
+                  <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-white/50">
                     {sec.group}
                   </div>
                 )}
@@ -342,7 +342,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                         <div className="flex items-center justify-center py-0.5">
                           <Link
                             href={item.to}
-                            className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-150 relative shrink-0 ${
+                            className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 ${
                               isActive
                                 ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
                                 : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
@@ -368,7 +368,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                         /* Expanded Clean Item View */
                         <Link
                           href={item.to}
-                          className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 ${
+                          className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 shrink-0 ${
                             isActive
                               ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
                               : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'

@@ -313,7 +313,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         {/* Left: Sidebar Toggle & Brand Identity */}
         <div className="flex items-center">
           {/* Hamburger / Sidebar Toggle Container - exactly w-[60px] to align perfectly with collapsed sidebar */}
-          <div className="w-[60px] flex items-center justify-center shrink-0">
+          <div className="w-[64px] flex items-center justify-center shrink-0">
             {/* Desktop Sidebar Collapse Toggle Button */}
             <button
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
@@ -439,7 +439,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             hidden lg:flex flex-col
             bg-[#003B2B] text-white border-r border-[#00281D]
             shrink-0 transition-all duration-300 select-none shadow-md
-            ${isSidebarCollapsed ? 'w-[60px]' : 'w-[245px]'}
+            ${isSidebarCollapsed ? 'w-[64px]' : 'w-[255px]'}
           `}
         >
           <div className="flex-1 overflow-y-auto overflow-x-hidden py-3 px-1.5 flex flex-col gap-2.5 select-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -453,7 +453,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     <button
                       type="button"
                       onClick={() => toggleSection(sec.group)}
-                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[9.5px] font-extrabold uppercase tracking-widest transition-colors cursor-pointer select-none ${
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer select-none ${
                         hasActiveChild ? 'text-white bg-white/10' : 'text-white/60 hover:text-white hover:bg-white/5'
                       }`}
                       title={`Bấm để ${isSectionOpen ? 'thu gọn' : 'mở rộng'} ${sec.group}`}
@@ -479,7 +479,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                             <div key={iIdx} className="relative group">
                               {isSidebarCollapsed ? (
                                 <div className="flex items-center justify-center py-0.5">
-                                  <div className="flex items-center justify-center w-9 h-9 rounded-xl opacity-40 text-white/50 cursor-not-allowed">
+                                  <div className="flex items-center justify-center w-10 h-10 rounded-xl opacity-40 text-white/50 cursor-not-allowed">
                                     <span className="material-symbols-outlined text-[19px]">{item.icon}</span>
                                   </div>
                                   <div className="opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 absolute left-full ml-2 px-2.5 py-1 bg-slate-900 text-white text-[11px] font-bold rounded-lg shadow-xl whitespace-nowrap z-50">
@@ -487,7 +487,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="flex items-center justify-between px-2.5 h-9 rounded-xl text-[12.5px] font-medium opacity-40 text-white/50 cursor-not-allowed">
+                                <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium opacity-40 text-white/50 cursor-not-allowed">
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
                                     <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
                                     <span className="truncate">{item.label}</span>
@@ -509,7 +509,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                               <div className="flex items-center justify-center py-0.5">
                                 <Link
                                   href={item.to}
-                                  className={`flex items-center justify-center w-9 h-9 rounded-xl transition-all duration-150 relative shrink-0 ${
+                                  className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-150 relative shrink-0 ${
                                     isActive
                                       ? 'bg-white text-[#003B2B] shadow-sm font-bold border border-white/40'
                                       : 'text-white/80 hover:bg-white/15 hover:text-white border border-transparent'
@@ -534,7 +534,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                               /* Expanded Clean Item View */
                               <Link
                                 href={item.to}
-                                className={`flex items-center justify-between gap-2 px-2.5 h-9 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 ${
+                                className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 shrink-0 ${
                                   isActive
                                     ? 'bg-white text-[#003B2B] font-bold shadow-sm border border-white/40'
                                     : 'text-white/85 font-medium hover:bg-white/15 hover:text-white border border-transparent'
