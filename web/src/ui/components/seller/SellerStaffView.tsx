@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { memberApi, BusinessMemberItem } from '@/ui/api/memberApi';
@@ -74,8 +74,9 @@ export function SellerStaffView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // In-Page Add Form State (Direct Provisioning)
+  // In-Page Add/Edit Form State
   const [showAddForm, setShowAddForm] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (searchParams?.get('action') === 'provision' || searchParams?.get('action') === 'new') {
@@ -399,45 +400,55 @@ export function SellerStaffView() {
     }
   };
 
-  // Open Edit Permissions
+  // Open Edit Permissions Mode
   const handleOpenEdit = (member: BusinessMemberItem) => {
+    if (activeStaffTab !== 'members') setActiveStaffTab('members');
     setEditingMemberId(member.id);
-    setEditPermissions(member.permissions || []);
-    setEditPreset('CUSTOM');
-  };
+    setShowAddForm(true);
 
-  const handleSelectEditPreset = (presetId: string) => {
-    const found = ROLE_PRESETS.find((p) => p.id === presetId);
-    if (found) {
-      setEditPreset(presetId);
-      setEditPermissions([...found.permissions]);
-    }
-  };
+    const memPerms = member.permissions || [];
+    const matchedPreset = ROLE_PRESETS.find(
+      (p) =>
+        p.permissions.length === memPerms.length &&
+        p.permissions.every((k) => memPerms.includes(k))
+    );
 
-  const handleToggleEditPermission = (permKey: string) => {
-    setEditPermissions((prev) => {
-      const exists = prev.includes(permKey);
-      return exists ? prev.filter((k) => k !== permKey) : [...prev, permKey];
+    setFormData({
+      fullName: member.user?.fullName || '',
+      email: member.user?.email || '',
+      phone: member.user?.phone || '',
+      initialPassword: '',
+      initialPin: '',
+      selectedPreset: matchedPreset ? matchedPreset.id : 'CUSTOM',
+      permissions: [...memPerms],
     });
-    setEditPreset('CUSTOM');
+
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
   };
 
-  const handleToggleEditGroup = (group: (typeof PERMISSION_GROUPS)[0]) => {
-    const groupKeys = group.permissions.map((p) => p.key);
-    const isAllSelected = groupKeys.every((k) => editPermissions.includes(k));
-    if (isAllSelected) {
-      setEditPermissions((prev) => prev.filter((k) => !groupKeys.includes(k as PermissionKey)));
-    } else {
-      setEditPermissions((prev) => Array.from(new Set([...prev, ...groupKeys])));
-    }
-    setEditPreset('CUSTOM');
+  const handleOpenCreate = () => {
+    if (activeStaffTab !== 'members') setActiveStaffTab('members');
+    setEditingMemberId(null);
+    setFormData(initialForm);
+    setShowAddForm(true);
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 60);
+  };
+
+  const handleCloseForm = () => {
+    setShowAddForm(false);
+    setEditingMemberId(null);
+    setFormData(initialForm);
   };
 
   const handleSavePermissions = async (memberId: string) => {
     const currentBizId = businessId || user?.business?.id || activeBusinessId;
     if (!currentBizId) return;
 
-    if (editPermissions.length === 0) {
+    if (formData.permissions.length === 0) {
       showToast({ title: 'Lỗi phân quyền', message: 'Nhân viên phải có ít nhất 1 quyền chức năng.' }, 'error');
       return;
     }
@@ -448,11 +459,11 @@ export function SellerStaffView() {
     setPinModalConfig({
       isOpen: true,
       actionName: `Cập nhật phân quyền cho ${staffName}`,
-      description: `Thao tác thay đổi quyền hạn cho nhân sự "${staffName}" (${editPermissions.length} quyền) yêu cầu xác thực bằng mã PIN 6 số của bạn.`,
+      description: `Thao tác thay đổi quyền hạn cho nhân sự "${staffName}" (${formData.permissions.length} quyền) yêu cầu xác thực bằng mã PIN 6 số của bạn.`,
       onSuccess: async (_pin: string) => {
-        setSavingEdit(true);
+        setSubmitting(true);
         try {
-          const res = await memberApi.updateMemberPermissions(currentBizId, memberId, editPermissions);
+          const res = await memberApi.updateMemberPermissions(currentBizId, memberId, formData.permissions);
           if (res.success) {
             appendAuditLog(currentBizId, {
               actorId: user?.id || 'admin',
@@ -465,19 +476,19 @@ export function SellerStaffView() {
               storeId: currentBizId,
               changedFields: ['permissions'],
               stateBefore: { permissions: targetMember?.permissions || [] },
-              stateAfter: { permissions: editPermissions },
+              stateAfter: { permissions: formData.permissions },
               metadata: {
                 staffName,
                 staffEmail: targetMember?.user?.email,
                 previousCount: targetMember?.permissions?.length || 0,
-                newCount: editPermissions.length,
+                newCount: formData.permissions.length,
                 pinVerified: true,
                 note: 'Đã xác thực mã PIN bảo mật khi cập nhật phân quyền nhân sự',
               },
             });
 
-            showToast({ title: 'Thành công', message: 'Đã cập nhật phân quyền nhân viên và lưu nhật ký quản trị.' }, 'success');
-            setEditingMemberId(null);
+            showToast({ title: 'Thành công', message: `Đã cập nhật phân quyền nhân viên "${staffName}" và lưu nhật ký quản trị.` }, 'success');
+            handleCloseForm();
             await loadMembers();
           } else {
             showToast({ title: 'Thất bại', message: res.error?.message || 'Không thể lưu phân quyền.' }, 'error');
@@ -485,10 +496,19 @@ export function SellerStaffView() {
         } catch {
           showToast({ title: 'Lỗi', message: 'Lỗi kết nối khi cập nhật quyền.' }, 'error');
         } finally {
-          setSavingEdit(false);
+          setSubmitting(false);
         }
       },
     });
+  };
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingMemberId) {
+      await handleSavePermissions(editingMemberId);
+    } else {
+      await handleProvisionSubmit(e);
+    }
   };
 
   // Reset Password
@@ -806,14 +826,20 @@ export function SellerStaffView() {
               </span>
             );
           }
+          const isEditingThis = editingMemberId === member.id;
           return (
             <button
               type="button"
               onClick={() => handleOpenEdit(member)}
-              className="text-slate-800 hover:text-emerald-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              className={`font-semibold text-xs inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                isEditingThis
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-500 shadow-2xs ring-2 ring-emerald-500/20'
+                  : 'bg-white hover:bg-slate-50 text-slate-800 hover:text-emerald-700 border-slate-300'
+              }`}
+              title="Nhấn để mở form chỉnh sửa phân quyền cho nhân viên này"
             >
               <span>{member.permissions?.length || 0} quyền hạn</span>
-              <span className="material-symbols-outlined text-xs">edit</span>
+              <span className="material-symbols-outlined text-[13px]">edit</span>
             </button>
           );
         },
@@ -844,6 +870,14 @@ export function SellerStaffView() {
           const isResettingPassThis = resetPasswordMemberId === member.id;
           return (
             <div className="flex items-center justify-end gap-1">
+              <SellerActionButton
+                type="button"
+                variant={editingMemberId === member.id ? 'primary' : 'ghost'}
+                size="sm"
+                icon="edit"
+                title="Chỉnh sửa phân quyền"
+                onClick={() => handleOpenEdit(member)}
+              />
               <SellerActionButton
                 type="button"
                 variant="ghost"
@@ -1008,18 +1042,44 @@ export function SellerStaffView() {
             Làm Mới
           </SellerActionButton>
 
-          <SellerActionButton
-            type="button"
-            variant={showAddForm ? 'neutral' : 'primary'}
-            size="sm"
-            icon={showAddForm ? 'close' : 'person_add'}
-            onClick={() => {
-              if (activeStaffTab !== 'members') setActiveStaffTab('members');
-              setShowAddForm(!showAddForm);
-            }}
-          >
-            {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
-          </SellerActionButton>
+          {showAddForm && editingMemberId ? (
+            <div className="flex items-center gap-2">
+              <SellerActionButton
+                type="button"
+                variant="primary"
+                size="sm"
+                icon="person_add"
+                onClick={handleOpenCreate}
+              >
+                + Cấp Tài Khoản Mới
+              </SellerActionButton>
+              <SellerActionButton
+                type="button"
+                variant="neutral"
+                size="sm"
+                icon="close"
+                onClick={handleCloseForm}
+              >
+                Đóng Chỉnh Sửa
+              </SellerActionButton>
+            </div>
+          ) : (
+            <SellerActionButton
+              type="button"
+              variant={showAddForm ? 'neutral' : 'primary'}
+              size="sm"
+              icon={showAddForm ? 'close' : 'person_add'}
+              onClick={() => {
+                if (showAddForm) {
+                  handleCloseForm();
+                } else {
+                  handleOpenCreate();
+                }
+              }}
+            >
+              {showAddForm ? 'Đóng Biểu Mẫu' : 'Cấp Tài Khoản Mới'}
+            </SellerActionButton>
+          )}
         </div>
       </div>
 
@@ -1065,31 +1125,45 @@ export function SellerStaffView() {
         />
       ) : (
         <>
-          {/* Direct Provisioning Form (In-Page Collapsible) */}
+          {/* Direct Provisioning & Edit Permissions Form (In-Page Collapsible) */}
           {showAddForm && (
-        <div className="bg-white rounded-2xl border-2 border-slate-300 p-6 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-5">
+        <div ref={formRef} className="bg-white rounded-2xl border-2 border-slate-300 p-6 shadow-sm animate-in fade-in slide-in-from-top-3 duration-200 space-y-5">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2 text-slate-900">
-              <span className="material-symbols-outlined text-lg text-emerald-600">how_to_reg</span>
+              <span className={`material-symbols-outlined text-xl ${editingMemberId ? 'text-blue-600' : 'text-emerald-600'}`}>
+                {editingMemberId ? 'manage_accounts' : 'how_to_reg'}
+              </span>
               <div>
-                <h2 className="text-sm font-bold text-slate-900">
-                  Cấp Tài Khoản Nhân Viên Trực Tiếp (Direct Provisioning)
-                </h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-bold text-slate-900">
+                    {editingMemberId
+                      ? `Chỉnh Sửa Phân Quyền Nhân Sự: ${formData.fullName || formData.email}`
+                      : 'Cấp Tài Khoản Nhân Viên Trực Tiếp (Direct Provisioning)'}
+                  </h2>
+                  {editingMemberId && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      Chế độ chỉnh sửa
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-slate-400">
-                  Tài khoản có hiệu lực ngay lập tức sau khi tạo
+                  {editingMemberId
+                    ? 'Điều chỉnh và phân công lại các quyền hạn chức năng cho nhân viên'
+                    : 'Tài khoản có hiệu lực ngay lập tức sau khi tạo'}
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => setShowAddForm(false)}
+              onClick={handleCloseForm}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Đóng biểu mẫu"
             >
               <span className="material-symbols-outlined text-base">close</span>
             </button>
           </div>
 
-          <form onSubmit={handleProvisionSubmit} className="space-y-4 text-xs">
+          <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -1099,9 +1173,12 @@ export function SellerStaffView() {
                   type="text"
                   required
                   value={formData.fullName}
+                  readOnly={Boolean(editingMemberId)}
                   onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                   placeholder="Ví dụ: Nguyễn Văn An"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                    editingMemberId ? 'border-slate-200 bg-slate-50 text-slate-600 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-900'
+                  } focus:outline-none focus:border-slate-400`}
                 />
               </div>
 
@@ -1113,10 +1190,16 @@ export function SellerStaffView() {
                   type="email"
                   required
                   value={formData.email}
+                  readOnly={Boolean(editingMemberId)}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="nhanvien@example.com"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                    editingMemberId ? 'border-slate-200 bg-slate-50 text-slate-600 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-900 font-mono'
+                  } focus:outline-none focus:border-slate-400`}
                 />
+                {editingMemberId && (
+                  <span className="text-[10px] text-slate-400 mt-1 block">Tài khoản đã tạo, không thể đổi email</span>
+                )}
               </div>
 
               <div>
@@ -1126,87 +1209,105 @@ export function SellerStaffView() {
                 <input
                   type="tel"
                   value={formData.phone}
+                  readOnly={Boolean(editingMemberId)}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="0912345678"
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border ${
+                    editingMemberId ? 'border-slate-200 bg-slate-50 text-slate-600 cursor-not-allowed' : 'border-slate-200 bg-white text-slate-900'
+                  } focus:outline-none focus:border-slate-400`}
                 />
               </div>
             </div>
 
-            {/* Initial Password & 6-Digit PIN Security */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Mật Khẩu Khởi Tạo */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-slate-500">key</span>
-                    <span>Mật Khẩu Khởi Tạo Mặc Định</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer"
-                  >
-                    {showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
-                  </button>
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.initialPassword}
-                  onChange={(e) => setFormData({ ...formData, initialPassword: e.target.value })}
-                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono font-bold"
-                />
-                <p className="text-[10px] text-slate-400">
-                  Nhân viên sẽ được yêu cầu đổi mật khẩu cá nhân ở lần đầu đăng nhập.
-                </p>
-              </div>
-
-              {/* Mã PIN Bảo Mật 6 Số */}
-              <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-emerald-700">pin</span>
-                    <span>Mã PIN Bảo Mật (6 Số) <span className="text-rose-500">*</span></span>
-                  </label>
-                  <div className="flex items-center gap-2">
+            {/* Initial Password & 6-Digit PIN Security (Only when creating new) */}
+            {!editingMemberId ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Mật Khẩu Khởi Tạo */}
+                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-slate-500">key</span>
+                      <span>Mật Khẩu Khởi Tạo Mặc Định</span>
+                    </label>
                     <button
                       type="button"
-                      onClick={generateRandomPin}
-                      className="text-[10.5px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"
-                      title="Tự động sinh mã PIN 6 số ngẫu nhiên"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="text-[11px] font-bold text-slate-600 hover:underline cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-[12px]">refresh</span>
-                      <span>Tạo ngẫu nhiên</span>
-                    </button>
-                    <span className="text-slate-300">•</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPin(!showPin)}
-                      className="text-[10.5px] font-bold text-slate-600 hover:underline cursor-pointer"
-                    >
-                      {showPin ? 'Ẩn PIN' : 'Hiện PIN'}
+                      {showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
                     </button>
                   </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={formData.initialPassword}
+                    onChange={(e) => setFormData({ ...formData, initialPassword: e.target.value })}
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 focus:outline-none focus:border-slate-400 font-mono font-bold"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Nhân viên sẽ được yêu cầu đổi mật khẩu cá nhân ở lần đầu đăng nhập.
+                  </p>
                 </div>
-                <input
-                  type={showPin ? 'text' : 'password'}
-                  required
-                  maxLength={6}
-                  pattern="[0-9]*"
-                  value={formData.initialPin}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, '').slice(0, 6);
-                    setFormData({ ...formData, initialPin: val });
-                  }}
-                  placeholder="Nhập 6 số (VD: 123456)"
-                  className="w-full px-3 py-1.5 text-xs rounded-xl border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:border-emerald-600 font-mono font-bold tracking-widest text-center"
-                />
-                <p className="text-[10px] text-emerald-800">
-                  Mã PIN 6 số dùng để xác thực các giao dịch nhạy cảm hoặc duyệt tác vụ nội bộ.
-                </p>
+
+                {/* Mã PIN Bảo Mật 6 Số */}
+                <div className="p-3.5 rounded-xl bg-emerald-50/50 border border-emerald-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-emerald-700">pin</span>
+                      <span>Mã PIN Bảo Mật (6 Số) <span className="text-rose-500">*</span></span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={generateRandomPin}
+                        className="text-[10.5px] font-bold text-emerald-700 hover:underline cursor-pointer flex items-center gap-0.5"
+                        title="Tự động sinh mã PIN 6 số ngẫu nhiên"
+                      >
+                        <span className="material-symbols-outlined text-[12px]">refresh</span>
+                        <span>Tạo ngẫu nhiên</span>
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowPin(!showPin)}
+                        className="text-[10.5px] font-bold text-slate-600 hover:underline cursor-pointer"
+                      >
+                        {showPin ? 'Ẩn PIN' : 'Hiện PIN'}
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type={showPin ? 'text' : 'password'}
+                    required
+                    maxLength={6}
+                    pattern="[0-9]*"
+                    value={formData.initialPin}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setFormData({ ...formData, initialPin: val });
+                    }}
+                    placeholder="Nhập 6 số (VD: 123456)"
+                    className="w-full px-3 py-1.5 text-xs rounded-xl border border-emerald-300 bg-white text-emerald-950 focus:outline-none focus:border-emerald-600 font-mono font-bold tracking-widest text-center"
+                  />
+                  <p className="text-[10px] text-emerald-800">
+                    Mã PIN 6 số dùng để xác thực các giao dịch nhạy cảm hoặc duyệt tác vụ nội bộ.
+                  </p>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* Information Banner when in Edit Mode */
+              <div className="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80 flex items-center gap-3 text-xs text-blue-900">
+                <span className="material-symbols-outlined text-lg text-blue-600 shrink-0">verified_user</span>
+                <div className="space-y-0.5">
+                  <p className="font-bold">
+                    Đang chỉnh sửa phân quyền cho tài khoản: {formData.fullName} ({formData.email})
+                  </p>
+                  <p className="text-[11px] text-blue-800/80">
+                    Bạn có thể chọn Mẫu phân quyền nhanh (Role Presets) hoặc tùy chỉnh chi tiết 17 quyền hạn bên dưới, sau đó nhấn <strong>Cập Nhật Phân Quyền</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Role Presets */}
             <div className="space-y-2">
@@ -1295,7 +1396,7 @@ export function SellerStaffView() {
                 type="button"
                 variant="neutral"
                 size="sm"
-                onClick={() => setShowAddForm(false)}
+                onClick={handleCloseForm}
               >
                 Hủy
               </SellerActionButton>
@@ -1304,9 +1405,9 @@ export function SellerStaffView() {
                 variant="primary"
                 size="sm"
                 loading={submitting}
-                icon="how_to_reg"
+                icon={editingMemberId ? 'save' : 'how_to_reg'}
               >
-                Cấp Tài Khoản Ngay
+                {editingMemberId ? 'Cập Nhật Phân Quyền' : 'Cấp Tài Khoản Ngay'}
               </SellerActionButton>
             </div>
           </form>

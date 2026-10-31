@@ -458,9 +458,8 @@ export function SellerAppealsView() {
           return (
             <div className="py-1 text-xs">
               <span
-                className={`font-semibold block ${
-                  isApproved ? 'text-emerald-600' : isRejected ? 'text-rose-600' : 'text-amber-600'
-                }`}
+                className={`font-semibold block ${isApproved ? 'text-emerald-600' : isRejected ? 'text-rose-600' : 'text-amber-600'
+                  }`}
               >
                 {isApproved ? 'Đã chấp thuận' : isRejected ? 'Bị bác bỏ' : 'Đang xét duyệt'}
               </span>
@@ -594,7 +593,7 @@ export function SellerAppealsView() {
     );
   };
 
-    return (
+  return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto font-sans animate-in fade-in duration-200">
       {/* Header & Store Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-200 dark:border-zinc-800 pb-5">
@@ -820,7 +819,7 @@ export function SellerAppealsView() {
                   <span>Tải lên tệp bằng chứng (Ảnh/PDF, tối đa 5MB)</span>
                   <span className="text-[11px] text-zinc-400 font-normal">Hỗ trợ JPG, PNG, WEBP, PDF</span>
                 </label>
-                
+
                 <div className="flex items-center gap-3">
                   <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-2 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 text-xs font-medium rounded-lg transition-colors">
                     <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
