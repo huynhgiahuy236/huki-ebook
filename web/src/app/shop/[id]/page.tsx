@@ -690,7 +690,7 @@ export default function ShopPage() {
   }
 
   return (
-    <div className="w-full max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 font-body-md">
+    <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 pb-20 font-body-md">
       {/* Breadcrumb */}
       <nav className="text-body-sm text-on-surface-variant flex items-center gap-2 mb-6">
         <Link href="/" className="hover:text-primary transition-colors flex items-center gap-1">
@@ -1262,7 +1262,7 @@ export default function ShopPage() {
             }}
           />
         ) : (
-          <div className="grid grid-cols-2 min-[540px]:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-3.5">
             {filteredBooks.map((book) => (
               <BookCard
                 key={book.id}
