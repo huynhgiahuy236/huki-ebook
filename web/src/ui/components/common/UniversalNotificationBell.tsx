@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -169,9 +169,13 @@ export default function UniversalNotificationBell({
     setIsLoadingOrders(true);
     try {
       const res = await orderApi.getSellerOrders({ limit: 100 });
-      if (res.success && res.data?.items) {
+      const rawList: any[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data as any)?.items || (res.data as any)?.data || [];
+
+      if (res.success && rawList.length > 0) {
         const newMap = new Map<string, SellerOrder>();
-        res.data.items.forEach((o) => {
+        rawList.forEach((o) => {
           if (o.id) newMap.set(o.id, o);
           if (o.code) {
             newMap.set(o.code, o);
@@ -191,11 +195,44 @@ export default function UniversalNotificationBell({
     }
   }, [isSeller]);
 
+  // Nạp ngay khi component mount và khi mở Drawer / Grid
+  useEffect(() => {
+    if (isSeller) {
+      fetchAllSellerOrders();
+    }
+  }, [isSeller, fetchAllSellerOrders]);
+
   useEffect(() => {
     if ((isGridOpen || isDrawerOpen) && isSeller) {
       fetchAllSellerOrders();
     }
   }, [isGridOpen, isDrawerOpen, isSeller, fetchAllSellerOrders]);
+
+  // Tìm kiếm đơn lẻ ngay lập tức nếu gặp mã đơn chưa kịp nạp vào cache
+  const missingOrdersSearched = useRef<Set<string>>(new Set());
+  const searchMissingOrder = useCallback(async (code: string) => {
+    if (!code || missingOrdersSearched.current.has(code)) return;
+    missingOrdersSearched.current.add(code);
+    try {
+      const res = await orderApi.getSellerOrders({ search: code, limit: 1 });
+      const rawList: any[] = Array.isArray(res.data)
+        ? res.data
+        : (res.data as any)?.items || (res.data as any)?.data || [];
+      if (rawList.length > 0) {
+        const o = rawList[0];
+        setOrderCache((prev) => {
+          const next = new Map(prev);
+          if (o.id) next.set(o.id, o);
+          if (o.code) {
+            next.set(o.code, o);
+            next.set(o.code.replace(/-S\d+$/, ''), o);
+          }
+          if (o.order?.code) next.set(o.order.code, o);
+          return next;
+        });
+      }
+    } catch {}
+  }, []);
 
   // -------------------------------------------------------------------------
   // 4. CHUẨN HÓA DỮ LIỆU SÁCH VÀ ĐƠN HÀNG
@@ -248,8 +285,23 @@ export default function UniversalNotificationBell({
         const cleanCode = rawCode ? String(rawCode).replace(/-S\d+$/, '') : '';
         if (cleanCode) seenOrderCodes.add(cleanCode);
 
-        // Tra cứu trong cache đơn hàng thật
-        const cached = cleanCode ? orderCache.get(cleanCode) : undefined;
+        // Tra cứu trong cache đơn hàng thật (tìm chính xác, tìm theo rawCode, và tìm gần đúng)
+        let cached = cleanCode ? orderCache.get(cleanCode) : undefined;
+        if (!cached && rawCode) {
+          cached = orderCache.get(rawCode);
+        }
+        if (!cached && cleanCode) {
+          for (const [k, v] of orderCache.entries()) {
+            if (k.includes(cleanCode) || cleanCode.includes(k)) {
+              cached = v;
+              break;
+            }
+          }
+        }
+        if (!cached && cleanCode && isSeller) {
+          searchMissingOrder(cleanCode);
+        }
+
         const buyer = cached?.order;
         const addr = buyer?.shippingAddress || payload.shippingAddress;
 
@@ -1320,11 +1372,11 @@ export default function UniversalNotificationBell({
                                   />
                                   <div className="min-w-0 flex-1">
                                     <h5 className="font-bold text-xs text-slate-900 dark:text-white leading-snug line-clamp-2">
-                                      Kiện sách đơn #{card.cleanCode}
+                                      {card.title || `Tác phẩm theo đơn #${card.cleanCode}`}
                                     </h5>
                                     <div className="flex items-center gap-2 mt-1 text-xs">
                                       <span className="font-bold text-[#003B2B] dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.2 rounded">
-                                        SL: 1 kiện
+                                        SL: 1 cuốn
                                       </span>
                                       <span className="text-slate-400 text-[11px]">Sách giấy</span>
                                     </div>
