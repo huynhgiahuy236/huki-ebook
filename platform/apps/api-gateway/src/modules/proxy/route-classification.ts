@@ -27,6 +27,23 @@ export function classifyRoute(method: string, originalUrl: string): RouteTier {
   const normPath = normalizePath(originalUrl);
   const upperMethod = method.toUpperCase();
 
+  // Public system maintenance & broadcast checks
+  if (
+    normPath === '/system/maintenance' ||
+    normPath.startsWith('/system/maintenance') ||
+    normPath === '/system-maintenance' ||
+    normPath === '/broadcast-notifications' ||
+    normPath.startsWith('/broadcast-notifications') ||
+    normPath === '/seller/feature-flags' ||
+    normPath.startsWith('/seller/feature-flags') ||
+    normPath === '/seller-features' ||
+    normPath.startsWith('/seller-features')
+  ) {
+    if (upperMethod === 'GET') {
+      return 'PUBLIC';
+    }
+  }
+
   // 1. Health checks & Swagger documentation are always PUBLIC
   if (
     normPath === '/health' ||

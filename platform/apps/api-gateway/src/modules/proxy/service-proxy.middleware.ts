@@ -48,6 +48,12 @@ const ROUTES: Record<string, ServiceName> = {
   'flash-sales': 'promotion',
   discounts: 'promotion',
   sanctions: 'commerce',
+  'broadcast-notifications': 'business',
+  'seller-features': 'business',
+  'seller-penalties': 'business',
+  'system-maintenance': 'identity',
+  system: 'identity',
+  maintenance: 'identity',
   affiliate: 'commerce',
   events: 'analytics',
   analytics: 'analytics',
@@ -277,6 +283,26 @@ export class ServiceProxyMiddleware implements NestMiddleware {
     }
 
     // Route /seller/vouchers/* or /seller/discounts/* → promotion
+    // Route /admin/broadcast-notifications → business
+    if (firstSegment === 'admin' && path.includes('/admin/broadcast-notifications')) {
+      return 'business';
+    }
+
+    // Route /seller/feature-flags or /seller/features → business
+    if (firstSegment === 'seller' && (path.includes('/seller/feature-flags') || path.includes('/seller/features'))) {
+      return 'business';
+    }
+
+    // Route /seller/penalties → business
+    if (firstSegment === 'seller' && path.includes('/seller/penalties')) {
+      return 'business';
+    }
+
+    // Route /system/maintenance → identity
+    if (firstSegment === 'system' && path.includes('/system/maintenance')) {
+      return 'identity';
+    }
+
     if (firstSegment === 'seller' && (path.includes('/seller/vouchers') || path.includes('/seller/discounts'))) {
       return 'promotion';
     }

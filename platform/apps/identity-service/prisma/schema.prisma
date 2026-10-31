@@ -167,3 +167,34 @@ model AuditLog {
   @@index([storeId, createdAt])
   @@map("audit_logs")
 }
+
+
+// ============================================
+// SYSTEM MAINTENANCE (Phase 2 Migration)
+// ============================================
+
+enum MaintenanceMode {
+  IMMEDIATE
+  GRACEFUL
+}
+
+model SystemMaintenanceConfig {
+  id                    String          @id @default("SYSTEM_DEFAULT")
+  isActive              Boolean         @default(false) @map("is_active")
+  mode                  MaintenanceMode @default(GRACEFUL)
+  scheduledStartTime    DateTime?       @map("scheduled_start_time")
+  scheduledEndTime      DateTime?       @map("scheduled_end_time")
+  drainDurationMinutes  Int             @default(5) @map("drain_duration_minutes")
+  drainStartedAt        DateTime?       @map("drain_started_at")
+  reason                String          @db.Text
+  affectedRoles         String[]        @default(["ALL"]) @map("affected_roles")
+  allowOfflineDrm       Boolean         @default(true) @map("allow_offline_drm")
+  allowShipperOfflineCod Boolean        @default(true) @map("allow_shipper_offline_cod")
+  supportHotline        String          @default("1900 6868") @map("support_hotline")
+  supportEmail          String          @default("hotro@huki.vn") @map("support_email")
+  whitelistIps          String[]        @default(["127.0.0.1", "::1"]) @map("whitelist_ips")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  updatedBy             String          @default("Hệ Thống HuKi") @map("updated_by")
+
+  @@map("system_maintenance_config")
+}

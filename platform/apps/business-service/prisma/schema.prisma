@@ -269,3 +269,208 @@ model AuditLog {
   @@index([storeId, createdAt])
   @@map("audit_logs")
 }
+
+
+// ============================================
+// BROADCAST NOTIFICATIONS (Phase 2 Migration)
+// ============================================
+
+enum NotificationCategory {
+  MAINTENANCE
+  POLICY
+  ORDER
+  FINANCE
+  MARKETING
+  SECURITY
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum NotificationTargetType {
+  ALL
+  SEGMENT
+  DIRECT
+}
+
+enum NotificationStatus {
+  ACTIVE
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model BroadcastNotification {
+  id                     String                 @id @default(uuid())
+  title                  String
+  summary                String
+  content                String                 @db.Text
+  category               NotificationCategory   @default(POLICY)
+  severity               NotificationSeverity   @default(INFO)
+  targetType             NotificationTargetType @default(ALL)
+  targetSegment          String?                @map("target_segment")
+  targetRoles            String[]               @default(["ALL"]) @map("target_roles")
+  targetBusinessIds      String[]               @default([]) @map("target_business_ids")
+  channels               String[]               @default(["BELL"])
+  isPinnedTop            Boolean                @default(false) @map("is_pinned_top")
+  isDismissible          Boolean                @default(true) @map("is_dismissible")
+  scheduleType           String                 @default("INSTANT") @map("schedule_type")
+  recurringRule          String?                @map("recurring_rule")
+  status                 NotificationStatus     @default(ACTIVE)
+  authorName             String                 @default("Ban Quản Trị HUKI") @map("author_name")
+  actionUrl              String?                @map("action_url")
+  actionLabel            String?                @map("action_label")
+  metadata               Json?
+  scheduledAt            DateTime?              @map("scheduled_at")
+  publishedAt            DateTime?              @map("published_at")
+  expiresAt              DateTime?              @map("expires_at")
+  createdById            String?                @map("created_by_id")
+  createdAt              DateTime               @default(now()) @map("created_at")
+  updatedAt              DateTime               @updatedAt @map("updated_at")
+
+  receipts               BroadcastReceipt[]
+
+  @@index([status, createdAt])
+  @@index([category])
+  @@map("broadcast_notifications")
+}
+
+model BroadcastReceipt {
+  id              String                @id @default(uuid())
+  notificationId  String                @map("notification_id")
+  businessId      String                @map("business_id")
+  isRead          Boolean               @default(false) @map("is_read")
+  readAt          DateTime?             @map("read_at")
+  isDismissed     Boolean               @default(false) @map("is_dismissed")
+  dismissedAt     DateTime?             @map("dismissed_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  notification    BroadcastNotification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, businessId])
+  @@index([businessId, isRead])
+  @@map("broadcast_receipts")
+}
+
+// ============================================
+// SELLER FEATURE FLAGS (Phase 2 Migration)
+// ============================================
+
+enum FeatureCategory {
+  marketing
+  finance
+  inventory
+  customer
+  operations
+}
+
+model SellerFeature {
+  id                  String                  @id
+  name                String
+  category            FeatureCategory
+  description         String                  @db.Text
+  isEnabledGlobally   Boolean                 @default(true) @map("is_enabled_globally")
+  maintenanceReason   String?                 @default("") @map("maintenance_reason")
+  disabledBusinesses  String[]                @default([]) @map("disabled_businesses")
+  enabledBusinesses   String[]                @default([]) @map("enabled_businesses")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+  updatedBy           String                  @default("Admin System") @map("updated_by")
+
+  overrides           SellerFeatureOverride[]
+
+  @@map("seller_features")
+}
+
+model SellerFeatureOverride {
+  id            String        @id @default(uuid())
+  featureId     String        @map("feature_id")
+  businessId    String        @map("business_id")
+  isEnabled     Boolean       @map("is_enabled")
+  reason        String?
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  updatedBy     String?       @map("updated_by")
+
+  feature       SellerFeature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+
+  @@unique([featureId, businessId])
+  @@index([businessId])
+  @@map("seller_feature_overrides")
+}
+
+// ============================================
+// SELLER PENALTIES & SANCTIONS (Phase 2 Migration)
+// ============================================
+
+enum PenaltyTier {
+  TIER_0_GOOD
+  TIER_1_WARNING
+  TIER_2_RESTRICTED
+  TIER_3_CRITICAL
+  TIER_4_SUSPENDED
+}
+
+enum PenaltyAppealStatus {
+  NONE
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model StorePenaltyProfile {
+  id                        String          @id @default(uuid())
+  storeId                   String          @unique @map("store_id")
+  storeName                 String?         @map("store_name")
+  totalPoints               Int             @default(0) @map("total_points")
+  penaltyPoints             Int             @default(0) @map("penalty_points")
+  tier                      PenaltyTier     @default(TIER_0_GOOD)
+  tierLabel                 String          @default("🟢 Hạng Tốt (Uy Tín)") @map("tier_label")
+  tierDescription           String?         @map("tier_description")
+  badgeColor                String          @default("emerald") @map("badge_color")
+  canJoinPlatformFlashSale  Boolean         @default(true) @map("can_join_platform_flash_sale")
+  maxBooksPerPlatformSlot   Int             @default(20) @map("max_books_per_platform_slot")
+  activeSanctionMessage     String?         @map("active_sanction_message")
+  sanctionExpiresAt         DateTime?       @map("sanction_expires_at")
+  quarterlyResetDate        DateTime?       @map("quarterly_reset_date")
+  quarterCycle              String          @default("Q4-2026") @map("quarter_cycle")
+  nonFulfillmentRate        Float           @default(0.0) @map("non_fulfillment_rate")
+  lateShipmentRate          Float           @default(0.0) @map("late_shipment_rate")
+  responseRate              Float           @default(100.0) @map("response_rate")
+  rating                    Float           @default(5.0)
+  checklist                 Json?           @default("[]")
+  createdAt                 DateTime        @default(now()) @map("created_at")
+  updatedAt                 DateTime        @updatedAt @map("updated_at")
+
+  records                   PenaltyRecord[]
+
+  @@map("store_penalty_profiles")
+}
+
+model PenaltyRecord {
+  id                String               @id @default(uuid())
+  profileId         String               @map("profile_id")
+  storeId           String               @map("store_id")
+  violationType     String               @map("violation_type")
+  violationName     String               @map("violation_name")
+  points            Int                  @default(0)
+  reason            String               @db.Text
+  relatedOrderId    String?              @map("related_order_id")
+  relatedBookTitle  String?              @map("related_book_title")
+  expiresAt         DateTime             @map("expires_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  isAppealed        Boolean              @default(false) @map("is_appealed")
+  appealStatus      PenaltyAppealStatus  @default(NONE) @map("appeal_status")
+  appealReason      String?              @map("appeal_reason") @db.Text
+  appealProof       String?              @map("appeal_proof")
+  appealAdminNote   String?              @map("appeal_admin_note") @db.Text
+  appealReviewedAt  DateTime?            @map("appeal_reviewed_at")
+
+  profile           StorePenaltyProfile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([storeId, createdAt])
+  @@index([violationType])
+  @@map("penalty_records")
+}

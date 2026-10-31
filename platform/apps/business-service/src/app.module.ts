@@ -11,6 +11,9 @@ import { StoreModule } from './modules/store/store.module';
 import { MemberModule } from './modules/member/member.module';
 import { BusinessOutboxModule } from './modules/outbox/outbox.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { BroadcastModule } from './modules/broadcast/broadcast.module';
+import { FeatureModule } from './modules/feature/feature.module';
+import { PenaltyModule } from './modules/penalty/penalty.module';
 
 // Health
 import { HealthController } from './modules/health/health.controller';
@@ -34,6 +37,9 @@ import { HealthController } from './modules/health/health.controller';
     MemberModule,
     BusinessOutboxModule,
     AuditModule,
+    BroadcastModule,
+    FeatureModule,
+    PenaltyModule,
   ],
   controllers: [HealthController],
 })

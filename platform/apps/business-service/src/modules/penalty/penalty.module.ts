@@ -1,0 +1,13 @@
+import { Module } from '@nestjs/common';
+import { PenaltyController } from './penalty.controller';
+import { PenaltyService } from './penalty.service';
+import { PrismaModule } from '../../../prisma/prisma.module';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [PenaltyController],
+  providers: [PenaltyService],
+  exports: [PenaltyService],
+})
+export class PenaltyModule {}
+

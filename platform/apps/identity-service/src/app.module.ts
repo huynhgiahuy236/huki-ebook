@@ -11,6 +11,7 @@ import { RedisModule } from './modules/redis/redis.module';
 import { RabbitMQModule } from './modules/rabbitmq/rabbitmq.module';
 import { IdentityOutboxModule } from './modules/outbox/outbox.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { MaintenanceModule } from './modules/maintenance/maintenance.module';
 
 // Guards
 import { ThrottlerBehindProxyGuard } from './modules/auth/guards/throttle.guard';
@@ -54,6 +55,7 @@ import { HealthController } from './modules/health/health.controller';
     SessionModule,
     IdentityOutboxModule,
     AuditModule,
+    MaintenanceModule,
   ],
   providers: [
     {

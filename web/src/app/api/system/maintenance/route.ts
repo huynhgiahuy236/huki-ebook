@@ -1,116 +1,48 @@
 import { NextResponse, NextRequest } from 'next/server';
-import fs from 'fs';
-import path from 'path';
 
-export interface SystemMaintenanceConfig {
-  isActive: boolean;
-  mode: 'IMMEDIATE' | 'GRACEFUL';
-  scheduledStartTime?: string;
-  scheduledEndTime?: string;
-  drainDurationMinutes: number;
-  drainStartedAt?: string;
-  reason: string;
-  affectedRoles: ('ALL' | 'CUSTOMER' | 'SELLER' | 'SHIPPER')[];
-  allowOfflineDrm: boolean;
-  allowShipperOfflineCod: boolean;
-  supportHotline: string;
-  supportEmail: string;
-  whitelistIps: string[];
-  updatedAt: string;
-  updatedBy: string;
+const GATEWAY_URL =
+  process.env.API_GATEWAY_URL ||
+  process.env.NEXT_PUBLIC_GATEWAY_URL ||
+  'http://localhost:3000';
+
+function getForwardHeaders(req: NextRequest) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  const auth = req.headers.get('authorization');
+  if (auth) headers['authorization'] = auth;
+  const cookie = req.headers.get('cookie');
+  if (cookie) headers['cookie'] = cookie;
+  return headers;
 }
 
-const DEFAULT_MAINTENANCE_CONFIG: SystemMaintenanceConfig = {
-  isActive: false,
-  mode: 'GRACEFUL',
-  drainDurationMinutes: 5,
-  reason: 'Hệ thống HUKI EBOOK đang thực hiện nâng cấp cơ sở dữ liệu và bảo mật cụm máy chủ thanh toán định kỳ. Chúng tôi sẽ sớm quay trở lại!',
-  affectedRoles: ['ALL'],
-  allowOfflineDrm: true,
-  allowShipperOfflineCod: true,
-  supportHotline: '1900 6868',
-  supportEmail: 'hotro@huki.vn',
-  whitelistIps: ['127.0.0.1', '::1'],
-  updatedAt: new Date().toISOString(),
-  updatedBy: 'Hệ Thống HuKi',
-};
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __HUKI_SERVER_MAINTENANCE__: SystemMaintenanceConfig | undefined;
-}
-
-const STORAGE_FILE = path.join(process.cwd(), 'web', '.storage', 'system_maintenance.json');
-function ensureStorageDir() {
-  const dir = path.dirname(STORAGE_FILE);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-}
-
-
-function getMaintenanceFromStore(): SystemMaintenanceConfig {
-  if (globalThis.__HUKI_SERVER_MAINTENANCE__) {
-    return globalThis.__HUKI_SERVER_MAINTENANCE__;
-  }
+export async function GET(req: NextRequest) {
   try {
-    if (fs.existsSync(STORAGE_FILE)) {
-      const content = fs.readFileSync(STORAGE_FILE, 'utf-8');
-      const parsed = JSON.parse(content);
-      if (parsed && typeof parsed.isActive === 'boolean') {
-        const merged: SystemMaintenanceConfig = { ...DEFAULT_MAINTENANCE_CONFIG, ...parsed };
-        globalThis.__HUKI_SERVER_MAINTENANCE__ = merged;
-        return merged;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not read maintenance file, using defaults', err);
+    const res = await fetch(`${GATEWAY_URL}/api/v1/system/maintenance`, {
+      method: 'GET',
+      headers: getForwardHeaders(req),
+      cache: 'no-store',
+    });
+
+    const json = await res.json().catch(() => ({}));
+    return NextResponse.json(json, { status: res.status });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
-
-  const initial: SystemMaintenanceConfig = { ...DEFAULT_MAINTENANCE_CONFIG };
-  globalThis.__HUKI_SERVER_MAINTENANCE__ = initial;
-  saveMaintenanceToStore(initial);
-  return initial;
-}
-
-function saveMaintenanceToStore(conf: SystemMaintenanceConfig) {
-  globalThis.__HUKI_SERVER_MAINTENANCE__ = conf;
-  try {
-    ensureStorageDir();
-    fs.writeFileSync(STORAGE_FILE, JSON.stringify(conf, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn('Could not save maintenance file', err);
-  }
-}
-
-export async function GET() {
-  const config = getMaintenanceFromStore();
-  return NextResponse.json({ success: true, data: config });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    let body: any;
-    try {
-      body = await req.json();
-    } catch {
-      const text = await req.text();
-      body = text ? JSON.parse(text) : {};
-    }
+    const body = await req.json().catch(() => ({}));
+    const res = await fetch(`${GATEWAY_URL}/api/v1/system/maintenance`, {
+      method: 'POST',
+      headers: getForwardHeaders(req),
+      body: JSON.stringify(body),
+    });
 
-    if (!body || typeof body !== 'object') {
-      return NextResponse.json({ success: false, message: 'Invalid payload' }, { status: 400 });
-    }
-
-    const current = getMaintenanceFromStore();
-    const updated: SystemMaintenanceConfig = {
-      ...current,
-      ...body,
-      updatedAt: new Date().toISOString(),
-      updatedBy: body.updatedBy || 'Super Admin',
-    };
-
-    saveMaintenanceToStore(updated);
-    return NextResponse.json({ success: true, data: updated });
+    const json = await res.json().catch(() => ({}));
+    return NextResponse.json(json, { status: res.status });
   } catch (err: any) {
-    return NextResponse.json({ success: false, message: err?.message || 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }
