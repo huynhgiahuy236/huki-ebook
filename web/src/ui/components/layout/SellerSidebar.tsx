@@ -351,7 +351,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/affiliate', 
           icon: 'share_reviews', 
-          label: 'Tiếp Thị Liên Kết (Affiliate)', 
+          label: 'Tiếp Thị Liên Kết', 
           permission: PERMISSIONS.PRODUCT_UPDATE,
         }
       ]
@@ -376,7 +376,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/reports', 
           icon: 'analytics', 
-          label: 'Báo Cáo Doanh Thu & Sổ Cái', 
+          label: 'Báo Cáo Doanh Thu', 
           permission: PERMISSIONS.FINANCE_VIEW 
         }
       ]
@@ -388,7 +388,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
         { 
           to: '/seller/business', 
           icon: 'domain', 
-          label: 'Hồ Sơ Cửa Hàng & Doanh Nghiệp', 
+          label: 'Hồ Sơ Gian Hàng', 
           badge: badges.businessUpdates || null,
           badgeColor: 'bg-rose-600',
           permission: PERMISSIONS.STORE_VIEW 
@@ -445,7 +445,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
   return (
     <aside 
       className={`bg-white text-slate-800 border-r border-[#00875A]/20 flex flex-col justify-between shrink-0 h-[calc(100vh-54px)] sticky top-[54px] overflow-y-auto overflow-x-hidden transition-all duration-300 ease-in-out select-none shadow-2xs z-20 custom-scrollbar ${
-        isMobile ? 'w-full h-full p-3.5 static shadow-none border-none' : isCollapsed ? 'w-[64px] p-2' : 'w-[250px] p-3'
+        isMobile ? 'w-full h-full p-3.5 static shadow-none border-none' : isCollapsed ? 'w-[64px] p-2' : 'w-[255px] p-2.5'
       }`}
     >
       <div className="space-y-3 pb-8">
@@ -520,9 +520,9 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium opacity-40 text-slate-400 cursor-not-allowed">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                        <div className="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium opacity-40 text-slate-400 cursor-not-allowed">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
                             <span className="truncate">{item.label}</span>
                           </div>
                           <span className="text-[8.5px] px-1.5 py-0.2 rounded font-bold text-slate-400 bg-slate-100 border border-slate-200 whitespace-nowrap shrink-0 ml-1.5">
@@ -562,9 +562,9 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                           </div>
                         </div>
                       ) : (
-                        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] bg-slate-50/70 border border-slate-200/50 cursor-not-allowed select-none relative">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1 opacity-45 text-slate-400">
-                            <span className="material-symbols-outlined text-[19px] shrink-0">{item.icon}</span>
+                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs bg-slate-50/70 border border-slate-200/50 cursor-not-allowed select-none relative">
+                          <div className="flex items-center gap-2 min-w-0 flex-1 opacity-45 text-slate-400">
+                            <span className="material-symbols-outlined text-[18px] shrink-0">{item.icon}</span>
                             <span className="truncate leading-none">{item.label}</span>
                           </div>
                           <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-bold whitespace-nowrap shrink-0 ${badgeClasses}`}>
@@ -627,7 +627,7 @@ export default function SellerSidebar({ isCollapsed, toggleSidebar, isMobile, on
                         target={item.targetBlank ? '_blank' : undefined}
                         rel={item.targetBlank ? 'noopener noreferrer' : undefined}
                         onClick={isMobile ? onClose : undefined}
-                        className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12.5px] transition-all duration-150 shrink-0 select-none active:scale-[0.98] ${
+                        className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg text-xs transition-all duration-150 shrink-0 select-none active:scale-[0.98] ${
                           isItemActive
                             ? 'bg-[#00875A] text-white font-bold shadow-xs'
                             : 'text-slate-700 font-semibold hover:bg-[#00875A]/8 hover:text-[#00875A] border border-transparent'

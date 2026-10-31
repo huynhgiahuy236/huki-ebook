@@ -1,8 +1,18 @@
-/* Tỷ lệ thu phóng toàn cục chuẩn 80-82% cho màn hình máy tính (thu trọn bộ từ Sidebar, Header, khung ngoài đến nội dung bên trong y hệt zoom 80% của trình duyệt) */
-@media (min-width: 1024px) {
-  body {
-    zoom: 0.82;
+/* Tỷ lệ thu phóng toàn cục chuẩn 85% cho màn hình máy tính (giữ chuẩn 100vh, không bị hở đáy đen) */
+html {
+  font-size: 85%;
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 100%;
   }
+}
+
+/* Ẩn dev tools badge "N" của Next.js ở góc dưới màn hình */
+nextjs-portal,
+[data-nextjs-dev-tools-button] {
+  display: none !important;
 }
 
 * {
