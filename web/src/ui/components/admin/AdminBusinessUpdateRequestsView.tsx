@@ -415,7 +415,7 @@ export function AdminBusinessUpdateRequestsView() {
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
               <tr>
-                <th className="py-3 px-2 w-8 text-center">
+                <th className="py-2 px-2 w-8 text-center">
                   <input
                     type="checkbox"
                     checked={paginatedRequests.length > 0 && paginatedRequests.every(r => selectedIds.includes(r.id))}
@@ -423,12 +423,12 @@ export function AdminBusinessUpdateRequestsView() {
                     className="rounded text-[#00875A] cursor-pointer"
                   />
                 </th>
-                <th className="py-3 px-2 w-8 text-center"></th>
-                <th className="py-3 px-2 w-10 text-center">STT</th>
-                <th className="py-3 px-3.5">Doanh nghiệp & MST</th>
-                <th className="py-3 px-3.5">Đề xuất thay đổi</th>
-                <th className="py-3 px-3.5">Ngày gửi</th>
-                <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
+                <th className="py-2 px-2 w-8 text-center"></th>
+                <th className="py-2 px-2 w-10 text-center">STT</th>
+                <th className="py-2 px-3">Doanh nghiệp & MST</th>
+                <th className="py-2 px-3">Đề xuất thay đổi</th>
+                <th className="py-2 px-3">Ngày gửi</th>
+                <th className="py-2 px-3 text-right">Trạng thái & Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -447,7 +447,7 @@ export function AdminBusinessUpdateRequestsView() {
                       } hover:bg-emerald-50/40 ${isUnread ? 'border-l-4 border-l-rose-500' : ''}`}
                     >
                       {/* Checkbox */}
-                      <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                      <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(req.id)}
@@ -457,7 +457,7 @@ export function AdminBusinessUpdateRequestsView() {
                       </td>
 
                       {/* Chevron toggle */}
-                      <td className="py-3 px-2 text-center">
+                      <td className="py-2 px-2 text-center">
                         <button
                           type="button"
                           onClick={() => toggleExpandReq(req.id, req)}
@@ -471,12 +471,12 @@ export function AdminBusinessUpdateRequestsView() {
                       </td>
 
                       {/* STT */}
-                      <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
+                      <td className="py-2 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
                         {itemIndex}
                       </td>
 
                       {/* Doanh nghiệp & MST */}
-                      <td className="py-3 px-3.5">
+                      <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
                           <span
                             onClick={() => toggleExpandReq(req.id, req)}
@@ -496,7 +496,7 @@ export function AdminBusinessUpdateRequestsView() {
                       </td>
 
                       {/* Thay đổi đề xuất */}
-                      <td className="py-3 px-3.5">
+                      <td className="py-2 px-3">
                         <div className="text-gray-800 font-medium text-xs break-words line-clamp-2 leading-snug">
                           {data.name && data.name !== req.business?.name ? (
                             <span className="text-[#00875A] font-bold">Đổi tên: {data.name}</span>
@@ -516,12 +516,12 @@ export function AdminBusinessUpdateRequestsView() {
                       </td>
 
                       {/* Thời Gian Gửi */}
-                      <td className="py-3 px-3.5 font-mono text-gray-500 text-[11px] whitespace-nowrap">
+                      <td className="py-2 px-3 font-mono text-gray-500 text-[11px] whitespace-nowrap">
                         {new Date(req.createdAt).toLocaleString('vi-VN')}
                       </td>
 
                       {/* Trạng Thái & Thao Tác */}
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-2 px-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <AdminStatusBadge
                             variant={

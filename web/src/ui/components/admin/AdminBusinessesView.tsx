@@ -476,7 +476,7 @@ export function AdminBusinessesView() {
       {
         key: 'stt',
         title: 'STT',
-        width: 50,
+        width: 48,
         align: 'center',
         render: (_val, _row, idx) => (
           <span className="font-mono text-theme-text-muted text-[11px] font-semibold">
@@ -489,26 +489,25 @@ export function AdminBusinessesView() {
         title: 'Doanh nghiệp & MST',
         sortable: true,
         render: (_val, biz) => (
-          <div className="flex items-center gap-2.5 py-1">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-xs shrink-0">
+          <div className="flex items-center gap-2 py-0.5">
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-[11px] shrink-0">
               {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
             </div>
             <div className="min-w-0 flex-1">
-              <span
-                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words line-clamp-2 leading-snug"
-                onClick={() => {
-                  setSelectedBiz(biz);
-                  setDetailTab('profile');
-                }}
-                title={biz.name}
-              >
-                {biz.name}
-              </span>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="text-[10.5px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[280px] leading-tight"
+                  onClick={() => {
+                    setSelectedBiz(biz);
+                    setDetailTab('profile');
+                  }}
+                  title={biz.name}
+                >
+                  {biz.name}
+                </span>
+                <span className="text-[10px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
                   MST: {biz.taxCode || 'Chưa cấp'}
                 </span>
-                
               </div>
             </div>
           </div>
@@ -518,13 +517,13 @@ export function AdminBusinessesView() {
         key: 'contact',
         title: 'Người đại diện',
         render: (_val, biz) => (
-          <div className="flex flex-col gap-0.5 py-1">
-            <span className="text-xs font-medium text-gray-800 break-words" title={biz.email || ''}>
+          <div className="flex items-center gap-2 py-0.5 text-xs">
+            <span className="font-medium text-gray-800 truncate max-w-[150px]" title={biz.email || ''}>
               {biz.email || <span className="text-gray-400 italic">Chưa có email</span>}
             </span>
-            <span className="font-mono text-[11px] text-gray-500 flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px] text-gray-400">call</span>
-              <span>{biz.phone || 'Chưa cập nhật SĐT'}</span>
+            <span className="text-gray-300">•</span>
+            <span className="font-mono text-[10.5px] text-gray-500 shrink-0">
+              {biz.phone || 'Chưa cập nhật SĐT'}
             </span>
           </div>
         ),
@@ -535,15 +534,14 @@ export function AdminBusinessesView() {
         render: (_val, biz) => {
           const isPublisher = biz.name?.toUpperCase().includes('NXB') || biz.name?.toUpperCase().includes('XUẤT BẢN');
           return (
-            <div className="flex flex-col gap-1 py-1">
-              <span className={`inline-block px-2 py-0.2 rounded-full text-[10px] font-bold border w-fit ${
+            <div className="flex items-center gap-2 py-0.5">
+              <span className={`inline-block px-1.5 py-0.2 rounded text-[9.5px] font-bold border shrink-0 ${
                 isPublisher ? 'bg-indigo-50 text-indigo-800 border-indigo-200' : 'bg-amber-50 text-amber-800 border-amber-200'
               }`}>
                 {isPublisher ? 'Nhà Xuất Bản' : 'Nhà Phát Hành / DN'}
               </span>
-              <span className="text-gray-400 font-mono text-[10.5px] flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]">calendar_today</span>
-                <span>{biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '14/09/2026'}</span>
+              <span className="text-gray-400 font-mono text-[10.5px] shrink-0">
+                {biz.createdAt ? new Date(biz.createdAt).toLocaleDateString('vi-VN') : '14/09/2026'}
               </span>
             </div>
           );
@@ -552,7 +550,7 @@ export function AdminBusinessesView() {
       {
         key: 'status',
         title: 'Trạng thái',
-        width: 140,
+        width: 130,
         align: 'center',
         render: (val) => {
           let statusVariant: any = 'neutral';
@@ -576,7 +574,7 @@ export function AdminBusinessesView() {
       {
         key: 'actions',
         title: 'Thao tác',
-        width: 260,
+        width: 220,
         align: 'right',
         render: (_val, biz) => {
           const isPending = biz.status === 'PENDING_APPROVAL';
@@ -584,53 +582,55 @@ export function AdminBusinessesView() {
           const isApproved = biz.status === 'APPROVED';
           const isBusy = actionLoadingId === biz.id;
           return (
-            <div className="flex items-center justify-end gap-1.5 flex-wrap">
-              <AdminActionButton
-                variant="view"
-                icon="visibility"
-                label="Hồ sơ"
-                size="sm"
+            <div className="flex items-center justify-end gap-1 shrink-0">
+              <button
+                type="button"
                 onClick={() => {
                   setSelectedBiz(biz);
                   setDetailTab('profile');
                 }}
-                title="Xem chi tiết toàn trang"
-              />
+                className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#003B2B] font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer border border-emerald-200/60"
+                title="Xem hồ sơ pháp lý chi tiết"
+              >
+                <span className="material-symbols-outlined text-[13px]">visibility</span>
+                <span>Hồ sơ</span>
+              </button>
 
-              {/* Quản lý tính năng Seller */}
               <button
                 type="button"
                 onClick={() => setFeatureModalBiz(biz)}
-                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                className="px-2 py-0.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
                 title="Quản lý tính năng Seller của DN này"
               >
-                <span className="material-symbols-outlined text-[14px]">tune</span>
+                <span className="material-symbols-outlined text-[13px]">tune</span>
                 <span>Tính Năng</span>
               </button>
 
               {isPending && (
                 <>
-                  <AdminActionButton
-                    variant="success"
-                    icon="check"
-                    label="Duyệt"
-                    size="sm"
+                  <button
+                    type="button"
                     onClick={() => handleApprove(biz)}
                     disabled={isBusy}
+                    className="px-2 py-0.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50"
                     title="Phê duyệt doanh nghiệp"
-                  />
-                  <AdminActionButton
-                    variant="danger"
-                    icon="close"
-                    label="Từ Chối"
-                    size="sm"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">check</span>
+                    <span>Duyệt</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setRejectModalBiz(biz);
                       setRejectReason('');
                     }}
                     disabled={isBusy}
+                    className="px-2 py-0.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center gap-0.5 transition-colors cursor-pointer disabled:opacity-50"
                     title="Từ chối hồ sơ"
-                  />
+                  >
+                    <span className="material-symbols-outlined text-[13px]">close</span>
+                    <span>Từ Chối</span>
+                  </button>
                 </>
               )}
 
@@ -642,11 +642,10 @@ export function AdminBusinessesView() {
                     setSuspendReason('');
                   }}
                   disabled={isBusy}
-                  className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                  className="w-6 h-6 rounded-lg text-rose-600 hover:bg-rose-50 flex items-center justify-center transition-colors cursor-pointer"
                   title="Khóa / Tạm ngưng hoạt động doanh nghiệp"
                 >
-                  <span className="material-symbols-outlined text-[14px]">block</span>
-                  <span>Khóa</span>
+                  <span className="material-symbols-outlined text-[15px]">block</span>
                 </button>
               )}
 
@@ -655,11 +654,11 @@ export function AdminBusinessesView() {
                   type="button"
                   onClick={() => handleReactivate(biz)}
                   disabled={isBusy}
-                  className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Kích hoạt mở lại hoạt động doanh nghiệp"
+                  className="px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50"
+                  title="Mở khóa doanh nghiệp"
                 >
-                  <span className="material-symbols-outlined text-[14px]">lock_open</span>
-                  <span>Mở Khóa</span>
+                  <span className="material-symbols-outlined text-[13px]">lock_open</span>
+                  <span>Mở</span>
                 </button>
               )}
             </div>
@@ -1011,7 +1010,7 @@ export function AdminBusinessesView() {
     const allClustersPassed = passedClusterCount === 4;
 
     return (
-      <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
+      <div className="flex flex-col gap-3.5 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
         
         {/* 1. TOP NAVIGATION & ACTION HEADER */}
         <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4 sticky top-4 z-20 backdrop-blur-md bg-white/95">
@@ -1662,9 +1661,9 @@ export function AdminBusinessesView() {
   return (
     <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200">
       {/* 1. TOP HEADER & SUMMARY */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-gray-200">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
+          <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight font-editorial">
             Thẩm Định Pháp Lý &amp; Mã Số Thuế Doanh Nghiệp
           </h1>
           <p className="text-xs text-gray-500 mt-1">Thẩm định hồ sơ đối tác pháp nhân, đối chiếu CSDL Tổng cục Thuế và phê duyệt mở bán theo 4 cụm tiêu chuẩn</p>
@@ -1673,7 +1672,7 @@ export function AdminBusinessesView() {
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
           <Link
             href="/admin/business-update-requests"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary hover:text-white border border-theme-primary/30 text-xs font-bold transition-all shadow-2xs cursor-pointer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary hover:text-white border border-theme-primary/30 text-xs font-bold transition-all shadow-2xs cursor-pointer"
           >
             <span className="material-symbols-outlined text-[16px]">edit_note</span>
             <span>Yêu Cầu Chỉnh Sửa</span>
@@ -1682,7 +1681,7 @@ export function AdminBusinessesView() {
           <button
             onClick={fetchBusinesses}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer disabled:opacity-60"
           >
             <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
               refresh

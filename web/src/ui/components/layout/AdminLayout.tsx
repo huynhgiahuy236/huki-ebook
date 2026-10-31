@@ -195,7 +195,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           label: 'Gian Hàng Đang Bán',
           to: '/admin/stores',
           icon: 'storefront',
-          count: stats.pendingStores > 0 ? String(stats.pendingStores) : undefined,
+          // Không hiển thị badge đếm trùng lặp với Thẩm định pháp lý
+          count: undefined,
           badgeColor: 'bg-amber-500 text-white font-bold',
         },
       ],

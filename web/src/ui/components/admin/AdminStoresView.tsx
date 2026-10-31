@@ -1,5 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import Link from 'next/link';
+import CustomModal from '../common/CustomModal';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
 import { useSmartFormCollapse } from '../../utils/formHooks';
@@ -286,23 +288,22 @@ export function AdminStoresView() {
         title: 'Cửa hàng & Slug',
         sortable: true,
         render: (_val, st) => (
-          <div className="flex items-center gap-2.5 py-1">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-xs shrink-0 select-none">
+          <div className="flex items-center gap-2 py-0.5">
+            <div className="w-7 h-7 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 font-bold text-[11px] shrink-0 select-none">
               {st.name ? st.name.charAt(0).toUpperCase() : 'S'}
             </div>
             <div className="min-w-0 flex-1">
-              <span
-                className="font-bold text-gray-900 block hover:text-[#00875A] cursor-pointer text-xs break-words line-clamp-2 leading-snug"
-                onClick={() => setSelectedStore(st)}
-                title={st.name}
-              >
-                {st.name}
-              </span>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                <span className="text-[10.5px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/60">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span
+                  className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[220px] leading-tight"
+                  onClick={() => setSelectedStore(st)}
+                  title={st.name}
+                >
+                  {st.name}
+                </span>
+                <span className="text-[10px] font-mono text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/60 shrink-0">
                   /{st.slug || 'chua-co-slug'}
                 </span>
-                
               </div>
             </div>
           </div>
@@ -312,12 +313,16 @@ export function AdminStoresView() {
         key: 'business',
         title: 'Doanh nghiệp chủ quản',
         render: (_val, st) => (
-          <div className="flex flex-col gap-0.5 py-1">
-            <span className="font-semibold text-emerald-900 dark:text-emerald-300 text-xs flex items-center gap-1 break-words">
-              <span className="material-symbols-outlined text-[14px] text-emerald-600 shrink-0">apartment</span>
-              <span>{st.business?.name || st.businessName || 'Doanh nghiệp liên kết'}</span>
+          <div className="flex items-center gap-1.5 py-0.5 text-xs">
+            <span className="material-symbols-outlined text-[13px] text-emerald-600 shrink-0">apartment</span>
+            <span className="font-semibold text-emerald-950 truncate max-w-[190px]" title={st.business?.name || st.businessName || 'Doanh nghiệp liên kết'}>
+              {st.business?.name || st.businessName || 'Doanh nghiệp liên kết'}
             </span>
-            
+            {st.business?.taxCode && (
+              <span className="text-[9.5px] font-mono text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
+                MST: {st.business.taxCode}
+              </span>
+            )}
           </div>
         ),
       },
@@ -325,20 +330,18 @@ export function AdminStoresView() {
         key: 'contact',
         title: 'Liên hệ',
         render: (_val, st) => (
-          <div className="flex flex-col gap-0.5 py-1">
-            <span className="text-xs font-medium text-gray-800 break-words" title={st.email || ''}>
+          <div className="flex items-center gap-2 py-0.5 text-xs">
+            <span className="font-medium text-gray-800 truncate max-w-[140px]" title={st.email || ''}>
               {st.email || <span className="text-gray-400 italic">Chưa có email</span>}
             </span>
-            <div className="flex items-center gap-2 text-[11px] text-gray-500 flex-wrap">
-              <span className="font-mono flex items-center gap-0.5">
-                <span className="material-symbols-outlined text-[12px] text-gray-400">call</span>
-                <span>{st.phone || 'Chưa có SĐT'}</span>
-              </span>
-              <span>•</span>
-              <span className="font-mono text-[10.5px] text-gray-400">
-                {st.createdAt ? new Date(st.createdAt).toLocaleDateString('vi-VN') : '—'}
-              </span>
-            </div>
+            <span className="text-gray-300">•</span>
+            <span className="font-mono text-[10.5px] text-gray-500 shrink-0">
+              {st.phone || 'Chưa có SĐT'}
+            </span>
+            <span className="text-gray-300">•</span>
+            <span className="font-mono text-[10.5px] text-gray-400 shrink-0">
+              {st.createdAt ? new Date(st.createdAt).toLocaleDateString('vi-VN') : '—'}
+            </span>
           </div>
         ),
       },
@@ -346,49 +349,46 @@ export function AdminStoresView() {
         key: 'status',
         title: 'Trạng thái',
         align: 'center',
-        render: (_val, st) => <AdminStatusBadge status={st.status} />,
+        width: 150,
+        render: (_val, st) => {
+          if (st.status === 'PENDING_APPROVAL') {
+            return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="material-symbols-outlined text-[13px] text-amber-600">hourglass_top</span>
+                <span>Chờ duyệt pháp lý</span>
+              </span>
+            );
+          }
+          return <AdminStatusBadge status={st.status} />;
+        },
       },
       {
         key: 'actions',
         title: 'Thao tác',
+        width: 170,
         align: 'right',
         render: (_val, st) => {
           const isPending = st.status === 'PENDING_APPROVAL';
-          const isBusy = actionLoadingId === st.id;
           return (
-            <div className="flex items-center justify-end gap-1.5">
-              <AdminActionButton
-                variant="view"
-                icon="visibility"
-                label="Hồ sơ"
-                size="sm"
+            <div className="flex items-center justify-end gap-1.5 shrink-0">
+              <button
+                type="button"
                 onClick={() => setSelectedStore(st)}
+                className="px-2 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/80 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
                 title="Xem chi tiết cửa hàng"
-              />
+              >
+                <span className="material-symbols-outlined text-[13px]">visibility</span>
+                <span>Hồ sơ</span>
+              </button>
               {isPending && (
-                <>
-                  <AdminActionButton
-                    variant="success"
-                    icon="check"
-                    label="Duyệt"
-                    size="sm"
-                    onClick={() => handleApprove(st)}
-                    disabled={isBusy}
-                    title="Phê duyệt Store"
-                  />
-                  <AdminActionButton
-                    variant="danger"
-                    icon="close"
-                    label="Từ Chối"
-                    size="sm"
-                    onClick={() => {
-                      setRejectModalStore(st);
-                      setRejectReason('');
-                    }}
-                    disabled={isBusy}
-                    title="Từ chối Store"
-                  />
-                </>
+                <Link
+                  href="/admin/businesses"
+                  className="px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs flex items-center gap-1 transition-colors"
+                  title="Doanh nghiệp chủ quản chưa được duyệt pháp lý. Bấm để sang thẩm định."
+                >
+                  <span className="material-symbols-outlined text-[13px] text-amber-700">verified</span>
+                  <span>Duyệt Pháp Lý ↗</span>
+                </Link>
               )}
             </div>
           );
@@ -399,9 +399,9 @@ export function AdminStoresView() {
   );
 
   return (
-    <div className="flex flex-col gap-6 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
+    <div className="flex flex-col gap-3.5 w-full max-w-[1600px] mx-auto animate-in fade-in duration-200 font-sans">
       {/* 1. TOP HEADER & SUMMARY */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2.5 border-b border-gray-200">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight font-editorial">
             Danh Sách Gian Hàng Đang Bán
@@ -412,7 +412,7 @@ export function AdminStoresView() {
         <button
           onClick={fetchStores}
           disabled={loading}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto disabled:opacity-60"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-xs font-semibold text-gray-700 transition-colors shadow-2xs cursor-pointer self-start sm:self-auto disabled:opacity-60"
         >
           <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin text-emerald-600' : 'text-gray-500'}`}>
             refresh
@@ -554,27 +554,16 @@ export function AdminStoresView() {
 
                 {isPending && (
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRejectModalStore(st);
-                        setRejectReason('');
-                      }}
-                      disabled={isBusy}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition-colors cursor-pointer disabled:opacity-50"
+                    <span className="text-[11px] text-amber-700 italic">
+                      Doanh nghiệp chủ quản chưa hoàn tất thẩm định pháp lý (MST, GPKD).
+                    </span>
+                    <Link
+                      href="/admin/businesses"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-colors shadow-2xs"
                     >
-                      <span className="material-symbols-outlined text-[15px]">close</span>
-                      <span>Từ Chối</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApprove(st)}
-                      disabled={isBusy}
-                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-lg bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-colors shadow-2xs cursor-pointer disabled:opacity-50"
-                    >
-                      <span className="material-symbols-outlined text-[15px]">check</span>
-                      <span>Phê Duyệt Store</span>
-                    </button>
+                      <span className="material-symbols-outlined text-[15px]">gavel</span>
+                      <span>Sang Thẩm Định Doanh Nghiệp ↗</span>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -594,107 +583,134 @@ export function AdminStoresView() {
         className="w-full"
       />
 
-      {/* 4. DETAIL IN-PAGE COLLAPSIBLE PANEL */}
-      {selectedStore && (
-        <div ref={storeDetailRef} className="mt-6 bg-white rounded-3xl p-6 sm:p-8 shadow-sm border-2 border-indigo-500/20 space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-          {/* Header */}
-          <div className="pb-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-xs">
-                <span className="material-symbols-outlined text-[20px]">storefront</span>
+      {/* 4. DETAIL MODAL (CLEAN & CONNECTED TO BUSINESS) */}
+      <CustomModal
+        isOpen={Boolean(selectedStore)}
+        onClose={() => setSelectedStore(null)}
+        size="lg"
+        title={
+          selectedStore && (
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+                <span className="material-symbols-outlined text-[18px]">storefront</span>
               </span>
               <div>
-                <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                  Chi Tiết Cửa Hàng: {selectedStore.name}
-                </h2>
-                <p className="text-xs text-gray-500 font-mono">Mã cửa hàng: {selectedStore.id}</p>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-gray-900 text-sm">Hồ Sơ Cửa Hàng: {selectedStore.name}</span>
+                  <AdminStatusBadge status={selectedStore.status} />
+                </div>
+                <p className="text-[11px] text-gray-400 font-mono font-normal">Mã Store: {selectedStore.id}</p>
               </div>
             </div>
-
-            <button
-              onClick={() => setSelectedStore(null)}
-              className="px-3 py-1.5 text-xs font-semibold text-gray-500 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors cursor-pointer"
-            >
-              ✕ Đóng bảng
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="space-y-4 text-xs">
+          )
+        }
+      >
+        {selectedStore && (
+          <div className="space-y-4 p-5 text-xs">
             {/* Card info */}
-            <div className="p-4 rounded-2xl bg-gray-50 border border-gray-200 flex flex-col gap-2">
+            <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-sm text-gray-900">{selectedStore.name}</span>
-                <AdminStatusBadge status={selectedStore.status} />
+                <span className="font-bold text-xs text-gray-900">{selectedStore.name}</span>
+                <span className="text-[11px] font-mono text-gray-500">
+                  Tạo ngày: {selectedStore.createdAt ? new Date(selectedStore.createdAt).toLocaleDateString('vi-VN') : '—'}
+                </span>
               </div>
-              <p className="text-gray-600 leading-relaxed break-words">
-                {selectedStore.description || 'Chưa có thông tin mô tả chi tiết cho cửa hàng này.'}
+              <p className="text-gray-600 leading-relaxed break-words text-[11.5px]">
+                {selectedStore.description || 'Gian hàng chính hãng phân phối sách trên nền tảng HuKi.'}
               </p>
+            </div>
+
+            {/* Doanh nghiệp chủ quản (KYB connection) */}
+            <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 font-bold text-emerald-950 text-xs">
+                  <span className="material-symbols-outlined text-[16px] text-emerald-700">apartment</span>
+                  <span>DOANH NGHIỆP CHỦ QUẢN (PHÁP NHÂN)</span>
+                </div>
+                {selectedStore.business?.taxCode && (
+                  <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-bold">
+                    MST: {selectedStore.business.taxCode}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-emerald-200/60">
+                <div>
+                  <p className="font-bold text-emerald-900 text-xs">
+                    {selectedStore.business?.name || selectedStore.businessName || 'Doanh Nghiệp Đối Tác Liên Kết'}
+                  </p>
+                  <p className="text-[10.5px] font-mono text-emerald-700 mt-0.5">
+                    Mã DN: {selectedStore.businessId || 'N/A'}
+                  </p>
+                </div>
+                <Link
+                  href="/admin/businesses"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-[#003B2B] border border-emerald-300 font-bold text-xs transition-colors shadow-2xs shrink-0"
+                >
+                  <span className="material-symbols-outlined text-[14px] text-emerald-700">verified</span>
+                  <span>Xem Hồ Sơ Pháp Lý &amp; MST DN ↗</span>
+                </Link>
+              </div>
             </div>
 
             {/* Grid info */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-1">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ĐƯỜNG DẪN (SLUG)</span>
-                <span className="font-mono font-bold text-gray-900 break-words">/{selectedStore.slug}</span>
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">ĐƯỜNG DẪN (SLUG)</span>
+                  <span className="font-mono font-bold text-indigo-700 break-words text-xs">/{selectedStore.slug}</span>
+                </div>
+                {selectedStore.slug && (
+                  <a
+                    href={`/stores/${selectedStore.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[13px]">open_in_new</span>
+                    <span>Xem Shop</span>
+                  </a>
+                )}
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-1">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex flex-col gap-0.5">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">SỐ ĐIỆN THOẠI</span>
-                <span className="font-semibold text-gray-900">{selectedStore.phone || 'N/A'}</span>
+                <span className="font-mono font-semibold text-gray-900">{selectedStore.phone || 'Chưa cung cấp'}</span>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-1 col-span-1 sm:col-span-2">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex flex-col gap-0.5 col-span-1 sm:col-span-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">EMAIL CỬA HÀNG</span>
-                <span className="font-semibold text-gray-900 break-words">{selectedStore.email || 'N/A'}</span>
+                <span className="font-medium text-gray-900 break-words">{selectedStore.email || 'Chưa cung cấp'}</span>
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-1 col-span-1 sm:col-span-2">
+              <div className="p-3 rounded-xl bg-gray-50 border border-gray-100 flex flex-col gap-0.5 col-span-1 sm:col-span-2">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">ĐỊA CHỈ KHO / CỬA HÀNG</span>
                 <span className="text-gray-700 leading-relaxed break-words">{selectedStore.address || 'Chưa cập nhật địa chỉ kho.'}</span>
               </div>
+            </div>
 
-              <div className="p-3.5 rounded-2xl bg-gray-50 border border-gray-100 flex flex-col gap-1 col-span-1 sm:col-span-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">DOANH NGHIỆP CHỦ QUẢN</span>
-                <span className="font-mono text-gray-700 break-words">{selectedStore.businessId || 'N/A'}</span>
-              </div>
+            {/* Footer inside modal */}
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedStore(null)}
+                className="px-4 py-1.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+
+              {selectedStore.status === 'PENDING_APPROVAL' && (
+                <Link
+                  href="/admin/businesses"
+                  className="px-4 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1 shadow-2xs transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[14px]">gavel</span>
+                  <span>Sang Thẩm Định Doanh Nghiệp ↗</span>
+                </Link>
+              )}
             </div>
           </div>
-
-          {/* Footer */}
-          <div className="pt-4 border-t border-gray-100 flex items-center justify-end gap-2.5">
-            <button
-              onClick={() => setSelectedStore(null)}
-              className="px-4 py-2.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition-colors"
-            >
-              Đóng
-            </button>
-
-            {selectedStore.status === 'PENDING_APPROVAL' && (
-              <>
-                <button
-                  onClick={() => {
-                    setRejectModalStore(selectedStore);
-                    setRejectReason('');
-                    setRejectReasonError('');
-                  }}
-                  className="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 font-bold text-xs transition-colors"
-                >
-                  Từ chối
-                </button>
-                <button
-                  onClick={() => handleApprove(selectedStore)}
-                  disabled={actionLoadingId === selectedStore.id}
-                  className="px-5 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-xs"
-                >
-                  Phê duyệt ngay
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </CustomModal>
 
       {/* 5. REJECT STORE IN-PAGE FORM */}
       {rejectModalStore && (
