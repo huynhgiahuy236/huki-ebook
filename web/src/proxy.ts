@@ -38,6 +38,20 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // System Maintenance Gate: If maintenance active cookie is '1', redirect public/seller/shipper users to /maintenance
+  const isMaintenanceActive = request.cookies.get('huki_maintenance_active')?.value === '1';
+  const hasBypassToken = Boolean(request.cookies.get('huki_bypass_token')?.value);
+
+  if (isMaintenanceActive && !hasBypassToken) {
+    if (
+      !pathname.startsWith('/admin') &&
+      !pathname.startsWith('/maintenance') &&
+      !pathname.startsWith('/api')
+    ) {
+      return NextResponse.redirect(new URL('/maintenance', request.url), 307);
+    }
+  }
+
   // Check direct alias mappings
   if (legacyMappings[pathname]) {
     const targetPath = legacyMappings[pathname];

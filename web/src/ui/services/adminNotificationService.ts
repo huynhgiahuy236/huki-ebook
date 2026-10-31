@@ -8,7 +8,7 @@
  * - Scheduling: INSTANT, SCHEDULED, RECURRING (e.g. Day 1 & 15 Escrow reconciliation)
  */
 
-export type NotificationCategory = 'MAINTENANCE' | 'POLICY' | 'ORDER' | 'FINANCE' | 'MARKETING' | 'SECURITY';
+export type NotificationCategory = 'MAINTENANCE' | 'POLICY' | 'ORDER' | 'FINANCE' | 'MARKETING' | 'SECURITY' | 'SYSTEM';
 export type NotificationSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
 export type TargetRole = 'ALL' | 'SELLER' | 'CUSTOMER' | 'SHIPPER';
 export type TargetAudienceType = 'ALL' | 'SEGMENT' | 'DIRECT';
@@ -137,6 +137,33 @@ class AdminNotificationService {
 
   constructor() {
     if (typeof window !== 'undefined') {
+      // 1. Cross-tab storage synchronization
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            this.cache = parsed;
+            window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: parsed }));
+          } catch {}
+        }
+      });
+
+      // 2. RealtimeSyncBus event listener
+      realtimeSyncBus.subscribe((msg) => {
+        if (msg.type === 'ADMIN_NOTIFICATIONS_UPDATED') {
+          if (Array.isArray(msg.payload)) {
+            this.cache = msg.payload as AdminBroadcastNotification[];
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(msg.payload));
+            } catch {}
+          } else {
+            this.cache = null;
+            this.getStored();
+          }
+          window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: this.cache }));
+        }
+      });
+
       this.syncFromServer();
       window.addEventListener('focus', () => this.syncFromServer());
       setInterval(() => this.syncFromServer(), 3000);
@@ -157,7 +184,8 @@ class AdminNotificationService {
           this.cache = serverList;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(serverList));
           if (isChanged) {
-            realtimeSyncBus.publish('ADMIN_NOTIFICATIONS_UPDATED', serverList);
+            realtimeSyncBus.publish('ADMIN_NOTIFICATIONS_UPDATED', serverList, { roles: ['ALL'] });
+            window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: serverList }));
           }
           return serverList;
         }
@@ -171,20 +199,19 @@ class AdminNotificationService {
   }
 
   private getStored(): AdminBroadcastNotification[] {
-    if (this.cache) return this.cache;
-    if (typeof window === 'undefined') return DEFAULT_BROADCAST_NOTIFICATIONS;
+    if (typeof window === 'undefined') return this.cache || DEFAULT_BROADCAST_NOTIFICATIONS;
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BROADCAST_NOTIFICATIONS));
-        this.cache = DEFAULT_BROADCAST_NOTIFICATIONS;
-        return DEFAULT_BROADCAST_NOTIFICATIONS;
+      if (data) {
+        const parsed = JSON.parse(data);
+        this.cache = parsed;
+        return parsed;
       }
-      const parsed = JSON.parse(data);
-      this.cache = parsed;
-      return parsed;
-    } catch {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_BROADCAST_NOTIFICATIONS));
+      this.cache = DEFAULT_BROADCAST_NOTIFICATIONS;
       return DEFAULT_BROADCAST_NOTIFICATIONS;
+    } catch {
+      return this.cache || DEFAULT_BROADCAST_NOTIFICATIONS;
     }
   }
 
@@ -193,7 +220,8 @@ class AdminNotificationService {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-      realtimeSyncBus.publish('ADMIN_NOTIFICATIONS_UPDATED', list);
+      realtimeSyncBus.publish('ADMIN_NOTIFICATIONS_UPDATED', list, { roles: ['ALL'] });
+      window.dispatchEvent(new CustomEvent('huki_admin_notifications_updated', { detail: list }));
     } catch (e) {
       console.error('Error saving notifications', e);
     }

@@ -103,11 +103,16 @@ class MaintenanceService {
     if (typeof window === 'undefined' || this.isSyncing) return this.config;
     this.isSyncing = true;
     try {
-      const res = await fetch('/api/system/maintenance', { cache: 'no-store' });
+      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_access_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/system/maintenance', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && json.data) {
-          this.config = { ...DEFAULT_MAINTENANCE_CONFIG, ...json.data };
+        const confData = json.data;
+        if (confData && typeof confData === 'object') {
+          this.config = { ...DEFAULT_MAINTENANCE_CONFIG, ...confData };
           try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(this.config));
           } catch {}
@@ -187,9 +192,13 @@ class MaintenanceService {
       this.syncCookies();
       this.dispatchLocalEvent();
 
+      const token = localStorage.getItem('huki_access_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       fetch('/api/system/maintenance', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(this.config),
       }).catch((err) => console.warn('Failed to persist maintenance to server:', err));
     }

@@ -21,6 +21,19 @@ import { adminNotificationService } from './adminNotificationService';
 
 const STORAGE_KEY = 'huki_seller_feature_flags';
 
+export const FEATURE_ROUTE_URL_MAP: Record<string, string> = {
+  FLASH_SALE: '/seller/promotions/flash-sale',
+  VOUCHERS: '/seller/promotions/vouchers',
+  DISCOUNTS: '/seller/promotions/discounts',
+  DIGITAL_PUBLISHING: '/seller/product/create-ebook',
+  BULK_UPLOAD: '/seller/products/bulk',
+  WITHDRAWALS: '/seller/finance',
+  RETURNS_MANAGEMENT: '/seller/returns',
+  STAFF_MANAGEMENT: '/seller/staff',
+  CUSTOMER_CHAT: '/seller/chat',
+};
+
+
 export const DEFAULT_SELLER_FEATURES: SellerFeature[] = [
   {
     id: 'FLASH_SALE',
@@ -129,9 +142,43 @@ class FeatureFlagsService {
 
   constructor() {
     if (typeof window !== 'undefined') {
+      // 0. Update internal cache on custom event
+      window.addEventListener('huki_feature_flags_updated', (e: any) => {
+        if (Array.isArray(e.detail)) {
+          this.cache = e.detail;
+        }
+      });
+
+      // 1. Cross-tab storage synchronization
+      window.addEventListener('storage', (e) => {
+        if (e.key === STORAGE_KEY && e.newValue) {
+          try {
+            const parsed = JSON.parse(e.newValue);
+            this.cache = parsed;
+            window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: parsed }));
+          } catch {}
+        }
+      });
+
+      // 2. RealtimeSyncBus event listener
+      realtimeSyncBus.subscribe((msg) => {
+        if (msg.type === 'FEATURE_FLAGS_UPDATED') {
+          if (Array.isArray(msg.payload)) {
+            this.cache = msg.payload as SellerFeature[];
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(msg.payload));
+            } catch {}
+          } else {
+            this.cache = null;
+            this.getStoredFeatures();
+          }
+          window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: this.cache }));
+        }
+      });
+
       this.syncFromServer();
       window.addEventListener('focus', () => this.syncFromServer());
-      setInterval(() => this.syncFromServer(), 3000);
+      setInterval(() => this.syncFromServer(), 2000);
     }
   }
 
@@ -139,17 +186,23 @@ class FeatureFlagsService {
     if (typeof window === 'undefined' || this.isSyncing) return this.getStoredFeatures();
     this.isSyncing = true;
     try {
-      const res = await fetch('/api/seller/feature-flags', { cache: 'no-store' });
+      const token = typeof window !== 'undefined' ? localStorage.getItem('huki_access_token') : null;
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch('/api/seller/feature-flags', { headers, cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
-        if (json.success && Array.isArray(json.data)) {
-          const serverList: SellerFeature[] = json.data;
+        const dataList = json.data || (Array.isArray(json) ? json : null);
+        if ((json.success || json.status === 'success' || Array.isArray(json.data)) && Array.isArray(dataList)) {
+          const serverList: SellerFeature[] = dataList;
           const currentStored = this.getStoredFeatures();
           const isChanged = JSON.stringify(serverList) !== JSON.stringify(currentStored);
           this.cache = serverList;
           localStorage.setItem(STORAGE_KEY, JSON.stringify(serverList));
           if (isChanged) {
-            realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', serverList);
+            realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', serverList, { roles: ['ALL'] });
+            window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: serverList }));
           }
           return serverList;
         }
@@ -163,21 +216,20 @@ class FeatureFlagsService {
   }
 
   private getStoredFeatures(): SellerFeature[] {
-    if (this.cache) return this.cache;
     if (typeof window === 'undefined') return DEFAULT_SELLER_FEATURES;
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SELLER_FEATURES));
-        this.cache = DEFAULT_SELLER_FEATURES;
-        return DEFAULT_SELLER_FEATURES;
+      if (data) {
+        const parsed = JSON.parse(data);
+        this.cache = parsed;
+        return parsed;
       }
-      const parsed = JSON.parse(data);
-      this.cache = parsed;
-      return parsed;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_SELLER_FEATURES));
+      this.cache = DEFAULT_SELLER_FEATURES;
+      return DEFAULT_SELLER_FEATURES;
     } catch (e) {
       console.error('Error reading feature flags from storage', e);
-      return DEFAULT_SELLER_FEATURES;
+      return this.cache || DEFAULT_SELLER_FEATURES;
     }
   }
 
@@ -187,7 +239,8 @@ class FeatureFlagsService {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(features));
       // Dispatch real-time cross-tab sync message
-      realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', features);
+      realtimeSyncBus.publish('FEATURE_FLAGS_UPDATED', features, { roles: ['ALL'] });
+      window.dispatchEvent(new CustomEvent('huki_feature_flags_updated', { detail: features }));
     } catch (e) {
       console.error('Error saving feature flags', e);
     }
@@ -223,9 +276,13 @@ class FeatureFlagsService {
     this.saveFeatures(updated);
 
     if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('huki_access_token');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       fetch('/api/seller/feature-flags', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           action: 'TOGGLE_GLOBAL',
           featureId,
@@ -245,6 +302,7 @@ class FeatureFlagsService {
           content: `Hệ thống HUKI đang tiến hành bảo trì, nâng cấp tính năng "${featName}".\n\nLý do: ${finalReason}\n\nTrong thời gian này, quý đối tác Seller tạm thời không thể sử dụng tính năng này. Chúng tôi sẽ mở lại tính năng ngay khi hoàn tất. Trân trọng cảm ơn sự thông cảm của Quý Đối Tác!`,
           category: 'MAINTENANCE',
           severity: 'WARNING',
+          targetRole: 'ALL',
           targetType: 'ALL',
           channels: ['TOP_BAR', 'BELL'],
           isPinnedTop: true,
@@ -256,7 +314,29 @@ class FeatureFlagsService {
           actionLabel: 'Xem Chi Tiết',
         });
       } else {
+        // 1. Remove maintenance notification
         adminNotificationService.deleteNotification(`maint-${featureId}`);
+
+        // 2. Dispatch official celebratory Re-open Notification to all sellers
+        const featureUrl = FEATURE_ROUTE_URL_MAP[featureId] || '/seller/dashboard';
+        adminNotificationService.createNotification({
+          id: `reopen-${featureId}-${Date.now()}`,
+          title: `[Đã Mở Lại] ${featName}`,
+          summary: `Tính năng "${featName}" đã hoàn tất nâng cấp bảo trì và mở lại hoạt động bình thường trên kênh Người Bán.`,
+          content: `Hệ thống HUKI thông báo: Quá trình bảo trì, nâng cấp tính năng "${featName}" đã hoàn tất thành công.\n\nTính năng hiện đã mở lại 100% hoạt động bình thường trên toàn hệ thống Kênh Người Bán. Quý Đối Tác có thể tiếp tục thao tác tạo mới và quản trị ngay từ bây giờ.\n\nChúc Quý Đối Tác kinh doanh hồng phát và đạt nhiều đơn hàng mới!`,
+          category: 'SYSTEM',
+          severity: 'INFO',
+          targetRole: 'ALL',
+          targetType: 'ALL',
+          channels: ['TOP_BAR', 'BELL'],
+          isPinnedTop: false,
+          isDismissible: true,
+          scheduleType: 'INSTANT',
+          status: 'ACTIVE',
+          authorName: 'Ban Quản Trị HUKI',
+          actionUrl: featureUrl,
+          actionLabel: 'Truy cập ngay',
+        });
       }
     } catch (e) {
       console.warn('Failed to auto-sync maintenance announcement:', e);
@@ -358,7 +438,11 @@ class FeatureFlagsService {
       return { accessible: true };
     }
 
-    if (!feature.isEnabledGlobally) {
+    const isGloballyActive = feature.isEnabledGlobally !== undefined 
+      ? Boolean(feature.isEnabledGlobally) 
+      : (feature as any).isEnabled !== false;
+
+    if (!isGloballyActive) {
       return {
         accessible: false,
         reason: feature.maintenanceReason || 'Tính năng này đang tạm đóng để bảo trì hệ thống.',

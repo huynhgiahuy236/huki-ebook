@@ -12,6 +12,8 @@ import {
   RealtimeNotification,
 } from '../../hooks/useRealtimeNotifications';
 import { orderApi, SellerOrder } from '../../api/orderApi';
+import { adminNotificationService, AdminBroadcastNotification } from '@/ui/services/adminNotificationService';
+import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
 
 export interface UniversalNotificationBellProps {
   variant?: 'user' | 'seller' | 'shipper' | 'admin';
@@ -110,9 +112,38 @@ export default function UniversalNotificationBell({
   const [animatingOutIds, setAnimatingOutIds] = useState<Set<string>>(new Set());
   const [processedOrderIds, setProcessedOrderIds] = useState<Set<string>>(new Set());
 
+  const isSeller = variant === 'seller';
+
   // Cache thông tin đơn hàng đầy đủ từ backend
   const [orderCache, setOrderCache] = useState<Map<string, SellerOrder>>(new Map());
   const [isLoadingOrders, setIsLoadingOrders] = useState(false);
+
+  // Broadcast announcements from admin / system
+  const [adminNotifs, setAdminNotifs] = useState<AdminBroadcastNotification[]>([]);
+
+  useEffect(() => {
+    if (!isSeller) return;
+    const currentBizId = user?.business?.id || undefined;
+    const sellerCreatedAt = user?.business?.createdAt || user?.createdAt || undefined;
+
+    const loadAdminNotifs = () => {
+      const list = adminNotificationService.getForSeller(currentBizId, true, sellerCreatedAt);
+      setAdminNotifs(list);
+    };
+
+    loadAdminNotifs();
+    window.addEventListener('huki_admin_notifications_updated', loadAdminNotifs);
+    const unsub = realtimeSyncBus.subscribe((msg) => {
+      if (msg.type === 'ADMIN_NOTIFICATIONS_UPDATED' || msg.type === 'FEATURE_FLAGS_UPDATED') {
+        loadAdminNotifs();
+      }
+    });
+
+    return () => {
+      window.removeEventListener('huki_admin_notifications_updated', loadAdminNotifs);
+      unsub();
+    };
+  }, [isSeller, user]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -121,7 +152,6 @@ export default function UniversalNotificationBell({
   // -------------------------------------------------------------------------
   // 1. PHÂN QUYỀN CHUẨN CHỈNH
   // -------------------------------------------------------------------------
-  const isSeller = variant === 'seller';
   const canConfirmOrders = useMemo(() => {
     if (!isSeller) return false;
     if (!user) return false;
@@ -160,6 +190,21 @@ export default function UniversalNotificationBell({
     recipientType,
     limit: 50,
   });
+
+  const effectiveUnreadCount = useMemo(() => {
+    const currentBiz = user?.business?.id || 'default_seller';
+    const unreadAdminCount = adminNotifs.filter(
+      (an) => !an.readByBusinessIds?.includes(currentBiz)
+    ).length;
+    return unreadCount + unreadAdminCount;
+  }, [unreadCount, adminNotifs, user]);
+
+  const handleMarkAllAsReadUnified = useCallback(() => {
+    markAllAsRead();
+    if (isSeller) {
+      adminNotificationService.markAllAsRead(user?.business?.id);
+    }
+  }, [markAllAsRead, isSeller, user]);
 
   // -------------------------------------------------------------------------
   // 3. NẠP TOÀN BỘ ĐƠN HÀNG THỰC TẾ & MAP VÀO CACHE CHI TIẾT
@@ -446,6 +491,21 @@ export default function UniversalNotificationBell({
       });
     });
 
+    // 1.5 Bổ sung các thông báo hệ thống / bảo trì / mở lại từ Ban Quản Trị Hệ Thống
+    const currentBiz = user?.business?.id || 'default_seller';
+    adminNotifs.forEach((an) => {
+      const isRead = Boolean(an.readByBusinessIds?.includes(currentBiz));
+      list.push({
+        id: an.id,
+        notifId: an.id,
+        category: 'SYSTEM',
+        title: an.title,
+        message: an.summary || an.content,
+        createdAt: an.createdAt,
+        isRead,
+      });
+    });
+
     // 2. Bổ sung các đơn hàng Chờ xác nhận trong orderCache nếu chưa có thông báo tương ứng
     orderCache.forEach((order) => {
       if (order.status !== 'PENDING_CONFIRMATION') return;
@@ -487,7 +547,7 @@ export default function UniversalNotificationBell({
     });
 
     return list;
-  }, [notifications, orderCache, normalizeItemsList]);
+  }, [notifications, orderCache, adminNotifs, user, normalizeItemsList]);
 
   // -------------------------------------------------------------------------
   // 6. TÍNH TOÁN SỐ LƯỢNG CHO TỪNG BỘ LỌC
@@ -781,9 +841,9 @@ export default function UniversalNotificationBell({
             notifications
           </span>
 
-          {unreadCount > 0 && (
+          {effectiveUnreadCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-rose-600 text-white text-[9px] font-bold h-4 min-w-[16px] px-1 rounded-full flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-zinc-900 pointer-events-none animate-pulse">
-              {unreadCount > 99 ? '99+' : unreadCount}
+              {effectiveUnreadCount > 99 ? '99+' : effectiveUnreadCount}
             </span>
           )}
         </button>
@@ -965,10 +1025,10 @@ export default function UniversalNotificationBell({
 
               {/* Footer Drawer */}
               <div className="p-3 bg-slate-50 dark:bg-zinc-850 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-between text-xs">
-                {unreadCount > 0 ? (
+                {effectiveUnreadCount > 0 ? (
                   <button
                     type="button"
-                    onClick={markAllAsRead}
+                    onClick={handleMarkAllAsReadUnified}
                     className="text-xs font-semibold text-slate-500 hover:text-[#003B2B] cursor-pointer"
                   >
                     Đánh dấu đã đọc tất cả

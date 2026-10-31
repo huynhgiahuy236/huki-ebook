@@ -226,7 +226,7 @@ export function getDefaultRolesForEventType(type: SyncEventType): NotificationRo
       return ['SELLER', 'SHIPPER', 'BUYER'];
 
     case 'ADMIN_NOTIFICATIONS_UPDATED':
-      return ['ADMIN', 'ADMIN_CON'];
+      return ['ALL', 'SELLER', 'ADMIN', 'ADMIN_CON', 'BUYER', 'SHIPPER'];
 
     case 'FEATURE_FLAGS_UPDATED':
     case 'SELLER_FEATURE_TOGGLED':
@@ -307,7 +307,7 @@ class RealtimeSyncBus {
           this.notifyListeners({
             type: 'ADMIN_NOTIFICATIONS_UPDATED',
             timestamp: Date.now(),
-            target: { roles: ['ADMIN', 'ADMIN_CON'] },
+            target: { roles: ['ALL'] },
           });
         }
 
