@@ -354,7 +354,7 @@ export function AdminAppealsView() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse min-w-[1350px]">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+              <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
                 <tr>
                   <th className="py-3 px-2 w-8 text-center">
                     <input

@@ -17,21 +17,21 @@ export default function ShipperDashboardView() {
   } = useShipper();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 1. TOP STATS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
         {/* Stat 1: Ví Khả Dụng */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-2xs hover:border-[#00875A]/40 transition-all">
+        <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 shadow-2xs hover:border-[#00875A]/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Ví Thu Nhập Khả Dụng
             </span>
-            <span className="w-9 h-9 rounded-lg bg-emerald-50 text-[#00875A] flex items-center justify-center">
+            <span className="w-8 h-8 rounded-lg bg-emerald-50 text-[#00875A] flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-[#00875A] tracking-tight">
+            <span className="text-lg sm:text-xl font-bold text-[#00875A] tracking-tight">
               {wallet.availableEarnings.toLocaleString('vi-VN')}đ
             </span>
           </div>
@@ -48,12 +48,12 @@ export default function ShipperDashboardView() {
         </div>
 
         {/* Stat 2: Tiền COD Tạm Giữ */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-2xs hover:border-amber-300 transition-all">
+        <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 shadow-2xs hover:border-amber-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Tiền COD Tạm Giữ
             </span>
-            <span className="w-9 h-9 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+            <span className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">payments</span>
             </span>
           </div>
@@ -75,17 +75,17 @@ export default function ShipperDashboardView() {
         </div>
 
         {/* Stat 3: Đơn Đang Giao */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-2xs hover:border-blue-300 transition-all">
+        <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 shadow-2xs hover:border-blue-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Đơn Đang Giao
             </span>
-            <span className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+            <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">route</span>
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-blue-700 tracking-tight">
+            <span className="text-lg sm:text-xl font-bold text-blue-700 tracking-tight">
               {activeDeliveries.length} <span className="text-sm font-semibold text-gray-500">đơn</span>
             </span>
             {activeDeliveries.length > 0 && (
@@ -107,17 +107,17 @@ export default function ShipperDashboardView() {
         </div>
 
         {/* Stat 4: Sàn Đơn Quanh Bạn */}
-        <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-2xs hover:border-purple-300 transition-all">
+        <div className="bg-white rounded-xl border border-[#E2E8F0] p-3 shadow-2xs hover:border-purple-300 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
               Sàn Đơn Chờ Nhận
             </span>
-            <span className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+            <span className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">electric_moped</span>
             </span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-black text-purple-700 tracking-tight">
+            <span className="text-lg sm:text-xl font-bold text-purple-700 tracking-tight">
               {availableOrders.length} <span className="text-sm font-semibold text-gray-500">đơn sẵn sàng</span>
             </span>
           </div>
@@ -263,14 +263,14 @@ export default function ShipperDashboardView() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-gray-700">
-                  <thead className="bg-[#F8FAFC] text-[11px] font-bold text-gray-500 uppercase border-b border-[#E2E8F0]">
+                  <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white tracking-wider border-b border-[#00281D]">
                     <tr>
-                      <th className="p-3">Mã đơn</th>
-                      <th className="p-3">Khoảng cách</th>
-                      <th className="p-3">Lộ trình (Shop ➔ Khách)</th>
-                      <th className="p-3">Thu hộ COD</th>
-                      <th className="p-3">Tiền công</th>
-                      <th className="p-3 text-right">Thao tác</th>
+                      <th className="py-2.5 px-3 text-white">Mã đơn</th>
+                      <th className="py-2.5 px-3 text-white">Khoảng cách</th>
+                      <th className="py-2.5 px-3 text-white">Lộ trình (Shop ➔ Khách)</th>
+                      <th className="py-2.5 px-3 text-white">Thu hộ COD</th>
+                      <th className="py-2.5 px-3 text-white">Tiền công</th>
+                      <th className="py-2.5 px-3 text-right text-white">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#F1F5F9]">

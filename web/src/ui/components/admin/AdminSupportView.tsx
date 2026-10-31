@@ -171,7 +171,7 @@ export function AdminSupportView() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse min-w-[1300px]">
-            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+            <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
               <tr>
                 <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
                 <th className="py-3 px-3.5 whitespace-nowrap">Mã Phiếu</th>

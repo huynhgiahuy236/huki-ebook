@@ -542,7 +542,7 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
     <div className={`w-full flex flex-col rounded-xl border border-theme-border bg-theme-surface shadow-2xs ${containerClassName}`}>
       {/* Bulk Action Bar if selection > 0 */}
       {selectable && currentSelectedKeys.length > 0 && bulkActionRender && (
-        <div className="p-2.5 sm:px-4 bg-theme-secondary-subtle/80 border-b border-theme-border flex flex-wrap items-center justify-between gap-3 text-xs text-theme-secondary">
+        <div className="py-2 px-3.5 sm:px-4 bg-emerald-50 border-b border-emerald-200/80 flex flex-wrap items-center justify-between gap-2.5 text-xs text-[#003B2B] animate-in fade-in duration-150">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[18px]">check_circle</span>
             <span>
@@ -565,7 +565,7 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
       {/* Main Table Container with Horizontal Scroll */}
       <div className={`w-full overflow-x-auto ${className}`}>
         <table className={`w-full text-left text-xs text-theme-text divide-y divide-theme-border/60 ${tableClassName}`}>
-          <thead className="bg-theme-surface-subtle text-[10.5px] uppercase font-bold text-theme-text-muted tracking-wider select-none">
+          <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white tracking-wider select-none border-b border-[#00281D]">
             <tr>
               {/* Select All Checkbox Header */}
               {selectable && (
@@ -577,7 +577,7 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
                       if (el) el.indeterminate = isIndeterminate;
                     }}
                     onChange={(e) => handleSelectAll(e.target.checked)}
-                    className="w-4 h-4 rounded border-theme-border text-theme-secondary focus:ring-theme-secondary cursor-pointer"
+                    className="w-4 h-4 rounded border-white/40 bg-white/10 text-[#00875A] focus:ring-emerald-400 accent-[#00875A] cursor-pointer"
                     aria-label="Chọn tất cả"
                   />
                 </th>
@@ -599,9 +599,9 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
                   <th
                     key={col.key || idx}
                     onClick={() => handleSortClick(col)}
-                    className={`py-3 px-3 font-bold whitespace-nowrap ${
+                    className={`py-2.5 px-3 font-bold whitespace-nowrap text-white ${
                       col.align === 'right' ? 'text-right' : col.align === 'center' ? 'text-center' : 'text-left'
-                    } ${col.sortable ? 'cursor-pointer hover:bg-theme-surface-subtle/80 hover:text-theme-text transition-colors' : ''} ${
+                    } ${col.sortable ? 'cursor-pointer hover:bg-white/15 transition-colors text-white' : ''} ${
                       col.headerClassName || ''
                     }`}
                     style={{ width: col.width, minWidth: col.minWidth }}
@@ -615,17 +615,17 @@ export default function GroupedDataTable<T extends Record<string, any> = any>({
                       {col.sortable && (
                         <span className="inline-flex items-center">
                           {isCurrentSort && activeSortDirection === 'asc' && (
-                            <span className="material-symbols-outlined text-[14px] text-theme-secondary font-bold">
+                            <span className="material-symbols-outlined text-[14px] text-emerald-300 font-bold">
                               arrow_upward
                             </span>
                           )}
                           {isCurrentSort && activeSortDirection === 'desc' && (
-                            <span className="material-symbols-outlined text-[14px] text-theme-secondary font-bold">
+                            <span className="material-symbols-outlined text-[14px] text-emerald-300 font-bold">
                               arrow_downward
                             </span>
                           )}
                           {(!isCurrentSort || activeSortDirection === null) && (
-                            <span className="material-symbols-outlined text-[14px] text-theme-text-muted/50">
+                            <span className="material-symbols-outlined text-[14px] text-white/40">
                               unfold_more
                             </span>
                           )}

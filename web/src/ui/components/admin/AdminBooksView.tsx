@@ -430,7 +430,7 @@ export function AdminBooksView() {
         ) : (
           <div className="w-full">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+              <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
                 <tr>
                   <th className="py-3 px-2 w-8 text-center">
                     <input
@@ -493,7 +493,7 @@ export function AdminBooksView() {
                         } hover:bg-emerald-50/50`}
                       >
                         {/* Checkbox */}
-                        <td className="py-3 px-2 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-2 px-2 text-center" onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
                             checked={selectedBookIds.includes(book.id)}
@@ -503,7 +503,7 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 1. Mũi tên mở rộng */}
-                        <td className="py-3 px-2 text-center">
+                        <td className="py-2 px-2 text-center">
                           <button
                             type="button"
                             onClick={() => toggleExpandRow(book.id)}
@@ -517,14 +517,14 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 2. STT */}
-                        <td className="py-3 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
+                        <td className="py-2 px-2 text-center text-[11px] font-mono text-gray-400 font-semibold">
                           {itemIndex}
                         </td>
 
                         {/* 3. Tác Phẩm & Bìa (Xếp chồng: Tiêu đề dòng 1 + ID dòng 2) */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2 px-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-12 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
+                            <div className="w-7 h-9 rounded bg-gray-100 bg-gray-100 border border-gray-200 overflow-hidden shrink-0 flex items-center justify-center shadow-2xs">
                               {cover ? (
                                 <img src={cover} alt={book.title} className="w-full h-full object-cover" />
                               ) : (
@@ -547,7 +547,7 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 4. Tác Giả & NXB (Xếp chồng: Tác giả dòng 1 + NXB dòng 2) */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2 px-3">
                           <div className="flex flex-col gap-0.5">
                             <span className="font-semibold text-gray-900 break-words">
                               {book.author?.name || 'Tác giả HUKI'}
@@ -560,7 +560,7 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 5. Thể Loại & Định Dạng (Xếp chồng: Thể loại dòng 1 + Badge định dạng dòng 2) */}
-                        <td className="py-3 px-3.5 text-center">
+                        <td className="py-2 px-3 text-center">
                           <div className="flex flex-col items-center gap-1">
                             <span className="text-gray-700 font-medium text-xs truncate max-w-[130px]">
                               {book.category?.name || 'Văn học'}
@@ -572,7 +572,7 @@ export function AdminBooksView() {
                         </td>
 
                         {/* 6. Giá & Tồn Kho (Xếp chồng: Giá dòng 1 + Tồn kho dòng 2) */}
-                        <td className="py-3 px-3.5">
+                        <td className="py-2 px-3">
                           <div className="flex flex-col gap-0.5">
                             <span className="font-bold text-gray-900 font-mono text-[13px]">
                               {book.price ? `${book.price.toLocaleString('vi-VN')} đ` : 'Miễn phí'}

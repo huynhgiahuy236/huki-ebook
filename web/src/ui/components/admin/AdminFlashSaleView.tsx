@@ -1292,7 +1292,7 @@ export function AdminFlashSaleView() {
                           {/* Selection Table */}
                           <div className="max-h-80 overflow-y-auto border border-gray-300 rounded-2xl bg-white">
                             <table className="w-full text-left text-xs border-collapse">
-                              <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0] sticky top-0 z-10">
+                              <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D] sticky top-0 z-10">
                                 <tr>
                                   <th className="py-2.5 px-3 w-10 text-center">Chọn</th>
                                   <th className="py-2.5 px-3">Tác Phẩm &amp; Danh Mục</th>
@@ -1429,7 +1429,7 @@ export function AdminFlashSaleView() {
                       {slot.items && slot.items.length > 0 ? (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left text-xs border-collapse min-w-[1000px]">
-                            <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                            <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
                               <tr>
                                 <th className="py-3 px-3.5 whitespace-nowrap w-12 text-center">STT</th>
                                 <th className="py-3 px-3.5 whitespace-nowrap">Tác phẩm & Mã</th>

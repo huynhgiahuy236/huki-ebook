@@ -3351,11 +3351,11 @@ export function SellerFlashSaleView() {
                     <table className="w-full text-left text-xs">
                       <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider border-b border-gray-200">
                         <tr>
-                          <th className="py-3 px-4">Cấp Bậc</th>
-                          <th className="py-3 px-4">Điểm Sao</th>
-                          <th className="py-3 px-4">Quyền Lợi Flash Sale Sàn</th>
-                          <th className="py-3 px-4">Quyền Hiển Thị Tìm Kiếm</th>
-                          <th className="py-3 px-4">Thanh Toán & Rút Tiền</th>
+                          <th className="py-2.5 px-3 text-white">Cấp Bậc</th>
+                          <th className="py-2.5 px-3 text-white">Điểm Sao</th>
+                          <th className="py-2.5 px-3 text-white">Quyền Lợi Flash Sale Sàn</th>
+                          <th className="py-2.5 px-3 text-white">Quyền Hiển Thị Tìm Kiếm</th>
+                          <th className="py-2.5 px-3 text-white">Thanh Toán & Rút Tiền</th>
                           <th className="py-3 px-4 text-center">Trạng Thái Shop</th>
                         </tr>
                       </thead>

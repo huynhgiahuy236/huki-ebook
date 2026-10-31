@@ -404,7 +404,7 @@ export function AdminBookModerationView() {
       {/* 4. MODERATION QUEUE TABLE - Compact Stacked Rows & Expandable Detail */}
       <AdminTableContainer>
         <table className="w-full text-left text-xs border-collapse">
-          <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+          <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
             <tr>
               <th className="py-3 px-2 w-8 text-center">
                 <input
@@ -416,10 +416,10 @@ export function AdminBookModerationView() {
               </th>
               <th className="py-3 px-2 w-8 text-center"></th>
               <th className="py-3 px-2 w-10 text-center">STT</th>
-              <th className="py-3 px-4">Tác phẩm</th>
-              <th className="py-3 px-3">Tác giả & NXB</th>
-              <th className="py-3 px-3">Định dạng</th>
-              <th className="py-3 px-3">Giá niêm yết</th>
+              <th className="py-2.5 px-3 text-white">Tác phẩm</th>
+              <th className="py-2.5 px-3 text-white">Tác giả & NXB</th>
+              <th className="py-2.5 px-3 text-white">Định dạng</th>
+              <th className="py-2.5 px-3 text-white">Giá niêm yết</th>
               <th className="py-3 px-4 text-right">Trạng thái & Thao tác</th>
             </tr>
           </thead>

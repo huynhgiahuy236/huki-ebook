@@ -552,7 +552,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
         {/* 3. MAIN CANVAS */}
         <main className="flex-1 flex flex-col overflow-y-auto bg-[#F8FAFC]">
           {/* Breadcrumbs Header */}
-          <div className="bg-white border-b border-[#E2E8F0] px-3.5 sm:px-5 lg:px-6 py-3 shrink-0">
+          <div className="bg-white border-b border-[#E2E8F0] px-3.5 sm:px-5 lg:px-6 py-2 shrink-0">
             <div className="w-full max-w-[1600px] mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <div className="flex items-center gap-1.5 text-[11px] text-gray-400 font-medium">
@@ -562,7 +562,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
                   <span className="material-symbols-outlined text-[14px]">chevron_right</span>
                   <span className="text-[#00875A] font-semibold">{currentRouteInfo.title}</span>
                 </div>
-                <h1 className="text-lg sm:text-xl font-black text-[#003B2B] tracking-tight mt-0.5">
+                <h1 className="text-base sm:text-lg font-bold text-[#003B2B] tracking-tight mt-0.5">
                   {currentRouteInfo.title}
                 </h1>
               </div>
@@ -588,7 +588,7 @@ function ShipperLayoutContent({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Children View Content */}
-          <div className="flex-1 p-3.5 sm:p-5 lg:p-6">
+          <div className="flex-1 p-3 sm:p-4 lg:p-5">
             <div className="w-full max-w-[1600px] mx-auto">
               {children}
             </div>

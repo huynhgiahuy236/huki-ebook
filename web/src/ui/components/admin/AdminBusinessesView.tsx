@@ -1482,7 +1482,7 @@ export function AdminBusinessesView() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                  <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
                     <tr>
                       <th className="py-2.5 px-3">Tên Gian Hàng</th>
                       <th className="py-2.5 px-3">Mã Slug</th>

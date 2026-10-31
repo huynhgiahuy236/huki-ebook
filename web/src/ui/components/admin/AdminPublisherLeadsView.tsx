@@ -238,7 +238,7 @@ export function AdminPublisherLeadsView() {
           </div>
         ) : (
           <table className="w-full text-left text-xs text-gray-900 border-collapse">
-            <thead className="bg-[#F8FAFC] text-[10.5px] uppercase font-bold text-gray-500 border-b border-[#E2E8F0]">
+            <thead className="bg-[#003B2B] text-[10.5px] uppercase font-bold text-white border-b border-[#00281D]">
               <tr>
                 <th className="py-3 px-2 w-8 text-center"></th>
                 <th className="py-3 px-2 w-10 text-center">STT</th>

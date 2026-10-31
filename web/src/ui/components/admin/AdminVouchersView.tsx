@@ -1118,7 +1118,7 @@ export function AdminVouchersView() {
               {/* Group Table */}
               <div className="w-full">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-[#F8FAFC] text-[10.5px] font-bold text-gray-500 uppercase tracking-wider border-b border-[#E2E8F0]">
+                  <thead className="bg-[#003B2B] text-[10.5px] font-bold text-white uppercase tracking-wider border-b border-[#00281D]">
                     <tr>
                       <th className="py-3 px-3 w-10 text-center">
                         <input
