@@ -1,3 +1,13 @@
+html {
+  font-size: 85%; /* Thu phóng tỷ lệ chuẩn rem (1rem = ~13.6px thay vì 16px) */
+}
+
+@media (max-width: 768px) {
+  html {
+    font-size: 100%; /* Giữ kích thước chuẩn trên màn hình di động */
+  }
+}
+
 * {
   box-sizing: border-box;
 }

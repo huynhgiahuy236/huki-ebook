@@ -232,138 +232,138 @@ export default function FollowingPage() {
         <>
           {/* Store Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" ref={dropdownRef}>
-          {paginatedStores.map((item) => {
-            const b = item.business;
-            const legacyStore = b.stores?.[0];
-            const logoImg = b.logo || legacyStore?.logo;
-            const bannerImg =
-              b.banner ||
-              legacyStore?.banner ||
-              'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80';
-            const shopTarget = b.slug || legacyStore?.slug || b.id;
-            const isDropdownOpen = activeDropdownStoreId === b.id;
+            {paginatedStores.map((item) => {
+              const b = item.business;
+              const legacyStore = b.stores?.[0];
+              const logoImg = b.logo || legacyStore?.logo;
+              const bannerImg =
+                b.banner ||
+                legacyStore?.banner ||
+                'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=800&q=80';
+              const shopTarget = b.slug || legacyStore?.slug || b.id;
+              const isDropdownOpen = activeDropdownStoreId === b.id;
 
-            return (
-              <div
-                key={b.id}
-                className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group"
-              >
-                {/* Banner */}
+              return (
                 <div
-                  className="h-28 w-full relative bg-cover bg-center"
-                  style={{ backgroundImage: `url('${bannerImg}')` }}
+                  key={b.id}
+                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs hover:shadow-md transition-all flex flex-col group"
                 >
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
-                  <span className="absolute top-3 right-3 px-2.5 py-0.5 bg-[#006953] text-white text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                    <span className="material-symbols-outlined text-xs">verified</span>
-                    Official
-                  </span>
-                </div>
-
-                {/* Body & Profile */}
-                <div className="p-5 pt-0 flex-1 flex flex-col relative">
-                  {/* Avatar overlapping banner */}
-                  <div className="flex items-end justify-between -mt-8 mb-3">
-                    <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-white shadow-md flex items-center justify-center overflow-hidden shrink-0">
-                      {logoImg ? (
-                        <img src={logoImg} alt={b.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-[#003b2b] text-white font-black text-2xl flex items-center justify-center">
-                          {b.name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                    </div>
-
-                    <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
-                      <span className="material-symbols-outlined text-amber-500 text-sm fill-current">star</span>
-                      <strong className="text-gray-800">4.9</strong>
-                      <span className="text-gray-400">• Đang theo dõi</span>
+                  {/* Banner */}
+                  <div
+                    className="h-28 w-full relative bg-cover bg-center"
+                    style={{ backgroundImage: `url('${bannerImg}')` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+                    <span className="absolute top-3 right-3 px-2.5 py-0.5 bg-[#006953] text-white text-[10px] font-bold rounded-full uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                      <span className="material-symbols-outlined text-xs">verified</span>
+                      Official
                     </span>
                   </div>
 
-                  {/* Title & Description */}
-                  <Link
-                    href={`/shop/${shopTarget}`}
-                    className="font-bold text-base text-gray-900 hover:text-[#006953] transition-colors break-words line-clamp-2 leading-snug block mb-1"
-                  >
-                    {b.name}
-                  </Link>
-                  <p className="text-xs text-gray-500 line-clamp-2 mb-4 flex-1">
-                    {b.description || legacyStore?.description || 'Gian hàng sách và đối tác bản quyền chính hãng tại HUKI.'}
-                  </p>
+                  {/* Body & Profile */}
+                  <div className="p-5 pt-0 flex-1 flex flex-col relative">
+                    {/* Avatar overlapping banner */}
+                    <div className="flex items-end justify-between -mt-8 mb-3">
+                      <div className="relative w-16 h-16 rounded-2xl bg-white border-2 border-white shadow-md flex items-center justify-center overflow-hidden shrink-0">
+                        {logoImg ? (
+                          <img src={logoImg} alt={b.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full bg-[#003b2b] text-white font-black text-2xl flex items-center justify-center">
+                            {b.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                      </div>
 
-                  {/* Action Buttons */}
-                  <div className="pt-3 border-t border-gray-100 flex items-center gap-2 relative">
+                      <span className="text-[11px] text-gray-500 font-medium flex items-center gap-1">
+                        <span className="material-symbols-outlined text-amber-500 text-sm fill-current">star</span>
+                        <strong className="text-gray-800">4.9</strong>
+                        <span className="text-gray-400">• Đang theo dõi</span>
+                      </span>
+                    </div>
+
+                    {/* Title & Description */}
                     <Link
                       href={`/shop/${shopTarget}`}
-                      className="flex-1 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-gray-200"
+                      className="font-bold text-base text-gray-900 hover:text-[#006953] transition-colors break-words line-clamp-2 leading-snug block mb-1"
                     >
-                      <span className="material-symbols-outlined text-sm">storefront</span>
-                      Xem Gian Hàng
+                      {b.name}
                     </Link>
+                    <p className="text-xs text-gray-500 line-clamp-2 mb-4 flex-1">
+                      {b.description || legacyStore?.description || 'Gian hàng sách và đối tác bản quyền chính hãng tại HUKI.'}
+                    </p>
 
-                    {/* Following Button with Dropdown */}
-                    <div className="relative">
-                      <button
-                        onClick={() =>
-                          setActiveDropdownStoreId(isDropdownOpen ? null : b.id)
-                        }
-                        className="px-3 py-2 rounded-xl bg-[#006953]/10 hover:bg-[#006953]/15 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-[#006953]/30 cursor-pointer"
+                    {/* Action Buttons */}
+                    <div className="pt-3 border-t border-gray-100 flex items-center gap-2 relative">
+                      <Link
+                        href={`/shop/${shopTarget}`}
+                        className="flex-1 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-800 text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-gray-200"
                       >
-                        <span className="material-symbols-outlined text-sm">check</span>
-                        <span>Đang theo dõi</span>
-                        <span className="material-symbols-outlined text-xs">expand_more</span>
-                      </button>
+                        <span className="material-symbols-outlined text-sm">storefront</span>
+                        Xem Gian Hàng
+                      </Link>
 
-                      {/* Dropdown Menu */}
-                      {isDropdownOpen && (
-                        <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
-                          {/* Option 1: Nhắn tin (disabled) */}
-                          <div
-                            className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
-                            title="Chức năng nhắn tin đang được phát triển"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
-                              <span>Nhắn tin</span>
+                      {/* Following Button with Dropdown */}
+                      <div className="relative">
+                        <button
+                          onClick={() =>
+                            setActiveDropdownStoreId(isDropdownOpen ? null : b.id)
+                          }
+                          className="px-3 py-2 rounded-xl bg-[#006953]/10 hover:bg-[#006953]/15 text-[#006953] text-xs font-bold transition-colors flex items-center justify-center gap-1 border border-[#006953]/30 cursor-pointer"
+                        >
+                          <span className="material-symbols-outlined text-sm">check</span>
+                          <span>Đang theo dõi</span>
+                          <span className="material-symbols-outlined text-xs">expand_more</span>
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {isDropdownOpen && (
+                          <div className="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-xl shadow-xl border border-gray-100 p-1.5 z-40 animate-in fade-in zoom-in-95 duration-100">
+                            {/* Option 1: Nhắn tin (disabled) */}
+                            <div
+                              className="w-full px-3 py-2 rounded-lg text-xs font-medium text-gray-400 flex items-center justify-between cursor-not-allowed select-none bg-gray-50/50 mb-1"
+                              title="Chức năng nhắn tin đang được phát triển"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-sm text-gray-400">chat</span>
+                                <span>Nhắn tin</span>
+                              </div>
+                              <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
+                                Sắp ra mắt
+                              </span>
                             </div>
-                            <span className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-bold">
-                              Sắp ra mắt
-                            </span>
-                          </div>
 
-                          {/* Option 2: Hủy theo dõi */}
-                          <button
-                            onClick={() => {
-                              setActiveDropdownStoreId(null);
-                              setStoreToUnfollow({ id: b.id, name: b.name });
-                            }}
-                            className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
-                          >
-                            <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
-                            <span>Hủy theo dõi</span>
-                          </button>
-                        </div>
-                      )}
+                            {/* Option 2: Hủy theo dõi */}
+                            <button
+                              onClick={() => {
+                                setActiveDropdownStoreId(null);
+                                setStoreToUnfollow({ id: b.id, name: b.name });
+                              }}
+                              className="w-full px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 transition-colors cursor-pointer text-left"
+                            >
+                              <span className="material-symbols-outlined text-sm text-rose-600">person_remove</span>
+                              <span>Hủy theo dõi</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {filteredStores.length > 0 && (
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-6 p-2">
-            <StandardPaginationBar
-              currentPage={currentPage}
-              totalItems={filteredStores.length}
-              pageSize={pageSize}
-              onPageChange={(p) => setCurrentPage(p)}
-              itemLabel="gian hàng"
-            />
+              );
+            })}
           </div>
-        )}
+
+          {filteredStores.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden mt-6 p-2">
+              <StandardPaginationBar
+                currentPage={currentPage}
+                totalItems={filteredStores.length}
+                pageSize={pageSize}
+                onPageChange={(p) => setCurrentPage(p)}
+                itemLabel="gian hàng"
+              />
+            </div>
+          )}
         </>
       )}
 
@@ -399,11 +399,10 @@ export default function FollowingPage() {
                 type="button"
                 onClick={handleConfirmUnfollow}
                 disabled={unfollowCountdown > 0 || isUnfollowing}
-                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${
-                  unfollowCountdown > 0 || isUnfollowing
-                    ? 'bg-gray-400 cursor-not-allowed opacity-80'
-                    : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
-                }`}
+                className={`flex-1 py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold text-white transition-all flex items-center justify-center gap-1.5 shadow-sm ${unfollowCountdown > 0 || isUnfollowing
+                  ? 'bg-gray-400 cursor-not-allowed opacity-80'
+                  : 'bg-rose-600 hover:bg-rose-700 cursor-pointer'
+                  }`}
               >
                 {isUnfollowing ? (
                   <>
