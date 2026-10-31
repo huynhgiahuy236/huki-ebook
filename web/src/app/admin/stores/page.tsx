@@ -1,8 +1,15 @@
 "use client";
 
-import React from "react";
-import { AdminStoresView } from "@/ui/components/admin/AdminStoresView";
+import React, { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { AdminBusinessesView } from "@/ui/components/admin/AdminBusinessesView";
 
 export default function AdminStoresViewPage() {
-  return <AdminStoresView />;
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/admin/businesses');
+  }, [router]);
+
+  return <AdminBusinessesView />;
 }

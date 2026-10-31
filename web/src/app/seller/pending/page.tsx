@@ -7,6 +7,12 @@ import { businessApi, BusinessData } from '@/ui/api/businessApi';
 import { useAuth } from '@/ui/context/AuthContext';
 import { useToast } from '@/ui/context/ToastContext';
 import { realtimeSyncBus } from '@/ui/services/realtimeSyncBus';
+import {
+  COMPLIANCE_33_FIELDS,
+  COMPLIANCE_FIELD_MAP,
+  SingleFieldAuditReview,
+  BusinessFieldAuditMap,
+} from '@/ui/services/taxRegistryService';
 
 export interface ClusterStatus {
   passed: boolean;
@@ -28,6 +34,10 @@ export default function SellerPendingPage() {
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [cachedProfile, setCachedProfile] = useState<any>(null);
   const [clusterAudit, setClusterAudit] = useState<ClusterAuditState>({});
+  const [fieldAudit, setFieldAudit] = useState<BusinessFieldAuditMap>({});
+  const [localCorrections, setLocalCorrections] = useState<Record<string, string>>({});
+  const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
+  const [showValidAccordion, setShowValidAccordion] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checkingApproval, setCheckingApproval] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
@@ -41,6 +51,16 @@ export default function SellerPendingPage() {
         (taxCode && localStorage.getItem(`huki_business_cluster_audit_${taxCode}`));
       if (raw) {
         setClusterAudit(JSON.parse(raw));
+      }
+    } catch {
+      // ignore
+    }
+
+    try {
+      const rawFields = (bizId && localStorage.getItem(`huki_business_field_audit_${bizId}`)) ||
+        (taxCode && localStorage.getItem(`huki_business_field_audit_${taxCode}`));
+      if (rawFields) {
+        setFieldAudit(JSON.parse(rawFields));
       }
     } catch {
       // ignore
@@ -122,6 +142,14 @@ export default function SellerPendingPage() {
           setClusterAudit(msg.clusters);
         }
       }
+      if (msg.type === 'BUSINESS_FIELD_AUDIT_UPDATED') {
+        if (msg.payload?.fields) {
+          setFieldAudit(msg.payload.fields);
+        }
+        if (msg.payload?.clusters) {
+          setClusterAudit(msg.payload.clusters);
+        }
+      }
     });
 
     return () => {
@@ -169,12 +197,95 @@ export default function SellerPendingPage() {
   const companyNameDisplay = business?.name || cachedProfile?.company_name || 'Đơn Vị Đăng Ký Đối Tác';
   const addressDisplay = business?.address || cachedProfile?.registered_street || 'Đang cập nhật tuyến kho lấy hàng';
 
+  // Granular Field Audit Lists
+  const flaggedItems = COMPLIANCE_33_FIELDS.filter((f) => fieldAudit[f.key]?.status === 'FLAGGED').map((f) => ({
+    ...f,
+    review: fieldAudit[f.key],
+  }));
+
+  const validItems = COMPLIANCE_33_FIELDS.filter((f) => fieldAudit[f.key]?.status !== 'FLAGGED').map((f) => ({
+    ...f,
+    review: fieldAudit[f.key],
+  }));
+
+  const hasFlaggedItems = flaggedItems.length > 0;
+
   // Check if any cluster is flagged
   const hasFlaggedClusters =
+    hasFlaggedItems ||
     clusterAudit.legal?.passed === false ||
     clusterAudit.representative?.passed === false ||
-    clusterAudit.copyright?.passed === false ||
-    clusterAudit.operation?.passed === false;
+    clusterAudit.copyright?.passed === false;
+
+  const handleFieldCorrectionChange = (key: string, val: string) => {
+    setLocalCorrections((prev) => ({ ...prev, [key]: val }));
+  };
+
+  const handleDocumentReplace = (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          handleFieldCorrectionChange(key, reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmitRevision = async () => {
+    if (!business) return;
+    setIsSubmittingRevision(true);
+    try {
+      const storageKey = `huki_enterprise_profile_${business.taxCode || business.id}`;
+      const currentProfile = cachedProfile || {};
+      const updatedProfile = { ...currentProfile, ...localCorrections };
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(storageKey, JSON.stringify(updatedProfile));
+        if (business.id) localStorage.setItem(`huki_enterprise_profile_${business.id}`, JSON.stringify(updatedProfile));
+        if (business.taxCode) localStorage.setItem(`huki_enterprise_profile_${business.taxCode}`, JSON.stringify(updatedProfile));
+      }
+      setCachedProfile(updatedProfile);
+
+      // Update fieldAudit state: mark corrected items as pending re-audit
+      const updatedAudit = { ...fieldAudit };
+      Object.keys(localCorrections).forEach((k) => {
+        if (updatedAudit[k]) {
+          updatedAudit[k] = {
+            status: 'VALID',
+            note: 'Đối tác đã cập nhật thông tin mới',
+            updatedAt: new Date().toISOString(),
+          };
+        }
+      });
+      setFieldAudit(updatedAudit);
+
+      if (typeof window !== 'undefined') {
+        if (business.id) localStorage.setItem(`huki_business_field_audit_${business.id}`, JSON.stringify(updatedAudit));
+        if (business.taxCode) localStorage.setItem(`huki_business_field_audit_${business.taxCode}`, JSON.stringify(updatedAudit));
+      }
+
+      realtimeSyncBus.publish({
+        type: 'BUSINESS_REVISION_SUBMITTED',
+        payload: {
+          businessId: business.id,
+          taxCode: business.taxCode,
+          updatedFields: localCorrections,
+        },
+      });
+
+      showToast({
+        title: 'Đã gửi lại hồ sơ bổ sung',
+        message: `Đã gửi lại ${Object.keys(localCorrections).length} mục chỉnh sửa cho Ban Thẩm Định HuKi.`,
+        type: 'success',
+      });
+      setLocalCorrections({});
+    } finally {
+      setIsSubmittingRevision(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -291,7 +402,7 @@ export default function SellerPendingPage() {
               2
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-bold text-[#003B2B] leading-tight">2. Thẩm Định 4 Cụm</div>
+              <div className="text-xs font-bold text-[#003B2B] leading-tight">2. Thẩm Định Hồ Sơ Đối Tác</div>
               <div className="text-[11px] text-amber-800 font-semibold mt-0.5 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                 Đang xử lý
@@ -314,8 +425,8 @@ export default function SellerPendingPage() {
               4
             </div>
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-slate-800 leading-tight">4. Vận Hành Mở Bán</div>
-              <div className="text-[11px] text-slate-500 mt-0.5">Kế tiếp</div>
+              <div className="text-xs font-semibold text-slate-800 leading-tight">4. Thiết Lập Ngân Hàng & Mở Bán</div>
+              <div className="text-[11px] text-slate-500 mt-0.5">Sau khi duyệt</div>
             </div>
           </div>
         </div>
@@ -323,238 +434,170 @@ export default function SellerPendingPage() {
 
       {/* 3. Main Two-Column Structure */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Cột Trái: 4 Cụm Thẩm Định Tinh Gọn (8 cols) */}
+        {/* Cột Trái: Mục Cần Bổ Sung Chuẩn Chỉ & Checklist (8 cols) */}
         <div className="lg:col-span-8 space-y-5">
-          {/* Box Cảnh báo nếu có Cụm bị đánh dấu */}
-          {hasFlaggedClusters && (
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-              <span className="material-symbols-outlined text-amber-600 text-xl shrink-0 mt-0.5">warning</span>
-              <div className="text-xs text-amber-900 leading-relaxed">
-                <div className="font-bold">Ban Thẩm Định yêu cầu chỉnh sửa hoặc bổ sung hồ sơ</div>
-                <p className="mt-0.5">
-                  Vui lòng xem chi tiết ghi chú tại các cụm báo đỏ bên dưới và nhấn nút &ldquo;Sửa cụm này&rdquo; để cập nhật lại thông tin.
-                </p>
+          {/* 1. KHỐI CÁC MỤC CẦN BỔ SUNG (NẾU CÓ MỤC BỊ BÁO LỖI) */}
+          {hasFlaggedItems && (
+            <div className="bg-white border-2 border-amber-300 rounded-2xl p-5 shadow-2xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-100 pb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                    <h2 className="text-sm font-bold text-slate-900">
+                      Mục Cần Bổ Sung Theo Ban Thẩm Định ({flaggedItems.length} mục)
+                    </h2>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    Vui lòng xem lý do và cập nhật trực tiếp tại từng mục dưới đây, sau đó bấm &ldquo;Gửi lại hồ sơ&rdquo;.
+                  </p>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[#FEF3E2] text-amber-900 border border-amber-200 self-start sm:self-auto">
+                  Cần Chỉnh Sửa
+                </span>
+              </div>
+
+              {/* Grid các mục bị lỗi */}
+              <div className="space-y-3.5">
+                {flaggedItems.map((item) => {
+                  const currentValue = localCorrections[item.key] ?? (cachedProfile?.[item.key] || '');
+                  const isCorrected = Boolean(localCorrections[item.key]);
+
+                  return (
+                    <div
+                      key={item.key}
+                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2.5 hover:border-[#003B2B]/30 transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                            <span>{item.label}</span>
+                            <span className="text-[10px] font-medium text-slate-500">• {item.clusterTitle}</span>
+                          </div>
+                          {item.review?.note && (
+                            <div className="mt-1.5 p-2.5 rounded-lg bg-[#FEF3E2] border border-amber-200 text-xs text-amber-950 font-medium leading-relaxed">
+                              Lời nhắn từ Ban Thẩm Định: {item.review.note}
+                            </div>
+                          )}
+                        </div>
+
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                            isCorrected
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                          }`}
+                        >
+                          {isCorrected ? 'Đã sửa' : 'Chưa sửa'}
+                        </span>
+                      </div>
+
+                      {/* Controls sửa trực tiếp */}
+                      {item.isDocument ? (
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-2 border-t border-slate-200">
+                          {currentValue && (
+                            <img
+                              src={currentValue}
+                              alt={item.label}
+                              className="w-20 h-16 object-cover rounded-lg border border-slate-200"
+                            />
+                          )}
+                          <div className="flex flex-col gap-1">
+                            <label className="px-3.5 py-1.5 rounded-lg bg-[#003B2B] hover:bg-[#00281d] text-white font-semibold text-xs transition-colors cursor-pointer inline-block self-start">
+                              <span>Chọn ảnh mới thay thế</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(e) => handleDocumentReplace(item.key, e)}
+                              />
+                            </label>
+                            <span className="text-[11px] text-slate-500">
+                              Định dạng JPG, PNG hoặc PDF. Tối đa 5MB.
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-slate-200">
+                          <label className="text-[11px] font-semibold text-slate-700 block mb-1">
+                            Nhập thông tin điều chỉnh:
+                          </label>
+                          <input
+                            type="text"
+                            value={currentValue}
+                            onChange={(e) => handleFieldCorrectionChange(item.key, e.target.value)}
+                            placeholder={`Nhập lại ${item.label}...`}
+                            className="w-full text-xs p-2.5 bg-white border border-slate-300 rounded-lg focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Action Button: Gửi lại hồ sơ */}
+              <div className="pt-3 border-t border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <span className="text-xs text-slate-600">
+                  Đã cập nhật: <strong className="text-slate-900">{Object.keys(localCorrections).length} / {flaggedItems.length} mục</strong>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitRevision}
+                  disabled={isSubmittingRevision || Object.keys(localCorrections).length === 0}
+                  className="px-6 py-2.5 rounded-xl bg-[#003B2B] hover:bg-[#00281d] text-white font-bold text-xs transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  {isSubmittingRevision ? 'Đang gửi...' : 'Gửi Lại Hồ Sơ Đã Bổ Sung'}
+                </button>
               </div>
             </div>
           )}
 
-          {/* 4 Thẻ Cụm Thẩm Định Tinh Gọn */}
-          <div className="space-y-3.5">
-            {/* Cụm 1: Pháp Lý & Mã Số Thuế */}
-            <div className={`bg-white border rounded-xl p-4 shadow-2xs transition-all ${
-              clusterAudit.legal?.passed === false
-                ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300'
-                : 'border-slate-200/80 hover:border-slate-300'
-            }`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    clusterAudit.legal?.passed === false
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    <span className="material-symbols-outlined text-[20px]">apartment</span>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                      <span>Cụm 1: Pháp Lý &amp; Mã Số Thuế</span>
-                      <span className="text-[10px] text-slate-400 font-normal">• MST &amp; GPKD</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      MST: <strong className="font-mono text-slate-900">{taxCodeDisplay}</strong> — Đơn vị: <span className="font-medium text-slate-800">{companyNameDisplay}</span>
-                    </p>
-                    {clusterAudit.legal?.passed === false && clusterAudit.legal.note && (
-                      <div className="mt-2 text-xs font-medium text-amber-800 bg-amber-100/60 p-2 rounded-lg border border-amber-200">
-                        <strong>Yêu cầu chỉnh sửa:</strong> {clusterAudit.legal.note}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {clusterAudit.legal?.passed === false ? (
-                    <>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
-                        Cần Bổ Sung
-                      </span>
-                      <Link
-                        href="/seller/register"
-                        className="text-[11px] font-semibold text-[#003B2B] hover:underline flex items-center gap-0.5"
-                      >
-                        <span>Sửa cụm này</span>
-                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                      </Link>
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                      ✓ Đã Xác Thực
-                    </span>
-                  )}
-                </div>
+          {/* 2. CHECKLIST DANH SÁCH MỤC ĐÃ HỢP LỆ (TRANSPARENCY ACCORDION) */}
+          <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs">
+            <div
+              onClick={() => setShowValidAccordion(!showValidAccordion)}
+              className="flex items-center justify-between cursor-pointer select-none"
+            >
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#00875A]" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  Danh Sách Mục Đã Thẩm Định Hợp Lệ ({validItems.length}/33 mục)
+                </h3>
               </div>
+              <span className="text-xs text-slate-500 font-semibold hover:text-[#003B2B]">
+                {showValidAccordion ? 'Thu gọn ▲' : 'Xem chi tiết ▼'}
+              </span>
             </div>
 
-            {/* Cụm 2: Người Đại Diện Pháp Luật */}
-            <div className={`bg-white border rounded-xl p-4 shadow-2xs transition-all ${
-              clusterAudit.representative?.passed === false
-                ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300'
-                : 'border-slate-200/80 hover:border-slate-300'
-            }`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    clusterAudit.representative?.passed === false
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    <span className="material-symbols-outlined text-[20px]">badge</span>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                      <span>Cụm 2: Người Đại Diện Pháp Luật</span>
-                      <span className="text-[10px] text-slate-400 font-normal">• e-KYC CCCD</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Đại diện: <strong className="text-slate-800">{cachedProfile?.rep_full_name || 'Chủ hộ / Đại diện pháp nhân'}</strong> — Đã nộp ảnh CCCD 2 mặt
-                    </p>
-                    {clusterAudit.representative?.passed === false && clusterAudit.representative.note && (
-                      <div className="mt-2 text-xs font-medium text-amber-800 bg-amber-100/60 p-2 rounded-lg border border-amber-200">
-                        <strong>Yêu cầu chỉnh sửa:</strong> {clusterAudit.representative.note}
+            {showValidAccordion && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 pt-4 mt-3 border-t border-slate-100">
+                {validItems.map((item) => {
+                  const val = cachedProfile?.[item.key];
+                  return (
+                    <div
+                      key={item.key}
+                      className="p-2.5 rounded-lg bg-emerald-50/30 border border-emerald-100 flex items-start justify-between gap-2 text-xs"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-semibold text-slate-800 flex items-center gap-1.5">
+                          <span className="text-[#00875A] font-bold">✓</span>
+                          <span className="truncate">{item.label}</span>
+                        </div>
+                        {val && typeof val === 'string' && !item.isDocument && (
+                          <div className="text-[11px] text-slate-500 font-mono truncate mt-0.5 ml-4">
+                            {val}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {clusterAudit.representative?.passed === false ? (
-                    <>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
-                        Cần Bổ Sung
+                      <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                        Hợp lệ
                       </span>
-                      <Link
-                        href="/seller/register"
-                        className="text-[11px] font-semibold text-[#003B2B] hover:underline flex items-center gap-0.5"
-                      >
-                        <span>Sửa cụm này</span>
-                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                      </Link>
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                      ✓ Hợp Lệ
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Cụm 3: Tiêu Chuẩn Sách & Bản Quyền */}
-            <div className={`bg-white border rounded-xl p-4 shadow-2xs transition-all ${
-              clusterAudit.copyright?.passed === false
-                ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300'
-                : 'border-slate-200/80 hover:border-slate-300'
-            }`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    clusterAudit.copyright?.passed === false
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    <span className="material-symbols-outlined text-[20px]">menu_book</span>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                      <span>Cụm 3: Tiêu Chuẩn Sách &amp; Bản Quyền</span>
-                      <span className="text-[10px] text-slate-400 font-normal">• Giấy phép &amp; DRM</span>
                     </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Cam kết 100% sách thật, nguồn gốc xuất bản hợp pháp &amp; chữ ký số bản quyền DRM
-                    </p>
-                    {clusterAudit.copyright?.passed === false && clusterAudit.copyright.note && (
-                      <div className="mt-2 text-xs font-medium text-amber-800 bg-amber-100/60 p-2 rounded-lg border border-amber-200">
-                        <strong>Yêu cầu chỉnh sửa:</strong> {clusterAudit.copyright.note}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {clusterAudit.copyright?.passed === false ? (
-                    <>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
-                        Cần Bổ Sung
-                      </span>
-                      <Link
-                        href="/seller/register"
-                        className="text-[11px] font-semibold text-[#003B2B] hover:underline flex items-center gap-0.5"
-                      >
-                        <span>Sửa cụm này</span>
-                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                      </Link>
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                      Đang Thẩm Định
-                    </span>
-                  )}
-                </div>
+                  );
+                })}
               </div>
-            </div>
-
-            {/* Cụm 4: Kho Hàng & Tài Khoản Ngân Hàng */}
-            <div className={`bg-white border rounded-xl p-4 shadow-2xs transition-all ${
-              clusterAudit.operation?.passed === false
-                ? 'border-amber-400 bg-amber-50/20 ring-1 ring-amber-300'
-                : 'border-slate-200/80 hover:border-slate-300'
-            }`}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    clusterAudit.operation?.passed === false
-                      ? 'bg-amber-100 text-amber-800'
-                      : 'bg-emerald-50 text-emerald-700'
-                  }`}>
-                    <span className="material-symbols-outlined text-[20px]">local_shipping</span>
-                  </div>
-                  <div>
-                    <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
-                      <span>Cụm 4: Kho Hàng &amp; Tài Khoản Ngân Hàng</span>
-                      <span className="text-[10px] text-slate-400 font-normal">• Vận hành &amp; Đối soát</span>
-                    </div>
-                    <p className="text-xs text-slate-600 mt-1">
-                      Kho lấy hàng: <span className="font-medium text-slate-800">{addressDisplay}</span>
-                    </p>
-                    {clusterAudit.operation?.passed === false && clusterAudit.operation.note && (
-                      <div className="mt-2 text-xs font-medium text-amber-800 bg-amber-100/60 p-2 rounded-lg border border-amber-200">
-                        <strong>Yêu cầu chỉnh sửa:</strong> {clusterAudit.operation.note}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {clusterAudit.operation?.passed === false ? (
-                    <>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
-                        Cần Bổ Sung
-                      </span>
-                      <Link
-                        href="/seller/register"
-                        className="text-[11px] font-semibold text-[#003B2B] hover:underline flex items-center gap-0.5"
-                      >
-                        <span>Sửa cụm này</span>
-                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                      </Link>
-                    </>
-                  ) : (
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
-                      Đang Đối Soát
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Tóm tắt bản sao hồ sơ đối tác (4 Khối Ngắn Gọn) */}

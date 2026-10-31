@@ -946,3 +946,67 @@ export const taxRegistryService = {
     ];
   },
 };
+
+
+// ============================================================================
+// HUKI 33 COMPLIANCE FIELDS & GRANULAR AUDIT TYPES
+// ============================================================================
+export interface SingleFieldAuditReview {
+  status: 'VALID' | 'FLAGGED';
+  note?: string;
+  updatedAt?: string;
+}
+
+export type BusinessFieldAuditMap = Record<string, SingleFieldAuditReview>;
+
+export interface FieldDefinitionMeta {
+  key: string;
+  label: string;
+  clusterKey: 'legal' | 'representative' | 'copyright' | 'operation' | 'documents';
+  clusterTitle: string;
+  clusterNumber: number;
+  isDocument?: boolean;
+}
+
+export const COMPLIANCE_33_FIELDS: FieldDefinitionMeta[] = [
+  // Cụm 1: Doanh nghiệp & Pháp lý (12 trường)
+  { key: 'tax_code', label: 'Mã số thuế', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'company_name', label: 'Tên doanh nghiệp', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'international_name', label: 'Tên quốc tế', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'short_name', label: 'Tên viết tắt / Thương hiệu', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'business_license_number', label: 'Số Giấy phép ĐKKD', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'issue_date', label: 'Ngày cấp GPKD', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'issue_place', label: 'Nơi cấp GPKD', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'business_type', label: 'Loại hình doanh nghiệp', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'email', label: 'Email doanh nghiệp', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'phone', label: 'Hotline liên hệ', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'website', label: 'Website công ty', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+  { key: 'registered_address', label: 'Địa chỉ trụ sở chính', clusterKey: 'legal', clusterTitle: 'Cụm 1: Doanh Nghiệp & Pháp Lý', clusterNumber: 1 },
+
+  // Cụm 2: Người đại diện (8 trường)
+  { key: 'rep_full_name', label: 'Họ tên người đại diện', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_position', label: 'Chức vụ đại diện', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_id_card_number', label: 'Số CCCD (12 số)', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_id_card_issue_date', label: 'Ngày cấp CCCD', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_id_card_issue_place', label: 'Nơi cấp CCCD', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_phone', label: 'SĐT người đại diện', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_email', label: 'Email người đại diện', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+  { key: 'rep_permanent_address', label: 'Địa chỉ thường trú', clusterKey: 'representative', clusterTitle: 'Cụm 2: Người Đại Diện Pháp Luật', clusterNumber: 2 },
+
+  // Cụm 3: Năng lực & Bản quyền (5 trường)
+  { key: 'partner_type', label: 'Phân loại đối tác', clusterKey: 'copyright', clusterTitle: 'Cụm 3: Năng Lực & Bản Quyền Sách', clusterNumber: 3 },
+  { key: 'publishing_license_number', label: 'Số GP Xuất bản / ĐKKD', clusterKey: 'copyright', clusterTitle: 'Cụm 3: Năng Lực & Bản Quyền Sách', clusterNumber: 3 },
+  { key: 'license_issue_date', label: 'Ngày cấp GP Xuất bản', clusterKey: 'copyright', clusterTitle: 'Cụm 3: Năng Lực & Bản Quyền Sách', clusterNumber: 3 },
+  { key: 'estimated_book_count', label: 'Số lượng đầu sách', clusterKey: 'copyright', clusterTitle: 'Cụm 3: Năng Lực & Bản Quyền Sách', clusterNumber: 3 },
+  { key: 'main_genres', label: 'Thể loại sách chính', clusterKey: 'copyright', clusterTitle: 'Cụm 3: Năng Lực & Bản Quyền Sách', clusterNumber: 3 },
+
+  // Form 4: 4 chứng từ scan
+  { key: 'document_business_license', label: 'Bản scan GPKD có dấu đỏ', clusterKey: 'documents', clusterTitle: 'Tài Liệu Minh Chứng', clusterNumber: 4, isDocument: true },
+  { key: 'document_id_front', label: 'CCCD Mặt trước', clusterKey: 'documents', clusterTitle: 'Tài Liệu Minh Chứng', clusterNumber: 4, isDocument: true },
+  { key: 'document_id_back', label: 'CCCD Mặt sau', clusterKey: 'documents', clusterTitle: 'Tài Liệu Minh Chứng', clusterNumber: 4, isDocument: true },
+  { key: 'document_publishing_permit', label: 'Giấy phép hoạt động xuất bản', clusterKey: 'documents', clusterTitle: 'Tài Liệu Minh Chứng', clusterNumber: 4, isDocument: true },
+];
+
+export const COMPLIANCE_FIELD_MAP = Object.fromEntries(
+  COMPLIANCE_33_FIELDS.map((f) => [f.key, f])
+);

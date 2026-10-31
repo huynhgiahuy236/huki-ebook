@@ -106,7 +106,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const routeMap: Record<string, { parent: string; title: string }> = {
     '/admin': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
     '/admin/dashboard': { parent: 'Tổng Quan Hệ Thống', title: 'Bảng Điều Hành Sàn' },
-    '/admin/businesses': { parent: 'Đối Tác & Pháp Lý', title: 'Thẩm Định Pháp Lý & MST' },
+    '/admin/businesses': { parent: 'Người Dùng & Đối Tác', title: 'Quản Lý Đối Tác & Gian Hàng' },
     '/admin/business-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
     '/admin/business-update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
     '/admin/businesses/update-requests': { parent: 'Xét Duyệt Đối Tác', title: 'Yêu Cầu Chỉnh Sửa Doanh Nghiệp' },
@@ -115,7 +115,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     '/admin/publisher-leads': { parent: 'Xét Duyệt Đối Tác', title: 'Khách Hàng Tiềm Năng NXB' },
     '/admin/publishers': { parent: 'Xét Duyệt Đối Tác', title: 'Nhà Xuất Bản' },
     '/admin/companies': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý & Duyệt Doanh Nghiệp' },
-    '/admin/stores': { parent: 'Đối Tác & Pháp Lý', title: 'Danh Sách Gian Hàng Đang Bán' },
+    '/admin/stores': { parent: 'Người Dùng & Đối Tác', title: 'Quản Lý Đối Tác & Gian Hàng' },
     '/admin/seller-features': { parent: 'Xét Duyệt Đối Tác', title: 'Quản Lý Tính Năng Seller' },
     '/admin/books': { parent: 'Quản Trị Catalog', title: 'Quản Lý Sách Toàn Sàn' },
     '/admin/ai-audiobooks': { parent: 'Quản Trị Catalog', title: 'Quản Trị Sách Nói AI & Gói Cước' },
@@ -178,9 +178,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         { label: 'Quản Lý Người Dùng', to: '/admin/accounts', icon: 'manage_accounts' },
         { label: 'Danh Sách Bạn Đọc', to: '/admin/users', icon: 'groups' },
         {
-          label: 'Thẩm Định Pháp Lý & MST',
+          label: 'Quản Lý Đối Tác & Gian Hàng',
           to: '/admin/businesses',
-          icon: 'domain',
+          icon: 'storefront',
           count: stats.pendingBusinesses > 0 ? String(stats.pendingBusinesses) : undefined,
           badgeColor: 'bg-amber-500 text-white font-bold',
         },
@@ -190,15 +190,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           icon: 'edit_note',
           count: stats.pendingUpdates > 0 ? String(stats.pendingUpdates) : undefined,
           badgeColor: 'bg-rose-500 text-white font-bold animate-pulse',
-        },
-        {
-          label: 'Gian Hàng Đang Bán',
-          to: '/admin/stores',
-          icon: 'storefront',
-          // Không hiển thị badge đếm trùng lặp với Thẩm định pháp lý
-          count: undefined,
-          badgeColor: 'bg-amber-500 text-white font-bold',
-        },
+        }
       ],
     },
     {

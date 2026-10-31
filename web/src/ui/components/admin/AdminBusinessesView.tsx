@@ -3,7 +3,13 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { adminApi } from '../../api/adminApi';
 import { useToast } from '../../context/ToastContext';
-import { taxRegistryService } from '../../services/taxRegistryService';
+import {
+  taxRegistryService,
+  COMPLIANCE_33_FIELDS,
+  COMPLIANCE_FIELD_MAP,
+  SingleFieldAuditReview,
+  BusinessFieldAuditMap,
+} from '../../services/taxRegistryService';
 import { realtimeSyncBus } from '../../services/realtimeSyncBus';
 import { useSmartFormCollapse } from '../../utils/formHooks';
 import { AdminStatusBadge, AdminFilterTabs, AdminPagination, AdminTableContainer, AdminActionButton } from './AdminUI';
@@ -106,11 +112,11 @@ function buildFullEnterpriseProfile(biz: any) {
     rep_email: 'rep.huy@trituevietbooks.vn',
     rep_permanent_address: 'Số 123 Đường Sách, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
 
-    // FORM 3: TÀI KHOẢN NGÂN HÀNG (4 trường)
-    bank_name: 'Ngân hàng TMCP Ngoại Thương Việt Nam (Vietcombank)',
-    bank_branch: 'Chi nhánh Sài Gòn - PGD Bến Nghé',
-    bank_account_number: '0071001234567',
-    bank_account_holder_name: name.toUpperCase(),
+    // TÀI KHOẢN NGÂN HÀNG (Seller tự thiết lập sau khi duyệt)
+    bank_name: biz.bankName || '',
+    bank_branch: biz.bankBranch || '',
+    bank_account_number: biz.bankAccountNumber || '',
+    bank_account_holder_name: biz.bankAccountHolderName || biz.name || '',
 
     // FORM 4: HỒ SƠ NĂNG LỰC & XUẤT BẢN (5 trường)
     partner_type: name.includes('KIM ĐỒNG') ? 'PUBLISHER' : 'DISTRIBUTOR',
@@ -164,136 +170,279 @@ export function AdminBusinessesView() {
   const [bizAuditLogs, setBizAuditLogs] = useState<AuditLogItem[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
 
-  // Cluster Audit Review State (Duyệt theo 4 cụm thẩm định)
-  const [clusterReview, setClusterReview] = useState<{
-    legal: { passed: boolean; note?: string };
-    representative: { passed: boolean; note?: string };
-    copyright: { passed: boolean; note?: string };
-    operation: { passed: boolean; note?: string };
-  }>({
-    legal: { passed: true },
-    representative: { passed: true },
-    copyright: { passed: true },
-    operation: { passed: true },
-  });
-
-  const [editingClusterNote, setEditingClusterNote] = useState<{
-    key: 'legal' | 'representative' | 'copyright' | 'operation';
-    title: string;
+  // =========================================================================
+  // GRANULAR 33 FIELDS & CLUSTER AUDIT STATE
+  // =========================================================================
+  const [fieldReviews, setFieldReviews] = useState<BusinessFieldAuditMap>({});
+  const [editingFieldNote, setEditingFieldNote] = useState<{
+    key: string;
+    label: string;
+    currentValue?: any;
     note: string;
   } | null>(null);
 
   const [requestRevisionModalOpen, setRequestRevisionModalOpen] = useState(false);
 
-  // Đồng bộ cluster review từ storage khi chọn doanh nghiệp
+  // Sync field reviews from storage or defaults
   useEffect(() => {
-    if (!selectedBiz) return;
+    if (!selectedBiz) {
+      setFieldReviews({});
+      return;
+    }
+    const storageKey = `huki_business_field_audit_${selectedBiz.id}`;
+    const taxStorageKey = selectedBiz.taxCode ? `huki_business_field_audit_${selectedBiz.taxCode}` : null;
     try {
-      const saved = localStorage.getItem(`huki_business_cluster_audit_${selectedBiz.id}`);
+      const saved = localStorage.getItem(storageKey) || (taxStorageKey ? localStorage.getItem(taxStorageKey) : null);
       if (saved) {
-        setClusterReview(JSON.parse(saved));
+        setFieldReviews(JSON.parse(saved));
         return;
       }
     } catch {
       // fallback
     }
-    setClusterReview({
-      legal: { passed: true },
-      representative: { passed: true },
-      copyright: { passed: true },
-      operation: { passed: true },
-    });
-  }, [selectedBiz?.id]);
 
-  const updateClusterStatus = (
-    key: 'legal' | 'representative' | 'copyright' | 'operation',
-    passed: boolean,
-    note?: string
-  ) => {
-    setClusterReview((prev) => {
-      const updated = {
-        ...prev,
-        [key]: { passed, note: passed ? undefined : (note !== undefined ? note : prev[key]?.note || '') },
-      };
-      if (selectedBiz?.id) {
-        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(updated));
-        if (selectedBiz.taxCode) {
-          localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(updated));
-        }
-        realtimeSyncBus.publish({
-          type: 'BUSINESS_CLUSTER_AUDIT_UPDATED',
-          payload: {
-            businessId: selectedBiz.id,
-            clusters: updated,
-          },
-        });
+    // Default initialization from automated auditResult
+    const initial: BusinessFieldAuditMap = {};
+    COMPLIANCE_33_FIELDS.forEach((f) => {
+      const audit = auditResult?.fields?.[f.key];
+      if (audit?.status === 'INVALID') {
+        initial[f.key] = {
+          status: 'FLAGGED',
+          note: audit.message || 'Chưa khớp CSDL đối chiếu',
+          updatedAt: new Date().toISOString(),
+        };
+      } else {
+        initial[f.key] = {
+          status: 'VALID',
+          updatedAt: new Date().toISOString(),
+        };
       }
+    });
+    setFieldReviews(initial);
+  }, [selectedBiz?.id, auditResult]);
+
+  // Derived Cluster Statuses (4 Cụm Thẩm Định: 1-Doanh nghiệp, 2-Người đại diện, 3-Bản quyền sách, 4-Chứng từ scan)
+  const derivedClusters = useMemo(() => {
+    const res: Record<'legal' | 'representative' | 'copyright' | 'documents', { passed: boolean; note?: string; validCount: number; totalCount: number }> = {
+      legal: { passed: true, validCount: 0, totalCount: 12 },
+      representative: { passed: true, validCount: 0, totalCount: 8 },
+      copyright: { passed: true, validCount: 0, totalCount: 5 },
+      documents: { passed: true, validCount: 0, totalCount: 4 },
+    };
+
+    COMPLIANCE_33_FIELDS.forEach((f) => {
+      if (f.clusterKey === 'operation') return;
+      const review = fieldReviews[f.key];
+      const isVal = review?.status !== 'FLAGGED';
+      const cluster = res[f.clusterKey as 'legal' | 'representative' | 'copyright' | 'documents'];
+      if (!cluster) return;
+      if (isVal) {
+        cluster.validCount++;
+      } else {
+        cluster.passed = false;
+        if (!cluster.note && review?.note) {
+          cluster.note = review.note;
+        }
+      }
+    });
+
+    return res;
+  }, [fieldReviews]);
+
+  // Document Cluster Stats (Cụm 4: 4 documents)
+  const docClusterStats = useMemo(() => {
+    const docFields = COMPLIANCE_33_FIELDS.filter((f) => f.clusterKey === 'documents');
+    const validCount = docFields.filter((f) => fieldReviews[f.key]?.status !== 'FLAGGED').length;
+    return {
+      validCount,
+      totalCount: docFields.length,
+      allPassed: validCount === docFields.length,
+    };
+  }, [fieldReviews]);
+
+  const flaggedFields = useMemo(() => {
+    return COMPLIANCE_33_FIELDS.filter((f) => fieldReviews[f.key]?.status === 'FLAGGED').map((f) => ({
+      ...f,
+      review: fieldReviews[f.key],
+    }));
+  }, [fieldReviews]);
+
+  const totalValidCount = 29 - flaggedFields.length;
+  const all33Passed = flaggedFields.length === 0;
+
+  const updateSingleFieldReview = (key: string, status: 'VALID' | 'FLAGGED', note?: string) => {
+    if (!selectedBiz) return;
+    setFieldReviews((prev) => {
+      const updated: BusinessFieldAuditMap = {
+        ...prev,
+        [key]: {
+          status,
+          note: status === 'FLAGGED' ? (note !== undefined ? note : prev[key]?.note || '') : undefined,
+          updatedAt: new Date().toISOString(),
+        },
+      };
+
+      if (selectedBiz.id) {
+        localStorage.setItem(`huki_business_field_audit_${selectedBiz.id}`, JSON.stringify(updated));
+      }
+      if (selectedBiz.taxCode) {
+        localStorage.setItem(`huki_business_field_audit_${selectedBiz.taxCode}`, JSON.stringify(updated));
+      }
+
+      // Sync legacy cluster state
+      const legacyClusters = {
+        legal: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'legal').every(f => updated[f.key]?.status !== 'FLAGGED') },
+        representative: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'representative').every(f => updated[f.key]?.status !== 'FLAGGED') },
+        copyright: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'copyright').every(f => updated[f.key]?.status !== 'FLAGGED') },
+        documents: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'documents').every(f => updated[f.key]?.status !== 'FLAGGED') },
+      };
+      if (selectedBiz.id) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(legacyClusters));
+      }
+      if (selectedBiz.taxCode) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(legacyClusters));
+      }
+
+      realtimeSyncBus.publish({
+        type: 'BUSINESS_FIELD_AUDIT_UPDATED',
+        payload: {
+          businessId: selectedBiz.id,
+          taxCode: selectedBiz.taxCode,
+          fields: updated,
+          flaggedCount: Object.values(updated).filter(v => v.status === 'FLAGGED').length,
+          validCount: 29 - Object.values(updated).filter(v => v.status === 'FLAGGED').length,
+          clusters: legacyClusters,
+        },
+      });
+
+      return updated;
+    });
+  };
+
+  const approveEntireCluster = (clusterKey: 'legal' | 'representative' | 'copyright' | 'operation' | 'documents') => {
+    if (!selectedBiz) return;
+    setFieldReviews((prev) => {
+      const updated = { ...prev };
+      const clusterFields = COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === clusterKey);
+      clusterFields.forEach(f => {
+        updated[f.key] = {
+          status: 'VALID',
+          note: undefined,
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      if (selectedBiz.id) {
+        localStorage.setItem(`huki_business_field_audit_${selectedBiz.id}`, JSON.stringify(updated));
+      }
+      if (selectedBiz.taxCode) {
+        localStorage.setItem(`huki_business_field_audit_${selectedBiz.taxCode}`, JSON.stringify(updated));
+      }
+
+      // Sync legacy cluster state
+      const legacyClusters = {
+        legal: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'legal').every(f => updated[f.key]?.status !== 'FLAGGED') },
+        representative: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'representative').every(f => updated[f.key]?.status !== 'FLAGGED') },
+        copyright: { passed: COMPLIANCE_33_FIELDS.filter(f => f.clusterKey === 'copyright').every(f => updated[f.key]?.status !== 'FLAGGED') },
+      };
+      if (selectedBiz.id) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(legacyClusters));
+      }
+      if (selectedBiz.taxCode) {
+        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(legacyClusters));
+      }
+
+      realtimeSyncBus.publish({
+        type: 'BUSINESS_FIELD_AUDIT_UPDATED',
+        payload: {
+          businessId: selectedBiz.id,
+          taxCode: selectedBiz.taxCode,
+          fields: updated,
+          flaggedCount: Object.values(updated).filter(v => v.status === 'FLAGGED').length,
+          validCount: 29 - Object.values(updated).filter(v => v.status === 'FLAGGED').length,
+          clusters: legacyClusters,
+        },
+      });
+
+      showToast?.({
+        title: 'Đã duyệt toàn bộ mục trong cụm',
+        message: `Tất cả ${clusterFields.length} trường của cụm đã được chuyển sang Hợp lệ.`,
+        type: 'success',
+      });
+
       return updated;
     });
   };
 
   const handleSendRevisionRequest = () => {
     if (!selectedBiz) return;
-    const flagged = Object.entries(clusterReview).filter(([_, v]) => !v.passed);
-    if (flagged.length === 0) {
+    if (flaggedFields.length === 0) {
       showToast?.({
-        title: 'Cả 4 cụm đều Đạt',
-        message: 'Không có cụm nào bị đánh dấu lỗi. Bạn có thể bấm Phê duyệt ngay!',
+        title: 'Hồ sơ đã hợp lệ 33/33 mục',
+        message: 'Không có mục nào bị đánh dấu lỗi. Bạn có thể bấm Phê duyệt ngay!',
         type: 'info',
       });
       return;
     }
 
     if (selectedBiz.id) {
-      localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(clusterReview));
-      if (selectedBiz.taxCode) {
-        localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(clusterReview));
-      }
-      realtimeSyncBus.publish({
-        type: 'BUSINESS_CLUSTER_AUDIT_UPDATED',
-        payload: {
-          businessId: selectedBiz.id,
-          clusters: clusterReview,
-        },
-      });
+      localStorage.setItem(`huki_business_field_audit_${selectedBiz.id}`, JSON.stringify(fieldReviews));
+      localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.id}`, JSON.stringify(derivedClusters));
+    }
+    if (selectedBiz.taxCode) {
+      localStorage.setItem(`huki_business_field_audit_${selectedBiz.taxCode}`, JSON.stringify(fieldReviews));
+      localStorage.setItem(`huki_business_cluster_audit_${selectedBiz.taxCode}`, JSON.stringify(derivedClusters));
     }
 
+    realtimeSyncBus.publish({
+      type: 'BUSINESS_FIELD_AUDIT_UPDATED',
+      payload: {
+        businessId: selectedBiz.id,
+        taxCode: selectedBiz.taxCode,
+        fields: fieldReviews,
+        flaggedCount: flaggedFields.length,
+        validCount: 29 - flaggedFields.length,
+        clusters: derivedClusters,
+      },
+    });
+
     showToast?.({
-      title: 'Đã gửi yêu cầu bổ sung hồ sơ',
-      message: `Đã phản hồi ${flagged.length} cụm cần chỉnh sửa tới đối tác "${selectedBiz.name}".`,
+      title: 'Đã gửi yêu cầu bổ sung',
+      message: `Đã phản hồi chi tiết ${flaggedFields.length} mục cần chỉnh sửa tới đối tác "${selectedBiz.name}".`,
       type: 'success',
     });
     setRequestRevisionModalOpen(false);
   };
 
   const renderClusterControl = (
-    clusterKey: 'legal' | 'representative' | 'copyright' | 'operation',
+    clusterKey: 'legal' | 'representative' | 'copyright',
     clusterNumber: number,
     clusterTitle: string,
     fieldCountText: string
   ) => {
-    const current = clusterReview[clusterKey];
-    const isPassed = current?.passed !== false;
+    const stats = derivedClusters[clusterKey];
+    const isPassed = stats.passed;
 
     return (
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div className="flex items-center gap-2.5">
           <span
             className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
-              isPassed ? 'bg-emerald-100 text-[#00875A]' : 'bg-amber-100 text-amber-800'
+              isPassed ? 'bg-[#003B2B] text-white' : 'bg-amber-100 text-amber-900'
             }`}
           >
             {clusterNumber}
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-extrabold text-gray-900">{clusterTitle}</h3>
-              <span className="text-[11px] font-medium text-gray-400">• {fieldCountText}</span>
+              <h3 className="text-sm font-bold text-slate-900">{clusterTitle}</h3>
+              <span className="text-[11px] font-medium text-slate-500">
+                • {stats.validCount}/{stats.totalCount} Hợp lệ
+              </span>
             </div>
-            {current?.note && !isPassed && (
-              <p className="text-xs text-amber-800 font-medium mt-0.5 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">edit_note</span>
-                <span>Ghi chú lỗi: {current.note}</span>
+            {!isPassed && stats.note && (
+              <p className="text-xs text-rose-800 font-medium mt-0.5">
+                Ghi chú: {stats.note}
               </p>
             )}
           </div>
@@ -302,37 +451,10 @@ export function AdminBusinessesView() {
         <div className="flex items-center gap-2 shrink-0">
           <button
             type="button"
-            onClick={() => updateClusterStatus(clusterKey, true)}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              isPassed
-                ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-            title="Đánh dấu cụm này Đạt tiêu chuẩn"
+            onClick={() => approveEntireCluster(clusterKey)}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-[#003B2B] hover:text-white transition-all cursor-pointer"
           >
-            <span className="material-symbols-outlined text-[15px]">check_circle</span>
-            <span>✓ Đạt</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              updateClusterStatus(clusterKey, false);
-              setEditingClusterNote({
-                key: clusterKey,
-                title: clusterTitle,
-                note: current?.note || '',
-              });
-            }}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              !isPassed
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'bg-gray-100 text-gray-600 hover:bg-amber-50 hover:text-amber-800'
-            }`}
-            title="Đánh dấu cụm này Chưa đạt / Cần sửa"
-          >
-            <span className="material-symbols-outlined text-[15px]">flag</span>
-            <span>{!isPassed ? '! Đã đánh dấu' : '! Đánh dấu'}</span>
+            Duyệt cả cụm
           </button>
         </div>
       </div>
@@ -486,32 +608,50 @@ export function AdminBusinessesView() {
       },
       {
         key: 'name',
-        title: 'Doanh nghiệp & MST',
+        title: 'Đối tác & Gian hàng',
         sortable: true,
-        render: (_val, biz) => (
-          <div className="flex items-center gap-2 py-0.5">
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-[11px] shrink-0">
-              {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span
-                  className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[280px] leading-tight"
-                  onClick={() => {
-                    setSelectedBiz(biz);
-                    setDetailTab('profile');
-                  }}
-                  title={biz.name}
-                >
-                  {biz.name}
-                </span>
-                <span className="text-[10px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
-                  MST: {biz.taxCode || 'Chưa cấp'}
-                </span>
+        render: (_val, biz) => {
+          const store = Array.isArray(biz.stores) && biz.stores.length > 0 ? biz.stores[0] : null;
+          const storeSlug = store?.slug || biz.slug;
+          return (
+            <div className="flex items-center gap-2 py-0.5">
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 border border-emerald-200/60 flex items-center justify-center text-emerald-800 font-bold text-[11px] shrink-0">
+                {biz.name ? biz.name.charAt(0).toUpperCase() : 'B'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span
+                    className="font-bold text-gray-900 hover:text-[#00875A] cursor-pointer text-xs truncate max-w-[260px] leading-tight"
+                    onClick={() => {
+                      setSelectedBiz(biz);
+                      setDetailTab('profile');
+                    }}
+                    title={biz.name}
+                  >
+                    {biz.name}
+                  </span>
+                  <span className="text-[10px] font-mono font-medium text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200/60 shrink-0">
+                    MST: {biz.taxCode || 'Chưa cấp'}
+                  </span>
+                  {storeSlug && (
+                    <a
+                      href={`/stores/${storeSlug}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-mono text-indigo-700 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-900 px-1.5 py-0.2 rounded border border-indigo-200/60 shrink-0 inline-flex items-center gap-0.5 transition-colors"
+                      title="Xem gian hàng mặt tiền trên sàn HuKi"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="material-symbols-outlined text-[11px]">storefront</span>
+                      <span>/{storeSlug}</span>
+                      <span className="material-symbols-outlined text-[10px] opacity-60">open_in_new</span>
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ),
+          );
+        },
       },
       {
         key: 'contact',
@@ -939,75 +1079,187 @@ export function AdminBusinessesView() {
     }
   };
 
-  // Helper render 1 ô thông tin thẩm định (Xanh / Đỏ / Vàng)
-  const renderFieldAuditCard = (fieldKey: any, defaultLabel: any, declaredVal: any) => {
+  // Helper render 1 ô thông tin thẩm định: Phân biệt Cổng Quốc Gia vs Thẩm Định Người
+  const renderFieldAuditCard = (fieldKey: string, defaultLabel: string, declaredVal: any) => {
     const audit = auditResult?.fields?.[fieldKey];
     const isPendingAudit = isAuditing || !audit;
 
-    const status = audit?.status || 'VALID';
-    const badge = audit?.badge || 'Đang kiểm tra...';
-    const message = audit?.message || '';
+    const review = fieldReviews[fieldKey];
+    const isFlagged = review?.status === 'FLAGGED';
+    const flagNote = review?.note || (isFlagged ? audit?.message : undefined);
 
-    // Style theo status
-    let cardBorder = 'border-gray-200 bg-white';
-    let badgeStyle = 'bg-gray-100 text-gray-700 border-gray-200';
-    let textColor = 'text-gray-900';
-    let icon = 'info';
-
-    if (status === 'VALID') {
-      cardBorder = 'border-emerald-200 bg-emerald-50/30';
-      badgeStyle = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-      textColor = 'text-emerald-950';
-      icon = 'check_circle';
-    } else if (status === 'INVALID') {
-      cardBorder = 'border-rose-300 bg-rose-50/50 ring-1 ring-rose-200';
-      badgeStyle = 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
-      textColor = 'text-rose-950';
-      icon = 'cancel';
-    } else if (status === 'WARNING') {
-      cardBorder = 'border-amber-200 bg-amber-50/40';
-      badgeStyle = 'bg-amber-100 text-amber-800 border-amber-300';
-      textColor = 'text-amber-950';
-      icon = 'warning';
-    }
+    // Chỉ có mã số thuế và tên doanh nghiệp là đối chiếu Cổng CSDL Quốc Gia
+    const isNationalRegistryField = fieldKey === 'tax_code' || fieldKey === 'company_name';
 
     return (
-      <div className={`p-3.5 rounded-xl border ${cardBorder} flex flex-col justify-between gap-2 transition-all`}>
+      <div
+        className={`p-3 rounded-xl border flex flex-col justify-between gap-1.5 transition-all ${
+          isFlagged
+            ? 'border-rose-300 bg-rose-50/40 ring-1 ring-rose-200'
+            : 'border-slate-200/80 bg-white hover:border-slate-300'
+        }`}
+      >
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-            {audit?.fieldLabel || defaultLabel}
+          <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider truncate">
+            {defaultLabel}
           </span>
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold border ${badgeStyle}`}>
-            <span className="material-symbols-outlined text-[13px]">{icon}</span>
-            <span>{isPendingAudit ? 'Đang so khớp...' : badge}</span>
-          </span>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isFlagged ? (
+              <>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300">
+                  Cần sửa
+                </span>
+                <button
+                  type="button"
+                  onClick={() => updateSingleFieldReview(fieldKey, 'VALID')}
+                  className="text-[11px] font-semibold text-[#003B2B] hover:underline px-1 py-0.5 transition-colors cursor-pointer"
+                  title="Đánh dấu Hợp lệ"
+                >
+                  Duyệt lại
+                </button>
+              </>
+            ) : (
+              <>
+                {isNationalRegistryField ? (
+                  <span
+                    className={`text-[10px] px-2 py-0.5 rounded font-medium ${
+                      audit?.status === 'VALID'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    }`}
+                  >
+                    {isPendingAudit ? 'Đang so khớp...' : audit?.status === 'VALID' ? 'Cổng Quốc Gia' : 'Chưa có CSDL'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Hợp lệ
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingFieldNote({
+                      key: fieldKey,
+                      label: defaultLabel,
+                      currentValue: declaredVal,
+                      note: flagNote || '',
+                    });
+                  }}
+                  className="text-[11px] text-slate-500 hover:text-rose-700 hover:underline px-1.5 py-0.5 rounded hover:bg-rose-50 transition-colors cursor-pointer"
+                  title="Báo lỗi mục này"
+                >
+                  Báo lỗi
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className={`text-xs font-semibold ${textColor} break-words leading-snug`}>
-          {String(declaredVal || audit?.declaredValue || '—')}
+        <div className="text-xs font-semibold text-slate-900 break-words leading-snug">
+          {String(declaredVal ?? '—')}
         </div>
 
-        {message && status !== 'NEUTRAL' && (
-          <div className="text-[11px] text-gray-500 pt-1 border-t border-gray-100 flex items-start gap-1">
-            <span className="text-gray-400">•</span>
-            <span className={status === 'INVALID' ? 'text-rose-700 font-medium' : 'text-gray-600'}>
-              {message}
-            </span>
+        {isFlagged && flagNote && (
+          <div className="text-[11px] text-rose-800 bg-rose-100/60 p-1.5 rounded border border-rose-200 font-medium leading-tight mt-0.5">
+            Lý do: {flagNote}
           </div>
         )}
       </div>
     );
   };
 
-  // =========================================================================
+    // Helper render 1 thẻ chứng từ scan: Tinh gọn, thanh lịch, dễ nhìn
+  const renderDocAuditCard = (docKey: string, title: string, imgUrl: string, description: string) => {
+    const review = fieldReviews[docKey];
+    const isFlagged = review?.status === 'FLAGGED';
+    const flagNote = review?.note;
+
+    return (
+      <div
+        className={`p-3.5 rounded-2xl border flex flex-col justify-between gap-2.5 transition-all ${
+          isFlagged ? 'border-rose-300 bg-rose-50/40 ring-1 ring-rose-200' : 'border-slate-200/80 bg-white hover:border-slate-300'
+        }`}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-slate-800">{title}</span>
+
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                isFlagged ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              }`}
+            >
+              {isFlagged ? 'Cần tải lại' : 'Đã tải lên'}
+            </span>
+
+            {isFlagged ? (
+              <button
+                type="button"
+                onClick={() => updateSingleFieldReview(docKey, 'VALID')}
+                className="text-[11px] font-semibold text-[#003B2B] hover:underline px-1 py-0.5 transition-colors cursor-pointer"
+              >
+                Duyệt lại
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingFieldNote({
+                    key: docKey,
+                    label: title,
+                    currentValue: 'Bản scan đính kèm',
+                    note: flagNote || '',
+                  });
+                }}
+                className="text-[11px] text-slate-400 hover:text-rose-700 hover:underline px-1 py-0.5 transition-colors cursor-pointer"
+              >
+                Báo lỗi
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div
+          onClick={() => {
+            setPreviewImageUrl(imgUrl);
+            setPreviewImageTitle(title);
+          }}
+          className="relative h-40 rounded-xl overflow-hidden bg-slate-100 cursor-pointer border border-slate-200 group flex items-center justify-center"
+        >
+          <img
+            src={imgUrl}
+            alt={title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 font-semibold text-xs">
+            <span>Phóng to xem</span>
+          </div>
+        </div>
+
+        <p className="text-[11px] text-slate-500 leading-tight">
+          {description}
+        </p>
+
+        {isFlagged && flagNote && (
+          <div className="text-[11px] text-rose-800 bg-rose-100/60 p-1.5 rounded border border-rose-200 font-medium">
+            Lý do: {flagNote}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+    // =========================================================================
   // VIEW 1: CHẾ ĐỘ XEM TOÀN TRANG (FULL PAGE INSPECTION VIEW) - KHÔNG DÙNG POPUP
   // =========================================================================
   if (selectedBiz) {
     const fullProfile = buildFullEnterpriseProfile(selectedBiz);
     const cfg = (STATUS_CONFIG as any)[selectedBiz.status] || STATUS_CONFIG.PENDING_APPROVAL;
     const isPending = selectedBiz.status === 'PENDING_APPROVAL';
-    const passedClusterCount = Object.values(clusterReview).filter((c) => c.passed).length;
-    const allClustersPassed = passedClusterCount === 4;
+    const passedClusterCount = Object.values(derivedClusters).filter((c) => c.passed).length;
+    const allClustersPassed = all33Passed;
 
     return (
       <div className="flex flex-col gap-3.5 w-full max-w-[1600px] mx-auto pb-16 animate-in fade-in duration-200">
@@ -1048,8 +1300,7 @@ export function AdminBusinessesView() {
                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
                   allClustersPassed ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-amber-100 text-amber-900 border border-amber-300'
                 }`}>
-                  <span className="material-symbols-outlined text-[15px]">{allClustersPassed ? 'done_all' : 'checklist'}</span>
-                  <span>{passedClusterCount}/4 Cụm Đạt</span>
+                  <span>{totalValidCount}/29 Mục Đạt ({passedClusterCount}/4 Cụm)</span>
                 </span>
 
                 <button
@@ -1071,7 +1322,7 @@ export function AdminBusinessesView() {
                     className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-xs cursor-pointer disabled:opacity-50"
                   >
                     <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    <span>Phê duyệt ngay (4/4 Cụm)</span>
+                    <span>Phê duyệt ngay (29/29 Đạt)</span>
                   </button>
                 ) : (
                   <button
@@ -1079,7 +1330,7 @@ export function AdminBusinessesView() {
                     className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-xs cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                    <span>Yêu cầu sửa ({4 - passedClusterCount} cụm)</span>
+                    <span>Yêu cầu sửa ({flaggedFields.length} mục)</span>
                   </button>
                 )}
               </>
@@ -1118,7 +1369,7 @@ export function AdminBusinessesView() {
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">storefront</span>
-            <span>Gian Hàng Liên Kết</span>
+            <span>Gian Hàng Chính Hãng</span>
             <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
               {selectedBiz.stores?.length || 0}
             </span>
@@ -1153,7 +1404,7 @@ export function AdminBusinessesView() {
                   KẾT QUẢ ĐỐI CHIẾU CSDL TỰ ĐỘNG
                 </span>
                 <span className="text-xs text-gray-400">•</span>
-                <span className="text-xs text-gray-300">Bộ máy thẩm định 33 trường</span>
+                <span className="text-xs text-gray-300">Bộ máy thẩm định pháp lý 29 trường</span>
               </div>
               <h2 className="text-lg font-bold text-white mt-1">
                 {auditResult?.overallStatus === 'PASS'
@@ -1172,21 +1423,23 @@ export function AdminBusinessesView() {
           <div className="flex items-center gap-3 shrink-0">
             <div className="px-4 py-2.5 rounded-xl bg-emerald-900/40 border border-emerald-500/30 text-center">
               <div className="text-xl font-extrabold text-emerald-400">
-                {auditResult?.validCount ?? '—'} / 33
+                {totalValidCount} / 29
               </div>
               <div className="text-[10px] font-bold text-emerald-200 uppercase tracking-wider">HỢP LỆ (XANH)</div>
             </div>
 
             <div className="px-4 py-2.5 rounded-xl bg-rose-900/40 border border-rose-500/30 text-center">
               <div className="text-xl font-extrabold text-rose-400">
-                {auditResult?.invalidCount ?? 0}
+                {flaggedFields.length}
               </div>
-              <div className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">SAI LỆCH (ĐỎ)</div>
+              <div className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">CẦN BỔ SUNG</div>
             </div>
 
             <div className="px-4 py-2.5 rounded-xl bg-amber-900/40 border border-amber-500/30 text-center">
-              <div className="text-xl font-extrabold text-amber-400">4</div>
-              <div className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">CHỨNG TỪ SOI MẮT</div>
+              <div className="text-xl font-extrabold text-amber-400">
+                {docClusterStats.validCount} / 4
+              </div>
+              <div className="text-[10px] font-bold text-amber-200 uppercase tracking-wider">CHỨNG TỪ ĐẠT</div>
             </div>
           </div>
         </div>
@@ -1216,7 +1469,7 @@ export function AdminBusinessesView() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 4. KHỐI 2: NGƯỜI ĐẠI DIỆN PHÁP LUẬT (8 TRƯỜNG) */}
+        {/* 4. CỤM 2: NGƯỜI ĐẠI DIỆN PHÁP LUẬT (8 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
           {renderClusterControl('representative', 2, 'Cụm 2: Người Đại Diện Pháp Luật & CCCD', '8 Trường Dữ Liệu')}
@@ -1234,21 +1487,7 @@ export function AdminBusinessesView() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 5. KHỐI 3: TÀI KHOẢN NGÂN HÀNG & THANH TOÁN (4 TRƯỜNG) */}
-        {/* ========================================================================= */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          {renderClusterControl('operation', 4, 'Cụm 4: Tài Khoản Ngân Hàng & Tuyến Kho Đối Soát', '4 Trường Dữ Liệu')}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {renderFieldAuditCard('bank_name', 'Ngân hàng thụ hưởng', fullProfile.bank_name)}
-            {renderFieldAuditCard('bank_branch', 'Chi nhánh ngân hàng', fullProfile.bank_branch)}
-            {renderFieldAuditCard('bank_account_number', 'Số tài khoản', fullProfile.bank_account_number)}
-            {renderFieldAuditCard('bank_account_holder_name', 'Tên chủ tài khoản (AML)', fullProfile.bank_account_holder_name)}
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 6. KHỐI 4: HỒ SƠ NĂNG LỰC & XUẤT BẢN (5 TRƯỜNG) */}
+        {/* 5. CỤM 3: HỒ SƠ NĂNG LỰC & XUẤT BẢN (5 TRƯỜNG) */}
         {/* ========================================================================= */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
           {renderClusterControl('copyright', 3, 'Cụm 3: Hồ Sơ Năng Lực & Tiêu Chuẩn Bản Quyền Sách', '5 Trường Dữ Liệu')}
@@ -1265,142 +1504,130 @@ export function AdminBusinessesView() {
         </div>
 
         {/* ========================================================================= */}
-        {/* 7. KHỐI 5: TÀI LIỆU MINH CHỨNG & SCAN (ADMIN TỰ MẮT THẨM ĐỊNH) */}
+        {/* 6. CỤM 4: TÀI LIỆU MINH CHỨNG & SCAN (ADMIN TỰ MẮT THẨM ĐỊNH) */}
         {/* ========================================================================= */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-2xs flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col gap-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2.5">
-              <span className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-xs">
-                5
+              <span className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs ${
+                docClusterStats.allPassed ? 'bg-[#003B2B] text-white' : 'bg-amber-100 text-amber-900'
+              }`}>
+                4
               </span>
               <div>
-                <h3 className="text-sm font-extrabold text-gray-900">
-                  Form 5: Tài Liệu Minh Chứng (Admin Tự Mắt Thẩm Định)
-                </h3>
-                <p className="text-[11px] text-gray-500">
-                  Bấm vào từng ảnh để phóng to toàn màn hình và đối chiếu con dấu đỏ, chữ ký, chân dung người đại diện
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Cụm 4: Tài Liệu Minh Chứng (Admin Tự Mắt Thẩm Định)
+                  </h3>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    • {docClusterStats.validCount}/{docClusterStats.totalCount} Đạt
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Bấm vào ảnh để phóng to đối chiếu con dấu, số văn bản. Duyệt hoặc báo lỗi cho từng bản scan bên dưới.
                 </p>
               </div>
             </div>
-            <span className="text-xs font-bold text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
-              4 Tài Liệu Scan
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => approveEntireCluster('documents')}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-[#003B2B] hover:text-white transition-all cursor-pointer"
+              >
+                Duyệt cả cụm
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Doc 1: GPKD */}
-            <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col gap-2.5 group hover:border-[#00875A] transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800">Scan GPKD (Dấu Đỏ)</span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Đã tải lên</span>
-              </div>
-              <div
-                onClick={() => {
-                  setPreviewImageUrl(fullProfile.document_business_license);
-                  setPreviewImageTitle('Bản Scan Giấy Phép Đăng Ký Kinh Doanh (GPKD)');
-                }}
-                className="relative h-44 rounded-xl overflow-hidden bg-gray-200 cursor-pointer border border-gray-300 group-hover:shadow-md transition-all flex items-center justify-center"
-              >
-                <img
-                  src={fullProfile.document_business_license}
-                  alt="Scan GPKD"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 font-bold text-xs">
-                  <span className="material-symbols-outlined text-[20px]">zoom_in</span>
-                  <span>Phóng to soi dấu</span>
+            {renderDocAuditCard(
+              'document_business_license',
+              'Scan GPKD (Dấu Đỏ)',
+              fullProfile.document_business_license,
+              'Admin soi con dấu đỏ của Sở Kế hoạch & Đầu tư và số MST trên giấy.'
+            )}
+            {renderDocAuditCard(
+              'document_id_front',
+              'CCCD Mặt Trước',
+              fullProfile.document_id_front,
+              'Admin đối chiếu ảnh chân dung, họ tên và số CCCD 12 chữ số.'
+            )}
+            {renderDocAuditCard(
+              'document_id_back',
+              'CCCD Mặt Sau',
+              fullProfile.document_id_back,
+              'Admin kiểm tra đặc điểm nhận dạng, vân tay và ngày cấp của Cục CSQLHC.'
+            )}
+            {renderDocAuditCard(
+              'document_publishing_permit',
+              'Giấy Phép Xuất Bản',
+              fullProfile.document_publishing_permit,
+              'Admin đối chiếu giấy phép của Cục Xuất Bản hoặc Giấy ủy quyền phân phối.'
+            )}
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* 7. THÔNG TIN THAM KHẢO: TÀI KHOẢN NGÂN HÀNG & ĐỐI SOÁT (SELLER TỰ THIẾT LẬP SAU DUYỆT) */}
+        {/* ========================================================================= */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center font-bold text-xs">
+                <span className="material-symbols-outlined text-[16px]">account_balance</span>
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-slate-900">Tài Khoản Ngân Hàng Nhận Doanh Thu & Đối Soát</h3>
+                  <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Seller tự liên kết sau duyệt
+                  </span>
                 </div>
+                <p className="text-[11px] text-slate-500">
+                  Theo quy trình HuKi, tài khoản ngân hàng do đối tác tự thiết lập tại bước Onboarding sau khi hồ sơ pháp lý được duyệt. Không chặn xét duyệt hồ sơ ban đầu.
+                </p>
               </div>
-              <p className="text-[11px] text-gray-500 leading-tight">
-                Admin soi con dấu đỏ của Sở Kế hoạch &amp; Đầu tư và số MST trên giấy.
-              </p>
             </div>
 
-            {/* Doc 2: CCCD Mặt Trước */}
-            <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col gap-2.5 group hover:border-[#00875A] transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800">CCCD Mặt Trước</span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Đã tải lên</span>
-              </div>
-              <div
-                onClick={() => {
-                  setPreviewImageUrl(fullProfile.document_id_front);
-                  setPreviewImageTitle('Ảnh Căn Cước Công Dân (Mặt Trước)');
-                }}
-                className="relative h-44 rounded-xl overflow-hidden bg-gray-200 cursor-pointer border border-gray-300 group-hover:shadow-md transition-all flex items-center justify-center"
-              >
-                <img
-                  src={fullProfile.document_id_front}
-                  alt="CCCD Mặt Trước"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 font-bold text-xs">
-                  <span className="material-symbols-outlined text-[20px]">zoom_in</span>
-                  <span>Phóng to xem ảnh</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-tight">
-                Admin đối chiếu ảnh chân dung, họ tên và số CCCD 12 chữ số.
-              </p>
+            {selectedBiz.bankAccountNumber ? (
+              <span className="text-xs font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 self-start sm:self-auto">
+                Đã liên kết tài khoản
+              </span>
+            ) : (
+              <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg self-start sm:self-auto">
+                Chưa liên kết (Sẽ nhập tại bước Setup)
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Ngân hàng thụ hưởng</span>
+              <span className="font-semibold text-slate-900 mt-1 block">
+                {selectedBiz.bankName || 'Chưa thiết lập'}
+              </span>
             </div>
 
-            {/* Doc 3: CCCD Mặt Sau */}
-            <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col gap-2.5 group hover:border-[#00875A] transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800">CCCD Mặt Sau</span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Đã tải lên</span>
-              </div>
-              <div
-                onClick={() => {
-                  setPreviewImageUrl(fullProfile.document_id_back);
-                  setPreviewImageTitle('Ảnh Căn Cước Công Dân (Mặt Sau)');
-                }}
-                className="relative h-44 rounded-xl overflow-hidden bg-gray-200 cursor-pointer border border-gray-300 group-hover:shadow-md transition-all flex items-center justify-center"
-              >
-                <img
-                  src={fullProfile.document_id_back}
-                  alt="CCCD Mặt Sau"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 font-bold text-xs">
-                  <span className="material-symbols-outlined text-[20px]">zoom_in</span>
-                  <span>Phóng to xem ảnh</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-tight">
-                Admin kiểm tra đặc điểm nhận dạng, vân tay và ngày cấp của Cục CSQLHC.
-              </p>
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Chi nhánh</span>
+              <span className="font-semibold text-slate-900 mt-1 block">
+                {selectedBiz.bankBranch || 'Chưa thiết lập'}
+              </span>
             </div>
 
-            {/* Doc 4: Giấy phép xuất bản */}
-            <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50 flex flex-col gap-2.5 group hover:border-[#00875A] transition-all">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-800">Giấy Phép Xuất Bản</span>
-                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">Đã tải lên</span>
-              </div>
-              <div
-                onClick={() => {
-                  setPreviewImageUrl(fullProfile.document_publishing_permit);
-                  setPreviewImageTitle('Giấy Phép Hoạt Động Xuất Bản / Hợp Đồng Ủy Quyền');
-                }}
-                className="relative h-44 rounded-xl overflow-hidden bg-gray-200 cursor-pointer border border-gray-300 group-hover:shadow-md transition-all flex items-center justify-center"
-              >
-                <img
-                  src={fullProfile.document_publishing_permit}
-                  alt="Giấy Phép Xuất Bản"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1 font-bold text-xs">
-                  <span className="material-symbols-outlined text-[20px]">zoom_in</span>
-                  <span>Phóng to xem giấy phép</span>
-                </div>
-              </div>
-              <p className="text-[11px] text-gray-500 leading-tight">
-                Admin đối chiếu giấy phép của Cục Xuất Bản hoặc Giấy ủy quyền phân phối.
-              </p>
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Số tài khoản</span>
+              <span className="font-mono font-semibold text-slate-900 mt-1 block">
+                {selectedBiz.bankAccountNumber || 'Chưa thiết lập'}
+              </span>
             </div>
 
+            <div className="p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase block">Tên chủ tài khoản</span>
+              <span className="font-semibold text-slate-900 mt-1 block">
+                {selectedBiz.bankAccountHolderName || selectedBiz.name || 'Chưa thiết lập'}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -1441,7 +1668,7 @@ export function AdminBusinessesView() {
                     className="px-6 py-2.5 rounded-xl bg-[#00875A] hover:bg-[#00704A] text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    <span>Phê duyệt hồ sơ này (4/4 Cụm Đạt)</span>
+                    <span>Phê duyệt hồ sơ này (29/29 Đạt)</span>
                   </button>
                 ) : (
                   <button
@@ -1449,7 +1676,7 @@ export function AdminBusinessesView() {
                     className="px-6 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition-all shadow-md cursor-pointer flex items-center gap-1.5"
                   >
                     <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                    <span>Yêu cầu bổ sung hồ sơ ({4 - passedClusterCount} cụm chưa đạt)</span>
+                    <span>Yêu cầu bổ sung hồ sơ ({flaggedFields.length} mục chưa đạt)</span>
                   </button>
                 )}
               </>
@@ -1651,6 +1878,156 @@ export function AdminBusinessesView() {
           </div>
         )}
 
+      
+        {/* MODAL: BÁO LỖI / YÊU CẦU CHỈNH SỬA TỪNG MỤC (CHUYÊN VIÊN THẨM ĐỊNH) */}
+        {editingFieldNote && (
+          <CustomModal
+            isOpen={true}
+            onClose={() => setEditingFieldNote(null)}
+            title={`Báo Lỗi Mục: ${editingFieldNote.label}`}
+            size="md"
+          >
+            <div className="p-4 flex flex-col gap-3.5">
+              <div>
+                <div className="text-xs font-medium text-slate-500">Dữ liệu đối tác đã nộp:</div>
+                <div className="text-xs font-semibold text-slate-900 font-mono mt-0.5 bg-slate-50 p-2 rounded border border-slate-200 break-words">
+                  {String(editingFieldNote.currentValue || '—')}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-xs font-semibold text-slate-700 mb-1.5">Chọn nhanh lý do thẩm định:</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {(editingFieldNote.key.startsWith('document_')
+                    ? [
+                        'Bản scan bị mờ / chói sáng',
+                        'Con dấu đỏ không rõ nét',
+                        'Ảnh bị cắt góc / thiếu thông tin',
+                        'Hết thời hạn hiệu lực',
+                      ]
+                    : editingFieldNote.key.includes('bank_')
+                    ? [
+                        'Sai tên chủ tài khoản thụ hưởng',
+                        'Số tài khoản không chính xác',
+                        'Chi nhánh ngân hàng không khớp hồ sơ',
+                      ]
+                    : editingFieldNote.key.includes('rep_')
+                    ? [
+                        'Họ tên không khớp CCCD',
+                        'Số CCCD không khớp bản scan',
+                        'Ngày cấp / Nơi cấp CCCD chưa chính xác',
+                        'Địa chỉ thường trú không khớp',
+                      ]
+                    : editingFieldNote.key.includes('license') || editingFieldNote.key.includes('publishing')
+                    ? [
+                        'Số giấy phép không khớp bản scan',
+                        'Ngày cấp giấy phép chưa khớp',
+                        'Chưa có ủy quyền phát hành hợp pháp',
+                      ]
+                    : [
+                        'Sai thông tin so với CSDL',
+                        'Thông tin không khớp bản scan',
+                        'Địa chỉ không chính xác / thiếu cấp xã',
+                        'Yêu cầu kiểm tra và khai báo lại',
+                      ]
+                  ).map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setEditingFieldNote({ ...editingFieldNote, note: preset })}
+                      className="text-[11px] px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-[#003B2B]/10 hover:text-[#003B2B] border border-slate-200 transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 block mb-1">
+                  Lời nhắn gửi đối tác (Hiển thị trực tiếp bên trang Seller):
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingFieldNote.note}
+                  onChange={(e) => setEditingFieldNote({ ...editingFieldNote, note: e.target.value })}
+                  placeholder="VD: Số giấy phép trên bản scan khác với số đã nhập, vui lòng kiểm tra và nhập lại..."
+                  className="w-full text-xs p-2.5 border border-slate-300 rounded-xl focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingFieldNote(null)}
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateSingleFieldReview(editingFieldNote.key, 'FLAGGED', editingFieldNote.note.trim() || 'Chưa đạt yêu cầu thẩm định');
+                    setEditingFieldNote(null);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold hover:bg-rose-800 cursor-pointer"
+                >
+                  Lưu Báo Lỗi
+                </button>
+              </div>
+            </div>
+          </CustomModal>
+        )}
+
+        {/* MODAL: XÁC NHẬN GỬI YÊU CẦU BỔ SUNG HỒ SƠ */}
+        {requestRevisionModalOpen && (
+          <CustomModal
+            isOpen={true}
+            onClose={() => setRequestRevisionModalOpen(false)}
+            title={`Yêu Cầu Bổ Sung Hồ Sơ (${flaggedFields.length} Mục Chưa Đạt)`}
+            size="md"
+          >
+            <div className="p-4 flex flex-col gap-3.5">
+              <div className="p-3 bg-[#FEF3E2] border border-amber-300 rounded-xl text-xs text-amber-950 leading-relaxed">
+                Bạn đang yêu cầu doanh nghiệp <strong>{selectedBiz?.name}</strong> bổ sung lại <strong>{flaggedFields.length} mục</strong> sau đây. Lời nhắn sẽ được gửi trực tiếp tới trang đối tác:
+              </div>
+
+              <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+                {flaggedFields.map((f) => (
+                  <div key={f.key} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                    <div className="font-bold text-slate-800 flex items-center justify-between">
+                      <span>{f.label}</span>
+                      <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                        Cần bổ sung
+                      </span>
+                    </div>
+                    <div className="text-slate-600 mt-1 text-[11px] leading-snug">
+                      Lời nhắn: {f.review?.note || 'Yêu cầu kiểm tra và chỉnh sửa lại'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRequestRevisionModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendRevisionRequest}
+                  className="px-5 py-2 rounded-xl bg-[#003B2B] text-white text-xs font-bold hover:bg-[#00281d] shadow-2xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <span>Gửi Yêu Cầu Chỉnh Sửa</span>
+                </button>
+              </div>
+            </div>
+          </CustomModal>
+        )}
+
       </div>
     );
   }
@@ -1666,7 +2043,7 @@ export function AdminBusinessesView() {
           <h1 className="text-lg sm:text-xl font-bold text-gray-900 tracking-tight font-editorial">
             Thẩm Định Pháp Lý &amp; Mã Số Thuế Doanh Nghiệp
           </h1>
-          <p className="text-xs text-gray-500 mt-1">Thẩm định hồ sơ đối tác pháp nhân, đối chiếu CSDL Tổng cục Thuế và phê duyệt mở bán theo 4 cụm tiêu chuẩn</p>
+          <p className="text-xs text-gray-500 mt-1">Quản lý 1:1 Đối tác pháp lý & Gian hàng mặt tiền chính hãng, thẩm định MST và duyệt mở bán trên sàn HuKi</p>
         </div>
 
         <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
@@ -1987,42 +2364,75 @@ export function AdminBusinessesView() {
         </CustomModal>
       )}
 
-      {/* MODAL: NHẬP GHI CHÚ YÊU CẦU CHỈNH SỬA CHO CỤM */}
-      {editingClusterNote && (
+      {/* MODAL: BÁO LỖI / YÊU CẦU CHỈNH SỬA TỪNG MỤC */}
+      {editingFieldNote && (
         <CustomModal
           isOpen={true}
-          onClose={() => setEditingClusterNote(null)}
-          title={`Ghi Chú Đánh Dấu: ${editingClusterNote.title}`}
+          onClose={() => setEditingFieldNote(null)}
+          title={`Báo Lỗi Mục: ${editingFieldNote.label}`}
           size="md"
         >
-          <div className="p-4 flex flex-col gap-3">
-            <p className="text-xs text-slate-600">
-              Nhập chi tiết lỗi hoặc tài liệu cần đối tác chỉnh sửa / bổ sung lại:
-            </p>
-            <textarea
-              rows={3}
-              value={editingClusterNote.note}
-              onChange={(e) => setEditingClusterNote({ ...editingClusterNote, note: e.target.value })}
-              placeholder="VD: Ảnh chụp CCCD mặt sau bị mờ, vui lòng chụp lại rõ số..."
-              className="w-full text-xs p-3 border border-slate-300 rounded-xl focus:border-amber-500 focus:ring-1 focus:ring-amber-500 outline-none"
-            />
+          <div className="p-4 flex flex-col gap-3.5">
+            <div>
+              <div className="text-xs font-medium text-slate-500">Dữ liệu đối tác đã nộp:</div>
+              <div className="text-xs font-semibold text-slate-900 font-mono mt-0.5 bg-slate-50 p-2 rounded border border-slate-200 break-words">
+                {String(editingFieldNote.currentValue || '—')}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold text-slate-700 mb-1.5">Chọn nhanh lý do mẫu:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Sai thông tin so với CSDL',
+                  'Bản scan bị mờ / chói sáng',
+                  'Con dấu đỏ không rõ nét',
+                  'Hết thời hạn hiệu lực',
+                  'Thiếu tài liệu đính kèm',
+                  'Thông tin không khớp bản scan',
+                ].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setEditingFieldNote({ ...editingFieldNote, note: preset })}
+                    className="text-[11px] px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 hover:bg-[#003B2B]/10 hover:text-[#003B2B] border border-slate-200 transition-colors cursor-pointer"
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 block mb-1">
+                Lời nhắn gửi đối tác (Hiển thị trực tiếp bên trang Seller):
+              </label>
+              <textarea
+                rows={3}
+                value={editingFieldNote.note}
+                onChange={(e) => setEditingFieldNote({ ...editingFieldNote, note: e.target.value })}
+                placeholder="VD: Số giấy phép trên bản scan khác với số đã nhập, vui lòng kiểm tra và nhập lại..."
+                className="w-full text-xs p-2.5 border border-slate-300 rounded-xl focus:border-[#003B2B] focus:ring-1 focus:ring-[#003B2B] outline-none"
+              />
+            </div>
+
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setEditingClusterNote(null)}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+                onClick={() => setEditingFieldNote(null)}
+                className="px-3.5 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
               >
-                Đóng
+                Hủy
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  updateClusterStatus(editingClusterNote.key, false, editingClusterNote.note.trim());
-                  setEditingClusterNote(null);
+                  updateSingleFieldReview(editingFieldNote.key, 'FLAGGED', editingFieldNote.note.trim() || 'Chưa đạt yêu cầu thẩm định');
+                  setEditingFieldNote(null);
                 }}
-                className="px-4 py-1.5 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-rose-700 text-white text-xs font-bold hover:bg-rose-800 cursor-pointer"
               >
-                Lưu ghi chú
+                Lưu Báo Lỗi
               </button>
             </div>
           </div>
@@ -2034,34 +2444,28 @@ export function AdminBusinessesView() {
         <CustomModal
           isOpen={true}
           onClose={() => setRequestRevisionModalOpen(false)}
-          title="Xác Nhận Yêu Cầu Bổ Sung Hồ Sơ"
+          title={`Yêu Cầu Bổ Sung Hồ Sơ (${flaggedFields.length} Mục Chưa Đạt)`}
           size="md"
         >
           <div className="p-4 flex flex-col gap-3.5">
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 leading-relaxed">
-              Bạn đang yêu cầu doanh nghiệp <strong>{selectedBiz?.name}</strong> bổ sung hồ sơ theo các cụm được đánh dấu dưới đây:
+            <div className="p-3 bg-[#FEF3E2] border border-amber-300 rounded-xl text-xs text-amber-950 leading-relaxed">
+              Bạn đang yêu cầu doanh nghiệp <strong>{selectedBiz?.name}</strong> bổ sung lại <strong>{flaggedFields.length} mục</strong> sau đây. Lời nhắn sẽ được gửi trực tiếp tới trang đối tác:
             </div>
 
-            <div className="space-y-2">
-              {Object.entries(clusterReview).filter(([_, v]) => !v.passed).map(([k, v]) => {
-                const names: Record<string, string> = {
-                  legal: 'Cụm 1: Pháp Lý & Mã Số Thuế',
-                  representative: 'Cụm 2: Người Đại Diện Pháp Luật & CCCD',
-                  copyright: 'Cụm 3: Tiêu Chuẩn Sách & Bản Quyền',
-                  operation: 'Cụm 4: Kho Hàng & Tài Khoản Ngân Hàng',
-                };
-                return (
-                  <div key={k} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
-                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[15px] text-amber-600">flag</span>
-                      <span>{names[k]}</span>
-                    </div>
-                    <div className="text-slate-600 mt-1 text-[11px]">
-                      Ghi chú: {v.note || 'Yêu cầu kiểm tra và chỉnh sửa lại'}
-                    </div>
+            <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
+              {flaggedFields.map((f) => (
+                <div key={f.key} className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+                  <div className="font-bold text-slate-800 flex items-center justify-between">
+                    <span>{f.label}</span>
+                    <span className="text-[10px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                      Cần bổ sung
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="text-slate-600 mt-1 text-[11px] leading-snug">
+                    Lời nhắn: {f.review?.note || 'Yêu cầu kiểm tra và chỉnh sửa lại'}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -2075,9 +2479,8 @@ export function AdminBusinessesView() {
               <button
                 type="button"
                 onClick={handleSendRevisionRequest}
-                className="px-5 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 shadow-2xs cursor-pointer flex items-center gap-1.5"
+                className="px-5 py-2 rounded-xl bg-[#003B2B] text-white text-xs font-bold hover:bg-[#00281d] shadow-2xs cursor-pointer flex items-center gap-1.5"
               >
-                <span className="material-symbols-outlined text-[16px]">send</span>
                 <span>Gửi Yêu Cầu Chỉnh Sửa</span>
               </button>
             </div>
